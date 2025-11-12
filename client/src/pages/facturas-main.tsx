@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileText, TrendingUp, BarChart3 } from "lucide-react";
 import { FacturasTable } from "@/components/facturas/facturas-table";
@@ -81,15 +82,109 @@ export default function FacturasMainPage() {
 }
 
 function SolicitudCreditoForm() {
+  const { toast } = useToast();
+  const [formData, setFormData] = useState({
+    razonSocial: '',
+    rut: '',
+    direccion: '',
+    ciudad: '',
+    telefono: '',
+    giro: '',
+    correo: '',
+    socio1Nombre: '',
+    socio1Direccion: '',
+    socio2Nombre: '',
+    socio2Direccion: '',
+    representanteNombre: '',
+    representanteCedula: '',
+    banco1: '',
+    cuenta1: '',
+    sucursal1: '',
+    banco2: '',
+    cuenta2: '',
+    sucursal2: '',
+    creditoSolicitado: '',
+    creditoAprobado: ''
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement credit request submission logic
-    console.log('Solicitud de crédito enviada');
+    
+    // Validación básica de campos requeridos
+    if (!formData.razonSocial || !formData.rut || !formData.direccion || !formData.ciudad || !formData.telefono || !formData.creditoSolicitado) {
+      toast({
+        title: "Campos incompletos",
+        description: "Por favor completa todos los campos obligatorios marcados con *",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Simular envío exitoso
+    console.log('Solicitud de crédito enviada:', formData);
+    
+    toast({
+      title: "Solicitud enviada",
+      description: "Tu solicitud de crédito ha sido enviada exitosamente y será revisada pronto.",
+      variant: "default"
+    });
+
+    // Limpiar formulario
+    setFormData({
+      razonSocial: '',
+      rut: '',
+      direccion: '',
+      ciudad: '',
+      telefono: '',
+      giro: '',
+      correo: '',
+      socio1Nombre: '',
+      socio1Direccion: '',
+      socio2Nombre: '',
+      socio2Direccion: '',
+      representanteNombre: '',
+      representanteCedula: '',
+      banco1: '',
+      cuenta1: '',
+      sucursal1: '',
+      banco2: '',
+      cuenta2: '',
+      sucursal2: '',
+      creditoSolicitado: '',
+      creditoAprobado: ''
+    });
   };
 
   const handleCancel = () => {
-    // TODO: Implement cancel/reset logic
-    console.log('Solicitud cancelada');
+    setFormData({
+      razonSocial: '',
+      rut: '',
+      direccion: '',
+      ciudad: '',
+      telefono: '',
+      giro: '',
+      correo: '',
+      socio1Nombre: '',
+      socio1Direccion: '',
+      socio2Nombre: '',
+      socio2Direccion: '',
+      representanteNombre: '',
+      representanteCedula: '',
+      banco1: '',
+      cuenta1: '',
+      sucursal1: '',
+      banco2: '',
+      cuenta2: '',
+      sucursal2: '',
+      creditoSolicitado: '',
+      creditoAprobado: ''
+    });
+    
+    toast({
+      title: "Formulario limpiado",
+      description: "Se han borrado todos los datos del formulario.",
+      variant: "default"
+    });
   };
 
   return (
@@ -109,6 +204,8 @@ function SolicitudCreditoForm() {
                 </label>
                 <input
                   type="text"
+                  value={formData.razonSocial}
+                  onChange={(e) => setFormData({...formData, razonSocial: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Razón Social"
                   data-testid="input-razon-social"
@@ -121,6 +218,8 @@ function SolicitudCreditoForm() {
                 </label>
                 <input
                   type="text"
+                  value={formData.rut}
+                  onChange={(e) => setFormData({...formData, rut: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="12.345.678-9"
                   data-testid="input-rut"
@@ -135,6 +234,8 @@ function SolicitudCreditoForm() {
                 </label>
                 <input
                   type="text"
+                  value={formData.direccion}
+                  onChange={(e) => setFormData({...formData, direccion: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Dirección"
                   data-testid="input-direccion"
@@ -147,6 +248,8 @@ function SolicitudCreditoForm() {
                 </label>
                 <input
                   type="text"
+                  value={formData.ciudad}
+                  onChange={(e) => setFormData({...formData, ciudad: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Ciudad"
                   data-testid="input-ciudad"
@@ -161,6 +264,8 @@ function SolicitudCreditoForm() {
                 </label>
                 <input
                   type="tel"
+                  value={formData.telefono}
+                  onChange={(e) => setFormData({...formData, telefono: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="+56 9 1234 5678"
                   data-testid="input-telefono"
@@ -173,6 +278,8 @@ function SolicitudCreditoForm() {
                 </label>
                 <input
                   type="text"
+                  value={formData.giro}
+                  onChange={(e) => setFormData({...formData, giro: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Giro comercial"
                   data-testid="input-giro"
@@ -186,6 +293,8 @@ function SolicitudCreditoForm() {
               </label>
               <input
                 type="email"
+                value={formData.correo}
+                onChange={(e) => setFormData({...formData, correo: e.target.value})}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="correo@ejemplo.com"
                 data-testid="input-correo"
@@ -203,6 +312,8 @@ function SolicitudCreditoForm() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Socio 1</label>
                   <input
                     type="text"
+                    value={formData.socio1Nombre}
+                    onChange={(e) => setFormData({...formData, socio1Nombre: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Nombre completo"
                     data-testid="input-socio-1-nombre"
@@ -212,6 +323,8 @@ function SolicitudCreditoForm() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Dirección Particular</label>
                   <input
                     type="text"
+                    value={formData.socio1Direccion}
+                    onChange={(e) => setFormData({...formData, socio1Direccion: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Dirección"
                     data-testid="input-socio-1-direccion"
@@ -224,6 +337,8 @@ function SolicitudCreditoForm() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Socio 2</label>
                   <input
                     type="text"
+                    value={formData.socio2Nombre}
+                    onChange={(e) => setFormData({...formData, socio2Nombre: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Nombre completo"
                     data-testid="input-socio-2-nombre"
@@ -233,6 +348,8 @@ function SolicitudCreditoForm() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Dirección Particular</label>
                   <input
                     type="text"
+                    value={formData.socio2Direccion}
+                    onChange={(e) => setFormData({...formData, socio2Direccion: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Dirección"
                     data-testid="input-socio-2-direccion"
@@ -251,6 +368,8 @@ function SolicitudCreditoForm() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
                 <input
                   type="text"
+                  value={formData.representanteNombre}
+                  onChange={(e) => setFormData({...formData, representanteNombre: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Nombre completo"
                   data-testid="input-representante-nombre"
@@ -261,6 +380,8 @@ function SolicitudCreditoForm() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Cédula de Identidad</label>
                 <input
                   type="text"
+                  value={formData.representanteCedula}
+                  onChange={(e) => setFormData({...formData, representanteCedula: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="12.345.678-9"
                   data-testid="input-representante-cedula"
@@ -279,6 +400,8 @@ function SolicitudCreditoForm() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Banco</label>
                   <input
                     type="text"
+                    value={formData.banco1}
+                    onChange={(e) => setFormData({...formData, banco1: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Nombre del banco"
                     data-testid="input-banco-1"
@@ -288,6 +411,8 @@ function SolicitudCreditoForm() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Cta. Cte. Nº</label>
                   <input
                     type="text"
+                    value={formData.cuenta1}
+                    onChange={(e) => setFormData({...formData, cuenta1: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Número de cuenta"
                     data-testid="input-cuenta-1"
@@ -297,6 +422,8 @@ function SolicitudCreditoForm() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal</label>
                   <input
                     type="text"
+                    value={formData.sucursal1}
+                    onChange={(e) => setFormData({...formData, sucursal1: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Sucursal"
                     data-testid="input-sucursal-1"
@@ -309,6 +436,8 @@ function SolicitudCreditoForm() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Banco</label>
                   <input
                     type="text"
+                    value={formData.banco2}
+                    onChange={(e) => setFormData({...formData, banco2: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Nombre del banco"
                     data-testid="input-banco-2"
@@ -318,6 +447,8 @@ function SolicitudCreditoForm() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Cta. Cte. Nº</label>
                   <input
                     type="text"
+                    value={formData.cuenta2}
+                    onChange={(e) => setFormData({...formData, cuenta2: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Número de cuenta"
                     data-testid="input-cuenta-2"
@@ -327,6 +458,8 @@ function SolicitudCreditoForm() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal</label>
                   <input
                     type="text"
+                    value={formData.sucursal2}
+                    onChange={(e) => setFormData({...formData, sucursal2: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Sucursal"
                     data-testid="input-sucursal-2"
@@ -349,6 +482,8 @@ function SolicitudCreditoForm() {
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                   <input
                     type="number"
+                    value={formData.creditoSolicitado}
+                    onChange={(e) => setFormData({...formData, creditoSolicitado: e.target.value})}
                     className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="0"
                     data-testid="input-credito-solicitado"
@@ -364,6 +499,8 @@ function SolicitudCreditoForm() {
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                   <input
                     type="number"
+                    value={formData.creditoAprobado}
+                    onChange={(e) => setFormData({...formData, creditoAprobado: e.target.value})}
                     className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 bg-green-50"
                     placeholder="0"
                     data-testid="input-credito-aprobado"
