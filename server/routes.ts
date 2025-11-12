@@ -10515,6 +10515,75 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // GET gasto by ID
+  app.get('/api/cmms/gastos-materiales/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const gasto = await storage.getGastoMaterialMantencionById(req.params.id);
+      if (!gasto) {
+        return res.status(404).json({ message: 'Gasto no encontrado' });
+      }
+      res.json(gasto);
+    } catch (error: any) {
+      console.error('Error al obtener gasto:', error);
+      res.status(500).json({ message: 'Error al obtener gasto', error: error.message });
+    }
+  }));
+
+  // POST create gasto
+  app.post('/api/cmms/gastos-materiales', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const validatedData = insertGastoMaterialMantencionSchema.parse(req.body);
+      const gasto = await storage.createGastoMaterialMantencion(validatedData);
+      res.status(201).json(gasto);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      console.error('Error al crear gasto:', error);
+      res.status(500).json({ message: 'Error al crear gasto', error: error.message });
+    }
+  }));
+
+  // PATCH update gasto
+  app.patch('/api/cmms/gastos-materiales/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const validatedData = insertGastoMaterialMantencionSchema.partial().parse(req.body);
+      const gasto = await storage.updateGastoMaterialMantencion(req.params.id, validatedData);
+      res.json(gasto);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      console.error('Error al actualizar gasto:', error);
+      res.status(500).json({ message: 'Error al actualizar gasto', error: error.message });
+    }
+  }));
+
+  // DELETE gasto
+  app.delete('/api/cmms/gastos-materiales/:id', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deleteGastoMaterialMantencion(req.params.id);
+      res.json({ message: 'Gasto eliminado exitosamente' });
+    } catch (error: any) {
+      console.error('Error al eliminar gasto:', error);
+      res.status(500).json({ message: 'Error al eliminar gasto', error: error.message });
+    }
+  }));
+
+  // ===== PLANES PREVENTIVOS ROUTES =====
+
+  // GET planes preventivos (with filters)
+  app.get('/api/cmms/gastos-materiales', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const { otId, area, startDate, endDate } = req.query;
+      const gastos = await storage.getGastosMaterialesMantencion({ otId, area, startDate, endDate });
+      res.json(gastos);
+    } catch (error: any) {
+      console.error('Error al obtener gastos:', error);
+      res.status(500).json({ message: 'Error al obtener gastos', error: error.message });
+    }
+  }));
+
   // GET plantilla Excel para gastos materiales (DEBE IR ANTES DE /:id)
   app.get('/api/cmms/gastos-materiales/plantilla-excel', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
     try {
@@ -10842,74 +10911,6 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error('Error al eliminar plan:', error);
       res.status(500).json({ message: 'Error al eliminar plan', error: error.message });
-    }
-  }));
-
-  // Continue with next section - PLACEHOLDER FOR CODE BELOW
-  const PLACEHOLDER_CONTINUED = [
-        {
-          'Fecha (YYYY-MM-DD)': '2025-01-15',
-          'Item': 'Tornillos hexagonales M8',
-          'Descripción': 'Tornillos para reparación de máquina dispersora',
-          'Cantidad': 50,
-          'Costo Unitario': 250,
-          'Área': 'produccion',
-          'Proveedor ID': ''
-        },
-        {
-          'Fecha (YYYY-MM-DD)': '2025-01-16',
-          'Item': 'Aceite lubricante SAE 40',
-          'Descripción': 'Aceite para mantenimiento preventivo',
-          'Cantidad': 20,
-          'Costo Unitario': 5000,
-          'Área': 'laboratorio',
-          'Proveedor ID': ''
-        }
-      ];
-      
-      const ws = XLSX.utils.json_to_sheet(plantillaData);
-      
-      // Ajustar ancho de columnas
-      ws['!cols'] = [
-        { wch: 20 }, // Fecha
-        { wch: 30 }, // Item
-        { wch: 40 }, // Descripción
-        { wch: 10 }, // Cantidad
-        { wch: 15 }, // Costo Unitario
-        { wch: 25 }, // Área
-        { wch: 15 }  // Proveedor ID
-      ];
-      
-      XLSX.utils.book_append_sheet(wb, ws, "Gastos Materiales");
-      
-      // Agregar hoja de instrucciones
-      const instrucciones = [
-        { Columna: 'Fecha (YYYY-MM-DD)', Descripción: 'Fecha del gasto en formato YYYY-MM-DD (ej: 2025-01-15)', Requerido: 'SÍ' },
-        { Columna: 'Item', Descripción: 'Nombre del material o repuesto', Requerido: 'SÍ' },
-        { Columna: 'Descripción', Descripción: 'Descripción detallada del gasto (opcional)', Requerido: 'NO' },
-        { Columna: 'Cantidad', Descripción: 'Cantidad de unidades (número)', Requerido: 'SÍ' },
-        { Columna: 'Costo Unitario', Descripción: 'Costo por unidad en pesos chilenos (número)', Requerido: 'SÍ' },
-        { Columna: 'Área', Descripción: 'Área del gasto: administracion, produccion, laboratorio, bodega_materias_primas, bodega_productos_terminados', Requerido: 'NO' },
-        { Columna: 'Proveedor ID', Descripción: 'ID del proveedor (opcional, dejar vacío si no aplica)', Requerido: 'NO' }
-      ];
-      
-      const wsInstrucciones = XLSX.utils.json_to_sheet(instrucciones);
-      wsInstrucciones['!cols'] = [
-        { wch: 20 },
-        { wch: 80 },
-        { wch: 10 }
-      ];
-      XLSX.utils.book_append_sheet(wb, wsInstrucciones, "Instrucciones");
-      
-      // Generar buffer
-      const excelBuffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-      
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', 'attachment; filename=plantilla_gastos_materiales.xlsx');
-      res.send(excelBuffer);
-    } catch (error: any) {
-      console.error('Error al generar plantilla Excel:', error);
-      res.status(500).json({ message: 'Error al generar plantilla Excel', error: error.message });
     }
   }));
 
