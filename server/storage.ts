@@ -4655,10 +4655,13 @@ export class DatabaseStorage implements IStorage {
     const salesFrequency = result.transactionCount > 1 ? daysBetween / result.transactionCount : 0;
 
     // Calculate days since REAL last sale (from all sales, not filtered)
+    // Use date-only comparison to avoid time-of-day issues
     const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // Start of today
     const realLastSale = actualLastSale.lastSale ? new Date(actualLastSale.lastSale) : null;
-    const daysSinceLastSale = realLastSale
-      ? Math.floor((now.getTime() - realLastSale.getTime()) / (1000 * 60 * 60 * 24))
+    const lastSaleDate = realLastSale ? new Date(realLastSale.getFullYear(), realLastSale.getMonth(), realLastSale.getDate()) : null;
+    const daysSinceLastSale = lastSaleDate
+      ? Math.floor((today.getTime() - lastSaleDate.getTime()) / (1000 * 60 * 60 * 24))
       : 0;
 
     // Calculate new clients: clients who bought from this salesperson for the first time in this period
