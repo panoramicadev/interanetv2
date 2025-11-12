@@ -582,7 +582,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
           caprco1, caprad1, caprex1, ud01pr,
           caprco2, caprad2, caprex2, ud02pr,
           ppprne, vaneli, monto,
-          nokoen,
+          nokoen, ruen, nombre_segmento_cliente,
           kofulido, nombre_vendedor,
           bosulido, nombre_bodega,
           eslido,
@@ -602,8 +602,8 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
           ed.feer,
           dd.koprct,
           dd.nokopr,
-          pr.rupr, -- Código de segmento
-          ru.nokofurn as nombre_segmento, -- Nombre de segmento
+          pr.rupr, -- Código de segmento del producto
+          ru_prod.nokoru as nombre_segmento, -- Nombre de segmento del producto (desde ventas.stg_tabru)
           dd.caprco1,
           dd.caprad1,
           dd.caprex1,
@@ -616,6 +616,8 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
           dd.vaneli,
           dd.vaneli as monto,
           en.nokoen,
+          en.ruen, -- Código de segmento del cliente
+          ru_cli.nokoru as nombre_segmento_cliente, -- Nombre de segmento del cliente (desde ventas.stg_tabru)
           COALESCE(dd.kofulido, ed.kofudo) as kofulido, -- Fallback: detalle → cabecera
           fu.nokofuven as nombre_vendedor,
           COALESCE(dd.bosulido, ed.bosulido) as bosulido, -- Fallback: detalle → cabecera
@@ -643,7 +645,8 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         LEFT JOIN nvv.stg_tabbo_nvv bo ON COALESCE(dd.sulido, ed.suli) = bo.suli 
                                         AND COALESCE(dd.bosulido, ed.bosulido) = bo.bosuli
         LEFT JOIN nvv.stg_maepr_nvv pr ON dd.koprct = pr.kopr
-        LEFT JOIN nvv.stg_tabru_nvv ru ON pr.rupr = ru.kofurn
+        LEFT JOIN ventas.stg_tabru ru_prod ON pr.rupr = ru_prod.koru -- Segmento del producto
+        LEFT JOIN ventas.stg_tabru ru_cli ON en.ruen = ru_cli.koru -- Segmento del cliente
       `);
     });
 
