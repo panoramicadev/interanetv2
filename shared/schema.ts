@@ -4832,11 +4832,13 @@ export const stgMaeddoNvv = nvvSchema.table("stg_maeddo_nvv", {
 export const stgMaeenNvv = nvvSchema.table("stg_maeen_nvv", {
   koen: text("koen").primaryKey(),
   nokoen: text("nokoen"),
+  ruen: text("ruen"), // Segmento del cliente
   dien: text("dien"),
   zoen: text("zoen"),
   foen: text("foen"),
   cpen: text("cpen"),
   cmen: text("cmen"),
+  kofuen: text("kofuen"), // Vendedor asociado al cliente
   created_at: timestamp("created_at").defaultNow(),
 });
 
