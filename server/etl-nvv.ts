@@ -249,8 +249,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     console.log('╚═══════════════════════════════════════════════════════════════╝');
     console.log(`🔍 TIDO = 'NVV'`);
     console.log(`🔍 SUDO IN: ${sucursales.join(', ')}`);
-    console.log(`🔍 FEER >= '${startDateSQL}' (Fecha última actualización - detecta todos los cambios)`);
-    console.log(`🔍 FEER <= '${endDateSQL}'`);
+    console.log(`🔍 FEEMDO >= '2025-01-01' (Fecha emisión - captura TODOS los docs de 2025)`);
     console.log('');
     
     const maeedo = await executeWithResilience(
@@ -259,9 +258,8 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         FROM dbo.MAEEDO
         WHERE TIDO = 'NVV'
           AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
-          AND FEER >= '${startDateSQL}'
-          AND FEER <= '${endDateSQL}'
-        ORDER BY FEER
+          AND FEEMDO >= '2025-01-01'
+        ORDER BY FEEMDO
       `),
       sqlServerBreaker,
       { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
@@ -643,13 +641,13 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
           dd.ocdo,
           dd.lilg,
           dd.luvtlido,
-          -- Calcular cantidad_pendiente: (cantidades > 0) AND (eslido NULL/'') AND (monto >= 1000)
+          -- Calcular cantidad_pendiente: (cantidades > 0) AND (eslido NULL/'') AND (monto_pendiente >= 1000)
           CASE 
-            WHEN (
-              ((COALESCE(dd.caprco1, 0) - COALESCE(dd.caprad1, 0) - COALESCE(dd.caprex1, 0)) > 0) OR
-              ((COALESCE(dd.caprco2, 0) - COALESCE(dd.caprad2, 0) - COALESCE(dd.caprex2, 0)) > 0)
-            ) AND (dd.eslido IS NULL OR dd.eslido = '')
-              AND dd.vaneli >= 1000
+            WHEN (dd.eslido IS NULL OR dd.eslido = '')
+              AND (
+                (((COALESCE(dd.caprco1, 0) - COALESCE(dd.caprad1, 0) - COALESCE(dd.caprex1, 0)) * COALESCE(dd.ppprne, 0)) >= 1000) OR
+                (((COALESCE(dd.caprco2, 0) - COALESCE(dd.caprad2, 0) - COALESCE(dd.caprex2, 0)) * COALESCE(dd.ppprne, 0)) >= 1000)
+              )
             THEN TRUE
             ELSE FALSE
           END as cantidad_pendiente,
