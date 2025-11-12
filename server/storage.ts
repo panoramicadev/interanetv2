@@ -512,7 +512,7 @@ export interface IStorage {
   
   // Data for goals form and filtering
   getUniqueSegments(): Promise<string[]>;
-  getUniqueSalespeople(): Promise<string[]>;
+  getUniqueSalespeople(filters?: { startDate?: string; endDate?: string }): Promise<string[]>;
   getUniqueClients(): Promise<string[]>;
   getUniqueSuppliers(): Promise<string[]>;
   getUniqueBusinessTypes(): Promise<string[]>;
@@ -3943,11 +3943,22 @@ export class DatabaseStorage implements IStorage {
     return result.map((r: any) => r.segment).filter((segment: string | null): segment is string => Boolean(segment));
   }
 
-  async getUniqueSalespeople(): Promise<string[]> {
+  async getUniqueSalespeople(filters?: { startDate?: string; endDate?: string }): Promise<string[]> {
+    const conditions: SQL<unknown>[] = [
+      sql`${factVentas.nokofu} IS NOT NULL AND ${factVentas.nokofu} != ''`
+    ];
+
+    if (filters?.startDate) {
+      conditions.push(sql`${factVentas.fecha} >= ${filters.startDate}`);
+    }
+    if (filters?.endDate) {
+      conditions.push(sql`${factVentas.fecha} <= ${filters.endDate}`);
+    }
+
     const result = await db
       .selectDistinct({ salesperson: factVentas.nokofu })
       .from(factVentas)
-      .where(sql`${factVentas.nokofu} IS NOT NULL AND ${factVentas.nokofu} != ''`)
+      .where(and(...conditions))
       .orderBy(factVentas.nokofu);
     
     return result.map((r: any) => r.salesperson).filter((salesperson: string | null): salesperson is string => Boolean(salesperson));

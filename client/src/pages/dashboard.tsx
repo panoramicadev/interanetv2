@@ -397,7 +397,16 @@ export default function Dashboard() {
   });
 
   const { data: salespeople } = useQuery<string[]>({
-    queryKey: ["/api/goals/data/salespeople"],
+    queryKey: ["/api/goals/data/salespeople", selectedPeriod, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        period: selectedPeriod,
+        filterType
+      });
+      const response = await fetch(`/api/goals/data/salespeople?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch salespeople');
+      return response.json();
+    }
   });
 
   // Sync local filter state with globalFilter changes
