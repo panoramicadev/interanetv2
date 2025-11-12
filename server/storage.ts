@@ -3944,22 +3944,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUniqueSalespeople(filters?: { startDate?: string; endDate?: string }): Promise<string[]> {
-    const conditions: (SQL<unknown> | undefined)[] = [
-      sql`${factVentas.nokofu} IS NOT NULL AND ${factVentas.nokofu} != ''`
-    ];
-
-    if (filters?.startDate) {
-      conditions.push(gte(factVentas.fecha, filters.startDate));
-    }
-    if (filters?.endDate) {
-      conditions.push(lte(factVentas.fecha, filters.endDate));
-    }
-
-    const result = await db
+    let query = db
       .selectDistinct({ salesperson: factVentas.nokofu })
       .from(factVentas)
-      .where(and(...conditions))
+      .where(
+        and(
+          ne(factVentas.nokofu, ''),
+          isNotNull(factVentas.nokofu),
+          filters?.startDate ? gte(factVentas.feemdo, filters.startDate) : undefined,
+          filters?.endDate ? lte(factVentas.feemdo, filters.endDate) : undefined
+        )
+      )
       .orderBy(factVentas.nokofu);
+
+    const result = await query;
     
     return result.map((r: any) => r.salesperson).filter((salesperson: string | null): salesperson is string => Boolean(salesperson));
   }
