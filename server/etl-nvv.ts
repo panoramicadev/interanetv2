@@ -423,7 +423,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     const koprcts = Array.from(new Set(maeddo.recordset.map(r => r.KOPRCT)));
     const maepr = await executeWithResilience(
       async () => pool!.request().query(`
-        SELECT KOPR, NOKOPR, UD01PR, UD02PR, TIPR
+        SELECT KOPR, NOKOPR, UD01PR, UD02PR, TIPR, PFPR, FMPR, RUPR, MRPR
         FROM dbo.MAEPR
         WHERE KOPR IN (${koprcts.map(k => `'${k}'`).join(',')})
       `),
@@ -434,10 +434,14 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
 
     const maepr_records = maepr.recordset.map(row => ({
       kopr: row.KOPR?.trim() || '',
-      nomrpr: row.NOKOPR?.trim() || null,
+      nokopr: row.NOKOPR?.trim() || null,
       ud01pr: row.UD01PR?.trim() || null,
       ud02pr: row.UD02PR?.trim() || null,
       tipr: row.TIPR?.trim() || null,
+      pfpr: row.PFPR?.trim() || null,
+      fmpr: row.FMPR?.trim() || null,
+      rupr: row.RUPR?.trim() || null,
+      mrpr: row.MRPR?.trim() || null,
     }));
     await batchInsert(stgMaeprNvv, maepr_records, 'stg_maepr_nvv', logger);
 
