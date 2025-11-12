@@ -10727,14 +10727,13 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // POST importar Excel de gastos materiales (DEBE IR ANTES DE /:id)
-  app.post('/api/cmms/gastos-materiales/importar-excel', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/cmms/gastos-materiales/importar-excel', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), upload.single('file'), asyncHandler(async (req: any, res: any) => {
     try {
-      if (!req.files || !req.files.file) {
+      if (!req.file) {
         return res.status(400).json({ message: 'No se envió ningún archivo' });
       }
       
-      const file = req.files.file as any;
-      const workbook = XLSX.read(file.data, { type: 'buffer' });
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
       
       // Leer la primera hoja
       const sheetName = workbook.SheetNames[0];
@@ -10979,117 +10978,6 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error('Error al eliminar plan:', error);
       res.status(500).json({ message: 'Error al eliminar plan', error: error.message });
-    }
-  }));
-
-  // POST importar Excel de gastos materiales
-  app.post('/api/cmms/gastos-materiales/importar-excel', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
-    try {
-      if (!req.files || !req.files.file) {
-        return res.status(400).json({ message: 'No se envió ningún archivo' });
-      }
-      
-      const file = req.files.file as any;
-      const workbook = XLSX.read(file.data, { type: 'buffer' });
-      
-      // Leer la primera hoja
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
-      
-      if (!jsonData || jsonData.length === 0) {
-        return res.status(400).json({ message: 'El archivo Excel está vacío o no tiene el formato correcto' });
-      }
-      
-      const gastosCreados = [];
-      const errores = [];
-      
-      // Procesar cada fila
-      for (let i = 0; i < jsonData.length; i++) {
-        const row: any = jsonData[i];
-        const rowNumber = i + 2; // +2 porque Excel empieza en 1 y hay header
-        
-        try {
-          // Mapear y normalizar columnas del Excel
-          const fechaRaw = row['Fecha (YYYY-MM-DD)'] || row['Fecha'];
-          const itemRaw = row['Item'];
-          const descripcionRaw = row['Descripción'] || row['Descripcion'];
-          const cantidadRaw = row['Cantidad'];
-          const costoUnitarioRaw = row['Costo Unitario'];
-          const areaRaw = row['Área'] || row['Area'];
-          const proveedorIdRaw = row['Proveedor ID'] || row['ProveedorId'];
-          
-          // Normalizar strings (trim y verificar vacíos)
-          const fecha = typeof fechaRaw === 'string' ? fechaRaw.trim() : fechaRaw;
-          const item = typeof itemRaw === 'string' ? itemRaw.trim() : itemRaw;
-          const descripcion = typeof descripcionRaw === 'string' && descripcionRaw.trim() !== '' ? descripcionRaw.trim() : null;
-          const area = typeof areaRaw === 'string' && areaRaw.trim() !== '' ? areaRaw.trim() : null;
-          const proveedorId = typeof proveedorIdRaw === 'string' && proveedorIdRaw.trim() !== '' ? proveedorIdRaw.trim() : null;
-          
-          // Validar campos requeridos ANTES de parsear
-          if (!fecha || !item || cantidadRaw === undefined || cantidadRaw === null || cantidadRaw === '' || 
-              costoUnitarioRaw === undefined || costoUnitarioRaw === null || costoUnitarioRaw === '') {
-            errores.push({
-              fila: rowNumber,
-              error: 'Faltan campos requeridos (Fecha, Item, Cantidad, Costo Unitario)'
-            });
-            continue;
-          }
-          
-          // Parsear números después de validar que existen
-          const cantidad = parseFloat(cantidadRaw);
-          const costoUnitario = parseFloat(costoUnitarioRaw);
-          
-          // Validar que los números son válidos
-          if (isNaN(cantidad) || isNaN(costoUnitario)) {
-            errores.push({
-              fila: rowNumber,
-              error: 'Cantidad y Costo Unitario deben ser números válidos'
-            });
-            continue;
-          }
-          
-          // Calcular costo total
-          const costoTotal = cantidad * costoUnitario;
-          
-          // Crear el objeto de datos validado
-          const gastoData = {
-            fecha,
-            item,
-            descripcion,
-            cantidad,
-            costoUnitario,
-            costoTotal,
-            area,
-            otId: null,
-            proveedorId,
-            adjuntoUrl: null
-          };
-          
-          // Validar con schema de Zod
-          const validatedData = insertGastoMaterialMantencionSchema.parse(gastoData);
-          
-          // Crear en la base de datos
-          const gastoCreado = await storage.createGastoMaterialMantencion(validatedData);
-          gastosCreados.push(gastoCreado);
-          
-        } catch (error: any) {
-          errores.push({
-            fila: rowNumber,
-            error: error.message || 'Error al procesar la fila'
-          });
-        }
-      }
-      
-      res.status(201).json({
-        message: `Importación completada: ${gastosCreados.length} gastos creados, ${errores.length} errores`,
-        gastosCreados: gastosCreados.length,
-        errores: errores.length > 0 ? errores : null
-      });
-      
-    } catch (error: any) {
-      console.error('Error al importar Excel:', error);
-      res.status(500).json({ message: 'Error al importar Excel', error: error.message });
     }
   }));
 
