@@ -4316,6 +4316,30 @@ export const etlExecutionLog = ventasSchema.table("etl_execution_log", {
 export type EtlExecutionLog = typeof etlExecutionLog.$inferSelect;
 export type InsertEtlExecutionLog = typeof etlExecutionLog.$inferInsert;
 
+// ===== TABLA AGREGADA: VENTAS SEMANALES POR CLIENTE =====
+// Esta tabla se popula automáticamente durante el ETL para optimizar el cálculo de cumplimiento de promesas
+export const weeklyVentasCliente = ventasSchema.table("weekly_ventas_cliente", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clienteId: text("cliente_id").notNull(), // nokoen del cliente
+  vendedorId: text("vendedor_id"), // nokofu del vendedor principal
+  semana: varchar("semana", { length: 10 }).notNull(), // Formato: YYYY-WW
+  anio: integer("anio").notNull(),
+  numeroSemana: integer("numero_semana").notNull(),
+  fechaInicio: date("fecha_inicio").notNull(),
+  fechaFin: date("fecha_fin").notNull(),
+  totalVentas: numeric("total_ventas", { precision: 20, scale: 2 }).default('0').notNull(),
+  cantidadTransacciones: integer("cantidad_transacciones").default(0),
+  ultimaActualizacion: timestamp("ultima_actualizacion").defaultNow(),
+}, (table) => ({
+  clienteSemanaIdx: index("IDX_weekly_ventas_cliente_semana").on(table.clienteId, table.fechaInicio),
+  vendedorSemanaIdx: index("IDX_weekly_ventas_vendedor_semana").on(table.vendedorId, table.semana),
+  uniqueClienteSemana: index("UNQ_weekly_ventas_cliente_semana").on(table.clienteId, table.semana),
+}));
+
+// Types para weeklyVentasCliente
+export type WeeklyVentasCliente = typeof weeklyVentasCliente.$inferSelect;
+export type InsertWeeklyVentasCliente = typeof weeklyVentasCliente.$inferInsert;
+
 // ===== TABLA FINAL: FACT_VENTAS (84 columnas - incluye campos de control) =====
 export const factVentas = ventasSchema.table("fact_ventas", {
   idmaeddo: numeric("idmaeddo", { precision: 20, scale: 0 }).primaryKey(),
