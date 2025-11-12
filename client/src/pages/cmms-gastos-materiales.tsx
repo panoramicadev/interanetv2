@@ -39,7 +39,7 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Plus, Receipt, DollarSign, Trash2, Download, Upload } from "lucide-react";
+import { ArrowLeft, Plus, Receipt, DollarSign, Trash2, Download, Upload, Check, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -61,6 +61,21 @@ interface GastoMaterial {
     id: string;
     nombre: string;
   };
+}
+
+interface FilaParseada {
+  fila: number;
+  estado: 'valido' | 'error';
+  error?: string;
+  datos: any;
+}
+
+interface PreviewData {
+  totalFilas: number;
+  filasValidas: number;
+  filasConError: number;
+  filasParseadas: FilaParseada[];
+  errores: Array<{ fila: number; error: string }>;
 }
 
 const gastoSchema = z.object({
@@ -98,6 +113,9 @@ export default function CMmsGastosMateriales() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [gastoToDelete, setGastoToDelete] = useState<GastoMaterial | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<PreviewData | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -273,11 +291,56 @@ export default function CMmsGastosMateriales() {
     if (!file) return;
 
     setIsImporting(true);
+    setSelectedFile(file);
 
     const formData = new FormData();
     formData.append('file', file);
 
     try {
+      // Primero obtener preview sin guardar
+      const response = await fetch('/api/cmms/gastos-materiales/importar-excel?preview=true', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error al procesar Excel');
+      }
+
+      const preview: PreviewData = await response.json();
+      
+      setPreviewData(preview);
+      setPreviewDialogOpen(true);
+      
+    } catch (error: any) {
+      console.error('Error al procesar Excel:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Error al procesar el archivo Excel",
+        variant: "destructive",
+      });
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (!selectedFile) return;
+
+    setIsImporting(true);
+    setPreviewDialogOpen(false);
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    try {
+      // Ahora sí importar con preview=false (default)
       const response = await fetch('/api/cmms/gastos-materiales/importar-excel', {
         method: 'POST',
         credentials: 'include',
@@ -292,22 +355,14 @@ export default function CMmsGastosMateriales() {
       const result = await response.json();
       
       toast({
-        title: "Importación exitosa",
-        description: result.message,
+        title: "✅ Importación exitosa",
+        description: `${result.gastosCreados} gastos creados correctamente${result.errores && result.errores.length > 0 ? `, ${result.errores.length} filas con errores` : ''}`,
       });
 
       // Invalidar queries para recargar datos
       queryClient.invalidateQueries({ queryKey: ['/api/cmms/gastos-materiales'] });
       queryClient.invalidateQueries({ queryKey: ['/api/cmms/presupuesto'] });
 
-      if (result.errores && result.errores.length > 0) {
-        console.warn('Errores en importación:', result.errores);
-        toast({
-          title: "Advertencia",
-          description: `Algunos registros tuvieron errores. Revisa la consola para más detalles.`,
-          variant: "destructive",
-        });
-      }
     } catch (error: any) {
       console.error('Error al importar Excel:', error);
       toast({
@@ -317,10 +372,21 @@ export default function CMmsGastosMateriales() {
       });
     } finally {
       setIsImporting(false);
+      setSelectedFile(null);
+      setPreviewData(null);
       // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+    }
+  };
+
+  const handleCancelPreview = () => {
+    setPreviewDialogOpen(false);
+    setPreviewData(null);
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -745,6 +811,134 @@ export default function CMmsGastosMateriales() {
                 data-testid="button-confirm-delete"
               >
                 {deleteMutation.isPending ? "Eliminando..." : "Eliminar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Preview Dialog */}
+        <Dialog open={previewDialogOpen} onOpenChange={(open) => {
+          if (!open) handleCancelPreview();
+        }}>
+          <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle>Vista Previa de Importación</DialogTitle>
+              <DialogDescription>
+                Revisa los datos antes de confirmar la importación
+              </DialogDescription>
+            </DialogHeader>
+            
+            {previewData && (
+              <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+                {/* Resumen */}
+                <div className="grid grid-cols-3 gap-4">
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-foreground">{previewData.totalFilas}</div>
+                        <div className="text-sm text-muted-foreground">Total de filas</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-green-600 dark:text-green-400">{previewData.filasValidas}</div>
+                        <div className="text-sm text-muted-foreground">Filas válidas</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-red-600 dark:text-red-400">{previewData.filasConError}</div>
+                        <div className="text-sm text-muted-foreground">Filas con error</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Tabla con scroll */}
+                <div className="flex-1 overflow-auto border rounded-md">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-background z-10">
+                      <TableRow>
+                        <TableHead className="w-16">Estado</TableHead>
+                        <TableHead className="w-16">Fila</TableHead>
+                        <TableHead>Fecha</TableHead>
+                        <TableHead>Ítem</TableHead>
+                        <TableHead className="text-right">Cantidad</TableHead>
+                        <TableHead className="text-right">Costo Unit.</TableHead>
+                        <TableHead className="text-right">Costo Total</TableHead>
+                        <TableHead>Área</TableHead>
+                        <TableHead>Error</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {previewData.filasParseadas.map((fila) => (
+                        <TableRow key={fila.fila} className={fila.estado === 'error' ? 'bg-red-50 dark:bg-red-950/20' : ''}>
+                          <TableCell>
+                            {fila.estado === 'valido' ? (
+                              <Check className="h-5 w-5 text-green-600 dark:text-green-400" data-testid={`icon-valid-${fila.fila}`} />
+                            ) : (
+                              <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" data-testid={`icon-error-${fila.fila}`} />
+                            )}
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">{fila.fila}</TableCell>
+                          <TableCell className="text-sm">{fila.datos['Fecha (YYYY-MM-DD)'] || fila.datos['Fecha'] || '-'}</TableCell>
+                          <TableCell className="text-sm">{fila.datos['Item'] || '-'}</TableCell>
+                          <TableCell className="text-right text-sm">{fila.datos['Cantidad'] || '-'}</TableCell>
+                          <TableCell className="text-right text-sm">{fila.datos['Costo Unitario'] ? new Intl.NumberFormat('es-CL').format(fila.datos['Costo Unitario']) : '-'}</TableCell>
+                          <TableCell className="text-right text-sm font-semibold">
+                            {fila.datos['Costo Total'] ? formatCurrency(fila.datos['Costo Total']) : '-'}
+                          </TableCell>
+                          <TableCell className="text-sm">{fila.datos['Área'] || fila.datos['Area'] || '-'}</TableCell>
+                          <TableCell className="text-sm text-red-600 dark:text-red-400">{fila.error || ''}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Errores detallados si hay */}
+                {previewData.errores && previewData.errores.length > 0 && (
+                  <div className="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-md">
+                    <h4 className="text-sm font-semibold text-red-800 dark:text-red-200 mb-2">
+                      Errores Detectados ({previewData.errores.length})
+                    </h4>
+                    <div className="max-h-32 overflow-y-auto space-y-1">
+                      {previewData.errores.slice(0, 10).map((err, idx) => (
+                        <p key={idx} className="text-xs text-red-700 dark:text-red-300">
+                          • Fila {err.fila}: {err.error}
+                        </p>
+                      ))}
+                      {previewData.errores.length > 10 && (
+                        <p className="text-xs text-red-600 dark:text-red-400 font-semibold">
+                          ...y {previewData.errores.length - 10} errores más
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCancelPreview}
+                data-testid="button-cancel-preview"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={handleConfirmImport}
+                disabled={isImporting || !previewData || previewData.filasValidas === 0}
+                data-testid="button-confirm-import"
+              >
+                {isImporting ? "Importando..." : `Confirmar e Importar (${previewData?.filasValidas || 0} registros)`}
               </Button>
             </DialogFooter>
           </DialogContent>
