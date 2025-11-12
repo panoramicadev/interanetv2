@@ -17208,73 +17208,134 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    let query = db.select().from(promesasCompra).orderBy(desc(promesasCompra.semana));
-
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions)) as any;
+    // Build WHERE conditions for raw SQL
+    const whereParts = [];
+    if (filters?.vendedorId) {
+      whereParts.push(sql`p.vendedor_id = ${filters.vendedorId}`);
+    }
+    if (filters?.startDate && filters?.endDate) {
+      whereParts.push(sql`p.fecha_inicio <= ${filters.endDate}`);
+      whereParts.push(sql`p.fecha_fin >= ${filters.startDate}`);
+    } else {
+      if (filters?.semana) {
+        whereParts.push(sql`p.semana = ${filters.semana}`);
+      }
+      if (filters?.anio) {
+        whereParts.push(sql`p.anio = ${filters.anio}`);
+      }
     }
 
-    const promesas = await query;
+    // OPTIMIZED: Use LEFT JOIN with weekly_ventas_cliente to get pre-aggregated sales
+    // NOTE: w.cliente_id and w.vendedor_id are actually client/vendor NAMES (nokoen/nokofu from fact_ventas)
+    const promesasConVentas = await db.execute(sql`
+      SELECT 
+        p.*,
+        COALESCE(w.total_ventas, 0) as ventas_facturas_agregadas,
+        w.cantidad_transacciones
+      FROM promesas_compra p
+      LEFT JOIN ventas.weekly_ventas_cliente w 
+        ON p.cliente_nombre = w.cliente_id
+        AND p.vendedor_nombre = w.vendedor_id
+        AND p.semana = w.semana
+      ${whereParts.length > 0 ? sql`WHERE ${sql.join(whereParts, sql` AND `)}` : sql``}
+      ORDER BY p.semana DESC
+    `);
 
-    const resultados = await Promise.all(
-      promesas.map(async (promesa) => {
-        let ventasReales = 0;
+    // Get all unique cliente+semana pairs for NVV lookup (only for non-potential clients)
+    const clienteSemanas = (promesasConVentas.rows as any[])
+      .filter(p => p.cliente_tipo !== 'potencial' && p.cliente_id !== 'PROSPECTO')
+      .map(p => ({ nombre: p.cliente_nombre, fechaInicio: p.fecha_inicio, fechaFin: p.fecha_fin }));
 
-        // Si hay ventas reales ingresadas manualmente, usar ese valor
-        if (promesa.ventasRealesManual !== null && promesa.ventasRealesManual !== undefined) {
-          ventasReales = parseFloat(promesa.ventasRealesManual as any);
-        } 
-        // Para clientes potenciales (PROSPECTO), no hay ventas reales automáticas
-        else if (promesa.clienteTipo === 'potencial' || promesa.clienteId === 'PROSPECTO') {
-          ventasReales = 0;
+    // OPTIMIZED: Batch fetch ALL NVV with a single query, then group in memory
+    const nvvMap = new Map<string, number>();
+    if (clienteSemanas.length > 0) {
+      // Build a single query with all cliente/fecha combinations
+      const nvvConditions = clienteSemanas.map(cs => 
+        sql`("NOKOEN" = ${cs.nombre} AND "FEEMLI" >= ${cs.fechaInicio} AND "FEEMLI" <= ${cs.fechaFin})`
+      );
+
+      const ventasNvvBatch = await db.execute(sql`
+        SELECT 
+          "NOKOEN" as cliente,
+          "FEEMLI" as fecha,
+          total_pendiente
+        FROM nvv_pending_sales
+        WHERE ${sql.join(nvvConditions, sql` OR `)}
+      `);
+
+      // Group results by cliente+fechaInicio+fechaFin in memory
+      for (const row of ventasNvvBatch.rows as any[]) {
+        const fecha = row.fecha;
+        // Find which cliente+semana this row belongs to
+        for (const cs of clienteSemanas) {
+          if (row.cliente === cs.nombre && fecha >= cs.fechaInicio && fecha <= cs.fechaFin) {
+            const key = `${cs.nombre}|${cs.fechaInicio}|${cs.fechaFin}`;
+            const current = nvvMap.get(key) || 0;
+            nvvMap.set(key, current + parseFloat(row.total_pendiente || '0'));
+          }
         }
-        // Calcular ventas reales (facturas + NVV) para el cliente en la semana
-        else {
-          // Usar el nombre del cliente (clienteNombre) para buscar en sales_transactions
-          const ventasFacturas = await db.execute(sql`
-            SELECT COALESCE(SUM(monto), 0) as total
-            FROM sales_transactions
-            WHERE nokoen = ${promesa.clienteNombre}
-              AND feemdo >= ${promesa.fechaInicio}
-              AND feemdo <= ${promesa.fechaFin}
-              AND tido IN ('FCV', 'FVL')
-          `);
+      }
+    }
 
-          const ventasNvv = await db.execute(sql`
-            SELECT COALESCE(SUM(total_pendiente), 0) as total
-            FROM nvv_pending_sales
-            WHERE "NOKOEN" = ${promesa.clienteNombre}
-              AND "FEEMLI" >= ${promesa.fechaInicio}
-              AND "FEEMLI" <= ${promesa.fechaFin}
-          `);
+    const resultados = (promesasConVentas.rows as any[]).map((row) => {
+      const promesa: PromesaCompra = {
+        id: row.id,
+        vendedorId: row.vendedor_id,
+        vendedorNombre: row.vendedor_nombre,
+        clienteId: row.cliente_id,
+        clienteNombre: row.cliente_nombre,
+        clienteTipo: row.cliente_tipo,
+        semana: row.semana,
+        anio: row.anio,
+        numeroSemana: row.numero_semana,
+        fechaInicio: row.fecha_inicio,
+        fechaFin: row.fecha_fin,
+        montoPrometido: row.monto_prometido,
+        ventasRealesManual: row.ventas_reales_manual,
+        observaciones: row.observaciones,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      };
 
-          const totalFacturas = parseFloat((ventasFacturas.rows[0] as any)?.total || '0');
-          const totalNvv = parseFloat((ventasNvv.rows[0] as any)?.total || '0');
-          ventasReales = totalFacturas + totalNvv;
-        }
+      let ventasReales = 0;
 
-        const montoPrometido = parseFloat(promesa.montoPrometido as any);
-        const cumplimiento = montoPrometido > 0 ? (ventasReales / montoPrometido) * 100 : 0;
+      // Si hay ventas reales ingresadas manualmente, usar ese valor
+      if (promesa.ventasRealesManual !== null && promesa.ventasRealesManual !== undefined) {
+        ventasReales = parseFloat(promesa.ventasRealesManual as any);
+      } 
+      // Para clientes potenciales (PROSPECTO), no hay ventas reales automáticas
+      else if (promesa.clienteTipo === 'potencial' || promesa.clienteId === 'PROSPECTO') {
+        ventasReales = 0;
+      }
+      // Calcular ventas reales (facturas agregadas + NVV)
+      else {
+        const ventasFacturas = parseFloat(row.ventas_facturas_agregadas || '0');
+        const key = `${promesa.clienteNombre}|${promesa.fechaInicio}|${promesa.fechaFin}`;
+        const ventasNvv = nvvMap.get(key) || 0;
+        ventasReales = ventasFacturas + ventasNvv;
+      }
 
-        let estado: 'cumplido' | 'superado' | 'cumplido_parcialmente' | 'insuficiente' | 'no_cumplido';
-        if (cumplimiento >= 100) {
-          estado = cumplimiento > 100 ? 'superado' : 'cumplido';
-        } else if (cumplimiento >= 80) {
-          estado = 'cumplido_parcialmente';
-        } else if (cumplimiento > 0) {
-          estado = 'insuficiente';
-        } else {
-          estado = 'no_cumplido';
-        }
+      const montoPrometido = parseFloat(promesa.montoPrometido as any);
+      const cumplimiento = montoPrometido > 0 ? (ventasReales / montoPrometido) * 100 : 0;
 
-        return {
-          promesa,
-          ventasReales,
-          cumplimiento,
-          estado,
-        };
-      })
-    );
+      let estado: 'cumplido' | 'superado' | 'cumplido_parcialmente' | 'insuficiente' | 'no_cumplido';
+      if (cumplimiento >= 100) {
+        estado = cumplimiento > 100 ? 'superado' : 'cumplido';
+      } else if (cumplimiento >= 80) {
+        estado = 'cumplido_parcialmente';
+      } else if (cumplimiento > 0) {
+        estado = 'insuficiente';
+      } else {
+        estado = 'no_cumplido';
+      }
+
+      return {
+        promesa,
+        ventasReales,
+        cumplimiento,
+        estado,
+      };
+    });
 
     return resultados;
   }
