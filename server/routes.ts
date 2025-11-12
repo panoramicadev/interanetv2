@@ -11,6 +11,7 @@ import { checkDbHealth } from "./db";
 import JSZip from "jszip";
 import unzipper from "unzipper";
 import { Readable } from "stream";
+import * as XLSX from "xlsx";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { comunaRegionService } from "./comunaRegionService";
 import { db } from "./db";
@@ -10573,6 +10574,170 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error('Error al eliminar gasto:', error);
       res.status(500).json({ message: 'Error al eliminar gasto', error: error.message });
+    }
+  }));
+
+  // GET plantilla Excel para gastos materiales
+  app.get('/api/cmms/gastos-materiales/plantilla-excel', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Crear workbook y worksheet
+      const wb = XLSX.utils.book_new();
+      
+      // Datos de ejemplo para la plantilla
+      const plantillaData = [
+        {
+          'Fecha (YYYY-MM-DD)': '2025-01-15',
+          'Item': 'Tornillos hexagonales M8',
+          'Descripción': 'Tornillos para reparación de máquina dispersora',
+          'Cantidad': 50,
+          'Costo Unitario': 250,
+          'Área': 'produccion',
+          'Proveedor ID': ''
+        },
+        {
+          'Fecha (YYYY-MM-DD)': '2025-01-16',
+          'Item': 'Aceite lubricante SAE 40',
+          'Descripción': 'Aceite para mantenimiento preventivo',
+          'Cantidad': 20,
+          'Costo Unitario': 5000,
+          'Área': 'laboratorio',
+          'Proveedor ID': ''
+        }
+      ];
+      
+      const ws = XLSX.utils.json_to_sheet(plantillaData);
+      
+      // Ajustar ancho de columnas
+      ws['!cols'] = [
+        { wch: 20 }, // Fecha
+        { wch: 30 }, // Item
+        { wch: 40 }, // Descripción
+        { wch: 10 }, // Cantidad
+        { wch: 15 }, // Costo Unitario
+        { wch: 25 }, // Área
+        { wch: 15 }  // Proveedor ID
+      ];
+      
+      XLSX.utils.book_append_sheet(wb, ws, "Gastos Materiales");
+      
+      // Agregar hoja de instrucciones
+      const instrucciones = [
+        { Columna: 'Fecha (YYYY-MM-DD)', Descripción: 'Fecha del gasto en formato YYYY-MM-DD (ej: 2025-01-15)', Requerido: 'SÍ' },
+        { Columna: 'Item', Descripción: 'Nombre del material o repuesto', Requerido: 'SÍ' },
+        { Columna: 'Descripción', Descripción: 'Descripción detallada del gasto (opcional)', Requerido: 'NO' },
+        { Columna: 'Cantidad', Descripción: 'Cantidad de unidades (número)', Requerido: 'SÍ' },
+        { Columna: 'Costo Unitario', Descripción: 'Costo por unidad en pesos chilenos (número)', Requerido: 'SÍ' },
+        { Columna: 'Área', Descripción: 'Área del gasto: administracion, produccion, laboratorio, bodega_materias_primas, bodega_productos_terminados', Requerido: 'NO' },
+        { Columna: 'Proveedor ID', Descripción: 'ID del proveedor (opcional, dejar vacío si no aplica)', Requerido: 'NO' }
+      ];
+      
+      const wsInstrucciones = XLSX.utils.json_to_sheet(instrucciones);
+      wsInstrucciones['!cols'] = [
+        { wch: 20 },
+        { wch: 80 },
+        { wch: 10 }
+      ];
+      XLSX.utils.book_append_sheet(wb, wsInstrucciones, "Instrucciones");
+      
+      // Generar buffer
+      const excelBuffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=plantilla_gastos_materiales.xlsx');
+      res.send(excelBuffer);
+    } catch (error: any) {
+      console.error('Error al generar plantilla Excel:', error);
+      res.status(500).json({ message: 'Error al generar plantilla Excel', error: error.message });
+    }
+  }));
+
+  // POST importar Excel de gastos materiales
+  app.post('/api/cmms/gastos-materiales/importar-excel', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      if (!req.files || !req.files.file) {
+        return res.status(400).json({ message: 'No se envió ningún archivo' });
+      }
+      
+      const file = req.files.file as any;
+      const workbook = XLSX.read(file.data, { type: 'buffer' });
+      
+      // Leer la primera hoja
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      
+      if (!jsonData || jsonData.length === 0) {
+        return res.status(400).json({ message: 'El archivo Excel está vacío o no tiene el formato correcto' });
+      }
+      
+      const gastosCreados = [];
+      const errores = [];
+      
+      // Procesar cada fila
+      for (let i = 0; i < jsonData.length; i++) {
+        const row: any = jsonData[i];
+        const rowNumber = i + 2; // +2 porque Excel empieza en 1 y hay header
+        
+        try {
+          // Mapear columnas del Excel a campos de la DB
+          const fecha = row['Fecha (YYYY-MM-DD)'] || row['Fecha'];
+          const item = row['Item'];
+          const descripcion = row['Descripción'] || row['Descripcion'] || '';
+          const cantidad = parseFloat(row['Cantidad']);
+          const costoUnitario = parseFloat(row['Costo Unitario'] || row['Costo Unitario']);
+          const area = row['Área'] || row['Area'] || null;
+          const proveedorId = row['Proveedor ID'] || row['ProveedorId'] || null;
+          
+          // Validar campos requeridos
+          if (!fecha || !item || isNaN(cantidad) || isNaN(costoUnitario)) {
+            errores.push({
+              fila: rowNumber,
+              error: 'Faltan campos requeridos (Fecha, Item, Cantidad, Costo Unitario)'
+            });
+            continue;
+          }
+          
+          // Calcular costo total
+          const costoTotal = cantidad * costoUnitario;
+          
+          // Crear el objeto de datos validado
+          const gastoData = {
+            fecha,
+            item,
+            descripcion: descripcion || null,
+            cantidad,
+            costoUnitario,
+            costoTotal,
+            area: area && area.trim() !== '' ? area : null,
+            otId: null,
+            proveedorId: proveedorId && proveedorId.trim() !== '' ? proveedorId : null,
+            adjuntoUrl: null
+          };
+          
+          // Validar con schema de Zod
+          const validatedData = insertGastoMaterialMantencionSchema.parse(gastoData);
+          
+          // Crear en la base de datos
+          const gastoCreado = await storage.createGastoMaterialMantencion(validatedData);
+          gastosCreados.push(gastoCreado);
+          
+        } catch (error: any) {
+          errores.push({
+            fila: rowNumber,
+            error: error.message || 'Error al procesar la fila'
+          });
+        }
+      }
+      
+      res.status(201).json({
+        message: `Importación completada: ${gastosCreados.length} gastos creados, ${errores.length} errores`,
+        gastosCreados: gastosCreados.length,
+        errores: errores.length > 0 ? errores : null
+      });
+      
+    } catch (error: any) {
+      console.error('Error al importar Excel:', error);
+      res.status(500).json({ message: 'Error al importar Excel', error: error.message });
     }
   }));
 
