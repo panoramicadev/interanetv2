@@ -1043,8 +1043,12 @@ export default function ReclamosGeneralesPage() {
       
       case 'asignados-area':
         if (user?.role === 'laboratorio') {
-          // Laboratorio: reclamos in "en_laboratorio" state
-          return reclamos.filter(r => r.estado === 'en_laboratorio');
+          // Laboratorio: reclamos in "en_laboratorio" state OR assigned to laboratorio area in "en_area_responsable" state
+          const userArea = getUserArea();
+          return reclamos.filter(r => 
+            r.estado === 'en_laboratorio' || 
+            (r.areaResponsableActual === userArea && r.estado === 'en_area_responsable')
+          );
         } else if (user?.role?.startsWith('area_') || (user?.role && organizationalRoles.includes(user.role))) {
           // Area roles and organizational roles: reclamos where areaResponsableActual matches and estado === "en_area_responsable"
           const userArea = getUserArea();
@@ -1080,7 +1084,11 @@ export default function ReclamosGeneralesPage() {
         
         case 'asignados-area':
           if (user?.role === 'laboratorio') {
-            return reclamos.filter(r => r.estado === 'en_laboratorio');
+            const userArea = getUserArea();
+            return reclamos.filter(r => 
+              r.estado === 'en_laboratorio' || 
+              (r.areaResponsableActual === userArea && r.estado === 'en_area_responsable')
+            );
           } else if (user?.role?.startsWith('area_') || (user?.role && organizationalRoles.includes(user.role))) {
             const userArea = getUserArea();
             return reclamos.filter(r => 
