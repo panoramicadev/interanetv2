@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { format, parse, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { useFilter } from "@/contexts/FilterContext";
@@ -95,12 +96,14 @@ export default function SegmentDetail({
   const [clientSearchTerm, setClientSearchTerm] = useState("");
   const [debouncedClientSearch, setDebouncedClientSearch] = useState("");
   const [clientLimit, setClientLimit] = useState(10);
+  const [expandedClient, setExpandedClient] = useState<string>("");
   
   // Search state for salespeople
   const [isSalespersonSearchExpanded, setIsSalespersonSearchExpanded] = useState(false);
   const [salespersonSearchTerm, setSalespersonSearchTerm] = useState("");
   const [debouncedSalespersonSearch, setDebouncedSalespersonSearch] = useState("");
   const [salespersonLimit, setSalespersonLimit] = useState(10);
+  const [expandedSalesperson, setExpandedSalesperson] = useState<string>("");
   
   // Debounce client search
   useEffect(() => {
@@ -1022,7 +1025,7 @@ export default function SegmentDetail({
           )}
 
           {/* Data Tables */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
+          <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:gap-6">
             {/* Top Clients Table */}
             <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
               {!isClientSearchExpanded ? (
@@ -1071,7 +1074,7 @@ export default function SegmentDetail({
               </div>
             )}
             
-            <div className="space-y-3">
+            <div className="space-y-2">
               {currentClientLoading ? (
                 <div className="space-y-3">
                   {[...Array(5)].map((_, i) => (
@@ -1086,26 +1089,70 @@ export default function SegmentDetail({
                 </p>
               ) : (
                 <>
-                  {displayClients.map((client) => (
-                    <div key={client.clientName} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {client.clientName}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formatNumber(client.transactionCount)} transacciones
-                        </p>
-                      </div>
-                      <div className="text-right ml-4">
-                        <p className="text-sm font-semibold text-gray-900">
-                          {formatCurrency(client.totalSales)}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {client.percentage.toFixed(1)}%
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                  <Accordion
+                    type="single"
+                    collapsible
+                    value={expandedClient}
+                    onValueChange={setExpandedClient}
+                    className="space-y-2"
+                  >
+                    {displayClients.map((client, index) => (
+                      <AccordionItem
+                        key={client.clientName}
+                        value={client.clientName}
+                        className="border rounded-lg overflow-hidden bg-blue-50/30"
+                      >
+                        <AccordionTrigger
+                          className="px-4 py-3 hover:bg-blue-50/50 hover:no-underline"
+                          data-testid={`accordion-trigger-client-${index}`}
+                        >
+                          <div className="flex items-center gap-3 w-full pr-4">
+                            <div className="flex-1 min-w-0 text-left">
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {client.clientName}
+                              </p>
+                            </div>
+                            <div className="w-12 flex-shrink-0 text-right">
+                              <span className="text-xs text-gray-600">
+                                {client.percentage.toFixed(1)}%
+                              </span>
+                            </div>
+                            <div className="w-24 sm:w-32 flex-shrink-0">
+                              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                                  style={{ width: `${Math.min(client.percentage, 100)}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                            <div className="w-28 flex-shrink-0 text-right">
+                              <span className="text-sm font-semibold text-gray-900">
+                                {formatCurrency(client.totalSales)}
+                              </span>
+                            </div>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-4 pb-4 pt-2 bg-white">
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Transacciones:</span>
+                              <span className="font-medium">{formatNumber(client.transactionCount)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Ticket Promedio:</span>
+                              <span className="font-medium">{formatCurrency(client.averageTicket)}</span>
+                            </div>
+                            {client.salespersonName && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Vendedor:</span>
+                                <span className="font-medium">{client.salespersonName}</span>
+                              </div>
+                            )}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
                   {!debouncedClientSearch && displayClients.length >= clientLimit && (
                     <div className="text-center pt-3">
                       <Button
@@ -1171,7 +1218,7 @@ export default function SegmentDetail({
               </div>
             )}
             
-            <div className="space-y-3">
+            <div className="space-y-2">
               {currentSalespersonLoading ? (
                 <div className="space-y-3">
                   {[...Array(5)].map((_, i) => (
@@ -1186,26 +1233,64 @@ export default function SegmentDetail({
                 </p>
               ) : (
                 <>
-                  {displaySalespeople.map((salesperson) => (
-                    <div key={salesperson.salespersonName} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {salesperson.salespersonName}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formatNumber(salesperson.transactionCount)} transacciones
-                        </p>
-                      </div>
-                      <div className="text-right ml-4">
-                        <p className="text-sm font-semibold text-gray-900">
-                          {formatCurrency(salesperson.totalSales)}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {salesperson.percentage.toFixed(1)}%
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                  <Accordion
+                    type="single"
+                    collapsible
+                    value={expandedSalesperson}
+                    onValueChange={setExpandedSalesperson}
+                    className="space-y-2"
+                  >
+                    {displaySalespeople.map((salesperson, index) => (
+                      <AccordionItem
+                        key={salesperson.salespersonName}
+                        value={salesperson.salespersonName}
+                        className="border rounded-lg overflow-hidden bg-purple-50/30"
+                      >
+                        <AccordionTrigger
+                          className="px-4 py-3 hover:bg-purple-50/50 hover:no-underline"
+                          data-testid={`accordion-trigger-salesperson-${index}`}
+                        >
+                          <div className="flex items-center gap-3 w-full pr-4">
+                            <div className="flex-1 min-w-0 text-left">
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {salesperson.salespersonName}
+                              </p>
+                            </div>
+                            <div className="w-12 flex-shrink-0 text-right">
+                              <span className="text-xs text-gray-600">
+                                {salesperson.percentage.toFixed(1)}%
+                              </span>
+                            </div>
+                            <div className="w-24 sm:w-32 flex-shrink-0">
+                              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-purple-500 rounded-full transition-all duration-500"
+                                  style={{ width: `${Math.min(salesperson.percentage, 100)}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                            <div className="w-28 flex-shrink-0 text-right">
+                              <span className="text-sm font-semibold text-gray-900">
+                                {formatCurrency(salesperson.totalSales)}
+                              </span>
+                            </div>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-4 pb-4 pt-2 bg-white">
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Transacciones:</span>
+                              <span className="font-medium">{formatNumber(salesperson.transactionCount)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Ticket Promedio:</span>
+                              <span className="font-medium">{formatCurrency(salesperson.averageTicket)}</span>
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
                   {!debouncedSalespersonSearch && displaySalespeople.length >= salespersonLimit && (
                     <div className="text-center pt-3">
                       <Button
