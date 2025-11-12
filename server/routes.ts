@@ -2141,6 +2141,155 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Segment-scoped top salespeople (alias to /api/sales/top-salespeople with segment filter)
+  app.get("/api/segments/:segment/top-salespeople", requireAuth, async (req, res) => {
+    try {
+      const { segment } = req.params;
+      const { limit, period, filterType } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      
+      const result = await storage.getTopSalespeople(
+        limit ? parseInt(limit as string) : undefined,
+        dateRange.startDate,
+        dateRange.endDate,
+        decodeURIComponent(segment)
+      );
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching segment top salespeople:", error);
+      res.status(500).json({ message: "Failed to fetch segment top salespeople" });
+    }
+  });
+
+  // Segment-scoped salesperson search
+  app.get("/api/segments/:segment/top-salespeople/search", requireAuth, async (req, res) => {
+    try {
+      const { segment } = req.params;
+      const { q, period, filterType } = req.query;
+      
+      if (!q || typeof q !== 'string' || q.trim().length < 2) {
+        return res.json([]);
+      }
+      
+      const searchTerm = q.trim().toLowerCase();
+      let startDate, endDate;
+      if (period && filterType) {
+        const dateRange = getDateRange(period as string, filterType as string);
+        startDate = dateRange.startDate;
+        endDate = dateRange.endDate;
+      }
+      
+      const results = await storage.searchSalespeople(
+        searchTerm,
+        startDate,
+        endDate,
+        decodeURIComponent(segment)
+      );
+      
+      res.json(results);
+    } catch (error) {
+      console.error("Error searching segment salespeople:", error);
+      res.status(500).json({ message: "Failed to search segment salespeople" });
+    }
+  });
+
+  // Segment-scoped salesperson clients (expanded accordion data)
+  app.get("/api/segments/:segment/top-salespeople/:salesperson/clients", requireAuth, async (req, res) => {
+    try {
+      const { segment, salesperson } = req.params;
+      const { period, filterType, limit } = req.query;
+      
+      const result = await storage.getSalespersonClients(
+        decodeURIComponent(salesperson),
+        period as string,
+        filterType as string,
+        decodeURIComponent(segment),
+        limit ? parseInt(limit as string) : undefined
+      );
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching segment salesperson clients:", error);
+      res.status(500).json({ message: "Failed to fetch segment salesperson clients" });
+    }
+  });
+
+  // Segment-scoped top clients (alias to /api/sales/top-clients with segment filter)
+  app.get("/api/segments/:segment/top-clients", requireAuth, async (req, res) => {
+    try {
+      const { segment } = req.params;
+      const { limit, period, filterType } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      
+      const result = await storage.getTopClients(
+        limit ? parseInt(limit as string) : undefined,
+        dateRange.startDate,
+        dateRange.endDate,
+        undefined, // salesperson filter
+        decodeURIComponent(segment)
+      );
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching segment top clients:", error);
+      res.status(500).json({ message: "Failed to fetch segment top clients" });
+    }
+  });
+
+  // Segment-scoped client search
+  app.get("/api/segments/:segment/top-clients/search", requireAuth, async (req, res) => {
+    try {
+      const { segment } = req.params;
+      const { q, period, filterType } = req.query;
+      
+      if (!q || typeof q !== 'string' || q.trim().length < 2) {
+        return res.json([]);
+      }
+      
+      const searchTerm = q.trim().toLowerCase();
+      let startDate, endDate;
+      if (period && filterType) {
+        const dateRange = getDateRange(period as string, filterType as string);
+        startDate = dateRange.startDate;
+        endDate = dateRange.endDate;
+      }
+      
+      const results = await storage.searchClients(
+        searchTerm,
+        startDate,
+        endDate,
+        undefined, // salesperson filter
+        decodeURIComponent(segment)
+      );
+      
+      res.json(results);
+    } catch (error) {
+      console.error("Error searching segment clients:", error);
+      res.status(500).json({ message: "Failed to search segment clients" });
+    }
+  });
+
+  // Segment-scoped client products (expanded accordion data)
+  app.get("/api/segments/:segment/top-clients/:client/products", requireAuth, async (req, res) => {
+    try {
+      const { segment, client } = req.params;
+      const { period, filterType } = req.query;
+      
+      // Get client products using existing method
+      // Note: getClientProducts() does not currently support segment filtering
+      // Products are filtered by client and period only
+      const products = await storage.getClientProducts(
+        decodeURIComponent(client),
+        period as string,
+        filterType as string
+      );
+      
+      res.json(products);
+    } catch (error) {
+      console.error("Error fetching segment client products:", error);
+      res.status(500).json({ message: "Failed to fetch segment client products" });
+    }
+  });
+
   // Branch detail route - clients by branch
   app.get("/api/sales/branch/:branchName/clients", requireAuth, async (req, res) => {
     try {
