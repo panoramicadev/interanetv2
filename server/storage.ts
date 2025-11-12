@@ -381,6 +381,8 @@ export interface IStorage {
     totalUnits: number;
     uniqueClients: number;
     averageTicket: number;
+    topSalesperson: string | null;
+    topSalespersonSales: number;
     topClients: Array<{
       clientName: string;
       sales: number;
@@ -2532,6 +2534,8 @@ export class DatabaseStorage implements IStorage {
     totalUnits: number;
     uniqueClients: number;
     averageTicket: number;
+    topSalesperson: string | null;
+    topSalespersonSales: number;
     topClients: Array<{
       clientName: string;
       sales: number;
@@ -2584,14 +2588,29 @@ export class DatabaseStorage implements IStorage {
       .orderBy(sql`SUM(${factVentas.monto}) DESC`)
       .limit(5);
 
+    // Get top salesperson for this product
+    const topSalespeople = await db
+      .select({
+        salespersonName: factVentas.nokofu,
+        sales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+      })
+      .from(factVentas)
+      .where(whereClause)
+      .groupBy(factVentas.nokofu)
+      .orderBy(sql`SUM(${factVentas.monto}) DESC`)
+      .limit(1);
+
     const totalSales = Number(metrics.totalSales);
     const transactionCount = Number(metrics.transactionCount) || 1;
+    const topSalesperson = topSalespeople[0];
 
     return {
       totalSales,
       totalUnits: Number(metrics.totalUnits),
       uniqueClients: Number(metrics.uniqueClients),
       averageTicket: totalSales / transactionCount,
+      topSalesperson: topSalesperson?.salespersonName || null,
+      topSalespersonSales: topSalesperson ? Number(topSalesperson.sales) : 0,
       topClients: topClients.map(c => ({
         clientName: c.clientName || '',
         sales: Number(c.sales),

@@ -279,8 +279,21 @@ interface ProductDetailsProps {
   isExpanded: boolean;
 }
 
+interface ProductDetailsData {
+  totalSales: number;
+  totalUnits: number;
+  uniqueClients: number;
+  averageTicket: number;
+  topSalesperson: string | null;
+  topSalespersonSales: number;
+  topClients: Array<{
+    clientName: string;
+    sales: number;
+  }>;
+}
+
 function ProductDetails({ productName, selectedPeriod, filterType, segment, salesperson, isExpanded }: ProductDetailsProps) {
-  const { data: details, isLoading } = useQuery({
+  const { data: details, isLoading } = useQuery<ProductDetailsData>({
     queryKey: [`/api/sales/top-products/${encodeURIComponent(productName)}/details?period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
     enabled: isExpanded, // Only fetch when accordion is expanded
   });
@@ -350,15 +363,20 @@ function ProductDetails({ productName, selectedPeriod, filterType, segment, sale
           </p>
         </div>
 
-        {/* Ticket Promedio */}
+        {/* Vendedor Destacado */}
         <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-            <p className="text-xs text-gray-500 dark:text-gray-400">Ticket Prom.</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Vendedor Destacado</p>
           </div>
-          <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
-            {formatCurrency(details.averageTicket || 0)}
+          <p className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate" title={details.topSalesperson || 'N/A'}>
+            {details.topSalesperson || 'N/A'}
           </p>
+          {details.topSalespersonSales > 0 && (
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+              {formatCurrency(details.topSalespersonSales)}
+            </p>
+          )}
         </div>
       </div>
 
