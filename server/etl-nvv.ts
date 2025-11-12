@@ -162,7 +162,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
   logger.info('ETL de NVV iniciado', { startTime: new Date().toISOString() });
   
   let pool: mssql.ConnectionPool | null = null;
-  const sucursales = ['004', '006', '007'];
+  const sucursales = ['004', '005', '006', '007'];
   const TOTAL_STEPS = 10;
 
   try {
@@ -275,11 +275,11 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       await db.update(nvvSyncLog)
         .set({
           status: 'success',
-          records_processed: 0,
-          records_inserted: 0,
-          records_updated: 0,
-          status_changes: 0,
-          execution_time_ms: Date.now() - startTime,
+          recordsProcessed: 0,
+          recordsInserted: 0,
+          recordsUpdated: 0,
+          statusChanges: 0,
+          executionTimeMs: Date.now() - startTime,
         })
         .where(sql`id = ${executionLog.id}`);
 
@@ -684,11 +684,11 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     await db.update(nvvSyncLog)
       .set({
         status: 'success',
-        records_processed: maeddo.recordset.length,
-        records_inserted,
-        records_updated,
-        status_changes,
-        execution_time_ms: Date.now() - startTime,
+        recordsProcessed: maeddo.recordset.length,
+        recordsInserted: records_inserted,
+        recordsUpdated: records_updated,
+        statusChanges: status_changes,
+        executionTimeMs: Date.now() - startTime,
       })
       .where(sql`id = ${executionLog.id}`);
 
@@ -745,8 +745,8 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         await db.update(nvvSyncLog)
           .set({
             status: 'failed',
-            error_message: error_message.substring(0, 500),
-            execution_time_ms: executionTime,
+            errorMessage: error_message.substring(0, 500),
+            executionTimeMs: executionTime,
           })
           .where(sql`id = ${runningLog[0].id}`);
       }
