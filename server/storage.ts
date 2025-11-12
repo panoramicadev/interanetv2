@@ -11128,69 +11128,45 @@ export class DatabaseStorage implements IStorage {
     totalPendiente: number;
   }>> {
     try {
-      // First, get the KOFULIDO code for this salesperson from salesTransactions
-      // This is the same approach used by the NVV dashboard
-      const salespersonCodeResult = await db
-        .select({
-          kofulido: factVentas.kofulido
-        })
-        .from(factVentas)
-        .where(
-          and(
-            isNotNull(factVentas.nokofu),
-            isNotNull(factVentas.kofulido),
-            sql`TRIM(UPPER(${factVentas.nokofu})) = TRIM(UPPER(${options.salesperson}))`
-          )
-        )
-        .limit(1);
-
-      // If no salesperson code found, return empty array
-      if (!salespersonCodeResult || salespersonCodeResult.length === 0 || !salespersonCodeResult[0].kofulido) {
-        console.log(`No KOFULIDO found for salesperson: ${options.salesperson}`);
-        return [];
-      }
-
-      const kofulidoCode = salespersonCodeResult[0].kofulido;
-      console.log(`Found KOFULIDO ${kofulidoCode} for salesperson ${options.salesperson}`);
-
-      // Now filter NVV data using the KOFULIDO code
+      // Search directly in factNvv by salesperson name
+      // factNvv has a nombre_vendedor field that we can match against
       const conditions = [
-        isNotNull(nvvPendingSales.KOFULIDO),
-        sql`TRIM(UPPER(${nvvPendingSales.KOFULIDO})) = TRIM(UPPER(${kofulidoCode}))`
+        eq(factNvv.cantidadPendiente, true), // Only get pending sales
+        isNotNull(factNvv.nombre_vendedor),
+        sql`TRIM(UPPER(${factNvv.nombre_vendedor})) = TRIM(UPPER(${options.salesperson}))`
       ];
 
       // Add date filters if provided
       if (options.startDate && options.startDate instanceof Date && !isNaN(options.startDate.getTime())) {
-        conditions.push(sql`${nvvPendingSales.FEEMDO} >= ${options.startDate.toISOString().split('T')[0]}`);
+        conditions.push(sql`${factNvv.feemdo} >= ${options.startDate.toISOString().split('T')[0]}`);
       }
       if (options.endDate && options.endDate instanceof Date && !isNaN(options.endDate.getTime())) {
-        conditions.push(sql`${nvvPendingSales.FEEMDO} <= ${options.endDate.toISOString().split('T')[0]}`);
+        conditions.push(sql`${factNvv.feemdo} <= ${options.endDate.toISOString().split('T')[0]}`);
       }
 
       const results = await db
         .select({
-          id: nvvPendingSales.id,
-          NUDO: nvvPendingSales.NUDO,
-          TIDO: nvvPendingSales.TIDO,
-          FEEMDO: nvvPendingSales.FEEMDO,
-          ENDO: nvvPendingSales.ENDO,
-          NOKOEN: nvvPendingSales.NOKOEN,
-          NOKOPR: nvvPendingSales.NOKOPR,
-          KOPRCT: nvvPendingSales.KOPRCT,
-          CAPREX2: nvvPendingSales.CAPREX2,
-          CAPRCO2: nvvPendingSales.CAPRCO2,
-          PPPRNE: nvvPendingSales.PPPRNE,
-          cantidadPendiente: nvvPendingSales.cantidadPendiente,
-          totalPendiente: nvvPendingSales.totalPendiente
+          id: factNvv.id,
+          NUDO: factNvv.nudo,
+          TIDO: factNvv.tido,
+          FEEMDO: factNvv.feemdo,
+          ENDO: factNvv.endo,
+          NOKOEN: factNvv.nokoen,
+          NOKOPR: factNvv.nokopr,
+          KOPRCT: factNvv.koprct,
+          CAPREX2: factNvv.caprex2,
+          CAPRCO2: factNvv.caprco2,
+          PPPRNE: factNvv.ppprne,
+          monto: factNvv.monto
         })
-        .from(nvvPendingSales)
+        .from(factNvv)
         .where(and(...conditions))
-        .orderBy(desc(nvvPendingSales.FEEMDO));
+        .orderBy(desc(factNvv.feemdo));
 
-      console.log(`Found ${results.length} NVV records for ${options.salesperson} (${kofulidoCode})`);
+      console.log(`Found ${results.length} pending NVV records for ${options.salesperson}`);
 
       return results.map(row => ({
-        id: row.id,
+        id: row.id || '',
         NUDO: row.NUDO || '',
         TIDO: row.TIDO || '',
         FEEMDO: row.FEEMDO?.toString() || '',
@@ -11201,8 +11177,8 @@ export class DatabaseStorage implements IStorage {
         CAPREX2: Number(row.CAPREX2) || 0,
         CAPRCO2: Number(row.CAPRCO2) || 0,
         PPPRNE: Number(row.PPPRNE) || 0,
-        cantidadPendiente: Number(row.cantidadPendiente) || 0,
-        totalPendiente: Number(row.totalPendiente) || 0
+        cantidadPendiente: Number(row.CAPRCO2) - Number(row.CAPREX2) || 0,
+        totalPendiente: Number(row.monto) || 0
       }));
     } catch (error) {
       console.error('Error getting NVV by salesperson:', error);
