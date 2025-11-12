@@ -641,11 +641,11 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
           dd.ocdo,
           dd.lilg,
           dd.luvtlido,
-          -- Calcular cantidad_pendiente: (eslido NULL/'') AND (monto_pendiente_UD1 >= 1000)
-          -- Solo usa UD1 (unidad principal) para evitar duplicar cantidades
+          -- Calcular cantidad_pendiente: (eslido NULL/'') AND ((CAPRCO2 - CAPREX2) × PPPRNE >= 1000)
+          -- Usa UD2 según fórmula especificada por el usuario
           CASE 
             WHEN (dd.eslido IS NULL OR dd.eslido = '')
-              AND (((COALESCE(dd.caprco1, 0) - COALESCE(dd.caprad1, 0) - COALESCE(dd.caprex1, 0)) * COALESCE(dd.ppprne, 0)) >= 1000)
+              AND (((COALESCE(dd.caprco2, 0) - COALESCE(dd.caprex2, 0)) * COALESCE(dd.ppprne, 0)) >= 1000)
             THEN TRUE
             ELSE FALSE
           END as cantidad_pendiente,
