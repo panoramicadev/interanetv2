@@ -180,7 +180,12 @@ export default function CMmsPresupuesto() {
   });
 
   // Fetch gastos de materiales
-  const { data: gastosMateriales, isLoading: isLoadingGastos } = useQuery<GastoMaterial[]>({
+  const { data: gastosResponse, isLoading: isLoadingGastos } = useQuery<{
+    data: GastoMaterial[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }>({
     queryKey: ["/api/cmms/gastos-materiales", selectedYear, selectedArea],
     queryFn: async () => {
       const startDate = `${selectedYear}-01-01`;
@@ -197,6 +202,8 @@ export default function CMmsPresupuesto() {
       return response.json();
     }
   });
+
+  const gastosMateriales = gastosResponse?.data || [];
 
   // Create/Update mutation
   const saveMutation = useMutation({
