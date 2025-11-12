@@ -1248,8 +1248,7 @@ export default function Dashboard() {
                 <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
                   <SalespersonPendingNVV
                     salesperson={globalFilter.value}
-                    selectedPeriod={selectedPeriod}
-                    filterType={filterType}
+                    applyPeriodFilter={false}
                   />
                 </div>
               )}
