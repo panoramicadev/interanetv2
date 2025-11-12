@@ -110,7 +110,7 @@ export default function CMmsGastosMateriales() {
   const currentMonth = new Date().getMonth() + 1;
 
   const [selectedYear, setSelectedYear] = useState(currentYear.toString());
-  const [selectedMonth, setSelectedMonth] = useState(currentMonth.toString());
+  const [selectedMonth, setSelectedMonth] = useState("all");
   const [filterArea, setFilterArea] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -150,9 +150,9 @@ export default function CMmsGastosMateriales() {
     queryFn: async () => {
       const params = new URLSearchParams({
         anio: selectedYear,
-        mes: selectedMonth,
         page: currentPage.toString(),
         pageSize: PAGE_SIZE.toString(),
+        ...(selectedMonth !== "all" && { mes: selectedMonth }),
         ...(filterArea !== "all" && { area: filterArea }),
       });
       const response = await fetch(`/api/cmms/gastos-materiales?${params.toString()}`, {
@@ -596,6 +596,7 @@ export default function CMmsGastosMateriales() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="all">Todos los meses</SelectItem>
                     <SelectItem value="1">Enero</SelectItem>
                     <SelectItem value="2">Febrero</SelectItem>
                     <SelectItem value="3">Marzo</SelectItem>
