@@ -603,6 +603,7 @@ export default function CMMSDashboard() {
             </div>
           </>
         )}
+        </div>
       </div>
     </CmmsLayout>
   );
