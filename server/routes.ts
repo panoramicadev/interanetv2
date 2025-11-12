@@ -10768,10 +10768,85 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/cmms/planes-preventivos', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
     try {
       const { equipoId, activo } = req.query;
-      const planes = await storage.getPlanesPreventivos({
-      
-      // Datos de ejemplo para la plantilla
-      const plantillaData = [
+      const planes = await storage.getPlanesPreventivos({ 
+        equipoId,
+        activo: activo === 'true' ? true : activo === 'false' ? false : undefined 
+      });
+      res.json(planes);
+    } catch (error: any) {
+      console.error('Error al obtener planes:', error);
+      res.status(500).json({ message: 'Error al obtener planes', error: error.message });
+    }
+  }));
+
+  // GET planes preventivos vencidos  
+  app.get('/api/cmms/planes-preventivos/vencidos', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const planes = await storage.getPlanesPreventivosVencidos();
+      res.json(planes);
+    } catch (error: any) {
+      console.error('Error al obtener planes vencidos:', error);
+      res.status(500).json({ message: 'Error al obtener planes vencidos', error: error.message });
+    }
+  }));
+
+  // GET plan preventivo by ID
+  app.get('/api/cmms/planes-preventivos/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const plan = await storage.getPlanPreventivoById(req.params.id);
+      if (!plan) {
+        return res.status(404).json({ message: 'Plan no encontrado' });
+      }
+      res.json(plan);
+    } catch (error: any) {
+      console.error('Error al obtener plan:', error);
+      res.status(500).json({ message: 'Error al obtener plan', error: error.message });
+    }
+  }));
+
+  // POST create plan preventivo
+  app.post('/api/cmms/planes-preventivos', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const validatedData = insertPlanPreventivoSchema.parse(req.body);
+      const plan = await storage.createPlanPreventivo(validatedData);
+      res.status(201).json(plan);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      console.error('Error al crear plan:', error);
+      res.status(500).json({ message: 'Error al crear plan', error: error.message });
+    }
+  }));
+
+  // PATCH update plan preventivo
+  app.patch('/api/cmms/planes-preventivos/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const validatedData = insertPlanPreventivoSchema.partial().parse(req.body);
+      const plan = await storage.updatePlanPreventivo(req.params.id, validatedData);
+      res.json(plan);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      console.error('Error al actualizar plan:', error);
+      res.status(500).json({ message: 'Error al actualizar plan', error: error.message });
+    }
+  }));
+
+  // DELETE plan preventivo
+  app.delete('/api/cmms/planes-preventivos/:id', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deletePlanPreventivo(req.params.id);
+      res.json({ message: 'Plan eliminado exitosamente' });
+    } catch (error: any) {
+      console.error('Error al eliminar plan:', error);
+      res.status(500).json({ message: 'Error al eliminar plan', error: error.message });
+    }
+  }));
+
+  // Continue with next section - PLACEHOLDER FOR CODE BELOW
+  const PLACEHOLDER_CONTINUED = [
         {
           'Fecha (YYYY-MM-DD)': '2025-01-15',
           'Item': 'Tornillos hexagonales M8',
