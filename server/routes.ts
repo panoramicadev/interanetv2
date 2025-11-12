@@ -27,6 +27,9 @@ import {
   insertHitoMarketingSchema, 
   nvvPendingSales, 
   factVentas,
+  // CMMS tables
+  mantencionesPlanificadas,
+  solicitudesMantencion,
   // CMMS validation schemas
   insertEquipoCriticoSchema,
   insertProveedorMantencionSchema,
@@ -10298,6 +10301,72 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error('Error al obtener componentes:', error);
       res.status(500).json({ message: 'Error al obtener componentes', error: error.message });
+    }
+  }));
+
+  // GET mantenciones planificadas de un equipo
+  app.get('/api/cmms/equipos/:id/mantenciones-planificadas', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const results = await db
+        .select({
+          id: mantencionesPlanificadas.id,
+          equipoId: mantencionesPlanificadas.equipoId,
+          equipoNombre: mantencionesPlanificadas.equipoNombre,
+          titulo: mantencionesPlanificadas.titulo,
+          descripcion: mantencionesPlanificadas.descripcion,
+          categoria: mantencionesPlanificadas.categoria,
+          costoEstimado: mantencionesPlanificadas.costoEstimado,
+          mes: mantencionesPlanificadas.mes,
+          anio: mantencionesPlanificadas.anio,
+          area: mantencionesPlanificadas.area,
+          estado: mantencionesPlanificadas.estado,
+          prioridad: mantencionesPlanificadas.prioridad,
+          notas: mantencionesPlanificadas.notas,
+          otGeneradaId: mantencionesPlanificadas.otGeneradaId,
+          creadoPorId: mantencionesPlanificadas.creadoPorId,
+          creadoPorName: mantencionesPlanificadas.creadoPorName,
+          createdAt: mantencionesPlanificadas.createdAt,
+          updatedAt: mantencionesPlanificadas.updatedAt,
+        })
+        .from(mantencionesPlanificadas)
+        .where(eq(mantencionesPlanificadas.equipoId, req.params.id))
+        .orderBy(desc(mantencionesPlanificadas.anio), desc(mantencionesPlanificadas.mes));
+      res.json(results);
+    } catch (error: any) {
+      console.error('Error al obtener mantenciones planificadas:', error);
+      res.status(500).json({ message: 'Error al obtener mantenciones planificadas', error: error.message });
+    }
+  }));
+
+  // GET órdenes de trabajo de un equipo
+  app.get('/api/cmms/equipos/:id/ordenes-trabajo', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const results = await db
+        .select({
+          id: solicitudesMantencion.id,
+          equipoId: solicitudesMantencion.equipoId,
+          equipoNombre: solicitudesMantencion.equipoNombre,
+          descripcionProblema: solicitudesMantencion.descripcionProblema,
+          area: solicitudesMantencion.area,
+          prioridad: solicitudesMantencion.prioridad,
+          gravedad: solicitudesMantencion.gravedad,
+          estado: solicitudesMantencion.estado,
+          fechaInicio: solicitudesMantencion.fechaInicio,
+          fechaFin: solicitudesMantencion.fechaFin,
+          solicitanteId: solicitudesMantencion.solicitanteId,
+          solicitanteNombre: solicitudesMantencion.solicitanteNombre,
+          tecnicoAsignadoId: solicitudesMantencion.tecnicoAsignadoId,
+          tecnicoAsignadoNombre: solicitudesMantencion.tecnicoAsignadoNombre,
+          createdAt: solicitudesMantencion.createdAt,
+          updatedAt: solicitudesMantencion.updatedAt,
+        })
+        .from(solicitudesMantencion)
+        .where(eq(solicitudesMantencion.equipoId, req.params.id))
+        .orderBy(desc(solicitudesMantencion.createdAt));
+      res.json(results);
+    } catch (error: any) {
+      console.error('Error al obtener órdenes de trabajo:', error);
+      res.status(500).json({ message: 'Error al obtener órdenes de trabajo', error: error.message });
     }
   }));
 
