@@ -267,6 +267,8 @@ export default function CmmsMantencionesPlanificadas() {
   });
 
   const onSubmit = (data: MantencionFormValues) => {
+    console.log('[MANTENCION-FORM] Datos del formulario:', data);
+    
     const cleanedData = {
       ...data,
       equipoId: data.equipoId && data.equipoId.trim() !== '' ? data.equipoId : undefined,
@@ -275,9 +277,13 @@ export default function CmmsMantencionesPlanificadas() {
       descripcion: data.descripcion && data.descripcion.trim() !== '' ? data.descripcion : undefined,
     };
     
+    console.log('[MANTENCION-FORM] Datos limpios a enviar:', cleanedData);
+    
     if (editingMantencion) {
+      console.log('[MANTENCION-FORM] Actualizando mantención ID:', editingMantencion.id);
       updateMutation.mutate({ id: editingMantencion.id, data: cleanedData });
     } else {
+      console.log('[MANTENCION-FORM] Creando nueva mantención');
       createMutation.mutate(cleanedData);
     }
   };
@@ -571,7 +577,7 @@ export default function CmmsMantencionesPlanificadas() {
                     name="titulo"
                     render={({ field }) => (
                       <FormItem className="col-span-2">
-                        <FormLabel>Título del Proyecto</FormLabel>
+                        <FormLabel>Título del Proyecto *</FormLabel>
                         <FormControl>
                           <Input
                             placeholder="Ej: Rectificación Eje Dispersora"
@@ -661,7 +667,7 @@ export default function CmmsMantencionesPlanificadas() {
                     name="categoria"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Categoría</FormLabel>
+                        <FormLabel>Categoría *</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger data-testid="select-category">
@@ -686,7 +692,7 @@ export default function CmmsMantencionesPlanificadas() {
                     name="mes"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Mes Planificado</FormLabel>
+                        <FormLabel>Mes Planificado *</FormLabel>
                         <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value?.toString()}>
                           <FormControl>
                             <SelectTrigger data-testid="select-month">
@@ -711,7 +717,7 @@ export default function CmmsMantencionesPlanificadas() {
                     name="anio"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Año</FormLabel>
+                        <FormLabel>Año *</FormLabel>
                         <FormControl>
                           <Input
                             type="number"
@@ -732,7 +738,7 @@ export default function CmmsMantencionesPlanificadas() {
                     name="costoEstimado"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Costo Estimado (CLP)</FormLabel>
+                        <FormLabel>Costo Estimado (CLP) *</FormLabel>
                         <FormControl>
                           <Input
                             placeholder="Ej: 5000000"
