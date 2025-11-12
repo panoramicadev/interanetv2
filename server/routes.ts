@@ -11148,7 +11148,9 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/cmms/mantenciones-planificadas', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
+      console.log('[MANTENCION-CREATE] Body recibido:', JSON.stringify(req.body, null, 2));
       const validatedData = insertMantencionPlanificadaSchema.parse(req.body);
+      console.log('[MANTENCION-CREATE] Datos validados:', JSON.stringify(validatedData, null, 2));
       
       const nuevaMantencion = await storage.createMantencionPlanificada({
         ...validatedData,
@@ -11156,9 +11158,11 @@ export function registerRoutes(app: Express): Server {
         creadoPorName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
       });
       
+      console.log('[MANTENCION-CREATE] Mantención creada exitosamente:', nuevaMantencion.id);
       res.status(201).json(nuevaMantencion);
     } catch (error: any) {
       if (error.name === 'ZodError') {
+        console.error('[MANTENCION-CREATE] Error de validación Zod:', JSON.stringify(error.errors, null, 2));
         return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
       }
       console.error('Error al crear mantención planificada:', error);
