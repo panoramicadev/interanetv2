@@ -12,6 +12,7 @@ import {
   stgTabru, 
   stgTabpp,
   factVentas,
+  weeklyVentasCliente,
   etlExecutionLog,
   etlConfig
 } from '../shared/schema';
@@ -844,6 +845,78 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     }
     
     console.log('');
+
+    // 10. ACTUALIZAR WEEKLY_VENTAS_CLIENTE (Agregación para promesas de compra)
+    emitProgress(10, TOTAL_STEPS + 1, 'Actualizando agregados semanales', 'Calculando ventas por cliente y semana...');
+    console.log('🔄 Actualizando weekly_ventas_cliente (agregados para promesas)...');
+    
+    try {
+      // Identificar las semanas afectadas por los documentos procesados (usando semana ISO consistente)
+      const weeksAffectedResult = await db.execute(sql`
+        SELECT DISTINCT
+          TO_CHAR(feemdo, 'IYYY-IW') as semana,
+          EXTRACT(ISOYEAR FROM feemdo)::INTEGER as anio,
+          EXTRACT(WEEK FROM feemdo)::INTEGER as numero_semana,
+          DATE_TRUNC('week', feemdo)::DATE as fecha_inicio,
+          (DATE_TRUNC('week', feemdo) + INTERVAL '6 days')::DATE as fecha_fin
+        FROM ventas.fact_ventas
+        WHERE idmaeddo IN (${sql.raw(idmaeddosToDelete.join(','))})
+        AND feemdo IS NOT NULL
+      `);
+
+      if (weeksAffectedResult.rows.length > 0) {
+        console.log(`   📅 ${weeksAffectedResult.rows.length} semanas afectadas, re-calculando agregados...`);
+
+        for (const week of weeksAffectedResult.rows) {
+          // Re-agregar ventas para esta semana (transacción atómica para evitar gaps)
+          await db.transaction(async (tx) => {
+            await tx.execute(sql`
+              DELETE FROM ventas.weekly_ventas_cliente
+              WHERE semana = ${week.semana}
+            `);
+
+            await tx.execute(sql`
+              INSERT INTO ventas.weekly_ventas_cliente (
+                cliente_id,
+                vendedor_id,
+                semana,
+                anio,
+                numero_semana,
+                fecha_inicio,
+                fecha_fin,
+                total_ventas,
+                cantidad_transacciones,
+                ultima_actualizacion
+              )
+              SELECT
+                nokoen as cliente_id,
+                nokofu as vendedor_id,
+                ${week.semana} as semana,
+                ${week.anio} as anio,
+                ${week.numero_semana} as numero_semana,
+                ${week.fecha_inicio} as fecha_inicio,
+                ${week.fecha_fin} as fecha_fin,
+                SUM(monto) as total_ventas,
+                COUNT(*) as cantidad_transacciones,
+                NOW() as ultima_actualizacion
+              FROM ventas.fact_ventas
+              WHERE TO_CHAR(feemdo, 'IYYY-IW') = ${week.semana}
+                AND nokoen IS NOT NULL
+                AND monto IS NOT NULL
+              GROUP BY nokoen, nokofu
+            `);
+          });
+        }
+
+        console.log(`   ✅ Agregados semanales actualizados para ${weeksAffectedResult.rows.length} semanas\n`);
+      } else {
+        console.log(`   ℹ️  No hay semanas para actualizar\n`);
+      }
+    } catch (aggregationError: any) {
+      console.error(`   ⚠️  Error actualizando agregados semanales: ${aggregationError.message}`);
+      logger.warn('Error en agregación semanal (no crítico)', { error: aggregationError.message }, aggregationError);
+      // No fallar el ETL por esto, es una feature auxiliar
+    }
 
     // Actualizar log de ejecución
     await db.update(etlExecutionLog)
