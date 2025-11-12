@@ -11751,6 +11751,36 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Get NVV by segmento cliente
+  app.get('/api/etl/nvv/by-segmento-cliente', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Normalize array query params
+      const normalizeArray = (raw: any): string[] | undefined => {
+        if (!raw) return undefined;
+        const values = Array.isArray(raw) ? raw : raw.split(',');
+        const filtered = values.map((v: string) => v.trim()).filter((v: string) => v !== '');
+        return filtered.length > 0 ? filtered : undefined;
+      };
+
+      const filters = {
+        startDate: req.query.startDate as string | undefined,
+        endDate: req.query.endDate as string | undefined,
+        sucursales: normalizeArray(req.query.sucursales),
+        vendedores: normalizeArray(req.query.vendedores),
+        bodegas: normalizeArray(req.query.bodegas),
+        estado: req.query.estado as 'open' | 'closed' | undefined,
+        pendingOnly: req.query.pendingOnly === 'true',
+        minAmount: req.query.minAmount ? parseFloat(req.query.minAmount as string) : undefined,
+        maxAmount: req.query.maxAmount ? parseFloat(req.query.maxAmount as string) : undefined,
+      };
+      
+      const metrics = await storage.getNvvBySegmentoCliente(filters);
+      res.json(metrics);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener métricas de NVV por segmento', error: error.message });
+    }
+  }));
+
   // Get NVV documents (paginated list)
   app.get('/api/etl/nvv/documents', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
     try {

@@ -181,6 +181,19 @@ interface NvvByBodega {
   montoCerradas: number;
 }
 
+interface NvvBySegmentoCliente {
+  ruen: string | null;
+  nombre_segmento_cliente: string | null;
+  totalNvv: number;
+  abiertas: number;
+  cerradas: number;
+  pendientes: number;
+  montoTotal: number;
+  montoAbiertas: number;
+  montoCerradas: number;
+  montoPendientes: number;
+}
+
 // Configuración de ETLs disponibles
 const ETL_CONFIGS = [
   {
@@ -2347,6 +2360,18 @@ function NVVMetricsSection({
     enabled: activeTab === 'bodega',
   });
 
+  const { data: bySegmentoCliente, isLoading: loadingSegmento } = useQuery<NvvBySegmentoCliente[]>({
+    queryKey: ['/api/etl/nvv/by-segmento-cliente', startDate, endDate, selectedSucursales.join(','), selectedVendedores.join(','), selectedBodegas.join(','), estado, pendingOnly],
+    queryFn: async () => {
+      const filters = buildFilters();
+      const response = await fetch(`/api/etl/nvv/by-segmento-cliente${filters ? `?${filters}` : ''}`);
+      if (!response.ok) throw new Error('Error al cargar métricas por segmento');
+      return response.json();
+    },
+    refetchInterval: autoRefresh ? 30000 : false,
+    enabled: activeTab === 'segmento',
+  });
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
@@ -2368,7 +2393,7 @@ function NVVMetricsSection({
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="sucursal" data-testid="tab-nvv-sucursal">
               Por Sucursal
             </TabsTrigger>
@@ -2377,6 +2402,9 @@ function NVVMetricsSection({
             </TabsTrigger>
             <TabsTrigger value="bodega" data-testid="tab-nvv-bodega">
               Por Bodega
+            </TabsTrigger>
+            <TabsTrigger value="segmento" data-testid="tab-nvv-segmento">
+              Por Segmento Cliente
             </TabsTrigger>
           </TabsList>
 
@@ -2511,6 +2539,53 @@ function NVVMetricsSection({
             ) : (
               <p className="text-center py-8 text-muted-foreground">
                 No hay datos de NVV por bodega para el periodo seleccionado
+              </p>
+            )}
+          </TabsContent>
+
+          <TabsContent value="segmento" className="mt-4">
+            {loadingSegmento ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
+            ) : bySegmentoCliente && bySegmentoCliente.length > 0 ? (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Segmento Cliente</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Abiertas</TableHead>
+                      <TableHead className="text-right">Cerradas</TableHead>
+                      <TableHead className="text-right">Pendientes</TableHead>
+                      <TableHead className="text-right">Monto Pendiente</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {bySegmentoCliente.map((row, idx) => (
+                      <TableRow key={`${row.ruen || 'sin-codigo'}-${idx}`} data-testid={`row-nvv-segmento-${row.ruen}`}>
+                        <TableCell className="font-medium">{row.nombre_segmento_cliente || 'Sin Segmento'}</TableCell>
+                        <TableCell className="text-right">{row.totalNvv}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="default">{row.abiertas}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="secondary">{row.cerradas}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="destructive">{row.pendientes}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-semibold text-orange-600 dark:text-orange-400">
+                          {formatCurrency(row.montoPendientes)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <p className="text-center py-8 text-muted-foreground">
+                No hay datos de NVV por segmento para el periodo seleccionado
               </p>
             )}
           </TabsContent>
