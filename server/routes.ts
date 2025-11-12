@@ -10735,6 +10735,9 @@ export function registerRoutes(app: Express): Server {
     const worksheet = workbook.Sheets[sheetName];
     const jsonData = XLSX.utils.sheet_to_json(worksheet);
     
+    console.log(`[EXCEL-PARSE] Total filas leídas: ${jsonData.length}`);
+    console.log(`[EXCEL-PARSE] Primera fila (ejemplo):`, jsonData[0]);
+    
     if (!jsonData || jsonData.length === 0) {
       throw new Error('El archivo Excel está vacío o no tiene el formato correcto');
     }
@@ -10768,6 +10771,12 @@ export function registerRoutes(app: Express): Server {
         // Validar campos requeridos ANTES de parsear
         if (!fecha || !item || cantidadRaw === undefined || cantidadRaw === null || cantidadRaw === '' || 
             costoUnitarioRaw === undefined || costoUnitarioRaw === null || costoUnitarioRaw === '') {
+          console.log(`[EXCEL-PARSE] Fila ${rowNumber} - Campos faltantes:`, {
+            fecha: fecha || 'FALTA',
+            item: item || 'FALTA',
+            cantidadRaw: cantidadRaw ?? 'FALTA',
+            costoUnitarioRaw: costoUnitarioRaw ?? 'FALTA'
+          });
           const error = 'Faltan campos requeridos (Fecha, Item, Cantidad, Costo Unitario)';
           errores.push({ fila: rowNumber, error });
           if (mode === 'preview') {
