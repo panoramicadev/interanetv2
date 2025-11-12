@@ -17609,7 +17609,7 @@ export class DatabaseStorage implements IStorage {
           GROUP BY fv.nokoen
           HAVING MAX(fv.feemdo) < ${sql.raw(`'${fortyFiveDaysAgoStr}'::date`)}
             AND MAX(fv.feemdo) >= ${sql.raw(`'${threeHundredFiftyFourDaysAgoStr}'::date`)}
-            AND COUNT(*) > 4
+            AND COUNT(*) >= 4
         ),
         client_details AS (
           SELECT DISTINCT ON (cs.client_koen)
