@@ -2812,7 +2812,9 @@ export function registerRoutes(app: Express): Server {
 
   app.get('/api/goals/data/salespeople', requireAuth, async (req, res) => {
     try {
-      const salespeople = await storage.getUniqueSalespeople();
+      const { period, filterType } = req.query;
+      const dateRange = period && filterType ? getDateRange(period as string, filterType as string) : {};
+      const salespeople = await storage.getUniqueSalespeople(dateRange);
       res.json(salespeople);
     } catch (error) {
       console.error("Error fetching salespeople:", error);
