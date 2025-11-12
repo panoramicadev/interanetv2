@@ -4672,6 +4672,8 @@ export const factNvv = nvvSchema.table("fact_nvv", {
   pfpr: text("pfpr"),
   fmpr: text("fmpr"),
   mrpr: text("mrpr"),
+  rupr: text("rupr"), // Código de segmento
+  nombre_segmento: text("nombre_segmento"), // Nombre del segmento
   
   // Cantidades (unidad 1)
   caprco1: numeric("caprco1", { precision: 10, scale: 2 }),
