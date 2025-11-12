@@ -657,9 +657,9 @@ export default function SegmentDetail({
         <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 pt-3 pb-2 sm:py-5 lg:py-6 m-2 sm:m-4 rounded-2xl shadow-sm">
           <div className="space-y-4 w-full">
             {/* All filters in one line */}
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:flex-wrap">
               {/* Home button and Vista */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 {onBack && (
                   <Button
                     variant="ghost"
@@ -673,7 +673,7 @@ export default function SegmentDetail({
                   </Button>
                 )}
                 <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                <span className="text-sm font-medium text-gray-700">Vista:</span>
+                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Vista:</span>
                 <Select 
                   value={selectedView}
                   onValueChange={(value: "all" | "segmento" | "vendedor") => {
@@ -683,7 +683,7 @@ export default function SegmentDetail({
                     }
                   }}
                 >
-                  <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm bg-gray-50">
+                  <SelectTrigger className="h-9 w-full sm:w-48 rounded-lg border-gray-200 text-sm bg-gray-50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
@@ -711,15 +711,15 @@ export default function SegmentDetail({
 
               {/* Segment selector - shown when view is segmento */}
               {!embedded && selectedView === "segmento" && allSegments && allSegments.length > 0 && segmentName && (
-                <div className="flex items-center gap-2" key="segment-selector">
-                  <span className="text-sm font-medium text-gray-700">Segmento:</span>
+                <div className="flex items-center gap-2 w-full sm:w-auto" key="segment-selector">
+                  <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Segmento:</span>
                   <Select 
                     value={segmentName} 
                     onValueChange={(newSegment) => {
                       setLocation(`/segment/${encodeURIComponent(newSegment)}`);
                     }}
                   >
-                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm" data-testid="select-segment">
+                    <SelectTrigger className="h-9 w-full sm:w-56 rounded-lg border-gray-200 text-sm" data-testid="select-segment">
                       <SelectValue placeholder={segmentName} />
                     </SelectTrigger>
                     <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
@@ -735,15 +735,15 @@ export default function SegmentDetail({
 
               {/* Salesperson selector - shown when view is vendedor */}
               {!embedded && selectedView === "vendedor" && allSalespeople && allSalespeople.length > 0 && (
-                <div className="flex items-center gap-2" key="salesperson-selector">
-                  <span className="text-sm font-medium text-gray-700">Vendedor:</span>
+                <div className="flex items-center gap-2 w-full sm:w-auto" key="salesperson-selector">
+                  <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Vendedor:</span>
                   <Select 
                     value=""
                     onValueChange={(salesperson) => {
                       setLocation(`/salesperson/${encodeURIComponent(salesperson)}`);
                     }}
                   >
-                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm" data-testid="select-salesperson">
+                    <SelectTrigger className="h-9 w-full sm:w-56 rounded-lg border-gray-200 text-sm" data-testid="select-salesperson">
                       <SelectValue placeholder="Selecciona vendedor" />
                     </SelectTrigger>
                     <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
@@ -759,10 +759,10 @@ export default function SegmentDetail({
 
               {/* Embedded segment selector - shown when view is segmento */}
               {embedded && selectedView === "segmento" && onSegmentChange && allSegments && allSegments.length > 0 && segmentName && (
-                <div className="flex items-center gap-2" key="embedded-segment-selector">
-                  <span className="text-sm font-medium text-gray-700">Segmento:</span>
+                <div className="flex items-center gap-2 w-full sm:w-auto" key="embedded-segment-selector">
+                  <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Segmento:</span>
                   <Select value={segmentName} onValueChange={onSegmentChange}>
-                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
+                    <SelectTrigger className="h-9 w-full sm:w-56 rounded-lg border-gray-200 text-sm">
                       <SelectValue placeholder={segmentName} />
                     </SelectTrigger>
                     <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
@@ -778,15 +778,15 @@ export default function SegmentDetail({
 
               {/* Embedded salesperson selector - shown when view is vendedor */}
               {embedded && selectedView === "vendedor" && allSalespeople && allSalespeople.length > 0 && (
-                <div className="flex items-center gap-2" key="embedded-salesperson-selector">
-                  <span className="text-sm font-medium text-gray-700">Vendedor:</span>
+                <div className="flex items-center gap-2 w-full sm:w-auto" key="embedded-salesperson-selector">
+                  <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Vendedor:</span>
                   <Select 
                     value=""
                     onValueChange={(salesperson) => {
                       setLocation(`/salesperson/${encodeURIComponent(salesperson)}`);
                     }}
                   >
-                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm" data-testid="select-salesperson">
+                    <SelectTrigger className="h-9 w-full sm:w-56 rounded-lg border-gray-200 text-sm" data-testid="select-salesperson">
                       <SelectValue placeholder="Selecciona vendedor" />
                     </SelectTrigger>
                     <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
@@ -801,9 +801,9 @@ export default function SegmentDetail({
               )}
 
               {/* Period */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                <span className="text-sm font-medium text-gray-700">Período:</span>
+                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Período:</span>
                 <YearMonthSelector 
                   value={selection}
                   onChange={handleSelectionChange}
