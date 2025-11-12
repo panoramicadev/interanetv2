@@ -3944,15 +3944,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUniqueSalespeople(filters?: { startDate?: string; endDate?: string }): Promise<string[]> {
-    const conditions: SQL<unknown>[] = [
+    const conditions: (SQL<unknown> | undefined)[] = [
       sql`${factVentas.nokofu} IS NOT NULL AND ${factVentas.nokofu} != ''`
     ];
 
     if (filters?.startDate) {
-      conditions.push(sql`${factVentas.fecha} >= ${filters.startDate}`);
+      conditions.push(gte(factVentas.fecha, filters.startDate));
     }
     if (filters?.endDate) {
-      conditions.push(sql`${factVentas.fecha} <= ${filters.endDate}`);
+      conditions.push(lte(factVentas.fecha, filters.endDate));
     }
 
     const result = await db
