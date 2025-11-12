@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,7 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Plus, Receipt, DollarSign, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Receipt, DollarSign, Trash2, Download, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -97,6 +97,9 @@ export default function CMmsGastosMateriales() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [gastoToDelete, setGastoToDelete] = useState<GastoMaterial | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<GastoFormValues>({
     resolver: zodResolver(gastoSchema),
@@ -229,6 +232,98 @@ export default function CMmsGastosMateriales() {
     }
   };
 
+  const handleDescargarPlantilla = async () => {
+    try {
+      const response = await fetch('/api/cmms/gastos-materiales/plantilla-excel', {
+        credentials: 'include',
+      });
+      
+      if (!response.ok) throw new Error('Error al descargar plantilla');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'plantilla_gastos_materiales.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Plantilla descargada",
+        description: "La plantilla Excel se ha descargado exitosamente",
+      });
+    } catch (error) {
+      console.error('Error al descargar plantilla:', error);
+      toast({
+        title: "Error",
+        description: "Error al descargar la plantilla Excel",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleImportarExcel = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('/api/cmms/gastos-materiales/importar-excel', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error al importar Excel');
+      }
+
+      const result = await response.json();
+      
+      toast({
+        title: "Importación exitosa",
+        description: result.message,
+      });
+
+      // Invalidar queries para recargar datos
+      queryClient.invalidateQueries({ queryKey: ['/api/cmms/gastos-materiales'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/cmms/presupuesto'] });
+
+      if (result.errores && result.errores.length > 0) {
+        console.warn('Errores en importación:', result.errores);
+        toast({
+          title: "Advertencia",
+          description: `Algunos registros tuvieron errores. Revisa la consola para más detalles.`,
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error al importar Excel:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Error al importar el archivo Excel",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImporting(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const formatCurrency = (value: string | number) => {
     const num = typeof value === 'string' ? parseFloat(value) : value;
     return new Intl.NumberFormat("es-CL", {
@@ -278,11 +373,40 @@ export default function CMmsGastosMateriales() {
               </p>
             </div>
           </div>
-          <Button onClick={handleOpenDialog} data-testid="button-create">
-            <Plus className="mr-2 h-4 w-4" />
-            Nuevo Gasto
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleDescargarPlantilla} 
+              data-testid="button-descargar-plantilla"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Descargar Plantilla
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={handleImportarExcel} 
+              disabled={isImporting}
+              data-testid="button-importar-excel"
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              {isImporting ? "Importando..." : "Importar Excel"}
+            </Button>
+            <Button onClick={handleOpenDialog} data-testid="button-create">
+              <Plus className="mr-2 h-4 w-4" />
+              Nuevo Gasto
+            </Button>
+          </div>
         </div>
+
+        {/* Hidden file input for Excel import */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          onChange={handleFileChange}
+          style={{ display: 'none' }}
+          data-testid="input-file-excel"
+        />
 
         {/* Summary Card */}
         <Card>
