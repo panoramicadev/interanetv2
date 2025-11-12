@@ -472,17 +472,17 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     }));
     await batchInsert(stgMaevenNvv, tabfu_records, 'stg_maeven_nvv', logger);
 
-    // TABRU (Segmentos)
+    // TABRU (Segmentos) - Extraer usando RUPR de productos, no RUEN de clientes
     console.log('6️⃣  Extrayendo TABRU (Segmentos)...');
-    const ruens = Array.from(new Set(maeen.recordset.map((r: any) => r.RUEN).filter((r: any) => r)));
+    const ruprs = Array.from(new Set(maepr.recordset.map((r: any) => r.RUPR?.trim()).filter((r: any) => r)));
     let tabru: any = { recordset: [] };
     
-    if (ruens.length > 0) {
+    if (ruprs.length > 0) {
       tabru = await executeWithResilience(
         async () => pool!.request().query(`
           SELECT KORU, NOKORU
           FROM dbo.TABRU
-          WHERE KORU IN (${ruens.map(r => `'${r}'`).join(',')})
+          WHERE KORU IN (${ruprs.map(r => `'${r}'`).join(',')})
         `),
         sqlServerBreaker,
         { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
