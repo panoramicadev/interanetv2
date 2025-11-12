@@ -89,6 +89,34 @@ export default function SegmentDetail({
   // State for showing more clients
   const [showAllClients, setShowAllClients] = useState(false);
   
+  // Search state for clients
+  const [isClientSearchExpanded, setIsClientSearchExpanded] = useState(false);
+  const [clientSearchTerm, setClientSearchTerm] = useState("");
+  const [debouncedClientSearch, setDebouncedClientSearch] = useState("");
+  const [clientLimit, setClientLimit] = useState(10);
+  
+  // Search state for salespeople
+  const [isSalespersonSearchExpanded, setIsSalespersonSearchExpanded] = useState(false);
+  const [salespersonSearchTerm, setSalespersonSearchTerm] = useState("");
+  const [debouncedSalespersonSearch, setDebouncedSalespersonSearch] = useState("");
+  const [salespersonLimit, setSalespersonLimit] = useState(10);
+  
+  // Debounce client search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedClientSearch(clientSearchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [clientSearchTerm]);
+  
+  // Debounce salesperson search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSalespersonSearch(salespersonSearchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [salespersonSearchTerm]);
+  
   // Ref to store scroll position
   const scrollPositionRef = useRef<number>(0);
   const shouldRestoreScrollRef = useRef<boolean>(false);
@@ -315,30 +343,83 @@ export default function SegmentDetail({
     queryKey: ["/api/goals/data/salespeople"],
   });
 
+  // Paginated top clients (default view - no search)
   const { data: clients = [], isLoading: isLoadingClients } = useQuery<SegmentClient[]>({
-    queryKey: ['/api/sales/segment', segmentName, 'clients', selectedPeriod, filterType],
+    queryKey: ['/api/sales/segment', segmentName, 'clients', selectedPeriod, filterType, clientLimit],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append('period', selectedPeriod);
       params.append('filterType', filterType);
+      params.append('limit', clientLimit.toString());
       const res = await fetch(`/api/sales/segment/${segmentName}/clients?${params}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
-    enabled: !!segmentName,
+    enabled: !!segmentName && !debouncedClientSearch,
   });
 
+  // Client search results
+  const { data: clientSearchResults = [], isLoading: isClientSearchLoading } = useQuery<SegmentClient[]>({
+    queryKey: ['/api/clients/search', debouncedClientSearch, selectedPeriod, filterType, segmentName],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('q', debouncedClientSearch);
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      params.append('segment', segmentName || '');
+      const res = await fetch(`/api/clients/search?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      const results = await res.json();
+      // Transform search results to match SegmentClient format
+      return results.map((c: any) => ({
+        clientName: c.name,
+        salespersonName: c.salespersonName || '',
+        totalSales: c.totalSales,
+        transactionCount: c.transactionCount,
+        averageTicket: c.transactionCount > 0 ? c.totalSales / c.transactionCount : 0,
+        percentage: 0 // Will be calculated below
+      }));
+    },
+    enabled: !!segmentName && debouncedClientSearch.length >= 2,
+  });
+
+  // Paginated top salespeople (default view - no search)
   const { data: salespeople = [], isLoading: isLoadingSalespeople } = useQuery<SegmentSalesperson[]>({
-    queryKey: ['/api/sales/segment', segmentName, 'salespeople', selectedPeriod, filterType],
+    queryKey: ['/api/sales/segment', segmentName, 'salespeople', selectedPeriod, filterType, salespersonLimit],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append('period', selectedPeriod);
       params.append('filterType', filterType);
+      params.append('limit', salespersonLimit.toString());
       const res = await fetch(`/api/sales/segment/${segmentName}/salespeople?${params}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
-    enabled: !!segmentName,
+    enabled: !!segmentName && !debouncedSalespersonSearch,
+  });
+
+  // Salesperson search results
+  const { data: salespersonSearchResults = [], isLoading: isSalespersonSearchLoading } = useQuery<SegmentSalesperson[]>({
+    queryKey: ['/api/salespeople/search', debouncedSalespersonSearch, selectedPeriod, filterType, segmentName],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('q', debouncedSalespersonSearch);
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      params.append('segment', segmentName || '');
+      const res = await fetch(`/api/salespeople/search?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      const results = await res.json();
+      // Transform search results to match SegmentSalesperson format
+      return results.map((sp: any) => ({
+        salespersonName: sp.name,
+        totalSales: sp.totalSales,
+        transactionCount: sp.transactionCount,
+        averageTicket: sp.transactionCount > 0 ? sp.totalSales / sp.transactionCount : 0,
+        percentage: 0 // Will be calculated below
+      }));
+    },
+    enabled: !!segmentName && debouncedSalespersonSearch.length >= 2,
   });
 
   // Fetch segment goal (only for monthly periods)
@@ -408,6 +489,35 @@ export default function SegmentDetail({
   // Format currency for CSV (CLP with thousands separator as point, no decimals)
   const formatCurrencyCSV = (amount: number) => {
     return Math.round(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  };
+
+  // Determine which client data to display (search results or paginated list)
+  const displayClients = debouncedClientSearch.length >= 2 ? clientSearchResults : clients;
+  const currentClientLoading = debouncedClientSearch.length >= 2 ? isClientSearchLoading : isLoadingClients;
+  
+  // Determine which salesperson data to display (search results or paginated list)
+  const displaySalespeople = debouncedSalespersonSearch.length >= 2 ? salespersonSearchResults : salespeople;
+  const currentSalespersonLoading = debouncedSalespersonSearch.length >= 2 ? isSalespersonSearchLoading : isLoadingSalespeople;
+
+  // Handlers for search
+  const handleClearClientSearch = () => {
+    setClientSearchTerm("");
+    setDebouncedClientSearch("");
+    setIsClientSearchExpanded(false);
+  };
+
+  const handleClearSalespersonSearch = () => {
+    setSalespersonSearchTerm("");
+    setDebouncedSalespersonSearch("");
+    setIsSalespersonSearchExpanded(false);
+  };
+
+  const handleLoadMoreClients = () => {
+    setClientLimit(prev => prev + 10);
+  };
+
+  const handleLoadMoreSalespeople = () => {
+    setSalespersonLimit(prev => prev + 10);
   };
 
   // Export data to CSV
