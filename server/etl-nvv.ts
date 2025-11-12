@@ -595,7 +595,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       await tx.execute(sql`
         INSERT INTO nvv.fact_nvv (
           idmaeddo, idmaeedo, nudo, tido, endo, sudo, nosudo, feemdo, feer,
-          koprct, nokopr,
+          koprct, nokopr, rupr, nombre_segmento,
           caprco1, caprad1, caprex1, ud01pr,
           caprco2, caprad2, caprex2, ud02pr,
           ppprne, vaneli, monto,
@@ -619,6 +619,8 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
           ed.feer,
           dd.koprct,
           dd.nokopr,
+          pr.rupr, -- Código de segmento
+          ru.nokoru as nombre_segmento, -- Nombre de segmento
           dd.caprco1,
           dd.caprad1,
           dd.caprex1,
@@ -657,6 +659,8 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         LEFT JOIN nvv.stg_maeven_nvv fu ON COALESCE(dd.kofulido, ed.kofudo) = fu.kofuven
         LEFT JOIN nvv.stg_tabbo_nvv bo ON COALESCE(dd.sulido, ed.suli) = bo.suli 
                                         AND COALESCE(dd.bosulido, ed.bosulido) = bo.bosuli
+        LEFT JOIN nvv.stg_maepr_nvv pr ON dd.koprct = pr.kopr
+        LEFT JOIN nvv.stg_tabru_nvv ru ON pr.rupr = ru.koru
       `);
     });
 
