@@ -98,6 +98,9 @@ const AREAS = [
   { value: "laboratorio", label: "Laboratorio" },
   { value: "bodega_materias_primas", label: "Bodega Materias Primas" },
   { value: "bodega_productos_terminados", label: "Bodega Productos Terminados" },
+  { value: "servicios_generales", label: "Servicios Generales" },
+  { value: "mantencion", label: "Mantención" },
+  { value: "comercial", label: "Comercial" },
 ];
 
 export default function CMmsGastosMateriales() {
