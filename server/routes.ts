@@ -10821,7 +10821,18 @@ export function registerRoutes(app: Express): Server {
           const error = 'Faltan campos requeridos (Fecha, Item, Cantidad, Costo Unitario)';
           errores.push({ fila: rowNumber, error });
           if (mode === 'preview') {
-            filasParseadas!.push({ fila: rowNumber, estado: 'error', error, datos: row });
+            const datosError = {
+              'Fecha (YYYY-MM-DD)': fecha || '',
+              'Fecha': fecha || '',
+              'Item': item || '',
+              'Descripción': descripcion || '',
+              'Cantidad': cantidadRaw || '',
+              'Costo Unitario': costoUnitarioRaw || '',
+              'Costo Total': '',
+              'Área': area || '',
+              'Area': area || ''
+            };
+            filasParseadas!.push({ fila: rowNumber, estado: 'error', error, datos: datosError });
           }
           continue;
         }
@@ -10835,7 +10846,18 @@ export function registerRoutes(app: Express): Server {
           const error = 'Cantidad y Costo Unitario deben ser números válidos';
           errores.push({ fila: rowNumber, error });
           if (mode === 'preview') {
-            filasParseadas!.push({ fila: rowNumber, estado: 'error', error, datos: row });
+            const datosError = {
+              'Fecha (YYYY-MM-DD)': fecha || '',
+              'Fecha': fecha || '',
+              'Item': item || '',
+              'Descripción': descripcion || '',
+              'Cantidad': cantidadRaw || '',
+              'Costo Unitario': costoUnitarioRaw || '',
+              'Costo Total': '',
+              'Área': area || '',
+              'Area': area || ''
+            };
+            filasParseadas!.push({ fila: rowNumber, estado: 'error', error, datos: datosError });
           }
           continue;
         }
@@ -10863,10 +10885,22 @@ export function registerRoutes(app: Express): Server {
         
         // Solo agregar detalles de fila en modo preview
         if (mode === 'preview') {
+          // Crear objeto de datos con nombres de columnas normalizados para el frontend
+          const datosNormalizados = {
+            'Fecha (YYYY-MM-DD)': fecha,
+            'Fecha': fecha,
+            'Item': item,
+            'Descripción': descripcion || '',
+            'Cantidad': cantidad,
+            'Costo Unitario': costoUnitario,
+            'Costo Total': costoTotal,
+            'Área': area || '',
+            'Area': area || ''
+          };
           filasParseadas!.push({ 
             fila: rowNumber, 
             estado: 'valido', 
-            datos: { ...row, 'Costo Total': costoTotal } 
+            datos: datosNormalizados
           });
         }
         
@@ -10874,7 +10908,19 @@ export function registerRoutes(app: Express): Server {
         const errorMsg = error.message || 'Error al procesar la fila';
         errores.push({ fila: rowNumber, error: errorMsg });
         if (mode === 'preview') {
-          filasParseadas!.push({ fila: rowNumber, estado: 'error', error: errorMsg, datos: row });
+          // Intentar extraer datos que puedan existir para mostrar en preview
+          const datosError = {
+            'Fecha (YYYY-MM-DD)': row['Fecha (YYYY-MM-DD)'] || row['Fecha'] || row['EMISION'] || '',
+            'Fecha': row['Fecha (YYYY-MM-DD)'] || row['Fecha'] || row['EMISION'] || '',
+            'Item': row['Item'] || row['DESCRIPCIO'] || '',
+            'Descripción': row['Descripción'] || row['Descripcion'] || row['FAMDOCU'] || '',
+            'Cantidad': row['Cantidad'] || row['CANTIDAD'] || '',
+            'Costo Unitario': row['Costo Unitario'] || '',
+            'Costo Total': row['TOTAL'] || '',
+            'Área': row['Área'] || row['Area'] || row['TIPOTRANSA'] || '',
+            'Area': row['Área'] || row['Area'] || row['TIPOTRANSA'] || ''
+          };
+          filasParseadas!.push({ fila: rowNumber, estado: 'error', error: errorMsg, datos: datosError });
         }
       }
     }
