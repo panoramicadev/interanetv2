@@ -130,6 +130,34 @@ export default function CMMSEquipos() {
     },
   });
 
+  // Fetch mantenciones planificadas del equipo visualizado
+  const { data: mantencionesPlanificadas = [] } = useQuery({
+    queryKey: [`/api/cmms/equipos/${viewingEquipo?.id}/mantenciones-planificadas`],
+    queryFn: async () => {
+      if (!viewingEquipo?.id) return [];
+      const res = await fetch(`/api/cmms/equipos/${viewingEquipo.id}/mantenciones-planificadas`, {
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error('Error al cargar mantenciones planificadas');
+      return res.json();
+    },
+    enabled: !!viewingEquipo?.id,
+  });
+
+  // Fetch órdenes de trabajo del equipo visualizado
+  const { data: ordenesTrabajoEquipo = [] } = useQuery({
+    queryKey: [`/api/cmms/equipos/${viewingEquipo?.id}/ordenes-trabajo`],
+    queryFn: async () => {
+      if (!viewingEquipo?.id) return [];
+      const res = await fetch(`/api/cmms/equipos/${viewingEquipo.id}/ordenes-trabajo`, {
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error('Error al cargar órdenes de trabajo');
+      return res.json();
+    },
+    enabled: !!viewingEquipo?.id,
+  });
+
   // Form
   const form = useForm<EquipoCriticoFormData>({
     resolver: zodResolver(equipoCriticoSchema),
@@ -1027,6 +1055,111 @@ export default function CMMSEquipos() {
                     </p>
                   </div>
                 </div>
+              </div>
+
+              {/* Historial de Mantenciones Planificadas */}
+              <div data-testid="section-mantenciones-planificadas">
+                <h3 className="text-lg font-semibold mb-3">Mantenciones Planificadas</h3>
+                {mantencionesPlanificadas.length > 0 ? (
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead data-testid="header-titulo">Título</TableHead>
+                          <TableHead data-testid="header-categoria">Categoría</TableHead>
+                          <TableHead data-testid="header-periodo">Periodo</TableHead>
+                          <TableHead data-testid="header-costo">Costo Estimado</TableHead>
+                          <TableHead data-testid="header-estado-mantencion">Estado</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {mantencionesPlanificadas.map((mantencion: any) => (
+                          <TableRow key={mantencion.id} data-testid={`row-mantencion-${mantencion.id}`}>
+                            <TableCell className="font-medium" data-testid={`cell-titulo-${mantencion.id}`}>
+                              {mantencion.titulo || "-"}
+                            </TableCell>
+                            <TableCell className="capitalize" data-testid={`cell-categoria-${mantencion.id}`}>
+                              {mantencion.categoria ? mantencion.categoria.replace(/_/g, ' ') : "-"}
+                            </TableCell>
+                            <TableCell data-testid={`cell-periodo-${mantencion.id}`}>
+                              {mantencion.mes && mantencion.anio ? `${mantencion.mes}/${mantencion.anio}` : "-"}
+                            </TableCell>
+                            <TableCell data-testid={`cell-costo-${mantencion.id}`}>
+                              ${mantencion.costoEstimado ? Number(mantencion.costoEstimado).toLocaleString('es-CL') : "0"}
+                            </TableCell>
+                            <TableCell data-testid={`cell-estado-mantencion-${mantencion.id}`}>
+                              <Badge 
+                                variant={mantencion.estado?.toLowerCase() === 'completado' ? 'default' : 'secondary'}
+                                data-testid={`badge-estado-mantencion-${mantencion.id}`}
+                              >
+                                {mantencion.estado || "planificado"}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground" data-testid="text-no-mantenciones">
+                    No hay mantenciones planificadas registradas para este equipo
+                  </p>
+                )}
+              </div>
+
+              {/* Historial de Órdenes de Trabajo */}
+              <div data-testid="section-ordenes-trabajo">
+                <h3 className="text-lg font-semibold mb-3">Órdenes de Trabajo (OT)</h3>
+                {ordenesTrabajoEquipo.length > 0 ? (
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead data-testid="header-equipo-ot">Equipo</TableHead>
+                          <TableHead data-testid="header-problema">Problema</TableHead>
+                          <TableHead data-testid="header-gravedad">Gravedad</TableHead>
+                          <TableHead data-testid="header-estado-ot">Estado</TableHead>
+                          <TableHead data-testid="header-fecha-ot">Fecha</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {ordenesTrabajoEquipo.map((orden: any) => (
+                          <TableRow key={orden.id} data-testid={`row-orden-${orden.id}`}>
+                            <TableCell className="font-medium" data-testid={`cell-equipo-${orden.id}`}>
+                              {orden.equipoNombre || "-"}
+                            </TableCell>
+                            <TableCell className="max-w-xs truncate" data-testid={`cell-problema-${orden.id}`}>
+                              {orden.descripcionProblema || "-"}
+                            </TableCell>
+                            <TableCell data-testid={`cell-gravedad-${orden.id}`}>
+                              <Badge 
+                                variant={orden.gravedad?.toLowerCase() === 'critica' ? 'destructive' : 'secondary'}
+                                data-testid={`badge-gravedad-${orden.id}`}
+                              >
+                                {orden.gravedad || "media"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell data-testid={`cell-estado-orden-${orden.id}`}>
+                              <Badge 
+                                variant={orden.estado?.toLowerCase() === 'finalizada' ? 'default' : 'secondary'}
+                                data-testid={`badge-estado-orden-${orden.id}`}
+                              >
+                                {orden.estado || "pendiente"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell data-testid={`cell-fecha-${orden.id}`}>
+                              {orden.createdAt ? new Date(orden.createdAt).toLocaleDateString('es-CL') : "-"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground" data-testid="text-no-ordenes">
+                    No hay órdenes de trabajo registradas para este equipo
+                  </p>
+                )}
               </div>
             </div>
           )}
