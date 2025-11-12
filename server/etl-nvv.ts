@@ -620,7 +620,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
           dd.koprct,
           dd.nokopr,
           pr.rupr, -- Código de segmento
-          ru.nokoru as nombre_segmento, -- Nombre de segmento
+          ru.nokofurn as nombre_segmento, -- Nombre de segmento
           dd.caprco1,
           dd.caprad1,
           dd.caprex1,
@@ -660,7 +660,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         LEFT JOIN nvv.stg_tabbo_nvv bo ON COALESCE(dd.sulido, ed.suli) = bo.suli 
                                         AND COALESCE(dd.bosulido, ed.bosulido) = bo.bosuli
         LEFT JOIN nvv.stg_maepr_nvv pr ON dd.koprct = pr.kopr
-        LEFT JOIN nvv.stg_tabru_nvv ru ON pr.rupr = ru.koru
+        LEFT JOIN nvv.stg_tabru_nvv ru ON pr.rupr = ru.kofurn
       `);
     });
 
