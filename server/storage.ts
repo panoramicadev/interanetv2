@@ -1772,6 +1772,18 @@ export interface IStorage {
     montoCerradas: number;
     montoPendientes: number;
   }>>;
+  getNvvBySegmentoCliente(filters?: NvvFilters): Promise<Array<{
+    ruen: string | null;
+    nombre_segmento_cliente: string | null;
+    totalNvv: number;
+    abiertas: number;
+    cerradas: number;
+    pendientes: number;
+    montoTotal: number;
+    montoAbiertas: number;
+    montoCerradas: number;
+    montoPendientes: number;
+  }>>;
   getNvvDocuments(filters?: NvvFilters & {
     limit?: number;
     offset?: number;
@@ -19249,6 +19261,83 @@ export class DatabaseStorage implements IStorage {
     return result.map(row => ({
       bosulido: String(row.bosulido || ''),
       nombre_bodega: String(row.nombre_bodega || ''),
+      totalNvv: Number(row.total || 0),
+      abiertas: Number(row.abiertas || 0),
+      cerradas: Number(row.cerradas || 0),
+      pendientes: Number(row.pendientes || 0),
+      montoTotal: Number(row.montoTotal || 0),
+      montoAbiertas: Number(row.montoAbiertas || 0),
+      montoCerradas: Number(row.montoCerradas || 0),
+      montoPendientes: Number(row.montoPendientes || 0),
+    }));
+  }
+
+  async getNvvBySegmentoCliente(filters?: NvvFilters): Promise<Array<{
+    ruen: string | null;
+    nombre_segmento_cliente: string | null;
+    totalNvv: number;
+    abiertas: number;
+    cerradas: number;
+    pendientes: number;
+    montoTotal: number;
+    montoAbiertas: number;
+    montoCerradas: number;
+    montoPendientes: number;
+  }>> {
+    let query = db.select({
+      ruen: factNvv.ruen,
+      nombre_segmento_cliente: factNvv.nombre_segmento_cliente,
+      total: countDistinct(factNvv.idmaeedo),
+      abiertas: sql<number>`COUNT(DISTINCT CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.idmaeedo} END)`,
+      cerradas: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.idmaeedo} END)`,
+      pendientes: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.idmaeedo} END)`,
+      montoTotal: sum(factNvv.monto),
+      montoAbiertas: sql<number>`SUM(CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.monto} ELSE 0 END)`,
+      montoCerradas: sql<number>`SUM(CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.monto} ELSE 0 END)`,
+      montoPendientes: sql<number>`SUM(CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.monto} ELSE 0 END)`,
+    }).from(factNvv);
+
+    const conditions = [];
+    
+    if (filters?.startDate) {
+      conditions.push(sql`${factNvv.feemdo} >= ${filters.startDate}`);
+    }
+    if (filters?.endDate) {
+      conditions.push(sql`${factNvv.feemdo} <= ${filters.endDate}`);
+    }
+    if (filters?.sucursales && filters.sucursales.length > 0) {
+      conditions.push(inArray(factNvv.sudo, filters.sucursales));
+    }
+    if (filters?.vendedores && filters.vendedores.length > 0) {
+      conditions.push(inArray(factNvv.kofulido, filters.vendedores));
+    }
+    if (filters?.bodegas && filters.bodegas.length > 0) {
+      conditions.push(inArray(factNvv.bosulido, filters.bodegas));
+    }
+    if (filters?.estado === 'open') {
+      conditions.push(sql`(${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '')`);
+    } else if (filters?.estado === 'closed') {
+      conditions.push(sql`${factNvv.eslido} = 'C'`);
+    }
+    if (filters?.pendingOnly) {
+      conditions.push(eq(factNvv.cantidad_pendiente, true));
+    }
+    if (filters?.minAmount !== undefined) {
+      conditions.push(sql`${factNvv.monto} >= ${filters.minAmount}`);
+    }
+    if (filters?.maxAmount !== undefined) {
+      conditions.push(sql`${factNvv.monto} <= ${filters.maxAmount}`);
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    const result = await query.groupBy(factNvv.ruen, factNvv.nombre_segmento_cliente);
+
+    return result.map(row => ({
+      ruen: row.ruen,
+      nombre_segmento_cliente: String(row.nombre_segmento_cliente || 'Sin Segmento'),
       totalNvv: Number(row.total || 0),
       abiertas: Number(row.abiertas || 0),
       cerradas: Number(row.cerradas || 0),
