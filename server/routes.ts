@@ -11013,7 +11013,34 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // PATCH update gasto
+  // PUT update gasto (full update)
+  app.put('/api/cmms/gastos-materiales/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Validate input with Zod schema (full update)
+      const validatedData = insertGastoMaterialMantencionSchema.parse(req.body);
+      
+      // Recalculate costoTotal server-side to prevent tampering
+      const cantidad = parseFloat(validatedData.cantidad);
+      const costoUnitario = parseFloat(validatedData.costoUnitario);
+      const costoTotal = (cantidad * costoUnitario).toString();
+      
+      const dataWithRecalculatedTotal = {
+        ...validatedData,
+        costoTotal
+      };
+      
+      const gasto = await storage.updateGastoMaterialMantencion(req.params.id, dataWithRecalculatedTotal);
+      res.json(gasto);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      console.error('Error al actualizar gasto:', error);
+      res.status(500).json({ message: 'Error al actualizar gasto', error: error.message });
+    }
+  }));
+
+  // PATCH update gasto (partial update)
   app.patch('/api/cmms/gastos-materiales/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
     try {
       // Validate input with partial schema for updates

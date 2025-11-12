@@ -39,7 +39,7 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Plus, Receipt, DollarSign, Trash2, Download, Upload, Check, AlertCircle } from "lucide-react";
+import { ArrowLeft, Plus, Receipt, DollarSign, Trash2, Download, Upload, Check, AlertCircle, Edit, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -115,10 +115,13 @@ export default function CMmsGastosMateriales() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [gastoToDelete, setGastoToDelete] = useState<GastoMaterial | null>(null);
+  const [gastoToEdit, setGastoToEdit] = useState<GastoMaterial | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 15;
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -192,6 +195,41 @@ export default function CMmsGastosMateriales() {
     },
   });
 
+  // Update mutation
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: GastoFormValues }) => {
+      const cantidad = parseFloat(data.cantidad);
+      const costoUnitario = parseFloat(data.costoUnitario);
+      const costoTotal = cantidad * costoUnitario;
+
+      return apiRequest(`/api/cmms/gastos-materiales/${id}`, {
+        method: "PUT",
+        data: {
+          ...data,
+          cantidad: data.cantidad,
+          costoUnitario: data.costoUnitario,
+          costoTotal: costoTotal.toString(),
+        },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/cmms/gastos-materiales"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cmms/presupuesto"] });
+      toast({
+        title: "Gasto actualizado",
+        description: "El gasto ha sido actualizado exitosamente.",
+      });
+      handleCloseDialog();
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el gasto.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -235,11 +273,33 @@ export default function CMmsGastosMateriales() {
 
   const handleCloseDialog = () => {
     setDialogOpen(false);
+    setGastoToEdit(null);
     form.reset();
   };
 
+  const handleOpenEditDialog = (gasto: GastoMaterial) => {
+    setGastoToEdit(gasto);
+    // Parse fecha directly as string to avoid timezone issues
+    const fechaStr = gasto.fecha.split('T')[0]; // Extract YYYY-MM-DD
+    form.reset({
+      fecha: fechaStr,
+      item: gasto.item,
+      descripcion: gasto.descripcion || "",
+      cantidad: gasto.cantidad,
+      costoUnitario: gasto.costoUnitario,
+      area: gasto.area,
+      otId: gasto.otId,
+      proveedorId: gasto.proveedorId,
+    });
+    setDialogOpen(true);
+  };
+
   const handleSubmit = (data: GastoFormValues) => {
-    createMutation.mutate(data);
+    if (gastoToEdit) {
+      updateMutation.mutate({ id: gastoToEdit.id, data });
+    } else {
+      createMutation.mutate(data);
+    }
   };
 
   const handleOpenDeleteDialog = (gasto: GastoMaterial) => {
@@ -548,6 +608,9 @@ export default function CMmsGastosMateriales() {
                     <SelectItem value="laboratorio">Laboratorio</SelectItem>
                     <SelectItem value="bodega_materias_primas">Bodega Materias Primas</SelectItem>
                     <SelectItem value="bodega_productos_terminados">Bodega Productos Terminados</SelectItem>
+                    <SelectItem value="servicios_generales">Servicios Generales</SelectItem>
+                    <SelectItem value="mantencion">Mantención</SelectItem>
+                    <SelectItem value="comercial">Comercial</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -561,48 +624,60 @@ export default function CMmsGastosMateriales() {
             <CardTitle>Gastos Registrados ({gastos?.length || 0})</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
+            <div className="w-full">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Fecha</TableHead>
-                    <TableHead>Ítem</TableHead>
-                    <TableHead>Descripción</TableHead>
-                    <TableHead>Cantidad</TableHead>
-                    <TableHead>Costo Unit.</TableHead>
-                    <TableHead>Costo Total</TableHead>
-                    <TableHead>Área</TableHead>
-                    <TableHead>Proveedor</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
+                    <TableHead className="w-[100px]">Fecha</TableHead>
+                    <TableHead className="max-w-[200px]">Ítem</TableHead>
+                    <TableHead className="text-right w-[80px]">Cant.</TableHead>
+                    <TableHead className="text-right w-[100px]">C. Unit.</TableHead>
+                    <TableHead className="text-right w-[120px]">C. Total</TableHead>
+                    <TableHead className="w-[120px]">Área</TableHead>
+                    <TableHead className="text-right w-[120px]">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {gastos?.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
                         No hay gastos registrados en este período
                       </TableCell>
                     </TableRow>
                   ) : (
-                    gastos?.map((gasto) => (
+                    gastos?.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((gasto) => (
                       <TableRow key={gasto.id} data-testid={`row-gasto-${gasto.id}`}>
-                        <TableCell>{formatDate(gasto.fecha)}</TableCell>
-                        <TableCell className="font-medium">{gasto.item}</TableCell>
-                        <TableCell className="max-w-xs truncate">{gasto.descripcion || "-"}</TableCell>
-                        <TableCell>{parseFloat(gasto.cantidad).toFixed(2)}</TableCell>
-                        <TableCell>{formatCurrency(gasto.costoUnitario)}</TableCell>
-                        <TableCell className="font-semibold">{formatCurrency(gasto.costoTotal)}</TableCell>
-                        <TableCell>{gasto.area || "-"}</TableCell>
-                        <TableCell>{gasto.proveedor?.nombre || "-"}</TableCell>
+                        <TableCell className="text-sm">{formatDate(gasto.fecha)}</TableCell>
+                        <TableCell className="font-medium max-w-[200px] truncate" title={gasto.item}>
+                          {gasto.item}
+                        </TableCell>
+                        <TableCell className="text-right text-sm">{parseFloat(gasto.cantidad).toFixed(2)}</TableCell>
+                        <TableCell className="text-right text-sm">{formatCurrency(gasto.costoUnitario)}</TableCell>
+                        <TableCell className="text-right font-semibold">{formatCurrency(gasto.costoTotal)}</TableCell>
+                        <TableCell className="text-sm capitalize">
+                          {gasto.area?.replace(/_/g, ' ') || "-"}
+                        </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleOpenDeleteDialog(gasto)}
-                            data-testid={`button-delete-${gasto.id}`}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleOpenEditDialog(gasto)}
+                              data-testid={`button-edit-${gasto.id}`}
+                              title="Editar"
+                            >
+                              <Edit className="h-4 w-4 text-blue-500" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleOpenDeleteDialog(gasto)}
+                              data-testid={`button-delete-${gasto.id}`}
+                              title="Eliminar"
+                            >
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -610,16 +685,50 @@ export default function CMmsGastosMateriales() {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Paginación */}
+            {gastos && gastos.length > PAGE_SIZE && (
+              <div className="flex items-center justify-between mt-4">
+                <p className="text-sm text-muted-foreground">
+                  Mostrando {((currentPage - 1) * PAGE_SIZE) + 1} - {Math.min(currentPage * PAGE_SIZE, gastos.length)} de {gastos.length} registros
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    data-testid="button-prev-page"
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Anterior
+                  </Button>
+                  <div className="flex items-center gap-2 px-3 text-sm">
+                    Página {currentPage} de {Math.ceil(gastos.length / PAGE_SIZE)}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.min(Math.ceil(gastos.length / PAGE_SIZE), p + 1))}
+                    disabled={currentPage >= Math.ceil(gastos.length / PAGE_SIZE)}
+                    data-testid="button-next-page"
+                  >
+                    Siguiente
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Create Dialog */}
+        {/* Create/Edit Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Registrar Nuevo Gasto</DialogTitle>
+              <DialogTitle>{gastoToEdit ? "Editar Gasto" : "Registrar Nuevo Gasto"}</DialogTitle>
               <DialogDescription>
-                Completa los datos del gasto en materiales de mantención
+                {gastoToEdit ? "Modifica los datos del gasto" : "Completa los datos del gasto en materiales de mantención"}
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
@@ -767,10 +876,10 @@ export default function CMmsGastosMateriales() {
                   </Button>
                   <Button
                     type="submit"
-                    disabled={createMutation.isPending}
+                    disabled={createMutation.isPending || updateMutation.isPending}
                     data-testid="button-submit"
                   >
-                    Registrar Gasto
+                    {gastoToEdit ? "Actualizar Gasto" : "Registrar Gasto"}
                   </Button>
                 </DialogFooter>
               </form>
