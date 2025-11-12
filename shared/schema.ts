@@ -4859,11 +4859,7 @@ export const stgMaevenNvv = nvvSchema.table("stg_maeven_nvv", {
   created_at: timestamp("created_at").defaultNow(),
 });
 
-export const stgTabruNvv = nvvSchema.table("stg_tabru_nvv", {
-  kofurn: text("kofurn").primaryKey(),
-  nokofurn: text("nokofurn"),
-  created_at: timestamp("created_at").defaultNow(),
-});
+// NOTA: No necesitamos stg_tabru_nvv - reutilizamos ventas.stg_tabru para segmentos
 
 export const stgTabboNvv = nvvSchema.table("stg_tabbo_nvv", {
   suli: text("suli"),
