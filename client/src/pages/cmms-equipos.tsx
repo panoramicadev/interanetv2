@@ -51,6 +51,7 @@ import {
   ChevronRight,
   ChevronDown,
   Download,
+  Eye,
 } from "lucide-react";
 import * as XLSX from 'xlsx';
 import { useForm } from "react-hook-form";
@@ -108,6 +109,7 @@ export default function CMMSEquipos() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEquipo, setEditingEquipo] = useState<EquipoCritico | null>(null);
   const [deletingEquipo, setDeletingEquipo] = useState<EquipoCritico | null>(null);
+  const [viewingEquipo, setViewingEquipo] = useState<EquipoCritico | null>(null);
   const [expandedEquipos, setExpandedEquipos] = useState<Set<string>>(new Set());
   const [componentesMap, setComponentesMap] = useState<Record<string, EquipoCritico[]>>({});
   const [creatingComponentFor, setCreatingComponentFor] = useState<EquipoCritico | null>(null);
@@ -567,6 +569,14 @@ export default function CMMSEquipos() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
+                                  onClick={() => setViewingEquipo(equipo)}
+                                  data-testid={`button-view-${equipo.id}`}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
                                   onClick={() => handleOpenDialog(equipo)}
                                   data-testid={`button-edit-${equipo.id}`}
                                 >
@@ -613,6 +623,14 @@ export default function CMMSEquipos() {
                                 <TableCell className="text-sm">{componente.fabricante || "-"}</TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex justify-end gap-2">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setViewingEquipo(componente)}
+                                      data-testid={`button-view-${componente.id}`}
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
                                     <Button
                                       variant="ghost"
                                       size="sm"
@@ -900,6 +918,138 @@ export default function CMMSEquipos() {
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Equipment Details Dialog */}
+      <Dialog open={!!viewingEquipo} onOpenChange={(open) => { if (!open) setViewingEquipo(null); }}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto" data-testid="modal-view-equipo">
+          <DialogHeader>
+            <DialogTitle data-testid="text-view-title">Detalles del Equipo</DialogTitle>
+            <DialogDescription data-testid="text-view-description">
+              Información completa del equipo crítico
+            </DialogDescription>
+          </DialogHeader>
+
+          {viewingEquipo && (
+            <div className="space-y-6" data-testid="container-view-details">
+              {/* Información General */}
+              <div data-testid="section-general">
+                <h3 className="text-lg font-semibold mb-3">Información General</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Nombre</p>
+                    <p className="font-medium" data-testid="text-view-nombre">{viewingEquipo.nombre}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Código</p>
+                    <p className="font-medium" data-testid="text-view-codigo">{viewingEquipo.codigo || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Área</p>
+                    <p className="font-medium" data-testid="text-view-area">{getAreaLabel(viewingEquipo.area)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Ubicación</p>
+                    <p className="font-medium" data-testid="text-view-ubicacion">{viewingEquipo.ubicacion || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Criticidad</p>
+                    <Badge className={getCriticidadBadge(viewingEquipo.criticidad)} data-testid="badge-view-criticidad">
+                      {viewingEquipo.criticidad.charAt(0).toUpperCase() + viewingEquipo.criticidad.slice(1)}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Estado Actual</p>
+                    <Badge className={getEstadoBadge(viewingEquipo.estadoActual)} data-testid="badge-view-estado">
+                      {viewingEquipo.estadoActual.replace('_', ' ')}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Descripción */}
+              {viewingEquipo.descripcion && (
+                <div data-testid="section-descripcion">
+                  <h3 className="text-lg font-semibold mb-2">Descripción</h3>
+                  <p className="text-sm" data-testid="text-view-descripcion">{viewingEquipo.descripcion}</p>
+                </div>
+              )}
+
+              {/* Información Técnica */}
+              <div data-testid="section-tecnica">
+                <h3 className="text-lg font-semibold mb-3">Información Técnica</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Fabricante</p>
+                    <p className="font-medium" data-testid="text-view-fabricante">{viewingEquipo.fabricante || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Modelo</p>
+                    <p className="font-medium" data-testid="text-view-modelo">{viewingEquipo.modelo || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Número de Serie</p>
+                    <p className="font-medium" data-testid="text-view-numero-serie">{viewingEquipo.numeroSerie || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Fecha de Instalación</p>
+                    <p className="font-medium" data-testid="text-view-fecha-instalacion">
+                      {viewingEquipo.fechaInstalacion 
+                        ? new Date(viewingEquipo.fechaInstalacion).toLocaleDateString('es-CL')
+                        : "-"
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fechas de creación/actualización */}
+              <div data-testid="section-registro">
+                <h3 className="text-lg font-semibold mb-3">Registro</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Fecha de Creación</p>
+                    <p className="font-medium" data-testid="text-view-created-at">
+                      {viewingEquipo.createdAt 
+                        ? new Date(viewingEquipo.createdAt).toLocaleString('es-CL')
+                        : "-"
+                      }
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Última Actualización</p>
+                    <p className="font-medium" data-testid="text-view-updated-at">
+                      {viewingEquipo.updatedAt 
+                        ? new Date(viewingEquipo.updatedAt).toLocaleString('es-CL')
+                        : "-"
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setViewingEquipo(null)}
+              data-testid="button-close-view"
+            >
+              Cerrar
+            </Button>
+            <Button
+              onClick={() => {
+                setViewingEquipo(null);
+                handleOpenDialog(viewingEquipo);
+              }}
+              data-testid="button-edit-from-view"
+            >
+              <Edit className="h-4 w-4 mr-2" />
+              Editar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
