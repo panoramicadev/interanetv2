@@ -3880,6 +3880,8 @@ export const insertMantencionPlanificadaSchema = createInsertSchema(mantenciones
   createdAt: true,
   updatedAt: true,
   otGeneradaId: true,
+  creadoPorId: true,
+  creadoPorName: true,
 }).extend({
   equipoId: z.union([z.string(), z.null()]).optional(),
   equipoNombre: z.string().min(1, "El nombre del equipo es requerido"),
