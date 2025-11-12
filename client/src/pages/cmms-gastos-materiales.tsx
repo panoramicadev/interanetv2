@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -139,13 +139,20 @@ export default function CMmsGastosMateriales() {
     },
   });
 
-  // Fetch gastos
-  const { data: gastos, isLoading } = useQuery<GastoMaterial[]>({
-    queryKey: ["/api/cmms/gastos-materiales", selectedYear, selectedMonth, filterArea],
+  // Fetch gastos with server-side pagination
+  const { data: gastosResponse, isLoading } = useQuery<{
+    data: GastoMaterial[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }>({
+    queryKey: ["/api/cmms/gastos-materiales", selectedYear, selectedMonth, filterArea, currentPage, PAGE_SIZE],
     queryFn: async () => {
       const params = new URLSearchParams({
         anio: selectedYear,
         mes: selectedMonth,
+        page: currentPage.toString(),
+        pageSize: PAGE_SIZE.toString(),
         ...(filterArea !== "all" && { area: filterArea }),
       });
       const response = await fetch(`/api/cmms/gastos-materiales?${params.toString()}`, {
@@ -155,6 +162,15 @@ export default function CMmsGastosMateriales() {
       return response.json();
     }
   });
+
+  const gastos = gastosResponse?.data || [];
+  const totalRecords = gastosResponse?.total || 0;
+  const totalPages = Math.ceil(totalRecords / PAGE_SIZE);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedYear, selectedMonth, filterArea]);
 
   // Fetch proveedores for dropdown
   const { data: proveedores } = useQuery<Array<{ id: string; nombre: string }>>({
@@ -645,7 +661,7 @@ export default function CMmsGastosMateriales() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    gastos?.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((gasto) => (
+                    gastos?.map((gasto) => (
                       <TableRow key={gasto.id} data-testid={`row-gasto-${gasto.id}`}>
                         <TableCell className="text-sm">{formatDate(gasto.fecha)}</TableCell>
                         <TableCell className="font-medium max-w-[200px] truncate" title={gasto.item}>
@@ -687,10 +703,10 @@ export default function CMmsGastosMateriales() {
             </div>
 
             {/* Paginación */}
-            {gastos && gastos.length > PAGE_SIZE && (
+            {totalRecords > 0 && (
               <div className="flex items-center justify-between mt-4">
                 <p className="text-sm text-muted-foreground">
-                  Mostrando {((currentPage - 1) * PAGE_SIZE) + 1} - {Math.min(currentPage * PAGE_SIZE, gastos.length)} de {gastos.length} registros
+                  Mostrando {((currentPage - 1) * PAGE_SIZE) + 1} - {Math.min(currentPage * PAGE_SIZE, totalRecords)} de {totalRecords} registros
                 </p>
                 <div className="flex gap-2">
                   <Button
@@ -704,13 +720,13 @@ export default function CMmsGastosMateriales() {
                     Anterior
                   </Button>
                   <div className="flex items-center gap-2 px-3 text-sm">
-                    Página {currentPage} de {Math.ceil(gastos.length / PAGE_SIZE)}
+                    Página {currentPage} de {totalPages}
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setCurrentPage(p => Math.min(Math.ceil(gastos.length / PAGE_SIZE), p + 1))}
-                    disabled={currentPage >= Math.ceil(gastos.length / PAGE_SIZE)}
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages}
                     data-testid="button-next-page"
                   >
                     Siguiente

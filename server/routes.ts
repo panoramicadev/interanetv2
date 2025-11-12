@@ -10571,12 +10571,21 @@ export function registerRoutes(app: Express): Server {
 
   // ===== GASTOS DE MATERIALES ROUTES =====
 
-  // GET gastos de materiales (with filters)
+  // GET gastos de materiales (with filters and pagination)
   app.get('/api/cmms/gastos-materiales', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
     try {
-      const { otId, area, startDate, endDate } = req.query;
-      const gastos = await storage.getGastosMaterialesMantencion({ otId, area, startDate, endDate });
-      res.json(gastos);
+      const { otId, area, anio, mes, startDate, endDate, page, pageSize } = req.query;
+      const result = await storage.getGastosMaterialesMantencion({ 
+        otId, 
+        area,
+        anio,
+        mes,
+        startDate, 
+        endDate,
+        page: page ? parseInt(page) : undefined,
+        pageSize: pageSize ? parseInt(pageSize) : undefined
+      });
+      res.json(result);
     } catch (error: any) {
       console.error('Error al obtener gastos:', error);
       res.status(500).json({ message: 'Error al obtener gastos', error: error.message });
@@ -10639,18 +10648,6 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // ===== PLANES PREVENTIVOS ROUTES =====
-
-  // GET planes preventivos (with filters)
-  app.get('/api/cmms/gastos-materiales', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
-    try {
-      const { otId, area, startDate, endDate } = req.query;
-      const gastos = await storage.getGastosMaterialesMantencion({ otId, area, startDate, endDate });
-      res.json(gastos);
-    } catch (error: any) {
-      console.error('Error al obtener gastos:', error);
-      res.status(500).json({ message: 'Error al obtener gastos', error: error.message });
-    }
-  }));
 
   // GET plantilla Excel para gastos materiales (DEBE IR ANTES DE /:id)
   app.get('/api/cmms/gastos-materiales/plantilla-excel', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {

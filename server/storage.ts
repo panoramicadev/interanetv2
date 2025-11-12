@@ -14641,11 +14641,13 @@ export class DatabaseStorage implements IStorage {
   async getGastosMaterialesMantencion(filters?: {
     otId?: string;
     area?: string;
+    anio?: string;
+    mes?: string;
     startDate?: string;
     endDate?: string;
-  }): Promise<GastoMaterialMantencion[]> {
-    let query = db.select().from(gastosMaterialesMantencion);
-    
+    page?: number;
+    pageSize?: number;
+  }): Promise<{ data: GastoMaterialMantencion[], total: number, page: number, pageSize: number }> {
     const conditions = [];
     if (filters?.otId) {
       conditions.push(eq(gastosMaterialesMantencion.otId, filters.otId));
@@ -14653,18 +14655,63 @@ export class DatabaseStorage implements IStorage {
     if (filters?.area) {
       conditions.push(eq(gastosMaterialesMantencion.area, filters.area));
     }
-    if (filters?.startDate) {
-      conditions.push(gte(gastosMaterialesMantencion.fecha, new Date(filters.startDate)));
-    }
-    if (filters?.endDate) {
-      conditions.push(lte(gastosMaterialesMantencion.fecha, new Date(filters.endDate)));
+    // Filter by year and month if provided
+    if (filters?.anio && filters?.mes) {
+      // Specific month in a year
+      const startDate = new Date(`${filters.anio}-${filters.mes.padStart(2, '0')}-01`);
+      const endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + 1);
+      endDate.setDate(0); // Last day of the month
+      
+      conditions.push(gte(gastosMaterialesMantencion.fecha, startDate));
+      conditions.push(lte(gastosMaterialesMantencion.fecha, endDate));
+    } else if (filters?.anio && !filters?.mes) {
+      // Entire year
+      const startDate = new Date(`${filters.anio}-01-01`);
+      const endDate = new Date(`${filters.anio}-12-31`);
+      
+      conditions.push(gte(gastosMaterialesMantencion.fecha, startDate));
+      conditions.push(lte(gastosMaterialesMantencion.fecha, endDate));
+    } else {
+      // Use explicit startDate and endDate if provided
+      if (filters?.startDate) {
+        conditions.push(gte(gastosMaterialesMantencion.fecha, new Date(filters.startDate)));
+      }
+      if (filters?.endDate) {
+        conditions.push(lte(gastosMaterialesMantencion.fecha, new Date(filters.endDate)));
+      }
     }
     
+    // Get total count
+    let countQuery = db.select({ count: sql<number>`count(*)` }).from(gastosMaterialesMantencion);
     if (conditions.length > 0) {
-      query = query.where(and(...conditions)) as any;
+      countQuery = countQuery.where(and(...conditions)) as any;
+    }
+    const [{ count: total }] = await countQuery;
+    
+    // Get paginated data
+    let dataQuery = db.select().from(gastosMaterialesMantencion);
+    if (conditions.length > 0) {
+      dataQuery = dataQuery.where(and(...conditions)) as any;
     }
     
-    return query.orderBy(desc(gastosMaterialesMantencion.fecha));
+    dataQuery = dataQuery.orderBy(desc(gastosMaterialesMantencion.fecha)) as any;
+    
+    // Apply pagination if provided
+    const page = filters?.page || 1;
+    const pageSize = filters?.pageSize || 15;
+    const offset = (page - 1) * pageSize;
+    
+    dataQuery = (dataQuery as any).limit(pageSize).offset(offset);
+    
+    const data = await dataQuery;
+    
+    return {
+      data,
+      total,
+      page,
+      pageSize
+    };
   }
 
   async getGastoMaterialMantencionById(id: string): Promise<GastoMaterialMantencion | undefined> {
