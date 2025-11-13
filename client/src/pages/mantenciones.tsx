@@ -751,10 +751,14 @@ export default function MantencionesPage() {
         data: formData,
       });
     },
-    onSuccess: async () => {
+    onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
       setIsResolutionDialogOpen(false);
-      setSelectedMantencion(null);
+      if (data) {
+        setSelectedMantencion({ ...selectedMantencion, ...data } as MantencionWithDetails);
+      } else {
+        setSelectedMantencion(null);
+      }
       toast({
         title: "Éxito",
         description: "Resolución enviada correctamente",
@@ -776,9 +780,12 @@ export default function MantencionesPage() {
         data: data,
       });
     },
-    onSuccess: async () => {
+    onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
       setIsEditingAsignacion(false);
+      if (selectedMantencion && data) {
+        setSelectedMantencion({ ...selectedMantencion, ...data });
+      }
       toast({
         title: "Asignación actualizada",
         description: "Los datos de asignación y programación se han actualizado correctamente.",
@@ -823,8 +830,11 @@ export default function MantencionesPage() {
         method: 'POST',
       });
     },
-    onSuccess: async () => {
+    onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+      if (selectedMantencion && data) {
+        setSelectedMantencion({ ...selectedMantencion, ...data });
+      }
       toast({
         title: "Trabajo iniciado",
         description: "La orden de trabajo ha cambiado a estado 'En Reparación'.",
@@ -846,8 +856,11 @@ export default function MantencionesPage() {
         data: {},
       });
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+      if (selectedMantencion && data) {
+        setSelectedMantencion({ ...selectedMantencion, ...data });
+      }
       toast({
         title: "Trabajo reanudado",
         description: "La orden de trabajo ha cambiado a estado 'En Reparación'.",
@@ -869,10 +882,12 @@ export default function MantencionesPage() {
         data: { motivo, fechaProgramada },
       });
     },
-    onSuccess: async () => {
+    onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
       setIsPausarDialogOpen(false);
-      setSelectedMantencion(null);
+      if (data) {
+        setSelectedMantencion({ ...selectedMantencion, ...data } as MantencionWithDetails);
+      }
       toast({
         title: "Trabajo pausado",
         description: "La orden de trabajo ha sido pausada correctamente.",
