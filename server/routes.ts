@@ -14062,6 +14062,258 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Run NVV ETL migrations - Admin only, creates missing tables in nvv schema
+  app.post('/api/etl/run-nvv-migrations', requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+    try {
+      console.log('\n╔═══════════════════════════════════════════════════════════════╗');
+      console.log('║  🔧 EJECUTANDO MIGRACIONES ETL - SCHEMA NVV                  ║');
+      console.log('╚═══════════════════════════════════════════════════════════════╝\n');
+      
+      const migrationsExecuted: string[] = [];
+      const errors: string[] = [];
+
+      // 1. Ensure nvv schema exists
+      console.log('1️⃣  Verificando/creando schema "nvv"...');
+      try {
+        await db.execute(sql`CREATE SCHEMA IF NOT EXISTS nvv`);
+        migrationsExecuted.push('Schema "nvv" verificado/creado');
+        console.log('   ✅ Schema "nvv" OK\n');
+      } catch (err: any) {
+        errors.push(`Error creando schema nvv: ${err.message}`);
+        console.error('   ❌ Error:', err.message, '\n');
+      }
+
+      // 2. Create nvv_sync_log table
+      console.log('2️⃣  Creando tabla nvv.nvv_sync_log...');
+      try {
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS nvv.nvv_sync_log (
+            id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+            execution_date TIMESTAMP NOT NULL DEFAULT NOW(),
+            status VARCHAR(20) NOT NULL,
+            records_processed INTEGER,
+            records_inserted INTEGER,
+            records_updated INTEGER,
+            status_changes INTEGER,
+            execution_time_ms BIGINT,
+            error_message TEXT
+          )
+        `);
+        migrationsExecuted.push('Tabla nvv.nvv_sync_log creada');
+        console.log('   ✅ Tabla nvv_sync_log creada\n');
+      } catch (err: any) {
+        errors.push(`Error creando nvv_sync_log: ${err.message}`);
+        console.error('   ❌ Error:', err.message, '\n');
+      }
+
+      // 3. Create fact_nvv table
+      console.log('3️⃣  Verificando/creando tabla nvv.fact_nvv...');
+      try {
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS nvv.fact_nvv (
+            idmaeddo BIGINT PRIMARY KEY,
+            idmaeedo BIGINT,
+            nudo VARCHAR,
+            tido VARCHAR,
+            endo VARCHAR,
+            sudo VARCHAR,
+            nosudo VARCHAR,
+            feemdo DATE,
+            feer DATE,
+            koprct VARCHAR,
+            nokopr TEXT,
+            tipr VARCHAR,
+            pfpr VARCHAR,
+            fmpr VARCHAR,
+            mrpr VARCHAR,
+            caprco1 NUMERIC(18,5),
+            caprad1 NUMERIC(18,5),
+            caprex1 NUMERIC(18,5),
+            ud01pr VARCHAR,
+            caprco2 NUMERIC(18,5),
+            caprad2 NUMERIC(18,5),
+            caprex2 NUMERIC(18,5),
+            ud02pr VARCHAR,
+            ppprne NUMERIC(18,5),
+            vaneli NUMERIC(18,5),
+            feemli DATE,
+            feerli DATE,
+            eslido VARCHAR,
+            nulido VARCHAR,
+            kofulido VARCHAR,
+            nombre_vendedor VARCHAR,
+            bosulido VARCHAR,
+            nombre_bodega VARCHAR,
+            koen VARCHAR,
+            nokoen TEXT,
+            ruen VARCHAR,
+            nombre_segmento_cliente TEXT,
+            rupr VARCHAR,
+            nombre_segmento TEXT,
+            cantidad_pendiente BOOLEAN,
+            last_etl_sync TIMESTAMP
+          )
+        `);
+        migrationsExecuted.push('Tabla nvv.fact_nvv verificada/creada');
+        console.log('   ✅ Tabla fact_nvv verificada\n');
+      } catch (err: any) {
+        errors.push(`Error creando fact_nvv: ${err.message}`);
+        console.error('   ❌ Error:', err.message, '\n');
+      }
+
+      // 4. Create staging tables
+      console.log('4️⃣  Creando tablas staging...');
+      
+      // stg_maeedo_nvv
+      try {
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS nvv.stg_maeedo_nvv (
+            idmaeedo BIGINT PRIMARY KEY,
+            empresa VARCHAR,
+            tido VARCHAR,
+            nudo VARCHAR,
+            endo VARCHAR,
+            sudo VARCHAR,
+            kofudo VARCHAR,
+            suli VARCHAR,
+            bosulido VARCHAR,
+            feemdo DATE,
+            feer DATE,
+            modo VARCHAR,
+            timodo VARCHAR
+          )
+        `);
+        console.log('   ✅ stg_maeedo_nvv creada');
+      } catch (err: any) {
+        errors.push(`Error creando stg_maeedo_nvv: ${err.message}`);
+        console.error('   ❌ Error stg_maeedo_nvv:', err.message);
+      }
+
+      // stg_maeddo_nvv
+      try {
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS nvv.stg_maeddo_nvv (
+            idmaeddo BIGINT PRIMARY KEY,
+            idmaeedo BIGINT NOT NULL,
+            koprct VARCHAR,
+            nokopr TEXT,
+            tipr VARCHAR,
+            pfpr VARCHAR,
+            fmpr VARCHAR,
+            mrpr VARCHAR,
+            caprco1 NUMERIC(18,5),
+            caprad1 NUMERIC(18,5),
+            caprex1 NUMERIC(18,5),
+            ud01pr VARCHAR,
+            caprco2 NUMERIC(18,5),
+            caprad2 NUMERIC(18,5),
+            caprex2 NUMERIC(18,5),
+            ud02pr VARCHAR,
+            ppprne NUMERIC(18,5),
+            vaneli NUMERIC(18,5),
+            feemli DATE,
+            feerli DATE,
+            eslido VARCHAR,
+            nulido VARCHAR,
+            kofulido VARCHAR,
+            bosulido VARCHAR,
+            rupr VARCHAR
+          )
+        `);
+        console.log('   ✅ stg_maeddo_nvv creada');
+      } catch (err: any) {
+        errors.push(`Error creando stg_maeddo_nvv: ${err.message}`);
+        console.error('   ❌ Error stg_maeddo_nvv:', err.message);
+      }
+
+      // stg_maeen_nvv
+      try {
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS nvv.stg_maeen_nvv (
+            koen VARCHAR PRIMARY KEY,
+            nokoen TEXT,
+            ruen VARCHAR
+          )
+        `);
+        console.log('   ✅ stg_maeen_nvv creada');
+      } catch (err: any) {
+        errors.push(`Error creando stg_maeen_nvv: ${err.message}`);
+        console.error('   ❌ Error stg_maeen_nvv:', err.message);
+      }
+
+      // stg_maepr_nvv
+      try {
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS nvv.stg_maepr_nvv (
+            kopr VARCHAR PRIMARY KEY,
+            nokopr TEXT,
+            rupr VARCHAR
+          )
+        `);
+        console.log('   ✅ stg_maepr_nvv creada');
+      } catch (err: any) {
+        errors.push(`Error creando stg_maepr_nvv: ${err.message}`);
+        console.error('   ❌ Error stg_maepr_nvv:', err.message);
+      }
+
+      // stg_maeven_nvv
+      try {
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS nvv.stg_maeven_nvv (
+            kofu VARCHAR PRIMARY KEY,
+            nokofu VARCHAR
+          )
+        `);
+        console.log('   ✅ stg_maeven_nvv creada');
+      } catch (err: any) {
+        errors.push(`Error creando stg_maeven_nvv: ${err.message}`);
+        console.error('   ❌ Error stg_maeven_nvv:', err.message);
+      }
+
+      // stg_tabbo_nvv
+      try {
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS nvv.stg_tabbo_nvv (
+            kobo VARCHAR,
+            kosu VARCHAR,
+            nokobo VARCHAR,
+            PRIMARY KEY (kobo, kosu)
+          )
+        `);
+        console.log('   ✅ stg_tabbo_nvv creada');
+      } catch (err: any) {
+        errors.push(`Error creando stg_tabbo_nvv: ${err.message}`);
+        console.error('   ❌ Error stg_tabbo_nvv:', err.message);
+      }
+
+      migrationsExecuted.push('Tablas staging de NVV creadas');
+      console.log('');
+
+      console.log('╔═══════════════════════════════════════════════════════════════╗');
+      console.log('║  📊 RESUMEN DE MIGRACIONES NVV                               ║');
+      console.log('╚═══════════════════════════════════════════════════════════════╝');
+      console.log(`Total migraciones ejecutadas: ${migrationsExecuted.length}`);
+      console.log(`Total errores: ${errors.length}`);
+      console.log('═══════════════════════════════════════════════════════════════\n');
+
+      res.json({
+        success: errors.length === 0,
+        message: errors.length === 0 
+          ? 'Migraciones NVV ejecutadas exitosamente' 
+          : 'Migraciones NVV completadas con algunos errores',
+        migrations: migrationsExecuted,
+        errors: errors.length > 0 ? errors : undefined
+      });
+
+    } catch (error: any) {
+      console.error('❌ Error fatal en migraciones NVV:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Error ejecutando migraciones NVV. Ver logs del servidor.' 
+      });
+    }
+  }));
+
   // ============================================================================================
   // PROYECCIONES DE VENTAS - Manual Forecasting System
   // ============================================================================================
