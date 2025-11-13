@@ -28,7 +28,7 @@ interface TransactionDetail {
   nokoen: string; // cliente
   nokofu: string; // vendedor
   noruen: string; // segmento
-  nokoprct: string; // producto
+  nokopr: string; // producto
   koprct: string; // SKU
   caprad2: number; // cantidad
   vanedo: number; // monto
@@ -170,7 +170,7 @@ export default function TransactionDetailModal({
                 <div className="space-y-4">
                   <div className="bg-blue-50 p-4 rounded-lg">
                     <h4 className="font-medium text-blue-900 mb-2">
-                      {transaction.nokoprct}
+                      {transaction.nokopr}
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                       <div>

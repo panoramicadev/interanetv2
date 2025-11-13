@@ -13,29 +13,7 @@ import React from "react";
 import { Link } from "wouter";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import TransactionDetailModal from "./transaction-detail-modal";
-
-interface Transaction {
-  id: string;
-  nudo: string;
-  feemdo: string | null;
-  nokoen: string | null;
-  nokoprct: string | null;
-  nokofu: string | null;
-  caprad2: string | null;
-  vanedo: string | null;
-  monto: string | null;
-}
-
-interface GroupedSale {
-  nudo: string;
-  customerName: string;
-  salesperson: string;
-  date: string;
-  totalAmount: number;
-  transactionCount: number;
-  transactions: Transaction[];
-  isExpanded?: boolean;
-}
+import type { Transaction, GroupedSale } from "@/types/sales";
 
 interface TopSalesperson {
   salesperson: string;
@@ -340,7 +318,7 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
                           >
                             <TableCell className="py-2 pl-12">
                               <div className="text-sm text-gray-600">
-                                {transaction.nokoprct || 'Producto no especificado'}
+                                {transaction.nokopr || 'Producto no especificado'}
                               </div>
                             </TableCell>
                             <TableCell className="text-sm text-gray-500">

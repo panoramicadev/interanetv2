@@ -19,30 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import TransactionDetailModal from "@/components/dashboard/transaction-detail-modal";
-
-interface Transaction {
-  id: string;
-  nudo: string;
-  feemdo: string | null;
-  nokoen: string | null;
-  nokoprct: string | null;
-  nokofu: string | null;
-  caprad2: string | null;
-  vanedo: string | null;
-  monto: string | null;
-  noruen: string | null;
-}
-
-interface GroupedSale {
-  nudo: string;
-  customerName: string;
-  salesperson: string;
-  date: string;
-  totalAmount: number;
-  transactionCount: number;
-  transactions: Transaction[];
-  isExpanded?: boolean;
-}
+import type { Transaction, GroupedSale } from "@/types/sales";
 
 export default function OrdersContent() {
   const { user } = useAuth();
@@ -141,7 +118,7 @@ export default function OrdersContent() {
     const search = searchTerm.toLowerCase();
     return (
       transaction.nokoen?.toLowerCase().includes(search) ||
-      transaction.nokoprct?.toLowerCase().includes(search) ||
+      transaction.nokopr?.toLowerCase().includes(search) ||
       transaction.nokofu?.toLowerCase().includes(search) ||
       transaction.nudo?.toLowerCase().includes(search)
     );
@@ -488,7 +465,7 @@ export default function OrdersContent() {
                           >
                             <TableCell className="py-2 pl-12">
                               <div className="text-sm text-gray-600">
-                                {transaction.nokoprct || 'Producto no especificado'}
+                                {transaction.nokopr || 'Producto no especificado'}
                               </div>
                             </TableCell>
                             <TableCell className="text-sm text-gray-500">
