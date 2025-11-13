@@ -459,7 +459,23 @@ export default function CMMSDashboard() {
                     {formatCurrency(metrics?.costoTotal || 0)}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Presupuesto: {formatCurrency(metrics?.costoPlanificado || 0)}
+                    Gastos reales del periodo
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Costo Asignado (Presupuesto) */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Costo Asignado</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-blue-600" data-testid="text-costo-asignado">
+                    {formatCurrency(metrics?.costoPlanificado || 0)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Presupuesto del periodo
                   </p>
                 </CardContent>
               </Card>
