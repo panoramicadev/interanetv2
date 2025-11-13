@@ -2043,6 +2043,8 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
+  // Note: This method queries fact_ventas (ETL table), not salesTransactions (legacy CSV import table)
+  // Returns a subset of fields mapped for frontend consumption in Facturas module
   async getSalesTransactions(filters: {
     startDate?: string;
     endDate?: string;
@@ -2072,7 +2074,21 @@ export class DatabaseStorage implements IStorage {
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
     
-    const result = await db.select()
+    // Map nokoprct to nokopr for frontend compatibility
+    const result = await db.select({
+      idmaeedo: factVentas.idmaeedo,
+      idmaeddo: factVentas.idmaeddo,
+      tido: factVentas.tido,
+      nudo: factVentas.nudo,
+      feemdo: factVentas.feemdo,
+      nokoen: factVentas.nokoen,
+      nokofu: factVentas.nokofu,
+      noruen: factVentas.noruen,
+      nokopr: factVentas.nokoprct, // Map nokoprct to nokopr
+      caprco2: factVentas.caprco2,
+      monto: factVentas.monto,
+      esdo: factVentas.esdo,
+    })
       .from(factVentas)
       .where(whereClause)
       .orderBy(desc(factVentas.feemdo))
