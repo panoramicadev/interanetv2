@@ -450,10 +450,10 @@ function GastosTab({ mantencionId, canManageGastos }: { mantencionId: string; ca
   };
 
   // Calcular total de gastos
-  const totalGastos = gastos.reduce((sum, gasto) => {
+  const totalGastos = Array.isArray(gastos) ? gastos.reduce((sum, gasto) => {
     const total = typeof gasto.costoTotal === 'string' ? parseFloat(gasto.costoTotal) : Number(gasto.costoTotal);
     return sum + (isNaN(total) ? 0 : total);
-  }, 0);
+  }, 0) : 0;
 
   return (
     <>
