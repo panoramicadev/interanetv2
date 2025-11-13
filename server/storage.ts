@@ -15219,12 +15219,12 @@ export class DatabaseStorage implements IStorage {
       .from(mantencionesPlanificadas)
       .where(and(...mantConditionsAll));
     
-    // Filtrar mantenciones asignadas del periodo (planificada + aprobado + completado)
+    // Filtrar mantenciones asignadas del periodo (planificado + aprobado + completado)
     const totalMantAsignadas = todasMantPlanificadas
       .filter(m => 
         m.mes >= startMonth && 
         m.mes <= endMonth && 
-        ['planificada', 'aprobado', 'completado'].includes(m.estado)
+        ['planificado', 'aprobado', 'completado'].includes(m.estado)
       )
       .reduce((sum, m) => sum + Number(m.costoEstimado), 0);
     

@@ -320,7 +320,7 @@ export default function CMmsPresupuesto() {
     
     // Sumar mantenciones planificadas, aprobadas y completadas del mes
     const mantAsignadas = mantencionesPlanificadas
-      ?.filter(m => m.mes === mes && ['planificada', 'aprobado', 'completado'].includes(m.estado))
+      ?.filter(m => m.mes === mes && ['planificado', 'aprobado', 'completado'].includes(m.estado))
       .reduce((sum, m) => sum + parseFloat(m.costoEstimado), 0) || 0;
     
     return base + mantAsignadas;
