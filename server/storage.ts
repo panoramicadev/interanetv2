@@ -1366,9 +1366,13 @@ export interface IStorage {
   getGastosMaterialesMantencion(filters?: {
     otId?: string;
     area?: string;
+    anio?: string;
+    mes?: string;
     startDate?: string;
     endDate?: string;
-  }): Promise<GastoMaterialMantencion[]>;
+    page?: number;
+    pageSize?: number;
+  }): Promise<{ data: GastoMaterialMantencion[], total: number, costoPeriodo: number, page: number, pageSize: number }>;
   getGastoMaterialMantencionById(id: string): Promise<GastoMaterialMantencion | undefined>;
   updateGastoMaterialMantencion(id: string, updates: Partial<InsertGastoMaterialMantencion>): Promise<GastoMaterialMantencion>;
   deleteGastoMaterialMantencion(id: string): Promise<void>;
@@ -14631,7 +14635,7 @@ export class DatabaseStorage implements IStorage {
     endDate?: string;
     page?: number;
     pageSize?: number;
-  }): Promise<{ data: GastoMaterialMantencion[], total: number, page: number, pageSize: number }> {
+  }): Promise<{ data: GastoMaterialMantencion[], total: number, costoPeriodo: number, page: number, pageSize: number }> {
     const conditions = [];
     if (filters?.otId) {
       conditions.push(eq(gastosMaterialesMantencion.otId, filters.otId));
@@ -14666,12 +14670,15 @@ export class DatabaseStorage implements IStorage {
       }
     }
     
-    // Get total count
-    let countQuery = db.select({ count: sql<number>`count(*)` }).from(gastosMaterialesMantencion);
+    // Get total count and sum of costs
+    let aggregateQuery = db.select({ 
+      count: sql<number>`count(*)`,
+      costoTotal: sql<number>`COALESCE(SUM(CAST(${gastosMaterialesMantencion.costoTotal} AS DECIMAL)), 0)`
+    }).from(gastosMaterialesMantencion);
     if (conditions.length > 0) {
-      countQuery = countQuery.where(and(...conditions)) as any;
+      aggregateQuery = aggregateQuery.where(and(...conditions)) as any;
     }
-    const [{ count: total }] = await countQuery;
+    const [{ count: total, costoTotal: costoPeriodo }] = await aggregateQuery;
     
     // Get paginated data
     let dataQuery = db.select().from(gastosMaterialesMantencion);
@@ -14693,6 +14700,7 @@ export class DatabaseStorage implements IStorage {
     return {
       data,
       total,
+      costoPeriodo: Number(costoPeriodo),
       page,
       pageSize
     };
