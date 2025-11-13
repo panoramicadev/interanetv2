@@ -484,7 +484,7 @@ function GastosTab({ mantencionId, canManageGastos }: { mantencionId: string; ca
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : gastos.length === 0 ? (
+          ) : !Array.isArray(gastos) || gastos.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <p>No hay gastos registrados para esta orden de trabajo</p>
             </div>
