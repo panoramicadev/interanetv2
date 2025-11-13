@@ -387,6 +387,7 @@ function HistorialTab({ mantencion }: { mantencion: MantencionWithDetails }) {
 function GastosTab({ mantencionId, canManageGastos }: { mantencionId: string; canManageGastos: boolean }) {
   const { toast } = useToast();
   const [isAddGastoDialogOpen, setIsAddGastoDialogOpen] = useState(false);
+  const gastoFormRef = useRef<HTMLFormElement>(null);
 
   // Query para obtener gastos de la OT
   const { data: gastos = [], isLoading } = useQuery<Array<{
@@ -413,6 +414,7 @@ function GastosTab({ mantencionId, canManageGastos }: { mantencionId: string; ca
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/mantenciones', mantencionId, 'gastos'] });
       queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+      gastoFormRef.current?.reset();
       setIsAddGastoDialogOpen(false);
       toast({
         title: "Gasto agregado",
@@ -533,7 +535,12 @@ function GastosTab({ mantencionId, canManageGastos }: { mantencionId: string; ca
       </ScrollArea>
 
       {/* Dialog para agregar gasto */}
-      <Dialog open={isAddGastoDialogOpen} onOpenChange={setIsAddGastoDialogOpen}>
+      <Dialog open={isAddGastoDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          gastoFormRef.current?.reset();
+        }
+        setIsAddGastoDialogOpen(open);
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Agregar Gasto de Material</DialogTitle>
@@ -541,7 +548,7 @@ function GastosTab({ mantencionId, canManageGastos }: { mantencionId: string; ca
               Registre los materiales utilizados en esta orden de trabajo
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleAddGastoSubmit}>
+          <form ref={gastoFormRef} onSubmit={handleAddGastoSubmit}>
             <div className="space-y-4 mb-4">
               <div className="space-y-2">
                 <Label htmlFor="item">Item / Material *</Label>
