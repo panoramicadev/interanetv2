@@ -325,7 +325,17 @@ interface ETLProgress {
 }
 
 // ETL Status Section Component
-function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefresh: boolean }) {
+function ETLStatusSection({ 
+  etlName, 
+  autoRefresh,
+  showDocumentTypes = true,
+  showBranches = true
+}: { 
+  etlName: string; 
+  autoRefresh: boolean;
+  showDocumentTypes?: boolean;
+  showBranches?: boolean;
+}) {
   const { toast } = useToast();
   const { user } = useAuth();
   const [showConfigDialog, setShowConfigDialog] = useState(false);
@@ -788,16 +798,20 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
                   </p>
                 </div>
               </div>
-              {lastExecution && (
+              {lastExecution && (showDocumentTypes || showBranches) && (
                 <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Tipos de Documento</p>
-                    <p className="font-semibold text-sm">{lastExecution.documentTypes}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Sucursales</p>
-                    <p className="font-semibold text-sm">{lastExecution.branches}</p>
-                  </div>
+                  {showDocumentTypes && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Tipos de Documento</p>
+                      <p className="font-semibold text-sm">{lastExecution.documentTypes}</p>
+                    </div>
+                  )}
+                  {showBranches && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Sucursales</p>
+                      <p className="font-semibold text-sm">{lastExecution.branches}</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1937,7 +1951,12 @@ function GDVHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
 function NVVTabContent({ autoRefresh }: { autoRefresh: boolean }) {
   return (
     <>
-      <ETLStatusSection etlName="nvv" autoRefresh={autoRefresh} />
+      <ETLStatusSection 
+        etlName="nvv" 
+        autoRefresh={autoRefresh}
+        showDocumentTypes={false}
+        showBranches={false}
+      />
       <ETLHistorySection etlName="nvv" autoRefresh={autoRefresh} />
     </>
   );
