@@ -13162,21 +13162,28 @@ export function registerRoutes(app: Express): Server {
 
   // ETL Progress Stream (Server-Sent Events) - Real-time progress updates
   app.get('/api/etl/progress', requireAdminOrSupervisor, (req: any, res: any) => {
+    const { etlName = 'ventas_incremental' } = req.query;
+    
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
     });
 
+    // 🔀 ROUTER: Seleccionar el emitter correcto según etlName
+    const emitter = etlName === 'nvv' ? nvvEtlProgressEmitter :
+                    etlName === 'gdv' ? gdvEtlProgressEmitter :
+                    etlProgressEmitter;
+
     const progressListener = (event: any) => {
       res.write(`data: ${JSON.stringify(event)}\n\n`);
     };
 
-    etlProgressEmitter.on('progress', progressListener);
+    emitter.on('progress', progressListener);
 
     // Cleanup on client disconnect
     req.on('close', () => {
-      etlProgressEmitter.off('progress', progressListener);
+      emitter.off('progress', progressListener);
       res.end();
     });
   });
@@ -13283,9 +13290,156 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Helper functions for ETL diagnostics
+  async function runNVVDiagnostics(req: any, res: any) {
+    console.log('\n╔═══════════════════════════════════════════════════════════════╗');
+    console.log('║  🔍 DIAGNÓSTICO DE PRODUCCIÓN - ETL SCHEMA NVV               ║');
+    console.log('╚═══════════════════════════════════════════════════════════════╝\n');
+    
+    const diagnosticResults: any = {
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'unknown',
+      etlName: 'nvv',
+      checks: []
+    };
+
+    // 1. Check database connection
+    try {
+      await db.execute(sql`SELECT 1 as test`);
+      diagnosticResults.checks.push({ name: 'database_connection', status: 'OK', success: true });
+    } catch (err: any) {
+      diagnosticResults.checks.push({ name: 'database_connection', status: 'ERROR', success: false, error: err.message });
+    }
+
+    // 2. Check NVV schema exists
+    try {
+      const schemasResult = await db.execute(sql`SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'nvv'`);
+      const hasNVVSchema = schemasResult.rows.length > 0;
+      diagnosticResults.checks.push({ name: 'nvv_schema_exists', status: hasNVVSchema ? 'OK' : 'ERROR', success: hasNVVSchema });
+    } catch (err: any) {
+      diagnosticResults.checks.push({ name: 'nvv_schema_exists', status: 'ERROR', success: false, error: err.message });
+    }
+
+    // 3. Check NVV tables
+    try {
+      const tablesResult = await db.execute(sql`
+        SELECT table_name FROM information_schema.tables WHERE table_schema = 'nvv' ORDER BY table_name
+      `);
+      const expectedTables = ['stg_maeedo_nvv', 'stg_maeddo_nvv', 'fact_nvv', 'nvv_sync_log'];
+      const foundTables = tablesResult.rows.map((row: any) => row.table_name);
+      const missingTables = expectedTables.filter(t => !foundTables.includes(t));
+      
+      diagnosticResults.checks.push({ 
+        name: 'nvv_tables', 
+        status: missingTables.length === 0 ? 'OK' : 'INCOMPLETE',
+        success: missingTables.length === 0,
+        totalTables: foundTables.length,
+        missingTables: missingTables.length > 0 ? missingTables : undefined
+      });
+    } catch (err: any) {
+      diagnosticResults.checks.push({ name: 'nvv_tables', status: 'ERROR', success: false, error: err.message });
+    }
+
+    // 4. Check fact_nvv record count
+    try {
+      const countResult = await db.execute(sql`SELECT COUNT(*) as count FROM nvv.fact_nvv`);
+      const count = parseInt(countResult.rows[0]?.count || '0');
+      diagnosticResults.checks.push({ name: 'fact_nvv_records', status: 'OK', success: true, recordCount: count });
+    } catch (err: any) {
+      diagnosticResults.checks.push({ name: 'fact_nvv_records', status: 'ERROR', success: false, error: err.message });
+    }
+
+    // Calculate summary
+    const successful = diagnosticResults.checks.filter((c: any) => c.success).length;
+    const errors = diagnosticResults.checks.filter((c: any) => !c.success).length;
+    
+    diagnosticResults.summary = { successful, errors, warnings: 0, total: diagnosticResults.checks.length };
+    
+    console.log(`✅ Diagnóstico NVV completado: ${successful} exitosas, ${errors} errores\n`);
+    return res.json(diagnosticResults);
+  }
+
+  async function runGDVDiagnostics(req: any, res: any) {
+    console.log('\n╔═══════════════════════════════════════════════════════════════╗');
+    console.log('║  🔍 DIAGNÓSTICO DE PRODUCCIÓN - ETL SCHEMA GDV               ║');
+    console.log('╚═══════════════════════════════════════════════════════════════╝\n');
+    
+    const diagnosticResults: any = {
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'unknown',
+      etlName: 'gdv',
+      checks: []
+    };
+
+    // 1. Check database connection
+    try {
+      await db.execute(sql`SELECT 1 as test`);
+      diagnosticResults.checks.push({ name: 'database_connection', status: 'OK', success: true });
+    } catch (err: any) {
+      diagnosticResults.checks.push({ name: 'database_connection', status: 'ERROR', success: false, error: err.message });
+    }
+
+    // 2. Check GDV schema exists
+    try {
+      const schemasResult = await db.execute(sql`SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'gdv'`);
+      const hasGDVSchema = schemasResult.rows.length > 0;
+      diagnosticResults.checks.push({ name: 'gdv_schema_exists', status: hasGDVSchema ? 'OK' : 'ERROR', success: hasGDVSchema });
+    } catch (err: any) {
+      diagnosticResults.checks.push({ name: 'gdv_schema_exists', status: 'ERROR', success: false, error: err.message });
+    }
+
+    // 3. Check GDV tables
+    try {
+      const tablesResult = await db.execute(sql`
+        SELECT table_name FROM information_schema.tables WHERE table_schema = 'gdv' ORDER BY table_name
+      `);
+      const expectedTables = ['stg_maeedo_gdv', 'stg_maeddo_gdv', 'fact_gdv', 'gdv_sync_log'];
+      const foundTables = tablesResult.rows.map((row: any) => row.table_name);
+      const missingTables = expectedTables.filter(t => !foundTables.includes(t));
+      
+      diagnosticResults.checks.push({ 
+        name: 'gdv_tables', 
+        status: missingTables.length === 0 ? 'OK' : 'INCOMPLETE',
+        success: missingTables.length === 0,
+        totalTables: foundTables.length,
+        missingTables: missingTables.length > 0 ? missingTables : undefined
+      });
+    } catch (err: any) {
+      diagnosticResults.checks.push({ name: 'gdv_tables', status: 'ERROR', success: false, error: err.message });
+    }
+
+    // 4. Check fact_gdv record count
+    try {
+      const countResult = await db.execute(sql`SELECT COUNT(*) as count FROM gdv.fact_gdv`);
+      const count = parseInt(countResult.rows[0]?.count || '0');
+      diagnosticResults.checks.push({ name: 'fact_gdv_records', status: 'OK', success: true, recordCount: count });
+    } catch (err: any) {
+      diagnosticResults.checks.push({ name: 'fact_gdv_records', status: 'ERROR', success: false, error: err.message });
+    }
+
+    // Calculate summary
+    const successful = diagnosticResults.checks.filter((c: any) => c.success).length;
+    const errors = diagnosticResults.checks.filter((c: any) => !c.success).length;
+    
+    diagnosticResults.summary = { successful, errors, warnings: 0, total: diagnosticResults.checks.length };
+    
+    console.log(`✅ Diagnóstico GDV completado: ${successful} exitosas, ${errors} errores\n`);
+    return res.json(diagnosticResults);
+  }
+
   // Production Diagnostics - Admin only, logs detailed info to server console
   app.post('/api/etl/diagnostics', requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
     try {
+      const { etlName = 'ventas_incremental' } = req.query;
+      
+      // 🔀 ROUTER: Ejecutar diagnóstico específico según etlName
+      if (etlName === 'nvv') {
+        return await runNVVDiagnostics(req, res);
+      } else if (etlName === 'gdv') {
+        return await runGDVDiagnostics(req, res);
+      }
+      
+      // Default: Diagnóstico de Ventas (código existente)
       console.log('\n╔═══════════════════════════════════════════════════════════════╗');
       console.log('║  🔍 DIAGNÓSTICO DE PRODUCCIÓN - ETL SCHEMA VENTAS            ║');
       console.log('╚═══════════════════════════════════════════════════════════════╝\n');
@@ -13293,6 +13447,7 @@ export function registerRoutes(app: Express): Server {
       const diagnosticResults: any = {
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'unknown',
+        etlName: 'ventas',
         checks: []
       };
 

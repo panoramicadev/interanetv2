@@ -371,8 +371,8 @@ function ETLStatusSection({
       return;
     }
 
-    console.log('🔌 Conectando a SSE para progreso ETL...');
-    const eventSource = new EventSource('/api/etl/progress');
+    console.log(`🔌 Conectando a SSE para progreso ETL (${etlName})...`);
+    const eventSource = new EventSource(`/api/etl/progress?etlName=${etlName}`);
     
     eventSource.onopen = () => {
       console.log('✅ SSE conectado');
@@ -497,7 +497,7 @@ function ETLStatusSection({
   // Run diagnostics mutation (Admin only)
   const diagnosticsMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('/api/etl/diagnostics', {
+      const response = await apiRequest(`/api/etl/diagnostics?etlName=${etlName}`, {
         method: 'POST',
       });
       return await response.json();
