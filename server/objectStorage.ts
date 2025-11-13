@@ -83,8 +83,8 @@ export class ObjectStorageService {
 
   // Search for a public object from the search paths.
   async searchPublicObject(filePath: string): Promise<File | null> {
-    // If it's a maintenance photo, search in Mantencion bucket first
-    if (filePath.startsWith('mantencion-photos/')) {
+    // If it's a maintenance photo or resolution, search in Mantencion bucket first
+    if (filePath.startsWith('mantencion-photos/') || filePath.startsWith('mantencion-resolucion/')) {
       const mantencionPath = this.getMantencionBucketPath();
       const fullPath = `${mantencionPath}/${filePath}`;
       
@@ -183,8 +183,8 @@ export class ObjectStorageService {
 
   // Upload image data directly to object storage
   async uploadImage(fileName: string, imageBuffer: Buffer, contentType: string = 'image/png'): Promise<string> {
-    // Use Mantencion bucket for maintenance photos
-    const isMantencionPhoto = fileName.startsWith('mantencion-photos/');
+    // Use Mantencion bucket for maintenance photos and resolutions
+    const isMantencionPhoto = fileName.startsWith('mantencion-photos/') || fileName.startsWith('mantencion-resolucion/');
     const publicPath = isMantencionPhoto 
       ? this.getMantencionBucketPath()
       : this.getPublicObjectSearchPaths()[0];
