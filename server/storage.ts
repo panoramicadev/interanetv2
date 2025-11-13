@@ -3829,7 +3829,30 @@ export class DatabaseStorage implements IStorage {
 
   async getTransactionDetails(transactionId: string) {
     const [transaction] = await db
-      .select()
+      .select({
+        id: factVentas.id,
+        idmaeedo: factVentas.idmaeedo,
+        idmaeddo: factVentas.idmaeddo,
+        tido: factVentas.tido,
+        nudo: factVentas.nudo,
+        feemdo: factVentas.feemdo,
+        nokoen: factVentas.nokoen,
+        nokofu: factVentas.nokofu,
+        noruen: factVentas.noruen,
+        nokopr: factVentas.nokoprct, // Map nokoprct to nokopr
+        koprct: factVentas.koprct,
+        caprad2: factVentas.caprad2,
+        monto: factVentas.monto,
+        vanedo: factVentas.vanedo,
+        esdo: factVentas.esdo,
+        endo: factVentas.endo,
+        modo: factVentas.modo,
+        vabrdo: factVentas.vabrdo,
+        vaivdo: factVentas.vaivdo,
+        ppprne: factVentas.ppprne,
+        ppprbr: factVentas.ppprbr,
+        udtrpr: factVentas.udtrpr,
+      })
       .from(factVentas)
       .where(eq(factVentas.id, transactionId));
 
@@ -5289,7 +5312,7 @@ export class DatabaseStorage implements IStorage {
     id: string;
     nudo: string;
     feemdo: string;
-    nokoprct: string;
+    nokopr: string;
     monto: string;
     nokofu: string;
   } | null> {
@@ -5298,7 +5321,7 @@ export class DatabaseStorage implements IStorage {
         id: factVentas.id,
         nudo: factVentas.nudo,
         feemdo: factVentas.feemdo,
-        nokoprct: factVentas.nokoprct,
+        nokopr: factVentas.nokoprct, // Map nokoprct to nokopr
         monto: sql<string>`CAST(${factVentas.monto} AS TEXT)`,
         nokofu: factVentas.nokofu
       })
@@ -5313,7 +5336,7 @@ export class DatabaseStorage implements IStorage {
       id: result.id,
       nudo: result.nudo,
       feemdo: result.feemdo ? (typeof result.feemdo === 'string' ? result.feemdo : new Date(result.feemdo).toISOString().split('T')[0]) : '',
-      nokoprct: result.nokoprct || '',
+      nokopr: result.nokopr || '',
       monto: result.monto || '0',
       nokofu: result.nokofu || ''
     };
@@ -5323,7 +5346,7 @@ export class DatabaseStorage implements IStorage {
     id: string;
     nudo: string;
     feemdo: string;
-    nokoprct: string;
+    nokopr: string;
     monto: string;
     nokofu: string;
   }>> {
@@ -5332,7 +5355,7 @@ export class DatabaseStorage implements IStorage {
         id: factVentas.id,
         nudo: factVentas.nudo,
         feemdo: factVentas.feemdo,
-        nokoprct: factVentas.nokoprct,
+        nokopr: factVentas.nokoprct, // Map nokoprct to nokopr
         monto: sql<string>`CAST(${factVentas.monto} AS TEXT)`,
         nokofu: factVentas.nokofu
       })
@@ -5345,7 +5368,7 @@ export class DatabaseStorage implements IStorage {
       id: r.id,
       nudo: r.nudo,
       feemdo: r.feemdo ? (typeof r.feemdo === 'string' ? r.feemdo : new Date(r.feemdo).toISOString().split('T')[0]) : '',
-      nokoprct: r.nokoprct || '',
+      nokopr: r.nokopr || '',
       monto: r.monto || '0',
       nokofu: r.nokofu || ''
     }));

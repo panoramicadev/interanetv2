@@ -15,7 +15,7 @@ interface LastOrder {
   id: string;
   nudo: string;
   feemdo: string;
-  nokoprct: string;
+  nokopr: string;
   vanedo: string;
   nokofu: string;
 }
@@ -24,7 +24,7 @@ interface PurchaseHistory {
   id: string;
   nudo: string;
   feemdo: string;
-  nokoprct: string;
+  nokopr: string;
   vanedo: string;
   nokofu: string;
 }
@@ -178,7 +178,7 @@ export default function ClientBuyerDashboard() {
                   <div className="mt-2 space-y-1 text-sm">
                     <p><span className="font-medium">N° Documento:</span> {lastOrder.nudo}</p>
                     <p><span className="font-medium">Fecha:</span> {formatDate(lastOrder.feemdo)}</p>
-                    <p><span className="font-medium">Producto:</span> {lastOrder.nokoprct}</p>
+                    <p><span className="font-medium">Producto:</span> {lastOrder.nokopr}</p>
                   </div>
                 </div>
                 <div>
@@ -220,7 +220,7 @@ export default function ClientBuyerDashboard() {
                       <TableRow key={index}>
                         <TableCell className="font-medium">{item.nudo}</TableCell>
                         <TableCell>{formatDate(item.feemdo)}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{item.nokoprct}</TableCell>
+                        <TableCell className="max-w-[200px] truncate">{item.nokopr}</TableCell>
                         <TableCell className="font-medium text-green-600">
                           {formatCurrency(item.vanedo)}
                         </TableCell>
