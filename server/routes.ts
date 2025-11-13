@@ -9063,10 +9063,10 @@ export function registerRoutes(app: Express): Server {
       const { getRoleArea } = await import('@shared/reclamosAreas');
       const userArea = getRoleArea(user.role);
       
-      // Usuarios de área (laboratorio, produccion, etc.) ven reclamos que les fueron asignados específicamente
+      // Usuarios de área (laboratorio, produccion, etc.) ven todos los reclamos de su área
       if (userArea) {
-        // Filtrar por reclamos asignados específicamente al usuario como responsable del área
-        filters.responsableAreaId = user.id;
+        // Filtrar por área responsable para ver todos los reclamos en la cola del área
+        filters.areaResponsable = userArea;
       }
       
       const reclamos = await storage.getReclamosGenerales(filters);
