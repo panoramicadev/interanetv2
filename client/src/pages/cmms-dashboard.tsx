@@ -53,20 +53,28 @@ ChartJS.register(
 
 interface CMMSMetrics {
   totalOTs: number;
-  otsPendientes: number;
-  otsEnCurso: number;
+  // OT por estado real (estados actuales del sistema)
+  otsRegistradas: number;
+  otsProgramadas: number;
+  otsEnReparacion: number;
   otsPausadas: number;
-  otsFinalizadas: number;
+  otsResueltas: number;
+  otsCerradas: number;
+  // Tipo de mantención
   preventivas: number;
   correctivas: number;
   mttr: number;
+  // Costos
   costoTotal: number;
   costoPlanificado: number;
   costoDesviacion: number;
+  // Equipos por estado real (usando estadoActual)
   equiposCriticos: number;
   equiposOperativos: number;
   equiposEnMantencion: number;
   equiposDetenidos: number;
+  equiposFueraDeServicio: number;
+  // Otros contadores
   proveedoresActivos: number;
   planesPreventivosActivos: number;
   planesVencidos: number;
@@ -125,22 +133,26 @@ export default function CMMSDashboard() {
     return `${hours.toFixed(1)} hrs`;
   };
 
-  // Chart: OTs por Estado
+  // Chart: OTs por Estado (todos los estados reales del sistema)
   const estadoChartData = {
-    labels: ['Pendientes', 'En Curso', 'Finalizadas', 'Pausadas'],
+    labels: ['Registradas', 'Programadas', 'En Reparación', 'Pausadas', 'Resueltas', 'Cerradas'],
     datasets: [{
       label: 'Órdenes de Trabajo',
       data: [
-        metrics?.otsPendientes || 0,
-        metrics?.otsEnCurso || 0,
-        metrics?.otsFinalizadas || 0,
+        metrics?.otsRegistradas || 0,
+        metrics?.otsProgramadas || 0,
+        metrics?.otsEnReparacion || 0,
         metrics?.otsPausadas || 0,
+        metrics?.otsResueltas || 0,
+        metrics?.otsCerradas || 0,
       ],
       backgroundColor: [
-        'rgba(251, 146, 60, 0.8)',
-        'rgba(59, 130, 246, 0.8)',
-        'rgba(34, 197, 94, 0.8)',
-        'rgba(234, 179, 8, 0.8)',
+        'rgba(156, 163, 175, 0.8)',  // Registradas - gris
+        'rgba(251, 146, 60, 0.8)',   // Programadas - naranja
+        'rgba(59, 130, 246, 0.8)',   // En Reparación - azul
+        'rgba(234, 179, 8, 0.8)',    // Pausadas - amarillo
+        'rgba(34, 197, 94, 0.8)',    // Resueltas - verde
+        'rgba(100, 116, 139, 0.8)',  // Cerradas - gris oscuro
       ],
     }]
   };
@@ -157,19 +169,21 @@ export default function CMMSDashboard() {
     }]
   };
 
-  // Chart: Estado de Equipos
+  // Chart: Estado de Equipos (todos los estados reales)
   const equiposChartData = {
-    labels: ['Operativos', 'En Mantención', 'Detenidos'],
+    labels: ['Operativos', 'En Mantención', 'Detenidos', 'Fuera de Servicio'],
     datasets: [{
       data: [
         metrics?.equiposOperativos || 0,
         metrics?.equiposEnMantencion || 0,
         metrics?.equiposDetenidos || 0,
+        metrics?.equiposFueraDeServicio || 0,
       ],
       backgroundColor: [
-        'rgba(34, 197, 94, 0.8)',
-        'rgba(251, 146, 60, 0.8)',
-        'rgba(239, 68, 68, 0.8)',
+        'rgba(34, 197, 94, 0.8)',    // Operativos - verde
+        'rgba(251, 146, 60, 0.8)',   // En Mantención - naranja
+        'rgba(234, 179, 8, 0.8)',    // Detenidos - amarillo
+        'rgba(239, 68, 68, 0.8)',    // Fuera de Servicio - rojo
       ],
     }]
   };
@@ -397,7 +411,7 @@ export default function CMMSDashboard() {
                 <CardContent>
                   <div className="text-2xl font-bold" data-testid="text-total-ots">{metrics?.totalOTs || 0}</div>
                   <p className="text-xs text-muted-foreground">
-                    {metrics?.otsPendientes || 0} pendientes
+                    {((metrics?.otsRegistradas || 0) + (metrics?.otsProgramadas || 0) + (metrics?.otsEnReparacion || 0))} activas
                   </p>
                 </CardContent>
               </Card>

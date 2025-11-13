@@ -18,6 +18,32 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// ==================================================================================
+// CONSTANTES COMPARTIDAS - CMMS
+// ==================================================================================
+
+// Estados válidos de Órdenes de Trabajo (OT)
+export const ESTADOS_OT = {
+  REGISTRADO: 'registrado',        // OT creada, pendiente de asignación
+  PROGRAMADA: 'programada',         // OT programada para fecha futura
+  EN_REPARACION: 'en_reparacion',  // OT en ejecución
+  PAUSADA: 'pausada',               // OT pausada por falta de material/aprobación
+  RESUELTO: 'resuelto',             // OT resuelta, pendiente de cierre administrativo
+  CERRADO: 'cerrado',               // OT cerrada administrativamente
+} as const;
+
+export type EstadoOT = typeof ESTADOS_OT[keyof typeof ESTADOS_OT];
+
+// Estados válidos de Equipos Críticos
+export const ESTADOS_EQUIPO = {
+  OPERATIVO: 'operativo',                 // Equipo funcionando normalmente
+  EN_MANTENCION: 'en_mantencion',        // Equipo en mantención programada
+  DETENIDO: 'detenido',                   // Equipo detenido temporalmente
+  FUERA_DE_SERVICIO: 'fuera_de_servicio', // Equipo fuera de servicio
+} as const;
+
+export type EstadoEquipo = typeof ESTADOS_EQUIPO[keyof typeof ESTADOS_EQUIPO];
+
 // Session storage table (required for Replit Auth)
 export const sessions = pgTable(
   "sessions",

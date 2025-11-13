@@ -1404,20 +1404,28 @@ export interface IStorage {
     area?: string;
   }): Promise<{
     totalOTs: number;
-    otsPendientes: number;
-    otsEnCurso: number;
+    // OT por estado real (estados actuales del sistema)
+    otsRegistradas: number;
+    otsProgramadas: number;
+    otsEnReparacion: number;
     otsPausadas: number;
-    otsFinalizadas: number;
+    otsResueltas: number;
+    otsCerradas: number;
+    // Tipo de mantención
     mttr: number;
     preventivas: number;
     correctivas: number;
+    // Costos
     costoTotal: number;
     costoPlanificado: number;
     costoDesviacion: number;
+    // Equipos por estado real (usando estadoActual)
     equiposCriticos: number;
     equiposOperativos: number;
     equiposEnMantencion: number;
     equiposDetenidos: number;
+    equiposFueraDeServicio: number;
+    // Otros contadores
     proveedoresActivos: number;
     planesPreventivosActivos: number;
     planesVencidos: number;
@@ -15054,20 +15062,28 @@ export class DatabaseStorage implements IStorage {
     area?: string;
   }): Promise<{
     totalOTs: number;
-    otsPendientes: number;
-    otsEnCurso: number;
+    // OT por estado real (estados actuales del sistema)
+    otsRegistradas: number;
+    otsProgramadas: number;
+    otsEnReparacion: number;
     otsPausadas: number;
-    otsFinalizadas: number;
+    otsResueltas: number;
+    otsCerradas: number;
+    // Tipo de mantención
     mttr: number;
     preventivas: number;
     correctivas: number;
+    // Costos
     costoTotal: number;
     costoPlanificado: number;
     costoDesviacion: number;
+    // Equipos por estado real (usando estadoActual)
     equiposCriticos: number;
     equiposOperativos: number;
     equiposEnMantencion: number;
     equiposDetenidos: number;
+    equiposFueraDeServicio: number;
+    // Otros contadores
     proveedoresActivos: number;
     planesPreventivosActivos: number;
     planesVencidos: number;
@@ -15095,19 +15111,16 @@ export class DatabaseStorage implements IStorage {
     const ots = await query;
 
     const totalOTs = ots.length;
-    // Estados del flujo: pendiente, registrado, programada, en_reparacion, pausada, resuelto, cerrado
-    const otsPendientes = ots.filter(ot => 
-      ot.estado === 'pendiente' || ot.estado === 'registrado' || ot.estado === 'programada'
-    ).length;
-    const otsEnCurso = ots.filter(ot => 
-      ot.estado === 'en_reparacion'
-    ).length;
-    const otsPausadas = ots.filter(ot => 
-      ot.estado === 'pausada'
-    ).length;
-    const otsFinalizadas = ots.filter(ot => 
-      ot.estado === 'resuelto' || ot.estado === 'cerrado'
-    ).length;
+    
+    // Contar OTs por estado real (cada estado tiene su propia métrica)
+    const otsRegistradas = ots.filter(ot => ot.estado === 'registrado').length;
+    const otsProgramadas = ots.filter(ot => ot.estado === 'programada').length;
+    const otsEnReparacion = ots.filter(ot => ot.estado === 'en_reparacion').length;
+    const otsPausadas = ots.filter(ot => ot.estado === 'pausada').length;
+    const otsResueltas = ots.filter(ot => ot.estado === 'resuelto').length;
+    const otsCerradas = ots.filter(ot => ot.estado === 'cerrado').length;
+    
+    // Tipo de mantención
     const preventivas = ots.filter(ot => ot.tipoMantencion === 'preventivo').length;
     const correctivas = ots.filter(ot => ot.tipoMantencion === 'correctivo').length;
 
@@ -15170,31 +15183,30 @@ export class DatabaseStorage implements IStorage {
       p.activo && p.proximaEjecucion && new Date(p.proximaEjecucion) < now
     ).length;
     
-    // Obtener OTs activas (pendientes, en curso, pausadas) para vincular con equipos
-    const otsActivas = await db.select()
-      .from(solicitudesMantencion)
-      .where(
-        and(
-          inArray(solicitudesMantencion.estado, ['pendiente', 'registrado', 'programada', 'en_reparacion', 'pausada']),
-          isNotNull(solicitudesMantencion.equipoId)
-        )
-      );
-    
-    // Crear set de IDs de equipos con OTs activas
-    const equiposConOTsActivas = new Set(otsActivas.map(ot => ot.equipoId).filter(Boolean));
-    
-    // Clasificar equipos
+    // Clasificar equipos usando el campo estadoActual directamente
     let equiposOperativos = 0;
     let equiposEnMantencion = 0;
     let equiposDetenidos = 0;
+    let equiposFueraDeServicio = 0;
     
     for (const equipo of equipos) {
-      if (equipo.estado === 'fuera_de_servicio') {
-        equiposDetenidos++;
-      } else if (equiposConOTsActivas.has(equipo.id)) {
-        equiposEnMantencion++;
-      } else {
-        equiposOperativos++;
+      const estado = equipo.estadoActual || 'operativo'; // Default a operativo si no tiene estado
+      
+      switch (estado) {
+        case 'operativo':
+          equiposOperativos++;
+          break;
+        case 'en_mantencion':
+          equiposEnMantencion++;
+          break;
+        case 'detenido':
+          equiposDetenidos++;
+          break;
+        case 'fuera_de_servicio':
+          equiposFueraDeServicio++;
+          break;
+        default:
+          equiposOperativos++; // Fallback a operativo para estados no reconocidos
       }
     }
 
@@ -15215,20 +15227,28 @@ export class DatabaseStorage implements IStorage {
 
     return {
       totalOTs,
-      otsPendientes,
-      otsEnCurso,
+      // OTs por estado real
+      otsRegistradas,
+      otsProgramadas,
+      otsEnReparacion,
       otsPausadas,
-      otsFinalizadas,
+      otsResueltas,
+      otsCerradas,
+      // Tipo de mantención
       mttr: Math.round(mttr * 10) / 10, // Redondear a 1 decimal
       preventivas,
       correctivas,
+      // Costos
       costoTotal: Math.round(costoTotal),
       costoPlanificado: Math.round(costoPlanificado),
       costoDesviacion: Math.round(costoTotal - costoPlanificado),
+      // Equipos por estado real
       equiposCriticos: equipos.length,
       equiposOperativos,
       equiposEnMantencion,
       equiposDetenidos,
+      equiposFueraDeServicio,
+      // Otros contadores
       proveedoresActivos: proveedores.length,
       planesPreventivosActivos: planes.length,
       planesVencidos,
