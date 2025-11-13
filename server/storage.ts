@@ -15107,7 +15107,9 @@ export class DatabaseStorage implements IStorage {
     if (filters?.endDate) {
       conditions.push(lte(solicitudesMantencion.fechaSolicitud, new Date(filters.endDate)));
     }
-    if (filters?.area) {
+    if (filters?.area === 'global') {
+      conditions.push(isNull(solicitudesMantencion.area));
+    } else if (filters?.area) {
       conditions.push(eq(solicitudesMantencion.area, filters.area));
     }
 
@@ -15155,9 +15157,13 @@ export class DatabaseStorage implements IStorage {
     const startMonth = startDateObj.getMonth() + 1; // 1-12
     const endMonth = endDateObj.getMonth() + 1; // 1-12
     
-    // Obtener presupuestos del año
+    // Obtener presupuestos del año con filtro de área (igual que módulo de presupuesto)
     const presupuestoConditions: any[] = [eq(presupuestoMantencion.anio, yearFromFilter)];
-    if (filters?.area && filters.area !== 'all') {
+    if (filters?.area === 'global') {
+      // Global = solo presupuestos sin área asignada (area = null)
+      presupuestoConditions.push(isNull(presupuestoMantencion.area));
+    } else if (filters?.area) {
+      // Área específica
       presupuestoConditions.push(eq(presupuestoMantencion.area, filters.area));
     }
     
@@ -15185,7 +15191,9 @@ export class DatabaseStorage implements IStorage {
     if (filters?.endDate) {
       gastosConditions.push(lte(gastosMaterialesMantencion.fecha, new Date(filters.endDate)));
     }
-    if (filters?.area && filters.area !== 'all') {
+    if (filters?.area === 'global') {
+      gastosConditions.push(isNull(gastosMaterialesMantencion.area));
+    } else if (filters?.area) {
       gastosConditions.push(eq(gastosMaterialesMantencion.area, filters.area));
     }
     
@@ -15198,7 +15206,9 @@ export class DatabaseStorage implements IStorage {
     
     // 3. Obtener TODAS las mantenciones planificadas del año (para calcular aprobadas y completadas)
     const mantConditionsAll: any[] = [eq(mantencionesPlanificadas.anio, yearFromFilter)];
-    if (filters?.area && filters.area !== 'all') {
+    if (filters?.area === 'global') {
+      mantConditionsAll.push(isNull(mantencionesPlanificadas.area));
+    } else if (filters?.area) {
       mantConditionsAll.push(eq(mantencionesPlanificadas.area, filters.area));
     }
     
