@@ -15157,10 +15157,10 @@ export class DatabaseStorage implements IStorage {
     const startMonth = startDateObj.getMonth() + 1; // 1-12
     const endMonth = endDateObj.getMonth() + 1; // 1-12
     
-    // Obtener presupuestos del año con filtro de área (igual que módulo de presupuesto)
+    // Obtener presupuestos del año con filtro de área (solo primer registro por mes)
     const presupuestoConditions: any[] = [eq(presupuestoMantencion.anio, yearFromFilter)];
     if (filters?.area === 'global') {
-      // Global = solo presupuestos sin área asignada (area = null)
+      // Global = solo presupuestos sin área asignada (area = null), estrictamente
       presupuestoConditions.push(isNull(presupuestoMantencion.area));
     } else if (filters?.area) {
       // Área específica
@@ -15171,8 +15171,14 @@ export class DatabaseStorage implements IStorage {
       .from(presupuestoMantencion)
       .where(and(...presupuestoConditions));
     
-    // Filtrar por meses dentro del rango
-    const presupuestosPeriodo = presupuestos.filter(p => p.mes >= startMonth && p.mes <= endMonth);
+    // Filtrar por meses dentro del rango y agrupar por mes (solo primer registro por mes)
+    const presupuestosPorMes = new Map<number, typeof presupuestos[0]>();
+    for (const p of presupuestos) {
+      if (p.mes >= startMonth && p.mes <= endMonth && !presupuestosPorMes.has(p.mes)) {
+        presupuestosPorMes.set(p.mes, p);
+      }
+    }
+    const presupuestosPeriodo = Array.from(presupuestosPorMes.values());
     
     // Base de presupuesto asignado
     const baseAsignado = presupuestosPeriodo.reduce((sum, p) => sum + Number(p.presupuestoAsignado), 0);
