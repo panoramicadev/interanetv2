@@ -267,7 +267,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     }
     console.log('✅ No hay ETL en ejecución. Procediendo...\n');
 
-    console.log('\n🔄 INICIANDO ETL INCREMENTAL');
+    console.log('\n🔄 INICIANDO ETL');
     console.log('═══════════════════════════════════════════════════');
 
     // Obtener configuración ETL (incluye timeout)

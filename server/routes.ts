@@ -13117,8 +13117,13 @@ export function registerRoutes(app: Express): Server {
       console.log(`📝 ETL: ${etlName}`);
       console.log(`⏰ Timestamp: ${new Date().toISOString()}\n`);
       
+      // 🔀 ROUTER: Ejecutar ETL específico según etlName
       // Execute ETL in background (non-blocking)
-      executeIncrementalETL(etlName as string)
+      const etlPromise = etlName === 'nvv' 
+        ? executeNVVETL() 
+        : executeIncrementalETL(etlName as string);
+      
+      etlPromise
         .then((result) => {
           console.log('\n╔═══════════════════════════════════════════════════════════════╗');
           console.log('║  ✅ ETL BACKGROUND EXECUTION COMPLETADO                      ║');
