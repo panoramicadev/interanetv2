@@ -90,7 +90,7 @@ export default function CMMSDashboard() {
   
   const [mes, setMes] = useState(currentMonth.toString());
   const [anio, setAnio] = useState(currentYear.toString());
-  const [area, setArea] = useState<string>("all");
+  const [area, setArea] = useState<string>("global");
 
   // Generate start and end dates for the selected period
   const startDate = mes === 'all' 
@@ -107,7 +107,7 @@ export default function CMMSDashboard() {
       const params = new URLSearchParams({
         startDate,
         endDate,
-        ...(area !== 'all' && { area }),
+        area,
       });
       const response = await fetch(`/api/cmms/metrics?${params.toString()}`, {
         credentials: 'include',
@@ -377,10 +377,10 @@ export default function CMMSDashboard() {
                 <label className="text-sm font-medium mb-2 block">Área</label>
                 <Select value={area} onValueChange={setArea}>
                   <SelectTrigger data-testid="select-area">
-                    <SelectValue placeholder="Todas las áreas" />
+                    <SelectValue placeholder="Global" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todas las áreas</SelectItem>
+                    <SelectItem value="global">Global</SelectItem>
                     <SelectItem value="administracion">Administración</SelectItem>
                     <SelectItem value="produccion">Producción</SelectItem>
                     <SelectItem value="laboratorio">Laboratorio</SelectItem>
