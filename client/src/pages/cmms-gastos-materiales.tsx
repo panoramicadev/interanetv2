@@ -143,6 +143,7 @@ export default function CMmsGastosMateriales() {
   const { data: gastosResponse, isLoading } = useQuery<{
     data: GastoMaterial[];
     total: number;
+    costoPeriodo: number;
     page: number;
     pageSize: number;
   }>({
@@ -165,6 +166,7 @@ export default function CMmsGastosMateriales() {
 
   const gastos = gastosResponse?.data || [];
   const totalRecords = gastosResponse?.total || 0;
+  const costoPeriodo = gastosResponse?.costoPeriodo || 0;
   const totalPages = Math.ceil(totalRecords / PAGE_SIZE);
 
   // Reset page when filters change
@@ -483,7 +485,7 @@ export default function CMmsGastosMateriales() {
     return format(new Date(dateString), "dd/MM/yyyy");
   };
 
-  // Calculate totals
+  // Total de la página actual (no se usa, pero se mantiene por compatibilidad)
   const totalGastos = gastos?.reduce((sum, g) => sum + parseFloat(g.costoTotal), 0) || 0;
 
   if (isLoading) {
@@ -553,18 +555,18 @@ export default function CMmsGastosMateriales() {
           data-testid="input-file-excel"
         />
 
-        {/* Summary Card */}
-        <Card>
+        {/* Summary Card - Total del Periodo (dinámico con filtros) */}
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total del Período</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-lg font-semibold">Total del Periodo</CardTitle>
+            <DollarSign className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold" data-testid="text-total-gastos">
-              {formatCurrency(totalGastos)}
+            <div className="text-4xl font-bold text-blue-900 dark:text-blue-100" data-testid="text-total-periodo">
+              {formatCurrency(costoPeriodo)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {gastos?.length || 0} registro(s)
+            <p className="text-sm text-blue-700 dark:text-blue-300 mt-1" data-testid="text-total-registros">
+              {totalRecords} registro(s)
             </p>
           </CardContent>
         </Card>

@@ -225,33 +225,6 @@ export default function CMMSDashboard() {
             </div>
           </div>
 
-        {/* Total del Periodo */}
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Total del Periodo
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="animate-pulse">
-                <div className="h-12 bg-gray-200 rounded w-48 mb-2"></div>
-                <div className="h-4 bg-gray-200 rounded w-32"></div>
-              </div>
-            ) : (
-              <>
-                <div className="text-4xl font-bold text-blue-900 dark:text-blue-100" data-testid="text-total-periodo">
-                  {formatCurrency(metrics?.costoTotal || 0)}
-                </div>
-                <p className="text-sm text-blue-700 dark:text-blue-300 mt-1" data-testid="text-total-registros">
-                  {metrics?.totalOTs || 0} registro(s)
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
         {/* Acciones Rápidas */}
         <Card>
           <CardHeader className="pb-3">
