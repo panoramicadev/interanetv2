@@ -746,7 +746,6 @@ export default function MantencionesPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
-      await queryClient.refetchQueries({ queryKey: ['/api/mantenciones'] });
       setIsResolutionDialogOpen(false);
       setSelectedMantencion(null);
       toast({
@@ -772,7 +771,6 @@ export default function MantencionesPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
-      await queryClient.refetchQueries({ queryKey: ['/api/mantenciones'] });
       setIsEditingAsignacion(false);
       toast({
         title: "Asignación actualizada",
@@ -820,7 +818,6 @@ export default function MantencionesPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
-      await queryClient.refetchQueries({ queryKey: ['/api/mantenciones'] });
       toast({
         title: "Trabajo iniciado",
         description: "La orden de trabajo ha cambiado a estado 'En Reparación'.",
@@ -867,7 +864,6 @@ export default function MantencionesPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
-      await queryClient.refetchQueries({ queryKey: ['/api/mantenciones'] });
       setIsPausarDialogOpen(false);
       setSelectedMantencion(null);
       toast({
