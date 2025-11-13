@@ -15148,13 +15148,6 @@ export class DatabaseStorage implements IStorage {
       mttr = tiemposTotales.reduce((sum, t) => sum + t, 0) / otsConTiempo.length;
     }
 
-    // Calcular costos ejecutados (costoReal de las OTs)
-    const costoTotal = ots.reduce((sum, ot) => {
-      const costo = ot.costoReal ? Number(ot.costoReal) : 0;
-      return sum + costo;
-    }, 0);
-    
-    // Calcular presupuesto desde presupuesto_mantencion (no de OTs)
     // Extraer año y rango de meses desde filtros
     const startDateObj = filters?.startDate ? new Date(filters.startDate) : new Date();
     const endDateObj = filters?.endDate ? new Date(filters.endDate) : new Date();
@@ -15172,10 +15165,56 @@ export class DatabaseStorage implements IStorage {
       .from(presupuestoMantencion)
       .where(and(...presupuestoConditions));
     
-    // Filtrar por meses dentro del rango y sumar presupuestoAsignado
-    const costoPlanificado = presupuestos
-      .filter(p => p.mes >= startMonth && p.mes <= endMonth)
-      .reduce((sum, p) => sum + Number(p.presupuestoAsignado), 0);
+    // Filtrar por meses dentro del rango
+    const presupuestosPeriodo = presupuestos.filter(p => p.mes >= startMonth && p.mes <= endMonth);
+    
+    // Sumar presupuestoAsignado (Costo Asignado)
+    const costoPlanificado = presupuestosPeriodo.reduce((sum, p) => sum + Number(p.presupuestoAsignado), 0);
+    
+    // Calcular Costo Ejecutado (igual que en módulo de presupuesto)
+    // = presupuestoEjecutado (base) + gastos de materiales + mantenciones planificadas completadas
+    
+    // 1. Base de presupuesto ejecutado
+    const baseEjecutado = presupuestosPeriodo.reduce((sum, p) => sum + Number(p.presupuestoEjecutado), 0);
+    
+    // 2. Gastos de materiales del periodo
+    const gastosConditions: any[] = [];
+    if (filters?.startDate) {
+      gastosConditions.push(gte(gastosMaterialesMantencion.fecha, new Date(filters.startDate)));
+    }
+    if (filters?.endDate) {
+      gastosConditions.push(lte(gastosMaterialesMantencion.fecha, new Date(filters.endDate)));
+    }
+    if (filters?.area && filters.area !== 'all') {
+      gastosConditions.push(eq(gastosMaterialesMantencion.area, filters.area));
+    }
+    
+    let gastosQuery = db.select().from(gastosMaterialesMantencion);
+    if (gastosConditions.length > 0) {
+      gastosQuery = gastosQuery.where(and(...gastosConditions)) as any;
+    }
+    const gastosMateriales = await gastosQuery;
+    const totalGastosMateriales = gastosMateriales.reduce((sum, g) => sum + Number(g.costoTotal), 0);
+    
+    // 3. Mantenciones planificadas completadas del periodo
+    const mantConditions: any[] = [
+      eq(mantencionesPlanificadas.anio, yearFromFilter),
+      eq(mantencionesPlanificadas.estado, 'completado')
+    ];
+    if (filters?.area && filters.area !== 'all') {
+      mantConditions.push(eq(mantencionesPlanificadas.area, filters.area));
+    }
+    
+    const mantPlanificadasCompletadas = await db.select()
+      .from(mantencionesPlanificadas)
+      .where(and(...mantConditions));
+    
+    const totalMantPlanificadas = mantPlanificadasCompletadas
+      .filter(m => m.mes >= startMonth && m.mes <= endMonth)
+      .reduce((sum, m) => sum + Number(m.costoEstimado), 0);
+    
+    // Costo Total Ejecutado = base + gastos + mantenciones completadas
+    const costoTotal = baseEjecutado + totalGastosMateriales + totalMantPlanificadas;
 
     // Obtener contadores adicionales
     const proveedores = await db.select().from(proveedoresMantencion).where(eq(proveedoresMantencion.activo, true));
