@@ -783,9 +783,8 @@ export default function MantencionesPage() {
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
       setIsEditingAsignacion(false);
-      if (selectedMantencion && data) {
-        setSelectedMantencion({ ...selectedMantencion, ...data });
-      }
+      setIsDetailsDialogOpen(false);
+      setSelectedMantencion(null);
       toast({
         title: "Asignación actualizada",
         description: "Los datos de asignación y programación se han actualizado correctamente.",
@@ -832,9 +831,8 @@ export default function MantencionesPage() {
     },
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
-      if (selectedMantencion && data) {
-        setSelectedMantencion({ ...selectedMantencion, ...data });
-      }
+      setIsDetailsDialogOpen(false);
+      setSelectedMantencion(null);
       toast({
         title: "Trabajo iniciado",
         description: "La orden de trabajo ha cambiado a estado 'En Reparación'.",
@@ -858,9 +856,8 @@ export default function MantencionesPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
-      if (selectedMantencion && data) {
-        setSelectedMantencion({ ...selectedMantencion, ...data });
-      }
+      setIsDetailsDialogOpen(false);
+      setSelectedMantencion(null);
       toast({
         title: "Trabajo reanudado",
         description: "La orden de trabajo ha cambiado a estado 'En Reparación'.",
@@ -885,9 +882,8 @@ export default function MantencionesPage() {
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
       setIsPausarDialogOpen(false);
-      if (data) {
-        setSelectedMantencion({ ...selectedMantencion, ...data } as MantencionWithDetails);
-      }
+      setIsDetailsDialogOpen(false);
+      setSelectedMantencion(null);
       toast({
         title: "Trabajo pausado",
         description: "La orden de trabajo ha sido pausada correctamente.",
