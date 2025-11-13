@@ -15222,9 +15222,13 @@ export class DatabaseStorage implements IStorage {
       .from(mantencionesPlanificadas)
       .where(and(...mantConditionsAll));
     
-    // Filtrar mantenciones aprobadas del periodo (para Costo Asignado)
-    const totalMantAprobadas = todasMantPlanificadas
-      .filter(m => m.mes >= startMonth && m.mes <= endMonth && m.estado === 'aprobado')
+    // Filtrar mantenciones asignadas del periodo (planificada + aprobado + completado)
+    const totalMantAsignadas = todasMantPlanificadas
+      .filter(m => 
+        m.mes >= startMonth && 
+        m.mes <= endMonth && 
+        ['planificada', 'aprobado', 'completado'].includes(m.estado)
+      )
       .reduce((sum, m) => sum + Number(m.costoEstimado), 0);
     
     // Filtrar mantenciones completadas del periodo (para Costo Ejecutado)
@@ -15232,8 +15236,8 @@ export class DatabaseStorage implements IStorage {
       .filter(m => m.mes >= startMonth && m.mes <= endMonth && m.estado === 'completado')
       .reduce((sum, m) => sum + Number(m.costoEstimado), 0);
     
-    // Costo Asignado = base + mantenciones aprobadas (igual que en módulo de presupuesto)
-    const costoPlanificado = baseAsignado + totalMantAprobadas;
+    // Costo Asignado = base + mantenciones (planificada + aprobado + completado)
+    const costoPlanificado = baseAsignado + totalMantAsignadas;
     
     // Costo Total Ejecutado = base + gastos + mantenciones completadas
     const costoTotal = baseEjecutado + totalGastosMateriales + totalMantCompletadas;

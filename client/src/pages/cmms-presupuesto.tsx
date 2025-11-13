@@ -309,7 +309,7 @@ export default function CMmsPresupuesto() {
     return <TrendingDown className="h-4 w-4" />;
   };
 
-  // Calculate presupuesto asignado = base + mantenciones aprobadas
+  // Calculate presupuesto asignado = base + mantenciones (planificada + aprobado + completado)
   const getPresupuestoAsignado = (mes: number) => {
     const presupuesto = presupuestos?.find(p => 
       p.mes === mes && 
@@ -318,12 +318,12 @@ export default function CMmsPresupuesto() {
     );
     const base = presupuesto ? parseFloat(presupuesto.presupuestoAsignado) : 0;
     
-    // Sumar mantenciones planificadas aprobadas del mes
-    const mantAprobadas = mantencionesPlanificadas
-      ?.filter(m => m.mes === mes && m.estado === 'aprobado')
+    // Sumar mantenciones planificadas, aprobadas y completadas del mes
+    const mantAsignadas = mantencionesPlanificadas
+      ?.filter(m => m.mes === mes && ['planificada', 'aprobado', 'completado'].includes(m.estado))
       .reduce((sum, m) => sum + parseFloat(m.costoEstimado), 0) || 0;
     
-    return base + mantAprobadas;
+    return base + mantAsignadas;
   };
 
   // Calculate presupuesto ejecutado = base + gastos materiales + mantenciones completadas
