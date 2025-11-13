@@ -668,7 +668,7 @@ function ETLStatusSection({
               </Button>
               
               {/* Diagnostics Button - Admin only */}
-              {user.role === 'admin' && (
+              {user?.role === 'admin' && (
                 <>
                   <Button
                     onClick={() => diagnosticsMutation.mutate()}
