@@ -15107,9 +15107,8 @@ export class DatabaseStorage implements IStorage {
     if (filters?.endDate) {
       conditions.push(lte(solicitudesMantencion.fechaSolicitud, new Date(filters.endDate)));
     }
-    if (filters?.area === 'global') {
-      conditions.push(isNull(solicitudesMantencion.area));
-    } else if (filters?.area) {
+    // Global = todas las áreas (sin filtro), de lo contrario filtrar por área específica
+    if (filters?.area && filters.area !== 'global') {
       conditions.push(eq(solicitudesMantencion.area, filters.area));
     }
 
@@ -15197,9 +15196,8 @@ export class DatabaseStorage implements IStorage {
     if (filters?.endDate) {
       gastosConditions.push(lte(gastosMaterialesMantencion.fecha, new Date(filters.endDate)));
     }
-    if (filters?.area === 'global') {
-      gastosConditions.push(isNull(gastosMaterialesMantencion.area));
-    } else if (filters?.area) {
+    // Global = todas las áreas (sin filtro), de lo contrario filtrar por área específica
+    if (filters?.area && filters.area !== 'global') {
       gastosConditions.push(eq(gastosMaterialesMantencion.area, filters.area));
     }
     
@@ -15212,9 +15210,8 @@ export class DatabaseStorage implements IStorage {
     
     // 3. Obtener TODAS las mantenciones planificadas del año (para calcular aprobadas y completadas)
     const mantConditionsAll: any[] = [eq(mantencionesPlanificadas.anio, yearFromFilter)];
-    if (filters?.area === 'global') {
-      mantConditionsAll.push(isNull(mantencionesPlanificadas.area));
-    } else if (filters?.area) {
+    // Global = todas las áreas (sin filtro), de lo contrario filtrar por área específica
+    if (filters?.area && filters.area !== 'global') {
       mantConditionsAll.push(eq(mantencionesPlanificadas.area, filters.area));
     }
     
