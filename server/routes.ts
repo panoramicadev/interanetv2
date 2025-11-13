@@ -14083,28 +14083,27 @@ export function registerRoutes(app: Express): Server {
         console.error('   ❌ Error:', err.message, '\n');
       }
 
-      // 2. Create nvv_sync_log table
-      console.log('2️⃣  Creando tabla nvv.nvv_sync_log...');
+      // 2. Create NVV configuration in etl_config (generic table)
+      console.log('2️⃣  Creando configuración de NVV en etl_config...');
       try {
         await db.execute(sql`
-          CREATE TABLE IF NOT EXISTS nvv.nvv_sync_log (
-            id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
-            execution_date TIMESTAMP NOT NULL DEFAULT NOW(),
-            status VARCHAR(20) NOT NULL,
-            records_processed INTEGER,
-            records_inserted INTEGER,
-            records_updated INTEGER,
-            status_changes INTEGER,
-            execution_time_ms BIGINT,
-            error_message TEXT
-          )
+          INSERT INTO ventas.etl_config (etl_name, custom_watermark, use_custom_watermark, timeout_minutes, interval_minutes)
+          VALUES ('nvv', '2025-01-01 00:00:00', true, 5, 30)
+          ON CONFLICT (etl_name) DO UPDATE SET
+            custom_watermark = EXCLUDED.custom_watermark,
+            use_custom_watermark = EXCLUDED.use_custom_watermark,
+            timeout_minutes = EXCLUDED.timeout_minutes,
+            interval_minutes = EXCLUDED.interval_minutes
         `);
-        migrationsExecuted.push('Tabla nvv.nvv_sync_log creada');
-        console.log('   ✅ Tabla nvv_sync_log creada\n');
+        migrationsExecuted.push('Configuración de NVV creada en etl_config');
+        console.log('   ✅ Configuración de NVV en etl_config creada\n');
       } catch (err: any) {
-        errors.push(`Error creando nvv_sync_log: ${err.message}`);
+        errors.push(`Error creando configuración de NVV: ${err.message}`);
         console.error('   ❌ Error:', err.message, '\n');
       }
+
+      // Note: NVV now uses the generic etl_execution_log table in ventas schema
+      // Legacy nvv_sync_log table is no longer needed
 
       // 3. Create fact_nvv table
       console.log('3️⃣  Verificando/creando tabla nvv.fact_nvv...');
