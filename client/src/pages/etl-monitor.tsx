@@ -2065,6 +2065,27 @@ function NVVStatusSection({
     },
   });
 
+  const migrationsMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('/api/etl/run-nvv-migrations', {
+        method: 'POST',
+      });
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "✅ Migraciones NVV Ejecutadas",
+        description: data.message || 'Tablas del schema NVV creadas exitosamente',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "❌ Error al ejecutar migraciones NVV",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
@@ -2082,24 +2103,46 @@ function NVVStatusSection({
               <FileText className="h-5 w-5" />
               Control de Sincronización NVV
             </CardTitle>
-            <Button
-              onClick={() => executeMutation.mutate()}
-              disabled={executeMutation.isPending}
-              size="lg"
-              data-testid="button-execute-nvv-etl"
-            >
-              {executeMutation.isPending ? (
-                <>
-                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  Ejecutando...
-                </>
-              ) : (
-                <>
-                  <PlayCircle className="h-5 w-5 mr-2" />
-                  Ejecutar ETL de NVV
-                </>
-              )}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => migrationsMutation.mutate()}
+                disabled={migrationsMutation.isPending}
+                size="lg"
+                variant="outline"
+                data-testid="button-nvv-migrations"
+                title="Ejecuta migraciones para crear las tablas del schema NVV"
+              >
+                {migrationsMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Migrando...
+                  </>
+                ) : (
+                  <>
+                    <Database className="h-4 w-4 mr-2" />
+                    Ejecutar Migraciones
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={() => executeMutation.mutate()}
+                disabled={executeMutation.isPending}
+                size="lg"
+                data-testid="button-execute-nvv-etl"
+              >
+                {executeMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    Ejecutando...
+                  </>
+                ) : (
+                  <>
+                    <PlayCircle className="h-5 w-5 mr-2" />
+                    Ejecutar ETL de NVV
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </CardHeader>
       </Card>
