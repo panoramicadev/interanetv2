@@ -1158,25 +1158,36 @@ export async function getETLStatus(
       .from(etlExecutionLog)
       .where(sql`etl_name = ${etlName} AND (status = 'failed' OR status = 'error')`);
 
-    // Get total records in fact_ventas table - wrap in try-catch for safety
-    let totalFactVentasCount = 0;
+    // Get total records in fact table - wrap in try-catch for safety
+    let totalFactRecordsCount = 0;
     try {
-      const totalFactVentasResult = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(factVentas);
-      totalFactVentasCount = totalFactVentasResult[0]?.count || 0;
-    } catch (factVentasError) {
-      console.warn('⚠️  Could not query fact_ventas table:', factVentasError);
+      if (etlName === 'nvv') {
+        // Query nvv.fact_nvv table
+        const totalFactResult = await db.execute(sql`SELECT COUNT(*)::int as count FROM nvv.fact_nvv`);
+        totalFactRecordsCount = (totalFactResult as any)[0]?.count || 0;
+      } else if (etlName === 'gdv') {
+        // Query gdv.fact_gdv table
+        const totalFactResult = await db.execute(sql`SELECT COUNT(*)::int as count FROM gdv.fact_gdv`);
+        totalFactRecordsCount = (totalFactResult as any)[0]?.count || 0;
+      } else {
+        // Default: query ventas.fact_ventas table
+        const totalFactVentasResult = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(factVentas);
+        totalFactRecordsCount = totalFactVentasResult[0]?.count || 0;
+      }
+    } catch (factTableError) {
+      console.warn(`⚠️  Could not query fact table for ${etlName}:`, factTableError);
       // Continue without failing - this table might not exist yet
     }
 
     const lastExecution = lastExecutions[0] || null;
     const isRunning = lastExecution?.status === 'running';
 
-    // Add totalFactVentasRecords to lastExecution if it exists
+    // Add totalFactRecords to lastExecution if it exists
     const enrichedLastExecution = lastExecution ? {
       ...lastExecution,
-      totalFactVentasRecords: totalFactVentasCount
+      totalFactVentasRecords: totalFactRecordsCount
     } : null;
 
     // Get ETL configuration
@@ -1189,7 +1200,7 @@ export async function getETLStatus(
       totalExecutions: totalExecutionsResult[0]?.count || 0,
       successfulExecutions: successfulExecutionsResult[0]?.count || 0,
       failedExecutions: failedExecutionsResult[0]?.count || 0,
-      totalFactVentasRecords: totalFactVentasCount,
+      totalFactVentasRecords: totalFactRecordsCount,
       config, // Include configuration
     };
   } catch (error: any) {

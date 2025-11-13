@@ -1935,74 +1935,16 @@ function GDVHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
 // ==================================================================================
 
 function NVVTabContent({ autoRefresh }: { autoRefresh: boolean }) {
-  const [startDate, setStartDate] = useState(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 30);
-    return date.toISOString().split('T')[0];
-  });
-  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [selectedSucursales, setSelectedSucursales] = useState<string[]>([]);
-  const [selectedVendedores, setSelectedVendedores] = useState<string[]>([]);
-  const [selectedBodegas, setSelectedBodegas] = useState<string[]>([]);
-  const [estado, setEstado] = useState<'abiertas' | 'cerradas' | 'todas'>('abiertas');
-  const [pendingOnly, setPendingOnly] = useState(true);
-
-  const buildFilters = () => {
-    const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate);
-    if (endDate) params.append('endDate', endDate);
-    if (selectedSucursales.length > 0) {
-      params.append('sucursales', selectedSucursales.join(','));
-    }
-    if (selectedVendedores.length > 0) {
-      params.append('vendedores', selectedVendedores.join(','));
-    }
-    if (selectedBodegas.length > 0) {
-      params.append('bodegas', selectedBodegas.join(','));
-    }
-    if (estado !== 'todas') {
-      params.append('estado', estado);
-    }
-    if (pendingOnly) params.append('pendingOnly', 'true');
-    return params.toString();
-  };
-
-  const toggleSucursal = (sucursal: string) => {
-    setSelectedSucursales(prev => 
-      prev.includes(sucursal) 
-        ? prev.filter(s => s !== sucursal)
-        : [...prev, sucursal]
-    );
-  };
-
-  const filterState = {
-    startDate,
-    setStartDate,
-    endDate,
-    setEndDate,
-    selectedSucursales,
-    toggleSucursal,
-    selectedVendedores,
-    setSelectedVendedores,
-    selectedBodegas,
-    setSelectedBodegas,
-    estado,
-    setEstado,
-    pendingOnly,
-    setPendingOnly,
-    buildFilters,
-  };
-
   return (
     <>
-      <NVVStatusSection autoRefresh={autoRefresh} filterState={filterState} />
-      <NVVMetricsSection autoRefresh={autoRefresh} filterState={filterState} />
-      <NVVHistorySection autoRefresh={autoRefresh} />
+      <ETLStatusSection etlName="nvv" autoRefresh={autoRefresh} />
+      <ETLHistorySection etlName="nvv" autoRefresh={autoRefresh} />
     </>
   );
 }
 
-function NVVStatusSection({ 
+// Legacy NVV components below - will be removed after backend integration is complete
+function NVVStatusSectionLegacy({ 
   autoRefresh, 
   filterState 
 }: { 
