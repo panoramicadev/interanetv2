@@ -10144,11 +10144,12 @@ export function registerRoutes(app: Express): Server {
   // Obtener gastos de una OT
   app.get('/api/mantenciones/:id/gastos', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const gastos = await storage.getGastosMaterialesMantencion({
+      const result = await storage.getGastosMaterialesMantencion({
         otId: req.params.id
       });
 
-      res.json(gastos);
+      // Return only the data array for OT-specific gastos (no pagination needed)
+      res.json(result.data || []);
     } catch (error: any) {
       console.error('Error al obtener gastos:', error);
       res.status(400).json({ message: error.message || 'Error al obtener gastos' });
