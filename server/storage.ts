@@ -15168,8 +15168,8 @@ export class DatabaseStorage implements IStorage {
     // Filtrar por meses dentro del rango
     const presupuestosPeriodo = presupuestos.filter(p => p.mes >= startMonth && p.mes <= endMonth);
     
-    // Sumar presupuestoAsignado (Costo Asignado)
-    const costoPlanificado = presupuestosPeriodo.reduce((sum, p) => sum + Number(p.presupuestoAsignado), 0);
+    // Base de presupuesto asignado
+    const baseAsignado = presupuestosPeriodo.reduce((sum, p) => sum + Number(p.presupuestoAsignado), 0);
     
     // Calcular Costo Ejecutado (igual que en módulo de presupuesto)
     // = presupuestoEjecutado (base) + gastos de materiales + mantenciones planificadas completadas
@@ -15196,25 +15196,31 @@ export class DatabaseStorage implements IStorage {
     const gastosMateriales = await gastosQuery;
     const totalGastosMateriales = gastosMateriales.reduce((sum, g) => sum + Number(g.costoTotal), 0);
     
-    // 3. Mantenciones planificadas completadas del periodo
-    const mantConditions: any[] = [
-      eq(mantencionesPlanificadas.anio, yearFromFilter),
-      eq(mantencionesPlanificadas.estado, 'completado')
-    ];
+    // 3. Obtener TODAS las mantenciones planificadas del año (para calcular aprobadas y completadas)
+    const mantConditionsAll: any[] = [eq(mantencionesPlanificadas.anio, yearFromFilter)];
     if (filters?.area && filters.area !== 'all') {
-      mantConditions.push(eq(mantencionesPlanificadas.area, filters.area));
+      mantConditionsAll.push(eq(mantencionesPlanificadas.area, filters.area));
     }
     
-    const mantPlanificadasCompletadas = await db.select()
+    const todasMantPlanificadas = await db.select()
       .from(mantencionesPlanificadas)
-      .where(and(...mantConditions));
+      .where(and(...mantConditionsAll));
     
-    const totalMantPlanificadas = mantPlanificadasCompletadas
-      .filter(m => m.mes >= startMonth && m.mes <= endMonth)
+    // Filtrar mantenciones aprobadas del periodo (para Costo Asignado)
+    const totalMantAprobadas = todasMantPlanificadas
+      .filter(m => m.mes >= startMonth && m.mes <= endMonth && m.estado === 'aprobado')
       .reduce((sum, m) => sum + Number(m.costoEstimado), 0);
     
+    // Filtrar mantenciones completadas del periodo (para Costo Ejecutado)
+    const totalMantCompletadas = todasMantPlanificadas
+      .filter(m => m.mes >= startMonth && m.mes <= endMonth && m.estado === 'completado')
+      .reduce((sum, m) => sum + Number(m.costoEstimado), 0);
+    
+    // Costo Asignado = base + mantenciones aprobadas (igual que en módulo de presupuesto)
+    const costoPlanificado = baseAsignado + totalMantAprobadas;
+    
     // Costo Total Ejecutado = base + gastos + mantenciones completadas
-    const costoTotal = baseEjecutado + totalGastosMateriales + totalMantPlanificadas;
+    const costoTotal = baseEjecutado + totalGastosMateriales + totalMantCompletadas;
 
     // Obtener contadores adicionales
     const proveedores = await db.select().from(proveedoresMantencion).where(eq(proveedoresMantencion.activo, true));
