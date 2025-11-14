@@ -135,3 +135,14 @@ Preferred communication style: Simple, everyday language.
   - TanStack Query with default queryClient (no custom queryFn)
   - Query keys use flat arrays (no objects) for proper cache invalidation
 - **Production Ready**: Verified correct watermark persistence, transaction atomicity, and no data gaps
+
+### NVV ETL Staging Schema Fix (Migration 011) (November 14, 2025)
+- **Issue Resolved**: ETL de NVV fallaba con error "value too long for type character varying(10)" al insertar en stg_maeen_nvv
+- **Root Causes**:
+  1. Campos VARCHAR(10) muy cortos (zoen, foen, cpen) que no soportaban valores largos de SQL Server
+  2. Columnas faltantes: ruen (segmento cliente) y kofuen (vendedor asociado)
+- **Solution Applied (Migration 011)**:
+  - Agregadas columnas: `ruen VARCHAR(50)` y `kofuen VARCHAR(50)` en stg_maeen_nvv
+  - Ampliados campos de VARCHAR(10) a VARCHAR(50): zoen, foen, cpen (stg_maeen_nvv)
+  - Ampliados preventivamente: pfpr, fmpr, rupr, mrpr (stg_maepr_nvv)
+- **Expected Result**: ETL de NVV ahora puede procesar correctamente todos los registros sin errores de truncamiento
