@@ -1740,6 +1740,27 @@ export interface IStorage {
 
   // NVV ETL operations
   getNvvSyncHistory(limit?: number, offset?: number): Promise<NvvSyncLog[]>;
+  getNvvStateChanges(params: { executionId?: string; limit?: number; offset?: number }): Promise<{
+    changes: Array<{
+      id: string;
+      executionId: string;
+      idmaeedo: string;
+      nudo: string | null;
+      sudo: string | null;
+      changeType: string;
+      previousStatus: string | null;
+      newStatus: string;
+      monto: string | null;
+      changedAt: Date;
+      executionStartTime: Date | null;
+      executionEndTime: Date | null;
+      watermarkStart: string | null;
+      watermarkEnd: string | null;
+    }>;
+    total: number;
+    limit: number;
+    offset: number;
+  }>;
   getNvvSummary(filters?: NvvFilters): Promise<{
     totalNvv: number;
     totalAbiertas: number;
@@ -19212,6 +19233,76 @@ export class DatabaseStorage implements IStorage {
       .offset(offset);
     
     return history;
+  }
+
+  async getNvvStateChanges(params: { executionId?: string; limit?: number; offset?: number }) {
+    const { executionId, limit = 50, offset = 0 } = params;
+
+    // Build SQL query with CTE for filtering + join
+    const query = sql`
+      WITH changes_filtered AS (
+        SELECT 
+          c.id,
+          c.execution_id,
+          c.idmaeedo,
+          c.nudo,
+          c.sudo,
+          c.change_type,
+          c.previous_status,
+          c.new_status,
+          c.monto,
+          c.changed_at,
+          l.start_time as execution_start_time,
+          l.end_time as execution_end_time,
+          l.watermark_start,
+          l.watermark_end
+        FROM nvv.nvv_sync_changes c
+        INNER JOIN nvv.nvv_sync_log l ON c.execution_id = l.id
+        WHERE (${executionId}::uuid IS NULL OR c.execution_id = ${executionId}::uuid)
+      )
+      SELECT * FROM changes_filtered
+      ORDER BY changed_at DESC
+      LIMIT ${limit}
+      OFFSET ${offset}
+    `;
+
+    const countQuery = sql`
+      WITH changes_filtered AS (
+        SELECT c.id
+        FROM nvv.nvv_sync_changes c
+        WHERE (${executionId}::uuid IS NULL OR c.execution_id = ${executionId}::uuid)
+      )
+      SELECT COUNT(*) as count FROM changes_filtered
+    `;
+
+    const [changes, countResult] = await Promise.all([
+      db.execute(query),
+      db.execute(countQuery)
+    ]);
+
+    const total = Number(countResult.rows[0]?.count || 0);
+
+    return {
+      changes: changes.rows.map((row: any) => ({
+        id: row.id,
+        executionId: row.execution_id,
+        idmaeedo: row.idmaeedo,
+        nudo: row.nudo,
+        sudo: row.sudo,
+        changeType: row.change_type,
+        previousStatus: row.previous_status,
+        newStatus: row.new_status,
+        monto: row.monto,
+        changedAt: new Date(row.changed_at),
+        executionStartTime: row.execution_start_time ? new Date(row.execution_start_time) : null,
+        executionEndTime: row.execution_end_time ? new Date(row.execution_end_time) : null,
+        watermarkStart: row.watermark_start,
+        watermarkEnd: row.watermark_end
+      })),
+      total,
+      limit,
+      offset
+    };
   }
 
   async getNvvSummary(filters?: NvvFilters): Promise<{

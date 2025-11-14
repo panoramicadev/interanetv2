@@ -109,3 +109,29 @@ Preferred communication style: Simple, everyday language.
   - UPSERT in fact_nvv handles duplicates at boundary
 - **UI Fix**: Changed "Cancelar ETL Bloqueado" button text to "Cancelar ETL" for clarity
 - **Schema Fix (Migration 009)**: Changed nvv.nvv_sync_log.watermark_date from DATE to TIMESTAMP type to preserve full ISO timestamp precision instead of truncating to YYYY-MM-DD. This was the root cause of watermark truncation.
+
+### NVV ETL Change Tracking System (November 14, 2025)
+- **Feature Added**: Document-level change tracking system for NVV ETL with incremental watermark-based monitoring
+- **Schema Changes (Migration 010)**:
+  - `nvv_sync_log`: Added `watermark_start`, `watermark_end`, `end_time` for precise incremental range tracking
+  - `fact_nvv`: Added `last_etl_execution_id` and `last_status` for change detection
+  - New table `nvv_sync_changes`: Audit trail of document state changes (insert/state_change)
+    - Tracks idmaeedo, change_type, previous_status, new_status, execution metadata
+    - Indexed on execution_id and changed_at for performance
+- **ETL Implementation**:
+  - `getLastWatermark()`: Uses COALESCE(watermarkEnd, watermarkDate) with fallback for backward compatibility
+  - DELETE with `.returning()` captures previous document state before UPSERT
+  - Document-level aggregation: Status='closed' ONLY if ALL lines are closed, otherwise 'open'
+  - Change detection compares aggregated states (not individual line states)
+  - INSERT to `nvv_sync_changes` in same transaction as UPSERT (atomic audit trail)
+  - Watermarks persisted in ALL success branches (with/without data) to ensure incremental advancement
+- **Backend API**:
+  - `getNvvStateChanges()`: Query method with CTE filtering + JOIN + limit/offset pagination
+  - Endpoint: GET `/api/etl/nvv/state-changes` returns changes with execution metadata
+- **Frontend UI**:
+  - `NVVHistorySection` component with 2 tabs:
+    1. "Historial de Ejecuciones": Shows watermark range (watermarkStart → watermarkEnd) for each run
+    2. "Documentos con Cambios": Drill-down of recent document state changes
+  - TanStack Query with default queryClient (no custom queryFn)
+  - Query keys use flat arrays (no objects) for proper cache invalidation
+- **Production Ready**: Verified correct watermark persistence, transaction atomicity, and no data gaps

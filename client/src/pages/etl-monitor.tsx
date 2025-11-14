@@ -129,6 +129,7 @@ interface GdvBySucursal {
 interface NvvSyncLog {
   id: string;
   startTime: string;
+  endTime: string | null;
   status: string;
   recordsProcessed: number | null;
   recordsInserted: number | null;
@@ -136,6 +137,25 @@ interface NvvSyncLog {
   statusChanges: number | null;
   executionTimeMs: number | null;
   errorMessage: string | null;
+  watermarkStart: string | null;
+  watermarkEnd: string | null;
+}
+
+interface NvvStateChange {
+  id: string;
+  executionId: string;
+  idmaeedo: string;
+  nudo: string | null;
+  sudo: string | null;
+  changeType: string;
+  previousStatus: string | null;
+  newStatus: string;
+  monto: string | null;
+  changedAt: string;
+  executionStartTime: string | null;
+  executionEndTime: string | null;
+  watermarkStart: string | null;
+  watermarkEnd: string | null;
 }
 
 interface NvvSummary {
@@ -2600,13 +2620,18 @@ function NVVMetricsSection({
 }
 
 function NVVHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
-  const { data: history, isLoading } = useQuery<NvvSyncLog[]>({
-    queryKey: ['/api/etl/sync-nvv/history'],
-    queryFn: async () => {
-      const response = await fetch('/api/etl/sync-nvv/history?limit=10');
-      if (!response.ok) throw new Error('Error al cargar historial de sincronización');
-      return response.json();
-    },
+  const [activeTab, setActiveTab] = useState('history');
+  
+  const { data: history, isLoading: historyLoading } = useQuery<NvvSyncLog[]>({
+    queryKey: ['/api/etl/sync-nvv/history', 'limit=10'],
+    refetchInterval: autoRefresh ? 30000 : false,
+  });
+
+  const { data: stateChangesData, isLoading: changesLoading } = useQuery<{
+    changes: NvvStateChange[];
+    total: number;
+  }>({
+    queryKey: ['/api/etl/nvv/state-changes', 'limit=50'],
     refetchInterval: autoRefresh ? 30000 : false,
   });
 
@@ -2615,86 +2640,201 @@ function NVVHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Calendar className="h-5 w-5" />
-          Historial de Sincronización
+          Monitor de Sincronización NVV
         </CardTitle>
         <CardDescription>
-          Últimas 10 ejecuciones del ETL de NVV
+          Historial de ejecuciones y cambios de estado de documentos
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
-        ) : history && history.length > 0 ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Fecha</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Procesados</TableHead>
-                <TableHead className="text-right">Insertados</TableHead>
-                <TableHead className="text-right">Actualizados</TableHead>
-                <TableHead className="text-right">Cambios Estado</TableHead>
-                <TableHead className="text-right">Duración</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {history.map((execution) => (
-                <TableRow key={execution.id} data-testid={`row-nvv-history-${execution.id}`}>
-                  <TableCell data-testid={`text-nvv-date-${execution.id}`}>
-                    <div className="space-y-1">
-                      <div className="font-medium">
-                        {format(new Date(execution.startTime), "dd MMM yyyy HH:mm", { locale: es })}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(execution.startTime), { 
-                          addSuffix: true,
-                          locale: es 
-                        })}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell data-testid={`badge-nvv-status-${execution.id}`}>
-                    {execution.status === 'success' ? (
-                      <Badge variant="default" className="bg-green-600">
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Exitoso
-                      </Badge>
-                    ) : (
-                      <Badge variant="destructive">
-                        <XCircle className="h-3 w-3 mr-1" />
-                        Error
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right" data-testid={`text-nvv-processed-${execution.id}`}>
-                    {execution.recordsProcessed || 0}
-                  </TableCell>
-                  <TableCell className="text-right" data-testid={`text-nvv-inserted-${execution.id}`}>
-                    {execution.recordsInserted || 0}
-                  </TableCell>
-                  <TableCell className="text-right" data-testid={`text-nvv-updated-${execution.id}`}>
-                    {execution.recordsUpdated || 0}
-                  </TableCell>
-                  <TableCell className="text-right" data-testid={`text-nvv-status-changes-${execution.id}`}>
-                    {execution.statusChanges || 0}
-                  </TableCell>
-                  <TableCell className="text-right" data-testid={`text-nvv-duration-${execution.id}`}>
-                    {execution.executionTimeMs 
-                      ? `${(execution.executionTimeMs / 1000).toFixed(2)}s`
-                      : '-'
-                    }
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : (
-          <p className="text-center py-8 text-muted-foreground">
-            No hay registros de sincronización
-          </p>
-        )}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="history">Historial de Ejecuciones</TabsTrigger>
+            <TabsTrigger value="changes">Documentos con Cambios</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="history" className="mt-4">
+            {historyLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
+            ) : history && history.length > 0 ? (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Fecha Ejecución</TableHead>
+                      <TableHead>Período Incremental</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-right">Procesados</TableHead>
+                      <TableHead className="text-right">Insertados</TableHead>
+                      <TableHead className="text-right">Actualizados</TableHead>
+                      <TableHead className="text-right">Cambios</TableHead>
+                      <TableHead className="text-right">Duración</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {history.map((execution) => (
+                      <TableRow key={execution.id} data-testid={`row-nvv-history-${execution.id}`}>
+                        <TableCell data-testid={`text-nvv-date-${execution.id}`}>
+                          <div className="space-y-1">
+                            <div className="font-medium">
+                              {format(new Date(execution.startTime), "dd MMM yyyy HH:mm:ss", { locale: es })}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {formatDistanceToNow(new Date(execution.startTime), { 
+                                addSuffix: true,
+                                locale: es 
+                              })}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell data-testid={`text-nvv-watermark-${execution.id}`}>
+                          {execution.watermarkStart && execution.watermarkEnd ? (
+                            <div className="space-y-1 text-xs">
+                              <div className="text-muted-foreground">
+                                Desde: {format(new Date(execution.watermarkStart), "HH:mm:ss", { locale: es })}
+                              </div>
+                              <div className="text-muted-foreground">
+                                Hasta: {format(new Date(execution.watermarkEnd), "HH:mm:ss", { locale: es })}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell data-testid={`badge-nvv-status-${execution.id}`}>
+                          {execution.status === 'success' ? (
+                            <Badge variant="default" className="bg-green-600">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Exitoso
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive">
+                              <XCircle className="h-3 w-3 mr-1" />
+                              Error
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right" data-testid={`text-nvv-processed-${execution.id}`}>
+                          {execution.recordsProcessed || 0}
+                        </TableCell>
+                        <TableCell className="text-right" data-testid={`text-nvv-inserted-${execution.id}`}>
+                          {execution.recordsInserted || 0}
+                        </TableCell>
+                        <TableCell className="text-right" data-testid={`text-nvv-updated-${execution.id}`}>
+                          {execution.recordsUpdated || 0}
+                        </TableCell>
+                        <TableCell className="text-right" data-testid={`text-nvv-status-changes-${execution.id}`}>
+                          {execution.statusChanges || 0}
+                        </TableCell>
+                        <TableCell className="text-right" data-testid={`text-nvv-duration-${execution.id}`}>
+                          {execution.executionTimeMs 
+                            ? `${(execution.executionTimeMs / 1000).toFixed(2)}s`
+                            : '-'
+                          }
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <p className="text-center py-8 text-muted-foreground">
+                No hay registros de sincronización
+              </p>
+            )}
+          </TabsContent>
+
+          <TabsContent value="changes" className="mt-4">
+            {changesLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
+            ) : stateChangesData && stateChangesData.changes.length > 0 ? (
+              <div className="space-y-4">
+                <div className="text-sm text-muted-foreground">
+                  Mostrando {stateChangesData.changes.length} de {stateChangesData.total} cambios recientes
+                </div>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Documento</TableHead>
+                        <TableHead>Tipo de Cambio</TableHead>
+                        <TableHead>Estado Anterior</TableHead>
+                        <TableHead>Estado Nuevo</TableHead>
+                        <TableHead className="text-right">Monto</TableHead>
+                        <TableHead>Fecha del Cambio</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {stateChangesData.changes.map((change) => (
+                        <TableRow key={change.id} data-testid={`row-nvv-change-${change.id}`}>
+                          <TableCell data-testid={`text-nvv-doc-${change.id}`}>
+                            <div className="space-y-1">
+                              <div className="font-medium">{change.nudo || change.idmaeedo}</div>
+                              {change.sudo && (
+                                <div className="text-xs text-muted-foreground">
+                                  Sucursal: {change.sudo}
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell data-testid={`badge-nvv-change-type-${change.id}`}>
+                            {change.changeType === 'insert' ? (
+                              <Badge variant="default">Nuevo</Badge>
+                            ) : (
+                              <Badge variant="secondary">Cambio de Estado</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell data-testid={`text-nvv-prev-status-${change.id}`}>
+                            {change.previousStatus ? (
+                              change.previousStatus === 'C' ? (
+                                <Badge variant="secondary">Cerrado</Badge>
+                              ) : (
+                                <Badge variant="default">Abierto</Badge>
+                              )
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell data-testid={`text-nvv-new-status-${change.id}`}>
+                            {change.newStatus === 'C' ? (
+                              <Badge variant="secondary">Cerrado</Badge>
+                            ) : (
+                              <Badge variant="default">Abierto</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold" data-testid={`text-nvv-amount-${change.id}`}>
+                            {change.monto ? `$${parseFloat(change.monto).toLocaleString('es-CL')}` : '-'}
+                          </TableCell>
+                          <TableCell data-testid={`text-nvv-changed-at-${change.id}`}>
+                            <div className="space-y-1">
+                              <div className="text-sm">
+                                {format(new Date(change.changedAt), "dd MMM yyyy HH:mm:ss", { locale: es })}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {formatDistanceToNow(new Date(change.changedAt), { 
+                                  addSuffix: true,
+                                  locale: es 
+                                })}
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            ) : (
+              <p className="text-center py-8 text-muted-foreground">
+                No hay cambios de estado recientes
+              </p>
+            )}
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );
