@@ -4,7 +4,10 @@
 -- Date: 2025-11-12
 
 -- Create weekly_ventas_cliente table in ventas schema
-CREATE TABLE IF NOT EXISTS ventas.weekly_ventas_cliente (
+-- Drop existing table if present to ensure clean migration
+DROP TABLE IF EXISTS ventas.weekly_ventas_cliente CASCADE;
+
+CREATE TABLE ventas.weekly_ventas_cliente (
   id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
   cliente_id TEXT NOT NULL,
   vendedor_id TEXT,
