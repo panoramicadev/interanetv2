@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import path from "path";
 import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
+import { executeNVVETL } from "./etl-nvv";
 import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
 
@@ -116,6 +117,38 @@ app.use((req, res, next) => {
           console.error('Scheduled ETL execution failed:', error.message);
         }
       }, ETL_INTERVAL);
+    }
+
+    // Start NVV ETL automatic scheduler
+    try {
+      const nvvConfig = await getETLConfig('nvv');
+      const nvvIntervalMinutes = nvvConfig.intervalMinutes || 240; // Default 240 minutos (4 horas)
+      const NVV_ETL_INTERVAL = nvvIntervalMinutes * 60 * 1000;
+      
+      log(`🔄 NVV ETL automatic scheduler initialized (runs every ${nvvIntervalMinutes} minutes)`);
+      
+      // Run NVV ETL on startup after 2 minutes
+      setTimeout(async () => {
+        try {
+          log('📊 Running initial NVV ETL on startup...');
+          await executeNVVETL();
+        } catch (error: any) {
+          console.error('Initial NVV ETL execution failed:', error.message);
+        }
+      }, 120000); // 2 minutos después del inicio
+      
+      // Schedule NVV ETL to run at configured interval
+      setInterval(async () => {
+        try {
+          log('📊 Running scheduled NVV ETL update...');
+          await executeNVVETL();
+        } catch (error: any) {
+          console.error('Scheduled NVV ETL execution failed:', error.message);
+        }
+      }, NVV_ETL_INTERVAL);
+    } catch (error: any) {
+      console.error('Failed to initialize NVV ETL scheduler:', error.message);
+      log('⚠️  NVV ETL scheduler failed to initialize');
     }
 
     // Start inactive clients update scheduler (runs daily)
