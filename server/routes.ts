@@ -12577,6 +12577,36 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Get NVV state changes (document-level change tracking)
+  app.get('/api/etl/nvv/state-changes', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const executionId = req.query.executionId as string | undefined;
+      let limit = 50;
+      let offset = 0;
+
+      if (req.query.limit) {
+        const parsedLimit = parseInt(req.query.limit as string);
+        if (isNaN(parsedLimit) || parsedLimit < 1) {
+          return res.status(400).json({ message: 'El parámetro limit debe ser un número positivo' });
+        }
+        limit = Math.min(parsedLimit, 200); // Cap at 200
+      }
+
+      if (req.query.offset) {
+        const parsedOffset = parseInt(req.query.offset as string);
+        if (isNaN(parsedOffset) || parsedOffset < 0) {
+          return res.status(400).json({ message: 'El parámetro offset debe ser un número no negativo' });
+        }
+        offset = parsedOffset;
+      }
+
+      const result = await storage.getNvvStateChanges({ executionId, limit, offset });
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener cambios de estado NVV', error: error.message });
+    }
+  }));
+
   // ==================================================================================
   // GASTOS EMPRESARIALES routes
   // ==================================================================================

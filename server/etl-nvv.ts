@@ -169,17 +169,21 @@ function cleanBigIntId(value: any): string {
   return String(value).trim();
 }
 
-// Obtener último watermark de NVV
+// Obtener último watermark de NVV (usa watermark_end de la última ejecución exitosa)
+// Fallback a watermarkDate para compatibilidad con ejecuciones previas a Migration 010
 async function getLastWatermark(): Promise<Date> {
   const lastExecution = await db
     .select()
     .from(nvvSyncLog)
     .where(sql`status = 'success'`)
-    .orderBy(desc(nvvSyncLog.watermarkDate))
+    .orderBy(desc(sql`COALESCE(${nvvSyncLog.watermarkEnd}, ${nvvSyncLog.watermarkDate})`))
     .limit(1);
 
-  if (lastExecution.length > 0 && lastExecution[0].watermarkDate) {
-    return new Date(lastExecution[0].watermarkDate);
+  if (lastExecution.length > 0) {
+    const watermark = lastExecution[0].watermarkEnd || lastExecution[0].watermarkDate;
+    if (watermark) {
+      return new Date(watermark);
+    }
   }
 
   // Si no hay ejecuciones previas, comenzar desde 2025-01-01
@@ -286,7 +290,9 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       status: 'running',
       period: periodLabel,
       branches: sucursales.join(','),
-      watermarkDate: currentWatermark, // Timestamp completo, no truncado
+      watermarkDate: currentWatermark, // Timestamp completo (legacy compatibility)
+      watermarkStart: lastWatermark, // Inicio del rango incremental
+      watermarkEnd: currentWatermark, // Fin del rango incremental
     }).returning();
 
     // Limpiar tablas staging de NVV (propias, no compartidas con ventas)
@@ -347,6 +353,10 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
           recordsUpdated: 0,
           statusChanges: 0,
           executionTimeMs: Date.now() - startTime,
+          watermarkDate: currentWatermark, // Legacy compatibility - avanzar watermark aun sin datos
+          watermarkStart: lastWatermark,
+          watermarkEnd: currentWatermark,
+          endTime: new Date(),
         })
         .where(sql`id = ${executionLog.id}`);
 
