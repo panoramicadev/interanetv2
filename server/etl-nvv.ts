@@ -309,7 +309,9 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     console.log('╚═══════════════════════════════════════════════════════════════╝');
     console.log(`🔍 TIDO = 'NVV'`);
     console.log(`🔍 SUDO IN: ${sucursales.join(', ')}`);
-    console.log(`🔍 FEEMDO >= '2025-01-01' (Fecha emisión - captura TODOS los docs de 2025)`);
+    console.log(`🔍 FEER >= '${startDateSQL}' (Fecha de referencia - incremental)`);
+    console.log(`🔍 FEER <= '${endDateSQL}' (Fecha de referencia - incremental)`);
+    console.log(`🔍 FEEMDO >= '2025-01-01' (Año mínimo: solo docs de 2025 en adelante)`);
     console.log('');
     
     const maeedo = await executeWithResilience(
@@ -318,8 +320,10 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         FROM dbo.MAEEDO
         WHERE TIDO = 'NVV'
           AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
+          AND FEER >= '${startDateSQL}'
+          AND FEER <= '${endDateSQL}'
           AND FEEMDO >= '2025-01-01'
-        ORDER BY FEEMDO
+        ORDER BY FEER
       `),
       sqlServerBreaker,
       { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
