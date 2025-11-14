@@ -1853,9 +1853,18 @@ export function registerRoutes(app: Express): Server {
         return res.json([]);
       }
       
-      const searchTerm = q.trim().toLowerCase();
+      const searchTerm = q.trim();
       
-      // Get date range if period is provided
+      // Determine if we're searching with sales filters or just basic client directory
+      const hasSalesFilters = period || filterType || segment || salesperson;
+      
+      if (!hasSalesFilters) {
+        // Simple client directory lookup (for obras, autocomplete without filters, etc.)
+        const results = await storage.searchClientsByName(searchTerm);
+        return res.json(results);
+      }
+      
+      // Search with sales filters (for analytics, dashboards, etc.)
       let startDate, endDate;
       if (period && filterType) {
         const dateRange = getDateRange(period as string, filterType as string);
@@ -1864,7 +1873,7 @@ export function registerRoutes(app: Express): Server {
       }
       
       const results = await storage.searchClients(
-        searchTerm,
+        searchTerm.toLowerCase(),
         startDate,
         endDate,
         salesperson as string,
