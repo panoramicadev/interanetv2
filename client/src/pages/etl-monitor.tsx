@@ -131,6 +131,8 @@ interface NvvSyncLog {
   startTime: string;
   endTime: string | null;
   status: string;
+  period: string;
+  periodDisplay: string | null;
   recordsProcessed: number | null;
   recordsInserted: number | null;
   recordsUpdated: number | null;
@@ -1371,7 +1373,7 @@ function ETLHistorySection({ etlName, autoRefresh }: { etlName: string; autoRefr
                       </div>
                     </TableCell>
                     <TableCell>{getStatusBadge(execution.status)}</TableCell>
-                    <TableCell className="text-sm">{execution.period}</TableCell>
+                    <TableCell className="text-sm">{execution.periodDisplay || execution.period}</TableCell>
                     <TableCell className="text-right font-mono">
                       {execution.recordsProcessed?.toLocaleString('es-CL') || '-'}
                     </TableCell>

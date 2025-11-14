@@ -283,12 +283,29 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     console.log('');
 
     // Registrar inicio de ejecución con execution ID pre-generado
-    const periodLabel = `${lastWatermark.toISOString()} to ${currentWatermark.toISOString()}`;
+    // Crear período ISO raw (para backward compatibility) y período display (para UI)
+    const periodISO = `${lastWatermark.toISOString()} to ${currentWatermark.toISOString()}`;
+    
+    const formatTime = (date: Date) => {
+      return date.toLocaleTimeString('es-CL', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false 
+      });
+    };
+    
+    const isSameDay = lastWatermark.toDateString() === currentWatermark.toDateString();
+    const periodDisplay = isSameDay
+      ? `${lastWatermark.toLocaleDateString('es-CL')} ${formatTime(lastWatermark)} - ${formatTime(currentWatermark)}`
+      : `${lastWatermark.toLocaleDateString('es-CL')} ${formatTime(lastWatermark)} - ${currentWatermark.toLocaleDateString('es-CL')} ${formatTime(currentWatermark)}`;
+    
     const [executionLog] = await db.insert(nvvSyncLog).values({
       id: executionId,
       startTime: new Date(),
       status: 'running',
-      period: periodLabel,
+      period: periodISO, // Raw ISO timestamps
+      periodDisplay: periodDisplay, // Formatted for UI
       branches: sucursales.join(','),
       watermarkDate: currentWatermark, // Timestamp completo (legacy compatibility)
       watermarkStart: lastWatermark, // Inicio del rango incremental
