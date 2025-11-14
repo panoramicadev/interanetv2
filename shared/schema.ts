@@ -4795,6 +4795,8 @@ export const factNvv = nvvSchema.table("fact_nvv", {
   updated_at: timestamp("updated_at").notNull().defaultNow(),
   data_source: varchar("data_source", { length: 20 }).notNull().default('etl_nvv'),
   last_etl_sync: timestamp("last_etl_sync"),
+  last_etl_execution_id: varchar("last_etl_execution_id", { length: 50 }), // FK a nvv_sync_log.id
+  last_status: varchar("last_status", { length: 20 }), // Estado actual para detectar cambios
 });
 
 // Types para fact_nvv
@@ -4816,12 +4818,35 @@ export const nvvSyncLog = nvvSchema.table("nvv_sync_log", {
   statusChanges: integer("status_changes"), // Cuántos documentos cambiaron de estado
   executionTimeMs: integer("execution_time_ms"),
   watermarkDate: timestamp("watermark_date"), // Último watermark procesado (timestamp completo)
+  watermarkStart: timestamp("watermark_start"), // Inicio del rango incremental
+  watermarkEnd: timestamp("watermark_end"), // Fin del rango incremental
   errorMessage: text("error_message"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 export type NvvSyncLog = typeof nvvSyncLog.$inferSelect;
 export type InsertNvvSyncLog = typeof nvvSyncLog.$inferInsert;
+
+// ===== NVV SYNC CHANGES =====
+// Tabla para rastrear cambios por documento en cada ejecución del ETL
+export const nvvSyncChanges = nvvSchema.table("nvv_sync_changes", {
+  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  executionId: varchar("execution_id", { length: 50 }).notNull(), // FK a nvv_sync_log.id
+  idmaeedo: numeric("idmaeedo", { precision: 20, scale: 0 }).notNull(), // ID del documento
+  nudo: text("nudo"), // Número de documento
+  sudo: text("sudo"), // Sucursal
+  changeType: varchar("change_type", { length: 20 }).notNull(), // 'insert', 'update', 'state_change'
+  previousStatus: varchar("previous_status", { length: 20 }), // Estado anterior
+  newStatus: varchar("new_status", { length: 20 }), // Estado nuevo
+  monto: numeric("monto", { precision: 15, scale: 2 }), // Monto total del documento
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  executionChangeTypeIdx: index("idx_nvv_sync_changes_execution_type").on(table.executionId, table.changeType),
+  uniqueExecutionDoc: unique("unq_nvv_sync_changes_execution_doc_type").on(table.executionId, table.idmaeedo, table.changeType),
+}));
+
+export type NvvSyncChange = typeof nvvSyncChanges.$inferSelect;
+export type InsertNvvSyncChange = typeof nvvSyncChanges.$inferInsert;
 
 // ===== TABLAS DE STAGING PARA ETL NVV =====
 
