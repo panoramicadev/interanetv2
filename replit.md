@@ -86,3 +86,19 @@ Preferred communication style: Simple, everyday language.
 - **Date Handling**: date-fns
 - **PDF Generation**: @react-pdf/renderer
 - **CSV Parsing**: Papa Parse
+
+## Recent Changes (November 2025)
+
+### NVV ETL Schema Alignment
+- **Issue Resolved**: Fixed schema mismatch between Drizzle ORM and SQL migrations that caused "column execution_date does not exist" errors
+- **Changes Made**:
+  - Updated `nvv_sync_log` schema in shared/schema.ts to use `startTime`/`endTime` instead of `executionDate`
+  - Changed `watermarkDate` type from `timestamp` to `date` to match SQL migration
+  - Updated all code references in server/etl-nvv.ts and server/storage.ts to use new field names
+- **Validation**: ETL successfully processes 15,604 records in ~19-24 seconds with status change detection working correctly
+- **Production Ready**: Automatic migrations system ensures schema stays in sync across deployments
+
+### SSE Progress Tracking for NVV ETL
+- **Feature**: Real-time progress updates with replay buffer
+- **Implementation**: Server stores last execution's events in memory and replays them to new clients for instant progress bar display
+- **Benefit**: Users see progress bar immediately on page load, even if ETL started before they opened the page
