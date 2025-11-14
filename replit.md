@@ -145,4 +145,19 @@ Preferred communication style: Simple, everyday language.
   - Agregadas columnas: `ruen VARCHAR(50)` y `kofuen VARCHAR(50)` en stg_maeen_nvv
   - Ampliados campos de VARCHAR(10) a VARCHAR(50): zoen, foen, cpen (stg_maeen_nvv)
   - Ampliados preventivamente: pfpr, fmpr, rupr, mrpr (stg_maepr_nvv)
+- **Backend ETL**: Actualizado para extraer campo KOFUEN (vendedor) de SQL Server
 - **Expected Result**: ETL de NVV ahora puede procesar correctamente todos los registros sin errores de truncamiento
+
+### NVV Period Display Enhancement (Migration 012) (November 14, 2025)
+- **Feature Added**: Hybrid period formatting system for NVV execution history
+- **Issue**: Period field showed long ISO timestamp ranges that were hard to read in UI
+- **Solution (Migration 012)**:
+  - Added `period_display VARCHAR(100)` column to nvv.nvv_sync_log
+  - Maintains `period` field with raw ISO timestamps for backward compatibility and calculations
+  - Backfilled 24 existing records with current period values
+- **Backend Implementation**:
+  - ETL generates both formats: `periodISO` (raw) and `periodDisplay` (compact locale es-CL)
+  - Same-day format: "14-11-2025 00:00:00 - 17:59:23"
+  - Multi-day format: "14-11-2025 00:00:00 - 15-11-2025 17:59:23"
+- **Frontend Update**: Uses `periodDisplay ?? period` fallback for legacy compatibility
+- **Production Ready**: Migrations applied automatically on server startup via `server/migrations.ts` system
