@@ -1849,7 +1849,10 @@ export function registerRoutes(app: Express): Server {
     try {
       const { q, period, filterType, segment, salesperson } = req.query;
       
+      console.log('[CLIENT SEARCH] Query params:', { q, period, filterType, segment, salesperson });
+      
       if (!q || typeof q !== 'string' || q.trim().length < 2) {
+        console.log('[CLIENT SEARCH] Returning empty array - query too short');
         return res.json([]);
       }
       
@@ -1858,13 +1861,18 @@ export function registerRoutes(app: Express): Server {
       // Determine if we're searching with sales filters or just basic client directory
       const hasSalesFilters = period || filterType || segment || salesperson;
       
+      console.log('[CLIENT SEARCH] Has sales filters?', hasSalesFilters);
+      
       if (!hasSalesFilters) {
         // Simple client directory lookup (for obras, autocomplete without filters, etc.)
+        console.log('[CLIENT SEARCH] Using searchClientsByName for term:', searchTerm);
         const results = await storage.searchClientsByName(searchTerm);
+        console.log('[CLIENT SEARCH] Results from searchClientsByName:', results.length);
         return res.json(results);
       }
       
       // Search with sales filters (for analytics, dashboards, etc.)
+      console.log('[CLIENT SEARCH] Using searchClients with filters');
       let startDate, endDate;
       if (period && filterType) {
         const dateRange = getDateRange(period as string, filterType as string);
@@ -1880,9 +1888,10 @@ export function registerRoutes(app: Express): Server {
         segment as string
       );
       
+      console.log('[CLIENT SEARCH] Results from searchClients:', results.length);
       res.json(results);
     } catch (error) {
-      console.error("Error searching clients:", error);
+      console.error("[CLIENT SEARCH] Error searching clients:", error);
       res.status(500).json({ message: "Failed to search clients" });
     }
   });

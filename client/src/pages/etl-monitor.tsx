@@ -60,7 +60,7 @@ import { Progress } from "@/components/ui/progress";
 interface ETLExecution {
   id: string;
   etlName: string;
-  executionDate: string;
+  startTime: string;
   status: string;
   period: string;
   documentTypes: string;
@@ -96,7 +96,7 @@ interface ETLStatus {
 // GDV Interfaces
 interface GdvSyncLog {
   id: string;
-  executionDate: string;
+  startTime: string;
   status: string;
   recordsProcessed: number | null;
   recordsInserted: number | null;
@@ -128,7 +128,7 @@ interface GdvBySucursal {
 // NVV Interfaces
 interface NvvSyncLog {
   id: string;
-  executionDate: string;
+  startTime: string;
   status: string;
   recordsProcessed: number | null;
   recordsInserted: number | null;
@@ -822,13 +822,13 @@ function ETLStatusSection({
               <div>
                 <p className="text-sm text-muted-foreground">Última Actualización</p>
                 <p className="font-semibold" data-testid="text-last-execution">
-                  {formatDistanceToNow(new Date(lastExecution.executionDate), {
+                  {formatDistanceToNow(new Date(lastExecution.startTime), {
                     addSuffix: true,
                     locale: es,
                   })}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {new Date(lastExecution.executionDate).toLocaleString('es-CL')}
+                  {new Date(lastExecution.startTime).toLocaleString('es-CL')}
                 </p>
               </div>
               <div>
@@ -1340,13 +1340,13 @@ function ETLHistorySection({ etlName, autoRefresh }: { etlName: string; autoRefr
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-medium">
-                          {formatDistanceToNow(new Date(execution.executionDate), {
+                          {formatDistanceToNow(new Date(execution.startTime), {
                             addSuffix: true,
                             locale: es,
                           })}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(execution.executionDate).toLocaleString('es-CL')}
+                          {new Date(execution.startTime).toLocaleString('es-CL')}
                         </span>
                       </div>
                     </TableCell>
@@ -1889,10 +1889,10 @@ function GDVHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
                   <TableCell data-testid={`text-gdv-date-${execution.id}`}>
                     <div className="space-y-1">
                       <div className="font-medium">
-                        {format(new Date(execution.executionDate), "dd MMM yyyy HH:mm", { locale: es })}
+                        {format(new Date(execution.startTime), "dd MMM yyyy HH:mm", { locale: es })}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(execution.executionDate), { 
+                        {formatDistanceToNow(new Date(execution.startTime), { 
                           addSuffix: true,
                           locale: es 
                         })}
@@ -2645,10 +2645,10 @@ function NVVHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
                   <TableCell data-testid={`text-nvv-date-${execution.id}`}>
                     <div className="space-y-1">
                       <div className="font-medium">
-                        {format(new Date(execution.executionDate), "dd MMM yyyy HH:mm", { locale: es })}
+                        {format(new Date(execution.startTime), "dd MMM yyyy HH:mm", { locale: es })}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(execution.executionDate), { 
+                        {formatDistanceToNow(new Date(execution.startTime), { 
                           addSuffix: true,
                           locale: es 
                         })}
