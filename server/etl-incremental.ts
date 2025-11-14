@@ -302,13 +302,14 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
           .select()
           .from(etlExecutionLog)
           .where(sql`status = 'running' AND etl_name = ${etlName}`)
-          .orderBy(desc(etlExecutionLog.executionDate))
+          .orderBy(desc(etlExecutionLog.startTime))
           .limit(1);
 
         if (runningExecution.length > 0) {
           await db.update(etlExecutionLog)
             .set({
               status: 'error',
+              endTime: new Date(),
               errorMessage: `Cancelado automáticamente por timeout (${config.timeoutMinutes} minutos)`,
               executionTimeMs: Date.now() - startTime,
             })
@@ -348,8 +349,10 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
 
     // Registrar inicio de ejecución
     const periodLabel = `${lastWatermark.toISOString().split('T')[0]} to ${currentWatermark.toISOString().split('T')[0]}`;
+    const executionStartTime = new Date();
     const [executionLog] = await db.insert(etlExecutionLog).values({
       etlName,
+      startTime: executionStartTime,
       status: 'running',
       period: periodLabel,
       documentTypes: tiposDoc.join(','),
@@ -410,6 +413,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       await db.update(etlExecutionLog)
         .set({
           status: 'success',
+          endTime: new Date(),
           recordsProcessed: 0,
           executionTimeMs: Date.now() - startTime,
         })
@@ -922,6 +926,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     await db.update(etlExecutionLog)
       .set({
         status: 'success',
+        endTime: new Date(),
         recordsProcessed: newRecordsInserted, // Solo registros NUEVOS agregados
         executionTimeMs: Date.now() - startTime,
         watermarkDate: currentWatermark,
@@ -987,6 +992,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
           await db.update(etlExecutionLog)
             .set({
               status: 'error',
+              endTime: new Date(),
               executionTimeMs,
               errorMessage: error.message,
             })
@@ -1000,6 +1006,8 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
           // Si no tenemos el ID (error antes de insertar el log), crear uno nuevo
           await db.insert(etlExecutionLog).values({
             etlName,
+            startTime: new Date(),
+            endTime: new Date(),
             status: 'error',
             period: 'incremental',
             documentTypes: tiposDoc.join(','),
@@ -1130,7 +1138,7 @@ export async function getETLStatus(
     if (etlName === 'nvv') {
       // Consultar nvv.nvv_sync_log
       const nvvLogs = await db.execute(sql`
-        SELECT id, execution_date as "executionDate", status, 
+        SELECT id, start_time as "startTime", end_time as "endTime", status, 
                records_processed as "recordsProcessed", 
                records_inserted as "recordsInserted",
                records_updated as "recordsUpdated",
@@ -1140,7 +1148,7 @@ export async function getETLStatus(
                watermark_date as "watermarkDate",
                period, branches
         FROM nvv.nvv_sync_log
-        ORDER BY execution_date DESC
+        ORDER BY start_time DESC
         LIMIT 100
       `);
       lastExecutions = (nvvLogs as any).rows || [];
@@ -1157,7 +1165,7 @@ export async function getETLStatus(
     } else if (etlName === 'gdv') {
       // Consultar gdv.gdv_sync_log
       const gdvLogs = await db.execute(sql`
-        SELECT id, execution_date as "executionDate", status, 
+        SELECT id, start_time as "startTime", end_time as "endTime", status, 
                records_processed as "recordsProcessed",
                records_inserted as "recordsInserted",
                records_updated as "recordsUpdated",
@@ -1167,7 +1175,7 @@ export async function getETLStatus(
                watermark_date as "watermarkDate",
                period, branches
         FROM gdv.gdv_sync_log
-        ORDER BY execution_date DESC
+        ORDER BY start_time DESC
         LIMIT 100
       `);
       lastExecutions = (gdvLogs as any).rows || [];
@@ -1192,15 +1200,15 @@ export async function getETLStatus(
         end.setHours(23, 59, 59, 999);
         
         whereConditions = sql`${etlExecutionLog.etlName} = ${etlName} 
-          AND ${etlExecutionLog.executionDate} >= ${start.toISOString()} 
-          AND ${etlExecutionLog.executionDate} <= ${end.toISOString()}`;
+          AND ${etlExecutionLog.startTime} >= ${start.toISOString()} 
+          AND ${etlExecutionLog.startTime} <= ${end.toISOString()}`;
       }
 
       lastExecutions = await db
         .select()
         .from(etlExecutionLog)
         .where(whereConditions)
-        .orderBy(desc(etlExecutionLog.executionDate))
+        .orderBy(desc(etlExecutionLog.startTime))
         .limit(100);
 
       totalExecutionsResult = await db
