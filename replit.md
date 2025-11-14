@@ -161,3 +161,18 @@ Preferred communication style: Simple, everyday language.
   - Multi-day format: "14-11-2025 00:00:00 - 15-11-2025 17:59:23"
 - **Frontend Update**: Uses `periodDisplay ?? period` fallback for legacy compatibility
 - **Production Ready**: Migrations applied automatically on server startup via `server/migrations.ts` system
+
+### NVV Fact Table Missing Columns Fix (Migration 013) (November 14, 2025)
+- **Issue Resolved**: Production deployment error "column 'rupr' does not exist" when accessing NVV analytics by segment
+- **Root Cause**: Migration 002 created fact_nvv table but omitted segment-related columns that were defined in Drizzle schema
+- **Missing Columns Identified**:
+  - `rupr` (producto segment code)
+  - `ruen` (cliente segment code)
+  - `nombre_segmento` (producto segment name)
+  - `nombre_segmento_cliente` (cliente segment name)
+- **Solution (Migration 013)**:
+  - Added all 4 missing TEXT columns to nvv.fact_nvv
+  - Created indexes for rupr and ruen for query performance
+  - Added documentation comments for each column
+- **Impact**: Fixes "Segmento" tab in NVV Monitor ETL, enables analytics by customer and product segments
+- **Production Ready**: Migration will auto-apply on next deployment via `server/migrations.ts`
