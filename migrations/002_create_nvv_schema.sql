@@ -212,7 +212,10 @@ CREATE TABLE IF NOT EXISTS nvv.fact_nvv (
 -- TABLA DE LOG DE SINCRONIZACIONES
 -- =====================================================
 
-CREATE TABLE IF NOT EXISTS nvv.nvv_sync_log (
+-- Eliminar tabla anterior si existe (migración segura)
+DROP TABLE IF EXISTS nvv.nvv_sync_log CASCADE;
+
+CREATE TABLE nvv.nvv_sync_log (
   id VARCHAR(50) PRIMARY KEY DEFAULT gen_random_uuid(),
   start_time TIMESTAMP NOT NULL,
   end_time TIMESTAMP,

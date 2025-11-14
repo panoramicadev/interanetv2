@@ -6,6 +6,7 @@ import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
 import { executeNVVETL } from "./etl-nvv";
 import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
+import { runProductionMigrations } from "./migrations";
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -75,6 +76,14 @@ app.use((req, res, next) => {
     reusePort: true,
   }, async () => {
     log(`serving on port ${port}`);
+    
+    // Ejecutar migraciones de base de datos
+    try {
+      await runProductionMigrations();
+    } catch (error: any) {
+      console.error('❌ Error crítico en migraciones:', error.message);
+      console.error('La aplicación continuará, pero algunas funciones pueden no estar disponibles');
+    }
     
     // Start ETL automatic scheduler with configurable interval
     try {
