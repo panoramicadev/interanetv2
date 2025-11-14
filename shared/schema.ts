@@ -4815,7 +4815,7 @@ export const nvvSyncLog = nvvSchema.table("nvv_sync_log", {
   recordsUpdated: integer("records_updated"), // Documentos actualizados
   statusChanges: integer("status_changes"), // Cuántos documentos cambiaron de estado
   executionTimeMs: integer("execution_time_ms"),
-  watermarkDate: date("watermark_date"), // Última fecha procesada
+  watermarkDate: timestamp("watermark_date"), // Último watermark procesado (timestamp completo)
   errorMessage: text("error_message"),
   createdAt: timestamp("created_at").defaultNow(),
 });

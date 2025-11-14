@@ -252,17 +252,14 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     
     lastReplayExecutionId = executionId;  // Establecer nuevo pointer para replay buffer
 
-    // Obtener watermarks
+    // Obtener último watermark (lower bound)
     const lastWatermark = await getLastWatermark();
-    const currentWatermark = new Date();
     
     console.log('╔═══════════════════════════════════════════════════════════════╗');
     console.log('║  🔍 CONFIGURACIÓN DEL WATERMARK                               ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
-    console.log(`📍 Watermark inicial: ${lastWatermark.toISOString()}`);
-    console.log(`📍 Watermark actual: ${currentWatermark.toISOString()}`);
-    console.log(`📅 Fecha inicio: ${lastWatermark.toISOString().split('T')[0]}`);
-    console.log(`📅 Fecha fin: ${currentWatermark.toISOString().split('T')[0]}`);
+    console.log(`📍 Watermark inicial (lower bound): ${lastWatermark.toISOString()}`);
+    console.log('📍 Watermark final (upper bound): Se capturará justo antes de las consultas');
     console.log('');
 
     // Conectar a SQL Server
@@ -275,15 +272,20 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     );
     console.log('✅ Conectado a SQL Server\n');
 
+    // Capturar watermark final JUSTO ANTES de las consultas para minimizar gap
+    const currentWatermark = new Date();
+    console.log(`📍 Watermark final capturado: ${currentWatermark.toISOString()}`);
+    console.log('');
+
     // Registrar inicio de ejecución con execution ID pre-generado
-    const periodLabel = `${lastWatermark.toISOString().split('T')[0]} to ${currentWatermark.toISOString().split('T')[0]}`;
+    const periodLabel = `${lastWatermark.toISOString()} to ${currentWatermark.toISOString()}`;
     const [executionLog] = await db.insert(nvvSyncLog).values({
       id: executionId,
       startTime: new Date(),
       status: 'running',
       period: periodLabel,
       branches: sucursales.join(','),
-      watermarkDate: currentWatermark.toISOString().split('T')[0], // Solo fecha, no timestamp
+      watermarkDate: currentWatermark, // Timestamp completo, no truncado
     }).returning();
 
     // Limpiar tablas staging de NVV (propias, no compartidas con ventas)
@@ -301,16 +303,18 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     emitProgress(2, TOTAL_STEPS, 'Extrayendo MAEEDO (NVV)', 'Consultando SQL Server...');
     console.log('1️⃣  Extrayendo MAEEDO (Encabezados NVV)...');
     
-    const startDateSQL = lastWatermark.toISOString().split('T')[0];
-    const endDateSQL = currentWatermark.toISOString().split('T')[0];
+    // Usar timestamps completos (ISO) para comparación precisa con FEER (datetime en SQL Server)
+    // Usar >= en lower bound y < en upper bound para evitar gaps (UPSERT manejará duplicados)
+    const startTimestampSQL = lastWatermark.toISOString();
+    const endTimestampSQL = currentWatermark.toISOString();
     
     console.log('╔═══════════════════════════════════════════════════════════════╗');
     console.log('║  📝 QUERY SQL MAEEDO - FILTROS APLICADOS                      ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
     console.log(`🔍 TIDO = 'NVV'`);
     console.log(`🔍 SUDO IN: ${sucursales.join(', ')}`);
-    console.log(`🔍 FEER >= '${startDateSQL}' (Fecha de referencia - incremental)`);
-    console.log(`🔍 FEER <= '${endDateSQL}' (Fecha de referencia - incremental)`);
+    console.log(`🔍 FEER >= '${startTimestampSQL}' (Timestamp desde última ejecución - inclusivo)`);
+    console.log(`🔍 FEER < '${endTimestampSQL}' (Timestamp hasta ahora - exclusivo)`);
     console.log(`🔍 FEEMDO >= '2025-01-01' (Año mínimo: solo docs de 2025 en adelante)`);
     console.log('');
     
@@ -320,8 +324,8 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         FROM dbo.MAEEDO
         WHERE TIDO = 'NVV'
           AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
-          AND FEER >= '${startDateSQL}'
-          AND FEER <= '${endDateSQL}'
+          AND FEER >= '${startTimestampSQL}'
+          AND FEER < '${endTimestampSQL}'
           AND FEEMDO >= '2025-01-01'
         ORDER BY FEER
       `),
