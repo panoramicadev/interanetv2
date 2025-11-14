@@ -176,3 +176,22 @@ Preferred communication style: Simple, everyday language.
   - Added documentation comments for each column
 - **Impact**: Fixes "Segmento" tab in NVV Monitor ETL, enables analytics by customer and product segments
 - **Production Ready**: Migration will auto-apply on next deployment via `server/migrations.ts`
+
+### GDV Staging Tables Creation (Migration 014) (November 14, 2025)
+- **Issue Resolved**: Production ETL error "column bo.suli does not exist" when running GDV ETL
+- **Root Cause**: GDV staging tables (stg_maeedo_gdv, stg_maeddo_gdv, stg_tabbo_gdv, etc.) were never created via SQL migrations
+  - Tables existed in development (created via db:push) but not in production
+  - ETL code assumed tables existed and attempted TRUNCATE, causing failures
+- **Solution (Migration 014)**:
+  - Created all 7 GDV staging tables with proper schemas:
+    - stg_maeedo_gdv (GDV headers)
+    - stg_maeddo_gdv (GDV line details)
+    - stg_maeen_gdv (clients/entities)
+    - stg_maepr_gdv (products)
+    - stg_maeven_gdv (salespeople)
+    - stg_tabbo_gdv (warehouses) - PRIMARY KEY on (suli, bosuli)
+    - stg_tabru_gdv (segments)
+  - Created performance indexes for JOIN operations
+  - Added documentation comments for each table
+- **Impact**: Enables GDV ETL to run successfully in production
+- **Production Ready**: Migration uses IF NOT EXISTS for safety, will auto-apply on deployment
