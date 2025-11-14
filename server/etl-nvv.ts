@@ -11,7 +11,8 @@ import {
   stgMaevenNvv,
   stgTabboNvv,
   factNvv,
-  nvvSyncLog
+  nvvSyncLog,
+  nvvSyncChanges
 } from '../shared/schema';
 import { CircuitBreaker, executeWithResilience } from './etl-resilience';
 import { createETLLogger } from './production-logger';
@@ -638,13 +639,25 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     const countBeforeResult = await db.execute(sql`SELECT COUNT(*) as count FROM nvv.fact_nvv`);
     const rowsBeforeUpsert = Number(countBeforeResult.rows[0].count);
 
+    // Capturar documentos existentes antes del DELETE usando .returning()
+    let deletedDocs: Array<{ idmaeedo: string | null; nudo: string | null; sudo: string | null; eslido: string | null; lastStatus: string | null; monto: string | null }> = [];
+    
     await db.transaction(async (tx) => {
-      // DELETE registros que serán actualizados
+      // DELETE registros que serán actualizados - CAPTURAR estado anterior con .returning()
       if (idmaeddosToProcess.length > 0) {
-        await tx.delete(factNvv).where(inArray(factNvv.idmaeddo, idmaeddosToProcess));
+        deletedDocs = await tx.delete(factNvv)
+          .where(inArray(factNvv.idmaeddo, idmaeddosToProcess))
+          .returning({
+            idmaeedo: factNvv.idmaeedo,
+            nudo: factNvv.nudo,
+            sudo: factNvv.sudo,
+            eslido: factNvv.eslido,
+            lastStatus: factNvv.last_status,
+            monto: factNvv.monto
+          });
       }
 
-      // INSERT con JOINs a staging tables - SOLO CAMPOS QUE EXISTEN EN FACT_NVV
+      // INSERT con JOINs a staging tables - AGREGAR last_etl_execution_id y last_status
       await tx.execute(sql`
         INSERT INTO nvv.fact_nvv (
           idmaeddo, idmaeedo, nudo, tido, endo, sudo, nosudo, feemdo, feer,
@@ -658,7 +671,8 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
           eslido,
           feerli, feemli,
           ocdo, lilg, luvtlido,
-          cantidad_pendiente, last_etl_sync, data_source
+          cantidad_pendiente, last_etl_sync, data_source,
+          last_etl_execution_id, last_status
         )
         SELECT 
           dd.idmaeddo,
@@ -707,7 +721,9 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
             ELSE FALSE
           END as cantidad_pendiente,
           NOW() as last_etl_sync,
-          'etl_nvv' as data_source
+          'etl_nvv' as data_source,
+          ${executionId} as last_etl_execution_id,
+          dd.eslido as last_status
         FROM nvv.stg_maeddo_nvv dd
         INNER JOIN nvv.stg_maeedo_nvv ed ON dd.idmaeedo = ed.idmaeedo
         LEFT JOIN nvv.stg_maeen_nvv en ON ed.endo = en.koen
@@ -718,6 +734,136 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         LEFT JOIN ventas.stg_tabru ru_prod ON pr.rupr = ru_prod.koru -- Segmento del producto
         LEFT JOIN ventas.stg_tabru ru_cli ON en.ruen = ru_cli.koru -- Segmento del cliente
       `);
+      
+      // Obtener documentos recién insertados/actualizados para detectar cambios
+      const insertedDocs = await tx
+        .select({
+          idmaeedo: factNvv.idmaeedo,
+          nudo: factNvv.nudo,
+          sudo: factNvv.sudo,
+          eslido: factNvv.eslido,
+          monto: factNvv.monto
+        })
+        .from(factNvv)
+        .where(inArray(factNvv.idmaeddo, idmaeddosToProcess));
+      
+      // Agregar por documento (múltiples líneas por documento)
+      // Regla: Documento está CERRADO solo si TODAS sus líneas están cerradas
+      // Regla: Si alguna línea está ABIERTA, el documento está ABIERTO
+      const docMap = new Map<string, { idmaeedo: string; nudo: string | null; sudo: string | null; eslido: string | null; monto: string | null; allLinesClosed: boolean }>();
+      
+      for (const doc of insertedDocs) {
+        const key = doc.idmaeedo?.toString() || '0';
+        const existing = docMap.get(key);
+        const lineStatus = normalizeStatus(doc.eslido);
+        
+        if (!existing) {
+          docMap.set(key, {
+            idmaeedo: key,
+            nudo: doc.nudo,
+            sudo: doc.sudo,
+            eslido: lineStatus,
+            monto: doc.monto,
+            allLinesClosed: lineStatus === 'C'
+          });
+        } else {
+          // Si alguna línea está abierta, el documento está abierto
+          if (lineStatus !== 'C') {
+            existing.allLinesClosed = false;
+            existing.eslido = ''; // Documento abierto
+          }
+          // Agregar montos
+          existing.monto = (parseFloat(existing.monto || '0') + parseFloat(doc.monto || '0')).toString();
+        }
+      }
+      
+      // Agregar documentos eliminados (ANTES del DELETE)
+      // Usar misma lógica de agregación
+      const deletedMap = new Map<string, { idmaeedo: string; nudo: string | null; sudo: string | null; eslido: string | null; lastStatus: string | null; monto: string | null; allLinesClosed: boolean }>();
+      
+      for (const doc of deletedDocs) {
+        const key = doc.idmaeedo?.toString() || '0';
+        const existing = deletedMap.get(key);
+        const lineStatus = normalizeStatus(doc.lastStatus || doc.eslido);
+        
+        if (!existing) {
+          deletedMap.set(key, {
+            idmaeedo: key,
+            nudo: doc.nudo,
+            sudo: doc.sudo,
+            eslido: lineStatus,
+            lastStatus: doc.lastStatus,
+            monto: doc.monto,
+            allLinesClosed: lineStatus === 'C'
+          });
+        } else {
+          // Si alguna línea está abierta, el documento está abierto
+          if (lineStatus !== 'C') {
+            existing.allLinesClosed = false;
+            existing.eslido = ''; // Documento abierto
+            existing.lastStatus = ''; // Documento abierto
+          }
+          // Agregar montos
+          existing.monto = (parseFloat(existing.monto || '0') + parseFloat(doc.monto || '0')).toString();
+        }
+      }
+      
+      // Detectar cambios y poblar nvv_sync_changes
+      const changes: Array<{
+        executionId: string;
+        idmaeedo: string;
+        nudo: string | null;
+        sudo: string | null;
+        changeType: string;
+        previousStatus: string | null;
+        newStatus: string | null;
+        monto: string | null;
+      }> = [];
+      
+      for (const [idmaeedo, current] of Array.from(docMap.entries())) {
+        const previous = deletedMap.get(idmaeedo);
+        
+        // Derivar estado del documento basado en agregación de líneas
+        const currentStatus = current.allLinesClosed ? 'C' : '';
+        
+        if (!previous) {
+          // Documento NUEVO
+          changes.push({
+            executionId,
+            idmaeedo,
+            nudo: current.nudo,
+            sudo: current.sudo,
+            changeType: 'insert',
+            previousStatus: null,
+            newStatus: currentStatus,
+            monto: current.monto
+          });
+        } else {
+          // Documento existente - verificar cambio de estado agregado
+          const previousStatus = previous.allLinesClosed ? 'C' : '';
+          
+          if (previousStatus !== currentStatus) {
+            // CAMBIO DE ESTADO
+            changes.push({
+              executionId,
+              idmaeedo,
+              nudo: current.nudo,
+              sudo: current.sudo,
+              changeType: 'state_change',
+              previousStatus: previousStatus,
+              newStatus: currentStatus,
+              monto: current.monto
+            });
+          }
+          // Si no hay cambio de estado, no registramos nada (según recomendación del architect)
+        }
+      }
+      
+      // Insertar cambios detectados
+      if (changes.length > 0) {
+        await tx.insert(nvvSyncChanges).values(changes);
+        console.log(`   ✅ ${changes.length} cambios registrados en nvv_sync_changes`);
+      }
     });
 
     // Contar registros después
@@ -745,6 +891,9 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         recordsUpdated: records_updated,
         statusChanges: status_changes,
         executionTimeMs: Date.now() - startTime,
+        watermarkStart: lastWatermark, // Persistir rango incremental
+        watermarkEnd: currentWatermark,
+        endTime: new Date(),
       })
       .where(sql`id = ${executionLog.id}`);
 
