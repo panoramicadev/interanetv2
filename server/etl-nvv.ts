@@ -478,7 +478,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     if (endos.length > 0) {
       maeen = await executeWithResilience(
         async () => pool!.request().query(`
-          SELECT KOEN, NOKOEN, RUEN, ZOEN, DIEN, FOEN, CPEN, CMEN
+          SELECT KOEN, NOKOEN, RUEN, KOFUEN, ZOEN, DIEN, FOEN, CPEN, CMEN
           FROM dbo.MAEEN
           WHERE LTRIM(RTRIM(KOEN)) IN (${endos.map(e => `'${e}'`).join(',')})
         `),
@@ -492,6 +492,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       koen: row.KOEN?.trim() || '',
       nokoen: row.NOKOEN?.trim() || null,
       ruen: row.RUEN?.trim() || null, // Segmento del cliente
+      kofuen: row.KOFUEN?.trim() || null, // Vendedor asociado al cliente
       dien: row.DIEN?.trim() || null,
       zoen: row.ZOEN?.trim() || null,
       foen: row.FOEN?.trim() || null,
