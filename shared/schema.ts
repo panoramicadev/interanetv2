@@ -4810,7 +4810,8 @@ export const nvvSyncLog = nvvSchema.table("nvv_sync_log", {
   startTime: timestamp("start_time").notNull(),
   endTime: timestamp("end_time"),
   status: varchar("status", { length: 20 }), // 'running', 'completed', 'failed'
-  period: varchar("period", { length: 100 }).notNull(), // Descripción del período
+  period: varchar("period", { length: 100 }).notNull(), // Descripción del período (ISO timestamps)
+  periodDisplay: varchar("period_display", { length: 100 }), // Período formateado para UI
   branches: text("branches").notNull().default('004,006,007'), // Sucursales NVV
   recordsProcessed: integer("records_processed"),
   recordsInserted: integer("records_inserted"), // Nuevos documentos
