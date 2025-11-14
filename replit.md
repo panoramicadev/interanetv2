@@ -108,3 +108,7 @@ Preferred communication style: Simple, everyday language.
 - **Feature**: Real-time progress updates with replay buffer
 - **Implementation**: Server stores last execution's events in memory and replays them to new clients for instant progress bar display
 - **Benefit**: Users see progress bar immediately on page load, even if ETL started before they opened the page
+
+### Bug Fixes (November 14, 2025)
+- **ETL Monitor Frontend Fix**: Updated all TypeScript interfaces and references in `client/src/pages/etl-monitor.tsx` to use `startTime` instead of deprecated `executionDate` field, aligning with unified backend schema (ETLExecution, GdvSyncLog, NvvSyncLog). All date formatting functions now correctly reference `startTime`.
+- **Client Search Endpoint Route Order Fix**: Resolved 404 error on `/api/clients/search` by moving the route definition before `/api/clients/:koen` in `server/routes.ts`. Express routes are matched in declaration order, so the parameterized route was incorrectly capturing "search" as a client koen value. Client dropdown in technical visits module now works correctly, returning search results with status 200.
