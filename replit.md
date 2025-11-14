@@ -89,14 +89,20 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (November 2025)
 
-### NVV ETL Schema Alignment
-- **Issue Resolved**: Fixed schema mismatch between Drizzle ORM and SQL migrations that caused "column execution_date does not exist" errors
+### Unified ETL Execution Log Schema (Migrations 006 & 007)
+- **Issue Resolved**: Standardized ALL ETL execution logs to use `start_time`/`end_time` instead of inconsistent `execution_date` field
+- **Scope**: Unified schema across ventas.etl_execution_log, nvv.nvv_sync_log, and gdv.gdv_sync_log
 - **Changes Made**:
-  - Updated `nvv_sync_log` schema in shared/schema.ts to use `startTime`/`endTime` instead of `executionDate`
-  - Changed `watermarkDate` type from `timestamp` to `date` to match SQL migration
-  - Updated all code references in server/etl-nvv.ts and server/storage.ts to use new field names
-- **Validation**: ETL successfully processes 15,604 records in ~19-24 seconds with status change detection working correctly
-- **Production Ready**: Automatic migrations system ensures schema stays in sync across deployments
+  - **Migration 006**: Migrated ventas.etl_execution_log and nvv.nvv_sync_log to use `start_time`/`end_time` with backfill
+  - **Migration 007**: Migrated gdv.gdv_sync_log to use `start_time`/`end_time` with conditional DO blocks for idempotency
+  - **TypeScript Schema**: Updated shared/schema.ts for all three ETL log tables (startTime NOT NULL, endTime nullable)
+  - **Code Updates**: Updated 200+ references across server/etl-incremental.ts, server/etl-nvv.ts, server/etl-gdv.ts, server/routes.ts, and server/storage.ts
+- **Benefits**:
+  - Consistent execution telemetry across all ETL modules
+  - Richer timestamp data (start + end) instead of single execution_date
+  - Prevents future schema mismatch regressions
+  - Production-ready with automatic migration system
+- **Validation**: All ETL modules boot cleanly, 0 LSP errors, schema verified in development and production
 
 ### SSE Progress Tracking for NVV ETL
 - **Feature**: Real-time progress updates with replay buffer
