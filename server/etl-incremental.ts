@@ -1121,42 +1121,103 @@ export async function getETLStatus(
   endDate?: string
 ) {
   try {
-    // Build where conditions
-    let whereConditions = eq(etlExecutionLog.etlName, etlName);
-    
-    // Add date filters if provided
-    if (startDate && endDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
+    // 🔀 ROUTER: Consultar la tabla de logs correcta según etlName
+    let lastExecutions: any[] = [];
+    let totalExecutionsResult: any[] = [];
+    let successfulExecutionsResult: any[] = [];
+    let failedExecutionsResult: any[] = [];
+
+    if (etlName === 'nvv') {
+      // Consultar nvv.nvv_sync_log
+      const nvvLogs = await db.execute(sql`
+        SELECT id, execution_date as "executionDate", status, 
+               records_processed as "recordsProcessed", 
+               records_inserted as "recordsInserted",
+               records_updated as "recordsUpdated",
+               status_changes as "statusChanges",
+               execution_time_ms as "executionTimeMs",
+               error_message as "errorMessage",
+               watermark_date as "watermarkDate",
+               period, branches
+        FROM nvv.nvv_sync_log
+        ORDER BY execution_date DESC
+        LIMIT 100
+      `);
+      lastExecutions = (nvvLogs as any).rows || [];
+
+      const totalCount = await db.execute(sql`SELECT COUNT(*)::int as count FROM nvv.nvv_sync_log`);
+      totalExecutionsResult = [(totalCount as any).rows?.[0] || { count: 0 }];
+
+      const successCount = await db.execute(sql`SELECT COUNT(*)::int as count FROM nvv.nvv_sync_log WHERE status = 'success'`);
+      successfulExecutionsResult = [(successCount as any).rows?.[0] || { count: 0 }];
+
+      const failCount = await db.execute(sql`SELECT COUNT(*)::int as count FROM nvv.nvv_sync_log WHERE status IN ('failed', 'error')`);
+      failedExecutionsResult = [(failCount as any).rows?.[0] || { count: 0 }];
+
+    } else if (etlName === 'gdv') {
+      // Consultar gdv.gdv_sync_log
+      const gdvLogs = await db.execute(sql`
+        SELECT id, execution_date as "executionDate", status, 
+               records_processed as "recordsProcessed",
+               records_inserted as "recordsInserted",
+               records_updated as "recordsUpdated",
+               status_changes as "statusChanges",
+               execution_time_ms as "executionTimeMs",
+               error_message as "errorMessage",
+               watermark_date as "watermarkDate",
+               period, branches
+        FROM gdv.gdv_sync_log
+        ORDER BY execution_date DESC
+        LIMIT 100
+      `);
+      lastExecutions = (gdvLogs as any).rows || [];
+
+      const totalCount = await db.execute(sql`SELECT COUNT(*)::int as count FROM gdv.gdv_sync_log`);
+      totalExecutionsResult = [(totalCount as any).rows?.[0] || { count: 0 }];
+
+      const successCount = await db.execute(sql`SELECT COUNT(*)::int as count FROM gdv.gdv_sync_log WHERE status = 'success'`);
+      successfulExecutionsResult = [(successCount as any).rows?.[0] || { count: 0 }];
+
+      const failCount = await db.execute(sql`SELECT COUNT(*)::int as count FROM gdv.gdv_sync_log WHERE status IN ('failed', 'error')`);
+      failedExecutionsResult = [(failCount as any).rows?.[0] || { count: 0 }];
+
+    } else {
+      // Default: Consultar ventas.etl_execution_log
+      let whereConditions = eq(etlExecutionLog.etlName, etlName);
       
-      whereConditions = sql`${etlExecutionLog.etlName} = ${etlName} 
-        AND ${etlExecutionLog.executionDate} >= ${start.toISOString()} 
-        AND ${etlExecutionLog.executionDate} <= ${end.toISOString()}`;
+      if (startDate && endDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        
+        whereConditions = sql`${etlExecutionLog.etlName} = ${etlName} 
+          AND ${etlExecutionLog.executionDate} >= ${start.toISOString()} 
+          AND ${etlExecutionLog.executionDate} <= ${end.toISOString()}`;
+      }
+
+      lastExecutions = await db
+        .select()
+        .from(etlExecutionLog)
+        .where(whereConditions)
+        .orderBy(desc(etlExecutionLog.executionDate))
+        .limit(100);
+
+      totalExecutionsResult = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(etlExecutionLog)
+        .where(eq(etlExecutionLog.etlName, etlName));
+
+      successfulExecutionsResult = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(etlExecutionLog)
+        .where(sql`etl_name = ${etlName} AND status = 'success'`);
+
+      failedExecutionsResult = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(etlExecutionLog)
+        .where(sql`etl_name = ${etlName} AND (status = 'failed' OR status = 'error')`);
     }
-
-    const lastExecutions = await db
-      .select()
-      .from(etlExecutionLog)
-      .where(whereConditions)
-      .orderBy(desc(etlExecutionLog.executionDate))
-      .limit(100);
-
-    const totalExecutionsResult = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(etlExecutionLog)
-      .where(eq(etlExecutionLog.etlName, etlName));
-
-    const successfulExecutionsResult = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(etlExecutionLog)
-      .where(sql`etl_name = ${etlName} AND status = 'success'`);
-
-    const failedExecutionsResult = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(etlExecutionLog)
-      .where(sql`etl_name = ${etlName} AND (status = 'failed' OR status = 'error')`);
 
     // Get total records in fact table - wrap in try-catch for safety
     let totalFactRecordsCount = 0;
