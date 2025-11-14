@@ -1,7 +1,7 @@
 # Sales Analytics Dashboard
 
 ## Overview
-"PANORAMICA" is a sales analytics dashboard designed for the Chilean market, providing comprehensive sales insights. It includes client and user management with role-based access, detailed sales analytics, and a mobile-responsive design. The platform supports CSV sales data import, KPI monitoring, trend analysis, transaction review, e-commerce integration, a CRM pipeline, product grouping, technical visit management, robust complaints and maintenance management, sales forecasting, an ETL data warehouse, and an internal notification system. The primary goal is to enhance sales strategies and operational efficiency.
+"PANORAMICA" is a sales analytics dashboard for the Chilean market, providing comprehensive sales insights. Its purpose is to enhance sales strategies and operational efficiency through features like client and user management, detailed sales analytics, mobile responsiveness, CSV data import, KPI monitoring, trend analysis, transaction review, e-commerce integration, a CRM pipeline, product grouping, technical visit management, robust complaints and maintenance management, sales forecasting, an ETL data warehouse, and an internal notification system.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -42,28 +42,12 @@ Preferred communication style: Simple, everyday language.
 - **Professional Documents**: Enhanced PDF layouts with multi-column design and branding.
 
 ### Key Features
-- **Client & User Management**: Role-based access and client linking.
-- **CRM Pipeline System**: Kanban-style lead management.
-- **E-commerce**: Order management and notifications.
-- **Product Grouping System**: Parent-child product variations.
-- **Technical Visits**: Multi-step creation flow, custom product support, PDF generation.
-- **Sales Analytics**: KPIs, trend charts, transaction records, segment analysis, period-to-period comparisons, interactive projection visualizations, and an interactive period comparison chart.
-- **Quote Management (Tomador de Pedidos)**: Role-based visibility and real-time stock display.
-- **Task Management**: For admin/supervisor roles.
-- **Goals Progress**: Sales goals tracking.
-- **Finance Module (Gestión de Facturas)**: Unified financial management interface with tabbed navigation for invoices, sales notes, and sales projections, with role-based access. Includes NVV segment mapping for accurate attribution.
-- **Complaints Management (Reclamos Generales)**: Multi-area resolution with workflow automation, photo uploads, role-based filtering, and a state machine.
-- **Maintenance Management (Mantención)**: Equipment request system with workflow, technician assignment, and history logging. Includes a CMMS for comprehensive preventive and corrective maintenance.
-- **Marketing Module**: Budget configuration, request workflow, metrics dashboard, and calendar.
-- **Inventory Module**: Real-time stock levels with integrated average pricing and low stock alerts, combining PostgreSQL catalog with live SQL Server queries.
-- **Expense Management (Gastos Empresariales)**: Expense creation, approval workflow, and analytics.
-- **Promesas de Compra Semanales**: Weekly purchase promise tracking.
-- **Internal Notifications System**: Role-based and automatic event notifications.
-- **Sales Forecasting System**: Holt-Winters triple exponential smoothing for monthly sales projections.
-- **ETL Data Warehouse**: PostgreSQL schema with staging tables and a denormalized `fact_ventas` table. Features automated incremental runs, UPSERT indexing, robust data mapping, enhanced field mapping, refined execution metrics, real-time progress tracking via SSE, and production reliability features (Circuit Breaker, retry with exponential backoff, health checks, automated monitoring, data quality validation, atomic transactions, timeout controls, structured logging).
-    - **GDV ETL Monitoring Module**: Dedicated PostgreSQL schema for tracking delivery status changes with FEER-based watermark and quantity tracking.
-    - **NVV ETL Monitoring Module**: Dedicated PostgreSQL schema for tracking pending Notas de Venta across all branches, featuring vendor/warehouse metadata fallback, shared segment master, and accurate pending amount calculation.
-- **Manual Sales Projection**: Monthly to yearly calculation and "future clients" management.
+- **Core Management**: Client & user management, CRM pipeline, E-commerce, Product grouping, Task management.
+- **Sales & Finance**: Sales analytics (KPIs, trends, projections, comparisons), Quote management, Goals progress, Finance module (invoices, sales notes, projections).
+- **Service & Operations**: Technical visits, Complaints management (workflow, photo uploads, state machine), Maintenance management (CMMS, equipment requests), Inventory module (real-time stock, alerts), Expense management.
+- **Strategic & Data**: Marketing module, Sales forecasting (Holt-Winters), ETL Data Warehouse (automated incremental runs, UPSERT, data mapping, real-time progress, reliability features), Promesas de Compra Semanales, Manual Sales Projection.
+- **Internal Systems**: Internal notification system.
+- **ETL Monitoring**: Dedicated modules for GDV and NVV ETL monitoring, including change tracking and state change auditing.
 
 ### Production Deployment
 - **Platform**: Replit Autoscale Deployment
@@ -85,113 +69,37 @@ Preferred communication style: Simple, everyday language.
 - **PDF Generation**: @react-pdf/renderer
 - **CSV Parsing**: Papa Parse
 
-## Recent Changes (November 2025)
-
-### NVV ETL Incremental Optimization (November 14, 2025)
-- **Issue Resolved**: NVV ETL was processing ALL 15,621 records every execution instead of being truly incremental
-- **Root Causes**: 
-  1. SQL query used fixed filter `FEEMDO >= '2025-01-01'` instead of watermark-based incremental filtering
-  2. Watermarks were truncated to date (YYYY-MM-DD) instead of full timestamps, causing re-ingestion of all documents modified on the same day
-- **Solution**: Changed to true incremental watermark using FEER (fecha de referencia) with full ISO timestamps
-- **Changes Made**:
-  - Modified MAEEDO query to use `FEER >= watermark_start AND FEER < watermark_end` with full ISO timestamps (not truncated dates)
-  - Persist `watermarkDate` as complete timestamp instead of date-only string
-  - Use `>=` for lower bound (inclusive) and `<` for upper bound (exclusive) - UPSERT in fact_nvv handles any duplicates at boundaries
-  - Kept `FEEMDO >= '2025-01-01'` as minimum year filter to exclude pre-2025 documents
-  - Changed ORDER BY from FEEMDO to FEER for consistency with watermark logic
-  - Updated console logs to show full timestamps
-- **Expected Result**: ETL now processes only records modified since last execution timestamp (typically 10-50 records), even when running multiple times per day. No data gaps.
-- **Watermark Contract**: 
-  - Upper bound watermark captured IMMEDIATELY before SQL queries
-  - Filter uses: `FEER >= lastWatermark AND FEER < currentWatermark`
-  - Same `currentWatermark` is persisted to database
-  - Next run's lower bound equals previous run's upper bound - guarantees NO GAPS
-  - UPSERT in fact_nvv handles duplicates at boundary
-- **UI Fix**: Changed "Cancelar ETL Bloqueado" button text to "Cancelar ETL" for clarity
-- **Schema Fix (Migration 009)**: Changed nvv.nvv_sync_log.watermark_date from DATE to TIMESTAMP type to preserve full ISO timestamp precision instead of truncating to YYYY-MM-DD. This was the root cause of watermark truncation.
-
-### NVV ETL Change Tracking System (November 14, 2025)
-- **Feature Added**: Document-level change tracking system for NVV ETL with incremental watermark-based monitoring
-- **Schema Changes (Migration 010)**:
-  - `nvv_sync_log`: Added `watermark_start`, `watermark_end`, `end_time` for precise incremental range tracking
-  - `fact_nvv`: Added `last_etl_execution_id` and `last_status` for change detection
-  - New table `nvv_sync_changes`: Audit trail of document state changes (insert/state_change)
-    - Tracks idmaeedo, change_type, previous_status, new_status, execution metadata
-    - Indexed on execution_id and changed_at for performance
-- **ETL Implementation**:
-  - `getLastWatermark()`: Uses COALESCE(watermarkEnd, watermarkDate) with fallback for backward compatibility
-  - DELETE with `.returning()` captures previous document state before UPSERT
-  - Document-level aggregation: Status='closed' ONLY if ALL lines are closed, otherwise 'open'
-  - Change detection compares aggregated states (not individual line states)
-  - INSERT to `nvv_sync_changes` in same transaction as UPSERT (atomic audit trail)
-  - Watermarks persisted in ALL success branches (with/without data) to ensure incremental advancement
-- **Backend API**:
-  - `getNvvStateChanges()`: Query method with CTE filtering + JOIN + limit/offset pagination
-  - Endpoint: GET `/api/etl/nvv/state-changes` returns changes with execution metadata
-- **Frontend UI**:
-  - `NVVHistorySection` component with 2 tabs:
-    1. "Historial de Ejecuciones": Shows watermark range (watermarkStart → watermarkEnd) for each run
-    2. "Documentos con Cambios": Drill-down of recent document state changes
-  - TanStack Query with default queryClient (no custom queryFn)
-  - Query keys use flat arrays (no objects) for proper cache invalidation
-- **Production Ready**: Verified correct watermark persistence, transaction atomicity, and no data gaps
-
-### NVV ETL Staging Schema Fix (Migration 011) (November 14, 2025)
-- **Issue Resolved**: ETL de NVV fallaba con error "value too long for type character varying(10)" al insertar en stg_maeen_nvv
-- **Root Causes**:
-  1. Campos VARCHAR(10) muy cortos (zoen, foen, cpen) que no soportaban valores largos de SQL Server
-  2. Columnas faltantes: ruen (segmento cliente) y kofuen (vendedor asociado)
-- **Solution Applied (Migration 011)**:
-  - Agregadas columnas: `ruen VARCHAR(50)` y `kofuen VARCHAR(50)` en stg_maeen_nvv
-  - Ampliados campos de VARCHAR(10) a VARCHAR(50): zoen, foen, cpen (stg_maeen_nvv)
-  - Ampliados preventivamente: pfpr, fmpr, rupr, mrpr (stg_maepr_nvv)
-- **Backend ETL**: Actualizado para extraer campo KOFUEN (vendedor) de SQL Server
-- **Expected Result**: ETL de NVV ahora puede procesar correctamente todos los registros sin errores de truncamiento
-
-### NVV Period Display Enhancement (Migration 012) (November 14, 2025)
-- **Feature Added**: Hybrid period formatting system for NVV execution history
-- **Issue**: Period field showed long ISO timestamp ranges that were hard to read in UI
-- **Solution (Migration 012)**:
-  - Added `period_display VARCHAR(100)` column to nvv.nvv_sync_log
-  - Maintains `period` field with raw ISO timestamps for backward compatibility and calculations
-  - Backfilled 24 existing records with current period values
-- **Backend Implementation**:
-  - ETL generates both formats: `periodISO` (raw) and `periodDisplay` (compact locale es-CL)
-  - Same-day format: "14-11-2025 00:00:00 - 17:59:23"
-  - Multi-day format: "14-11-2025 00:00:00 - 15-11-2025 17:59:23"
-- **Frontend Update**: Uses `periodDisplay ?? period` fallback for legacy compatibility
-- **Production Ready**: Migrations applied automatically on server startup via `server/migrations.ts` system
+## Recent Changes
 
 ### NVV Fact Table Missing Columns Fix (Migration 013) (November 14, 2025)
 - **Issue Resolved**: Production deployment error "column 'rupr' does not exist" when accessing NVV analytics by segment
 - **Root Cause**: Migration 002 created fact_nvv table but omitted segment-related columns that were defined in Drizzle schema
-- **Missing Columns Identified**:
-  - `rupr` (producto segment code)
-  - `ruen` (cliente segment code)
-  - `nombre_segmento` (producto segment name)
-  - `nombre_segmento_cliente` (cliente segment name)
-- **Solution (Migration 013)**:
-  - Added all 4 missing TEXT columns to nvv.fact_nvv
-  - Created indexes for rupr and ruen for query performance
-  - Added documentation comments for each column
-- **Impact**: Fixes "Segmento" tab in NVV Monitor ETL, enables analytics by customer and product segments
-- **Production Ready**: Migration will auto-apply on next deployment via `server/migrations.ts`
+- **Missing Columns**: rupr, ruen, nombre_segmento, nombre_segmento_cliente
+- **Solution**: ALTER TABLE to add all 4 missing TEXT columns with indexes for query performance
+- **Impact**: Enables NVV "Segmento" tab analytics by customer and product segments
+- **Status**: ✅ Applied successfully in development, ready for production
 
-### GDV Staging Tables Creation (Migration 014) (November 14, 2025)
-- **Issue Resolved**: Production ETL error "column bo.suli does not exist" when running GDV ETL
-- **Root Cause**: GDV staging tables (stg_maeedo_gdv, stg_maeddo_gdv, stg_tabbo_gdv, etc.) were never created via SQL migrations
-  - Tables existed in development (created via db:push) but not in production
-  - ETL code assumed tables existed and attempted TRUNCATE, causing failures
-- **Solution (Migration 014)**:
-  - Created all 7 GDV staging tables with proper schemas:
-    - stg_maeedo_gdv (GDV headers)
-    - stg_maeddo_gdv (GDV line details)
-    - stg_maeen_gdv (clients/entities)
-    - stg_maepr_gdv (products)
-    - stg_maeven_gdv (salespeople)
-    - stg_tabbo_gdv (warehouses) - PRIMARY KEY on (suli, bosuli)
-    - stg_tabru_gdv (segments)
-  - Created performance indexes for JOIN operations
-  - Added documentation comments for each table
-- **Impact**: Enables GDV ETL to run successfully in production
-- **Production Ready**: Migration uses IF NOT EXISTS for safety, will auto-apply on deployment
+### GDV Staging Tables Update (Migration 014) (November 14, 2025)
+- **Issue Resolved**: GDV staging tables had missing columns causing ETL failures
+- **Root Cause**: Staging tables had outdated schema - stg_maepr_gdv lacked rupr, nokopr, ud01pr, ud02pr, tipr
+- **Solution**: CREATE TABLE IF NOT EXISTS + ALTER TABLE ADD COLUMN IF NOT EXISTS for all 7 staging tables
+- **Tables Updated**: stg_maeedo_gdv, stg_maeddo_gdv, stg_maeen_gdv, stg_maepr_gdv, stg_maeven_gdv, stg_tabbo_gdv, stg_tabru_gdv
+- **Impact**: Enables GDV ETL to run successfully with correct product segment data
+- **Status**: ✅ Applied successfully in development, ready for production
+
+### NVV Staging Tables Structure Fix (Migration 015) (November 14, 2025)
+- **Issue Resolved**: CRITICAL production blocker - NVV ETL fails at MERGE step with "column bo.suli does not exist"
+- **Root Cause**: Migration 002 created nvv.stg_tabbo_nvv with wrong columns (kobo, nokobo) but ETL expects (suli, bosuli, nobosuli)
+  - Schema mismatch between Drizzle definition and original SQL migration
+  - Development worked because db:push recreated table correctly
+  - Production has old schema causing 100% failure rate on NVV ETL
+- **Solution (Safe ALTER TABLE approach)**:
+  - Checks if table has correct structure before modifying (idempotent)
+  - Adds new columns (suli, bosuli, nobosuli) if missing
+  - Migrates existing data: kobo → bosuli, nokobo → nobosuli
+  - Recreates PRIMARY KEY as composite (suli, bosuli)
+  - Keeps old columns for backward compatibility
+  - Also adds missing columns to stg_maeen_nvv (ruen, kofuen) and stg_maepr_nvv (pfpr, fmpr, rupr, mrpr)
+  - Uses DO $$ block to avoid race conditions with ETL scheduler
+- **Impact**: **UNBLOCKS PRODUCTION** - NVV ETL can now complete successfully
+- **Status**: ✅ Applied successfully in development, CRITICAL for production deployment
