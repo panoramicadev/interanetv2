@@ -399,14 +399,14 @@ export function registerRoutes(app: Express): Server {
       const lastExecutions = await db
         .select()
         .from(sql`ventas.etl_execution_log`)
-        .orderBy(desc(sql`execution_date`))
+        .orderBy(desc(sql`start_time`))
         .limit(1);
       
       if (lastExecutions.length > 0) {
         const last = lastExecutions[0] as any;
         lastETL = {
           status: last.status,
-          executionDate: last.execution_date,
+          executionDate: last.start_time,
           recordsProcessed: last.records_processed,
           executionTimeMs: last.execution_time_ms,
           period: last.period
@@ -419,7 +419,7 @@ export function registerRoutes(app: Express): Server {
         }
         
         // Check if last execution was too long ago (>45 min = problema con scheduler)
-        const timeSinceLastETL = Date.now() - new Date(last.execution_date).getTime();
+        const timeSinceLastETL = Date.now() - new Date(last.start_time).getTime();
         const minutesSince = timeSinceLastETL / (1000 * 60);
         if (minutesSince > 45) {
           etlHealthy = false;
