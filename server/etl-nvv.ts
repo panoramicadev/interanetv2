@@ -2,6 +2,7 @@ import mssql from 'mssql';
 import { db } from './db';
 import { sql, desc, eq, inArray } from 'drizzle-orm';
 import { EventEmitter } from 'events';
+import { nanoid } from 'nanoid';
 import { 
   stgMaeedoNvv, 
   stgMaeddoNvv,
@@ -63,6 +64,26 @@ interface NVVProgressEvent {
 // Event emitter para progreso del ETL de NVV
 export const nvvEtlProgressEmitter = new EventEmitter();
 
+// Replay buffer para eventos SSE (almacena últimos eventos por execution ID)
+const progressReplayBuffer = new Map<string, NVVProgressEvent[]>();
+const MAX_BUFFER_SIZE = 50;
+
+// REFACTOR: Separar concerns de mutual exclusion guard vs replay pointer
+let activeExecutionId: string | null = null;  // Guard: se limpia INMEDIATAMENTE en finally
+let lastReplayExecutionId: string | null = null;  // Replay: se limpia después de 60s
+
+// Función para obtener eventos históricos de una ejecución
+export function getNVVProgressHistory(executionId?: string): NVVProgressEvent[] {
+  const id = executionId || lastReplayExecutionId;
+  if (!id) return [];
+  return progressReplayBuffer.get(id) || [];
+}
+
+// Función para limpiar el buffer de una ejecución
+export function clearNVVProgressHistory(executionId: string) {
+  progressReplayBuffer.delete(executionId);
+}
+
 // Función helper para emitir progreso
 function emitProgress(step: number, totalSteps: number, message: string, details?: string) {
   const percentage = Math.round((step / totalSteps) * 100);
@@ -73,6 +94,20 @@ function emitProgress(step: number, totalSteps: number, message: string, details
     details,
     percentage,
   };
+  
+  // Almacenar evento en replay buffer usando lastReplayExecutionId
+  if (lastReplayExecutionId) {
+    const buffer = progressReplayBuffer.get(lastReplayExecutionId) || [];
+    buffer.push(event);
+    
+    // Limitar tamaño del buffer (mantener solo los últimos MAX_BUFFER_SIZE eventos)
+    if (buffer.length > MAX_BUFFER_SIZE) {
+      buffer.shift();
+    }
+    
+    progressReplayBuffer.set(lastReplayExecutionId, buffer);
+  }
+  
   nvvEtlProgressEmitter.emit('progress', event);
   console.log(`📊 [${percentage}%] Paso ${step}/${totalSteps}: ${message}`);
   if (details) {
@@ -170,8 +205,22 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     console.log(`   Database: ${sqlServerConfig.database ? '✅' : '❌'}`);
     console.log(`   User: ${sqlServerConfig.user ? '✅' : '❌'}`);
 
-    // Verificar si ya hay una ejecución en curso
+    // 🔒 GUARD IN-MEMORY: Verificar si ya hay una ejecución en curso (previene race conditions)
     console.log('\n🔒 Verificando ejecuciones activas...');
+    
+    if (activeExecutionId !== null) {
+      console.log(`⚠️  ETL de NVV ya en ejecución (in-memory guard: ${activeExecutionId})`);
+      return {
+        success: false,
+        records_processed: 0,
+        records_inserted: 0,
+        records_updated: 0,
+        status_changes: 0,
+        execution_time_ms: Date.now() - startTime,
+        error: 'ETL de NVV ya en ejecución'
+      };
+    }
+    
     const runningNVV = await db
       .select()
       .from(nvvSyncLog)
@@ -179,7 +228,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       .limit(1);
 
     if (runningNVV.length > 0) {
-      console.log(`⚠️  ETL de NVV ya en ejecución (ID: ${runningNVV[0].id})`);
+      console.log(`⚠️  ETL de NVV ya en ejecución (DB: ${runningNVV[0].id})`);
       return {
         success: false,
         records_processed: 0,
@@ -191,6 +240,17 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       };
     }
     console.log('✅ No hay ejecuciones activas\n');
+
+    // ✅ Generar execution ID y establecer AMBOS guards/pointers atómicamente
+    const executionId = nanoid();
+    activeExecutionId = executionId;  // Guard de mutual exclusion
+    
+    // 🧹 Limpiar buffer de ejecución PREVIA antes de empezar nueva ejecución
+    if (lastReplayExecutionId && lastReplayExecutionId !== executionId) {
+      clearNVVProgressHistory(lastReplayExecutionId);
+    }
+    
+    lastReplayExecutionId = executionId;  // Establecer nuevo pointer para replay buffer
 
     // Obtener watermarks
     const lastWatermark = await getLastWatermark();
@@ -215,9 +275,10 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     );
     console.log('✅ Conectado a SQL Server\n');
 
-    // Registrar inicio de ejecución
+    // Registrar inicio de ejecución con execution ID pre-generado
     const periodLabel = `${lastWatermark.toISOString().split('T')[0]} to ${currentWatermark.toISOString().split('T')[0]}`;
     const [executionLog] = await db.insert(nvvSyncLog).values({
+      id: executionId,
       status: 'running',
       period: periodLabel,
       branches: sucursales.join(','),
@@ -281,6 +342,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
 
       await pool.close();
       
+      // Buffer persiste para clientes tardíos hasta que la PRÓXIMA ejecución lo limpie
       return {
         success: true,
         records_processed: 0,
@@ -698,6 +760,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       execution_time_ms: executionTime
     });
 
+    // Buffer persiste para clientes tardíos hasta que la PRÓXIMA ejecución lo limpie
     return {
       success: true,
       records_processed: maeddo.recordset.length,
@@ -748,6 +811,8 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       }
     }
 
+    // Buffer persiste para clientes tardíos hasta que la PRÓXIMA ejecución lo limpie
+    // activeExecutionId se limpia en finally block
     return {
       success: false,
       records_processed: 0,
@@ -757,5 +822,9 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       execution_time_ms: executionTime,
       error: error_message,
     };
+  } finally {
+    // ✅ FINALLY BLOCK: Liberar guard de mutual exclusion INMEDIATAMENTE
+    // Garantiza que el guard nunca quede "stuck", sin importar qué excepción ocurra
+    activeExecutionId = null;
   }
 }

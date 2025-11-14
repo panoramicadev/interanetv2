@@ -41,7 +41,7 @@ import { eq, and, isNotNull, ne, sql, desc, or, sum, countDistinct } from "drizz
 import { emailService } from "./services/email";
 import { executeIncrementalETL, getETLStatus, updateETLConfig, etlProgressEmitter, sqlServerBreaker } from "./etl-incremental";
 import { executeGDVETL, gdvEtlProgressEmitter, gdvSqlServerBreaker } from "./etl-gdv";
-import { executeNVVETL, nvvEtlProgressEmitter, nvvSqlServerBreaker } from "./etl-nvv";
+import { executeNVVETL, nvvEtlProgressEmitter, nvvSqlServerBreaker, getNVVProgressHistory } from "./etl-nvv";
 import * as NotifyHelper from "./notifications-helper";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
@@ -13174,6 +13174,14 @@ export function registerRoutes(app: Express): Server {
     const emitter = etlName === 'nvv' ? nvvEtlProgressEmitter :
                     etlName === 'gdv' ? gdvEtlProgressEmitter :
                     etlProgressEmitter;
+
+    // 📼 REPLAY BUFFER: Enviar eventos históricos primero (solo para NVV por ahora)
+    if (etlName === 'nvv') {
+      const historicalEvents = getNVVProgressHistory();
+      historicalEvents.forEach(event => {
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+      });
+    }
 
     const progressListener = (event: any) => {
       res.write(`data: ${JSON.stringify(event)}\n\n`);
