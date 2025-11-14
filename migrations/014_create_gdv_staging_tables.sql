@@ -1,6 +1,6 @@
--- Migration 014: Crear tablas staging de GDV
--- Problema: Las tablas staging de GDV nunca se crearon en producción
--- Estas tablas son necesarias para el ETL de GDV
+-- Migration 014: Crear/actualizar tablas staging de GDV
+-- Problema: Las tablas staging de GDV pueden no existir en producción o pueden tener columnas faltantes
+-- Solución: Crear tablas si no existen Y agregar columnas faltantes si ya existen
 
 -- 1. Tabla staging: stg_maeedo_gdv (Encabezados de GDV)
 CREATE TABLE IF NOT EXISTS gdv.stg_maeedo_gdv (
@@ -65,10 +65,15 @@ CREATE TABLE IF NOT EXISTS gdv.stg_maeen_gdv (
 -- 4. Tabla staging: stg_maepr_gdv (Productos GDV)
 CREATE TABLE IF NOT EXISTS gdv.stg_maepr_gdv (
   kopr TEXT PRIMARY KEY,
-  nokopr TEXT,
-  rupr TEXT,
   nomrpr TEXT
 );
+
+-- Agregar columnas faltantes a stg_maepr_gdv (para compatibilidad con versiones anteriores)
+ALTER TABLE gdv.stg_maepr_gdv ADD COLUMN IF NOT EXISTS nokopr TEXT;
+ALTER TABLE gdv.stg_maepr_gdv ADD COLUMN IF NOT EXISTS rupr TEXT;
+ALTER TABLE gdv.stg_maepr_gdv ADD COLUMN IF NOT EXISTS ud01pr TEXT;
+ALTER TABLE gdv.stg_maepr_gdv ADD COLUMN IF NOT EXISTS ud02pr TEXT;
+ALTER TABLE gdv.stg_maepr_gdv ADD COLUMN IF NOT EXISTS tipr TEXT;
 
 -- 5. Tabla staging: stg_maeven_gdv (Vendedores GDV)
 CREATE TABLE IF NOT EXISTS gdv.stg_maeven_gdv (
