@@ -19207,7 +19207,7 @@ export class DatabaseStorage implements IStorage {
     const history = await db
       .select()
       .from(nvvSyncLog)
-      .orderBy(desc(nvvSyncLog.executionDate))
+      .orderBy(desc(nvvSyncLog.startTime))
       .limit(limit)
       .offset(offset);
     

@@ -279,10 +279,11 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     const periodLabel = `${lastWatermark.toISOString().split('T')[0]} to ${currentWatermark.toISOString().split('T')[0]}`;
     const [executionLog] = await db.insert(nvvSyncLog).values({
       id: executionId,
+      startTime: new Date(),
       status: 'running',
       period: periodLabel,
       branches: sucursales.join(','),
-      watermarkDate: currentWatermark,
+      watermarkDate: currentWatermark.toISOString().split('T')[0], // Solo fecha, no timestamp
     }).returning();
 
     // Limpiar tablas staging de NVV (propias, no compartidas con ventas)
@@ -787,7 +788,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         .select()
         .from(nvvSyncLog)
         .where(sql`status = 'running'`)
-        .orderBy(desc(nvvSyncLog.executionDate))
+        .orderBy(desc(nvvSyncLog.startTime))
         .limit(1);
 
       if (runningLog.length > 0) {

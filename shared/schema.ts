@@ -4803,18 +4803,20 @@ export type InsertFactNvv = typeof factNvv.$inferInsert;
 // ===== NVV SYNC LOG =====
 
 export const nvvSyncLog = nvvSchema.table("nvv_sync_log", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  executionDate: timestamp("execution_date").notNull().defaultNow(),
-  status: varchar("status", { length: 20 }).notNull(), // success, failed, running
+  id: varchar("id", { length: 50 }).primaryKey().default(sql`gen_random_uuid()`),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time"),
+  status: varchar("status", { length: 20 }), // 'running', 'completed', 'failed'
   period: varchar("period", { length: 100 }).notNull(), // Descripción del período
-  branches: text("branches").notNull().default('Todas'), // Sucursales NVV (todas por defecto)
+  branches: text("branches").notNull().default('004,006,007'), // Sucursales NVV
   recordsProcessed: integer("records_processed"),
   recordsInserted: integer("records_inserted"), // Nuevos documentos
   recordsUpdated: integer("records_updated"), // Documentos actualizados
   statusChanges: integer("status_changes"), // Cuántos documentos cambiaron de estado
   executionTimeMs: integer("execution_time_ms"),
+  watermarkDate: date("watermark_date"), // Última fecha procesada
   errorMessage: text("error_message"),
-  watermarkDate: timestamp("watermark_date"), // Última fecha procesada
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export type NvvSyncLog = typeof nvvSyncLog.$inferSelect;
