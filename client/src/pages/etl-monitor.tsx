@@ -54,6 +54,7 @@ import {
   Building2
 } from "lucide-react";
 import { formatDistanceToNow, format, subDays } from "date-fns";
+import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 import { es } from "date-fns/locale";
 import { Progress } from "@/components/ui/progress";
 
@@ -214,6 +215,18 @@ interface NvvBySegmentoCliente {
   montoAbiertas: number;
   montoCerradas: number;
   montoPendientes: number;
+}
+
+const CHILE_TIMEZONE = 'America/Santiago';
+
+function formatChileTime(utcTimestamp: string | Date, formatString: string = "dd MMM yyyy HH:mm:ss"): string {
+  const date = typeof utcTimestamp === 'string' ? new Date(utcTimestamp) : utcTimestamp;
+  return formatInTimeZone(date, CHILE_TIMEZONE, formatString, { locale: es });
+}
+
+function formatChileDistance(utcTimestamp: string | Date): string {
+  const date = typeof utcTimestamp === 'string' ? new Date(utcTimestamp) : utcTimestamp;
+  return formatDistanceToNow(date, { addSuffix: true, locale: es });
 }
 
 // Configuración de ETLs disponibles
@@ -844,13 +857,10 @@ function ETLStatusSection({
               <div>
                 <p className="text-sm text-muted-foreground">Última Actualización</p>
                 <p className="font-semibold" data-testid="text-last-execution">
-                  {formatDistanceToNow(new Date(lastExecution.startTime), {
-                    addSuffix: true,
-                    locale: es,
-                  })}
+                  {formatChileDistance(lastExecution.startTime)}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {new Date(lastExecution.startTime).toLocaleString('es-CL')}
+                  {formatChileTime(lastExecution.startTime)}
                 </p>
               </div>
               <div>
@@ -1362,13 +1372,10 @@ function ETLHistorySection({ etlName, autoRefresh }: { etlName: string; autoRefr
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-medium">
-                          {formatDistanceToNow(new Date(execution.startTime), {
-                            addSuffix: true,
-                            locale: es,
-                          })}
+                          {formatChileDistance(execution.startTime)}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(execution.startTime).toLocaleString('es-CL')}
+                          {formatChileTime(execution.startTime)}
                         </span>
                       </div>
                     </TableCell>
@@ -1417,13 +1424,10 @@ function SyncHistoryRow({ sync, index }: { sync: any; index: number }) {
         <TableCell>
           <div className="flex flex-col">
             <span className="font-medium">
-              {formatDistanceToNow(new Date(sync.createdAt || sync.startedAt), {
-                addSuffix: true,
-                locale: es,
-              })}
+              {formatChileDistance(sync.createdAt || sync.startedAt)}
             </span>
             <span className="text-xs text-muted-foreground">
-              {new Date(sync.createdAt || sync.startedAt).toLocaleString('es-CL')}
+              {formatChileTime(sync.createdAt || sync.startedAt)}
             </span>
           </div>
         </TableCell>
@@ -1494,49 +1498,17 @@ function SyncHistoryRow({ sync, index }: { sync: any; index: number }) {
 // GDV SECTIONS
 // ==================================================================================
 
-// GDV Tab Content - manages shared filter state
+// GDV Tab Content - uses generic ETL components for execution control
 function GDVTabContent({ autoRefresh }: { autoRefresh: boolean }) {
-  const [startDate, setStartDate] = useState(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 30);
-    return date.toISOString().split('T')[0];
-  });
-  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [selectedSucursales, setSelectedSucursales] = useState<string[]>(['004', '006', '007']);
-
-  const buildFilters = () => {
-    const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate);
-    if (endDate) params.append('endDate', endDate);
-    if (selectedSucursales.length > 0) {
-      params.append('sucursales', selectedSucursales.join(','));
-    }
-    return params.toString();
-  };
-
-  const toggleSucursal = (sucursal: string) => {
-    setSelectedSucursales(prev => 
-      prev.includes(sucursal) 
-        ? prev.filter(s => s !== sucursal)
-        : [...prev, sucursal]
-    );
-  };
-
-  const filterState = {
-    startDate,
-    setStartDate,
-    endDate,
-    setEndDate,
-    selectedSucursales,
-    toggleSucursal,
-    buildFilters,
-  };
-
   return (
     <>
-      <GDVStatusSection autoRefresh={autoRefresh} filterState={filterState} />
-      <GDVMetricsSection autoRefresh={autoRefresh} filterState={filterState} />
-      <GDVHistorySection autoRefresh={autoRefresh} />
+      <ETLStatusSection 
+        etlName="gdv" 
+        autoRefresh={autoRefresh}
+        showDocumentTypes={false}
+        showBranches={false}
+      />
+      <ETLHistorySection etlName="gdv" autoRefresh={autoRefresh} />
     </>
   );
 }
@@ -1911,13 +1883,10 @@ function GDVHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
                   <TableCell data-testid={`text-gdv-date-${execution.id}`}>
                     <div className="space-y-1">
                       <div className="font-medium">
-                        {format(new Date(execution.startTime), "dd MMM yyyy HH:mm", { locale: es })}
+                        {formatChileTime(execution.startTime, "dd MMM yyyy HH:mm")}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(execution.startTime), { 
-                          addSuffix: true,
-                          locale: es 
-                        })}
+                        {formatChileDistance(execution.startTime)}
                       </div>
                     </div>
                   </TableCell>
@@ -2681,13 +2650,10 @@ function NVVHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
                         <TableCell data-testid={`text-nvv-date-${execution.id}`}>
                           <div className="space-y-1">
                             <div className="font-medium">
-                              {format(new Date(execution.startTime), "dd MMM yyyy HH:mm:ss", { locale: es })}
+                              {formatChileTime(execution.startTime)}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {formatDistanceToNow(new Date(execution.startTime), { 
-                                addSuffix: true,
-                                locale: es 
-                              })}
+                              {formatChileDistance(execution.startTime)}
                             </div>
                           </div>
                         </TableCell>
@@ -2695,10 +2661,10 @@ function NVVHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
                           {execution.watermarkStart && execution.watermarkEnd ? (
                             <div className="space-y-1 text-xs">
                               <div className="text-muted-foreground">
-                                Desde: {format(new Date(execution.watermarkStart), "HH:mm:ss", { locale: es })}
+                                Desde: {formatChileTime(execution.watermarkStart, "HH:mm:ss")}
                               </div>
                               <div className="text-muted-foreground">
-                                Hasta: {format(new Date(execution.watermarkEnd), "HH:mm:ss", { locale: es })}
+                                Hasta: {formatChileTime(execution.watermarkEnd, "HH:mm:ss")}
                               </div>
                             </div>
                           ) : (
@@ -2814,13 +2780,10 @@ function NVVHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
                           <TableCell data-testid={`text-nvv-changed-at-${change.id}`}>
                             <div className="space-y-1">
                               <div className="text-sm">
-                                {format(new Date(change.changedAt), "dd MMM yyyy HH:mm:ss", { locale: es })}
+                                {formatChileTime(change.changedAt)}
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                {formatDistanceToNow(new Date(change.changedAt), { 
-                                  addSuffix: true,
-                                  locale: es 
-                                })}
+                                {formatChileDistance(change.changedAt)}
                               </div>
                             </div>
                           </TableCell>
