@@ -13169,15 +13169,21 @@ export function registerRoutes(app: Express): Server {
       // Execute ETL in background (non-blocking)
       const etlPromise = etlName === 'nvv' 
         ? executeNVVETL() 
+        : etlName === 'gdv'
+        ? executeGDVETL()
         : executeIncrementalETL(etlName as string);
       
       etlPromise
-        .then((result) => {
+        .then((result: any) => {
           console.log('\n╔═══════════════════════════════════════════════════════════════╗');
           console.log('║  ✅ ETL BACKGROUND EXECUTION COMPLETADO                      ║');
           console.log('╚═══════════════════════════════════════════════════════════════╝');
-          console.log(`📊 Registros procesados: ${result.recordsProcessed}`);
-          console.log(`⏱️  Tiempo de ejecución: ${result.executionTimeMs}ms`);
+          
+          const recordsProcessed = result.recordsProcessed ?? result.records_processed ?? 0;
+          const executionTime = result.executionTimeMs ?? result.execution_time_ms ?? 0;
+          
+          console.log(`📊 Registros procesados: ${recordsProcessed}`);
+          console.log(`⏱️  Tiempo de ejecución: ${executionTime}ms`);
           console.log(`📅 Watermark: ${result.watermarkDate}`);
           console.log('═══════════════════════════════════════════════════════════════\n');
         })

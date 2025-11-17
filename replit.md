@@ -103,3 +103,31 @@ Preferred communication style: Simple, everyday language.
   - Uses DO $$ block to avoid race conditions with ETL scheduler
 - **Impact**: **UNBLOCKS PRODUCTION** - NVV ETL can now complete successfully
 - **Status**: ✅ Applied successfully in development, CRITICAL for production deployment
+
+### Timezone Display Fix - Monitor ETL (November 17, 2025)
+- **Issue Resolved**: Monitor ETL mostraba timestamps en UTC (12:01) en lugar de hora Chile (9:01), generando confusión de 3 horas
+- **Root Cause**: Frontend usaba `new Date().toLocaleString()` que muestra hora local del browser, pero los timestamps del backend son UTC
+- **Solution**:
+  - Instalado `date-fns-tz` para conversiones de zona horaria
+  - Creado helper `formatChileTime(utcTimestamp, format)` que convierte UTC → America/Santiago usando `formatInTimeZone()`
+  - Creado helper `formatChileDistance(utcTimestamp)` que calcula tiempo relativo ("hace X tiempo") usando fecha UTC original
+  - Actualizado TODAS las visualizaciones de timestamp en Monitor ETL (NVV, GDV, ventas_incremental)
+- **Impact**: Todos los timestamps ahora se muestran correctamente en hora local de Chile (GMT-3 en verano, GMT-4 en invierno)
+- **Status**: ✅ Implementado y testeado en development
+
+### GDV Module - Full Functionality (November 17, 2025)
+- **Issue Resolved**: Módulo GDV no tenía funcionalidades de configuración de watermark, ejecución manual, cancelación
+- **Root Cause**: GDV usaba componentes custom en lugar de componentes genéricos de ETL
+- **Solution**:
+  - Backend: Agregado soporte para `etlName==='gdv'` en `/api/etl/execute` que ejecuta `executeGDVETL()`
+  - Backend: Normalización de resultados para soportar diferentes contratos (NVVETLResult usa snake_case, GDVETLResult/ETLResult usan camelCase)
+  - Frontend: Migrado GDVTabContent para usar componentes genéricos `ETLStatusSection` y `ETLHistorySection`
+- **New Features for GDV**:
+  - ✅ Configurar watermark custom (fecha de inicio personalizada)
+  - ✅ Ejecutar ETL manualmente con un click
+  - ✅ Cancelar ETL en progreso
+  - ✅ Ver progreso en tiempo real vía Server-Sent Events (SSE)
+  - ✅ Diagnóstico de sistema (solo admin)
+  - ✅ Gestión de timeouts e intervalos
+- **Impact**: Módulo GDV tiene paridad completa con NVV y ventas_incremental
+- **Status**: ✅ Implementado y testeado en development
