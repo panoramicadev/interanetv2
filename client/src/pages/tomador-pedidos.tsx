@@ -2734,32 +2734,57 @@ export default function TomadorPedidos() {
           await apiRequest(`/api/quote-items/${existingItem.id}`, { method: 'DELETE' }).catch(() => {});
         }
 
-        // Add new items
+        // Add new items with error tracking
+        const failedItems: string[] = [];
+        let successfulItems = 0;
+        
         for (const item of cart) {
-          const itemData = {
-            quoteId: quote.id,
-            type: item.type,
-            productName: item.productName,
-            productCode: item.productCode,
-            customSku: item.customSku,
-            quantity: item.quantity.toString(),
-            unitPrice: item.unitPrice.toString(),
-            totalPrice: item.totalPrice.toString(),
-            costOfProduction: item.costOfProduction?.toString(),
-            profitMargin: item.profitMargin?.toString(),
-            pricingMode: item.pricingMode,
-          };
+          try {
+            const itemData = {
+              quoteId: quote.id,
+              type: item.type,
+              productName: item.productName,
+              productCode: item.productCode,
+              customSku: item.customSku,
+              quantity: item.quantity.toString(),
+              unitPrice: item.unitPrice.toString(),
+              totalPrice: item.totalPrice.toString(),
+              costOfProduction: item.costOfProduction?.toString(),
+              profitMargin: item.profitMargin?.toString(),
+              pricingMode: item.pricingMode,
+            };
 
-          await apiRequest(`/api/quotes/${quote.id}/items`, {
-            method: 'POST',
-            data: itemData
-          });
+            const itemResponse = await apiRequest(`/api/quotes/${quote.id}/items`, {
+              method: 'POST',
+              data: itemData
+            });
+            
+            if (!itemResponse.ok) {
+              const errorText = await itemResponse.text();
+              console.error('Failed to add quote item:', errorText);
+              failedItems.push(item.productName);
+            } else {
+              successfulItems++;
+            }
+          } catch (itemError) {
+            console.error('Error adding item:', itemError);
+            failedItems.push(item.productName);
+          }
         }
 
-        toast({
-          title: "Presupuesto actualizado",
-          description: `Presupuesto ${quote.quoteNumber} actualizado exitosamente`,
-        });
+        // Show appropriate message based on results
+        if (failedItems.length === 0) {
+          toast({
+            title: "Presupuesto actualizado",
+            description: `Presupuesto ${quote.quoteNumber} actualizado exitosamente con ${successfulItems} productos`,
+          });
+        } else {
+          toast({
+            title: "Presupuesto actualizado parcialmente",
+            description: `Se actualizaron ${successfulItems} productos, pero fallaron ${failedItems.length}: ${failedItems.join(', ')}`,
+            variant: "destructive",
+          });
+        }
       } else {
         // Create new quote
         const quoteData = {
@@ -2778,36 +2803,64 @@ export default function TomadorPedidos() {
         });
         quote = await response.json();
 
-        // Add quote items
+        // Add quote items with error tracking
+        const failedItems: string[] = [];
+        let successfulItems = 0;
+        
         for (const item of cart) {
-          const itemData = {
-            quoteId: quote.id,
-            type: item.type,
-            productName: item.productName,
-            productCode: item.productCode,
-            customSku: item.customSku,
-            quantity: item.quantity.toString(),
-            unitPrice: item.unitPrice.toString(),
-            totalPrice: item.totalPrice.toString(),
-            costOfProduction: item.costOfProduction?.toString(),
-            profitMargin: item.profitMargin?.toString(),
-            pricingMode: item.pricingMode,
-          };
+          try {
+            const itemData = {
+              quoteId: quote.id,
+              type: item.type,
+              productName: item.productName,
+              productCode: item.productCode,
+              customSku: item.customSku,
+              quantity: item.quantity.toString(),
+              unitPrice: item.unitPrice.toString(),
+              totalPrice: item.totalPrice.toString(),
+              costOfProduction: item.costOfProduction?.toString(),
+              profitMargin: item.profitMargin?.toString(),
+              pricingMode: item.pricingMode,
+            };
 
-          const itemResponse = await apiRequest(`/api/quotes/${quote.id}/items`, {
-            method: 'POST',
-            data: itemData
-          });
+            const itemResponse = await apiRequest(`/api/quotes/${quote.id}/items`, {
+              method: 'POST',
+              data: itemData
+            });
 
-          if (!itemResponse.ok) {
-            console.error('Failed to add quote item:', await itemResponse.text());
+            if (!itemResponse.ok) {
+              const errorText = await itemResponse.text();
+              console.error('Failed to add quote item:', errorText);
+              failedItems.push(item.productName);
+            } else {
+              successfulItems++;
+            }
+          } catch (itemError) {
+            console.error('Error adding item:', itemError);
+            failedItems.push(item.productName);
           }
         }
 
-        toast({
-          title: "Presupuesto guardado",
-          description: `Presupuesto ${quote.quoteNumber} creado exitosamente`,
-        });
+        // Show appropriate message based on results
+        if (failedItems.length === 0) {
+          toast({
+            title: "Presupuesto guardado",
+            description: `Presupuesto ${quote.quoteNumber} creado exitosamente con ${successfulItems} productos`,
+          });
+        } else if (successfulItems > 0) {
+          toast({
+            title: "Presupuesto guardado parcialmente",
+            description: `Se guardaron ${successfulItems} productos, pero fallaron ${failedItems.length}: ${failedItems.join(', ')}`,
+            variant: "destructive",
+          });
+        } else {
+          // All items failed - show error
+          toast({
+            title: "Error al guardar productos",
+            description: `Se creó el presupuesto ${quote.quoteNumber} pero no se pudo guardar ningún producto. Por favor, edite el presupuesto para agregar productos o elimínelo.`,
+            variant: "destructive",
+          });
+        }
       }
 
       // Invalidate quotes query to refresh the list
