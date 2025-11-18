@@ -10266,11 +10266,27 @@ export class DatabaseStorage implements IStorage {
     color?: string;
     limit?: number;
     offset?: number;
-  }): Promise<PriceList[]> {
+  }): Promise<any[]> {
     const limit = filters?.limit || 50;
     const offset = filters?.offset || 0;
     
-    let query = db.select().from(priceList);
+    // Build query with subquery to get average precioMedio (PPP) from inventory_products
+    let query = db
+      .select({
+        priceList: priceList,
+        precioPromedioPonderado: sql<string>`
+          COALESCE(
+            (SELECT AVG(CAST(precio_medio AS NUMERIC))::TEXT 
+             FROM inventory_products 
+             WHERE sku = ${priceList.codigo} 
+             AND precio_medio IS NOT NULL 
+             AND CAST(precio_medio AS NUMERIC) > 0
+            ), 
+            NULL
+          )
+        `.as('precio_promedio_ponderado')
+      })
+      .from(priceList);
     
     // Build where conditions
     const conditions = [];
@@ -10308,8 +10324,12 @@ export class DatabaseStorage implements IStorage {
       .orderBy(priceList.codigo)
       .limit(limit)
       .offset(offset);
-      
-    return items;
+    
+    // Flatten the result to include PPP directly on price list object
+    return items.map(row => ({
+      ...row.priceList,
+      precioPromedioPonderado: row.precioPromedioPonderado
+    }));
   }
 
   async getPriceListCount(search?: string, unidad?: string, tipoProducto?: string, color?: string): Promise<number> {

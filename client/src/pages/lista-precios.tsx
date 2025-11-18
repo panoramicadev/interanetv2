@@ -378,6 +378,7 @@ export default function ListaPrecios() {
                     <TableHead className="text-right">Desc10</TableHead>
                     <TableHead className="text-right">Desc10+5</TableHead>
                     <TableHead className="text-right">Mínimo</TableHead>
+                    <TableHead className="text-right">PPP</TableHead>
                     <TableHead className="w-24">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -404,6 +405,9 @@ export default function ListaPrecios() {
                       </TableCell>
                       <TableCell className="text-right" data-testid={`text-minimo-${item.id}`}>
                         {formatCurrency(item.minimo)}
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-primary" data-testid={`text-ppp-${item.id}`}>
+                        {(item as any).precioPromedioPonderado ? formatCurrency((item as any).precioPromedioPonderado) : '-'}
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
