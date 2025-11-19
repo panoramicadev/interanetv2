@@ -2243,6 +2243,7 @@ export default function ReclamosGeneralesPage() {
                   type="button"
                   variant="outline"
                   onClick={() => cerrarFileInputRef.current?.click()}
+                  onMouseDown={(e) => e.preventDefault()}
                   data-testid="button-upload-cerrar-photos"
                 >
                   <Upload className="h-4 w-4 mr-2" />
@@ -2425,6 +2426,7 @@ export default function ReclamosGeneralesPage() {
                 type="button"
                 variant="outline"
                 onClick={() => resolucionFileInputRef.current?.click()}
+                onMouseDown={(e) => e.preventDefault()}
                 className="w-full mb-4"
                 data-testid="button-add-evidencia"
               >
