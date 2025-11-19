@@ -131,3 +131,27 @@ Preferred communication style: Simple, everyday language.
   - ✅ Gestión de timeouts e intervalos
 - **Impact**: Módulo GDV tiene paridad completa con NVV y ventas_incremental
 - **Status**: ✅ Implementado y testeado en development
+
+### Complaints Resolution - Photo Evidence Now Optional (November 19, 2025)
+- **Issue Resolved**: Critical UX blocker preventing lab and area users from submitting complaint resolutions
+  1. Modal would close unexpectedly when clicking on file upload area
+  2. Form data would be lost without saving
+  3. Photo evidence was mandatory, blocking lab users from submitting resolutions
+- **Root Cause**: 
+  - Radix Dialog's `onInteractOutside` handler was closing modal on any click outside DialogContent, including upload area interactions
+  - Frontend validation required photos before submission
+  - Backend endpoints validated `photos.length > 0`
+- **Solution (Refs-based modal guards + optional validation)**:
+  - **Frontend**: Created `resolucionUploadContainerRef` and `cerrarUploadContainerRef` refs to wrap entire upload areas
+  - **Frontend**: Implemented `onInteractOutside={(e) => { if (ref.current?.contains(e.target)) e.preventDefault(); }}` on both modals
+  - **Frontend**: Removed photo validation from `handleSubmitResolucion`
+  - **Frontend**: Updated UI labels to "Evidencia Fotográfica (Opcional)" with helper text
+  - **Backend**: Changed `/api/reclamos-generales/:id/resolucion-laboratorio` to accept empty photo arrays: `const photoArray = Array.isArray(photos) ? photos : []`
+  - **Backend**: Changed `/api/reclamos-generales/:id/resolucion-area` to accept empty photo arrays
+  - **State Management**: Verified mutations only clean up state on `onSuccess`, not on error
+- **Technical Details**:
+  - Refs cover entire upload module (label, button, file input, preview grid, remove buttons)
+  - Storage layer (`updateResolucionLaboratorio`, `updateResolucionArea`) handles empty arrays gracefully via `for...of` loops
+  - No database constraints block empty photo arrays
+- **Impact**: Lab and area users can now submit resolutions without photos, and modal stays open during file upload interactions
+- **Status**: ✅ Implemented, reviewed by architect, tested in development
