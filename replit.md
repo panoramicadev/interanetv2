@@ -132,26 +132,30 @@ Preferred communication style: Simple, everyday language.
 - **Impact**: Módulo GDV tiene paridad completa con NVV y ventas_incremental
 - **Status**: ✅ Implementado y testeado en development
 
-### Complaints Resolution - Photo Evidence Now Optional (November 19, 2025)
-- **Issue Resolved**: Critical UX blocker preventing lab and area users from submitting complaint resolutions
-  1. Modal would close unexpectedly when clicking on file upload area
+### Complaints Resolution - Modal Closing Bug Fixed (November 19, 2025)
+- **Issue Resolved**: Critical UX blocker - modal closed unexpectedly when users clicked "Adjuntar Fotos" button in complaint resolution workflow
+  1. Modal would close immediately when clicking file upload buttons
   2. Form data would be lost without saving
-  3. Photo evidence was mandatory, blocking lab users from submitting resolutions
+  3. Users could not attach photo evidence to resolutions
 - **Root Cause**: 
-  - Radix Dialog's `onInteractOutside` handler was closing modal on any click outside DialogContent, including upload area interactions
-  - Frontend validation required photos before submission
-  - Backend endpoints validated `photos.length > 0`
-- **Solution (Refs-based modal guards + optional validation)**:
-  - **Frontend**: Created `resolucionUploadContainerRef` and `cerrarUploadContainerRef` refs to wrap entire upload areas
-  - **Frontend**: Implemented `onInteractOutside={(e) => { if (ref.current?.contains(e.target)) e.preventDefault(); }}` on both modals
-  - **Frontend**: Removed photo validation from `handleSubmitResolucion`
-  - **Frontend**: Updated UI labels to "Evidencia Fotográfica (Opcional)" with helper text
-  - **Backend**: Changed `/api/reclamos-generales/:id/resolucion-laboratorio` to accept empty photo arrays: `const photoArray = Array.isArray(photos) ? photos : []`
-  - **Backend**: Changed `/api/reclamos-generales/:id/resolucion-area` to accept empty photo arrays
-  - **State Management**: Verified mutations only clean up state on `onSuccess`, not on error
+  - Hidden `<input type="file">` elements were inside DialogContent DOM tree
+  - When buttons triggered programmatic `.click()` on hidden inputs, Radix Dialog detected this as an "outside interaction" because the inputs were hidden (not in focus trap)
+  - Multiple attempted fixes failed: `onInteractOutside`, `onPointerDownOutside`, `onOpenAutoFocus`, `onMouseDown` preventDefault, and refs-based guards
+- **Solution (createPortal pattern)**:
+  - Created `PortaledFilePicker` component that renders file inputs outside modal DOM using `createPortal(input, document.body)`
+  - Removed all 3 file inputs from inside DialogContent (create reclamo, resolución, cerrar)
+  - File inputs now live in `document.body`, completely invisible to Radix Dialog event system
+  - Button click handlers continue to use refs (`fileInputRef.current?.click()`) exactly as before
+  - All compression, validation, and preview logic unchanged
 - **Technical Details**:
-  - Refs cover entire upload module (label, button, file input, preview grid, remove buttons)
-  - Storage layer (`updateResolucionLaboratorio`, `updateResolucionArea`) handles empty arrays gracefully via `for...of` loops
-  - No database constraints block empty photo arrays
-- **Impact**: Lab and area users can now submit resolutions without photos, and modal stays open during file upload interactions
-- **Status**: ✅ Implemented, reviewed by architect, tested in development
+  - `PortaledFilePicker` wraps input with `style={{ display: 'none', position: 'absolute', left: '-9999px' }}` for maximum compatibility
+  - Three instances rendered at end of component: fileInputRef (create), resolucionFileInputRef (lab resolution), cerrarFileInputRef (close)
+  - Existing event handlers (`handleFileSelect`, `handleResolucionFileSelect`, `handleCerrarFileSelect`) work unchanged
+  - Accessibility preserved: visible buttons remain focusable, hidden inputs act as backing controls
+- **Additional Changes**:
+  - Photo evidence made optional in resolution workflow (validation removed from frontend and backend)
+  - UI labels updated to "Evidencia Fotográfica (Opcional)" with helper text
+  - Backend endpoints accept empty photo arrays gracefully
+- **Design Pattern**: Future file pickers in modals MUST use this portal pattern to avoid same Radix Dialog interaction issues
+- **Impact**: Users can now attach photos to complaint resolutions without modal closing, form data preserved
+- **Status**: ✅ Implemented, reviewed by architect, tested and confirmed working
