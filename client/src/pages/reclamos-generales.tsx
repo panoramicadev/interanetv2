@@ -188,6 +188,10 @@ export default function ReclamosGeneralesPage() {
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{ url: string; description?: string } | null>(null);
   const [showResolucionViewModal, setShowResolucionViewModal] = useState(false);
+  
+  // Refs to prevent modal closure when interacting with file upload areas
+  const resolucionUploadContainerRef = useRef<HTMLDivElement>(null);
+  const cerrarUploadContainerRef = useRef<HTMLDivElement>(null);
   const [showValidacionTecnicaModal, setShowValidacionTecnicaModal] = useState(false);
   const [selectedReclamoId, setSelectedReclamoId] = useState<string | null>(null);
   const [resumenExpanded, setResumenExpanded] = useState(false);
@@ -2183,15 +2187,9 @@ export default function ReclamosGeneralesPage() {
         <DialogContent 
           className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full"
           onInteractOutside={(e) => {
-            // Prevent closing when clicking on file input, upload buttons, preview controls, or drop zones
-            const target = e.target as Element;
-            if (
-              target.closest('input[type="file"]') ||
-              target.closest('button[data-testid="button-upload-cerrar-photos"]') ||
-              target.closest('[data-testid^="button-remove-cerrar"]') ||
-              target.closest('.border-dashed') || // Drop zone area
-              target.closest('img[src^="data:image"]') // Preview images
-            ) {
+            // Prevent closing when clicking anywhere inside the upload container
+            const target = e.target as Node;
+            if (cerrarUploadContainerRef.current?.contains(target)) {
               e.preventDefault();
             }
           }}
@@ -2218,7 +2216,7 @@ export default function ReclamosGeneralesPage() {
             </div>
 
             {/* Fotos de evidencia */}
-            <div>
+            <div ref={cerrarUploadContainerRef}>
               <Label>Evidencia Fotográfica (Opcional)</Label>
               <p className="text-sm text-muted-foreground mb-2">
                 Puede adjuntar fotos que documenten la solución aplicada si lo considera necesario
@@ -2337,15 +2335,9 @@ export default function ReclamosGeneralesPage() {
         <DialogContent 
           className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full"
           onInteractOutside={(e) => {
-            // Prevent closing when clicking on file input, upload buttons, preview controls, or drop zones
-            const target = e.target as Element;
-            if (
-              target.closest('input[type="file"]') || 
-              target.closest('button[data-testid="button-add-evidencia"]') ||
-              target.closest('[data-testid^="button-remove-evidencia"]') ||
-              target.closest('.border-dashed') || // Drop zone area
-              target.closest('img[alt^="Evidencia"]') // Preview images
-            ) {
+            // Prevent closing when clicking anywhere inside the upload container
+            const target = e.target as Node;
+            if (resolucionUploadContainerRef.current?.contains(target)) {
               e.preventDefault();
             }
           }}
@@ -2398,7 +2390,7 @@ export default function ReclamosGeneralesPage() {
             )}
 
             {/* Evidencia fotográfica */}
-            <div>
+            <div ref={resolucionUploadContainerRef}>
               <Label>Evidencia Fotográfica (Opcional)</Label>
               <p className="text-sm text-muted-foreground mb-2">
                 Puede adjuntar fotos de evidencia de la resolución si lo considera necesario
