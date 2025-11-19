@@ -2186,6 +2186,7 @@ export default function ReclamosGeneralesPage() {
       <Dialog open={showCerrarModal} onOpenChange={setShowCerrarModal}>
         <DialogContent 
           className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full"
+          onOpenAutoFocus={(e) => e.preventDefault()}
           onInteractOutside={(e) => {
             // Prevent closing when clicking anywhere inside the upload container
             const target = e.target as Node;
@@ -2341,6 +2342,7 @@ export default function ReclamosGeneralesPage() {
       <Dialog open={showResolucionLaboratorioModal} onOpenChange={setShowResolucionLaboratorioModal}>
         <DialogContent 
           className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full"
+          onOpenAutoFocus={(e) => e.preventDefault()}
           onInteractOutside={(e) => {
             // Prevent closing when clicking anywhere inside the upload container
             const target = e.target as Node;
