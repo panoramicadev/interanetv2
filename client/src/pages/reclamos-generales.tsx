@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -169,6 +170,29 @@ const ESTADO_LABELS: Record<string, { label: string; color: string; icon: any }>
 
 // Organizational roles constant
 const organizationalRoles = ['produccion', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
+
+// Portal-based file picker that lives outside modal DOM tree
+interface PortaledFilePickerProps {
+  inputRef: React.RefObject<HTMLInputElement>;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  accept?: string;
+  multiple?: boolean;
+}
+
+function PortaledFilePicker({ inputRef, onChange, accept = "image/*", multiple = true }: PortaledFilePickerProps) {
+  return createPortal(
+    <input
+      ref={inputRef}
+      type="file"
+      accept={accept}
+      multiple={multiple}
+      onChange={onChange}
+      className="hidden"
+      style={{ display: 'none', position: 'absolute', left: '-9999px' }}
+    />,
+    document.body
+  );
+}
 
 export default function ReclamosGeneralesPage() {
   const { user } = useAuth();
@@ -1810,15 +1834,6 @@ export default function ReclamosGeneralesPage() {
               <div className="space-y-2">
                 <Label>Fotos <span className="text-red-500">*</span></Label>
                 <div className="border-2 border-dashed rounded-lg p-6 text-center">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleFileSelect}
-                    className="hidden"
-                    data-testid="input-file-photos"
-                  />
                   <Button
                     type="button"
                     variant="outline"
@@ -2230,20 +2245,10 @@ export default function ReclamosGeneralesPage() {
                 Puede adjuntar fotos que documenten la solución aplicada si lo considera necesario
               </p>
               <div className="border-2 border-dashed rounded-lg p-6 text-center">
-                <input
-                  ref={cerrarFileInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleCerrarFileSelect}
-                  className="hidden"
-                  data-testid="input-file-cerrar-photos"
-                />
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => cerrarFileInputRef.current?.click()}
-                  onMouseDown={(e) => e.preventDefault()}
                   data-testid="button-upload-cerrar-photos"
                 >
                   <Upload className="h-4 w-4 mr-2" />
@@ -2413,20 +2418,10 @@ export default function ReclamosGeneralesPage() {
                 Puede adjuntar fotos de evidencia de la resolución si lo considera necesario
               </p>
               
-              <input
-                ref={resolucionFileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleResolucionFileSelect}
-                className="hidden"
-              />
-              
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => resolucionFileInputRef.current?.click()}
-                onMouseDown={(e) => e.preventDefault()}
                 className="w-full mb-4"
                 data-testid="button-add-evidencia"
               >
@@ -2766,6 +2761,20 @@ export default function ReclamosGeneralesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Portaled file inputs - rendered outside modal DOM to prevent Radix from detecting clicks */}
+      <PortaledFilePicker
+        inputRef={fileInputRef}
+        onChange={handleFileSelect}
+      />
+      <PortaledFilePicker
+        inputRef={resolucionFileInputRef}
+        onChange={handleResolucionFileSelect}
+      />
+      <PortaledFilePicker
+        inputRef={cerrarFileInputRef}
+        onChange={handleCerrarFileSelect}
+      />
     </div>
   );
 }
