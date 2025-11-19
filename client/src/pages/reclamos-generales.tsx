@@ -2193,6 +2193,13 @@ export default function ReclamosGeneralesPage() {
               e.preventDefault();
             }
           }}
+          onPointerDownOutside={(e) => {
+            // Also prevent pointer down events from closing the modal
+            const target = e.target as Node;
+            if (cerrarUploadContainerRef.current?.contains(target)) {
+              e.preventDefault();
+            }
+          }}
         >
           <DialogHeader>
             <DialogTitle>Cerrar Reclamo</DialogTitle>
@@ -2336,6 +2343,13 @@ export default function ReclamosGeneralesPage() {
           className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full"
           onInteractOutside={(e) => {
             // Prevent closing when clicking anywhere inside the upload container
+            const target = e.target as Node;
+            if (resolucionUploadContainerRef.current?.contains(target)) {
+              e.preventDefault();
+            }
+          }}
+          onPointerDownOutside={(e) => {
+            // Also prevent pointer down events from closing the modal
             const target = e.target as Node;
             if (resolucionUploadContainerRef.current?.contains(target)) {
               e.preventDefault();
