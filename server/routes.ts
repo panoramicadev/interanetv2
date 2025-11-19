@@ -9447,9 +9447,8 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: 'La categoría responsable es requerida' });
       }
       
-      if (!photos || !Array.isArray(photos) || photos.length === 0) {
-        return res.status(400).json({ message: 'Se requiere al menos una foto de evidencia' });
-      }
+      // Photos are now optional - validate only that it's an array if provided
+      const photoArray = Array.isArray(photos) ? photos : [];
       
       // Verificar que el reclamo existe y está en el estado correcto
       const existingReclamo = await storage.getReclamoGeneralById(req.params.id);
@@ -9466,7 +9465,7 @@ export function registerRoutes(app: Express): Server {
       }
       
       const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
-      const reclamo = await storage.updateResolucionLaboratorio(req.params.id, informe, categoriaResponsable, photos, user.id, userName);
+      const reclamo = await storage.updateResolucionLaboratorio(req.params.id, informe, categoriaResponsable, photoArray, user.id, userName);
       
       if (!reclamo) {
         return res.status(409).json({ message: 'El reclamo ya tiene una resolución o fue modificado por otro usuario' });
@@ -9503,9 +9502,8 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: 'La descripción de la resolución es requerida' });
       }
       
-      if (!photos || !Array.isArray(photos) || photos.length === 0) {
-        return res.status(400).json({ message: 'Se requiere al menos una foto de evidencia' });
-      }
+      // Photos are now optional - validate only that it's an array if provided
+      const photoArray = Array.isArray(photos) ? photos : [];
       
       const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
       
@@ -9513,7 +9511,7 @@ export function registerRoutes(app: Express): Server {
         const reclamo = await storage.updateResolucionArea(
           req.params.id, 
           resolucionDescripcion, 
-          photos, 
+          photoArray, 
           user.id, 
           userName,
           user.role

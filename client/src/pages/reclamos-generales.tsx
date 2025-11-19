@@ -763,6 +763,7 @@ export default function ReclamosGeneralesPage() {
 
   // Funciones para fotos de evidencia de resolución del laboratorio
   const handleResolucionFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation(); // Prevent modal from closing
     const files = Array.from(e.target.files || []);
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
     
@@ -819,6 +820,7 @@ export default function ReclamosGeneralesPage() {
 
   // Funciones para fotos de evidencia al cerrar
   const handleCerrarFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation(); // Prevent modal from closing
     const files = Array.from(e.target.files || []);
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
     
@@ -896,18 +898,9 @@ export default function ReclamosGeneralesPage() {
       return;
     }
     
-    if (resolucionPreviewUrls.length === 0) {
-      toast({
-        title: "Error",
-        description: "Debe adjuntar al menos una foto de evidencia",
-        variant: "destructive",
-      });
-      return;
-    }
-    
     if (!selectedReclamoId) return;
 
-    // Prepare photos array
+    // Prepare photos array (optional - can be empty)
     const photos = resolucionPreviewUrls.map(photoUrl => ({
       photoUrl,
       description: isAreaRole ? "Evidencia de resolución del área responsable" : "Evidencia de resolución del laboratorio"
@@ -2187,7 +2180,22 @@ export default function ReclamosGeneralesPage() {
 
       {/* Cerrar Reclamo Modal */}
       <Dialog open={showCerrarModal} onOpenChange={setShowCerrarModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
+        <DialogContent 
+          className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full"
+          onInteractOutside={(e) => {
+            // Prevent closing when clicking on file input, upload buttons, preview controls, or drop zones
+            const target = e.target as Element;
+            if (
+              target.closest('input[type="file"]') ||
+              target.closest('button[data-testid="button-upload-cerrar-photos"]') ||
+              target.closest('[data-testid^="button-remove-cerrar"]') ||
+              target.closest('.border-dashed') || // Drop zone area
+              target.closest('img[src^="data:image"]') // Preview images
+            ) {
+              e.preventDefault();
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Cerrar Reclamo</DialogTitle>
             <DialogDescription>
@@ -2211,9 +2219,9 @@ export default function ReclamosGeneralesPage() {
 
             {/* Fotos de evidencia */}
             <div>
-              <Label>Evidencia Fotográfica <span className="text-red-500">*</span></Label>
+              <Label>Evidencia Fotográfica (Opcional)</Label>
               <p className="text-sm text-muted-foreground mb-2">
-                Adjunte fotos que documenten la solución aplicada
+                Puede adjuntar fotos que documenten la solución aplicada si lo considera necesario
               </p>
               <div className="border-2 border-dashed rounded-lg p-6 text-center">
                 <input
@@ -2235,7 +2243,7 @@ export default function ReclamosGeneralesPage() {
                   Seleccionar Fotos
                 </Button>
                 <p className="text-sm text-muted-foreground mt-2">
-                  Se requiere al menos una foto de evidencia
+                  Opcional: puede añadir fotos de evidencia
                 </p>
               </div>
               
@@ -2289,14 +2297,6 @@ export default function ReclamosGeneralesPage() {
                   });
                   return;
                 }
-                if (cerrarPreviewUrls.length === 0) {
-                  toast({
-                    title: "Error",
-                    description: "Debe adjuntar al menos una foto de evidencia",
-                    variant: "destructive",
-                  });
-                  return;
-                }
                 if (selectedReclamoId) {
                   const photos = cerrarPreviewUrls.map(photoUrl => ({
                     photoUrl,
@@ -2334,7 +2334,22 @@ export default function ReclamosGeneralesPage() {
 
       {/* Modal de Resolución del Laboratorio */}
       <Dialog open={showResolucionLaboratorioModal} onOpenChange={setShowResolucionLaboratorioModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
+        <DialogContent 
+          className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full"
+          onInteractOutside={(e) => {
+            // Prevent closing when clicking on file input, upload buttons, preview controls, or drop zones
+            const target = e.target as Element;
+            if (
+              target.closest('input[type="file"]') || 
+              target.closest('button[data-testid="button-add-evidencia"]') ||
+              target.closest('[data-testid^="button-remove-evidencia"]') ||
+              target.closest('.border-dashed') || // Drop zone area
+              target.closest('img[alt^="Evidencia"]') // Preview images
+            ) {
+              e.preventDefault();
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle>
               {user?.role === 'laboratorio' ? 'Resolución del Laboratorio' : 'Resolución del Área Responsable'}
@@ -2384,9 +2399,9 @@ export default function ReclamosGeneralesPage() {
 
             {/* Evidencia fotográfica */}
             <div>
-              <Label>Evidencia Fotográfica <span className="text-red-500">*</span></Label>
+              <Label>Evidencia Fotográfica (Opcional)</Label>
               <p className="text-sm text-muted-foreground mb-2">
-                Adjunte al menos una foto de evidencia de la resolución
+                Puede adjuntar fotos de evidencia de la resolución si lo considera necesario
               </p>
               
               <input
