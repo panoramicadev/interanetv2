@@ -135,3 +135,23 @@ Preferred communication style: Simple, everyday language.
     - ✅ Reclamos (complaints)
 - **Impact**: Limited plant roles now have a simplified CMMS menu focused on operational tasks (creating OT and viewing schedules) without access to management metrics. Logistica_bodega has access to sales dashboard and invoices for operational oversight but NOT to CMMS dashboard.
 - **Status**: ✅ Implemented and deployed
+
+### Logistica_Bodega - Dashboard and Invoices Access (November 20, 2025)
+- **Issue**: Logistica_bodega role could see Dashboard and Facturas menu items but received 403 errors and "Sin datos previos" / "Error al cargar las facturas"
+- **Root Cause**: Backend middleware `requireCommercialAccess` in server/auth.ts excluded logistica_bodega role from accessing sales data endpoints
+- **Fix**:
+  - **server/auth.ts**: Added `logistica_bodega` to `requireCommercialAccess` middleware (line 343)
+  - Now logistica_bodega can access all commercial module endpoints: /api/sales/*, /api/facturas, /api/nvv/*
+- **Backend Routes Now Accessible**:
+  - `/api/sales/metrics` - Sales KPIs and metrics
+  - `/api/sales/yearly-totals` - Annual sales totals
+  - `/api/sales/best-year` - Best performing year
+  - `/api/sales/chart-data` - Sales charts and visualizations
+  - `/api/sales/segments` - Segment analysis
+  - `/api/sales/transactions` - Transaction history
+  - `/api/sales/top-products` - Top selling products
+  - `/api/sales/top-salespeople` - Top performing salespeople
+  - `/api/sales/top-clients` - Top clients by sales
+  - All invoice and NVV endpoints
+- **Impact**: Logistica_bodega can now fully access and view sales analytics dashboard and invoice management for comprehensive operational oversight
+- **Status**: ✅ Implemented and deployed
