@@ -38,6 +38,9 @@ export const ROLE_TO_AREA_MAP: Record<string, ReclamoArea> = {
   'bodega_materias_primas': RECLAMOS_AREAS.LOGISTICA,
   'prevencion_riesgos': RECLAMOS_AREAS.PRODUCCION,
   
+  // Management roles
+  'jefe_planta': RECLAMOS_AREAS.PRODUCCION,
+  
   // Special roles
   'laboratorio': RECLAMOS_AREAS.LABORATORIO,
 };

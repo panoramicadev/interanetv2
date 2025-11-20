@@ -199,8 +199,8 @@ export default function ReclamosGeneralesPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("mis-reclamos");
   const [filterTab, setFilterTab] = useState(() => {
-    // Initialize with "asignados-area" for area, laboratorio, and organizational roles
-    if (user?.role === 'laboratorio' || user?.role?.startsWith('area_') || (user?.role && organizationalRoles.includes(user.role))) {
+    // Initialize with "asignados-area" for area, laboratorio, jefe_planta, and organizational roles
+    if (user?.role === 'laboratorio' || user?.role === 'jefe_planta' || user?.role?.startsWith('area_') || (user?.role && organizationalRoles.includes(user.role))) {
       return 'asignados-area';
     }
     return 'todos';
@@ -333,13 +333,14 @@ export default function ReclamosGeneralesPage() {
     queryKey: ['/api/reclamos-generales', 'vendedorId', user?.id, 'role', user?.role],
     queryFn: async () => {
       const params = new URLSearchParams();
-      // Técnico de obra, laboratorio, admin, supervisor y roles organizacionales ven todos los reclamos
+      // Técnico de obra, laboratorio, admin, supervisor, jefe_planta y roles organizacionales ven todos los reclamos
       // Roles de área también ven todos para poder filtrar por su área
       const rolesQueVenTodos = [
         'tecnico_obra', 
         'laboratorio', 
         'admin', 
         'supervisor',
+        'jefe_planta',
         'produccion',
         'logistica_bodega',
         'planificacion',
@@ -364,6 +365,7 @@ export default function ReclamosGeneralesPage() {
       user.role === 'supervisor' || 
       user.role === 'tecnico_obra' || 
       user.role === 'laboratorio' || 
+      user.role === 'jefe_planta' ||
       user.role === 'produccion' ||
       user.role === 'logistica_bodega' ||
       user.role === 'planificacion' ||
@@ -914,7 +916,10 @@ export default function ReclamosGeneralesPage() {
     }
 
     // Verificar si es un rol de área o rol organizacional
-    const isAreaRole = user?.role?.startsWith('area_') || (user?.role && organizationalRoles.includes(user.role));
+    // Jefe de planta puede dar resolución a reclamos de producción
+    const isAreaRole = user?.role?.startsWith('area_') || 
+                       (user?.role && organizationalRoles.includes(user.role)) ||
+                       user?.role === 'jefe_planta';
     
     // Solo validar categoriaResponsable para laboratorio
     if (user?.role === 'laboratorio' && !categoriaResponsable) {
@@ -1023,7 +1028,13 @@ export default function ReclamosGeneralesPage() {
                        user?.role?.startsWith('area_') || 
                        organizationalRoles.includes(user?.role || '');
     
-    if (isAreaRole) {
+    // Jefe de planta ve todos los reclamos y los asignados a producción
+    if (user?.role === 'jefe_planta') {
+      tabs.push(
+        { value: 'asignados-area', label: 'Asignados a Producción', icon: Building2 },
+        { value: 'todos', label: 'Todos', icon: List }
+      );
+    } else if (isAreaRole) {
       tabs.push(
         { value: 'asignados-area', label: 'Asignados a Mi Área', icon: Building2 },
         { value: 'todos', label: 'Todos', icon: List }
