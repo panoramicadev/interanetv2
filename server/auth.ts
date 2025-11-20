@@ -326,3 +326,23 @@ export const requireRoles = (roles: string[]) => {
 
 // Convenience middleware for admin/supervisor only
 export const requireAdminOrSupervisor = requireRoles(['admin', 'supervisor']);
+
+// CMMS Module Role-Based Access Control
+// Full access to all CMMS modules (equipos, proveedores, presupuestos, gastos, etc.)
+export const requireCMMSFullAccess = requireRoles(['admin', 'jefe_planta']);
+
+// Maintenance access (OT, planes preventivos, mantenciones, calendario)
+export const requireCMMSMaintenance = requireRoles(['admin', 'jefe_planta', 'mantencion']);
+
+// Plant staff access (ver OT y calendario, crear OT)
+export const requireCMMSPlantStaff = requireRoles([
+  'admin', 
+  'jefe_planta', 
+  'mantencion', 
+  'supervisor', 
+  'laboratorio', 
+  'bodega_materias_primas', 
+  'logistica_bodega', 
+  'produccion', 
+  'planificacion'
+]);
