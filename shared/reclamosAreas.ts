@@ -110,3 +110,12 @@ export function getAreaLabel(area: ReclamoArea | string | null | undefined): str
   if (!normalized) return area;
   return AREA_LABELS[normalized] || area;
 }
+
+/**
+ * Check if a user role can view ALL reclamos from ALL areas
+ * Used for management and administrative oversight
+ */
+export function canViewAllReclamos(userRole: string | undefined | null): boolean {
+  if (!userRole) return false;
+  return ['admin', 'supervisor', 'jefe_planta'].includes(userRole);
+}
