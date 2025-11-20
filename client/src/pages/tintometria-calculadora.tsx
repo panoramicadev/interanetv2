@@ -221,7 +221,7 @@ export default function TintometriaCalculadora() {
   const { toast } = useToast();
   
   // Verificar permisos de acceso
-  if (!user || (user.role !== 'admin' && user.role !== 'laboratorio')) {
+  if (!user || (user.role !== 'admin' && user.role !== 'laboratorio' && user.role !== 'jefe_planta')) {
     return (
       <div className="container mx-auto p-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
