@@ -140,3 +140,13 @@ Preferred communication style: Simple, everyday language.
   - **Sidebar**: Verified inventory link exists for jefe_planta and laboratorio roles
 - **Impact**: All plant roles can now view complete inventory data with prices as intended
 - **Status**: ✅ Fixed and tested
+
+### User Creation - Name Field for All Roles (November 20, 2025)
+- **Issue**: User creation modal did not show name field for roles like jefe_planta, mantencion, laboratorio, produccion, etc.
+- **Root Cause**: Name field (salespersonName) was only displayed when role === "salesperson" or role === "client", excluding all other roles
+- **Fix**:
+  - **Create Modal**: Added name field for all roles except "client" (which has its own client selector)
+  - **Edit Modal**: Updated label from "Nombre del Vendedor" to "Nombre Completo" for consistency
+  - **Field Behavior**: Name field now appears for: admin, supervisor, salesperson, tecnico_obra, jefe_planta, mantencion, laboratorio, produccion, logistica_bodega, planificacion, bodega_materias_primas, prevencion_riesgos, reception
+- **Impact**: All user roles can now be created with proper name identification
+- **Status**: ✅ Fixed and tested
