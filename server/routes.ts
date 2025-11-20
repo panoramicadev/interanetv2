@@ -327,8 +327,8 @@ function requireOwnDataOrAdmin(req: any, res: any, next: any) {
     return res.status(401).json({ message: "No autenticado" });
   }
   
-  // Allow admins and supervisors to access all data
-  if (user.role === 'admin' || user.role === 'supervisor') {
+  // Allow admins, supervisors, and jefe_planta to access all data
+  if (user.role === 'admin' || user.role === 'supervisor' || user.role === 'jefe_planta') {
     return next();
   }
   
