@@ -98,3 +98,16 @@ Preferred communication style: Simple, everyday language.
   - "Cerrados" - Closed complaints
 - **Impact**: Jefe_planta now has comprehensive visibility into all organizational complaints for complete operational oversight
 - **Status**: ✅ Implemented and deployed
+
+### Inventory Module - Sync Button Access for Jefe de Planta (November 20, 2025)
+- **Issue**: Jefe_planta couldn't see the "Sincronizar Catálogo" button in the Inventory module
+- **Root Cause**: Frontend role check for sync button didn't include jefe_planta role (line 116)
+- **Fix**:
+  - **client/src/pages/inventario.tsx**: Added `jefe_planta` to the list of roles allowed to see the sync button
+  - Now jefe_planta can synchronize inventory catalog from SQL Server
+- **New Capabilities for jefe_planta**:
+  - ✅ Access to "Sincronizar Catálogo" button in Inventory page
+  - ✅ Ability to trigger manual inventory synchronization from SQL Server
+  - ✅ Same sync capabilities as admin, supervisor, salesperson, produccion, laboratorio, and logistica_bodega
+- **Impact**: Jefe_planta can now manage inventory synchronization as part of plant operations oversight
+- **Status**: ✅ Implemented and deployed

@@ -113,7 +113,7 @@ export default function Inventario() {
           <h1 className="text-3xl font-bold" data-testid="text-page-title">Inventario</h1>
           <p className="text-muted-foreground">Gestión de stock y disponibilidad de productos</p>
         </div>
-        {(user.role === 'admin' || user.role === 'supervisor' || user.role === 'salesperson' || user.role === 'produccion' || user.role === 'laboratorio' || user.role === 'logistica_bodega') && (
+        {(user.role === 'admin' || user.role === 'supervisor' || user.role === 'salesperson' || user.role === 'jefe_planta' || user.role === 'produccion' || user.role === 'laboratorio' || user.role === 'logistica_bodega') && (
           <SyncCatalogButton />
         )}
       </div>
