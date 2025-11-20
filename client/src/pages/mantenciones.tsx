@@ -2,6 +2,7 @@ import { useState, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { canResolveCMMS, canDeleteCMMS, canCreateOT } from "@/lib/cmmsPermissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -664,8 +665,11 @@ export default function MantencionesPage() {
   const [filtroTecnico, setFiltroTecnico] = useState("todos");
   const [filtroProveedor, setFiltroProveedor] = useState("todos");
 
-  const canSubmitResolution = user?.role === 'produccion' || user?.role === 'admin' || user?.role === 'supervisor';
-  const canManageMantencion = user?.role === 'produccion' || user?.role === 'admin' || user?.role === 'supervisor';
+  // Permisos basados en rol del usuario
+  const canSubmitResolution = canResolveCMMS(user?.role);
+  const canManageMantencion = canResolveCMMS(user?.role);
+  const canDeleteMantencion = canDeleteCMMS(user?.role);
+  const canCreateMantencion = canCreateOT(user?.role);
 
   const { data: mantenciones = [], isLoading } = useQuery<MantencionWithDetails[]>({
     queryKey: ['/api/mantenciones'],
@@ -2177,8 +2181,8 @@ export default function MantencionesPage() {
               </TabsContent>
             </Tabs>
 
-            {/* Botón de eliminar - solo para admin y produccion */}
-            {(user?.role === 'admin' || user?.role === 'produccion') && (
+            {/* Botón de eliminar - solo para admin y jefe_planta */}
+            {canDeleteMantencion && (
               <DialogFooter className="mt-4 border-t pt-4">
                 <Button
                   variant="destructive"

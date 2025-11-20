@@ -10285,7 +10285,7 @@ export function registerRoutes(app: Express): Server {
   // ===== EQUIPOS CRÍTICOS ROUTES =====
   
   // GET all equipos críticos (with filters)
-  app.get('/api/cmms/equipos', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/equipos', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { area, criticidad, estadoActual } = req.query;
       const equipos = await storage.getEquiposCriticos({ area, criticidad, estadoActual });
@@ -10297,7 +10297,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // GET equipo crítico by ID
-  app.get('/api/cmms/equipos/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/equipos/:id', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const equipo = await storage.getEquipoCriticoById(req.params.id);
       if (!equipo) {
@@ -10311,7 +10311,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // GET componentes de un equipo
-  app.get('/api/cmms/equipos/:id/componentes', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/equipos/:id/componentes', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const componentes = await storage.getComponentesDeEquipo(req.params.id);
       res.json(componentes);
@@ -10322,7 +10322,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // GET mantenciones planificadas de un equipo
-  app.get('/api/cmms/equipos/:id/mantenciones-planificadas', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/equipos/:id/mantenciones-planificadas', requireAuth, requireCMMSMaintenance, asyncHandler(async (req: any, res: any) => {
     try {
       const results = await db
         .select({
@@ -10356,7 +10356,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // GET todas las órdenes de trabajo (para exportación)
-  app.get('/api/cmms/ordenes-trabajo', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/ordenes-trabajo', requireAuth, requireCMMSPlantStaff, asyncHandler(async (req: any, res: any) => {
     try {
       const results = await db
         .select({
@@ -10385,7 +10385,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // GET órdenes de trabajo de un equipo
-  app.get('/api/cmms/equipos/:id/ordenes-trabajo', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/equipos/:id/ordenes-trabajo', requireAuth, requireCMMSPlantStaff, asyncHandler(async (req: any, res: any) => {
     try {
       const results = await db
         .select({
@@ -10417,7 +10417,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // GET equipos principales (sin padre)
-  app.get('/api/cmms/equipos-principales', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/equipos-principales', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const equiposPrincipales = await storage.getEquiposPrincipales();
       res.json(equiposPrincipales);
@@ -10428,7 +10428,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // POST create new equipo crítico
-  app.post('/api/cmms/equipos', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/cmms/equipos', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       // Validate input with Zod schema
       const validatedData = insertEquipoCriticoSchema.parse(req.body);
@@ -10445,7 +10445,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // PATCH update equipo crítico
-  app.patch('/api/cmms/equipos/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/cmms/equipos/:id', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       // Validate input with partial schema for updates
       const validatedData = insertEquipoCriticoSchema.partial().parse(req.body);
@@ -10462,7 +10462,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // DELETE equipo crítico
-  app.delete('/api/cmms/equipos/:id', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/cmms/equipos/:id', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       await storage.deleteEquipoCritico(req.params.id);
       res.json({ message: 'Equipo eliminado exitosamente' });
@@ -10475,7 +10475,7 @@ export function registerRoutes(app: Express): Server {
   // ===== PROVEEDORES EXTERNOS ROUTES =====
   
   // GET all proveedores (with filters)
-  app.get('/api/cmms/proveedores', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/proveedores', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { activo } = req.query;
       const proveedores = await storage.getProveedoresMantencion({ 
@@ -10489,7 +10489,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // GET proveedor by ID
-  app.get('/api/cmms/proveedores/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/proveedores/:id', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const proveedor = await storage.getProveedorMantencionById(req.params.id);
       if (!proveedor) {
@@ -10503,7 +10503,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // POST create new proveedor
-  app.post('/api/cmms/proveedores', requireAuth, requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/cmms/proveedores', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       // Validate input with Zod schema
       const validatedData = insertProveedorMantencionSchema.parse(req.body);
@@ -10520,7 +10520,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // PATCH update proveedor
-  app.patch('/api/cmms/proveedores/:id', requireAuth, requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/cmms/proveedores/:id', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       // Validate input with partial schema for updates
       const validatedData = insertProveedorMantencionSchema.partial().parse(req.body);
@@ -10537,7 +10537,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // DELETE proveedor
-  app.delete('/api/cmms/proveedores/:id', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/cmms/proveedores/:id', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       await storage.deleteProveedorMantencion(req.params.id);
       res.json({ message: 'Proveedor eliminado exitosamente' });
@@ -10550,7 +10550,7 @@ export function registerRoutes(app: Express): Server {
   // ===== PRESUPUESTO MANTENCIÓN ROUTES =====
 
   // GET presupuestos con filtros opcionales
-  app.get('/api/cmms/presupuesto', requireAuth, requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/presupuesto', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { anio, area } = req.query;
       const filters: { anio?: number; area?: string } = {};
@@ -10571,7 +10571,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // POST create presupuesto
-  app.post('/api/cmms/presupuesto', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/cmms/presupuesto', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       // Validate input with Zod schema
       const validatedData = insertPresupuestoMantencionSchema.parse(req.body);
@@ -10588,7 +10588,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // PATCH update presupuesto
-  app.patch('/api/cmms/presupuesto/:id', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/cmms/presupuesto/:id', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       // Validate input with partial schema for updates
       const validatedData = insertPresupuestoMantencionSchema.partial().parse(req.body);
@@ -10605,7 +10605,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // DELETE presupuesto
-  app.delete('/api/cmms/presupuesto/:id', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/cmms/presupuesto/:id', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       await storage.deletePresupuestoMantencion(req.params.id);
       res.json({ message: 'Presupuesto eliminado exitosamente' });
@@ -10618,7 +10618,7 @@ export function registerRoutes(app: Express): Server {
   // ===== GASTOS DE MATERIALES ROUTES =====
 
   // GET gastos de materiales (with filters and pagination)
-  app.get('/api/cmms/gastos-materiales', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/gastos-materiales', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { otId, area, anio, mes, startDate, endDate, page, pageSize } = req.query;
       const result = await storage.getGastosMaterialesMantencion({ 
@@ -10639,7 +10639,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // GET gasto by ID
-  app.get('/api/cmms/gastos-materiales/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/gastos-materiales/:id', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const gasto = await storage.getGastoMaterialMantencionById(req.params.id);
       if (!gasto) {
@@ -10653,7 +10653,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // POST create gasto
-  app.post('/api/cmms/gastos-materiales', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/cmms/gastos-materiales', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const validatedData = insertGastoMaterialMantencionSchema.parse(req.body);
       const gasto = await storage.createGastoMaterialMantencion(validatedData);
@@ -10668,7 +10668,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // PATCH update gasto
-  app.patch('/api/cmms/gastos-materiales/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/cmms/gastos-materiales/:id', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const validatedData = insertGastoMaterialMantencionSchema.partial().parse(req.body);
       const gasto = await storage.updateGastoMaterialMantencion(req.params.id, validatedData);
@@ -10683,7 +10683,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // DELETE gasto
-  app.delete('/api/cmms/gastos-materiales/:id', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/cmms/gastos-materiales/:id', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       await storage.deleteGastoMaterialMantencion(req.params.id);
       res.json({ message: 'Gasto eliminado exitosamente' });
@@ -10696,7 +10696,7 @@ export function registerRoutes(app: Express): Server {
   // ===== PLANES PREVENTIVOS ROUTES =====
 
   // GET plantilla Excel para gastos materiales (DEBE IR ANTES DE /:id)
-  app.get('/api/cmms/gastos-materiales/plantilla-excel', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/gastos-materiales/plantilla-excel', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       // Crear workbook y worksheet
       const wb = XLSX.utils.book_new();
@@ -10979,7 +10979,7 @@ export function registerRoutes(app: Express): Server {
   };
 
   // POST importar Excel de gastos materiales (DEBE IR ANTES DE /:id)
-  app.post('/api/cmms/gastos-materiales/importar-excel', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), upload.single('file'), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/cmms/gastos-materiales/importar-excel', requireAuth, requireCMMSFullAccess, upload.single('file'), asyncHandler(async (req: any, res: any) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: 'No se envió ningún archivo' });
@@ -11023,7 +11023,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // GET gasto by ID
-  app.get('/api/cmms/gastos-materiales/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/gastos-materiales/:id', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const gasto = await storage.getGastoMaterialMantencionById(req.params.id);
       if (!gasto) {
@@ -11037,7 +11037,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // POST create gasto
-  app.post('/api/cmms/gastos-materiales', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/cmms/gastos-materiales', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       console.log('[DEBUG] Datos recibidos en POST gastos-materiales:', JSON.stringify(req.body, null, 2));
       
@@ -11057,7 +11057,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // PUT update gasto (full update)
-  app.put('/api/cmms/gastos-materiales/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.put('/api/cmms/gastos-materiales/:id', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       // Validate input with Zod schema (full update)
       const validatedData = insertGastoMaterialMantencionSchema.parse(req.body);
@@ -11084,7 +11084,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // PATCH update gasto (partial update)
-  app.patch('/api/cmms/gastos-materiales/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/cmms/gastos-materiales/:id', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       // Validate input with partial schema for updates
       const validatedData = insertGastoMaterialMantencionSchema.partial().parse(req.body);
@@ -11101,7 +11101,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // DELETE gasto
-  app.delete('/api/cmms/gastos-materiales/:id', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/cmms/gastos-materiales/:id', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       await storage.deleteGastoMaterialMantencion(req.params.id);
       res.json({ message: 'Gasto eliminado exitosamente' });
@@ -11114,7 +11114,7 @@ export function registerRoutes(app: Express): Server {
   // ===== PLANES PREVENTIVOS ROUTES =====
 
   // GET planes preventivos (with filters)
-  app.get('/api/cmms/planes-preventivos', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/planes-preventivos', requireAuth, requireCMMSMaintenance, asyncHandler(async (req: any, res: any) => {
     try {
       const { equipoId, activo } = req.query;
       const planes = await storage.getPlanesPreventivos({ 
@@ -11129,7 +11129,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // GET planes preventivos vencidos  
-  app.get('/api/cmms/planes-preventivos/vencidos', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/planes-preventivos/vencidos', requireAuth, requireCMMSMaintenance, asyncHandler(async (req: any, res: any) => {
     try {
       const planes = await storage.getPlanesPreventivosVencidos();
       res.json(planes);
@@ -11140,7 +11140,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // GET plan preventivo by ID
-  app.get('/api/cmms/planes-preventivos/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/planes-preventivos/:id', requireAuth, requireCMMSMaintenance, asyncHandler(async (req: any, res: any) => {
     try {
       const plan = await storage.getPlanPreventivoById(req.params.id);
       if (!plan) {
@@ -11154,7 +11154,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // POST create plan preventivo
-  app.post('/api/cmms/planes-preventivos', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/cmms/planes-preventivos', requireAuth, requireCMMSMaintenance, asyncHandler(async (req: any, res: any) => {
     try {
       const validatedData = insertPlanPreventivoSchema.parse(req.body);
       const plan = await storage.createPlanPreventivo(validatedData);
@@ -11169,7 +11169,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // PATCH update plan preventivo
-  app.patch('/api/cmms/planes-preventivos/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/cmms/planes-preventivos/:id', requireAuth, requireCMMSMaintenance, asyncHandler(async (req: any, res: any) => {
     try {
       const validatedData = insertPlanPreventivoSchema.partial().parse(req.body);
       const plan = await storage.updatePlanPreventivo(req.params.id, validatedData);
@@ -11184,7 +11184,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // DELETE plan preventivo
-  app.delete('/api/cmms/planes-preventivos/:id', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/cmms/planes-preventivos/:id', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       await storage.deletePlanPreventivo(req.params.id);
       res.json({ message: 'Plan eliminado exitosamente' });
@@ -11197,7 +11197,7 @@ export function registerRoutes(app: Express): Server {
   // ===== PLANES PREVENTIVOS ROUTES =====
 
   // GET planes preventivos (with filters)
-  app.get('/api/cmms/planes-preventivos', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/planes-preventivos', requireAuth, requireCMMSMaintenance, asyncHandler(async (req: any, res: any) => {
     try {
       const { equipoId, activo } = req.query;
       const planes = await storage.getPlanesPreventivos({ 
@@ -11212,7 +11212,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // GET planes preventivos vencidos
-  app.get('/api/cmms/planes-preventivos/vencidos', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/planes-preventivos/vencidos', requireAuth, requireCMMSMaintenance, asyncHandler(async (req: any, res: any) => {
     try {
       const planes = await storage.getPlanesPreventivosVencidos();
       res.json(planes);
@@ -11223,7 +11223,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // GET plan preventivo by ID
-  app.get('/api/cmms/planes-preventivos/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/planes-preventivos/:id', requireAuth, requireCMMSMaintenance, asyncHandler(async (req: any, res: any) => {
     try {
       const plan = await storage.getPlanPreventivoById(req.params.id);
       if (!plan) {
@@ -11237,7 +11237,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // POST create plan preventivo
-  app.post('/api/cmms/planes-preventivos', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/cmms/planes-preventivos', requireAuth, requireCMMSMaintenance, asyncHandler(async (req: any, res: any) => {
     try {
       // Validate input with Zod schema
       const validatedData = insertPlanPreventivoSchema.parse(req.body);
@@ -11254,7 +11254,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // PATCH update plan preventivo
-  app.patch('/api/cmms/planes-preventivos/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/cmms/planes-preventivos/:id', requireAuth, requireCMMSMaintenance, asyncHandler(async (req: any, res: any) => {
     try {
       // Validate input with partial schema for updates
       const validatedData = insertPlanPreventivoSchema.partial().parse(req.body);
@@ -11271,7 +11271,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // DELETE plan preventivo
-  app.delete('/api/cmms/planes-preventivos/:id', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/cmms/planes-preventivos/:id', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       await storage.deletePlanPreventivo(req.params.id);
       res.json({ message: 'Plan eliminado exitosamente' });
@@ -11284,7 +11284,7 @@ export function registerRoutes(app: Express): Server {
   // ===== MANTENCIONES PLANIFICADAS =====
 
   // GET lista de mantenciones planificadas
-  app.get('/api/cmms/mantenciones-planificadas', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/mantenciones-planificadas', requireAuth, requireCMMSMaintenance, asyncHandler(async (req: any, res: any) => {
     try {
       const { anio, estado, area } = req.query;
       const filters: any = {};
@@ -11301,7 +11301,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // GET mantención planificada por ID
-  app.get('/api/cmms/mantenciones-planificadas/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/mantenciones-planificadas/:id', requireAuth, requireCMMSMaintenance, asyncHandler(async (req: any, res: any) => {
     try {
       const mantencion = await storage.getMantencionPlanificadaById(req.params.id);
       if (!mantencion) {
@@ -11315,7 +11315,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // POST crear mantención planificada
-  app.post('/api/cmms/mantenciones-planificadas', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/cmms/mantenciones-planificadas', requireAuth, requireCMMSMaintenance, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       console.log('[MANTENCION-CREATE] Body recibido:', JSON.stringify(req.body, null, 2));
@@ -11341,7 +11341,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // PATCH actualizar mantención planificada
-  app.patch('/api/cmms/mantenciones-planificadas/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/cmms/mantenciones-planificadas/:id', requireAuth, requireCMMSMaintenance, asyncHandler(async (req: any, res: any) => {
     try {
       console.log('[MANTENCION-UPDATE] ID:', req.params.id);
       console.log('[MANTENCION-UPDATE] Body recibido:', JSON.stringify(req.body, null, 2));
@@ -11361,7 +11361,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // DELETE mantención planificada
-  app.delete('/api/cmms/mantenciones-planificadas/:id', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/cmms/mantenciones-planificadas/:id', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       await storage.deleteMantencionPlanificada(req.params.id);
       res.json({ message: 'Mantención planificada eliminada exitosamente' });
@@ -11372,7 +11372,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // GET presupuesto ejecutado del mes (gastos reales de OTs)
-  app.get('/api/cmms/presupuesto-ejecutado/:anio/:mes', requireAuth, requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/presupuesto-ejecutado/:anio/:mes', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { anio, mes } = req.params;
       const { area } = req.query;
@@ -11391,7 +11391,7 @@ export function registerRoutes(app: Express): Server {
   // ===== CMMS METRICS & DASHBOARDS =====
 
   // GET CMMS metrics/KPIs
-  app.get('/api/cmms/metrics', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/cmms/metrics', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { startDate, endDate, area } = req.query;
       const metrics = await storage.getCMMSMetrics({ startDate, endDate, area });
@@ -11403,7 +11403,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // POST ejecutar scheduler de mantenimiento preventivo (TEMPORAL - SOLO PARA PRUEBAS)
-  app.post('/api/cmms/scheduler/run-preventive', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/cmms/scheduler/run-preventive', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       console.log('🔧 [MANUAL] Ejecutando scheduler de mantenimiento preventivo...');
       const otsGenerated = await storage.processPreventiveMaintenanceSchedule();

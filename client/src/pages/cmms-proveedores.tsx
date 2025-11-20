@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/useAuth";
+import { canAccessCMMSFull, canEditCMMS, canDeleteCMMS } from "@/lib/cmmsPermissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -84,8 +86,14 @@ const proveedorSchema = z.object({
 type ProveedorFormValues = z.infer<typeof proveedorSchema>;
 
 export default function CMmsProveedores() {
+  const { user } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  
+  // Permisos basados en rol
+  const canAccessFull = canAccessCMMSFull(user?.role);
+  const canEdit = canEditCMMS(user?.role);
+  const canDelete = canDeleteCMMS(user?.role);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterEstado, setFilterEstado] = useState<string>("all");
@@ -315,10 +323,12 @@ export default function CMmsProveedores() {
               </p>
             </div>
           </div>
-          <Button onClick={() => handleOpenDialog()} data-testid="button-create">
-            <Plus className="mr-2 h-4 w-4" />
-            Nuevo Proveedor
-          </Button>
+          {canAccessFull && (
+            <Button onClick={() => handleOpenDialog()} data-testid="button-create">
+              <Plus className="mr-2 h-4 w-4" />
+              Nuevo Proveedor
+            </Button>
+          )}
         </div>
 
         {/* Filters */}
@@ -397,22 +407,26 @@ export default function CMmsProveedores() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleOpenDialog(proveedor)}
-                              data-testid={`button-edit-${proveedor.id}`}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDeleteClick(proveedor.id)}
-                              data-testid={`button-delete-${proveedor.id}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {canEdit && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleOpenDialog(proveedor)}
+                                data-testid={`button-edit-${proveedor.id}`}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {canDelete && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteClick(proveedor.id)}
+                                data-testid={`button-delete-${proveedor.id}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

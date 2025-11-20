@@ -204,6 +204,211 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
 
   ],
   
+  jefe_planta: [
+    {
+      href: "/notificaciones",
+      label: "Notificaciones",
+      icon: Bell,
+    },
+    {
+      href: "/",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      href: "/crm",
+      label: "CRM",
+      icon: ClipboardList,
+    },
+    {
+      href: "/metas",
+      label: "Gestión de Metas",
+      icon: Target,
+    },
+    {
+      href: "/facturas",
+      label: "Facturas",
+      icon: Receipt,
+    },
+    {
+      href: "/usuarios",
+      label: "Gestión de Usuarios",
+      icon: User,
+    },
+    {
+      href: "/lista-precios",
+      label: "Lista de Precios",
+      icon: DollarSign,
+    },
+    {
+      href: "/ecommerce",
+      label: "eCommerce",
+      icon: ShoppingCart,
+    },
+    {
+      href: "/clientes",
+      label: "Gestión de Clientes",
+      icon: Users,
+      separator: true, // Separador antes de Tomador de Pedidos
+    },
+    {
+      href: "/tomador-pedidos",
+      label: "Tomador de Pedidos",
+      icon: ClipboardCheck,
+    },
+    {
+      href: "/visitas-tecnicas",
+      label: "Visita Técnica",
+      icon: FileCheck,
+    },
+    {
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
+    },
+    {
+      href: "/mantenciones",
+      label: "Mantención",
+      icon: Wrench,
+      children: [
+        {
+          href: "/cmms",
+          label: "Dashboard CMMS",
+          icon: LayoutDashboard,
+        },
+        {
+          href: "/cmms/mantenciones-planificadas",
+          label: "Mantenciones Planificadas",
+          icon: TrendingUp,
+        },
+        {
+          href: "/mantenciones",
+          label: "Órdenes de Trabajo",
+          icon: Wrench,
+        },
+        {
+          href: "/cmms/equipos",
+          label: "Equipos Críticos",
+          icon: Settings,
+        },
+        {
+          href: "/cmms/proveedores",
+          label: "Proveedores",
+          icon: Users,
+        },
+        {
+          href: "/cmms/presupuesto",
+          label: "Presupuesto",
+          icon: DollarSign,
+        },
+        {
+          href: "/cmms/gastos-materiales",
+          label: "Gastos de Materiales",
+          icon: Receipt,
+        },
+        {
+          href: "/cmms/planes-preventivos",
+          label: "Planes Preventivos",
+          icon: Calendar,
+        },
+        {
+          href: "/cmms/calendario",
+          label: "Calendario",
+          icon: Calendar,
+        },
+      ],
+    },
+    {
+      href: "/marketing",
+      label: "Marketing",
+      icon: TrendingUp,
+    },
+    {
+      href: "/gastos-empresariales",
+      label: "Rendición de Gastos",
+      icon: Banknote,
+    },
+    {
+      href: "/inventario",
+      label: "Inventario",
+      icon: Warehouse,
+    },
+    {
+      href: "/etl-monitor",
+      label: "Monitor ETL",
+      icon: Database,
+    },
+    {
+      href: "/api-keys",
+      label: "API Keys",
+      icon: Key,
+      separator: true,
+    },
+    {
+      href: "/tintometria",
+      label: "Tintometría",
+      icon: Palette,
+      children: [
+        {
+          href: "/tintometria/admin",
+          label: "Administrar Datos",
+          icon: Settings,
+        },
+        {
+          href: "/tintometria/calculadora",
+          label: "Calcular Costos",
+          icon: DollarSign,
+        },
+        {
+          href: "/tintometria/selector",
+          label: "Selector Visual",
+          icon: PaintBucket,
+        },
+      ],
+    },
+
+  ],
+  
+  mantencion: [
+    {
+      href: "/notificaciones",
+      label: "Notificaciones",
+      icon: Bell,
+    },
+    {
+      href: "/mantenciones",
+      label: "Mantención",
+      icon: Wrench,
+      children: [
+        {
+          href: "/cmms",
+          label: "Dashboard CMMS",
+          icon: LayoutDashboard,
+        },
+        {
+          href: "/mantenciones",
+          label: "Órdenes de Trabajo",
+          icon: Wrench,
+        },
+        {
+          href: "/cmms/mantenciones-planificadas",
+          label: "Mantenciones Planificadas",
+          icon: TrendingUp,
+        },
+        {
+          href: "/cmms/planes-preventivos",
+          label: "Planes Preventivos",
+          icon: Calendar,
+        },
+        {
+          href: "/cmms/calendario",
+          label: "Calendario",
+          icon: Calendar,
+        },
+      ],
+    },
+  ],
+  
   supervisor: [
     {
       href: "/notificaciones",
@@ -560,39 +765,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: LayoutDashboard,
         },
         {
-          href: "/cmms/mantenciones-planificadas",
-          label: "Mantenciones Planificadas",
-          icon: TrendingUp,
-        },
-        {
           href: "/mantenciones",
           label: "Órdenes de Trabajo",
           icon: Wrench,
-        },
-        {
-          href: "/cmms/equipos",
-          label: "Equipos Críticos",
-          icon: Settings,
-        },
-        {
-          href: "/cmms/proveedores",
-          label: "Proveedores",
-          icon: Users,
-        },
-        {
-          href: "/cmms/presupuesto",
-          label: "Presupuesto",
-          icon: DollarSign,
-        },
-        {
-          href: "/cmms/gastos-materiales",
-          label: "Gastos de Materiales",
-          icon: Receipt,
-        },
-        {
-          href: "/cmms/planes-preventivos",
-          label: "Planes Preventivos",
-          icon: Calendar,
         },
         {
           href: "/cmms/calendario",
@@ -634,6 +809,23 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/mantenciones",
       label: "Mantención",
       icon: Wrench,
+      children: [
+        {
+          href: "/cmms",
+          label: "Dashboard CMMS",
+          icon: LayoutDashboard,
+        },
+        {
+          href: "/mantenciones",
+          label: "Órdenes de Trabajo",
+          icon: Wrench,
+        },
+        {
+          href: "/cmms/calendario",
+          label: "Calendario",
+          icon: Calendar,
+        },
+      ],
     },
   ],
 
@@ -647,6 +839,23 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/mantenciones",
       label: "Mantención",
       icon: Wrench,
+      children: [
+        {
+          href: "/cmms",
+          label: "Dashboard CMMS",
+          icon: LayoutDashboard,
+        },
+        {
+          href: "/mantenciones",
+          label: "Órdenes de Trabajo",
+          icon: Wrench,
+        },
+        {
+          href: "/cmms/calendario",
+          label: "Calendario",
+          icon: Calendar,
+        },
+      ],
     },
   ],
 
@@ -660,6 +869,23 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/mantenciones",
       label: "Mantención",
       icon: Wrench,
+      children: [
+        {
+          href: "/cmms",
+          label: "Dashboard CMMS",
+          icon: LayoutDashboard,
+        },
+        {
+          href: "/mantenciones",
+          label: "Órdenes de Trabajo",
+          icon: Wrench,
+        },
+        {
+          href: "/cmms/calendario",
+          label: "Calendario",
+          icon: Calendar,
+        },
+      ],
     },
   ],
 
