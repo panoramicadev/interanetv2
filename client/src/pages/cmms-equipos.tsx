@@ -400,10 +400,15 @@ export default function CMMSEquipos() {
   };
 
   const exportToExcel = async (equipoDetalle?: any, mantenciones?: any[], ordenes?: any[]) => {
-    const wb = XLSX.utils.book_new();
-    const today = new Date().toISOString().split('T')[0];
+    try {
+      alert(`🔍 FUNCIÓN EXPORTAR LLAMADA\nequipoDetalle: ${equipoDetalle ? 'SÍ (específico)' : 'NO (completo)'}`);
+      console.log('🔍 exportToExcel llamada con:', { equipoDetalle, mantenciones, ordenes });
+      
+      const wb = XLSX.utils.book_new();
+      const today = new Date().toISOString().split('T')[0];
 
-    if (equipoDetalle) {
+      if (equipoDetalle) {
+        alert('✅ RUTA: Exportación de equipo ESPECÍFICO');
       // Exportar equipo específico con historial
       const mantencionesData = mantenciones || [];
       const ordenesData = ordenes || [];
@@ -605,6 +610,16 @@ export default function CMMSEquipos() {
           variant: "destructive"
         });
       }
+    }
+    } catch (globalError: any) {
+      const errorMsg = globalError?.message || String(globalError);
+      console.error('❌ ERROR GLOBAL EN EXPORTACIÓN:', globalError);
+      alert(`ERROR GLOBAL AL EXPORTAR:\n${errorMsg}`);
+      toast({ 
+        title: "Error al exportar", 
+        description: errorMsg,
+        variant: "destructive"
+      });
     }
   };
 
