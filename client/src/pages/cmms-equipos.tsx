@@ -951,7 +951,7 @@ export default function CMMSEquipos() {
                     <FormItem>
                       <FormLabel>Código</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Ej: EQ-001" data-testid="input-codigo" />
+                        <Input {...field} value={field.value || ""} placeholder="Ej: EQ-001" data-testid="input-codigo" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -992,7 +992,7 @@ export default function CMMSEquipos() {
                     <FormItem>
                       <FormLabel>Ubicación</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Ej: Sala de Reactores" data-testid="input-ubicacion" />
+                        <Input {...field} value={field.value || ""} placeholder="Ej: Sala de Reactores" data-testid="input-ubicacion" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -1057,7 +1057,7 @@ export default function CMMSEquipos() {
                   <FormItem>
                     <FormLabel>Descripción</FormLabel>
                     <FormControl>
-                      <Textarea {...field} placeholder="Descripción del equipo" rows={3} data-testid="textarea-descripcion" />
+                      <Textarea {...field} value={field.value || ""} placeholder="Descripción del equipo" rows={3} data-testid="textarea-descripcion" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1072,7 +1072,7 @@ export default function CMMSEquipos() {
                     <FormItem>
                       <FormLabel>Fabricante</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Ej: Siemens" data-testid="input-fabricante" />
+                        <Input {...field} value={field.value || ""} placeholder="Ej: Siemens" data-testid="input-fabricante" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -1086,7 +1086,7 @@ export default function CMMSEquipos() {
                     <FormItem>
                       <FormLabel>Modelo</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Ej: XR-500" data-testid="input-modelo" />
+                        <Input {...field} value={field.value || ""} placeholder="Ej: XR-500" data-testid="input-modelo" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -1100,7 +1100,7 @@ export default function CMMSEquipos() {
                     <FormItem>
                       <FormLabel>Número de Serie</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Ej: SN12345" data-testid="input-numero-serie" />
+                        <Input {...field} value={field.value || ""} placeholder="Ej: SN12345" data-testid="input-numero-serie" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -1115,7 +1115,7 @@ export default function CMMSEquipos() {
                   <FormItem>
                     <FormLabel>Fecha de Instalación</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} data-testid="input-fecha-instalacion" />
+                      <Input type="date" {...field} value={field.value || ""} data-testid="input-fecha-instalacion" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
