@@ -6,6 +6,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { CartProvider } from "@/contexts/CartContext";
 import { FilterProvider } from "@/contexts/FilterContext";
 import { UpdateNotification } from "@/components/UpdateNotification";
+import { 
+  canViewCMMS, 
+  canAccessCMMSFull, 
+  canAccessPlanesPreventivos, 
+  canAccessMantencionesPlanificadas, 
+  canAccessGastosMateriales, 
+  canViewCalendar 
+} from "@/lib/cmmsPermissions";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import Landing from "@/pages/landing";
 import Login from "@/pages/login";
@@ -177,72 +185,72 @@ function Router() {
             <Route path="/reclamos-generales" component={ReclamosGeneralesPage} />
             <Route path="/mantenciones" component={MantencionesPage} />
             <Route path="/cmms" component={() => {
-              // Solo admin, supervisor y produccion pueden acceder al CMMS
-              if (!user?.role || !['admin', 'supervisor', 'produccion'].includes(user.role)) {
+              // Todos los roles de planta pueden ver el dashboard CMMS
+              if (!canViewCMMS(user?.role)) {
                 window.location.replace('/');
                 return null;
               }
               return <CMMSDashboard />;
             }} />
             <Route path="/cmms/dashboard" component={() => {
-              // Solo admin, supervisor y produccion pueden acceder al CMMS
-              if (!user?.role || !['admin', 'supervisor', 'produccion'].includes(user.role)) {
+              // Todos los roles de planta pueden ver el dashboard CMMS
+              if (!canViewCMMS(user?.role)) {
                 window.location.replace('/');
                 return null;
               }
               return <CMMSDashboard />;
             }} />
             <Route path="/cmms/equipos" component={() => {
-              // Solo admin, supervisor y produccion pueden acceder a equipos
-              if (!user?.role || !['admin', 'supervisor', 'produccion'].includes(user.role)) {
+              // Solo admin y jefe_planta pueden gestionar equipos
+              if (!canAccessCMMSFull(user?.role)) {
                 window.location.replace('/');
                 return null;
               }
               return <CMMSEquipos />;
             }} />
             <Route path="/cmms/proveedores" component={() => {
-              // Solo admin, supervisor y produccion pueden acceder a proveedores
-              if (!user?.role || !['admin', 'supervisor', 'produccion'].includes(user.role)) {
+              // Solo admin y jefe_planta pueden gestionar proveedores
+              if (!canAccessCMMSFull(user?.role)) {
                 window.location.replace('/');
                 return null;
               }
               return <CMmsProveedores />;
             }} />
             <Route path="/cmms/presupuesto" component={() => {
-              // Solo admin, supervisor y produccion pueden acceder a presupuesto
-              if (!user?.role || !['admin', 'supervisor', 'produccion'].includes(user.role)) {
+              // Solo admin y jefe_planta pueden gestionar presupuesto
+              if (!canAccessCMMSFull(user?.role)) {
                 window.location.replace('/');
                 return null;
               }
               return <CMmsPresupuesto />;
             }} />
             <Route path="/cmms/gastos-materiales" component={() => {
-              // Solo admin, supervisor y produccion pueden acceder a gastos
-              if (!user?.role || !['admin', 'supervisor', 'produccion'].includes(user.role)) {
+              // Solo admin y jefe_planta pueden ver gastos de materiales
+              if (!canAccessGastosMateriales(user?.role)) {
                 window.location.replace('/');
                 return null;
               }
               return <CMmsGastosMateriales />;
             }} />
             <Route path="/cmms/planes-preventivos" component={() => {
-              // Solo admin, supervisor y produccion pueden acceder a planes
-              if (!user?.role || !['admin', 'supervisor', 'produccion'].includes(user.role)) {
+              // Admin, jefe_planta y mantencion pueden gestionar planes preventivos
+              if (!canAccessPlanesPreventivos(user?.role)) {
                 window.location.replace('/');
                 return null;
               }
               return <CMmsPlanesPreventivos />;
             }} />
             <Route path="/cmms/mantenciones-planificadas" component={() => {
-              // Solo admin, supervisor y produccion pueden acceder a mantenciones planificadas
-              if (!user?.role || !['admin', 'supervisor', 'produccion'].includes(user.role)) {
+              // Admin, jefe_planta y mantencion pueden gestionar mantenciones planificadas
+              if (!canAccessMantencionesPlanificadas(user?.role)) {
                 window.location.replace('/');
                 return null;
               }
               return <CmmsMantencionesPlanificadas />;
             }} />
             <Route path="/cmms/calendario" component={() => {
-              // Solo admin, supervisor y produccion pueden acceder al calendario
-              if (!user?.role || !['admin', 'supervisor', 'produccion'].includes(user.role)) {
+              // Todos los roles de planta pueden ver el calendario
+              if (!canViewCalendar(user?.role)) {
                 window.location.replace('/');
                 return null;
               }
