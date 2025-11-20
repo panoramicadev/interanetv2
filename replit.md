@@ -42,3 +42,39 @@ Preferred communication style: Simple, everyday language.
 - **Date Handling**: date-fns
 - **PDF Generation**: @react-pdf/renderer
 - **CSV Parsing**: Papa Parse
+
+## Recent Updates
+
+### Jefe de Planta - Full Dashboard Access (November 20, 2025)
+- **Issue**: Jefe_planta could see dashboard but couldn't access detail pages like salesperson details, segment details, or branch details - received 403 errors
+- **Root Cause**: Backend middleware `requireOwnDataOrAdmin` only allowed admin, supervisor, and salesperson roles to access vendor-specific data endpoints
+- **Fix**:
+  - **server/routes.ts**: Updated `requireOwnDataOrAdmin` middleware to include `jefe_planta` role with full access to all salesperson data (line 334)
+  - Now jefe_planta has same access level as admin and supervisor for viewing all sales data
+- **New Capabilities for jefe_planta**:
+  - ✅ View individual salesperson performance details (`/salesperson/:name`)
+  - ✅ Access segment analysis and breakdowns (`/segment/:name`)
+  - ✅ View branch (sucursal) sales details (`/sucursal/:name`)
+  - ✅ Access all dashboard drill-down functionality
+  - ✅ View comparative sales tables and charts
+  - ✅ Access metrics, transactions, and client data for any salesperson
+- **Backend Routes Now Accessible**:
+  - `/api/sales/metrics/salesperson/:salespersonName`
+  - `/api/salespeople/:salespersonName/transactions/recent`
+  - `/api/sales/salesperson/:salespersonName/metrics`
+  - All segment and branch analytics endpoints
+- **Impact**: Jefe_planta can now fully utilize all dashboard features and derived pages for comprehensive sales oversight
+- **Status**: ✅ Implemented and deployed
+
+### CMMS Module - Route Access Fixed for All Plant Roles (November 20, 2025)
+- **Issue**: All plant roles (jefe_planta, mantencion, laboratorio, produccion, etc.) could not access CMMS modules - page would restart/redirect
+- **Root Cause**: App.tsx routing had hardcoded role checks instead of using granular permission functions
+- **Fix**: Updated all CMMS routes to use permission functions from `cmmsPermissions.ts`
+- **Impact**: All plant roles can now access their permitted CMMS modules
+- **Status**: ✅ Fixed and deployed
+
+### Sidebar Configuration - Notificaciones Position (November 20, 2025)
+- **Change**: Moved "Notificaciones" menu item to top position (above Dashboard) for jefe_planta role
+- **File**: `client/src/config/sidebar-config.ts`
+- **Impact**: Improved UX by prioritizing notifications visibility
+- **Status**: ✅ Implemented
