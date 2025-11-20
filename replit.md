@@ -167,18 +167,24 @@ Preferred communication style: Simple, everyday language.
 - **Root Cause**:
   1. **Excel Export**: Button handler `onClick={exportToExcel}` passed React's SyntheticEvent as first parameter, triggering wrong code path
      - Function thought `equipoDetalle = SyntheticEvent` (truthy) → entered equipment-specific export instead of full export
-  2. **Optional Fields**: Form fields used `<Input {...field} />` pattern which spreads `field.value` that can be `undefined`
+  2. **Optional Fields - Two issues**:
+     - Form fields used `<Input {...field} />` pattern which spreads `field.value` that can be `undefined`
      - React components flip to uncontrolled mode when value is undefined → user edits lost
+     - PostgreSQL error: `invalid input syntax for type date: ""` when fechaInstalacion sent empty string instead of null
 - **Solution**:
   1. **Excel Export**: Changed button handler from `onClick={exportToExcel}` to `onClick={() => exportToExcel()}`
      - Ensures function called without parameters → enters correct full-export branch
-  2. **Optional Fields**: Added explicit `value={field.value || ""}` to all optional inputs/textarea
+  2. **Optional Fields - Two-part fix**:
+     - Added explicit `value={field.value || ""}` to all optional inputs/textarea to keep components controlled
      - Fields: descripcion (Textarea), codigo, ubicacion, fabricante, modelo, numeroSerie, fechaInstalacion (Input)
-     - Ensures components always controlled with string value, never undefined
+     - Added data normalization in `handleSubmit` to convert empty strings to `undefined` before sending to backend
+     - Prevents PostgreSQL date parsing errors and ensures proper null handling
+  3. **Cleanup**: Removed all debugging alerts, kept only console.log and non-blocking toast notifications
 - **Technical Details**:
   - Created `/api/cmms/ordenes-trabajo` endpoint to fetch all work orders for Excel export
   - Excel now exports 4 complete sheets: Equipos Principales, Componentes, Mantenciones Planificadas, Órdenes de Trabajo
   - Form fields remain controlled throughout lifecycle (create/edit/reset)
+  - Data flow: User input → controlled components (always string) → normalization (empty → undefined) → backend (proper null handling)
 - **Design Pattern**: React onClick handlers should use arrow functions `() => func()` when calling without parameters to prevent synthetic event injection
-- **Impact**: Excel export now generates complete workbooks with all data; all form fields persist correctly
-- **Status**: ✅ Implemented, reviewed by architect, ready for user testing
+- **Impact**: Excel export now generates complete workbooks with all data; all form fields persist correctly; no more PostgreSQL date errors
+- **Status**: ✅ Implemented, tested, and working in production
