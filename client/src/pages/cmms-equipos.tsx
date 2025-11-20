@@ -455,53 +455,55 @@ export default function CMMSEquipos() {
     } else {
       // Exportar lista completa de equipos con componentes, mantenciones y órdenes
       try {
-        console.log('🚀 Iniciando exportación completa de equipos...');
+        alert('INICIO: Exportación de equipos iniciada');
+        console.log('🚀 INICIO EXPORTACIÓN');
         toast({ title: "Generando Excel...", description: "Esto puede tomar unos segundos" });
         
         // Obtener TODOS los equipos sin filtros, y todas las mantenciones y órdenes de trabajo
-        console.log('📡 Haciendo fetch a los endpoints...');
+        console.log('📡 FETCH INICIADO');
         const [todosEquipos, todasMantenciones, todasOrdenes] = await Promise.all([
           fetch('/api/cmms/equipos', { credentials: 'include' }).then(async r => {
-            console.log('✅ Respuesta de /api/cmms/equipos:', r.status, r.ok);
+            console.log('EQUIPOS STATUS:', r.status);
             if (!r.ok) {
               const error = await r.text();
-              console.error('❌ Error en /api/cmms/equipos:', error);
+              console.error('EQUIPOS ERROR:', error);
+              alert(`ERROR EQUIPOS: ${error}`);
               throw new Error('Error al obtener equipos');
             }
             const data = await r.json();
-            console.log('📦 Equipos obtenidos:', data.length);
+            console.log('EQUIPOS OK:', data.length, 'registros');
             return data;
           }),
           fetch('/api/cmms/mantenciones-planificadas', { credentials: 'include' }).then(async r => {
-            console.log('✅ Respuesta de /api/cmms/mantenciones-planificadas:', r.status, r.ok);
+            console.log('MANTENCIONES STATUS:', r.status);
             if (!r.ok) {
               const error = await r.text();
-              console.error('❌ Error en /api/cmms/mantenciones-planificadas:', error);
+              console.error('MANTENCIONES ERROR:', error);
+              alert(`ERROR MANTENCIONES: ${error}`);
               throw new Error('Error al obtener mantenciones');
             }
             const data = await r.json();
-            console.log('📦 Mantenciones obtenidas:', data.length);
+            console.log('MANTENCIONES OK:', data.length, 'registros');
             return data;
           }),
           fetch('/api/cmms/ordenes-trabajo', { credentials: 'include' }).then(async r => {
-            console.log('✅ Respuesta de /api/cmms/ordenes-trabajo:', r.status, r.ok);
+            console.log('ORDENES STATUS:', r.status);
             if (!r.ok) {
               const error = await r.text();
-              console.error('❌ Error en /api/cmms/ordenes-trabajo:', error);
+              console.error('ORDENES ERROR:', error);
+              alert(`ERROR ORDENES: ${error}`);
               throw new Error('Error al obtener órdenes de trabajo');
             }
             const data = await r.json();
-            console.log('📦 Órdenes obtenidas:', data.length);
+            console.log('ORDENES OK:', data.length, 'registros');
             return data;
           })
         ]);
 
-        console.log('📊 Datos para exportación:', {
-          equipos: todosEquipos.length,
-          mantenciones: todasMantenciones.length,
-          ordenes: todasOrdenes.length
-        });
-        console.log('🔍 Primeras 2 órdenes:', todasOrdenes.slice(0, 2));
+        const mensaje = `DATOS OBTENIDOS:\n- Equipos: ${todosEquipos.length}\n- Mantenciones: ${todasMantenciones.length}\n- Órdenes: ${todasOrdenes.length}`;
+        alert(mensaje);
+        console.log('📊 DATOS:', { equipos: todosEquipos.length, mantenciones: todasMantenciones.length, ordenes: todasOrdenes.length });
+        console.log('🔍 ÓRDENES:', todasOrdenes);
 
         // Separar equipos principales y componentes
         const equiposPrincipales = todosEquipos.filter((eq: any) => !eq.equipoPadreId);
@@ -588,13 +590,18 @@ export default function CMMSEquipos() {
           XLSX.utils.book_append_sheet(wb, wsOrdenes, 'Órdenes de Trabajo');
         }
 
+        console.log('📝 GENERANDO ARCHIVO EXCEL...');
         XLSX.writeFile(wb, `equipos-criticos-completo-${today}.xlsx`);
+        alert('✅ EXCEL GENERADO EXITOSAMENTE');
+        console.log('✅ ARCHIVO DESCARGADO');
         toast({ title: "Excel exportado exitosamente" });
-      } catch (error) {
-        console.error('Error al exportar:', error);
+      } catch (error: any) {
+        const errorMsg = error?.message || String(error);
+        console.error('❌ ERROR COMPLETO:', error);
+        alert(`ERROR AL EXPORTAR:\n${errorMsg}`);
         toast({ 
           title: "Error al exportar", 
-          description: "No se pudo generar el archivo Excel",
+          description: errorMsg,
           variant: "destructive"
         });
       }
