@@ -399,7 +399,7 @@ export default function CMMSEquipos() {
     return labels[area] || area;
   };
 
-  const exportToExcel = (equipoDetalle?: any, mantenciones?: any[], ordenes?: any[]) => {
+  const exportToExcel = async (equipoDetalle?: any, mantenciones?: any[], ordenes?: any[]) => {
     const wb = XLSX.utils.book_new();
     const today = new Date().toISOString().split('T')[0];
 
@@ -453,27 +453,122 @@ export default function CMMSEquipos() {
 
       XLSX.writeFile(wb, `equipo-${equipoDetalle.codigo || 'detalle'}-${today}.xlsx`);
     } else {
-      // Exportar lista completa de equipos
-      const dataToExport = equipos.map((equipo) => ({
-        Código: equipo.codigo || '',
-        Nombre: equipo.nombre,
-        Área: getAreaLabel(equipo.area),
-        Ubicación: equipo.ubicacion || '',
-        Criticidad: equipo.criticidad,
-        Estado: equipo.estadoActual,
-        Fabricante: equipo.fabricante || '',
-        Modelo: equipo.modelo || '',
-        'Número Serie': equipo.numeroSerie || '',
-        'Fecha Instalación': equipo.fechaInstalacion ? new Date(equipo.fechaInstalacion).toLocaleDateString('es-CL') : '',
-        Descripción: equipo.descripcion || '',
-      }));
+      // Exportar lista completa de equipos con componentes, mantenciones y órdenes
+      try {
+        toast({ title: "Generando Excel...", description: "Esto puede tomar unos segundos" });
+        
+        // Obtener TODOS los equipos sin filtros, y todas las mantenciones y órdenes de trabajo
+        const [todosEquipos, todasMantenciones, todasOrdenes] = await Promise.all([
+          fetch('/api/cmms/equipos', { credentials: 'include' }).then(async r => {
+            if (!r.ok) throw new Error('Error al obtener equipos');
+            return r.json();
+          }),
+          fetch('/api/cmms/mantenciones-planificadas', { credentials: 'include' }).then(async r => {
+            if (!r.ok) throw new Error('Error al obtener mantenciones');
+            return r.json();
+          }),
+          fetch('/api/cmms/ordenes-trabajo', { credentials: 'include' }).then(async r => {
+            if (!r.ok) throw new Error('Error al obtener órdenes de trabajo');
+            return r.json();
+          })
+        ]);
 
-      const ws = XLSX.utils.json_to_sheet(dataToExport);
-      XLSX.utils.book_append_sheet(wb, ws, 'Equipos Críticos');
-      XLSX.writeFile(wb, `equipos-criticos-${today}.xlsx`);
+        // Separar equipos principales y componentes
+        const equiposPrincipales = todosEquipos.filter((eq: any) => !eq.equipoPadreId);
+        const componentes = todosEquipos.filter((eq: any) => eq.equipoPadreId);
+
+        // Hoja 1: Equipos Principales
+        const equiposData = equiposPrincipales.map((equipo: any) => ({
+          Código: equipo.codigo || '',
+          Nombre: equipo.nombre,
+          Área: getAreaLabel(equipo.area),
+          Ubicación: equipo.ubicacion || '',
+          Criticidad: equipo.criticidad,
+          Estado: equipo.estadoActual,
+          Fabricante: equipo.fabricante || '',
+          Modelo: equipo.modelo || '',
+          'Número Serie': equipo.numeroSerie || '',
+          'Fecha Instalación': equipo.fechaInstalacion ? new Date(equipo.fechaInstalacion).toLocaleDateString('es-CL') : '',
+          Descripción: equipo.descripcion || '',
+        }));
+
+        const wsEquipos = XLSX.utils.json_to_sheet(equiposData);
+        XLSX.utils.book_append_sheet(wb, wsEquipos, 'Equipos Principales');
+
+        // Hoja 2: Componentes
+        if (componentes.length > 0) {
+          const componentesData = componentes.map((comp: any) => {
+            const equipoPadre = todosEquipos.find((eq: any) => eq.id === comp.equipoPadreId);
+            return {
+              'Equipo Padre': equipoPadre?.nombre || '',
+              'Código Padre': equipoPadre?.codigo || '',
+              Código: comp.codigo || '',
+              Nombre: comp.nombre,
+              Área: getAreaLabel(comp.area),
+              Ubicación: comp.ubicacion || '',
+              Criticidad: comp.criticidad,
+              Estado: comp.estadoActual,
+              Fabricante: comp.fabricante || '',
+              Modelo: comp.modelo || '',
+              'Número Serie': comp.numeroSerie || '',
+              'Fecha Instalación': comp.fechaInstalacion ? new Date(comp.fechaInstalacion).toLocaleDateString('es-CL') : '',
+              Descripción: comp.descripcion || '',
+            };
+          });
+
+          const wsComponentes = XLSX.utils.json_to_sheet(componentesData);
+          XLSX.utils.book_append_sheet(wb, wsComponentes, 'Componentes');
+        }
+
+        // Hoja 3: Mantenciones Planificadas
+        if (todasMantenciones.length > 0) {
+          const mantencionesData = todasMantenciones.map((m: any) => {
+            const equipo = todosEquipos.find((eq: any) => eq.id === m.equipoId);
+            return {
+              'Código Equipo': equipo?.codigo || '',
+              'Nombre Equipo': equipo?.nombre || '',
+              Título: m.titulo || '',
+              Categoría: m.categoria ? m.categoria.replace(/_/g, ' ') : '',
+              Periodo: m.mes && m.anio ? `${m.mes}/${m.anio}` : '',
+              'Costo Estimado': m.costoEstimado ? `$${Number(m.costoEstimado).toLocaleString('es-CL')}` : '$0',
+              Estado: m.estado || '',
+              Descripción: m.descripcion || '',
+            };
+          });
+
+          const wsMantenciones = XLSX.utils.json_to_sheet(mantencionesData);
+          XLSX.utils.book_append_sheet(wb, wsMantenciones, 'Mantenciones Planificadas');
+        }
+
+        // Hoja 4: Órdenes de Trabajo
+        if (todasOrdenes.length > 0) {
+          const ordenesData = todasOrdenes.map((o: any) => ({
+            'Código Equipo': o.equipoCodigo || '',
+            'Nombre Equipo': o.equipoNombre || '',
+            Problema: o.descripcionProblema || '',
+            'Acción Tomada': o.accionTomada || '',
+            Gravedad: o.gravedad || '',
+            Estado: o.estado || '',
+            'Fecha Creación': o.createdAt ? new Date(o.createdAt).toLocaleDateString('es-CL') : '',
+            'Fecha Resolución': o.fechaResolucion ? new Date(o.fechaResolucion).toLocaleDateString('es-CL') : '',
+            'Técnico Asignado': o.tecnicoNombre || '',
+          }));
+
+          const wsOrdenes = XLSX.utils.json_to_sheet(ordenesData);
+          XLSX.utils.book_append_sheet(wb, wsOrdenes, 'Órdenes de Trabajo');
+        }
+
+        XLSX.writeFile(wb, `equipos-criticos-completo-${today}.xlsx`);
+        toast({ title: "Excel exportado exitosamente" });
+      } catch (error) {
+        console.error('Error al exportar:', error);
+        toast({ 
+          title: "Error al exportar", 
+          description: "No se pudo generar el archivo Excel",
+          variant: "destructive"
+        });
+      }
     }
-    
-    toast({ title: "Excel exportado exitosamente" });
   };
 
   return (
