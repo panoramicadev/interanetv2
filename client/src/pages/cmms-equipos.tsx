@@ -309,13 +309,25 @@ export default function CMMSEquipos() {
   };
 
   const handleSubmit = (data: EquipoCriticoFormData) => {
+    // Normalize data: convert empty strings to undefined for optional fields
+    const normalizedData = {
+      ...data,
+      codigo: data.codigo?.trim() || undefined,
+      ubicacion: data.ubicacion?.trim() || undefined,
+      descripcion: data.descripcion?.trim() || undefined,
+      fabricante: data.fabricante?.trim() || undefined,
+      modelo: data.modelo?.trim() || undefined,
+      numeroSerie: data.numeroSerie?.trim() || undefined,
+      fechaInstalacion: data.fechaInstalacion?.trim() || undefined,
+    };
+
     if (editingEquipo) {
-      updateMutation.mutate({ id: editingEquipo.id, data });
+      updateMutation.mutate({ id: editingEquipo.id, data: normalizedData });
     } else {
       // If creating a component, include equipoPadreId
       const dataWithParent = creatingComponentFor 
-        ? { ...data, equipoPadreId: creatingComponentFor.id }
-        : data;
+        ? { ...normalizedData, equipoPadreId: creatingComponentFor.id }
+        : normalizedData;
       createMutation.mutate(dataWithParent);
     }
   };
