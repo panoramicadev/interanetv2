@@ -413,14 +413,12 @@ export default function CMMSEquipos() {
 
   const exportToExcel = async (equipoDetalle?: any, mantenciones?: any[], ordenes?: any[]) => {
     try {
-      alert(`🔍 FUNCIÓN EXPORTAR LLAMADA\nequipoDetalle: ${equipoDetalle ? 'SÍ (específico)' : 'NO (completo)'}`);
       console.log('🔍 exportToExcel llamada con:', { equipoDetalle, mantenciones, ordenes });
       
       const wb = XLSX.utils.book_new();
       const today = new Date().toISOString().split('T')[0];
 
       if (equipoDetalle) {
-        alert('✅ RUTA: Exportación de equipo ESPECÍFICO');
       // Exportar equipo específico con historial
       const mantencionesData = mantenciones || [];
       const ordenesData = ordenes || [];
@@ -472,7 +470,6 @@ export default function CMMSEquipos() {
     } else {
       // Exportar lista completa de equipos con componentes, mantenciones y órdenes
       try {
-        alert('INICIO: Exportación de equipos iniciada');
         console.log('🚀 INICIO EXPORTACIÓN');
         toast({ title: "Generando Excel...", description: "Esto puede tomar unos segundos" });
         
@@ -484,7 +481,6 @@ export default function CMMSEquipos() {
             if (!r.ok) {
               const error = await r.text();
               console.error('EQUIPOS ERROR:', error);
-              alert(`ERROR EQUIPOS: ${error}`);
               throw new Error('Error al obtener equipos');
             }
             const data = await r.json();
@@ -496,7 +492,6 @@ export default function CMMSEquipos() {
             if (!r.ok) {
               const error = await r.text();
               console.error('MANTENCIONES ERROR:', error);
-              alert(`ERROR MANTENCIONES: ${error}`);
               throw new Error('Error al obtener mantenciones');
             }
             const data = await r.json();
@@ -508,7 +503,6 @@ export default function CMMSEquipos() {
             if (!r.ok) {
               const error = await r.text();
               console.error('ORDENES ERROR:', error);
-              alert(`ERROR ORDENES: ${error}`);
               throw new Error('Error al obtener órdenes de trabajo');
             }
             const data = await r.json();
@@ -517,8 +511,6 @@ export default function CMMSEquipos() {
           })
         ]);
 
-        const mensaje = `DATOS OBTENIDOS:\n- Equipos: ${todosEquipos.length}\n- Mantenciones: ${todasMantenciones.length}\n- Órdenes: ${todasOrdenes.length}`;
-        alert(mensaje);
         console.log('📊 DATOS:', { equipos: todosEquipos.length, mantenciones: todasMantenciones.length, ordenes: todasOrdenes.length });
         console.log('🔍 ÓRDENES:', todasOrdenes);
 
@@ -609,13 +601,11 @@ export default function CMMSEquipos() {
 
         console.log('📝 GENERANDO ARCHIVO EXCEL...');
         XLSX.writeFile(wb, `equipos-criticos-completo-${today}.xlsx`);
-        alert('✅ EXCEL GENERADO EXITOSAMENTE');
         console.log('✅ ARCHIVO DESCARGADO');
         toast({ title: "Excel exportado exitosamente" });
       } catch (error: any) {
         const errorMsg = error?.message || String(error);
         console.error('❌ ERROR COMPLETO:', error);
-        alert(`ERROR AL EXPORTAR:\n${errorMsg}`);
         toast({ 
           title: "Error al exportar", 
           description: errorMsg,
@@ -626,7 +616,6 @@ export default function CMMSEquipos() {
     } catch (globalError: any) {
       const errorMsg = globalError?.message || String(globalError);
       console.error('❌ ERROR GLOBAL EN EXPORTACIÓN:', globalError);
-      alert(`ERROR GLOBAL AL EXPORTAR:\n${errorMsg}`);
       toast({ 
         title: "Error al exportar", 
         description: errorMsg,
