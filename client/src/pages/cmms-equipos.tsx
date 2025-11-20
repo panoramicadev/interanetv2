@@ -3,6 +3,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { canAccessCMMSFull, canDeleteCMMS, canEditCMMS, canExportCMMS } from "@/lib/cmmsPermissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -101,6 +103,7 @@ interface EquipoCritico {
 export default function CMMSEquipos() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { user } = useAuth();
   
   const [searchTerm, setSearchTerm] = useState("");
   const [filterArea, setFilterArea] = useState<string>("all");
@@ -648,18 +651,22 @@ export default function CMMSEquipos() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              onClick={() => exportToExcel()} 
-              data-testid="button-export-excel"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Exportar Excel
-            </Button>
-            <Button onClick={() => handleOpenDialog()} data-testid="button-create">
-              <Plus className="h-4 w-4 mr-2" />
-              Nuevo Equipo
-            </Button>
+            {canExportCMMS(user?.role) && (
+              <Button 
+                variant="outline" 
+                onClick={() => exportToExcel()} 
+                data-testid="button-export-excel"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Exportar Excel
+              </Button>
+            )}
+            {canAccessCMMSFull(user?.role) && (
+              <Button onClick={() => handleOpenDialog()} data-testid="button-create">
+                <Plus className="h-4 w-4 mr-2" />
+                Nuevo Equipo
+              </Button>
+            )}
           </div>
         </div>
 
@@ -802,22 +809,26 @@ export default function CMMSEquipos() {
                                 >
                                   <Eye className="h-4 w-4" />
                                 </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleOpenDialog(equipo)}
-                                  data-testid={`button-edit-${equipo.id}`}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDelete(equipo)}
-                                  data-testid={`button-delete-${equipo.id}`}
-                                >
-                                  <Trash2 className="h-4 w-4 text-red-500" />
-                                </Button>
+                                {canEditCMMS(user?.role) && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleOpenDialog(equipo)}
+                                    data-testid={`button-edit-${equipo.id}`}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {canDeleteCMMS(user?.role) && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDelete(equipo)}
+                                    data-testid={`button-delete-${equipo.id}`}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-red-500" />
+                                  </Button>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>
@@ -859,22 +870,26 @@ export default function CMMSEquipos() {
                                     >
                                       <Eye className="h-4 w-4" />
                                     </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => handleOpenDialog(componente)}
-                                      data-testid={`button-edit-${componente.id}`}
-                                    >
-                                      <Edit className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => handleDelete(componente)}
-                                      data-testid={`button-delete-${componente.id}`}
-                                    >
-                                      <Trash2 className="h-4 w-4 text-red-500" />
-                                    </Button>
+                                    {canEditCMMS(user?.role) && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleOpenDialog(componente)}
+                                        data-testid={`button-edit-${componente.id}`}
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                    {canDeleteCMMS(user?.role) && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleDelete(componente)}
+                                        data-testid={`button-delete-${componente.id}`}
+                                      >
+                                        <Trash2 className="h-4 w-4 text-red-500" />
+                                      </Button>
+                                    )}
                                   </div>
                                 </TableCell>
                               </TableRow>
@@ -882,7 +897,7 @@ export default function CMMSEquipos() {
                           )}
                           
                           {/* Botón para agregar componente */}
-                          {isExpanded && (
+                          {isExpanded && canAccessCMMSFull(user?.role) && (
                             <TableRow className="bg-muted/10">
                               <TableCell colSpan={7} className="text-center py-2">
                                 <Button
@@ -1345,26 +1360,30 @@ export default function CMMSEquipos() {
             >
               Cerrar
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => exportToExcel(viewingEquipo || undefined, mantencionesPlanificadas, ordenesTrabajoEquipo)}
-              disabled={!viewingEquipo || isLoadingMantenciones || isLoadingOrdenes}
-              data-testid="button-export-from-view"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              {isLoadingMantenciones || isLoadingOrdenes ? "Cargando..." : "Exportar Excel"}
-            </Button>
-            <Button
-              onClick={() => {
-                const equipo = viewingEquipo || undefined;
-                setViewingEquipo(null);
-                handleOpenDialog(equipo);
-              }}
-              data-testid="button-edit-from-view"
-            >
-              <Edit className="h-4 w-4 mr-2" />
-              Editar
-            </Button>
+            {canExportCMMS(user?.role) && (
+              <Button
+                variant="outline"
+                onClick={() => exportToExcel(viewingEquipo || undefined, mantencionesPlanificadas, ordenesTrabajoEquipo)}
+                disabled={!viewingEquipo || isLoadingMantenciones || isLoadingOrdenes}
+                data-testid="button-export-from-view"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                {isLoadingMantenciones || isLoadingOrdenes ? "Cargando..." : "Exportar Excel"}
+              </Button>
+            )}
+            {canEditCMMS(user?.role) && (
+              <Button
+                onClick={() => {
+                  const equipo = viewingEquipo || undefined;
+                  setViewingEquipo(null);
+                  handleOpenDialog(equipo);
+                }}
+                data-testid="button-edit-from-view"
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Editar
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

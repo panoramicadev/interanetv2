@@ -1,6 +1,14 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/useAuth";
+import { 
+  canAccessCMMSFull, 
+  canAccessMantencionesPlanificadas,
+  canAccessPlanesPreventivos,
+  canAccessGastosMateriales,
+  canViewCalendar
+} from "@/lib/cmmsPermissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -84,9 +92,17 @@ interface CMMSMetrics {
 }
 
 export default function CMMSDashboard() {
+  const { user } = useAuth();
   const [, setLocation] = useLocation();
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
+  
+  // Permisos basados en rol
+  const canAccessFull = canAccessCMMSFull(user?.role);
+  const canAccessMantPlanificadas = canAccessMantencionesPlanificadas(user?.role);
+  const canAccessPlanes = canAccessPlanesPreventivos(user?.role);
+  const canAccessGastos = canAccessGastosMateriales(user?.role);
+  const canAccessCalendar = canViewCalendar(user?.role);
   
   const [mes, setMes] = useState(currentMonth.toString());
   const [anio, setAnio] = useState(currentYear.toString());
@@ -232,96 +248,110 @@ export default function CMMSDashboard() {
           </CardHeader>
           <CardContent className="pb-4">
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
-              <Button
-                variant="outline"
-                className="h-auto flex-col items-start p-3 space-y-1 bg-green-50 border-green-200 hover:bg-green-100"
-                onClick={() => setLocation('/cmms/mantenciones-planificadas')}
-                data-testid="button-mantenciones-planificadas"
-              >
-                <TrendingUp className="h-5 w-5 text-green-600" />
-                <div className="text-left">
-                  <div className="text-sm font-semibold">Mant. Planificadas</div>
-                  <div className="text-xs text-muted-foreground">Proyectos grandes</div>
-                </div>
-              </Button>
+              {canAccessMantPlanificadas && (
+                <Button
+                  variant="outline"
+                  className="h-auto flex-col items-start p-3 space-y-1 bg-green-50 border-green-200 hover:bg-green-100"
+                  onClick={() => setLocation('/cmms/mantenciones-planificadas')}
+                  data-testid="button-mantenciones-planificadas"
+                >
+                  <TrendingUp className="h-5 w-5 text-green-600" />
+                  <div className="text-left">
+                    <div className="text-sm font-semibold">Mant. Planificadas</div>
+                    <div className="text-xs text-muted-foreground">Proyectos grandes</div>
+                  </div>
+                </Button>
+              )}
 
-              <Button
-                variant="outline"
-                className="h-auto flex-col items-start p-3 space-y-1"
-                onClick={() => setLocation('/cmms/equipos')}
-                data-testid="button-equipos"
-              >
-                <Wrench className="h-5 w-5" />
-                <div className="text-left">
-                  <div className="text-sm font-semibold">Equipos Críticos</div>
-                  <div className="text-xs text-muted-foreground">Gestionar equipos</div>
-                </div>
-              </Button>
+              {canAccessFull && (
+                <Button
+                  variant="outline"
+                  className="h-auto flex-col items-start p-3 space-y-1"
+                  onClick={() => setLocation('/cmms/equipos')}
+                  data-testid="button-equipos"
+                >
+                  <Wrench className="h-5 w-5" />
+                  <div className="text-left">
+                    <div className="text-sm font-semibold">Equipos Críticos</div>
+                    <div className="text-xs text-muted-foreground">Gestionar equipos</div>
+                  </div>
+                </Button>
+              )}
 
-              <Button
-                variant="outline"
-                className="h-auto flex-col items-start p-3 space-y-1"
-                onClick={() => setLocation('/cmms/proveedores')}
-                data-testid="button-proveedores"
-              >
-                <Users className="h-5 w-5" />
-                <div className="text-left">
-                  <div className="text-sm font-semibold">Proveedores</div>
-                  <div className="text-xs text-muted-foreground">Gestionar proveedores</div>
-                </div>
-              </Button>
+              {canAccessFull && (
+                <Button
+                  variant="outline"
+                  className="h-auto flex-col items-start p-3 space-y-1"
+                  onClick={() => setLocation('/cmms/proveedores')}
+                  data-testid="button-proveedores"
+                >
+                  <Users className="h-5 w-5" />
+                  <div className="text-left">
+                    <div className="text-sm font-semibold">Proveedores</div>
+                    <div className="text-xs text-muted-foreground">Gestionar proveedores</div>
+                  </div>
+                </Button>
+              )}
 
-              <Button
-                variant="outline"
-                className="h-auto flex-col items-start p-3 space-y-1"
-                onClick={() => setLocation('/cmms/presupuesto')}
-                data-testid="button-presupuesto"
-              >
-                <DollarSign className="h-5 w-5" />
-                <div className="text-left">
-                  <div className="text-sm font-semibold">Presupuesto</div>
-                  <div className="text-xs text-muted-foreground">Administrar presupuesto</div>
-                </div>
-              </Button>
+              {canAccessFull && (
+                <Button
+                  variant="outline"
+                  className="h-auto flex-col items-start p-3 space-y-1"
+                  onClick={() => setLocation('/cmms/presupuesto')}
+                  data-testid="button-presupuesto"
+                >
+                  <DollarSign className="h-5 w-5" />
+                  <div className="text-left">
+                    <div className="text-sm font-semibold">Presupuesto</div>
+                    <div className="text-xs text-muted-foreground">Administrar presupuesto</div>
+                  </div>
+                </Button>
+              )}
 
-              <Button
-                variant="outline"
-                className="h-auto flex-col items-start p-3 space-y-1"
-                onClick={() => setLocation('/cmms/planes-preventivos')}
-                data-testid="button-planes"
-              >
-                <Calendar className="h-5 w-5" />
-                <div className="text-left">
-                  <div className="text-sm font-semibold">Planes Preventivos</div>
-                  <div className="text-xs text-muted-foreground">Programación</div>
-                </div>
-              </Button>
+              {canAccessPlanes && (
+                <Button
+                  variant="outline"
+                  className="h-auto flex-col items-start p-3 space-y-1"
+                  onClick={() => setLocation('/cmms/planes-preventivos')}
+                  data-testid="button-planes"
+                >
+                  <Calendar className="h-5 w-5" />
+                  <div className="text-left">
+                    <div className="text-sm font-semibold">Planes Preventivos</div>
+                    <div className="text-xs text-muted-foreground">Programación</div>
+                  </div>
+                </Button>
+              )}
 
-              <Button
-                variant="outline"
-                className="h-auto flex-col items-start p-3 space-y-1"
-                onClick={() => setLocation('/cmms/gastos-materiales')}
-                data-testid="button-gastos-materiales"
-              >
-                <Package className="h-5 w-5" />
-                <div className="text-left">
-                  <div className="text-sm font-semibold">Gastos Materiales</div>
-                  <div className="text-xs text-muted-foreground">Registro de gastos</div>
-                </div>
-              </Button>
+              {canAccessGastos && (
+                <Button
+                  variant="outline"
+                  className="h-auto flex-col items-start p-3 space-y-1"
+                  onClick={() => setLocation('/cmms/gastos-materiales')}
+                  data-testid="button-gastos-materiales"
+                >
+                  <Package className="h-5 w-5" />
+                  <div className="text-left">
+                    <div className="text-sm font-semibold">Gastos Materiales</div>
+                    <div className="text-xs text-muted-foreground">Registro de gastos</div>
+                  </div>
+                </Button>
+              )}
 
-              <Button
-                variant="outline"
-                className="h-auto flex-col items-start p-3 space-y-1"
-                onClick={() => setLocation('/cmms/calendario')}
-                data-testid="button-calendario"
-              >
-                <CalendarDays className="h-5 w-5" />
-                <div className="text-left">
-                  <div className="text-sm font-semibold">Calendario</div>
-                  <div className="text-xs text-muted-foreground">Planificación</div>
-                </div>
-              </Button>
+              {canAccessCalendar && (
+                <Button
+                  variant="outline"
+                  className="h-auto flex-col items-start p-3 space-y-1"
+                  onClick={() => setLocation('/cmms/calendario')}
+                  data-testid="button-calendario"
+                >
+                  <CalendarDays className="h-5 w-5" />
+                  <div className="text-left">
+                    <div className="text-sm font-semibold">Calendario</div>
+                    <div className="text-xs text-muted-foreground">Planificación</div>
+                  </div>
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
