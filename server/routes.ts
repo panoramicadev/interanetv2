@@ -10355,6 +10355,35 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // GET todas las órdenes de trabajo (para exportación)
+  app.get('/api/cmms/ordenes-trabajo', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const results = await db
+        .select({
+          id: solicitudesMantencion.id,
+          equipoId: solicitudesMantencion.equipoId,
+          equipoNombre: solicitudesMantencion.equipoNombre,
+          equipoCodigo: solicitudesMantencion.equipoCodigo,
+          descripcionProblema: solicitudesMantencion.descripcionProblema,
+          accionTomada: solicitudesMantencion.resolucionDescripcion,
+          area: solicitudesMantencion.area,
+          prioridad: solicitudesMantencion.prioridad,
+          gravedad: solicitudesMantencion.gravedad,
+          estado: solicitudesMantencion.estado,
+          fechaResolucion: solicitudesMantencion.fechaResolucion,
+          tecnicoNombre: solicitudesMantencion.tecnicoAsignadoName,
+          createdAt: solicitudesMantencion.createdAt,
+          updatedAt: solicitudesMantencion.updatedAt,
+        })
+        .from(solicitudesMantencion)
+        .orderBy(desc(solicitudesMantencion.createdAt));
+      res.json(results);
+    } catch (error: any) {
+      console.error('Error al obtener órdenes de trabajo:', error);
+      res.status(500).json({ message: 'Error al obtener órdenes de trabajo', error: error.message });
+    }
+  }));
+
   // GET órdenes de trabajo de un equipo
   app.get('/api/cmms/equipos/:id/ordenes-trabajo', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
     try {
