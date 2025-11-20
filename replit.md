@@ -128,3 +128,15 @@ Preferred communication style: Simple, everyday language.
   - Other: Cliente, Recepción
 - **Implementation**: Updated dropdown selects in user creation/edit dialogs (desktop and mobile views) and role display labels in user tables
 - **Status**: ✅ Implemented
+
+### Inventory Access - Full Plant Roles Support (November 20, 2025)
+- **Issue**: Plant roles (laboratorio, produccion, etc.) could not access inventory with prices due to backend and frontend permission mismatches
+- **Root Cause**: 
+  - Backend inventory endpoints (`/api/inventory-with-prices`, `/api/inventory/summary-with-prices`) used `requireCommercialAccess` which excluded plant roles
+  - Frontend function `hasCommercialAccess` only checked for commercial roles, causing plant roles to call endpoints without prices
+- **Fix**:
+  - **Backend**: Changed inventory endpoints from `requireCommercialAccess` to `requireAuth` - all authenticated users can now access inventory with prices
+  - **Frontend**: Renamed `hasCommercialAccess` to `hasInventoryAccess` and included all plant roles (laboratorio, produccion, logistica_bodega, planificacion, bodega_materias_primas, prevencion_riesgos)
+  - **Sidebar**: Verified inventory link exists for jefe_planta and laboratorio roles
+- **Impact**: All plant roles can now view complete inventory data with prices as intended
+- **Status**: ✅ Fixed and tested

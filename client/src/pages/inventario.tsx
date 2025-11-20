@@ -29,10 +29,10 @@ import { Package, Search, AlertCircle, CheckCircle, Loader2, RefreshCcw, Databas
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
-// Helper function to determine if user has commercial access (can see prices)
-function hasCommercialAccess(role: string): boolean {
-  const commercialRoles = ['admin', 'supervisor', 'salesperson', 'tecnico_obra'];
-  return commercialRoles.includes(role);
+// Helper function to determine if user has inventory access with prices (all authenticated users)
+function hasInventoryAccess(role: string): boolean {
+  const allowedRoles = ['admin', 'supervisor', 'salesperson', 'tecnico_obra', 'jefe_planta', 'mantencion', 'produccion', 'laboratorio', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
+  return allowedRoles.includes(role);
 }
 
 interface ProductStock {
@@ -306,7 +306,7 @@ function StockSummary({
   hideZZProducts: boolean;
   userRole: string;
 }) {
-  const hasAccess = hasCommercialAccess(userRole);
+  const hasAccess = hasInventoryAccess(userRole);
   const endpoint = hasAccess ? '/api/inventory/summary-with-prices' : '/api/inventory/summary';
   
   const { data: summary } = useQuery<{
@@ -440,7 +440,7 @@ function InventoryTable({
   hideZZProducts: boolean;
   userRole: string;
 }) {
-  const hasAccess = hasCommercialAccess(userRole);
+  const hasAccess = hasInventoryAccess(userRole);
   const endpoint = hasAccess ? '/api/inventory-with-prices' : '/api/inventory';
   
   const { data: inventory, isLoading, refetch } = useQuery<ProductStock[]>({
