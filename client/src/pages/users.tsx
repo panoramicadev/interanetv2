@@ -356,6 +356,8 @@ export default function UsersPage() {
                             <SelectItem value="supervisor">Supervisor</SelectItem>
                             <SelectItem value="salesperson">Vendedor</SelectItem>
                             <SelectItem value="tecnico_obra">Técnico de Obra</SelectItem>
+                            <SelectItem value="jefe_planta">Jefe de Planta</SelectItem>
+                            <SelectItem value="mantencion">Mantención</SelectItem>
                             <SelectItem value="laboratorio">Laboratorio</SelectItem>
                             <SelectItem value="produccion">Producción</SelectItem>
                             <SelectItem value="logistica_bodega">Logística y Bodega</SelectItem>
@@ -732,6 +734,8 @@ export default function UsersPage() {
                         <SelectItem value="supervisor">Supervisor</SelectItem>
                         <SelectItem value="salesperson">Vendedor</SelectItem>
                         <SelectItem value="tecnico_obra">Técnico de Obra</SelectItem>
+                        <SelectItem value="jefe_planta">Jefe de Planta</SelectItem>
+                        <SelectItem value="mantencion">Mantención</SelectItem>
                         <SelectItem value="laboratorio">Laboratorio</SelectItem>
                         <SelectItem value="produccion">Producción</SelectItem>
                         <SelectItem value="logistica_bodega">Logística y Bodega</SelectItem>
@@ -965,6 +969,8 @@ export default function UsersPage() {
                             {user.role === 'admin' ? 'Administrador' : 
                              user.role === 'supervisor' ? 'Supervisor' :
                              user.role === 'tecnico_obra' ? 'Técnico de Obra' :
+                             user.role === 'jefe_planta' ? 'Jefe de Planta' :
+                             user.role === 'mantencion' ? 'Mantención' :
                              user.role === 'laboratorio' ? 'Laboratorio' :
                              user.role === 'produccion' ? 'Producción' :
                              user.role === 'logistica_bodega' ? 'Logística y Bodega' :
@@ -1049,6 +1055,8 @@ export default function UsersPage() {
                                 {user.role === 'admin' ? 'Admin' : 
                                  user.role === 'supervisor' ? 'Supervisor' :
                                  user.role === 'tecnico_obra' ? 'Técnico' :
+                                 user.role === 'jefe_planta' ? 'Jefe Planta' :
+                                 user.role === 'mantencion' ? 'Mantención' :
                                  user.role === 'laboratorio' ? 'Laboratorio' :
                                  user.role === 'produccion' ? 'Producción' :
                                  user.role === 'logistica_bodega' ? 'Logística y Bodega' :
