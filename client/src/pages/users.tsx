@@ -373,6 +373,31 @@ export default function UsersPage() {
                     )}
                   />
                   
+                  {/* Campo de nombre para todos los roles excepto cliente */}
+                  {createForm.watch("role") !== "client" && (
+                    <FormField
+                      control={createForm.control}
+                      name="salespersonName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nombre Completo</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ''}
+                              placeholder="Ingresa el nombre completo"
+                              data-testid="input-user-name"
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Nombre de la persona que usará este usuario
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                  
                   {/* Campos específicos para vendedores */}
                   {createForm.watch("role") === "salesperson" && (
                     <div className="space-y-4 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-400">
@@ -381,52 +406,29 @@ export default function UsersPage() {
                         <h4 className="font-medium text-blue-900">Configuración de Vendedor</h4>
                       </div>
                       
-                      <FormField
-                        control={createForm.control}
-                        name="salespersonName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Nombre del Vendedor</FormLabel>
-                            <div className="space-y-2">
-                              <FormControl>
-                                <Input
-                                  {...field}
-                                  value={field.value ?? ''}
-                                  placeholder="Ingresa el nombre del vendedor"
-                                  data-testid="input-salesperson-name"
-                                />
-                              </FormControl>
-                              {availableSalespeople.filter(sp => !salespeopleUsers.some(user => user.salespersonName === sp)).length > 0 && (
-                                <div className="text-sm text-muted-foreground">
-                                  <p className="mb-1">O selecciona de vendedores con ventas registradas:</p>
-                                  <Select 
-                                    onValueChange={(value) => field.onChange(value)} 
-                                    value={availableSalespeople.includes(field.value || '') ? field.value : ''}
-                                  >
-                                    <SelectTrigger data-testid="select-salesperson-name" className="bg-white">
-                                      <SelectValue placeholder="Seleccionar de la lista" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {availableSalespeople
-                                        .filter(sp => !salespeopleUsers.some(user => user.salespersonName === sp))
-                                        .map((salesperson) => (
-                                          <SelectItem key={salesperson} value={salesperson}>
-                                            {salesperson}
-                                          </SelectItem>
-                                        ))
-                                      }
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              )}
-                            </div>
-                            <FormDescription>
-                              Puedes escribir el nombre del vendedor directamente o seleccionar de la lista si ya tiene ventas registradas
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      {availableSalespeople.filter(sp => !salespeopleUsers.some(user => user.salespersonName === sp)).length > 0 && (
+                        <div className="text-sm text-muted-foreground">
+                          <p className="mb-1">O selecciona de vendedores con ventas registradas:</p>
+                          <Select 
+                            onValueChange={(value) => createForm.setValue("salespersonName", value)} 
+                            value={availableSalespeople.includes(createForm.watch("salespersonName") || '') ? createForm.watch("salespersonName") : ''}
+                          >
+                            <SelectTrigger data-testid="select-salesperson-name" className="bg-white">
+                              <SelectValue placeholder="Seleccionar de la lista" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableSalespeople
+                                .filter(sp => !salespeopleUsers.some(user => user.salespersonName === sp))
+                                .map((salesperson) => (
+                                  <SelectItem key={salesperson} value={salesperson}>
+                                    {salesperson}
+                                  </SelectItem>
+                                ))
+                              }
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
 
                       <FormField
                         control={createForm.control}
@@ -670,7 +672,7 @@ export default function UsersPage() {
                 name="salespersonName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nombre del Vendedor</FormLabel>
+                    <FormLabel>Nombre Completo</FormLabel>
                     <FormControl>
                       <Input {...field} data-testid="input-edit-salesperson-name" readOnly />
                     </FormControl>
