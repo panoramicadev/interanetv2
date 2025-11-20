@@ -206,6 +206,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
   
   jefe_planta: [
     {
+      href: "/",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+    },
+    {
       href: "/notificaciones",
       label: "Notificaciones",
       icon: Bell,
