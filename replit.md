@@ -164,3 +164,16 @@ Preferred communication style: Simple, everyday language.
   - **users.tsx**: Improved error message extraction from backend responses for better user feedback
 - **Impact**: Jefe de Planta can now access all modules shown in their sidebar without "access denied" errors
 - **Status**: ✅ Fixed and tested
+
+### Jefe de Planta - Full Reclamos Management (November 20, 2025)
+- **Feature**: Enhanced Reclamos module permissions for jefe_planta role
+- **Capabilities**:
+  1. **View All Reclamos**: Jefe de planta can now see all reclamos in the system (not just their own)
+  2. **Resolution Authority**: Can provide resolution for reclamos assigned to production area
+  3. **Custom Tabs**: Sees "Asignados a Producción" tab to filter production-related reclamos
+- **Implementation**:
+  - **reclamos-generales.tsx**: Added jefe_planta to roles that see all reclamos, enabled resolution mutation for production reclamos, added custom tab structure
+  - **reclamosAreas.ts**: Added jefe_planta → produccion mapping so production reclamos filter correctly
+  - **Resolution Flow**: Jefe planta uses `resolucionAreaMutation` endpoint to resolve production reclamos
+- **Impact**: Jefe de Planta has complete oversight and resolution authority over production-related complaints
+- **Status**: ✅ Implemented and tested
