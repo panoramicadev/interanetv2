@@ -29,6 +29,12 @@ import { Package, Search, AlertCircle, CheckCircle, Loader2, RefreshCcw, Databas
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
+// Helper function to determine if user has commercial access (can see prices)
+function hasCommercialAccess(role: string): boolean {
+  const commercialRoles = ['admin', 'supervisor', 'salesperson', 'tecnico_obra'];
+  return commercialRoles.includes(role);
+}
+
 interface ProductStock {
   id?: number;
   branchCode: string;
@@ -296,6 +302,9 @@ function StockSummary({
   hideZZProducts: boolean;
   userRole: string;
 }) {
+  const hasAccess = hasCommercialAccess(userRole);
+  const endpoint = hasAccess ? '/api/inventory/summary-with-prices' : '/api/inventory/summary';
+  
   const { data: summary } = useQuery<{
     totalProducts: number;
     totalQuantity: number;
@@ -303,7 +312,7 @@ function StockSummary({
     totalValue: number;
     lowStock: number;
   }>({
-    queryKey: ['/api/inventory/summary-with-prices', searchTerm, selectedWarehouse, selectedBranch, hideNoStock, hideZZProducts],
+    queryKey: [endpoint, searchTerm, selectedWarehouse, selectedBranch, hideNoStock, hideZZProducts],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (searchTerm) params.append('search', searchTerm);
@@ -312,7 +321,7 @@ function StockSummary({
       if (hideNoStock) params.append('hideNoStock', 'true');
       if (hideZZProducts) params.append('hideZZProducts', 'true');
       
-      const response = await fetch(`/api/inventory/summary-with-prices?${params}`, {
+      const response = await fetch(`${endpoint}?${params}`, {
         credentials: 'include'
       });
       if (!response.ok) {
@@ -330,9 +339,9 @@ function StockSummary({
       return response.json();
     },
   });
-
+  
   return (
-    <div className="grid gap-4 md:grid-cols-5">
+    <div className={`grid gap-4 ${hasAccess ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
       <Card data-testid="card-total-products" className="rounded-3xl border-0 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/40 dark:to-purple-900/40 shadow-sm hover:shadow-md transition-shadow">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-purple-900 dark:text-purple-100">Total Productos</CardTitle>
@@ -376,7 +385,7 @@ function StockSummary({
         </CardContent>
       </Card>
 
-      {userRole !== 'salesperson' && (
+      {hasAccess && (
         <Card data-testid="card-total-value" className="rounded-3xl border-0 bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950/40 dark:to-indigo-900/40 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-indigo-900 dark:text-indigo-100">Valor Total Inventario</CardTitle>
@@ -427,15 +436,18 @@ function InventoryTable({
   hideZZProducts: boolean;
   userRole: string;
 }) {
+  const hasAccess = hasCommercialAccess(userRole);
+  const endpoint = hasAccess ? '/api/inventory-with-prices' : '/api/inventory';
+  
   const { data: inventory, isLoading, refetch } = useQuery<ProductStock[]>({
-    queryKey: ['/api/inventory-with-prices', searchTerm, selectedWarehouse, selectedBranch],
+    queryKey: [endpoint, searchTerm, selectedWarehouse, selectedBranch],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (searchTerm) params.append('search', searchTerm);
       if (selectedWarehouse !== 'all') params.append('warehouse', selectedWarehouse);
       if (selectedBranch !== 'all') params.append('branch', selectedBranch);
       
-      const response = await fetch(`/api/inventory-with-prices?${params}`, {
+      const response = await fetch(`${endpoint}?${params}`, {
         credentials: 'include'
       });
       if (!response.ok) {
@@ -500,7 +512,7 @@ function InventoryTable({
                     <TableHead className="text-xs font-semibold text-gray-700 dark:text-gray-300 w-20 px-2">Bod</TableHead>
                     <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-20 px-2">UD1</TableHead>
                     <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-20 px-2">UD2</TableHead>
-                    {userRole !== 'salesperson' && (
+                    {hasAccess && (
                       <>
                         <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-24 px-2">Precio</TableHead>
                         <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-24 px-2">Valor</TableHead>
@@ -553,7 +565,7 @@ function InventoryTable({
                         <TableCell className="text-xs text-right font-semibold text-blue-700 dark:text-blue-400 py-1 px-2 whitespace-nowrap">
                           {item.stock2?.toLocaleString('es-CL', { maximumFractionDigits: 2 }) || '0'} <span className="text-[10px] text-gray-500">{item.unit2 || ''}</span>
                         </TableCell>
-                        {userRole !== 'salesperson' && (
+                        {hasAccess && (
                           <>
                             <TableCell className="text-xs text-right font-medium text-gray-800 dark:text-gray-200 py-1 px-2 whitespace-nowrap">
                               {item.averagePrice ? `$${item.averagePrice.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
