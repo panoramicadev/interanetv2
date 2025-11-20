@@ -109,6 +109,22 @@ export default function UsersPage() {
     enabled: user?.role === 'admin' || user?.role === 'supervisor',
   });
 
+  // Helper para extraer mensaje de error del backend
+  const extractErrorMessage = (error: any): string => {
+    try {
+      // El error llega como "400: {"message":"Ya existe un usuario con ese nombre"}"
+      const errorMsg = error.message || "";
+      const jsonMatch = errorMsg.match(/\{.*\}/);
+      if (jsonMatch) {
+        const errorData = JSON.parse(jsonMatch[0]);
+        return errorData.message || errorMsg;
+      }
+      return errorMsg || "Error desconocido";
+    } catch {
+      return error.message || "Error desconocido";
+    }
+  };
+
   // Mutation para crear usuario
   const createUserMutation = useMutation({
     mutationFn: async (userData: InsertSalespersonUserInput) => {
@@ -124,9 +140,10 @@ export default function UsersPage() {
       });
     },
     onError: (error: any) => {
+      const errorMessage = extractErrorMessage(error);
       toast({
-        title: "Error",
-        description: error.message || "No se pudo crear el usuario.",
+        title: "Error al crear usuario",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -148,9 +165,10 @@ export default function UsersPage() {
       });
     },
     onError: (error: any) => {
+      const errorMessage = extractErrorMessage(error);
       toast({
-        title: "Error",
-        description: error.message || "No se pudo actualizar el usuario.",
+        title: "Error al actualizar usuario",
+        description: errorMessage,
         variant: "destructive",
       });
     },
