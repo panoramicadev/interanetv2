@@ -473,6 +473,13 @@ export default function CMMSEquipos() {
           })
         ]);
 
+        console.log('📊 Datos para exportación:', {
+          equipos: todosEquipos.length,
+          mantenciones: todasMantenciones.length,
+          ordenes: todasOrdenes.length
+        });
+        console.log('🔍 Primeras 2 órdenes:', todasOrdenes.slice(0, 2));
+
         // Separar equipos principales y componentes
         const equiposPrincipales = todosEquipos.filter((eq: any) => !eq.equipoPadreId);
         const componentes = todosEquipos.filter((eq: any) => eq.equipoPadreId);
