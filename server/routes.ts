@@ -11994,7 +11994,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get inventory with prices from SQL Server
-  app.get('/api/inventory-with-prices', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/inventory-with-prices', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const { search, warehouse, branch } = req.query;
       
@@ -12043,7 +12043,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get inventory summary with prices and total value
-  app.get('/api/inventory/summary-with-prices', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/inventory/summary-with-prices', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const { search, warehouse, branch, hideNoStock, hideZZProducts } = req.query;
       
