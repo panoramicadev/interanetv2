@@ -1,0 +1,18 @@
+arning: Each child in a list should have a unique "key" prop.
+
+Check the render method of `CMMSEquipos`. See https://reactjs.org/link/warning-keys for more information.
+    at CMMSEquipos (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/src/pages/cmms-equipos.tsx:97:27)
+    at component
+    at Route (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=38afd60d:323:16)
+    at Switch (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=38afd60d:379:17)
+    at div
+    at div
+    at DashboardLayout (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/src/components/layout/dashboard-layout.tsx:34:43)
+    at Switch (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=38afd60d:379:17)
+    at Router (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/src/App.tsx?v=OG28P4TnypZc4vfUug7s5:81:31)
+    at Provider (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-XOUBXFGS.js?v=38afd60d:38:15)
+    at TooltipProvider (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=38afd60d:63:5)
+    at CartProvider (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/src/contexts/CartContext.tsx:305:32)
+    at FilterProvider (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/src/contexts/FilterContext.tsx:34:34)
+    at QueryClientProvider (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=38afd60d:2805:3)
+    at App
