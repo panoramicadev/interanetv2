@@ -455,21 +455,44 @@ export default function CMMSEquipos() {
     } else {
       // Exportar lista completa de equipos con componentes, mantenciones y órdenes
       try {
+        console.log('🚀 Iniciando exportación completa de equipos...');
         toast({ title: "Generando Excel...", description: "Esto puede tomar unos segundos" });
         
         // Obtener TODOS los equipos sin filtros, y todas las mantenciones y órdenes de trabajo
+        console.log('📡 Haciendo fetch a los endpoints...');
         const [todosEquipos, todasMantenciones, todasOrdenes] = await Promise.all([
           fetch('/api/cmms/equipos', { credentials: 'include' }).then(async r => {
-            if (!r.ok) throw new Error('Error al obtener equipos');
-            return r.json();
+            console.log('✅ Respuesta de /api/cmms/equipos:', r.status, r.ok);
+            if (!r.ok) {
+              const error = await r.text();
+              console.error('❌ Error en /api/cmms/equipos:', error);
+              throw new Error('Error al obtener equipos');
+            }
+            const data = await r.json();
+            console.log('📦 Equipos obtenidos:', data.length);
+            return data;
           }),
           fetch('/api/cmms/mantenciones-planificadas', { credentials: 'include' }).then(async r => {
-            if (!r.ok) throw new Error('Error al obtener mantenciones');
-            return r.json();
+            console.log('✅ Respuesta de /api/cmms/mantenciones-planificadas:', r.status, r.ok);
+            if (!r.ok) {
+              const error = await r.text();
+              console.error('❌ Error en /api/cmms/mantenciones-planificadas:', error);
+              throw new Error('Error al obtener mantenciones');
+            }
+            const data = await r.json();
+            console.log('📦 Mantenciones obtenidas:', data.length);
+            return data;
           }),
           fetch('/api/cmms/ordenes-trabajo', { credentials: 'include' }).then(async r => {
-            if (!r.ok) throw new Error('Error al obtener órdenes de trabajo');
-            return r.json();
+            console.log('✅ Respuesta de /api/cmms/ordenes-trabajo:', r.status, r.ok);
+            if (!r.ok) {
+              const error = await r.text();
+              console.error('❌ Error en /api/cmms/ordenes-trabajo:', error);
+              throw new Error('Error al obtener órdenes de trabajo');
+            }
+            const data = await r.json();
+            console.log('📦 Órdenes obtenidas:', data.length);
+            return data;
           })
         ]);
 
