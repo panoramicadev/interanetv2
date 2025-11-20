@@ -329,14 +329,15 @@ export const requireAdminOrSupervisor = requireRoles(['admin', 'supervisor']);
 
 // Commercial Module Role-Based Access Control
 // Access to commercial modules (CRM, Metas, Usuarios, Sales Analytics Dashboard, Clientes, Pedidos, Marketing, Gastos, ETL, API Keys)
-// Allows: admin, supervisor, salesperson, tecnico_obra, jefe_planta (dashboard viewing only)
-// Excludes: mantencion, laboratorio, produccion, logistica_bodega, planificacion, bodega_materias_primas, client, and all area_* roles
+// Allows: admin, supervisor, salesperson, tecnico_obra, jefe_planta, logistica_bodega (dashboard and invoices viewing)
+// Excludes: mantencion, laboratorio, produccion, planificacion, bodega_materias_primas, client, and all area_* roles
 export const requireCommercialAccess = requireRoles([
   'admin', 
   'supervisor', 
   'salesperson', 
   'tecnico_obra',
-  'jefe_planta'
+  'jefe_planta',
+  'logistica_bodega'
 ]);
 
 // Plant Operations Access Control
