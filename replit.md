@@ -78,3 +78,23 @@ Preferred communication style: Simple, everyday language.
 - **File**: `client/src/config/sidebar-config.ts`
 - **Impact**: Improved UX by prioritizing notifications visibility
 - **Status**: ✅ Implemented
+
+### Reclamos Module - Full Access for Jefe de Planta (November 20, 2025)
+- **Issue**: Jefe_planta could only see reclamos assigned to "producción" area, not all areas
+- **Root Cause**: Backend automatically filtered reclamos by user's mapped area (jefe_planta → producción)
+- **Fix**:
+  - **shared/reclamosAreas.ts**: Added `canViewAllReclamos()` function that returns true for admin, supervisor, and jefe_planta
+  - **server/routes.ts**: Updated `/api/reclamos-generales` endpoint to skip area filtering for users who can view all reclamos (lines 9086-9095)
+  - Now jefe_planta can access the "Todos" tab and see ALL reclamos from ALL areas (producción, laboratorio, logística, aplicación, envase, etiqueta, materia_prima, colores)
+- **New Capabilities for jefe_planta**:
+  - ✅ View all reclamos from all areas in "Todos" tab
+  - ✅ View reclamos assigned to producción in "Asignados a Producción" tab
+  - ✅ Complete oversight of all complaints across the organization
+  - ✅ Same access level as admin and supervisor for reclamos management
+- **Frontend Tabs Available**:
+  - "Asignados a Producción" - Reclamos specifically assigned to production area
+  - "Todos" - ALL reclamos from ALL areas (production, lab, logistics, application, packaging, labels, raw materials, colors)
+  - "Resueltos" - Resolved complaints
+  - "Cerrados" - Closed complaints
+- **Impact**: Jefe_planta now has comprehensive visibility into all organizational complaints for complete operational oversight
+- **Status**: ✅ Implemented and deployed

@@ -9078,13 +9078,17 @@ export function registerRoutes(app: Express): Server {
       
       // Filtrar automáticamente por área responsable si el usuario tiene rol de área
       // Usa taxonomía compartida para roles de área y organizacionales
-      const { getRoleArea } = await import('@shared/reclamosAreas');
-      const userArea = getRoleArea(user.role);
+      const { getRoleArea, canViewAllReclamos } = await import('@shared/reclamosAreas');
       
-      // Usuarios de área (laboratorio, produccion, etc.) ven todos los reclamos de su área
-      if (userArea) {
-        // Filtrar por área responsable para ver todos los reclamos en la cola del área
-        filters.areaResponsable = userArea;
+      // Admin, supervisor y jefe_planta pueden ver todos los reclamos de todas las áreas
+      if (!canViewAllReclamos(user.role)) {
+        const userArea = getRoleArea(user.role);
+        
+        // Usuarios de área (laboratorio, produccion, etc.) ven todos los reclamos de su área
+        if (userArea) {
+          // Filtrar por área responsable para ver todos los reclamos en la cola del área
+          filters.areaResponsable = userArea;
+        }
       }
       
       const reclamos = await storage.getReclamosGenerales(filters);
