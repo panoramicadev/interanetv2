@@ -699,11 +699,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Wrench,
       children: [
         {
-          href: "/cmms",
-          label: "Dashboard CMMS",
-          icon: LayoutDashboard,
-        },
-        {
           href: "/mantenciones",
           label: "Órdenes de Trabajo",
           icon: Wrench,
@@ -750,11 +745,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Wrench,
       children: [
         {
-          href: "/cmms",
-          label: "Dashboard CMMS",
-          icon: LayoutDashboard,
-        },
-        {
           href: "/mantenciones",
           label: "Órdenes de Trabajo",
           icon: Wrench,
@@ -780,11 +770,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Wrench,
       children: [
         {
-          href: "/cmms",
-          label: "Dashboard CMMS",
-          icon: LayoutDashboard,
-        },
-        {
           href: "/mantenciones",
           label: "Órdenes de Trabajo",
           icon: Wrench,
@@ -809,11 +794,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Mantención",
       icon: Wrench,
       children: [
-        {
-          href: "/cmms",
-          label: "Dashboard CMMS",
-          icon: LayoutDashboard,
-        },
         {
           href: "/mantenciones",
           label: "Órdenes de Trabajo",
