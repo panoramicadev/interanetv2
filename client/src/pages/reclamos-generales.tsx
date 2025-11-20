@@ -1180,6 +1180,7 @@ export default function ReclamosGeneralesPage() {
     user.role === 'supervisor' || 
     user.role === 'tecnico_obra' || 
     user.role === 'laboratorio' ||
+    user.role === 'jefe_planta' ||
     user.role?.startsWith('area_') ||
     (user.role && organizationalRoles.includes(user.role))
   );

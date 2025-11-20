@@ -150,3 +150,17 @@ Preferred communication style: Simple, everyday language.
   - **Field Behavior**: Name field now appears for: admin, supervisor, salesperson, tecnico_obra, jefe_planta, mantencion, laboratorio, produccion, logistica_bodega, planificacion, bodega_materias_primas, prevencion_riesgos, reception
 - **Impact**: All user roles can now be created with proper name identification
 - **Status**: ✅ Fixed and tested
+
+### Jefe de Planta - Frontend Access Permissions Fixed (November 20, 2025)
+- **Issue**: Users with role "jefe_planta" saw "No tiene permisos para acceder a esta página" when trying to access modules shown in their sidebar
+- **Root Cause**: Frontend page-level permission checks did not include "jefe_planta" role in their access control lists
+- **Affected Pages**: Visitas Técnicas, Reclamos, Tintometría (all 3 submodules)
+- **Fix**:
+  - **visitas-tecnicas.tsx**: Added jefe_planta to allowed roles (admin, tecnico_obra, supervisor, laboratorio, jefe_planta)
+  - **reclamos-generales.tsx**: Added jefe_planta to hasAccess check
+  - **tintometria-admin.tsx**: Added jefe_planta to allowed roles (admin, laboratorio, jefe_planta)
+  - **tintometria-calculadora.tsx**: Added jefe_planta to allowed roles (admin, laboratorio, jefe_planta)
+  - **tintometria-selector.tsx**: Added jefe_planta to allowed roles (admin, laboratorio, jefe_planta)
+  - **users.tsx**: Improved error message extraction from backend responses for better user feedback
+- **Impact**: Jefe de Planta can now access all modules shown in their sidebar without "access denied" errors
+- **Status**: ✅ Fixed and tested
