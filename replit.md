@@ -88,29 +88,43 @@ Preferred communication style: Simple, everyday language.
   - Updated sidebar navigation with role-based filtering
 - **Status**: ✅ Implemented and architect-reviewed
 
-### Jefe de Planta - Commercial Module Access Removed (November 20, 2025)
-- **Change**: Removed commercial module access from `jefe_planta` role to focus strictly on plant operations
-- **Modules Removed**:
-  - Dashboard Principal, CRM, Gestión de Metas, Facturas, Gestión de Usuarios, Lista de Precios, eCommerce, Gestión de Clientes, Tomador de Pedidos, Marketing, Rendición de Gastos, Monitor ETL, API Keys
-- **Modules Retained** (Plant Operations):
+### Jefe de Planta - Dashboard Access Restored (November 20, 2025)
+- **Change**: Restored dashboard access for `jefe_planta` role for operational oversight
+- **Modules Accessible**:
+  - **Dashboard Principal** (read-only sales metrics for operational planning)
   - Notificaciones
   - Visitas Técnicas
   - Reclamos
   - Mantención (full CMMS suite)
-  - Inventario (sin precios)
+  - Inventario (with prices - simplified access)
   - Tintometría
-- **Rationale**: Jefe de Planta role is now purely operational, focusing on plant maintenance, quality control, and production support. Commercial functions (sales, pricing, customer management) are handled exclusively by admin and supervisor roles.
-- **Impact**: Clear separation between commercial and operational responsibilities
+- **Modules Restricted**:
+  - CRM, Gestión de Metas, Facturas, Gestión de Usuarios, Lista de Precios, eCommerce, Gestión de Clientes, Tomador de Pedidos, Marketing, Rendición de Gastos, Monitor ETL, API Keys
+- **Rationale**: Jefe de Planta needs dashboard visibility for production planning and coordination while maintaining restricted access to commercial management functions
+- **Impact**: Better operational oversight while preserving security boundaries
 - **Status**: ✅ Implemented
 
 ### Backend RBAC Middleware Enhancement (November 20, 2025)
 - **Feature**: Implemented comprehensive role-based access control at the backend API level
 - **New Middleware**:
-  - `requireCommercialAccess`: Restricts commercial modules to admin, supervisor, salesperson, tecnico_obra (excludes all plant roles)
+  - `requireCommercialAccess`: Restricts commercial modules to admin, supervisor, salesperson, tecnico_obra, **jefe_planta** (updated to include dashboard viewing)
   - `requirePlantOperationsAccess`: Restricts plant operations to admin, supervisor, jefe_planta, mantencion, and plant departmental roles (excludes salesperson, tecnico_obra, client)
 - **Endpoints Protected**:
-  - **Commercial** (requireCommercialAccess): CRM (/api/crm/*), Goals (/api/goals/*), Users (/api/users/*), API Keys (/api/api-keys/*), Marketing (/api/marketing/*), Sales Dashboard (/api/sales/metrics, /api/sales/transactions, etc.), Inventory with Prices (/api/inventory-with-prices, /api/inventory/summary-with-prices)
+  - **Commercial** (requireCommercialAccess): CRM (/api/crm/*), Goals (/api/goals/*), Users (/api/users/*), API Keys (/api/api-keys/*), Marketing (/api/marketing/*), Sales Dashboard (/api/sales/metrics, /api/sales/transactions, etc.)
   - **Plant Operations** (requirePlantOperationsAccess): Inventory Sync (/api/inventory/sync, /api/inventory/sync-history)
-  - **Operational** (requireAuth - available to all authenticated users including jefe_planta): Visitas Técnicas, Reclamos, Tintometría, Inventory (without prices), Notifications
-- **Security Impact**: Enforces least-privilege access, prevents jefe_planta from viewing commercial data (sales metrics, pricing, customer management) while maintaining full operational access
+  - **Operational** (requireAuth - available to all authenticated users): Visitas Técnicas, Reclamos, Tintometría, Inventory (/api/inventory, /api/inventory-with-prices - all roles can see prices), Notifications
+- **Inventory Access**:
+  - Simplified inventory access - all plant and commercial roles can view inventory with prices
+  - Frontend access: admin, supervisor, salesperson, jefe_planta, mantencion, produccion, laboratorio, logistica_bodega, planificacion, bodega_materias_primas, prevencion_riesgos
+- **Security Impact**: Enforces least-privilege access while providing operational visibility where needed
 - **Status**: ✅ Implemented and architect-reviewed
+
+### User Management - All Roles Available (November 20, 2025)
+- **Feature**: Complete role support in user creation and editing
+- **Roles Available**:
+  - Commercial: Admin, Supervisor, Vendedor, Técnico de Obra
+  - Plant Management: Jefe de Planta, Mantención
+  - Plant Operations: Laboratorio, Producción, Logística y Bodega, Planificación, Bodega Materias Primas, Prevención de Riesgos
+  - Other: Cliente, Recepción
+- **Implementation**: Updated dropdown selects in user creation/edit dialogs (desktop and mobile views) and role display labels in user tables
+- **Status**: ✅ Implemented

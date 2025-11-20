@@ -87,8 +87,9 @@ export default function Inventario() {
     );
   }
 
-  // Only admin, supervisor, salesperson, produccion, laboratorio, and logistica_bodega can access inventory
-  if (user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'salesperson' && user.role !== 'produccion' && user.role !== 'laboratorio' && user.role !== 'logistica_bodega') {
+  // All authenticated users with plant/commercial roles can access inventory
+  const allowedRoles = ['admin', 'supervisor', 'salesperson', 'jefe_planta', 'mantencion', 'produccion', 'laboratorio', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
+  if (!user.role || !allowedRoles.includes(user.role)) {
     return (
       <div className="container mx-auto px-4 py-8">
         <Card>
@@ -100,6 +101,9 @@ export default function Inventario() {
       </div>
     );
   }
+
+  // At this point, user.role is guaranteed to be a string
+  const userRole = user.role as string;
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
@@ -187,7 +191,7 @@ export default function Inventario() {
         selectedBranch={selectedBranch}
         hideNoStock={hideNoStock}
         hideZZProducts={hideZZProducts}
-        userRole={user.role}
+        userRole={userRole}
       />
 
       {/* Inventory Table */}
@@ -197,7 +201,7 @@ export default function Inventario() {
         selectedBranch={selectedBranch}
         hideNoStock={hideNoStock}
         hideZZProducts={hideZZProducts}
-        userRole={user.role}
+        userRole={userRole}
       />
     </div>
   );
