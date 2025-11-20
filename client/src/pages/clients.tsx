@@ -262,21 +262,39 @@ export default function Clients() {
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await fetch('/api/clients/import', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include'
-      });
+      // Create abort controller for timeout (10 minutes for large files)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minutes
       
-      if (!response.ok) {
-        const errorData = await response.json();
+      try {
+        const response = await fetch('/api/clients/import', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          setIsImporting(false);
+          setImportProgress("");
+          throw new Error(errorData.message || 'Error al importar clientes');
+        }
+        
+        setImportProgress("✅ Importación completada en segundos!");
+        return response.json();
+      } catch (error) {
+        clearTimeout(timeoutId);
         setIsImporting(false);
         setImportProgress("");
-        throw new Error(errorData.message || 'Error al importar clientes');
+        
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw new Error('La importación tardó demasiado. El archivo puede ser muy grande. Intenta con un archivo más pequeño.');
+        }
+        throw error;
       }
-      
-      setImportProgress("✅ Importación completada en segundos!");
-      return response.json();
     },
     onSuccess: (data) => {
       setIsImporting(false);
