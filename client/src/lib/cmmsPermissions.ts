@@ -54,12 +54,12 @@ export const canViewCMMS = (role?: string | null): boolean => {
 
 /**
  * Puede ver el Dashboard CMMS con métricas y estadísticas
- * Solo roles con gestión: admin, jefe_planta, mantencion, supervisor
- * Roles limitados (laboratorio, produccion, etc.) solo pueden crear OT y ver calendario
+ * Roles con gestión: admin, jefe_planta, mantencion, supervisor, logistica_bodega
+ * Roles limitados (laboratorio, produccion, planificacion, bodega_materias_primas) solo pueden crear OT y ver calendario
  */
 export const canViewCMMSDashboard = (role?: string | null): boolean => {
   if (!role) return false;
-  return ['admin', 'jefe_planta', 'mantencion', 'supervisor'].includes(role);
+  return ['admin', 'jefe_planta', 'mantencion', 'supervisor', 'logistica_bodega'].includes(role);
 };
 
 /**
