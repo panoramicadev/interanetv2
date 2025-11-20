@@ -111,3 +111,22 @@ Preferred communication style: Simple, everyday language.
   - ✅ Same sync capabilities as admin, supervisor, salesperson, produccion, laboratorio, and logistica_bodega
 - **Impact**: Jefe_planta can now manage inventory synchronization as part of plant operations oversight
 - **Status**: ✅ Implemented and deployed
+
+### CMMS Dashboard - Limited Access for Plant Roles (November 20, 2025)
+- **Issue**: All plant roles could see Dashboard CMMS with metrics and statistics, but limited roles should only create OT and view calendar
+- **Root Cause**: Dashboard CMMS was visible to all roles with CMMS access
+- **Fix**:
+  - **client/src/lib/cmmsPermissions.ts**: Created `canViewCMMSDashboard()` function that only allows admin, jefe_planta, mantencion, supervisor to view dashboard
+  - **client/src/App.tsx**: Updated routing for `/cmms` and `/cmms/dashboard` to use `canViewCMMSDashboard()` instead of `canViewCMMS()`
+  - **client/src/config/sidebar-config.ts**: Removed "Dashboard CMMS" menu item from roles: produccion, logistica_bodega, planificacion, bodega_materias_primas
+- **Access Matrix**:
+  - **Full Dashboard Access** (admin, jefe_planta, mantencion, supervisor):
+    - ✅ Dashboard CMMS with metrics and statistics
+    - ✅ Create work orders (OT)
+    - ✅ View calendar
+  - **Limited Access** (produccion, logistica_bodega, planificacion, bodega_materias_primas, laboratorio):
+    - ❌ Dashboard CMMS (hidden)
+    - ✅ Create work orders (OT)
+    - ✅ View calendar
+- **Impact**: Limited plant roles now have a simplified CMMS menu focused on operational tasks (creating OT and viewing schedules) without access to management metrics
+- **Status**: ✅ Implemented and deployed
