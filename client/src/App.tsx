@@ -8,6 +8,7 @@ import { FilterProvider } from "@/contexts/FilterContext";
 import { UpdateNotification } from "@/components/UpdateNotification";
 import { 
   canViewCMMS, 
+  canViewCMMSDashboard,
   canAccessCMMSFull, 
   canAccessPlanesPreventivos, 
   canAccessMantencionesPlanificadas, 
@@ -185,16 +186,16 @@ function Router() {
             <Route path="/reclamos-generales" component={ReclamosGeneralesPage} />
             <Route path="/mantenciones" component={MantencionesPage} />
             <Route path="/cmms" component={() => {
-              // Todos los roles de planta pueden ver el dashboard CMMS
-              if (!canViewCMMS(user?.role)) {
+              // Solo roles con gestión pueden ver el dashboard CMMS (admin, jefe_planta, mantencion, supervisor)
+              if (!canViewCMMSDashboard(user?.role)) {
                 window.location.replace('/');
                 return null;
               }
               return <CMMSDashboard />;
             }} />
             <Route path="/cmms/dashboard" component={() => {
-              // Todos los roles de planta pueden ver el dashboard CMMS
-              if (!canViewCMMS(user?.role)) {
+              // Solo roles con gestión pueden ver el dashboard CMMS (admin, jefe_planta, mantencion, supervisor)
+              if (!canViewCMMSDashboard(user?.role)) {
                 window.location.replace('/');
                 return null;
               }
