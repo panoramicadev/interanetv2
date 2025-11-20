@@ -159,3 +159,26 @@ Preferred communication style: Simple, everyday language.
 - **Design Pattern**: Future file pickers in modals MUST use this portal pattern to avoid same Radix Dialog interaction issues
 - **Impact**: Users can now attach photos to complaint resolutions without modal closing, form data preserved
 - **Status**: ✅ Implemented, reviewed by architect, tested and confirmed working
+
+### CMMS Excel Export & Optional Fields Bug Fix (November 20, 2025)
+- **Issue Resolved**: Two critical bugs in CMMS Equipos module:
+  1. Excel export button generated empty workbooks (only headers, no data)
+  2. Optional form fields (descripcion, codigo, ubicacion, etc.) did not persist when saved
+- **Root Cause**:
+  1. **Excel Export**: Button handler `onClick={exportToExcel}` passed React's SyntheticEvent as first parameter, triggering wrong code path
+     - Function thought `equipoDetalle = SyntheticEvent` (truthy) → entered equipment-specific export instead of full export
+  2. **Optional Fields**: Form fields used `<Input {...field} />` pattern which spreads `field.value` that can be `undefined`
+     - React components flip to uncontrolled mode when value is undefined → user edits lost
+- **Solution**:
+  1. **Excel Export**: Changed button handler from `onClick={exportToExcel}` to `onClick={() => exportToExcel()}`
+     - Ensures function called without parameters → enters correct full-export branch
+  2. **Optional Fields**: Added explicit `value={field.value || ""}` to all optional inputs/textarea
+     - Fields: descripcion (Textarea), codigo, ubicacion, fabricante, modelo, numeroSerie, fechaInstalacion (Input)
+     - Ensures components always controlled with string value, never undefined
+- **Technical Details**:
+  - Created `/api/cmms/ordenes-trabajo` endpoint to fetch all work orders for Excel export
+  - Excel now exports 4 complete sheets: Equipos Principales, Componentes, Mantenciones Planificadas, Órdenes de Trabajo
+  - Form fields remain controlled throughout lifecycle (create/edit/reset)
+- **Design Pattern**: React onClick handlers should use arrow functions `() => func()` when calling without parameters to prevent synthetic event injection
+- **Impact**: Excel export now generates complete workbooks with all data; all form fields persist correctly
+- **Status**: ✅ Implemented, reviewed by architect, ready for user testing
