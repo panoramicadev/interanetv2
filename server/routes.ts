@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import path from "path";
 import { storage } from "./storage";
-import { setupAuth, requireAuth, requireAdminOrSupervisor, requireRoles, requireCMMSFullAccess, requireCMMSMaintenance, requireCMMSPlantStaff } from "./auth";
+import { setupAuth, requireAuth, requireAdminOrSupervisor, requireCommercialAccess, requireRoles, requireCMMSFullAccess, requireCMMSMaintenance, requireCMMSPlantStaff } from "./auth";
 // import { setupAuth as setupReplitAuth } from "./replitAuth"; // Disabled - conflicts with email/password auth
 import multer from "multer";
 import Papa from "papaparse";
@@ -2746,7 +2746,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Goals/Metas endpoints
-  app.get('/api/goals', requireAuth, async (req, res) => {
+  app.get('/api/goals', requireCommercialAccess, async (req, res) => {
     try {
       const { type } = req.query;
       const goals = type 
@@ -2821,7 +2821,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Goals form data endpoints
-  app.get('/api/goals/data/segments', requireAuth, async (req, res) => {
+  app.get('/api/goals/data/segments', requireCommercialAccess, async (req, res) => {
     try {
       const segments = await storage.getUniqueSegments();
       res.json(segments);
@@ -2831,7 +2831,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get('/api/goals/data/salespeople', requireAuth, async (req, res) => {
+  app.get('/api/goals/data/salespeople', requireCommercialAccess, async (req, res) => {
     try {
       const { period, filterType } = req.query;
       const dateRange = period && filterType ? getDateRange(period as string, filterType as string) : {};
@@ -2843,7 +2843,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get('/api/goals/data/clients', requireAuth, async (req, res) => {
+  app.get('/api/goals/data/clients', requireCommercialAccess, async (req, res) => {
     try {
       const clients = await storage.getUniqueClients();
       res.json(clients);
@@ -2853,7 +2853,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get('/api/goals/data/suppliers', requireAuth, async (req, res) => {
+  app.get('/api/goals/data/suppliers', requireCommercialAccess, async (req, res) => {
     try {
       const suppliers = await storage.getUniqueSuppliers();
       res.json(suppliers);
@@ -2864,7 +2864,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Goals progress endpoint
-  app.get('/api/goals/progress', requireAuth, async (req, res) => {
+  app.get('/api/goals/progress', requireCommercialAccess, async (req, res) => {
     try {
       const { selectedPeriod, type, target } = req.query;
       const filterPeriod = selectedPeriod as string;
@@ -2948,7 +2948,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // API Keys management endpoints (admin only)
-  app.get('/api/api-keys', requireAuth, async (req: any, res) => {
+  app.get('/api/api-keys', requireCommercialAccess, async (req: any, res) => {
     try {
       // Only admin and supervisor can view API keys
       if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
@@ -2979,7 +2979,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post('/api/api-keys', requireAuth, async (req: any, res) => {
+  app.post('/api/api-keys', requireCommercialAccess, async (req: any, res) => {
     try {
       // Only admin can create API keys
       if (req.user.role !== 'admin') {
@@ -3019,7 +3019,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.patch('/api/api-keys/:id/toggle', requireAuth, async (req: any, res) => {
+  app.patch('/api/api-keys/:id/toggle', requireCommercialAccess, async (req: any, res) => {
     try {
       // Only admin can toggle API keys
       if (req.user.role !== 'admin') {
@@ -3042,7 +3042,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.delete('/api/api-keys/:id', requireAuth, async (req: any, res) => {
+  app.delete('/api/api-keys/:id', requireCommercialAccess, async (req: any, res) => {
     try {
       // Only admin can delete API keys
       if (req.user.role !== 'admin') {
@@ -5044,7 +5044,7 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
   
   // Get all users (for dropdowns like salesperson assignment)
-  app.get('/api/users', requireAuth, async (req: any, res) => {
+  app.get('/api/users', requireCommercialAccess, async (req: any, res) => {
     try {
       const user = req.user;
       
@@ -5062,7 +5062,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Search clients (for CRM lead creation from existing clients)
-  app.get('/api/users/clients/search', requireAuth, async (req: any, res) => {
+  app.get('/api/users/clients/search', requireCommercialAccess, async (req: any, res) => {
     try {
       const user = req.user;
       const { q } = req.query;
@@ -5112,7 +5112,7 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
 
   // Get all leads with filters
-  app.get('/api/crm/leads', requireAuth, async (req: any, res) => {
+  app.get('/api/crm/leads', requireCommercialAccess, async (req: any, res) => {
     try {
       const user = req.user;
       const { stage, segment } = req.query;
@@ -5149,7 +5149,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Get single lead by ID
-  app.get('/api/crm/leads/:id', requireAuth, async (req: any, res) => {
+  app.get('/api/crm/leads/:id', requireCommercialAccess, async (req: any, res) => {
     try {
       const { id } = req.params;
       const user = req.user;
@@ -5184,7 +5184,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Create new lead
-  app.post('/api/crm/leads', requireAuth, async (req: any, res) => {
+  app.post('/api/crm/leads', requireCommercialAccess, async (req: any, res) => {
     try {
       const user = req.user;
       
@@ -5226,7 +5226,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Update lead (including stage changes, activity tracking)
-  app.put('/api/crm/leads/:id', requireAuth, async (req: any, res) => {
+  app.put('/api/crm/leads/:id', requireCommercialAccess, async (req: any, res) => {
     try {
       const { id } = req.params;
       const user = req.user;
@@ -5254,7 +5254,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Delete lead
-  app.delete('/api/crm/leads/:id', requireAuth, async (req: any, res) => {
+  app.delete('/api/crm/leads/:id', requireCommercialAccess, async (req: any, res) => {
     try {
       const { id } = req.params;
       const user = req.user;
@@ -5278,7 +5278,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Get comments for a lead
-  app.get('/api/crm/leads/:id/comments', requireAuth, async (req: any, res) => {
+  app.get('/api/crm/leads/:id/comments', requireCommercialAccess, async (req: any, res) => {
     try {
       const { id } = req.params;
       const user = req.user;
@@ -5306,7 +5306,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Create comment for a lead
-  app.post('/api/crm/leads/:id/comments', requireAuth, async (req: any, res) => {
+  app.post('/api/crm/leads/:id/comments', requireCommercialAccess, async (req: any, res) => {
     try {
       const { id } = req.params;
       const user = req.user;
@@ -5349,7 +5349,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Get lead-specific recommendations
-  app.get('/api/crm/leads/:id/recommendations', requireAuth, async (req: any, res) => {
+  app.get('/api/crm/leads/:id/recommendations', requireCommercialAccess, async (req: any, res) => {
     try {
       const { id } = req.params;
       const user = req.user;
@@ -5401,7 +5401,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Get CRM statistics
-  app.get('/api/crm/stats', requireAuth, async (req: any, res) => {
+  app.get('/api/crm/stats', requireCommercialAccess, async (req: any, res) => {
     try {
       const user = req.user;
       const { startDate, endDate } = req.query;
@@ -5431,7 +5431,7 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
 
   // Get all stages
-  app.get('/api/crm/stages', requireAuth, async (req: any, res) => {
+  app.get('/api/crm/stages', requireCommercialAccess, async (req: any, res) => {
     try {
       const stages = await storage.getAllStages();
       res.json(stages);
@@ -5442,7 +5442,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Create new stage (admin only)
-  app.post('/api/crm/stages', requireAuth, async (req: any, res) => {
+  app.post('/api/crm/stages', requireCommercialAccess, async (req: any, res) => {
     try {
       const user = req.user;
       
@@ -5459,7 +5459,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Update stage (admin only)
-  app.put('/api/crm/stages/:id', requireAuth, async (req: any, res) => {
+  app.put('/api/crm/stages/:id', requireCommercialAccess, async (req: any, res) => {
     try {
       const user = req.user;
       const { id } = req.params;
@@ -5477,7 +5477,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Delete stage (admin only)
-  app.delete('/api/crm/stages/:id', requireAuth, async (req: any, res) => {
+  app.delete('/api/crm/stages/:id', requireCommercialAccess, async (req: any, res) => {
     try {
       const user = req.user;
       const { id } = req.params;
@@ -5495,7 +5495,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Reorder stages (admin only)
-  app.post('/api/crm/stages/reorder', requireAuth, async (req: any, res) => {
+  app.post('/api/crm/stages/reorder', requireCommercialAccess, async (req: any, res) => {
     try {
       const user = req.user;
       
@@ -5513,7 +5513,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Inactive clients endpoints
-  app.get('/api/crm/inactive-clients', requireAuth, async (req: any, res) => {
+  app.get('/api/crm/inactive-clients', requireCommercialAccess, async (req: any, res) => {
     try {
       const user = req.user;
       const { includeDismissed } = req.query;
@@ -5533,7 +5533,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post('/api/crm/inactive-clients/update', requireAuth, async (req: any, res) => {
+  app.post('/api/crm/inactive-clients/update', requireCommercialAccess, async (req: any, res) => {
     try {
       const user = req.user;
 
@@ -5550,7 +5550,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post('/api/crm/inactive-clients/:id/add-to-crm', requireAuth, async (req: any, res) => {
+  app.post('/api/crm/inactive-clients/:id/add-to-crm', requireCommercialAccess, async (req: any, res) => {
     try {
       const { id } = req.params;
       const { leadId } = req.body;
@@ -5572,7 +5572,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post('/api/crm/inactive-clients/:id/dismiss', requireAuth, async (req: any, res) => {
+  app.post('/api/crm/inactive-clients/:id/dismiss', requireCommercialAccess, async (req: any, res) => {
     try {
       const { id } = req.params;
 
@@ -5590,7 +5590,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Combined endpoint to create CRM lead from inactive client (from salesperson dashboard)
-  app.post('/api/crm/inactive-clients/:id/create-lead', requireAuth, async (req: any, res) => {
+  app.post('/api/crm/inactive-clients/:id/create-lead', requireCommercialAccess, async (req: any, res) => {
     try {
       const { id } = req.params;
       const user = req.user;
@@ -11424,7 +11424,7 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
   
   // Presupuesto Marketing routes
-  app.post('/api/marketing/presupuesto', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/presupuesto', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       
@@ -11456,7 +11456,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/marketing/presupuesto/:mes/:anio', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/presupuesto/:mes/:anio', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const mes = parseInt(req.params.mes);
       const anio = parseInt(req.params.anio);
@@ -11474,7 +11474,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Solicitudes Marketing routes
-  app.post('/api/marketing/solicitudes', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/solicitudes', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       
@@ -11549,7 +11549,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/marketing/solicitudes', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/solicitudes', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const { mes, anio, estado } = req.query;
@@ -11572,7 +11572,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/marketing/solicitudes/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/solicitudes/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const solicitud = await storage.getSolicitudMarketingById(req.params.id);
       
@@ -11586,7 +11586,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.patch('/api/marketing/solicitudes/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/solicitudes/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const solicitud = await storage.getSolicitudMarketingById(req.params.id);
@@ -11625,7 +11625,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.delete('/api/marketing/solicitudes/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/marketing/solicitudes/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       
@@ -11642,7 +11642,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Cambiar estado de solicitud
-  app.post('/api/marketing/solicitudes/:id/estado', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/solicitudes/:id/estado', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const { estado, motivoRechazo, monto, pdfPresupuesto } = req.body;
@@ -11668,7 +11668,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Update pasos for a solicitud
-  app.patch('/api/marketing/solicitudes/:id/pasos', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/solicitudes/:id/pasos', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const solicitud = await storage.getSolicitudMarketingById(req.params.id);
@@ -11700,7 +11700,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Toggle paso completado
-  app.patch('/api/marketing/solicitudes/:id/pasos/:index/toggle', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/solicitudes/:id/pasos/:index/toggle', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const solicitud = await storage.getSolicitudMarketingById(req.params.id);
@@ -11735,7 +11735,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Update solicitud notas
-  app.patch('/api/marketing/solicitudes/:id/notas', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/solicitudes/:id/notas', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       const solicitud = await storage.getSolicitudMarketingById(req.params.id);
@@ -11763,7 +11763,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Marketing metrics
-  app.get('/api/marketing/metrics/:mes/:anio', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/metrics/:mes/:anio', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const mes = parseInt(req.params.mes);
       const anio = parseInt(req.params.anio);
@@ -11776,7 +11776,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Inventario Marketing routes
-  app.post('/api/marketing/inventario', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/inventario', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       
@@ -11792,7 +11792,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/marketing/inventario', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/inventario', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { search, estado } = req.query;
       
@@ -11807,7 +11807,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/marketing/inventario/summary', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/inventario/summary', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const summary = await storage.getInventarioMarketingSummary();
       res.json(summary);
@@ -11816,7 +11816,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.get('/api/marketing/inventario/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/inventario/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const item = await storage.getInventarioMarketingById(req.params.id);
       
@@ -11830,7 +11830,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.patch('/api/marketing/inventario/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/inventario/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       
@@ -11846,7 +11846,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  app.delete('/api/marketing/inventario/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/marketing/inventario/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       
@@ -11867,7 +11867,7 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
 
   // Get all hitos
-  app.get('/api/marketing/hitos', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/hitos', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { mes, anio } = req.query;
       
@@ -11883,7 +11883,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get hito by ID
-  app.get('/api/marketing/hitos/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/marketing/hitos/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const hito = await storage.getHitoMarketingById(req.params.id);
       
@@ -11898,7 +11898,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Create hito
-  app.post('/api/marketing/hitos', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.post('/api/marketing/hitos', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       
@@ -11923,7 +11923,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Update hito
-  app.patch('/api/marketing/hitos/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.patch('/api/marketing/hitos/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       
@@ -11940,7 +11940,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Delete hito
-  app.delete('/api/marketing/hitos/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.delete('/api/marketing/hitos/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       

@@ -68,3 +68,37 @@ Preferred communication style: Simple, everyday language.
 - **Date Handling**: date-fns
 - **PDF Generation**: @react-pdf/renderer
 - **CSV Parsing**: Papa Parse
+
+## Recent Changes
+
+### CMMS Role-Based Access Control (RBAC) - Granular Permissions (November 20, 2025)
+- **Feature**: Implemented granular role-based access control for CMMS module
+- **New Roles Added**:
+  - `jefe_planta` (Plant Manager): Full CMMS access, focused on plant operations
+  - `mantencion` (Maintenance Staff): Limited CMMS access - can manage work orders, preventive plans, and planned maintenance
+  - Plant departmental roles: `laboratorio`, `produccion`, `logistica_bodega`, `planificacion`, `bodega_materias_primas` (view-only access to work orders and calendar)
+- **Permission System**:
+  - **Admin & Jefe Planta**: Full CMMS access - Equipos, Proveedores, Presupuesto, Gastos, Planes Preventivos, Mantenciones Planificadas, OT, Calendario
+  - **Mantencion**: Limited access - Planes Preventivos, Mantenciones Planificadas, OT (can create, resolve, but cannot delete), Calendario
+  - **Plant Staff**: View-only - OT (can create only), Calendario
+- **Implementation**:
+  - Created module-specific permission helpers in `client/src/lib/cmmsPermissions.ts`
+  - Applied granular middleware to ~40 CMMS backend endpoints
+  - Updated CMMS Dashboard to show only permitted modules per role
+  - Updated sidebar navigation with role-based filtering
+- **Status**: ✅ Implemented and architect-reviewed
+
+### Jefe de Planta - Commercial Module Access Removed (November 20, 2025)
+- **Change**: Removed commercial module access from `jefe_planta` role to focus strictly on plant operations
+- **Modules Removed**:
+  - Dashboard Principal, CRM, Gestión de Metas, Facturas, Gestión de Usuarios, Lista de Precios, eCommerce, Gestión de Clientes, Tomador de Pedidos, Marketing, Rendición de Gastos, Monitor ETL, API Keys
+- **Modules Retained** (Plant Operations):
+  - Notificaciones
+  - Visitas Técnicas
+  - Reclamos
+  - Mantención (full CMMS suite)
+  - Inventario
+  - Tintometría
+- **Rationale**: Jefe de Planta role is now purely operational, focusing on plant maintenance, quality control, and production support. Commercial functions (sales, pricing, customer management) are handled exclusively by admin and supervisor roles.
+- **Impact**: Clear separation between commercial and operational responsibilities
+- **Status**: ✅ Implemented

@@ -327,6 +327,17 @@ export const requireRoles = (roles: string[]) => {
 // Convenience middleware for admin/supervisor only
 export const requireAdminOrSupervisor = requireRoles(['admin', 'supervisor']);
 
+// Commercial Module Role-Based Access Control
+// Access to commercial modules (CRM, Metas, Usuarios, Dashboard, Sales Analytics, Clientes, Pedidos, Marketing, Gastos, ETL, API Keys)
+// Allows: admin, supervisor, salesperson, tecnico_obra
+// Excludes: jefe_planta, mantencion, laboratorio, produccion, logistica_bodega, planificacion, bodega_materias_primas, client, and all area_* roles
+export const requireCommercialAccess = requireRoles([
+  'admin', 
+  'supervisor', 
+  'salesperson', 
+  'tecnico_obra'
+]);
+
 // CMMS Module Role-Based Access Control
 // Full access to all CMMS modules (equipos, proveedores, presupuestos, gastos, etc.)
 export const requireCMMSFullAccess = requireRoles(['admin', 'jefe_planta']);

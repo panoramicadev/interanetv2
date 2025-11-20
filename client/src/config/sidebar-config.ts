@@ -211,52 +211,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Bell,
     },
     {
-      href: "/",
-      label: "Dashboard",
-      icon: LayoutDashboard,
-    },
-    {
-      href: "/crm",
-      label: "CRM",
-      icon: ClipboardList,
-    },
-    {
-      href: "/metas",
-      label: "Gestión de Metas",
-      icon: Target,
-    },
-    {
-      href: "/facturas",
-      label: "Facturas",
-      icon: Receipt,
-    },
-    {
-      href: "/usuarios",
-      label: "Gestión de Usuarios",
-      icon: User,
-    },
-    {
-      href: "/lista-precios",
-      label: "Lista de Precios",
-      icon: DollarSign,
-    },
-    {
-      href: "/ecommerce",
-      label: "eCommerce",
-      icon: ShoppingCart,
-    },
-    {
-      href: "/clientes",
-      label: "Gestión de Clientes",
-      icon: Users,
-      separator: true, // Separador antes de Tomador de Pedidos
-    },
-    {
-      href: "/tomador-pedidos",
-      label: "Tomador de Pedidos",
-      icon: ClipboardCheck,
-    },
-    {
       href: "/visitas-tecnicas",
       label: "Visita Técnica",
       icon: FileCheck,
@@ -319,29 +273,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       ],
     },
     {
-      href: "/marketing",
-      label: "Marketing",
-      icon: TrendingUp,
-    },
-    {
-      href: "/gastos-empresariales",
-      label: "Rendición de Gastos",
-      icon: Banknote,
-    },
-    {
       href: "/inventario",
       label: "Inventario",
       icon: Warehouse,
-    },
-    {
-      href: "/etl-monitor",
-      label: "Monitor ETL",
-      icon: Database,
-    },
-    {
-      href: "/api-keys",
-      label: "API Keys",
-      icon: Key,
       separator: true,
     },
     {
