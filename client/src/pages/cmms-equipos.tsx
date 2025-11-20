@@ -649,7 +649,7 @@ export default function CMMSEquipos() {
           <div className="flex items-center gap-2">
             <Button 
               variant="outline" 
-              onClick={exportToExcel} 
+              onClick={() => exportToExcel()} 
               data-testid="button-export-excel"
             >
               <Download className="h-4 w-4 mr-2" />
