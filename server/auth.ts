@@ -338,6 +338,22 @@ export const requireCommercialAccess = requireRoles([
   'tecnico_obra'
 ]);
 
+// Plant Operations Access Control
+// Access to plant operational functions like inventory sync, CMMS, etc.
+// Allows: admin, supervisor, jefe_planta, mantencion, and all plant departmental roles
+// Excludes: salesperson, tecnico_obra, client
+export const requirePlantOperationsAccess = requireRoles([
+  'admin',
+  'supervisor', 
+  'jefe_planta',
+  'mantencion',
+  'laboratorio',
+  'produccion',
+  'logistica_bodega',
+  'planificacion',
+  'bodega_materias_primas'
+]);
+
 // CMMS Module Role-Based Access Control
 // Full access to all CMMS modules (equipos, proveedores, presupuestos, gastos, etc.)
 export const requireCMMSFullAccess = requireRoles(['admin', 'jefe_planta']);

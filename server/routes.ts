@@ -11994,7 +11994,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get inventory with prices from SQL Server
-  app.get('/api/inventory-with-prices', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/inventory-with-prices', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { search, warehouse, branch } = req.query;
       
@@ -12043,7 +12043,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get inventory summary with prices and total value
-  app.get('/api/inventory/summary-with-prices', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/inventory/summary-with-prices', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { search, warehouse, branch, hideNoStock, hideZZProducts } = req.query;
       
@@ -12092,7 +12092,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Sync products from ERP to PostgreSQL
-  app.post('/api/inventory/sync', requireRoles('admin', 'supervisor'), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/inventory/sync', requirePlantOperationsAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (!user || !user.id || !user.email) {
@@ -12132,7 +12132,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get sync history
-  app.get('/api/inventory/sync-history', requireRoles('admin', 'supervisor'), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/inventory/sync-history', requirePlantOperationsAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 20;
       const history = await storage.getSyncHistory(limit);
