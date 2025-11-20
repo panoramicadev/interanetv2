@@ -97,8 +97,20 @@ Preferred communication style: Simple, everyday language.
   - Visitas Técnicas
   - Reclamos
   - Mantención (full CMMS suite)
-  - Inventario
+  - Inventario (sin precios)
   - Tintometría
 - **Rationale**: Jefe de Planta role is now purely operational, focusing on plant maintenance, quality control, and production support. Commercial functions (sales, pricing, customer management) are handled exclusively by admin and supervisor roles.
 - **Impact**: Clear separation between commercial and operational responsibilities
 - **Status**: ✅ Implemented
+
+### Backend RBAC Middleware Enhancement (November 20, 2025)
+- **Feature**: Implemented comprehensive role-based access control at the backend API level
+- **New Middleware**:
+  - `requireCommercialAccess`: Restricts commercial modules to admin, supervisor, salesperson, tecnico_obra (excludes all plant roles)
+  - `requirePlantOperationsAccess`: Restricts plant operations to admin, supervisor, jefe_planta, mantencion, and plant departmental roles (excludes salesperson, tecnico_obra, client)
+- **Endpoints Protected**:
+  - **Commercial** (requireCommercialAccess): CRM (/api/crm/*), Goals (/api/goals/*), Users (/api/users/*), API Keys (/api/api-keys/*), Marketing (/api/marketing/*), Sales Dashboard (/api/sales/metrics, /api/sales/transactions, etc.), Inventory with Prices (/api/inventory-with-prices, /api/inventory/summary-with-prices)
+  - **Plant Operations** (requirePlantOperationsAccess): Inventory Sync (/api/inventory/sync, /api/inventory/sync-history)
+  - **Operational** (requireAuth - available to all authenticated users including jefe_planta): Visitas Técnicas, Reclamos, Tintometría, Inventory (without prices), Notifications
+- **Security Impact**: Enforces least-privilege access, prevents jefe_planta from viewing commercial data (sales metrics, pricing, customer management) while maintaining full operational access
+- **Status**: ✅ Implemented and architect-reviewed
