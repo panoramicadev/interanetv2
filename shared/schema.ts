@@ -3550,7 +3550,8 @@ export const mantencionesPlanificadas = pgTable("mantenciones_planificadas", {
 // ===== PLANES PREVENTIVOS =====
 export const planesPreventivos = pgTable("planes_preventivos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  equipoId: varchar("equipo_id").notNull(), // FK a equipos_criticos
+  equipoId: varchar("equipo_id"), // FK a equipos_criticos (OPCIONAL - puede ser null para tareas generales)
+  equipoNombre: varchar("equipo_nombre", { length: 255 }), // Nombre del equipo para referencia rápida
   nombrePlan: varchar("nombre_plan", { length: 255 }).notNull(),
   descripcion: text("descripcion"),
   frecuencia: varchar("frecuencia").notNull(), // semanal, mensual, trimestral, semestral, anual
