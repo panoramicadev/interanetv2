@@ -212,6 +212,30 @@ export default function CMmsPlanesPreventivos() {
     },
   });
 
+  // Run scheduler manually mutation
+  const runSchedulerMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('/api/cmms/scheduler/run-preventive', {
+        method: "POST",
+      });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/cmms/planes-preventivos"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cmms/mantenciones"] });
+      toast({
+        title: "Scheduler ejecutado",
+        description: data.message || `${data.otsGenerated} OTs generadas exitosamente.`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo ejecutar el scheduler.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleOpenCreateDialog = () => {
     setEditingPlan(null);
     form.reset({
@@ -341,10 +365,21 @@ export default function CMmsPlanesPreventivos() {
               </p>
             </div>
           </div>
-          <Button onClick={handleOpenCreateDialog} data-testid="button-create">
-            <Plus className="mr-2 h-4 w-4" />
-            Nuevo Plan
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => runSchedulerMutation.mutate()} 
+              variant="outline"
+              disabled={runSchedulerMutation.isPending}
+              data-testid="button-run-scheduler"
+            >
+              <Clock className="mr-2 h-4 w-4" />
+              {runSchedulerMutation.isPending ? "Ejecutando..." : "Generar OTs Pendientes"}
+            </Button>
+            <Button onClick={handleOpenCreateDialog} data-testid="button-create">
+              <Plus className="mr-2 h-4 w-4" />
+              Nuevo Plan
+            </Button>
+          </div>
         </div>
 
         {/* KPI Cards */}
