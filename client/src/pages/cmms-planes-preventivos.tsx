@@ -48,7 +48,8 @@ import { format, differenceInDays } from "date-fns";
 
 interface PlanPreventivo {
   id: string;
-  equipoId: string;
+  equipoId: string | null;
+  equipoNombre: string | null;
   nombrePlan: string;
   descripcion: string | null;
   frecuencia: string;
@@ -66,7 +67,8 @@ interface PlanPreventivo {
 }
 
 const planSchema = z.object({
-  equipoId: z.string().min(1, "Debe seleccionar un equipo"),
+  equipoId: z.union([z.string(), z.null()]).optional(),
+  equipoNombre: z.union([z.string(), z.null()]).optional(),
   nombrePlan: z.string().min(1, "El nombre es requerido"),
   descripcion: z.string().optional(),
   frecuencia: z.enum(["semanal", "mensual", "trimestral", "semestral", "anual"]),
@@ -210,7 +212,8 @@ export default function CMmsPlanesPreventivos() {
   const handleOpenCreateDialog = () => {
     setEditingPlan(null);
     form.reset({
-      equipoId: "",
+      equipoId: null,
+      equipoNombre: null,
       nombrePlan: "",
       descripcion: "",
       frecuencia: "mensual" as const,
@@ -225,6 +228,7 @@ export default function CMmsPlanesPreventivos() {
     setEditingPlan(plan);
     form.reset({
       equipoId: plan.equipoId,
+      equipoNombre: plan.equipoNombre,
       nombrePlan: plan.nombrePlan,
       descripcion: plan.descripcion || "",
       frecuencia: plan.frecuencia as any,
@@ -458,11 +462,17 @@ export default function CMmsPlanesPreventivos() {
                       return (
                         <TableRow key={plan.id} data-testid={`row-plan-${plan.id}`}>
                           <TableCell className="font-medium">
-                            {plan.equipo?.nombre || "N/A"}
-                            {plan.equipo?.area && (
-                              <span className="text-xs text-muted-foreground block">
-                                {plan.equipo.area}
-                              </span>
+                            {plan.equipoId ? (
+                              <>
+                                {plan.equipo?.nombre || plan.equipoNombre || "N/A"}
+                                {plan.equipo?.area && (
+                                  <span className="text-xs text-muted-foreground block">
+                                    {plan.equipo.area}
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground italic">Tarea General</span>
                             )}
                           </TableCell>
                           <TableCell>
@@ -535,12 +545,23 @@ export default function CMmsPlanesPreventivos() {
                     name="equipoId"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Equipo *</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <FormLabel>Equipo (opcional)</FormLabel>
+                        <Select onValueChange={(value) => {
+                          field.onChange(value === "sin-equipo" ? null : value);
+                          const equipoSeleccionado = equipos?.find(eq => eq.id === value);
+                          if (equipoSeleccionado) {
+                            form.setValue("equipoNombre", equipoSeleccionado.nombre);
+                          } else {
+                            form.setValue("equipoNombre", null);
+                          }
+                        }} value={field.value || "sin-equipo"}>
                           <SelectTrigger data-testid="select-form-equipo">
-                            <SelectValue placeholder="Seleccionar equipo" />
+                            <SelectValue placeholder="Seleccionar equipo o tarea general" />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="sin-equipo">
+                              Sin equipo - Tarea General
+                            </SelectItem>
                             {equipos?.map((eq) => (
                               <SelectItem key={eq.id} value={eq.id}>
                                 {eq.nombre} {eq.area && `(${eq.area})`}
@@ -548,6 +569,9 @@ export default function CMmsPlanesPreventivos() {
                             ))}
                           </SelectContent>
                         </Select>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Deja sin equipo para tareas generales como limpieza de canaletas
+                        </p>
                         <FormMessage />
                       </FormItem>
                     )}
