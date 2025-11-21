@@ -11165,6 +11165,39 @@ export function registerRoutes(app: Express): Server {
       console.log('[PLANES-PREVENTIVOS] Datos validados:', JSON.stringify(validatedData, null, 2));
       const plan = await storage.createPlanPreventivo(validatedData);
       console.log('[PLANES-PREVENTIVOS] Plan creado exitosamente:', plan.id);
+      
+      // 🔧 AUTO-GENERAR OT si el plan está activo y la fecha de próxima ejecución es hoy o anterior
+      if (plan.activo && plan.proximaEjecucion) {
+        const now = new Date();
+        const proximaEjecucion = new Date(plan.proximaEjecucion);
+        
+        // Comparar solo las fechas (sin horas)
+        now.setHours(0, 0, 0, 0);
+        proximaEjecucion.setHours(0, 0, 0, 0);
+        
+        if (proximaEjecucion <= now) {
+          console.log(`🔧 [AUTO-GEN] Plan ${plan.id} tiene fecha <= hoy y está activo, generando OT automáticamente...`);
+          try {
+            const ot = await storage.generateOTFromPlan(plan);
+            console.log(`✅ [AUTO-GEN] OT ${ot.id} generada automáticamente para plan ${plan.nombrePlan}`);
+            
+            // Calcular próxima ejecución
+            const nextExecution = storage.calculateNextExecution(
+              proximaEjecucion,
+              plan.frecuencia
+            );
+            
+            // Actualizar el plan con la nueva próxima ejecución
+            await storage.updatePlanPreventivo(plan.id, {
+              proximaEjecucion: nextExecution.toISOString().split('T')[0],
+            });
+          } catch (otError: any) {
+            console.error(`❌ [AUTO-GEN] Error generando OT para plan ${plan.id}:`, otError.message);
+            // No fallar toda la operación, solo registrar el error
+          }
+        }
+      }
+      
       res.status(201).json(plan);
     } catch (error: any) {
       if (error.name === 'ZodError') {
@@ -11241,23 +11274,6 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error('Error al obtener plan:', error);
       res.status(500).json({ message: 'Error al obtener plan', error: error.message });
-    }
-  }));
-
-  // POST create plan preventivo
-  app.post('/api/cmms/planes-preventivos', requireAuth, requireCMMSMaintenance, asyncHandler(async (req: any, res: any) => {
-    try {
-      // Validate input with Zod schema
-      const validatedData = insertPlanPreventivoSchema.parse(req.body);
-      
-      const plan = await storage.createPlanPreventivo(validatedData);
-      res.status(201).json(plan);
-    } catch (error: any) {
-      if (error.name === 'ZodError') {
-        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
-      }
-      console.error('Error al crear plan:', error);
-      res.status(500).json({ message: 'Error al crear plan', error: error.message });
     }
   }));
 
