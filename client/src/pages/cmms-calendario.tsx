@@ -25,7 +25,9 @@ import { es } from "date-fns/locale";
 interface PlanPreventivo {
   id: string;
   equipoId: string;
-  nombre: string;
+  nombrePlan: string;
+  descripcion?: string;
+  tareasPreventivas?: string;
   proximaEjecucion: string;
   frecuencia: string;
   activo: boolean;
@@ -38,11 +40,19 @@ interface PlanPreventivo {
 interface Mantencion {
   id: string;
   equipoNombre: string;
+  equipoCodigo?: string;
   estado: string;
   gravedad: string;
   tipoMantencion: string;
   createdAt: string;
   area: string;
+  descripcionProblema: string;
+  checklistTareas?: string;
+  tecnicoAsignadoName?: string;
+  proveedorAsignadoName?: string;
+  tipoAsignacion?: string;
+  fechaProgramada?: string;
+  ubicacion?: string;
 }
 
 interface CalendarioEvento {
@@ -89,7 +99,7 @@ export default function CMmsCalendario() {
       .map(p => ({
         id: `plan-${p.id}`,
         tipo: 'plan' as const,
-        titulo: p.nombre,
+        titulo: p.nombrePlan,
         fecha: parseISO(p.proximaEjecucion),
         frecuencia: p.frecuencia,
         area: p.equipo?.area || undefined,
@@ -369,18 +379,43 @@ export default function CMmsCalendario() {
 
                 {selectedEvento.tipo === 'plan' && (
                   <>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Equipo</label>
-                      <p>{(selectedEvento.data as PlanPreventivo).equipo?.nombre || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Frecuencia</label>
-                      <p className="capitalize">{selectedEvento.frecuencia}</p>
-                    </div>
-                    {selectedEvento.area && (
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="text-sm font-medium text-muted-foreground">Área</label>
-                        <p className="capitalize">{selectedEvento.area.replace(/_/g, ' ')}</p>
+                        <label className="text-sm font-medium text-muted-foreground">Equipo</label>
+                        <p className="font-medium">{(selectedEvento.data as PlanPreventivo).equipo?.nombre || 'Tarea General'}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Frecuencia</label>
+                        <p className="capitalize font-medium">{selectedEvento.frecuencia}</p>
+                      </div>
+                      {selectedEvento.area && (
+                        <div className="col-span-2">
+                          <label className="text-sm font-medium text-muted-foreground">Área</label>
+                          <p className="capitalize">{selectedEvento.area.replace(/_/g, ' ')}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {(selectedEvento.data as PlanPreventivo).descripcion && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Descripción</label>
+                        <p className="mt-1 text-sm">{(selectedEvento.data as PlanPreventivo).descripcion}</p>
+                      </div>
+                    )}
+
+                    {(selectedEvento.data as PlanPreventivo).tareasPreventivas && (
+                      <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-950/30">
+                        <h3 className="font-semibold mb-3 flex items-center gap-2">
+                          <span>📋</span> Checklist de Tareas Preventivas
+                        </h3>
+                        <ul className="space-y-2 list-none">
+                          {(selectedEvento.data as PlanPreventivo).tareasPreventivas!.split('\n').filter(line => line.trim()).map((tarea, idx) => (
+                            <li key={idx} className="flex items-start gap-2 text-sm">
+                              <span className="text-blue-500 mt-0.5">•</span>
+                              <span className="flex-1">{tarea.trim()}</span>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     )}
                   </>
@@ -388,26 +423,91 @@ export default function CMmsCalendario() {
 
                 {selectedEvento.tipo === 'ot' && (
                   <>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Estado</label>
-                      <div className="mt-1">
-                        <Badge variant="outline" className="capitalize">
-                          {selectedEvento.estado?.replace(/_/g, ' ')}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Estado</label>
+                        <div className="mt-1">
+                          <Badge variant="outline" className="capitalize">
+                            {selectedEvento.estado?.replace(/_/g, ' ')}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Gravedad</label>
+                        <div className="mt-1">
+                          <Badge variant="outline" className="capitalize">
+                            {selectedEvento.gravedad}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Área</label>
+                        <p className="capitalize">{selectedEvento.area?.replace(/_/g, ' ')}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Tipo</label>
+                        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 capitalize">
+                          {(selectedEvento.data as Mantencion).tipoMantencion}
                         </Badge>
                       </div>
+                      {(selectedEvento.data as Mantencion).equipoCodigo && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Código Equipo</label>
+                          <p className="font-medium">{(selectedEvento.data as Mantencion).equipoCodigo}</p>
+                        </div>
+                      )}
+                      {(selectedEvento.data as Mantencion).ubicacion && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Ubicación</label>
+                          <p className="font-medium">{(selectedEvento.data as Mantencion).ubicacion}</p>
+                        </div>
+                      )}
                     </div>
+
                     <div>
-                      <label className="text-sm font-medium text-muted-foreground">Gravedad</label>
-                      <div className="mt-1">
-                        <Badge variant="outline" className="capitalize">
-                          {selectedEvento.gravedad}
-                        </Badge>
+                      <label className="text-sm font-medium text-muted-foreground">Descripción del Problema</label>
+                      <p className="mt-1 text-sm">{(selectedEvento.data as Mantencion).descripcionProblema}</p>
+                    </div>
+
+                    {(selectedEvento.data as Mantencion).checklistTareas && (
+                      <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-950/30">
+                        <h3 className="font-semibold mb-3 flex items-center gap-2">
+                          <span>📋</span> Checklist de Tareas Preventivas
+                        </h3>
+                        <ul className="space-y-2 list-none">
+                          {(selectedEvento.data as Mantencion).checklistTareas!.split('\n').filter(line => line.trim()).map((tarea, idx) => (
+                            <li key={idx} className="flex items-start gap-2 text-sm">
+                              <span className="text-blue-500 mt-0.5">•</span>
+                              <span className="flex-1">{tarea.trim()}</span>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Área</label>
-                      <p className="capitalize">{selectedEvento.area?.replace(/_/g, ' ')}</p>
-                    </div>
+                    )}
+
+                    {((selectedEvento.data as Mantencion).tecnicoAsignadoName || (selectedEvento.data as Mantencion).proveedorAsignadoName) && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Asignado a</label>
+                        <p className="mt-1">
+                          {(selectedEvento.data as Mantencion).tipoAsignacion === 'tecnico_interno' && (selectedEvento.data as Mantencion).tecnicoAsignadoName ? (
+                            `👷 ${(selectedEvento.data as Mantencion).tecnicoAsignadoName} (Técnico Interno)`
+                          ) : (selectedEvento.data as Mantencion).tipoAsignacion === 'proveedor_externo' && (selectedEvento.data as Mantencion).proveedorAsignadoName ? (
+                            `🏢 ${(selectedEvento.data as Mantencion).proveedorAsignadoName} (Proveedor Externo)`
+                          ) : (
+                            'Sin asignar'
+                          )}
+                        </p>
+                      </div>
+                    )}
+
+                    {(selectedEvento.data as Mantencion).fechaProgramada && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Fecha Programada</label>
+                        <p className="mt-1">
+                          📅 {format(parseISO((selectedEvento.data as Mantencion).fechaProgramada!), "dd/MM/yyyy", { locale: es })}
+                        </p>
+                      </div>
+                    )}
                   </>
                 )}
 
