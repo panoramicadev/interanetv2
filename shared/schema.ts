@@ -3903,10 +3903,19 @@ export const insertPlanPreventivoSchema = createInsertSchema(planesPreventivos).
   createdAt: true,
   updatedAt: true,
 }).extend({
-  equipoId: z.string().min(1, "El ID del equipo es requerido"),
+  equipoId: z.union([z.string(), z.null()]).optional(), // Opcional - puede ser null para tareas generales
+  equipoNombre: z.union([z.string(), z.null()]).optional(), // Opcional - se llena automáticamente si hay equipoId
   nombrePlan: z.string().min(1, "El nombre del plan es requerido"),
+  descripcion: z.union([z.string(), z.null()]).optional(),
   frecuencia: z.enum(["semanal", "mensual", "trimestral", "semestral", "anual"]),
+  tareasPreventivas: z.union([z.string(), z.null()]).optional(),
   activo: z.boolean().default(true),
+  ultimaEjecucion: z.union([z.string(), z.date(), z.null()]).optional().transform((val) => 
+    val && typeof val === 'string' ? new Date(val) : val as Date | null | undefined
+  ),
+  proximaEjecucion: z.union([z.string(), z.date(), z.null()]).optional().transform((val) => 
+    val && typeof val === 'string' ? new Date(val) : val as Date | null | undefined
+  ),
 });
 
 // Mantenciones Planificadas
