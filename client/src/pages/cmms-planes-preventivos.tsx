@@ -782,34 +782,34 @@ export default function CMmsPlanesPreventivos() {
               </DialogDescription>
             </DialogHeader>
             {viewingPlan && (
-              <div className="space-y-4">
+              <div className="space-y-4" data-testid="div-plan-details">
                 {/* Información General */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
+                  <div data-testid="div-nombre-plan">
                     <label className="text-sm font-medium">Nombre del Plan</label>
-                    <p className="text-sm text-muted-foreground">{viewingPlan.nombrePlan}</p>
+                    <p className="text-sm text-muted-foreground" data-testid="text-nombre-plan">{viewingPlan.nombrePlan}</p>
                   </div>
-                  <div>
+                  <div data-testid="div-equipo">
                     <label className="text-sm font-medium">Equipo</label>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground" data-testid="text-equipo">
                       {viewingPlan.equipoId 
                         ? (viewingPlan.equipo?.nombre || viewingPlan.equipoNombre || "N/A")
                         : "Tarea General"}
                     </p>
                   </div>
-                  <div>
+                  <div data-testid="div-frecuencia">
                     <label className="text-sm font-medium">Frecuencia</label>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground" data-testid="text-frecuencia">
                       {FRECUENCIAS.find(f => f.value === viewingPlan.frecuencia)?.label || viewingPlan.frecuencia}
                     </p>
                   </div>
-                  <div>
+                  <div data-testid="div-estado">
                     <label className="text-sm font-medium">Estado</label>
                     <div className="mt-1">
                       {viewingPlan.activo ? (
-                        <Badge variant="default">Activo</Badge>
+                        <Badge variant="default" data-testid="badge-activo">Activo</Badge>
                       ) : (
-                        <Badge variant="secondary">Inactivo</Badge>
+                        <Badge variant="secondary" data-testid="badge-inactivo">Inactivo</Badge>
                       )}
                     </div>
                   </div>
@@ -817,17 +817,17 @@ export default function CMmsPlanesPreventivos() {
 
                 {/* Fechas */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
+                  <div data-testid="div-ultima-ejecucion">
                     <label className="text-sm font-medium">Última Ejecución</label>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground" data-testid="text-ultima-ejecucion">
                       {viewingPlan.ultimaEjecucion 
                         ? format(new Date(viewingPlan.ultimaEjecucion), "dd/MM/yyyy")
                         : "Sin ejecución previa"}
                     </p>
                   </div>
-                  <div>
+                  <div data-testid="div-proxima-ejecucion">
                     <label className="text-sm font-medium">Próxima Ejecución</label>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground" data-testid="text-proxima-ejecucion">
                       {format(new Date(viewingPlan.proximaEjecucion), "dd/MM/yyyy")}
                     </p>
                   </div>
@@ -835,9 +835,9 @@ export default function CMmsPlanesPreventivos() {
 
                 {/* Descripción */}
                 {viewingPlan.descripcion && (
-                  <div>
+                  <div data-testid="div-descripcion">
                     <label className="text-sm font-medium">Descripción</label>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap" data-testid="text-descripcion">
                       {viewingPlan.descripcion}
                     </p>
                   </div>
@@ -845,12 +845,14 @@ export default function CMmsPlanesPreventivos() {
 
                 {/* Checklist de Tareas */}
                 {viewingPlan.tareasPreventivas && (
-                  <div>
+                  <div data-testid="div-checklist-tareas">
                     <label className="text-sm font-medium">📋 Checklist de Tareas</label>
                     <div className="mt-2 p-4 bg-muted rounded-md">
-                      <p className="text-sm whitespace-pre-wrap font-mono">
-                        {viewingPlan.tareasPreventivas}
-                      </p>
+                      <ul className="text-sm space-y-1 list-disc list-inside" data-testid="list-tareas-content">
+                        {viewingPlan.tareasPreventivas.split('\n').filter(line => line.trim()).map((tarea, idx) => (
+                          <li key={idx} className="text-muted-foreground">{tarea.trim()}</li>
+                        ))}
+                      </ul>
                     </div>
                   </div>
                 )}

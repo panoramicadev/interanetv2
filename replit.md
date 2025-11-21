@@ -45,6 +45,28 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Updates
 
+### CMMS Preventive Plans - Enhanced Features (November 21, 2025)
+- **Feature Enhancement**: Preventive maintenance plans now support both equipment-specific and general maintenance tasks
+- **Changes Made**:
+  - **Database**: Added `checklistTareas` column to `solicitudesMantencion` table for proper task tracking in work orders
+  - **Backend (server/storage.ts)**: Updated `generateOTFromPlan()` function to:
+    - Handle preventive plans without associated equipment (general tasks like gutter cleaning, building maintenance)
+    - Copy task checklist from plan to `checklistTareas` field in generated work orders (instead of embedding in description)
+    - Set correct initial state ('registrado' instead of 'pendiente')
+    - Properly handle both equipment-specific and general maintenance tasks
+  - **Frontend (client/src/pages/cmms-planes-preventivos.tsx)**: 
+    - Added view button with Eye icon to visualize full plan details
+    - Created detailed visualization dialog showing plan information, equipment (or "Tarea General"), frequency, dates, description, and full task checklist
+    - Added "Editar" button within view dialog for quick editing
+- **New Capabilities**:
+  - ✅ Create preventive plans without selecting equipment (for general maintenance tasks)
+  - ✅ View complete plan details including task checklist in dedicated dialog
+  - ✅ Automatic OT generation properly copies task checklist to `checklistTareas` field
+  - ✅ Work orders correctly display whether they're for specific equipment or general tasks
+  - ✅ Task checklist preserved in structured format for execution tracking
+- **Impact**: CMMS module now supports comprehensive preventive maintenance workflow including both critical equipment maintenance and general facility tasks
+- **Status**: ✅ Implemented and tested
+
 ### Jefe de Planta - Full Dashboard Access (November 20, 2025)
 - **Issue**: Jefe_planta could see dashboard but couldn't access detail pages like salesperson details, segment details, or branch details - received 403 errors
 - **Root Cause**: Backend middleware `requireOwnDataOrAdmin` only allowed admin, supervisor, and salesperson roles to access vendor-specific data endpoints
