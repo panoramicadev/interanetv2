@@ -41,7 +41,7 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Plus, Calendar, Clock, AlertCircle, CheckCircle2, Edit, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Calendar, Clock, AlertCircle, CheckCircle2, Edit, Trash2, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { format, differenceInDays } from "date-fns";
@@ -95,7 +95,9 @@ export default function CMmsPlanesPreventivos() {
   const [filterFrecuencia, setFilterFrecuencia] = useState<string>("all");
   const [filterActivo, setFilterActivo] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<PlanPreventivo | null>(null);
+  const [viewingPlan, setViewingPlan] = useState<PlanPreventivo | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [planToDelete, setPlanToDelete] = useState<PlanPreventivo | null>(null);
 
@@ -223,6 +225,16 @@ export default function CMmsPlanesPreventivos() {
       activo: true,
     });
     setDialogOpen(true);
+  };
+
+  const handleOpenViewDialog = (plan: PlanPreventivo) => {
+    setViewingPlan(plan);
+    setViewDialogOpen(true);
+  };
+
+  const handleCloseViewDialog = () => {
+    setViewDialogOpen(false);
+    setViewingPlan(null);
   };
 
   const handleOpenEditDialog = (plan: PlanPreventivo) => {
@@ -499,8 +511,18 @@ export default function CMmsPlanesPreventivos() {
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                onClick={() => handleOpenViewDialog(plan)}
+                                data-testid={`button-view-${plan.id}`}
+                                title="Ver detalles"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 onClick={() => handleOpenEditDialog(plan)}
                                 data-testid={`button-edit-${plan.id}`}
+                                title="Editar"
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
@@ -509,6 +531,7 @@ export default function CMmsPlanesPreventivos() {
                                 size="sm"
                                 onClick={() => handleOpenDeleteDialog(plan)}
                                 data-testid={`button-delete-${plan.id}`}
+                                title="Eliminar"
                               >
                                 <Trash2 className="h-4 w-4 text-red-500" />
                               </Button>
@@ -744,6 +767,115 @@ export default function CMmsPlanesPreventivos() {
                 data-testid="button-confirm-delete"
               >
                 {deleteMutation.isPending ? "Eliminando..." : "Eliminar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* View Dialog */}
+        <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Detalle del Plan Preventivo</DialogTitle>
+              <DialogDescription>
+                Información completa del plan de mantenimiento preventivo
+              </DialogDescription>
+            </DialogHeader>
+            {viewingPlan && (
+              <div className="space-y-4">
+                {/* Información General */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium">Nombre del Plan</label>
+                    <p className="text-sm text-muted-foreground">{viewingPlan.nombrePlan}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Equipo</label>
+                    <p className="text-sm text-muted-foreground">
+                      {viewingPlan.equipoId 
+                        ? (viewingPlan.equipo?.nombre || viewingPlan.equipoNombre || "N/A")
+                        : "Tarea General"}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Frecuencia</label>
+                    <p className="text-sm text-muted-foreground">
+                      {FRECUENCIAS.find(f => f.value === viewingPlan.frecuencia)?.label || viewingPlan.frecuencia}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Estado</label>
+                    <div className="mt-1">
+                      {viewingPlan.activo ? (
+                        <Badge variant="default">Activo</Badge>
+                      ) : (
+                        <Badge variant="secondary">Inactivo</Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Fechas */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium">Última Ejecución</label>
+                    <p className="text-sm text-muted-foreground">
+                      {viewingPlan.ultimaEjecucion 
+                        ? format(new Date(viewingPlan.ultimaEjecucion), "dd/MM/yyyy")
+                        : "Sin ejecución previa"}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Próxima Ejecución</label>
+                    <p className="text-sm text-muted-foreground">
+                      {format(new Date(viewingPlan.proximaEjecucion), "dd/MM/yyyy")}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Descripción */}
+                {viewingPlan.descripcion && (
+                  <div>
+                    <label className="text-sm font-medium">Descripción</label>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                      {viewingPlan.descripcion}
+                    </p>
+                  </div>
+                )}
+
+                {/* Checklist de Tareas */}
+                {viewingPlan.tareasPreventivas && (
+                  <div>
+                    <label className="text-sm font-medium">📋 Checklist de Tareas</label>
+                    <div className="mt-2 p-4 bg-muted rounded-md">
+                      <p className="text-sm whitespace-pre-wrap font-mono">
+                        {viewingPlan.tareasPreventivas}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCloseViewDialog}
+                data-testid="button-close-view"
+              >
+                Cerrar
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  if (viewingPlan) {
+                    handleCloseViewDialog();
+                    handleOpenEditDialog(viewingPlan);
+                  }
+                }}
+                data-testid="button-edit-from-view"
+              >
+                Editar
               </Button>
             </DialogFooter>
           </DialogContent>
