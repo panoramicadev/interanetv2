@@ -1849,6 +1849,23 @@ export default function MantencionesPage() {
                 <p className="mt-1">{selectedMantencion.descripcionProblema}</p>
               </div>
 
+              {/* Checklist de Tareas Preventivas */}
+              {selectedMantencion.checklistTareas && (
+                <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-950/30">
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <span>📋</span> Checklist de Tareas Preventivas
+                  </h3>
+                  <ul className="space-y-2 list-none" data-testid="list-checklist-tareas">
+                    {selectedMantencion.checklistTareas.split('\n').filter(line => line.trim()).map((tarea, idx) => (
+                      <li key={idx} className="flex items-start gap-2 text-sm">
+                        <span className="text-blue-500 mt-0.5">•</span>
+                        <span className="flex-1">{tarea.trim()}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {/* Asignación y Programación (solo admin/supervisor/produccion) */}
               {canManageMantencion && (
                 <div className="border rounded-lg p-4 bg-muted/30">
