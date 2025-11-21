@@ -102,7 +102,8 @@ export default function CMmsPlanesPreventivos() {
   const form = useForm<PlanFormValues>({
     resolver: zodResolver(planSchema),
     defaultValues: {
-      equipoId: "",
+      equipoId: null,
+      equipoNombre: null,
       nombrePlan: "",
       descripcion: "",
       frecuencia: "mensual",
