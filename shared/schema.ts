@@ -3584,6 +3584,7 @@ export const solicitudesMantencion = pgTable("solicitudes_mantencion", {
   
   // Descripción del problema
   descripcionProblema: text("descripcion_problema").notNull(),
+  checklistTareas: text("checklist_tareas"), // Checklist de tareas a realizar (copiado de plan preventivo si aplica)
   prioridad: varchar("prioridad").notNull().default("media"), // baja, media, alta (para SLA)
   gravedad: varchar("gravedad").notNull(), // baja, media, alta, critica (impacto técnico)
   tipoMantencion: varchar("tipo_mantencion").default("correctivo"), // preventivo, correctivo

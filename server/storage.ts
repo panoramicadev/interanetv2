@@ -15036,42 +15036,54 @@ export class DatabaseStorage implements IStorage {
    */
   async generateOTFromPlan(plan: PlanPreventivo): Promise<SolicitudMantencion> {
     try {
-      // Obtener información del equipo
-      const equipo = await db
-        .select()
-        .from(equiposCriticos)
-        .where(eq(equiposCriticos.id, plan.equipoId))
-        .limit(1);
-
-      const equipoData = equipo[0];
-      if (!equipoData) {
-        throw new Error(`Equipo no encontrado: ${plan.equipoId}`);
-      }
-
-      // Crear la solicitud de mantención (usando usuario sistema)
+      // Obtener usuario sistema para crear la OT
       const systemUser = await db.select().from(users).where(eq(users.role, 'admin')).limit(1);
-      const systemUserId = systemUser[0]?.id || plan.creadoPorId;
+      const systemUserId = systemUser[0]?.id || 'system';
       
-      // Preparar descripción con checklist completo
-      const checklistText = plan.tareasPreventivas 
-        ? `\n\n📋 CHECKLIST DE TAREAS:\n${plan.tareasPreventivas}`
-        : '\n\n📋 Ver plan preventivo para detalles de las tareas';
+      let equipoData = null;
+      let equipoNombre = plan.equipoNombre || 'Tarea General';
+      let equipoCodigo: string | undefined = undefined;
+      let equipoId: string | undefined = undefined;
+      let area = 'produccion'; // Default área
+      let ubicacion: string | undefined = undefined;
+
+      // Si el plan tiene equipo asociado, obtener su información
+      if (plan.equipoId) {
+        const equipo = await db
+          .select()
+          .from(equiposCriticos)
+          .where(eq(equiposCriticos.id, plan.equipoId))
+          .limit(1);
+
+        equipoData = equipo[0];
+        if (equipoData) {
+          equipoNombre = equipoData.nombre;
+          equipoCodigo = equipoData.codigo || undefined;
+          equipoId = equipoData.id;
+          area = equipoData.area || 'produccion';
+          ubicacion = equipoData.ubicacion || undefined;
+        }
+      }
       
+      // Preparar descripción
       const descripcionText = plan.descripcion 
         ? `\n\nDescripción: ${plan.descripcion}`
         : '';
       
+      const tipoTarea = plan.equipoId ? 'EQUIPO' : 'TAREA GENERAL';
+      
       const nuevaMantencion: InsertSolicitudMantencion = {
-        equipoNombre: equipoData.nombre,
-        equipoCodigo: equipoData.codigo || undefined,
-        equipoId: equipoData.id,
-        area: equipoData.area || 'produccion',
-        ubicacion: equipoData.ubicacionEspecifica || undefined,
-        descripcionProblema: `🔧 MANTENCIÓN PREVENTIVA PROGRAMADA\n\nPlan: ${plan.nombrePlan}${descripcionText}${checklistText}`,
+        equipoNombre: equipoNombre,
+        equipoCodigo: equipoCodigo,
+        equipoId: equipoId,
+        area: area,
+        ubicacion: ubicacion,
+        descripcionProblema: `🔧 MANTENCIÓN PREVENTIVA PROGRAMADA (${tipoTarea})\n\nPlan: ${plan.nombrePlan}${descripcionText}`,
+        checklistTareas: plan.tareasPreventivas || undefined, // Copiar checklist al campo específico
         tipoMantencion: 'preventivo',
-        gravedad: 'media', // Preventivas suelen ser prioridad media
+        gravedad: 'media',
         prioridad: 'media',
-        estado: 'pendiente',
+        estado: 'registrado', // Estado inicial correcto
         solicitanteId: systemUserId,
         solicitanteName: 'SISTEMA AUTOMÁTICO',
         planPreventivoId: plan.id, // Vincular con el plan
