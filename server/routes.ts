@@ -11160,14 +11160,18 @@ export function registerRoutes(app: Express): Server {
   // POST create plan preventivo
   app.post('/api/cmms/planes-preventivos', requireAuth, requireCMMSMaintenance, asyncHandler(async (req: any, res: any) => {
     try {
+      console.log('[PLANES-PREVENTIVOS] POST - Datos recibidos:', JSON.stringify(req.body, null, 2));
       const validatedData = insertPlanPreventivoSchema.parse(req.body);
+      console.log('[PLANES-PREVENTIVOS] Datos validados:', JSON.stringify(validatedData, null, 2));
       const plan = await storage.createPlanPreventivo(validatedData);
+      console.log('[PLANES-PREVENTIVOS] Plan creado exitosamente:', plan.id);
       res.status(201).json(plan);
     } catch (error: any) {
       if (error.name === 'ZodError') {
+        console.error('[PLANES-PREVENTIVOS] Error de validación Zod:', JSON.stringify(error.errors, null, 2));
         return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
       }
-      console.error('Error al crear plan:', error);
+      console.error('[PLANES-PREVENTIVOS] Error al crear plan:', error);
       res.status(500).json({ message: 'Error al crear plan', error: error.message });
     }
   }));
