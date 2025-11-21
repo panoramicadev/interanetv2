@@ -15060,7 +15060,7 @@ export class DatabaseStorage implements IStorage {
           equipoNombre = equipoData.nombre;
           equipoCodigo = equipoData.codigo || undefined;
           equipoId = equipoData.id;
-          area = equipoData.area || 'produccion';
+          area = equipoData.area;
           ubicacion = equipoData.ubicacion || undefined;
         }
       }
