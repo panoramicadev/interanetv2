@@ -9725,8 +9725,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       
-      // Only admin, supervisor, and produccion can update
-      const allowedRoles = ['admin', 'supervisor', 'produccion'];
+      // Only admin, supervisor, jefe_planta, mantencion, and produccion can update
+      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para actualizar solicitudes de mantención' });
       }
@@ -9762,8 +9762,8 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ message: 'Solicitud de mantención no encontrada' });
       }
 
-      // Admin and produccion can delete anytime
-      const canDeleteAnytime = user.role === 'admin' || user.role === 'produccion';
+      // Admin, jefe_planta, mantencion, and produccion can delete anytime
+      const canDeleteAnytime = ['admin', 'jefe_planta', 'mantencion', 'produccion'].includes(user.role);
       
       if (!canDeleteAnytime) {
         // Other users can only delete their own within 5 minutes
@@ -10243,8 +10243,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       
-      // Only admin, supervisor, and produccion can update asignacion
-      const allowedRoles = ['admin', 'supervisor', 'produccion'];
+      // Only admin, supervisor, jefe_planta, mantencion, and produccion can update asignacion
+      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para actualizar asignación' });
       }
