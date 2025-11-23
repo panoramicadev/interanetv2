@@ -1376,6 +1376,24 @@ export interface IStorage {
   getGastoMaterialMantencionById(id: string): Promise<GastoMaterialMantencion | undefined>;
   updateGastoMaterialMantencion(id: string, updates: Partial<InsertGastoMaterialMantencion>): Promise<GastoMaterialMantencion>;
   deleteGastoMaterialMantencion(id: string): Promise<void>;
+  getGastosMaterialesForExport(filters?: {
+    area?: string;
+    anio?: string;
+    mes?: string;
+  }): Promise<Array<GastoMaterialMantencion & {
+    ot?: {
+      id: string;
+      equipoNombre: string;
+      descripcionProblema: string;
+      estado: string;
+      gravedad: string;
+    } | null;
+    proveedor?: {
+      id: string;
+      nombre: string;
+      contacto: string | null;
+    } | null;
+  }>>;
   
   // ===== PLANES PREVENTIVOS =====
   createPlanPreventivo(plan: InsertPlanPreventivo): Promise<PlanPreventivo>;
@@ -14805,6 +14823,80 @@ export class DatabaseStorage implements IStorage {
 
   async deleteGastoMaterialMantencion(id: string): Promise<void> {
     await db.delete(gastosMaterialesMantencion).where(eq(gastosMaterialesMantencion.id, id));
+  }
+
+  async getGastosMaterialesForExport(filters?: {
+    area?: string;
+    anio?: string;
+    mes?: string;
+  }): Promise<Array<GastoMaterialMantencion & {
+    ot?: {
+      id: string;
+      equipoNombre: string;
+      descripcionProblema: string;
+      estado: string;
+      gravedad: string;
+    } | null;
+    proveedor?: {
+      id: string;
+      nombre: string;
+      contacto: string | null;
+    } | null;
+  }>> {
+    const conditions = [];
+    
+    if (filters?.area) {
+      conditions.push(eq(gastosMaterialesMantencion.area, filters.area));
+    }
+    
+    if (filters?.anio && filters?.mes) {
+      const startDate = new Date(`${filters.anio}-${filters.mes.padStart(2, '0')}-01`);
+      const endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + 1);
+      
+      conditions.push(gte(gastosMaterialesMantencion.fecha, startDate));
+      conditions.push(lt(gastosMaterialesMantencion.fecha, endDate));
+    } else if (filters?.anio && !filters?.mes) {
+      const startDate = new Date(`${filters.anio}-01-01`);
+      const endDate = new Date(`${parseInt(filters.anio, 10) + 1}-01-01`);
+      
+      conditions.push(gte(gastosMaterialesMantencion.fecha, startDate));
+      conditions.push(lt(gastosMaterialesMantencion.fecha, endDate));
+    }
+    
+    let query = db
+      .select({
+        gasto: gastosMaterialesMantencion,
+        ot: {
+          id: solicitudesMantencion.id,
+          equipoNombre: solicitudesMantencion.equipoNombre,
+          descripcionProblema: solicitudesMantencion.descripcionProblema,
+          estado: solicitudesMantencion.estado,
+          gravedad: solicitudesMantencion.gravedad,
+        },
+        proveedor: {
+          id: proveedoresMantencion.id,
+          nombre: proveedoresMantencion.nombre,
+          contacto: proveedoresMantencion.contacto,
+        },
+      })
+      .from(gastosMaterialesMantencion)
+      .leftJoin(solicitudesMantencion, eq(gastosMaterialesMantencion.otId, solicitudesMantencion.id))
+      .leftJoin(proveedoresMantencion, eq(gastosMaterialesMantencion.proveedorId, proveedoresMantencion.id));
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    query = query.orderBy(desc(gastosMaterialesMantencion.fecha)) as any;
+    
+    const results = await query;
+    
+    return results.map((r: any) => ({
+      ...r.gasto,
+      ot: r.ot?.id ? r.ot : null,
+      proveedor: r.proveedor?.id ? r.proveedor : null,
+    }));
   }
 
   // ===== PLANES PREVENTIVOS =====
