@@ -10751,6 +10751,9 @@ export function registerRoutes(app: Express): Server {
       
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       res.send(excelBuffer);
     } catch (error: any) {
       console.error('Error al exportar gastos:', error);
