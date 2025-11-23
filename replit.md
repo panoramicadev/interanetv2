@@ -42,3 +42,61 @@ Preferred communication style: Simple, everyday language.
 - **Date Handling**: date-fns
 - **PDF Generation**: @react-pdf/renderer
 - **CSV Parsing**: Papa Parse
+
+## Recent Updates
+
+### CMMS Mantenciones - Complete Access for Jefe Planta and Mantencion (November 23, 2025)
+- **Issue**: Jefe_planta and mantencion roles needed full access to ALL maintenance module functionalities (create OT, assign technicians, change status, submit resolutions, close OT, pause/resume, manage expenses, update, delete)
+- **Root Cause**: Backend endpoints had hardcoded `allowedRoles` lists that were incomplete for maintenance operations
+- **Complete Fix Applied**:
+  - **server/routes.ts**: Updated ALL `/api/mantenciones/*` endpoints to include `jefe_planta` and `mantencion`:
+    - GET `/api/mantenciones` - View all maintenance requests (with filters)
+    - GET `/api/mantenciones/:id` - View specific maintenance request
+    - GET `/api/mantenciones/:id/details` - View detailed maintenance request with photos/historial
+    - POST `/api/mantenciones` - Create new maintenance request (OT) with photo upload
+    - PATCH `/api/mantenciones/:id` - Update maintenance request ✅ NEW
+    - DELETE `/api/mantenciones/:id` - Delete maintenance request (anytime for jefe_planta/mantencion) ✅ NEW
+    - POST `/api/mantenciones/:id/photos` - Upload photos to OT
+    - POST `/api/mantenciones/:id/assign-tecnico` - Assign technician to OT
+    - POST `/api/mantenciones/:id/cambiar-estado` - Change OT status
+    - POST `/api/mantenciones/:id/resolucion` - Submit resolution with photos
+    - POST `/api/mantenciones/:id/cerrar` - Close OT
+    - POST `/api/mantenciones/:id/pausar` - Pause OT
+    - POST `/api/mantenciones/:id/reanudar` - Resume OT
+    - POST `/api/mantenciones/:id/iniciar-trabajo` - Start work on OT
+    - GET `/api/mantenciones/:id/gastos` - View OT expenses
+    - POST `/api/mantenciones/:id/gastos` - Add material expenses to OT
+    - PATCH `/api/mantenciones/:id/asignacion` - Update OT assignment (técnico/proveedor) ✅ NEW
+  - **server/auth.ts**: Verified CMMS middleware already configured correctly:
+    - `requireCMMSFullAccess` = ['admin', 'jefe_planta'] - Full access to equipment, metrics, budgets
+    - `requireCMMSMaintenance` = ['admin', 'jefe_planta', 'mantencion'] - Access to maintenance plans, preventive plans
+    - `requireCMMSPlantStaff` = all plant roles - Access to view OT and calendar
+- **New Capabilities**:
+  - ✅ Jefe_planta has COMPLETE administrative access to entire maintenance module
+  - ✅ Jefe_planta can create, view, edit, delete, assign, schedule, resolve, close, pause, resume ALL OTs
+  - ✅ Jefe_planta can manage expenses, equipment, preventive plans, maintenance plans
+  - ✅ Mantencion role has full operational access to OT management (create, assign, resolve, manage)
+  - ✅ Both roles can delete OT anytime (no time restrictions)
+  - ✅ Both roles can update OT assignments and details
+  - ✅ Consistent permissions across all 15+ maintenance endpoints
+- **Access Matrix**: Jefe_planta and mantencion now have same access as admin for ALL maintenance operations
+- **Impact**: Complete CMMS functionality unlocked for plant manager and maintenance team - full control over equipment lifecycle, preventive maintenance, work orders, and materials management
+- **Status**: ✅ Fully implemented and tested
+
+### CMMS Preventive Plans - Enhanced Features (November 21, 2025)
+- **Feature Enhancement**: Preventive maintenance plans now support both equipment-specific and general maintenance tasks
+- **Changes Made**:
+  - **Database**: Added `checklistTareas` column to `solicitudesMantencion` table for proper task tracking in work orders
+  - **Backend (server/storage.ts)**: Updated `generateOTFromPlan()` function to handle both equipment-specific and general tasks
+  - **Frontend (client/src/pages/cmms-planes-preventivos.tsx)**: Added view dialog with full plan visualization
+- **New Capabilities**:
+  - ✅ Create preventive plans without selecting equipment (for general maintenance tasks)
+  - ✅ View complete plan details including task checklist
+  - ✅ Automatic OT generation properly copies task checklist
+- **Status**: ✅ Implemented and tested
+
+### Jefe de Planta - Full Dashboard Access (November 20, 2025)
+- **Issue**: Jefe_planta could see dashboard but couldn't access detail pages - received 403 errors
+- **Root Cause**: Backend middleware `requireOwnDataOrAdmin` excluded jefe_planta role
+- **Fix**: Updated middleware to include `jefe_planta` with full access to all salesperson data
+- **Status**: ✅ Resolved
