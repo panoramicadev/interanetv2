@@ -363,6 +363,50 @@ export default function CMmsGastosMateriales() {
     }
   };
 
+  const handleExportar = async () => {
+    try {
+      const params = new URLSearchParams({
+        anio: selectedYear,
+        ...(selectedMonth !== "all" && { mes: selectedMonth }),
+        ...(filterArea !== "all" && { area: filterArea }),
+      });
+      
+      const response = await fetch(`/api/cmms/gastos-materiales-export?${params.toString()}`, {
+        credentials: 'include',
+      });
+      
+      if (!response.ok) throw new Error('Error al exportar gastos');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const filename = contentDisposition
+        ? contentDisposition.split('filename=')[1].replace(/"/g, '')
+        : 'gastos_materiales.xlsx';
+      
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Excel exportado",
+        description: `Se han exportado ${totalRecords} registros exitosamente`,
+      });
+    } catch (error) {
+      console.error('Error al exportar gastos:', error);
+      toast({
+        title: "Error",
+        description: "Error al exportar los gastos a Excel",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleImportarExcel = () => {
     fileInputRef.current?.click();
   };
@@ -537,6 +581,15 @@ export default function CMmsGastosMateriales() {
             >
               <Upload className="mr-2 h-4 w-4" />
               {isImporting ? "Importando..." : "Importar Excel"}
+            </Button>
+            <Button 
+              variant="default" 
+              onClick={handleExportar}
+              data-testid="button-exportar"
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Exportar a Excel
             </Button>
             <Button onClick={handleOpenDialog} data-testid="button-create">
               <Plus className="mr-2 h-4 w-4" />

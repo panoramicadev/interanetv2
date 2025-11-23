@@ -10697,6 +10697,66 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // GET export gastos to Excel (DEBE IR ANTES DE /:id)
+  app.get('/api/cmms/gastos-materiales-export', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { area, anio, mes } = req.query;
+      
+      const gastos = await storage.getGastosMaterialesForExport({ area, anio, mes });
+      
+      const excelData = gastos.map(gasto => ({
+        'Fecha': format(new Date(gasto.fecha), 'dd/MM/yyyy'),
+        'Item': gasto.item,
+        'Descripción': gasto.descripcion || '',
+        'Cantidad': parseFloat(gasto.cantidad),
+        'Costo Unitario': parseFloat(gasto.costoUnitario),
+        'Costo Total': parseFloat(gasto.costoTotal),
+        'Área': gasto.area || 'Sin asignar',
+        'OT #': gasto.ot ? gasto.ot.id : '',
+        'Equipo OT': gasto.ot ? gasto.ot.equipoNombre : '',
+        'Descripción OT': gasto.ot ? gasto.ot.descripcionProblema : '',
+        'Estado OT': gasto.ot ? gasto.ot.estado : '',
+        'Gravedad OT': gasto.ot ? gasto.ot.gravedad : '',
+        'Proveedor': gasto.proveedor ? gasto.proveedor.nombre : '',
+      }));
+      
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      
+      ws['!cols'] = [
+        { wch: 12 }, // Fecha
+        { wch: 35 }, // Item
+        { wch: 40 }, // Descripción
+        { wch: 10 }, // Cantidad
+        { wch: 15 }, // Costo Unitario
+        { wch: 15 }, // Costo Total
+        { wch: 25 }, // Área
+        { wch: 12 }, // OT #
+        { wch: 30 }, // Equipo OT
+        { wch: 45 }, // Descripción OT
+        { wch: 15 }, // Estado OT
+        { wch: 12 }, // Gravedad OT
+        { wch: 30 }, // Proveedor
+      ];
+      
+      XLSX.utils.book_append_sheet(wb, ws, 'Gastos de Materiales');
+      
+      const excelBuffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      
+      const periodo = mes 
+        ? `${anio}-${String(mes).padStart(2, '0')}` 
+        : anio || 'todos';
+      const filename = `gastos_materiales_${periodo}_${format(new Date(), 'yyyyMMdd_HHmmss')}.xlsx`;
+      
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(excelBuffer);
+    } catch (error: any) {
+      console.error('Error al exportar gastos:', error);
+      res.status(500).json({ message: 'Error al exportar gastos', error: error.message });
+    }
+  }));
+
   // ===== PLANES PREVENTIVOS ROUTES =====
 
   // GET plantilla Excel para gastos materiales (DEBE IR ANTES DE /:id)
