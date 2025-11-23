@@ -43,6 +43,7 @@ import { executeIncrementalETL, getETLStatus, updateETLConfig, etlProgressEmitte
 import { executeGDVETL, gdvEtlProgressEmitter, gdvSqlServerBreaker } from "./etl-gdv";
 import { executeNVVETL, nvvEtlProgressEmitter, nvvSqlServerBreaker, getNVVProgressHistory } from "./etl-nvv";
 import * as NotifyHelper from "./notifications-helper";
+import { format } from "date-fns";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
