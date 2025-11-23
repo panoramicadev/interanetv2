@@ -9561,7 +9561,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
       
       // Only specific roles can access mantenciones
-      const allowedRoles = ['admin', 'supervisor', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
+      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para acceder a mantenciones' });
       }
@@ -9588,7 +9588,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
       
       // Only specific roles can access mantenciones
-      const allowedRoles = ['admin', 'supervisor', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
+      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para acceder a mantenciones' });
       }
@@ -9612,7 +9612,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
       
       // Only specific roles can access mantenciones
-      const allowedRoles = ['admin', 'supervisor', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
+      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para acceder a mantenciones' });
       }
@@ -9636,7 +9636,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
       
       // Only specific roles can create mantenciones
-      const allowedRoles = ['admin', 'supervisor', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
+      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para crear solicitudes de mantención' });
       }
@@ -9794,7 +9794,7 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
       
       // Only specific roles can upload photos
-      const allowedRoles = ['admin', 'supervisor', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
+      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para subir fotos' });
       }
@@ -9855,8 +9855,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       
-      // Only admin, supervisor, and produccion can assign técnico
-      const allowedRoles = ['admin', 'supervisor', 'produccion'];
+      // Only admin, supervisor, jefe_planta, mantencion, and produccion can assign técnico
+      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para asignar técnicos' });
       }
@@ -9898,8 +9898,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       
-      // Only admin, supervisor, and produccion can change estado
-      const allowedRoles = ['admin', 'supervisor', 'produccion'];
+      // Only admin, supervisor, jefe_planta, mantencion, and produccion can change estado
+      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para cambiar estado' });
       }
@@ -9943,8 +9943,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       
-      // Only admin, supervisor, and produccion can submit resolucion
-      const allowedRoles = ['admin', 'supervisor', 'produccion'];
+      // Only admin, supervisor, jefe_planta, mantencion, and produccion can submit resolucion
+      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No tiene permisos para enviar resoluciones' });
       }
@@ -10051,8 +10051,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       
-      // Only admin, supervisor, and produccion can close
-      const allowedRoles = ['admin', 'supervisor', 'produccion'];
+      // Only admin, supervisor, jefe_planta, mantencion, and produccion can close
+      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para cerrar solicitudes' });
       }
@@ -10076,7 +10076,7 @@ export function registerRoutes(app: Express): Server {
   // ===== NUEVAS FUNCIONALIDADES AVANZADAS OT =====
   
   // Pausar OT (solo admin, supervisor, produccion)
-  app.post('/api/mantenciones/:id/pausar', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/mantenciones/:id/pausar', requireAuth, requireRoles(['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion']), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       
@@ -10111,7 +10111,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Reanudar OT (solo admin, supervisor, produccion)
-  app.post('/api/mantenciones/:id/reanudar', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/mantenciones/:id/reanudar', requireAuth, requireRoles(['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion']), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       
@@ -10182,8 +10182,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       
-      // Only admin, supervisor, and produccion can add gastos
-      const allowedRoles = ['admin', 'supervisor', 'produccion'];
+      // Only admin, supervisor, jefe_planta, mantencion, and produccion can add gastos
+      const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para agregar gastos' });
       }
