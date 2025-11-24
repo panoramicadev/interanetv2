@@ -20,16 +20,29 @@ export type ReclamoArea = typeof RECLAMOS_AREAS[keyof typeof RECLAMOS_AREAS];
 // All valid area values as array for schema enums
 export const RECLAMOS_AREAS_VALUES: ReclamoArea[] = Object.values(RECLAMOS_AREAS);
 
+/**
+ * Maps specific complaint areas to their operational areas
+ * This allows technical areas (envase, etiqueta, colores) to be handled by operational teams
+ * 
+ * Example: A complaint about "Envase" is handled by the "Logística" team
+ */
+export const AREA_ESPECIFICA_TO_OPERATIVA: Partial<Record<ReclamoArea, ReclamoArea>> = {
+  [RECLAMOS_AREAS.ENVASE]: RECLAMOS_AREAS.LOGISTICA,      // Envase → Logística (bodega de envases)
+  [RECLAMOS_AREAS.ETIQUETA]: RECLAMOS_AREAS.PRODUCCION,   // Etiqueta → Producción (etiquetado en línea)
+  [RECLAMOS_AREAS.COLORES]: RECLAMOS_AREAS.PRODUCCION,    // Colores → Producción (mezcla y aplicación)
+};
+
 // Role to area mapping - converts user roles to their responsible area(s)
+// NOTE: Roles for specific areas (area_envase, area_etiqueta, area_colores) map to operative areas
 export const ROLE_TO_AREA_MAP: Record<string, ReclamoArea> = {
-  // Area roles (with area_ prefix)
+  // Area roles (with area_ prefix) - specific areas map to operative areas
   'area_produccion': RECLAMOS_AREAS.PRODUCCION,
   'area_logistica': RECLAMOS_AREAS.LOGISTICA,
   'area_aplicacion': RECLAMOS_AREAS.APLICACION,
   'area_materia_prima': RECLAMOS_AREAS.MATERIA_PRIMA,
-  'area_colores': RECLAMOS_AREAS.COLORES,
-  'area_envase': RECLAMOS_AREAS.ENVASE,
-  'area_etiqueta': RECLAMOS_AREAS.ETIQUETA,
+  'area_colores': RECLAMOS_AREAS.PRODUCCION,      // Colores handled by Producción
+  'area_envase': RECLAMOS_AREAS.LOGISTICA,        // Envase handled by Logística
+  'area_etiqueta': RECLAMOS_AREAS.PRODUCCION,     // Etiqueta handled by Producción
   
   // Organizational roles (without area_ prefix)
   'produccion': RECLAMOS_AREAS.PRODUCCION,
@@ -87,6 +100,22 @@ export function normalizeAreaName(area: string | undefined | null): ReclamoArea 
   if (area === 'colores_variacion') return RECLAMOS_AREAS.COLORES;
   
   return null;
+}
+
+/**
+ * Map a specific area to its operative area
+ * Returns the operative area if there's a mapping, otherwise returns the original area
+ * 
+ * Example: mapToOperativeArea('envase') returns 'logistica'
+ */
+export function mapToOperativeArea(area: ReclamoArea | string | null | undefined): ReclamoArea | null {
+  if (!area) return null;
+  
+  const normalized = normalizeAreaName(area);
+  if (!normalized) return null;
+  
+  // Check if this specific area maps to an operative area
+  return AREA_ESPECIFICA_TO_OPERATIVA[normalized] || normalized;
 }
 
 // Display labels for areas (Spanish)
