@@ -95,6 +95,29 @@ Preferred communication style: Simple, everyday language.
   - ✅ Automatic OT generation properly copies task checklist
 - **Status**: ✅ Implemented and tested
 
+### Complaints Area Mapping - Specific Areas to Operative Areas (November 24, 2025)
+- **Requirement**: Specific complaint areas (Envase, Etiqueta, Colores) must automatically route to corresponding operative areas (Logística, Producción)
+- **Implementation**:
+  - **shared/reclamosAreas.ts**: Created centralized area mapping system
+    - `AREA_ESPECIFICA_TO_OPERATIVA`: Mapping object for Envase→Logística, Etiqueta→Producción, Colores→Producción
+    - `mapToOperativeArea()`: Function to convert specific area to operative area
+    - `getRoleArea()`: Function to extract operative area from user role
+    - Updated `ROLE_TO_AREA_MAP` for area-specific roles (area_envase, area_etiqueta, area_colores)
+  - **server/storage.ts**: Updated filtering and permissions
+    - `getAllReclamosGenerales()`: When filtering by operative area, includes all specific areas that map to it
+      - Example: filtering by 'produccion' includes 'produccion', 'etiqueta', 'colores'
+      - Example: filtering by 'logistica' includes 'logistica', 'envase'
+    - `updateResolucionArea()`: Permission validation uses centralized mapping
+      - Logística users can resolve Envase complaints
+      - Producción users can resolve Etiqueta/Colores complaints
+- **Capabilities**:
+  - ✅ When Técnico de Obra assigns complaint to 'Envase', it arrives to Logística users
+  - ✅ When Técnico de Obra assigns complaint to 'Etiqueta' or 'Colores', it arrives to Producción users
+  - ✅ Area filtering respects mappings (filtering by 'produccion' shows etiqueta/colores complaints)
+  - ✅ Resolution permissions validate against operative areas (cross-area access prevented)
+  - ✅ Centralized mapping ensures consistency across all complaint operations
+- **Status**: ✅ Fully implemented and tested
+
 ### Jefe de Planta - Full Dashboard Access (November 20, 2025)
 - **Issue**: Jefe_planta could see dashboard but couldn't access detail pages - received 403 errors
 - **Root Cause**: Backend middleware `requireOwnDataOrAdmin` excluded jefe_planta role
