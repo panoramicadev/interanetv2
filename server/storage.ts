@@ -244,6 +244,7 @@ import {
   type InsertProyeccionVenta,
   type InsertProyeccionVentaInput,
 } from "@shared/schema";
+import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from "@shared/reclamosAreas";
 import { db } from "./db";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, or, isNull, isNotNull, ilike, count, not } from "drizzle-orm";
 import { getComunaRegion } from "./chile-regions";
@@ -13051,7 +13052,23 @@ export class DatabaseStorage implements IStorage {
     }
     
     if (filters?.areaResponsable) {
-      conditions.push(eq(reclamosGenerales.areaResponsableActual, filters.areaResponsable));
+      // Apply area mapping: if filtering by operative area, include specific areas that map to it
+      // Example: filtering by 'produccion' should include 'produccion', 'etiqueta', 'colores'
+      const areasToInclude = [filters.areaResponsable];
+      
+      // Find all specific areas that map to this operative area
+      for (const [specificArea, operativeArea] of Object.entries(AREA_ESPECIFICA_TO_OPERATIVA)) {
+        if (operativeArea === filters.areaResponsable) {
+          areasToInclude.push(specificArea);
+        }
+      }
+      
+      // Use IN clause if multiple areas, otherwise use eq
+      if (areasToInclude.length > 1) {
+        conditions.push(inArray(reclamosGenerales.areaResponsableActual, areasToInclude));
+      } else {
+        conditions.push(eq(reclamosGenerales.areaResponsableActual, filters.areaResponsable));
+      }
     }
     
     let query = db
@@ -13630,39 +13647,28 @@ export class DatabaseStorage implements IStorage {
       throw new Error('El reclamo no está en estado "En Área Responsable"');
     }
     
-    // Mapeo de roles organizacionales a áreas responsables
-    const organizationalRoleMapping: Record<string, string> = {
-      'produccion': 'produccion',
-      'logistica_bodega': 'logistica',
-      'planificacion': 'produccion',
-      'bodega_materias_primas': 'logistica',
-      'prevencion_riesgos': 'produccion',
-    };
+    // Use centralized area mapping from shared/reclamosAreas
+    // Get the operative area for the user's role
+    const areaUsuarioOperativa = mapToOperativeArea(
+      userRole.startsWith('area_') ? userRole.replace('area_', '') : userRole
+    );
     
-    // Extraer área del rol (ej: area_materia_prima -> materia_prima, laboratorio -> laboratorio)
-    let areaUsuario: string;
-    if (userRole.startsWith('area_')) {
-      areaUsuario = userRole.replace('area_', '');
-    } else if (organizationalRoleMapping[userRole]) {
-      areaUsuario = organizationalRoleMapping[userRole];
-    } else {
-      areaUsuario = userRole;
+    // Map the complaint's assigned area to its operative area
+    // Example: 'envase' → 'logistica', 'etiqueta' → 'produccion'
+    const areaReclamoOperativa = mapToOperativeArea(reclamo.areaResponsableActual || '');
+    
+    if (!areaUsuarioOperativa || !areaReclamoOperativa) {
+      throw new Error('No se pudo determinar el área responsable');
     }
     
-    // Normalizar área para comparación (manejar variaciones como colores_variacion)
-    const normalizeArea = (area: string) => {
-      // Para colores: tanto "colores" como "colores_variacion" se normalizan a "colores"
-      if (area === 'colores_variacion' || area === 'colores') return 'colores';
-      return area;
-    };
-    
-    const areaUsuarioNormalizada = normalizeArea(areaUsuario);
-    const areaResponsableNormalizada = normalizeArea(reclamo.areaResponsableActual || '');
-    
-    // Verificar que el área del usuario coincide con el área responsable del reclamo
-    if (areaResponsableNormalizada !== areaUsuarioNormalizada) {
+    // Verify that the user's operative area matches the complaint's operative area
+    // This allows logistica users to resolve 'envase' complaints, produccion users to resolve 'etiqueta'/'colores'
+    if (areaReclamoOperativa !== areaUsuarioOperativa) {
       throw new Error('No tiene permisos para resolver este reclamo');
     }
+    
+    // Use the original area for display purposes
+    const areaUsuario = userRole.startsWith('area_') ? userRole.replace('area_', '') : userRole;
     
     // Actualización condicional para prevenir race conditions
     const [updated] = await db
