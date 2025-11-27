@@ -15606,11 +15606,16 @@ export function registerRoutes(app: Express): Server {
                       .split('/')[0];
                     
                     if (resultDomain === domainToFind || resultDomain.endsWith('.' + domainToFind)) {
+                      // Calculate absolute position: use result.position if available, otherwise calculate from page offset
                       posicion = result.position || (startPos + i + 1);
+                      // If result.position seems to be relative to the page (1-10), add offset
+                      if (result.position && result.position <= 10 && startPos > 0) {
+                        posicion = startPos + result.position;
+                      }
                       urlEncontrada = result.link;
                       titulo = result.title;
                       snippet = result.snippet;
-                      console.log(`[SEO] Found "${keyword.keyword}" at position ${posicion} (page ${page}): ${result.link}`);
+                      console.log(`[SEO] Found "${keyword.keyword}" at absolute position ${posicion} (page ${page}, offset ${startPos}): ${result.link}`);
                       break;
                     }
                   }
