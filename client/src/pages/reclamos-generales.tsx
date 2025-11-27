@@ -2438,15 +2438,25 @@ export default function ReclamosGeneralesPage() {
           className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full"
           onOpenAutoFocus={(e) => e.preventDefault()}
           onInteractOutside={(e) => {
+            // Prevent closing when clicking file inputs (portaled outside modal)
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' && target.getAttribute('type') === 'file') {
+              e.preventDefault();
+              return;
+            }
             // Prevent closing when clicking anywhere inside the upload container
-            const target = e.target as Node;
             if (resolucionUploadContainerRef.current?.contains(target)) {
               e.preventDefault();
             }
           }}
           onPointerDownOutside={(e) => {
+            // Prevent closing when clicking file inputs (portaled outside modal)
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' && target.getAttribute('type') === 'file') {
+              e.preventDefault();
+              return;
+            }
             // Also prevent pointer down events from closing the modal
-            const target = e.target as Node;
             if (resolucionUploadContainerRef.current?.contains(target)) {
               e.preventDefault();
             }
