@@ -28,7 +28,9 @@ import {
   Building2,
   Edit,
   Trash2,
-  Loader2
+  Loader2,
+  Bell,
+  CheckCircle
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -80,6 +82,13 @@ interface SelectedProduct {
 
 interface ObraWithClient extends Obra {
   clienteNombre?: string;
+}
+
+interface NotificacionesReclamos {
+  nuevosReclamos: number;
+  nuevasResoluciones: number;
+  reclamosMasRecientes: { id: string; numeroReclamo: string; clientName: string; createdAt: string }[];
+  resolucionesMasRecientes: { id: string; numeroReclamo: string; clientName: string; resolvedAt: string }[];
 }
 
 export default function VisitasTecnicasPage() {
@@ -307,6 +316,16 @@ export default function VisitasTecnicasPage() {
       return response.json();
     },
     enabled: activeTab === 'dashboard',
+  });
+
+  // Query para notificaciones de reclamos (últimas 24 horas)
+  const { data: notificaciones } = useQuery<NotificacionesReclamos>({
+    queryKey: ['/api/reclamos-generales/notificaciones'],
+    queryFn: async () => {
+      const response = await apiRequest('/api/reclamos-generales/notificaciones');
+      return response.json();
+    },
+    refetchInterval: 60000,
   });
 
   // Query para listado de visitas
@@ -926,6 +945,33 @@ export default function VisitasTecnicasPage() {
             </p>
           </div>
         </div>
+
+        {/* Banner sutil de notificaciones */}
+        {notificaciones && (notificaciones.nuevosReclamos > 0 || notificaciones.nuevasResoluciones > 0) && (
+          <div className="flex flex-wrap items-center gap-3 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
+            <Bell className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+            <div className="flex flex-wrap items-center gap-3">
+              {notificaciones.nuevosReclamos > 0 && (
+                <span className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  <span className="font-medium">{notificaciones.nuevosReclamos}</span>
+                  <span>nuevo{notificaciones.nuevosReclamos !== 1 ? 's' : ''} reclamo{notificaciones.nuevosReclamos !== 1 ? 's' : ''}</span>
+                </span>
+              )}
+              {notificaciones.nuevosReclamos > 0 && notificaciones.nuevasResoluciones > 0 && (
+                <span className="text-blue-400 dark:text-blue-600">|</span>
+              )}
+              {notificaciones.nuevasResoluciones > 0 && (
+                <span className="flex items-center gap-1.5 text-green-700 dark:text-green-300">
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  <span className="font-medium">{notificaciones.nuevasResoluciones}</span>
+                  <span>resolu{notificaciones.nuevasResoluciones !== 1 ? 'ciones' : 'ción'}</span>
+                </span>
+              )}
+              <span className="text-blue-500 dark:text-blue-400 text-xs">(últimas 24h)</span>
+            </div>
+          </div>
+        )}
 
         {/* Tabs principales */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

@@ -9082,6 +9082,16 @@ export function registerRoutes(app: Express): Server {
   // RECLAMOS GENERALES ROUTES
   // ==================================================================================
 
+  // Get notifications for recent reclamos and resolutions (last 24 hours)
+  app.get('/api/reclamos-generales/notificaciones', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const notificaciones = await storage.getReclamosNotificaciones();
+      res.json(notificaciones);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener notificaciones', error: error.message });
+    }
+  }));
+
   // Get all reclamos with optional filters
   app.get('/api/reclamos-generales', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
