@@ -165,7 +165,7 @@ export default function Marketing() {
 
       {/* Tabs */}
       <Tabs defaultValue="solicitudes" className="w-full">
-        <TabsList className={`grid w-full h-auto ${user.role === 'salesperson' ? 'grid-cols-2' : 'grid-cols-5'}`}>
+        <TabsList className={`grid w-full h-auto ${user.role === 'salesperson' ? 'grid-cols-2' : 'grid-cols-6'}`}>
           <TabsTrigger value="solicitudes" data-testid="tab-solicitudes" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
             <FileText className="h-4 w-4" />
             <span>Solicitudes</span>
@@ -190,6 +190,13 @@ export default function Marketing() {
             <TabsTrigger value="presupuesto" data-testid="tab-presupuesto" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
               <DollarSign className="h-4 w-4" />
               <span>Presupuesto</span>
+            </TabsTrigger>
+          )}
+          {(user.role === 'admin' || user.role === 'supervisor') && (
+            <TabsTrigger value="seo" data-testid="tab-seo" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
+              <TrendingUp className="h-4 w-4" />
+              <span className="hidden sm:inline">Posicionamiento</span>
+              <span className="sm:hidden">SEO</span>
             </TabsTrigger>
           )}
         </TabsList>
@@ -371,6 +378,13 @@ export default function Marketing() {
             </Card>
 
             <MetricsDashboard mes={selectedMes} anio={selectedAnio} />
+          </TabsContent>
+        )}
+
+        {/* Tab: Posicionamiento Web (solo admin y supervisor) */}
+        {(user.role === 'admin' || user.role === 'supervisor') && (
+          <TabsContent value="seo" className="space-y-6">
+            <SeoTracking />
           </TabsContent>
         )}
       </Tabs>
@@ -3886,5 +3900,574 @@ function HitoDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// SEO Tracking Component
+interface SeoCampaign {
+  id: string;
+  nombre: string;
+  dominio: string;
+  descripcion: string | null;
+  activo: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface SeoKeywordData {
+  id: string;
+  campaignId: string;
+  keyword: string;
+  urlObjetivo: string | null;
+  ubicacion: string;
+  idioma: string;
+  dispositivo: string;
+  ultimaPosicion: number | null;
+  ultimaConsulta: string | null;
+  activo: boolean;
+  createdAt: string;
+  historial: SeoPositionHistoryData[];
+}
+
+interface SeoPositionHistoryData {
+  id: string;
+  keywordId: string;
+  posicion: number | null;
+  urlEncontrada: string | null;
+  titulo: string | null;
+  snippet: string | null;
+  pagina: number | null;
+  totalResultados: number | null;
+  fechaConsulta: string;
+  busquedasRestantes: number | null;
+}
+
+function SeoTracking() {
+  const { toast } = useToast();
+  const [selectedCampaign, setSelectedCampaign] = useState<SeoCampaign | null>(null);
+  const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
+  const [keywordDialogOpen, setKeywordDialogOpen] = useState(false);
+  const [checkingPosition, setCheckingPosition] = useState<string | null>(null);
+  const [checkingAll, setCheckingAll] = useState(false);
+
+  // Campaign form state
+  const [campaignNombre, setCampaignNombre] = useState('');
+  const [campaignDominio, setCampaignDominio] = useState('');
+  const [campaignDescripcion, setCampaignDescripcion] = useState('');
+
+  // Keyword form state
+  const [keywordText, setKeywordText] = useState('');
+  const [keywordUrl, setKeywordUrl] = useState('');
+  const [keywordUbicacion, setKeywordUbicacion] = useState('Chile');
+  const [keywordDispositivo, setKeywordDispositivo] = useState('desktop');
+
+  // Fetch campaigns
+  const { data: campaigns = [], isLoading: loadingCampaigns, refetch: refetchCampaigns } = useQuery<SeoCampaign[]>({
+    queryKey: ['/api/seo/campaigns'],
+  });
+
+  // Fetch keywords for selected campaign
+  const { data: keywords = [], isLoading: loadingKeywords, refetch: refetchKeywords } = useQuery<SeoKeywordData[]>({
+    queryKey: ['/api/seo/campaigns', selectedCampaign?.id, 'keywords'],
+    enabled: !!selectedCampaign,
+  });
+
+  // Create campaign mutation
+  const createCampaignMutation = useMutation({
+    mutationFn: async (data: { nombre: string; dominio: string; descripcion: string }) => {
+      return await apiRequest('/api/seo/campaigns', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+    onSuccess: () => {
+      toast({ title: 'Campaña creada exitosamente' });
+      queryClient.invalidateQueries({ queryKey: ['/api/seo/campaigns'] });
+      setCampaignDialogOpen(false);
+      setCampaignNombre('');
+      setCampaignDominio('');
+      setCampaignDescripcion('');
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error al crear campaña', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  // Create keyword mutation
+  const createKeywordMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest('/api/seo/keywords', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+    onSuccess: () => {
+      toast({ title: 'Keyword agregada exitosamente' });
+      queryClient.invalidateQueries({ queryKey: ['/api/seo/campaigns', selectedCampaign?.id, 'keywords'] });
+      setKeywordDialogOpen(false);
+      setKeywordText('');
+      setKeywordUrl('');
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error al agregar keyword', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  // Delete keyword mutation
+  const deleteKeywordMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest(`/api/seo/keywords/${id}`, { method: 'DELETE' });
+    },
+    onSuccess: () => {
+      toast({ title: 'Keyword eliminada' });
+      queryClient.invalidateQueries({ queryKey: ['/api/seo/campaigns', selectedCampaign?.id, 'keywords'] });
+    },
+  });
+
+  // Check position mutation
+  const checkPositionMutation = useMutation({
+    mutationFn: async (keywordId: string) => {
+      setCheckingPosition(keywordId);
+      return await apiRequest('/api/seo/check-position', {
+        method: 'POST',
+        body: JSON.stringify({ keywordId }),
+      });
+    },
+    onSuccess: (data: any) => {
+      if (data.posicion) {
+        toast({ title: `Posición encontrada: #${data.posicion}` });
+      } else {
+        toast({ title: 'No se encontró en los primeros 100 resultados', variant: 'destructive' });
+      }
+      queryClient.invalidateQueries({ queryKey: ['/api/seo/campaigns', selectedCampaign?.id, 'keywords'] });
+      setCheckingPosition(null);
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error al verificar posición', description: error.message, variant: 'destructive' });
+      setCheckingPosition(null);
+    },
+  });
+
+  // Check all positions mutation
+  const checkAllMutation = useMutation({
+    mutationFn: async (campaignId: string) => {
+      setCheckingAll(true);
+      return await apiRequest(`/api/seo/campaigns/${campaignId}/check-all`, { method: 'POST' });
+    },
+    onSuccess: (data: any) => {
+      toast({ title: `Verificación completada: ${data.total} keywords procesadas` });
+      queryClient.invalidateQueries({ queryKey: ['/api/seo/campaigns', selectedCampaign?.id, 'keywords'] });
+      setCheckingAll(false);
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error al verificar posiciones', description: error.message, variant: 'destructive' });
+      setCheckingAll(false);
+    },
+  });
+
+  const handleCreateCampaign = () => {
+    if (!campaignNombre || !campaignDominio) {
+      toast({ title: 'Complete los campos requeridos', variant: 'destructive' });
+      return;
+    }
+    createCampaignMutation.mutate({
+      nombre: campaignNombre,
+      dominio: campaignDominio,
+      descripcion: campaignDescripcion,
+    });
+  };
+
+  const handleCreateKeyword = () => {
+    if (!keywordText || !selectedCampaign) {
+      toast({ title: 'Complete los campos requeridos', variant: 'destructive' });
+      return;
+    }
+    createKeywordMutation.mutate({
+      campaignId: selectedCampaign.id,
+      keyword: keywordText,
+      urlObjetivo: keywordUrl || null,
+      ubicacion: keywordUbicacion,
+      idioma: 'es',
+      dispositivo: keywordDispositivo,
+      activo: true,
+    });
+  };
+
+  const getPositionColor = (pos: number | null) => {
+    if (!pos) return 'text-gray-400';
+    if (pos <= 3) return 'text-green-500';
+    if (pos <= 10) return 'text-yellow-500';
+    if (pos <= 20) return 'text-orange-500';
+    return 'text-red-500';
+  };
+
+  const getPositionBadge = (pos: number | null) => {
+    if (!pos) return <Badge variant="secondary">No encontrado</Badge>;
+    if (pos <= 3) return <Badge className="bg-green-500">#{pos}</Badge>;
+    if (pos <= 10) return <Badge className="bg-yellow-500">#{pos}</Badge>;
+    if (pos <= 20) return <Badge className="bg-orange-500">#{pos}</Badge>;
+    return <Badge variant="destructive">#{pos}</Badge>;
+  };
+
+  if (loadingCampaigns) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold">Posicionamiento Web</h2>
+          <p className="text-muted-foreground">Monitoreo de posiciones en Google con SerpAPI</p>
+        </div>
+        <Button onClick={() => setCampaignDialogOpen(true)} data-testid="button-nueva-campana">
+          <Plus className="mr-2 h-4 w-4" />
+          Nueva Campaña
+        </Button>
+      </div>
+
+      {/* Campaign Selection */}
+      {campaigns.length === 0 ? (
+        <Card>
+          <CardContent className="py-8 text-center">
+            <TrendingUp className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No hay campañas</h3>
+            <p className="text-muted-foreground mb-4">Crea tu primera campaña para comenzar a monitorear posiciones</p>
+            <Button onClick={() => setCampaignDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Crear Campaña
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>Seleccionar Campaña</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Select
+                value={selectedCampaign?.id || ''}
+                onValueChange={(value) => {
+                  const camp = campaigns.find(c => c.id === value);
+                  setSelectedCampaign(camp || null);
+                }}
+              >
+                <SelectTrigger data-testid="select-campana">
+                  <SelectValue placeholder="Selecciona una campaña" />
+                </SelectTrigger>
+                <SelectContent>
+                  {campaigns.map((campaign) => (
+                    <SelectItem key={campaign.id} value={campaign.id}>
+                      {campaign.nombre} - {campaign.dominio}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+
+          {/* Keywords Table */}
+          {selectedCampaign && (
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div>
+                    <CardTitle>Keywords - {selectedCampaign.nombre}</CardTitle>
+                    <CardDescription>Dominio: {selectedCampaign.dominio}</CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => checkAllMutation.mutate(selectedCampaign.id)}
+                      disabled={checkingAll || keywords.length === 0}
+                      data-testid="button-verificar-todas"
+                    >
+                      {checkingAll ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Verificando...
+                        </>
+                      ) : (
+                        <>
+                          <TrendingUp className="mr-2 h-4 w-4" />
+                          Verificar Todas
+                        </>
+                      )}
+                    </Button>
+                    <Button onClick={() => setKeywordDialogOpen(true)} data-testid="button-agregar-keyword">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Agregar Keyword
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loadingKeywords ? (
+                  <div className="flex justify-center p-4">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                ) : keywords.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p>No hay keywords configuradas</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Keyword</TableHead>
+                          <TableHead>Ubicación</TableHead>
+                          <TableHead>Dispositivo</TableHead>
+                          <TableHead>Posición</TableHead>
+                          <TableHead>Última Consulta</TableHead>
+                          <TableHead>Acciones</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {keywords.map((kw) => (
+                          <TableRow key={kw.id}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{kw.keyword}</p>
+                                {kw.urlObjetivo && (
+                                  <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                    {kw.urlObjetivo}
+                                  </p>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>{kw.ubicacion}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {kw.dispositivo === 'desktop' ? '🖥️ Desktop' : '📱 Mobile'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{getPositionBadge(kw.ultimaPosicion)}</TableCell>
+                            <TableCell>
+                              {kw.ultimaConsulta ? (
+                                <span className="text-sm">
+                                  {format(new Date(kw.ultimaConsulta), 'dd/MM/yy HH:mm', { locale: es })}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => checkPositionMutation.mutate(kw.id)}
+                                  disabled={checkingPosition === kw.id}
+                                  data-testid={`button-verificar-${kw.id}`}
+                                >
+                                  {checkingPosition === kw.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <TrendingUp className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => deleteKeywordMutation.mutate(kw.id)}
+                                  data-testid={`button-eliminar-${kw.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Position History Chart */}
+          {selectedCampaign && keywords.length > 0 && keywords.some(k => k.historial.length > 0) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Historial de Posiciones</CardTitle>
+                <CardDescription>Evolución de las posiciones en el tiempo</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {keywords.filter(k => k.historial.length > 0).map((kw) => (
+                    <div key={kw.id} className="border rounded-lg p-4">
+                      <h4 className="font-semibold mb-2">{kw.keyword}</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {kw.historial.slice(0, 10).reverse().map((h, idx) => (
+                          <div key={h.id} className="text-center">
+                            <div className={`text-lg font-bold ${getPositionColor(h.posicion)}`}>
+                              {h.posicion || '-'}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {format(new Date(h.fechaConsulta), 'dd/MM', { locale: es })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+
+      {/* Campaign Dialog */}
+      <Dialog open={campaignDialogOpen} onOpenChange={setCampaignDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nueva Campaña SEO</DialogTitle>
+            <DialogDescription>
+              Crea una campaña para monitorear las posiciones de tu sitio web
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="campaignNombre">Nombre de la Campaña *</Label>
+              <Input
+                id="campaignNombre"
+                value={campaignNombre}
+                onChange={(e) => setCampaignNombre(e.target.value)}
+                placeholder="Ej: Pinturas Panorámica"
+                data-testid="input-nombre-campana"
+              />
+            </div>
+            <div>
+              <Label htmlFor="campaignDominio">Dominio a Monitorear *</Label>
+              <Input
+                id="campaignDominio"
+                value={campaignDominio}
+                onChange={(e) => setCampaignDominio(e.target.value)}
+                placeholder="Ej: pinturaspanoramica.cl"
+                data-testid="input-dominio-campana"
+              />
+            </div>
+            <div>
+              <Label htmlFor="campaignDescripcion">Descripción</Label>
+              <Textarea
+                id="campaignDescripcion"
+                value={campaignDescripcion}
+                onChange={(e) => setCampaignDescripcion(e.target.value)}
+                placeholder="Descripción opcional"
+                data-testid="input-descripcion-campana"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCampaignDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleCreateCampaign}
+              disabled={createCampaignMutation.isPending}
+              data-testid="button-crear-campana"
+            >
+              {createCampaignMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creando...
+                </>
+              ) : (
+                'Crear Campaña'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Keyword Dialog */}
+      <Dialog open={keywordDialogOpen} onOpenChange={setKeywordDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Agregar Keyword</DialogTitle>
+            <DialogDescription>
+              Agrega una palabra clave para monitorear su posición en Google
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="keywordText">Palabra Clave *</Label>
+              <Input
+                id="keywordText"
+                value={keywordText}
+                onChange={(e) => setKeywordText(e.target.value)}
+                placeholder="Ej: pinturas chile"
+                data-testid="input-keyword"
+              />
+            </div>
+            <div>
+              <Label htmlFor="keywordUrl">URL Objetivo (opcional)</Label>
+              <Input
+                id="keywordUrl"
+                value={keywordUrl}
+                onChange={(e) => setKeywordUrl(e.target.value)}
+                placeholder="Ej: /productos/pinturas"
+                data-testid="input-url-keyword"
+              />
+            </div>
+            <div>
+              <Label htmlFor="keywordUbicacion">Ubicación</Label>
+              <Select value={keywordUbicacion} onValueChange={setKeywordUbicacion}>
+                <SelectTrigger data-testid="select-ubicacion">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Chile">Chile</SelectItem>
+                  <SelectItem value="Santiago, Chile">Santiago</SelectItem>
+                  <SelectItem value="Valparaiso, Chile">Valparaíso</SelectItem>
+                  <SelectItem value="Concepcion, Chile">Concepción</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="keywordDispositivo">Dispositivo</Label>
+              <Select value={keywordDispositivo} onValueChange={setKeywordDispositivo}>
+                <SelectTrigger data-testid="select-dispositivo">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="desktop">🖥️ Desktop</SelectItem>
+                  <SelectItem value="mobile">📱 Mobile</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setKeywordDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleCreateKeyword}
+              disabled={createKeywordMutation.isPending}
+              data-testid="button-crear-keyword"
+            >
+              {createKeywordMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Agregando...
+                </>
+              ) : (
+                'Agregar Keyword'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
