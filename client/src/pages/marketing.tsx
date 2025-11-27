@@ -1021,10 +1021,12 @@ function SolicitudDialog({
   const [descripcion, setDescripcion] = useState("");
   const [urgencia, setUrgencia] = useState("baja");
   const [fechaEntrega, setFechaEntrega] = useState("");
-  const [urlReferencia, setUrlReferencia] = useState("");
+  const [imagenReferencia, setImagenReferencia] = useState<File | null>(null);
+  const [imagenPreview, setImagenPreview] = useState<string | null>(null);
   const [selectedSupervisorId, setSelectedSupervisorId] = useState("");
   const [pasos, setPasos] = useState<{ nombre: string; completado: boolean; orden: number }[]>([]);
   const [nuevoPaso, setNuevoPaso] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
 
   // Obtener lista de supervisores (solo para admin)
   const { data: supervisores = [] } = useQuery<any[]>({
@@ -1032,27 +1034,78 @@ function SolicitudDialog({
     enabled: user?.role === 'admin',
   });
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImagenReferencia(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagenPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadImage = async (solicitudId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('imagen', file);
+    
+    const response = await fetch(`/api/marketing/solicitudes/${solicitudId}/imagen`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      throw new Error('Error al subir imagen');
+    }
+    
+    return await response.json();
+  };
+
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await apiRequest('POST', '/api/marketing/solicitudes', data);
+      const response = await apiRequest('POST', '/api/marketing/solicitudes', data);
+      return response;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/marketing/metrics'] });
-      toast({
-        title: "Solicitud creada",
-        description: "La solicitud ha sido enviada correctamente",
-      });
-      onOpenChange(false);
-      // Reset form
-      setTitulo("");
-      setDescripcion("");
-      setUrgencia("baja");
-      setFechaEntrega("");
-      setUrlReferencia("");
-      setSelectedSupervisorId("");
-      setPasos([]);
-      setNuevoPaso("");
+    onSuccess: async (response: any) => {
+      try {
+        // Si hay imagen, subirla después de crear la solicitud
+        if (imagenReferencia && response.id) {
+          setIsUploading(true);
+          await uploadImage(response.id, imagenReferencia);
+        }
+        
+        queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/marketing/metrics'] });
+        toast({
+          title: "Solicitud creada",
+          description: imagenReferencia 
+            ? "La solicitud ha sido enviada con la imagen de referencia"
+            : "La solicitud ha sido enviada correctamente",
+        });
+        onOpenChange(false);
+        // Reset form
+        setTitulo("");
+        setDescripcion("");
+        setUrgencia("baja");
+        setFechaEntrega("");
+        setImagenReferencia(null);
+        setImagenPreview(null);
+        setSelectedSupervisorId("");
+        setPasos([]);
+        setNuevoPaso("");
+      } catch (uploadError) {
+        console.error('Error uploading image:', uploadError);
+        toast({
+          title: "Solicitud creada",
+          description: "La solicitud fue creada pero hubo un error al subir la imagen",
+          variant: "default",
+        });
+        onOpenChange(false);
+      } finally {
+        setIsUploading(false);
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -1090,7 +1143,6 @@ function SolicitudDialog({
       mes,
       anio,
       fechaEntrega: formatDateForAPI(fechaEntrega),
-      urlReferencia: urlReferencia || null,
       pasos,
     };
 
@@ -1187,17 +1239,41 @@ function SolicitudDialog({
             />
           </div>
           <div>
-            <Label htmlFor="urlReferencia">URL de Referencia (Opcional)</Label>
-            <Input
-              id="urlReferencia"
-              placeholder="https://ejemplo.com/documento.pdf"
-              value={urlReferencia}
-              onChange={(e) => setUrlReferencia(e.target.value)}
-              data-testid="input-url-referencia"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Puede agregar un enlace de referencia con detalles de la solicitud
-            </p>
+            <Label htmlFor="imagenReferencia">Imagen de Referencia (Opcional)</Label>
+            <div className="space-y-2">
+              <Input
+                id="imagenReferencia"
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                data-testid="input-imagen-referencia"
+                className="cursor-pointer"
+              />
+              {imagenPreview && (
+                <div className="relative w-full max-w-xs">
+                  <img 
+                    src={imagenPreview} 
+                    alt="Vista previa" 
+                    className="w-full h-auto rounded-md border"
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-1 right-1"
+                    onClick={() => {
+                      setImagenReferencia(null);
+                      setImagenPreview(null);
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Puede subir una imagen de referencia con detalles de la solicitud
+              </p>
+            </div>
           </div>
           <div>
             <Label>Pasos / Checklist (Opcional)</Label>
@@ -1267,13 +1343,13 @@ function SolicitudDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={createMutation.isPending}
+            disabled={createMutation.isPending || isUploading}
             data-testid="button-crear-solicitud"
           >
-            {createMutation.isPending ? (
+            {createMutation.isPending || isUploading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creando...
+                {isUploading ? 'Subiendo imagen...' : 'Creando...'}
               </>
             ) : (
               'Crear Solicitud'
@@ -1491,10 +1567,13 @@ function EditSolicitudDialog({
   const [descripcion, setDescripcion] = useState("");
   const [urgencia, setUrgencia] = useState("baja");
   const [fechaEntrega, setFechaEntrega] = useState("");
-  const [urlReferencia, setUrlReferencia] = useState("");
+  const [imagenReferencia, setImagenReferencia] = useState<File | null>(null);
+  const [imagenPreview, setImagenPreview] = useState<string | null>(null);
+  const [imagenExistente, setImagenExistente] = useState<string | null>(null);
   const [monto, setMonto] = useState("");
   const [pasos, setPasos] = useState<{ nombre: string; completado: boolean; orden: number }[]>([]);
   const [nuevoPaso, setNuevoPaso] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
 
   // Pre-cargar datos cuando se abre el diálogo
   useEffect(() => {
@@ -1503,25 +1582,76 @@ function EditSolicitudDialog({
       setDescripcion(solicitud.descripcion || "");
       setUrgencia(solicitud.urgencia || "baja");
       setFechaEntrega(solicitud.fechaEntrega || "");
-      setUrlReferencia(solicitud.urlReferencia || "");
+      setImagenExistente(solicitud.urlReferencia || null);
+      setImagenReferencia(null);
+      setImagenPreview(null);
       setMonto(solicitud.monto?.toString() || "");
       setPasos(solicitud.pasos || []);
       setNuevoPaso("");
     }
   }, [solicitud, open]);
 
+  const handleEditImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImagenReferencia(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagenPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadEditImage = async (solicitudId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('imagen', file);
+    
+    const response = await fetch(`/api/marketing/solicitudes/${solicitudId}/imagen`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      throw new Error('Error al subir imagen');
+    }
+    
+    return await response.json();
+  };
+
   const updateMutation = useMutation({
     mutationFn: async (data: any) => {
       return await apiRequest('PATCH', `/api/marketing/solicitudes/${solicitud?.id}`, data);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/marketing/metrics'] });
-      toast({
-        title: "Solicitud actualizada",
-        description: "Los cambios han sido guardados correctamente",
-      });
-      onOpenChange(false);
+    onSuccess: async () => {
+      try {
+        // Si hay nueva imagen, subirla después de actualizar
+        if (imagenReferencia && solicitud?.id) {
+          setIsUploading(true);
+          await uploadEditImage(solicitud.id, imagenReferencia);
+        }
+        
+        queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/marketing/metrics'] });
+        toast({
+          title: "Solicitud actualizada",
+          description: imagenReferencia 
+            ? "Los cambios y la nueva imagen han sido guardados"
+            : "Los cambios han sido guardados correctamente",
+        });
+        onOpenChange(false);
+      } catch (uploadError) {
+        console.error('Error uploading image:', uploadError);
+        toast({
+          title: "Solicitud actualizada",
+          description: "Los cambios fueron guardados pero hubo un error al subir la imagen",
+          variant: "default",
+        });
+        onOpenChange(false);
+      } finally {
+        setIsUploading(false);
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -1547,7 +1677,6 @@ function EditSolicitudDialog({
       descripcion,
       urgencia,
       fechaEntrega: formatDateForAPI(fechaEntrega),
-      urlReferencia: urlReferencia || null,
       monto: monto ? parseFloat(monto) : null,
       pasos,
     });
@@ -1618,18 +1747,52 @@ function EditSolicitudDialog({
             />
           </div>
           <div>
-            <Label htmlFor="edit-urlReferencia">URL de Referencia</Label>
-            <Input
-              id="edit-urlReferencia"
-              type="url"
-              placeholder="https://ejemplo.com/referencia"
-              value={urlReferencia}
-              onChange={(e) => setUrlReferencia(e.target.value)}
-              data-testid="input-edit-url-referencia"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Adjunte un enlace con información de referencia
-            </p>
+            <Label htmlFor="edit-imagenReferencia">Imagen de Referencia</Label>
+            <div className="space-y-2">
+              {imagenExistente && !imagenPreview && (
+                <div className="relative w-full max-w-xs">
+                  <img 
+                    src={imagenExistente} 
+                    alt="Imagen actual" 
+                    className="w-full h-auto rounded-md border"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Imagen actual</p>
+                </div>
+              )}
+              <Input
+                id="edit-imagenReferencia"
+                type="file"
+                accept="image/*"
+                onChange={handleEditImageChange}
+                data-testid="input-edit-imagen-referencia"
+                className="cursor-pointer"
+              />
+              {imagenPreview && (
+                <div className="relative w-full max-w-xs">
+                  <img 
+                    src={imagenPreview} 
+                    alt="Vista previa nueva imagen" 
+                    className="w-full h-auto rounded-md border"
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-1 right-1"
+                    onClick={() => {
+                      setImagenReferencia(null);
+                      setImagenPreview(null);
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                  <p className="text-xs text-green-600 mt-1">Nueva imagen a subir</p>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                {imagenExistente ? 'Suba una nueva imagen para reemplazar la actual' : 'Puede subir una imagen de referencia'}
+              </p>
+            </div>
           </div>
           {user?.role === 'admin' && (
             <div>
@@ -1715,13 +1878,13 @@ function EditSolicitudDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={updateMutation.isPending}
+            disabled={updateMutation.isPending || isUploading}
             data-testid="button-guardar-editar"
           >
-            {updateMutation.isPending ? (
+            {updateMutation.isPending || isUploading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Guardando...
+                {isUploading ? 'Subiendo imagen...' : 'Guardando...'}
               </>
             ) : (
               'Guardar Cambios'
