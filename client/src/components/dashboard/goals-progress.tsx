@@ -2,6 +2,20 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Target, Building, Users } from "lucide-react";
 
+interface NVVMetrics {
+  totalAmount: number;
+  totalQuantity: number;
+  pendingCount: number;
+  confirmedCount: number;
+  deliveredCount: number;
+  cancelledCount: number;
+}
+
+interface GDVMetrics {
+  gdvSales: number;
+  gdvCount: number;
+}
+
 export interface GoalProgress {
   id: string;
   type: string;
@@ -49,9 +63,33 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
     enabled: !goalsData, // Only fetch if no external data provided
   });
 
+  // Query for NVV global total (no date filters) - for combined progress bar
+  const { data: nvvGlobalMetrics } = useQuery<NVVMetrics>({
+    queryKey: ['/api/nvv/metrics', 'global-goals'],
+    queryFn: async () => {
+      const res = await fetch('/api/nvv/metrics', { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+  });
+
+  // Query for GDV global total (no date filters) - for combined progress bar
+  const { data: gdvGlobalMetrics } = useQuery<GDVMetrics>({
+    queryKey: ['/api/sales/gdv-pending', 'global-goals'],
+    queryFn: async () => {
+      const res = await fetch('/api/sales/gdv-pending', { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+  });
+
   // Use external data if provided, otherwise use fetched data
   const goalsProgress = goalsData || fetchedGoalsProgress;
   const isLoading = externalLoading !== undefined ? externalLoading : fetchedLoading;
+  
+  // Calculate combined total for progress bar (ventas + NVV + GDV)
+  const nvvTotal = Number(nvvGlobalMetrics?.totalAmount || 0);
+  const gdvTotal = Number(gdvGlobalMetrics?.gdvSales || 0);
 
   // Normalize function to handle case and accent insensitive comparison
   const normalize = (str: string | null | undefined): string => {
@@ -247,15 +285,49 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
                     </div>
                   </div>
                   
-                  {/* Barra de progreso */}
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
-                    <div
-                      className={`h-3 rounded-full transition-all duration-500 ${
-                        (goal.percentage ?? 0) >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
-                        (goal.percentage ?? 0) >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
-                      }`}
-                      style={{ width: `${Math.min(goal.percentage ?? 0, 100)}%` }}
-                    />
+                  {/* Barra de progreso - Ventas Actuales */}
+                  <div className="space-y-1">
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                      <div
+                        className={`h-3 rounded-full transition-all duration-500 ${
+                          (goal.percentage ?? 0) >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
+                          (goal.percentage ?? 0) >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
+                        }`}
+                        style={{ width: `${Math.min(goal.percentage ?? 0, 100)}%` }}
+                      />
+                    </div>
+                    
+                    {/* Segunda barra de progreso - Total Combinado (más sutil y pequeña) */}
+                    {(nvvTotal > 0 || gdvTotal > 0) && (() => {
+                      const combinedTotal = goal.currentSales + nvvTotal + gdvTotal;
+                      const combinedPercentage = goal.targetAmount > 0 
+                        ? (combinedTotal / goal.targetAmount) * 100 
+                        : 0;
+                      return (
+                        <div className="space-y-0.5">
+                          <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className={`h-1.5 rounded-full transition-all duration-500 ${
+                                combinedPercentage >= 100 ? 'bg-gradient-to-r from-cyan-300 to-cyan-500' : 
+                                combinedPercentage >= 70 ? 'bg-gradient-to-r from-sky-300 to-sky-500' : 'bg-gradient-to-r from-indigo-300 to-indigo-500'
+                              }`}
+                              style={{ width: `${Math.min(combinedPercentage, 100)}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                              Total Combinado: {formatCurrency(combinedTotal)}
+                            </p>
+                            <p className={`text-[10px] font-medium ${
+                              combinedPercentage >= 100 ? 'text-cyan-600' : 
+                              combinedPercentage >= 70 ? 'text-sky-600' : 'text-indigo-600'
+                            }`}>
+                              {combinedPercentage.toFixed(1)}%
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
