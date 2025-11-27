@@ -5604,32 +5604,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSupervisors(): Promise<SalespersonUser[]> {
-    // Get supervisors from salespeopleUsers table
+    // Get only supervisors from salespeopleUsers table
+    // Note: Admins are excluded because they are in a different table (users)
+    // and solicitudes_marketing has a foreign key to salespeople_users
     const supervisors = await db.select().from(salespeopleUsers)
       .where(eq(salespeopleUsers.role, 'supervisor'));
     
-    // Get admins from users table
-    const admins = await db.select().from(users)
-      .where(eq(users.role, 'admin'));
-    
-    // Convert admins to SalespersonUser format
-    const adminsSalespersonFormat = admins.map(admin => ({
-      id: admin.id,
-      salespersonName: `${admin.firstName || ''} ${admin.lastName || ''}`.trim() || admin.email,
-      username: admin.email,
-      email: admin.email,
-      password: '', // Never expose password hashes
-      isActive: true,
-      role: 'admin' as const,
-      supervisorId: null,
-      assignedSegment: null,
-      createdAt: admin.createdAt,
-      updatedAt: admin.updatedAt,
-    }));
-    
-    // Combine both arrays and sort by name
-    return [...supervisors, ...adminsSalespersonFormat]
-      .sort((a, b) => a.salespersonName.localeCompare(b.salespersonName));
+    return supervisors.sort((a, b) => a.salespersonName.localeCompare(b.salespersonName));
   }
 
   async getSalespersonUser(id: string): Promise<SalespersonUser | undefined> {
