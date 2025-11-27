@@ -165,11 +165,10 @@ export default function Marketing() {
 
       {/* Tabs */}
       <Tabs defaultValue="solicitudes" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 h-auto">
+        <TabsList className={`grid w-full h-auto ${user.role === 'salesperson' ? 'grid-cols-4' : 'grid-cols-5'}`}>
           <TabsTrigger value="solicitudes" data-testid="tab-solicitudes" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
             <FileText className="h-4 w-4" />
-            <span className="hidden sm:inline">Presupuesto y Solicitudes</span>
-            <span className="sm:hidden">Solicitudes</span>
+            <span>Solicitudes</span>
           </TabsTrigger>
           <TabsTrigger value="inventario" data-testid="tab-inventario" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
             <Package className="h-4 w-4" />
@@ -183,22 +182,17 @@ export default function Marketing() {
             <Calendar className="h-4 w-4" />
             <span>Calendario</span>
           </TabsTrigger>
+          {(user.role === 'admin' || user.role === 'supervisor') && (
+            <TabsTrigger value="presupuesto" data-testid="tab-presupuesto" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
+              <DollarSign className="h-4 w-4" />
+              <span>Presupuesto</span>
+            </TabsTrigger>
+          )}
         </TabsList>
 
-        {/* Tab: Presupuesto y Solicitudes */}
+        {/* Tab: Solicitudes */}
         <TabsContent value="solicitudes" className="space-y-6">
           <div className="flex flex-col sm:flex-row justify-end gap-2">
-            {user.role === 'admin' && (
-              <Button 
-                variant="outline"
-                onClick={() => setPresupuestoDialogOpen(true)}
-                data-testid="button-config-presupuesto"
-                className="w-full sm:w-auto"
-              >
-                <DollarSign className="mr-2 h-4 w-4" />
-                Presupuesto
-              </Button>
-            )}
             <Button 
               onClick={() => setSolicitudDialogOpen(true)}
               data-testid="button-nueva-solicitud"
@@ -256,8 +250,6 @@ export default function Marketing() {
             </CardContent>
           </Card>
 
-          <MetricsDashboard mes={selectedMes} anio={selectedAnio} />
-
           <SolicitudesList
             mes={selectedMes}
             anio={selectedAnio}
@@ -307,6 +299,76 @@ export default function Marketing() {
             onAnioChange={setSelectedAnio}
           />
         </TabsContent>
+
+        {/* Tab: Presupuesto (solo admin y supervisor) */}
+        {(user.role === 'admin' || user.role === 'supervisor') && (
+          <TabsContent value="presupuesto" className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h2 className="text-2xl font-bold">Presupuesto de Marketing</h2>
+                <p className="text-muted-foreground">Gestión y seguimiento del presupuesto mensual</p>
+              </div>
+              {user.role === 'admin' && (
+                <Button 
+                  onClick={() => setPresupuestoDialogOpen(true)}
+                  data-testid="button-config-presupuesto"
+                >
+                  <DollarSign className="mr-2 h-4 w-4" />
+                  Configurar Presupuesto
+                </Button>
+              )}
+            </div>
+
+            {/* Period Selector for Budget */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Seleccionar Período</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <Label>Mes</Label>
+                    <Select
+                      value={selectedMes.toString()}
+                      onValueChange={(value) => setSelectedMes(parseInt(value))}
+                    >
+                      <SelectTrigger data-testid="select-mes-presupuesto">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {mesesNombres.map((mes, index) => (
+                          <SelectItem key={index + 1} value={(index + 1).toString()}>
+                            {mes}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex-1">
+                    <Label>Año</Label>
+                    <Select
+                      value={selectedAnio.toString()}
+                      onValueChange={(value) => setSelectedAnio(parseInt(value))}
+                    >
+                      <SelectTrigger data-testid="select-anio-presupuesto">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[2024, 2025, 2026].map((anio) => (
+                          <SelectItem key={anio} value={anio.toString()}>
+                            {anio}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <MetricsDashboard mes={selectedMes} anio={selectedAnio} />
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Dialogs */}
