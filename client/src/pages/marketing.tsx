@@ -171,13 +171,13 @@ export default function Marketing() {
             <span className="hidden sm:inline">Presupuesto y Solicitudes</span>
             <span className="sm:hidden">Solicitudes</span>
           </TabsTrigger>
-          <TabsTrigger value="tareas" data-testid="tab-tareas" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
-            <ClipboardList className="h-4 w-4" />
-            <span>Tareas</span>
-          </TabsTrigger>
           <TabsTrigger value="inventario" data-testid="tab-inventario" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
             <Package className="h-4 w-4" />
             <span>Inventario</span>
+          </TabsTrigger>
+          <TabsTrigger value="tareas" data-testid="tab-tareas" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
+            <ClipboardList className="h-4 w-4" />
+            <span>Tareas</span>
           </TabsTrigger>
           <TabsTrigger value="calendario" data-testid="tab-calendario" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
             <Calendar className="h-4 w-4" />
@@ -295,6 +295,11 @@ export default function Marketing() {
           />
         </TabsContent>
 
+        {/* Tab: Inventario */}
+        <TabsContent value="inventario" className="space-y-6">
+          <InventarioMarketing userRole={user.role} />
+        </TabsContent>
+
         {/* Tab: Tareas */}
         <TabsContent value="tareas" className="space-y-6">
           <TareasMarketing 
@@ -302,11 +307,6 @@ export default function Marketing() {
             anio={selectedAnio} 
             userRole={user.role}
           />
-        </TabsContent>
-
-        {/* Tab: Inventario */}
-        <TabsContent value="inventario" className="space-y-6">
-          <InventarioMarketing userRole={user.role} />
         </TabsContent>
 
         {/* Tab: Calendario */}
