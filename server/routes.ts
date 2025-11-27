@@ -11584,40 +11584,40 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       
-      // Only supervisor and admin can create solicitudes
-      if (user.role !== 'supervisor' && user.role !== 'admin') {
-        return res.status(403).json({ message: 'Solo supervisores y administradores pueden crear solicitudes' });
+      // Admin, supervisor and salesperson can create solicitudes
+      if (user.role !== 'supervisor' && user.role !== 'admin' && user.role !== 'salesperson') {
+        return res.status(403).json({ message: 'Solo administradores, supervisores y vendedores pueden crear solicitudes' });
       }
       
-      let supervisorId = user.id;
-      let supervisorName = user.salespersonName || `${user.firstName} ${user.lastName}`;
+      let solicitanteId = user.id;
+      let solicitanteName = `${user.firstName} ${user.lastName}`;
       
-      // If admin is creating, they must specify supervisorId
-      if (user.role === 'admin') {
-        if (!req.body.supervisorId) {
-          return res.status(400).json({ message: 'Debe especificar el supervisor' });
+      // If admin is creating, they can specify solicitanteId
+      if (user.role === 'admin' && req.body.solicitanteId) {
+        const solicitante = await storage.getUser(parseInt(req.body.solicitanteId));
+        if (!solicitante) {
+          return res.status(404).json({ message: 'Solicitante no encontrado' });
         }
         
-        // Get supervisor info from salespeople_users table
-        const supervisor = await storage.getSalespersonUser(req.body.supervisorId);
-        if (!supervisor) {
-          return res.status(404).json({ message: 'Supervisor no encontrado' });
+        // Only allow admin, supervisor or salesperson roles
+        if (!['admin', 'supervisor', 'salesperson'].includes(solicitante.role)) {
+          return res.status(400).json({ message: 'El usuario seleccionado debe ser administrador, supervisor o vendedor' });
         }
         
-        // Only allow supervisor role (admin can't be selected due to foreign key constraint)
-        if (supervisor.role !== 'supervisor') {
-          return res.status(400).json({ message: 'El usuario seleccionado debe ser supervisor' });
+        solicitanteId = solicitante.id;
+        solicitanteName = `${solicitante.firstName} ${solicitante.lastName}`;
+      } else if ((user.role === 'supervisor' || user.role === 'salesperson') && req.body.solicitanteId) {
+        // Supervisors and salespersons can only create for themselves
+        if (parseInt(req.body.solicitanteId) !== user.id) {
+          return res.status(403).json({ message: 'Solo puedes crear solicitudes a tu nombre' });
         }
-        
-        supervisorId = supervisor.id;
-        supervisorName = supervisor.salespersonName || `${supervisor.firstName} ${supervisor.lastName}`;
       }
       
-      // Prepare solicitud data
+      // Prepare solicitud data - use supervisorId field for backwards compatibility
       const solicitudData: any = {
         ...req.body,
-        supervisorId,
-        supervisorName,
+        supervisorId: solicitanteId.toString(),
+        supervisorName: solicitanteName,
       };
       
       // Convert fechaEntrega to proper format if provided
@@ -11628,7 +11628,7 @@ export function registerRoutes(app: Express): Server {
       
       // Validate urgency limit: max 3 "alta" urgency solicitudes per user
       if (solicitudData.urgencia === 'alta') {
-        const urgentSolicitudes = await storage.getSolicitudesMarketingByUrgency(supervisorId, 'alta');
+        const urgentSolicitudes = await storage.getSolicitudesMarketingByUrgency(solicitanteId.toString(), 'alta');
         const activeUrgentCount = urgentSolicitudes.filter(s => 
           s.estado !== 'completado' && s.estado !== 'rechazado'
         ).length;
@@ -11646,13 +11646,24 @@ export function registerRoutes(app: Express): Server {
       await NotifyHelper.notifySolicitudMarketing(
         solicitudData.titulo,
         solicitudData.presupuestoSolicitado || 0,
-        supervisorName
+        solicitanteName
       );
       
       res.status(201).json(solicitud);
     } catch (error: any) {
       console.error('Error creating marketing solicitud:', error);
       res.status(500).json({ message: 'Error al crear solicitud', error: error.message });
+    }
+  }));
+
+  // Endpoint para obtener solicitantes (admin, supervisor, vendedor)
+  app.get('/api/marketing/solicitantes', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const solicitantes = await storage.getMarketingSolicitantes();
+      res.json(solicitantes);
+    } catch (error: any) {
+      console.error('Error getting marketing solicitantes:', error);
+      res.status(500).json({ message: 'Error al obtener solicitantes', error: error.message });
     }
   }));
 

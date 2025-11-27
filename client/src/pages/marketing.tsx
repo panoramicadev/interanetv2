@@ -129,8 +129,8 @@ export default function Marketing() {
     );
   }
 
-  // Only admin and supervisor can access marketing module
-  if (user.role !== 'admin' && user.role !== 'supervisor') {
+  // Only admin, supervisor and salesperson can access marketing module
+  if (user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'salesperson') {
     return (
       <div className="container mx-auto px-4 py-8">
         <Card>
@@ -189,36 +189,24 @@ export default function Marketing() {
         <TabsContent value="solicitudes" className="space-y-6">
           <div className="flex flex-col sm:flex-row justify-end gap-2">
             {user.role === 'admin' && (
-              <>
-                <Button 
-                  variant="outline"
-                  onClick={() => setPresupuestoDialogOpen(true)}
-                  data-testid="button-config-presupuesto"
-                  className="w-full sm:w-auto"
-                >
-                  <DollarSign className="mr-2 h-4 w-4" />
-                  Presupuesto
-                </Button>
-                <Button 
-                  onClick={() => setSolicitudDialogOpen(true)}
-                  data-testid="button-nueva-solicitud"
-                  className="w-full sm:w-auto"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Solicitudes
-                </Button>
-              </>
-            )}
-            {user.role === 'supervisor' && (
               <Button 
-                onClick={() => setSolicitudDialogOpen(true)}
-                data-testid="button-nueva-solicitud"
+                variant="outline"
+                onClick={() => setPresupuestoDialogOpen(true)}
+                data-testid="button-config-presupuesto"
                 className="w-full sm:w-auto"
               >
-                <Plus className="mr-2 h-4 w-4" />
-                Nueva Solicitud
+                <DollarSign className="mr-2 h-4 w-4" />
+                Presupuesto
               </Button>
             )}
+            <Button 
+              onClick={() => setSolicitudDialogOpen(true)}
+              data-testid="button-nueva-solicitud"
+              className="w-full sm:w-auto"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Nueva Solicitud
+            </Button>
           </div>
 
           {/* Period Selector */}
@@ -1055,16 +1043,27 @@ function SolicitudDialog({
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [imagenReferencia, setImagenReferencia] = useState<File | null>(null);
   const [imagenPreview, setImagenPreview] = useState<string | null>(null);
-  const [selectedSupervisorId, setSelectedSupervisorId] = useState("");
+  const [selectedSolicitanteId, setSelectedSolicitanteId] = useState("");
   const [pasos, setPasos] = useState<{ nombre: string; completado: boolean; orden: number }[]>([]);
   const [nuevoPaso, setNuevoPaso] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
-  // Obtener lista de supervisores (solo para admin)
-  const { data: supervisores = [] } = useQuery<any[]>({
-    queryKey: ['/api/users/salespeople/supervisors'],
-    enabled: user?.role === 'admin',
+  // Obtener lista de solicitantes (admin, supervisor, vendedor)
+  const { data: solicitantes = [] } = useQuery<any[]>({
+    queryKey: ['/api/marketing/solicitantes'],
   });
+
+  // Para no-admin, autoseleccionar al usuario actual
+  useEffect(() => {
+    if (open && user) {
+      if (user.role !== 'admin') {
+        // Supervisores y vendedores solo pueden seleccionarse a sí mismos
+        setSelectedSolicitanteId(user.id.toString());
+      } else {
+        setSelectedSolicitanteId("");
+      }
+    }
+  }, [open, user]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1124,7 +1123,7 @@ function SolicitudDialog({
         setFechaEntrega("");
         setImagenReferencia(null);
         setImagenPreview(null);
-        setSelectedSupervisorId("");
+        setSelectedSolicitanteId("");
         setPasos([]);
         setNuevoPaso("");
       } catch (uploadError) {
@@ -1158,11 +1157,11 @@ function SolicitudDialog({
       return;
     }
 
-    // Si es admin, debe seleccionar un supervisor
-    if (user?.role === 'admin' && !selectedSupervisorId) {
+    // Debe haber un solicitante seleccionado
+    if (!selectedSolicitanteId) {
       toast({
         title: "Error",
-        description: "Debe seleccionar un supervisor",
+        description: "Debe seleccionar un solicitante",
         variant: "destructive",
       });
       return;
@@ -1176,12 +1175,8 @@ function SolicitudDialog({
       anio,
       fechaEntrega: formatDateForAPI(fechaEntrega),
       pasos,
+      solicitanteId: selectedSolicitanteId,
     };
-
-    // Si es admin, incluir supervisorId
-    if (user?.role === 'admin') {
-      data.supervisorId = selectedSupervisorId;
-    }
 
     createMutation.mutate(data);
   };
@@ -1240,26 +1235,38 @@ function SolicitudDialog({
               Máximo 3 solicitudes con urgencia alta activas por usuario
             </p>
           </div>
-          {user?.role === 'admin' && (
-            <div>
-              <Label htmlFor="supervisor">Supervisor*</Label>
-              <Select value={selectedSupervisorId} onValueChange={setSelectedSupervisorId}>
-                <SelectTrigger data-testid="select-supervisor">
-                  <SelectValue placeholder="Seleccione un supervisor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {supervisores.map((supervisor: any) => (
-                    <SelectItem key={supervisor.id} value={supervisor.id} data-testid={`option-supervisor-${supervisor.id}`}>
-                      {supervisor.salespersonName || `${supervisor.firstName} ${supervisor.lastName}`}
+          <div>
+            <Label htmlFor="solicitante">Solicitante*</Label>
+            <Select 
+              value={selectedSolicitanteId} 
+              onValueChange={setSelectedSolicitanteId}
+              disabled={user?.role !== 'admin'}
+            >
+              <SelectTrigger data-testid="select-solicitante">
+                <SelectValue placeholder="Seleccione un solicitante" />
+              </SelectTrigger>
+              <SelectContent>
+                {user?.role === 'admin' ? (
+                  // Admin puede ver y seleccionar todos los solicitantes
+                  solicitantes.map((solicitante: any) => (
+                    <SelectItem key={solicitante.id} value={solicitante.id.toString()} data-testid={`option-solicitante-${solicitante.id}`}>
+                      {solicitante.name} ({solicitante.role === 'admin' ? 'Administrador' : solicitante.role === 'supervisor' ? 'Supervisor' : 'Vendedor'})
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Seleccione el supervisor que realiza la solicitud
-              </p>
-            </div>
-          )}
+                  ))
+                ) : (
+                  // Supervisor/Vendedor solo puede ver su propio nombre
+                  <SelectItem value={user?.id?.toString() || ""} data-testid={`option-solicitante-${user?.id}`}>
+                    {user?.firstName} {user?.lastName}
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              {user?.role === 'admin' 
+                ? "Seleccione quién realiza la solicitud" 
+                : "La solicitud será registrada a su nombre"}
+            </p>
+          </div>
           <div>
             <Label htmlFor="fechaEntrega">Fecha de Entrega Esperada</Label>
             <Input
