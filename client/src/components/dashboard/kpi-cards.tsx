@@ -295,14 +295,15 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   // Query for GDV global total (no date filters) - always shows total pending
   const { data: gdvGlobalMetrics } = useQuery<{
     gdvSales: number;
+    gdvCount: number;
   }>({
     queryKey: ['/api/sales/gdv-pending', 'global', segment, salesperson],
     queryFn: async () => {
       const params = new URLSearchParams();
-      // No period/filterType params - returns all historical data
+      // No period/filterType params - returns all pending GDV
       if (segment) params.append('segment', segment);
       if (salesperson) params.append('salesperson', salesperson);
-      const res = await fetch(`/api/sales/metrics?${params.toString()}`, { credentials: 'include' });
+      const res = await fetch(`/api/sales/gdv-pending?${params.toString()}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
