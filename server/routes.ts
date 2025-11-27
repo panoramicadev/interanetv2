@@ -11868,6 +11868,53 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Upload imagen de referencia para solicitud de marketing
+  app.post('/api/marketing/solicitudes/:id/imagen', requireCommercialAccess, upload.single('imagen'), asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const solicitud = await storage.getSolicitudMarketingById(req.params.id);
+      
+      if (!solicitud) {
+        return res.status(404).json({ message: 'Solicitud no encontrada' });
+      }
+      
+      // Supervisor can upload to their own solicitudes, admin can upload to all
+      if (user.role === 'supervisor' && solicitud.supervisorId !== user.id) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+
+      const file = req.file as Express.Multer.File;
+      if (!file) {
+        return res.status(400).json({ message: 'No se subió ninguna imagen' });
+      }
+
+      // Upload to object storage
+      const fileName = `marketing/referencias/${req.params.id}/${nanoid()}_${file.originalname}`;
+      const objectStorage = new ObjectStorageService();
+      const uploadResult = await objectStorage.uploadFile(fileName, file.buffer, {
+        contentType: file.mimetype,
+      });
+      
+      // Update solicitud with image URL
+      const updated = await storage.updateSolicitudMarketing(req.params.id, { 
+        urlReferencia: uploadResult.publicUrl || fileName 
+      });
+      
+      res.json({ 
+        success: true, 
+        urlReferencia: uploadResult.publicUrl || fileName,
+        solicitud: updated 
+      });
+    } catch (error: any) {
+      console.error('Error al subir imagen de referencia:', error);
+      res.status(500).json({ message: 'Error al subir imagen', error: error.message });
+    }
+  }));
+
   // Marketing metrics
   app.get('/api/marketing/metrics/:mes/:anio', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
