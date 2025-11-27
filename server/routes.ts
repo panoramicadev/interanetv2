@@ -15307,10 +15307,33 @@ export function registerRoutes(app: Express): Server {
     res.json(keywords);
   }));
 
-  // Create keyword
+  // Create keyword (creates both desktop and mobile versions)
   app.post('/api/seo/keywords', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
-    const keyword = await storage.createSeoKeyword(req.body);
-    res.status(201).json(keyword);
+    const { campaignId, keyword, urlObjetivo, ubicacion, idioma, activo } = req.body;
+    
+    // Create desktop version
+    const desktopKeyword = await storage.createSeoKeyword({
+      campaignId,
+      keyword,
+      urlObjetivo,
+      ubicacion: ubicacion || 'Chile',
+      idioma: idioma || 'es',
+      dispositivo: 'desktop',
+      activo: activo !== false,
+    });
+    
+    // Create mobile version
+    const mobileKeyword = await storage.createSeoKeyword({
+      campaignId,
+      keyword,
+      urlObjetivo,
+      ubicacion: ubicacion || 'Chile',
+      idioma: idioma || 'es',
+      dispositivo: 'mobile',
+      activo: activo !== false,
+    });
+    
+    res.status(201).json({ desktop: desktopKeyword, mobile: mobileKeyword });
   }));
 
   // Update keyword
@@ -15349,45 +15372,81 @@ export function registerRoutes(app: Express): Server {
     }
 
     try {
-      // Build SerpAPI URL
+      // Build SerpAPI URL with correct parameters for Chile
+      const locationMap: { [key: string]: string } = {
+        'Chile': 'Chile',
+        'Santiago, Chile': 'Santiago, Santiago Metropolitan Region, Chile',
+        'Valparaiso, Chile': 'Valparaiso, Valparaiso Region, Chile',
+        'Concepcion, Chile': 'Concepcion, Biobio Region, Chile',
+      };
+
+      const serpLocation = locationMap[keyword.ubicacion] || 'Chile';
+      
       const params = new URLSearchParams({
         api_key: serpApiKey,
+        engine: 'google',
         q: keyword.keyword,
-        location: keyword.ubicacion || 'Chile',
+        location: serpLocation,
+        google_domain: 'google.cl',
         hl: keyword.idioma || 'es',
         gl: 'cl',
         device: keyword.dispositivo || 'desktop',
-        num: '100', // Get up to 100 results to find our URL
+        num: '100',
       });
+
+      console.log(`[SEO] Checking position for: "${keyword.keyword}" in ${serpLocation} (${keyword.dispositivo})`);
+      console.log(`[SEO] Domain to find: ${campaign.dominio}`);
 
       const serpResponse = await fetch(`https://serpapi.com/search.json?${params}`);
       const serpData = await serpResponse.json();
 
       if (serpData.error) {
+        console.error('[SEO] SerpAPI error:', serpData.error);
         return res.status(400).json({ error: serpData.error });
       }
 
       // Find domain position in results
       const organicResults = serpData.organic_results || [];
+      console.log(`[SEO] Found ${organicResults.length} organic results`);
+      
       let posicion: number | null = null;
       let urlEncontrada: string | null = null;
       let titulo: string | null = null;
       let snippet: string | null = null;
 
-      const domainToFind = campaign.dominio.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '');
+      // Clean domain for comparison - remove protocol and www
+      const domainToFind = campaign.dominio.toLowerCase()
+        .replace(/^(https?:\/\/)/, '')
+        .replace(/^www\./, '')
+        .split('/')[0]; // Get just the domain part
+
+      console.log(`[SEO] Looking for domain: ${domainToFind}`);
 
       for (let i = 0; i < organicResults.length; i++) {
         const result = organicResults[i];
-        const resultDomain = (result.link || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '');
+        const resultUrl = (result.link || '').toLowerCase();
+        const resultDomain = resultUrl
+          .replace(/^(https?:\/\/)/, '')
+          .replace(/^www\./, '')
+          .split('/')[0];
         
-        if (resultDomain.includes(domainToFind) || 
-            (keyword.urlObjetivo && result.link?.includes(keyword.urlObjetivo))) {
+        // Check if domains match
+        if (resultDomain === domainToFind || resultDomain.endsWith('.' + domainToFind)) {
           posicion = result.position || (i + 1);
           urlEncontrada = result.link;
           titulo = result.title;
           snippet = result.snippet;
+          console.log(`[SEO] Found at position ${posicion}: ${result.link}`);
           break;
         }
+      }
+
+      if (!posicion) {
+        console.log(`[SEO] Domain not found in top ${organicResults.length} results`);
+        // Log first 5 results for debugging
+        organicResults.slice(0, 5).forEach((r: any, i: number) => {
+          console.log(`[SEO] Result ${i + 1}: ${r.link}`);
+        });
       }
 
       // Save to history
@@ -15437,19 +15496,35 @@ export function registerRoutes(app: Express): Server {
     }
 
     const results: any[] = [];
-    const domainToFind = campaign.dominio.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '');
+    const domainToFind = campaign.dominio.toLowerCase()
+      .replace(/^(https?:\/\/)/, '')
+      .replace(/^www\./, '')
+      .split('/')[0];
+
+    const locationMap: { [key: string]: string } = {
+      'Chile': 'Chile',
+      'Santiago, Chile': 'Santiago, Santiago Metropolitan Region, Chile',
+      'Valparaiso, Chile': 'Valparaiso, Valparaiso Region, Chile',
+      'Concepcion, Chile': 'Concepcion, Biobio Region, Chile',
+    };
 
     for (const keyword of activeKeywords) {
       try {
+        const serpLocation = locationMap[keyword.ubicacion] || 'Chile';
+        
         const params = new URLSearchParams({
           api_key: serpApiKey,
+          engine: 'google',
           q: keyword.keyword,
-          location: keyword.ubicacion || 'Chile',
+          location: serpLocation,
+          google_domain: 'google.cl',
           hl: keyword.idioma || 'es',
           gl: 'cl',
           device: keyword.dispositivo || 'desktop',
           num: '100',
         });
+
+        console.log(`[SEO] Checking: "${keyword.keyword}" (${keyword.dispositivo})`);
 
         const serpResponse = await fetch(`https://serpapi.com/search.json?${params}`);
         const serpData = await serpResponse.json();
@@ -15463,14 +15538,17 @@ export function registerRoutes(app: Express): Server {
 
           for (let i = 0; i < organicResults.length; i++) {
             const result = organicResults[i];
-            const resultDomain = (result.link || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '');
+            const resultDomain = (result.link || '').toLowerCase()
+              .replace(/^(https?:\/\/)/, '')
+              .replace(/^www\./, '')
+              .split('/')[0];
             
-            if (resultDomain.includes(domainToFind) || 
-                (keyword.urlObjetivo && result.link?.includes(keyword.urlObjetivo))) {
+            if (resultDomain === domainToFind || resultDomain.endsWith('.' + domainToFind)) {
               posicion = result.position || (i + 1);
               urlEncontrada = result.link;
               titulo = result.title;
               snippet = result.snippet;
+              console.log(`[SEO] Found "${keyword.keyword}" at position ${posicion}`);
               break;
             }
           }
