@@ -15529,21 +15529,32 @@ export function registerRoutes(app: Express): Server {
 
         console.log(`[SEO] Checking: "${keyword.keyword}" (${keyword.dispositivo})`);
         console.log(`[SEO] Domain to find: "${domainToFind}"`);
+        console.log(`[SEO] Request params: num=100, location=${serpLocation}`);
 
         const serpResponse = await fetch(`https://serpapi.com/search.json?${params}`);
         const serpData = await serpResponse.json();
 
+        // Log search metadata for debugging
+        if (serpData.search_metadata) {
+          console.log(`[SEO] Search metadata:`, JSON.stringify({
+            total_results: serpData.search_information?.total_results,
+            time_taken: serpData.search_metadata?.total_time_taken,
+            google_url: serpData.search_metadata?.google_url?.substring(0, 100)
+          }));
+        }
+
         if (!serpData.error) {
-          const organicResults = serpData.organic_results || [];
-          console.log(`[SEO] Received ${organicResults.length} organic results`);
+          let allOrganicResults = serpData.organic_results || [];
+          console.log(`[SEO] Received ${allOrganicResults.length} organic results (requested 100)`);
           
           let posicion: number | null = null;
           let urlEncontrada: string | null = null;
           let titulo: string | null = null;
           let snippet: string | null = null;
 
-          for (let i = 0; i < organicResults.length; i++) {
-            const result = organicResults[i];
+          // Search in first batch of results
+          for (let i = 0; i < allOrganicResults.length; i++) {
+            const result = allOrganicResults[i];
             const resultDomain = (result.link || '').toLowerCase()
               .replace(/^(https?:\/\/)/, '')
               .replace(/^www\./, '')
@@ -15559,9 +15570,63 @@ export function registerRoutes(app: Express): Server {
             }
           }
           
+          // If not found and we got less than 100 results, try pagination (up to page 5 = position 50)
+          if (!posicion && allOrganicResults.length < 50) {
+            const maxPages = 5;
+            for (let page = 2; page <= maxPages && !posicion; page++) {
+              const startPos = (page - 1) * 10;
+              console.log(`[SEO] Searching page ${page} (start=${startPos})...`);
+              
+              const pageParams = new URLSearchParams({
+                api_key: serpApiKey,
+                engine: 'google',
+                q: keyword.keyword,
+                location: serpLocation,
+                google_domain: 'google.cl',
+                hl: keyword.idioma || 'es',
+                gl: 'cl',
+                device: keyword.dispositivo || 'desktop',
+                start: String(startPos),
+                num: '10',
+              });
+              
+              try {
+                const pageResponse = await fetch(`https://serpapi.com/search.json?${pageParams}`);
+                const pageData = await pageResponse.json();
+                
+                if (!pageData.error && pageData.organic_results) {
+                  const pageResults = pageData.organic_results;
+                  console.log(`[SEO] Page ${page}: received ${pageResults.length} results`);
+                  
+                  for (let i = 0; i < pageResults.length; i++) {
+                    const result = pageResults[i];
+                    const resultDomain = (result.link || '').toLowerCase()
+                      .replace(/^(https?:\/\/)/, '')
+                      .replace(/^www\./, '')
+                      .split('/')[0];
+                    
+                    if (resultDomain === domainToFind || resultDomain.endsWith('.' + domainToFind)) {
+                      posicion = result.position || (startPos + i + 1);
+                      urlEncontrada = result.link;
+                      titulo = result.title;
+                      snippet = result.snippet;
+                      console.log(`[SEO] Found "${keyword.keyword}" at position ${posicion} (page ${page}): ${result.link}`);
+                      break;
+                    }
+                  }
+                }
+                
+                // Small delay between page requests
+                await new Promise(resolve => setTimeout(resolve, 300));
+              } catch (pageError) {
+                console.error(`[SEO] Error fetching page ${page}:`, pageError);
+              }
+            }
+          }
+          
           if (!posicion) {
-            console.log(`[SEO] Not found. First 5 results for debugging:`);
-            organicResults.slice(0, 5).forEach((r: any, idx: number) => {
+            console.log(`[SEO] Not found in top 50 results. First 5 results for debugging:`);
+            allOrganicResults.slice(0, 5).forEach((r: any, idx: number) => {
               const d = (r.link || '').replace(/^(https?:\/\/)/, '').replace(/^www\./, '').split('/')[0];
               console.log(`[SEO]   ${idx + 1}. ${d} - ${r.link}`);
             });
