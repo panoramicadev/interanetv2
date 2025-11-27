@@ -17,6 +17,17 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -4025,6 +4036,21 @@ function SeoTracking() {
     },
   });
 
+  // Delete campaign mutation
+  const deleteCampaignMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest(`/api/seo/campaigns/${id}`, { method: 'DELETE' });
+    },
+    onSuccess: () => {
+      toast({ title: 'Campaña eliminada exitosamente' });
+      setSelectedCampaign(null);
+      queryClient.invalidateQueries({ queryKey: ['/api/seo/campaigns'] });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error al eliminar campaña', description: error.message, variant: 'destructive' });
+    },
+  });
+
   // Check position mutation
   const checkPositionMutation = useMutation({
     mutationFn: async (keywordId: string) => {
@@ -4151,24 +4177,57 @@ function SeoTracking() {
               <CardTitle>Seleccionar Campaña</CardTitle>
             </CardHeader>
             <CardContent>
-              <Select
-                value={selectedCampaign?.id || ''}
-                onValueChange={(value) => {
-                  const camp = campaigns.find(c => c.id === value);
-                  setSelectedCampaign(camp || null);
-                }}
-              >
-                <SelectTrigger data-testid="select-campana">
-                  <SelectValue placeholder="Selecciona una campaña" />
-                </SelectTrigger>
-                <SelectContent>
-                  {campaigns.map((campaign) => (
-                    <SelectItem key={campaign.id} value={campaign.id}>
-                      {campaign.nombre} - {campaign.dominio}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <Select
+                  value={selectedCampaign?.id || ''}
+                  onValueChange={(value) => {
+                    const camp = campaigns.find(c => c.id === value);
+                    setSelectedCampaign(camp || null);
+                  }}
+                >
+                  <SelectTrigger data-testid="select-campana" className="flex-1">
+                    <SelectValue placeholder="Selecciona una campaña" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {campaigns.map((campaign) => (
+                      <SelectItem key={campaign.id} value={campaign.id}>
+                        {campaign.nombre} - {campaign.dominio}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedCampaign && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button 
+                        variant="destructive" 
+                        size="icon"
+                        data-testid="button-eliminar-campana"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>¿Eliminar campaña?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Esta acción no se puede deshacer. Se eliminarán la campaña "{selectedCampaign.nombre}" y todas sus keywords asociadas.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => deleteCampaignMutation.mutate(selectedCampaign.id)}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          data-testid="button-confirmar-eliminar-campana"
+                        >
+                          Eliminar
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </div>
             </CardContent>
           </Card>
 
