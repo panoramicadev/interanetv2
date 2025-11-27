@@ -3975,10 +3975,10 @@ function SeoTracking() {
 
   // Create campaign mutation
   const createCampaignMutation = useMutation({
-    mutationFn: async (data: { nombre: string; dominio: string; descripcion: string }) => {
+    mutationFn: async (campaignData: { nombre: string; dominio: string; descripcion: string }) => {
       return await apiRequest('/api/seo/campaigns', {
         method: 'POST',
-        body: JSON.stringify(data),
+        data: campaignData,
       });
     },
     onSuccess: () => {
@@ -3996,10 +3996,10 @@ function SeoTracking() {
 
   // Create keyword mutation
   const createKeywordMutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (keywordData: any) => {
       return await apiRequest('/api/seo/keywords', {
         method: 'POST',
-        body: JSON.stringify(data),
+        data: keywordData,
       });
     },
     onSuccess: () => {
@@ -4031,7 +4031,7 @@ function SeoTracking() {
       setCheckingPosition(keywordId);
       return await apiRequest('/api/seo/check-position', {
         method: 'POST',
-        body: JSON.stringify({ keywordId }),
+        data: { keywordId },
       });
     },
     onSuccess: (data: any) => {
