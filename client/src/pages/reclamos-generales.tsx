@@ -228,8 +228,10 @@ export default function ReclamosGeneralesPage() {
   const [categoriaResponsable, setCategoriaResponsable] = useState("");
   const [resolucionPhotos, setResolucionPhotos] = useState<File[]>([]);
   const [resolucionPreviewUrls, setResolucionPreviewUrls] = useState<string[]>([]);
+  const [resolucionDocuments, setResolucionDocuments] = useState<File[]>([]);
   const [resolucionUploadProgress, setResolucionUploadProgress] = useState({ current: 0, total: 0 });
   const resolucionFileInputRef = useRef<HTMLInputElement>(null);
+  const resolucionDocInputRef = useRef<HTMLInputElement>(null);
   const [cerrarPhotos, setCerrarPhotos] = useState<File[]>([]);
   const [cerrarPreviewUrls, setCerrarPreviewUrls] = useState<string[]>([]);
   const [cerrarUploadProgress, setCerrarUploadProgress] = useState({ current: 0, total: 0 });
@@ -848,6 +850,58 @@ export default function ReclamosGeneralesPage() {
     setResolucionPreviewUrls(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Función para manejar selección de documentos
+  const handleResolucionDocSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    const files = Array.from(e.target.files || []);
+    const validTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ];
+    
+    const docFiles = files.filter(file => validTypes.includes(file.type));
+    
+    if (docFiles.length !== files.length) {
+      toast({
+        title: "Advertencia",
+        description: "Solo se aceptan archivos PDF, Word o Excel",
+        variant: "destructive",
+      });
+    }
+    
+    if (docFiles.length === 0) return;
+    
+    // Verificar tamaño máximo (10MB por archivo)
+    const validSizeFiles = docFiles.filter(file => file.size <= 10 * 1024 * 1024);
+    if (validSizeFiles.length !== docFiles.length) {
+      toast({
+        title: "Advertencia", 
+        description: "Algunos archivos exceden el límite de 10MB",
+        variant: "destructive",
+      });
+    }
+    
+    if (validSizeFiles.length > 0) {
+      setResolucionDocuments(prev => [...prev, ...validSizeFiles]);
+      toast({
+        title: "Documentos agregados",
+        description: `Se agregaron ${validSizeFiles.length} documento(s)`,
+      });
+    }
+    
+    // Clear the file input
+    if (resolucionDocInputRef.current) {
+      resolucionDocInputRef.current.value = '';
+    }
+  };
+
+  const removeResolucionDoc = (index: number) => {
+    setResolucionDocuments(prev => prev.filter((_, i) => i !== index));
+  };
+
   // Funciones para fotos de evidencia al cerrar
   const handleCerrarFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     e.stopPropagation(); // Prevent modal from closing
@@ -939,12 +993,33 @@ export default function ReclamosGeneralesPage() {
       description: isAreaRole ? "Evidencia de resolución del área responsable" : "Evidencia de resolución del laboratorio"
     }));
 
+    // Convert documents to base64
+    const documents: Array<{ fileName: string; fileData: string; mimeType: string }> = [];
+    for (const doc of resolucionDocuments) {
+      try {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(doc);
+        });
+        documents.push({
+          fileName: doc.name,
+          fileData: base64,
+          mimeType: doc.type
+        });
+      } catch (error) {
+        console.error('Error reading document:', error);
+      }
+    }
+
     if (isAreaRole) {
       // Usar el endpoint de área responsable
       resolucionAreaMutation.mutate({
         reclamoId: selectedReclamoId,
         resolucionDescripcion: informeLaboratorio,
-        photos
+        photos,
+        documents
       });
     } else {
       // Usar el endpoint de laboratorio
@@ -952,7 +1027,8 @@ export default function ReclamosGeneralesPage() {
         reclamoId: selectedReclamoId,
         informe: informeLaboratorio,
         categoriaResponsable,
-        photos
+        photos,
+        documents
       });
     }
   };
@@ -2442,7 +2518,7 @@ export default function ReclamosGeneralesPage() {
               </Button>
               
               {resolucionPreviewUrls.length > 0 && (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 mb-4">
                   {resolucionPreviewUrls.map((url, index) => (
                     <div key={index} className="relative group">
                       <img
@@ -2457,6 +2533,51 @@ export default function ReclamosGeneralesPage() {
                         className="absolute top-2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={() => removeResolucionFile(index)}
                         data-testid={`button-remove-evidencia-${index}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Documentos adjuntos */}
+            <div>
+              <Label>Documentos Adjuntos (Opcional)</Label>
+              <p className="text-sm text-muted-foreground mb-2">
+                Puede adjuntar documentos PDF, Word o Excel como respaldo
+              </p>
+              
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => resolucionDocInputRef.current?.click()}
+                className="w-full mb-4"
+                data-testid="button-add-documento"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Adjuntar Documento
+              </Button>
+              
+              {resolucionDocuments.length > 0 && (
+                <div className="space-y-2">
+                  {resolucionDocuments.map((doc, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <FileText className="h-5 w-5 text-blue-500 flex-shrink-0" />
+                        <span className="text-sm truncate">{doc.name}</span>
+                        <span className="text-xs text-muted-foreground flex-shrink-0">
+                          ({(doc.size / 1024 / 1024).toFixed(2)} MB)
+                        </span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 flex-shrink-0"
+                        onClick={() => removeResolucionDoc(index)}
+                        data-testid={`button-remove-doc-${index}`}
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -2483,6 +2604,7 @@ export default function ReclamosGeneralesPage() {
                 setCategoriaResponsable("");
                 setResolucionPhotos([]);
                 setResolucionPreviewUrls([]);
+                setResolucionDocuments([]);
                 setResolucionUploadProgress({ current: 0, total: 0 });
                 setSelectedReclamoId(null);
               }}
@@ -2589,34 +2711,75 @@ export default function ReclamosGeneralesPage() {
                 </div>
               )}
 
-              {/* Evidencia fotográfica */}
-              {resolucionPhotosData && resolucionPhotosData.length > 0 && (
-                <div>
-                  <Label className="text-muted-foreground font-semibold">
-                    Evidencia Fotográfica ({resolucionPhotosData.length} foto{resolucionPhotosData.length !== 1 ? 's' : ''})
-                  </Label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
-                    {resolucionPhotosData.map((photo) => (
-                      <div key={photo.id} className="relative group">
-                        <img
-                          src={photo.photoUrl}
-                          alt={photo.description || 'Evidencia de resolución'}
-                          className="w-full h-40 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
-                          onClick={() => {
-                            setSelectedImage({ url: photo.photoUrl, description: photo.description || undefined });
-                            setShowImageModal(true);
-                          }}
-                          data-testid={`img-resolucion-${photo.id}`}
-                        />
-                        <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 opacity-0 group-hover:opacity-100 transition-opacity rounded-b">
-                          <Eye className="h-3 w-3 inline mr-1" />
-                          Ver imagen
+              {/* Evidencia fotográfica y documentos */}
+              {resolucionPhotosData && resolucionPhotosData.length > 0 && (() => {
+                const photos = resolucionPhotosData.filter((p: any) => !p.description?.startsWith('Documento:'));
+                const documents = resolucionPhotosData.filter((p: any) => p.description?.startsWith('Documento:'));
+                
+                return (
+                  <>
+                    {photos.length > 0 && (
+                      <div>
+                        <Label className="text-muted-foreground font-semibold">
+                          Evidencia Fotográfica ({photos.length} foto{photos.length !== 1 ? 's' : ''})
+                        </Label>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
+                          {photos.map((photo: any) => (
+                            <div key={photo.id} className="relative group">
+                              <img
+                                src={photo.photoUrl}
+                                alt={photo.description || 'Evidencia de resolución'}
+                                className="w-full h-40 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={() => {
+                                  setSelectedImage({ url: photo.photoUrl, description: photo.description || undefined });
+                                  setShowImageModal(true);
+                                }}
+                                data-testid={`img-resolucion-${photo.id}`}
+                              />
+                              <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 opacity-0 group-hover:opacity-100 transition-opacity rounded-b">
+                                <Eye className="h-3 w-3 inline mr-1" />
+                                Ver imagen
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                    )}
+                    
+                    {documents.length > 0 && (
+                      <div>
+                        <Label className="text-muted-foreground font-semibold">
+                          Documentos Adjuntos ({documents.length} documento{documents.length !== 1 ? 's' : ''})
+                        </Label>
+                        <div className="space-y-2 mt-2">
+                          {documents.map((doc: any) => {
+                            const fileName = doc.description?.replace('Documento: ', '') || 'Documento';
+                            const isDownloadable = doc.photoUrl?.startsWith('data:');
+                            return (
+                              <div key={doc.id} className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900 rounded border">
+                                <FileText className="h-6 w-6 text-blue-500 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">{fileName}</p>
+                                </div>
+                                {isDownloadable && (
+                                  <a
+                                    href={doc.photoUrl}
+                                    download={fileName}
+                                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                    data-testid={`link-download-doc-${doc.id}`}
+                                  >
+                                    Descargar
+                                  </a>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
           
@@ -2782,6 +2945,11 @@ export default function ReclamosGeneralesPage() {
       <PortaledFilePicker
         inputRef={resolucionFileInputRef}
         onChange={handleResolucionFileSelect}
+      />
+      <PortaledFilePicker
+        inputRef={resolucionDocInputRef}
+        onChange={handleResolucionDocSelect}
+        accept=".pdf,.doc,.docx,.xls,.xlsx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       />
       <PortaledFilePicker
         inputRef={cerrarFileInputRef}

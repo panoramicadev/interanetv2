@@ -9460,7 +9460,7 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: 'Solo usuarios con rol laboratorio pueden subir resoluciones' });
       }
       
-      const { informe, categoriaResponsable, photos } = req.body;
+      const { informe, categoriaResponsable, photos, documents } = req.body;
       
       if (!informe) {
         return res.status(400).json({ message: 'El informe es requerido' });
@@ -9470,8 +9470,9 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: 'La categoría responsable es requerida' });
       }
       
-      // Photos are now optional - validate only that it's an array if provided
+      // Photos and documents are now optional - validate only that they're arrays if provided
       const photoArray = Array.isArray(photos) ? photos : [];
+      const documentArray = Array.isArray(documents) ? documents : [];
       
       // Verificar que el reclamo existe y está en el estado correcto
       const existingReclamo = await storage.getReclamoGeneralById(req.params.id);
@@ -9488,7 +9489,7 @@ export function registerRoutes(app: Express): Server {
       }
       
       const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
-      const reclamo = await storage.updateResolucionLaboratorio(req.params.id, informe, categoriaResponsable, photoArray, user.id, userName);
+      const reclamo = await storage.updateResolucionLaboratorio(req.params.id, informe, categoriaResponsable, photoArray, user.id, userName, documentArray);
       
       if (!reclamo) {
         return res.status(409).json({ message: 'El reclamo ya tiene una resolución o fue modificado por otro usuario' });
@@ -9519,14 +9520,15 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: 'No tiene permisos para subir resoluciones' });
       }
       
-      const { resolucionDescripcion, photos } = req.body;
+      const { resolucionDescripcion, photos, documents } = req.body;
       
       if (!resolucionDescripcion) {
         return res.status(400).json({ message: 'La descripción de la resolución es requerida' });
       }
       
-      // Photos are now optional - validate only that it's an array if provided
+      // Photos and documents are now optional - validate only that they're arrays if provided
       const photoArray = Array.isArray(photos) ? photos : [];
+      const documentArray = Array.isArray(documents) ? documents : [];
       
       const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
       
@@ -9537,7 +9539,8 @@ export function registerRoutes(app: Express): Server {
           photoArray, 
           user.id, 
           userName,
-          user.role
+          user.role,
+          documentArray
         );
         
         if (!reclamo) {
