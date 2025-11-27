@@ -9160,14 +9160,57 @@ export function registerRoutes(app: Express): Server {
         });
       }
       
+      const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
+      
+      // Para técnicos de obra: auto-validar el reclamo (saltar paso de validación técnica)
+      // El estado va directamente a "en_laboratorio" o según el área asignada
+      const isTecnicoObra = user.role === 'tecnico_obra';
+      
+      // Determinar el estado inicial según quién crea el reclamo
+      let estadoInicial = 'registrado'; // Default: pendiente de validación técnica
+      let areaResponsableActual = null;
+      
+      if (isTecnicoObra) {
+        // Técnico de obra crea el reclamo: auto-validado, va directo al área asignada
+        const areaAsignadaInicial = req.body.areaAsignadaInicial;
+        if (areaAsignadaInicial === 'laboratorio') {
+          estadoInicial = 'en_laboratorio';
+        } else {
+          estadoInicial = 'en_area_responsable';
+          areaResponsableActual = areaAsignadaInicial;
+        }
+      }
+      
       // Add vendedor info from authenticated user
       const reclamoData = {
         ...req.body,
         vendedorId: user.id,
-        vendedorName: user.salespersonName || `${user.firstName} ${user.lastName}`,
+        vendedorName: userName,
+        estado: estadoInicial,
+        // Si es técnico de obra, asignarse a sí mismo como técnico
+        ...(isTecnicoObra && {
+          tecnicoId: user.id,
+          tecnicoName: userName,
+          fechaAsignacionTecnico: new Date(),
+          validadoPorTecnico: true,
+          procedeReclamo: true,
+          areaResponsableActual: areaResponsableActual || req.body.areaAsignadaInicial,
+        }),
       };
       
       const reclamo = await storage.createReclamoGeneral(reclamoData);
+      
+      // Si el técnico creó el reclamo, agregar entrada de historial indicando auto-validación
+      if (isTecnicoObra) {
+        await storage.createReclamoGeneralHistorial({
+          reclamoId: reclamo.id,
+          estadoAnterior: 'registrado',
+          estadoNuevo: estadoInicial,
+          userId: user.id,
+          userName: userName,
+          notas: 'Reclamo creado y validado automáticamente por el técnico de obra',
+        });
+      }
       
       // 🔔 Notificación automática: Nuevo reclamo creado
       await NotifyHelper.notifyReclamoCreated(
