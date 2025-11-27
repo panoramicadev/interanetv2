@@ -15256,6 +15256,264 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // ==================== SEO TRACKING API ====================
+  
+  // Get all SEO campaigns
+  app.get('/api/seo/campaigns', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const campaigns = await storage.getSeoCampaigns();
+    res.json(campaigns);
+  }));
+
+  // Get single SEO campaign
+  app.get('/api/seo/campaigns/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const campaign = await storage.getSeoCampaign(req.params.id);
+    if (!campaign) {
+      return res.status(404).json({ error: 'Campaña no encontrada' });
+    }
+    res.json(campaign);
+  }));
+
+  // Create SEO campaign
+  app.post('/api/seo/campaigns', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { nombre, dominio, descripcion } = req.body;
+    const campaign = await storage.createSeoCampaign({
+      nombre,
+      dominio,
+      descripcion,
+      createdBy: req.user.id,
+      activo: true,
+    });
+    res.status(201).json(campaign);
+  }));
+
+  // Update SEO campaign
+  app.patch('/api/seo/campaigns/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const campaign = await storage.updateSeoCampaign(req.params.id, req.body);
+    if (!campaign) {
+      return res.status(404).json({ error: 'Campaña no encontrada' });
+    }
+    res.json(campaign);
+  }));
+
+  // Delete SEO campaign
+  app.delete('/api/seo/campaigns/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    await storage.deleteSeoCampaign(req.params.id);
+    res.json({ success: true });
+  }));
+
+  // Get keywords for a campaign (with history)
+  app.get('/api/seo/campaigns/:id/keywords', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const keywords = await storage.getSeoKeywordsWithHistory(req.params.id);
+    res.json(keywords);
+  }));
+
+  // Create keyword
+  app.post('/api/seo/keywords', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const keyword = await storage.createSeoKeyword(req.body);
+    res.status(201).json(keyword);
+  }));
+
+  // Update keyword
+  app.patch('/api/seo/keywords/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const keyword = await storage.updateSeoKeyword(req.params.id, req.body);
+    if (!keyword) {
+      return res.status(404).json({ error: 'Keyword no encontrada' });
+    }
+    res.json(keyword);
+  }));
+
+  // Delete keyword
+  app.delete('/api/seo/keywords/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    await storage.deleteSeoKeyword(req.params.id);
+    res.json({ success: true });
+  }));
+
+  // Check position using SerpAPI
+  app.post('/api/seo/check-position', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { keywordId } = req.body;
+    
+    const keyword = await storage.getSeoKeyword(keywordId);
+    if (!keyword) {
+      return res.status(404).json({ error: 'Keyword no encontrada' });
+    }
+
+    const campaign = await storage.getSeoCampaign(keyword.campaignId);
+    if (!campaign) {
+      return res.status(404).json({ error: 'Campaña no encontrada' });
+    }
+
+    // Get SerpAPI key from environment
+    const serpApiKey = process.env.SERPAPI_API_KEY;
+    if (!serpApiKey) {
+      return res.status(400).json({ error: 'API key de SerpAPI no configurada. Por favor configure SERPAPI_API_KEY en las variables de entorno.' });
+    }
+
+    try {
+      // Build SerpAPI URL
+      const params = new URLSearchParams({
+        api_key: serpApiKey,
+        q: keyword.keyword,
+        location: keyword.ubicacion || 'Chile',
+        hl: keyword.idioma || 'es',
+        gl: 'cl',
+        device: keyword.dispositivo || 'desktop',
+        num: '100', // Get up to 100 results to find our URL
+      });
+
+      const serpResponse = await fetch(`https://serpapi.com/search.json?${params}`);
+      const serpData = await serpResponse.json();
+
+      if (serpData.error) {
+        return res.status(400).json({ error: serpData.error });
+      }
+
+      // Find domain position in results
+      const organicResults = serpData.organic_results || [];
+      let posicion: number | null = null;
+      let urlEncontrada: string | null = null;
+      let titulo: string | null = null;
+      let snippet: string | null = null;
+
+      const domainToFind = campaign.dominio.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '');
+
+      for (let i = 0; i < organicResults.length; i++) {
+        const result = organicResults[i];
+        const resultDomain = (result.link || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '');
+        
+        if (resultDomain.includes(domainToFind) || 
+            (keyword.urlObjetivo && result.link?.includes(keyword.urlObjetivo))) {
+          posicion = result.position || (i + 1);
+          urlEncontrada = result.link;
+          titulo = result.title;
+          snippet = result.snippet;
+          break;
+        }
+      }
+
+      // Save to history
+      const historyEntry = await storage.createSeoPositionHistory({
+        keywordId,
+        posicion,
+        urlEncontrada,
+        titulo,
+        snippet,
+        pagina: posicion ? Math.ceil(posicion / 10) : null,
+        totalResultados: serpData.search_information?.total_results || null,
+        busquedasRestantes: serpData.search_metadata?.credits_left || null,
+      });
+
+      res.json({
+        posicion,
+        urlEncontrada,
+        titulo,
+        snippet,
+        totalResultados: serpData.search_information?.total_results,
+        busquedasRestantes: serpData.search_metadata?.credits_left,
+        historyEntry,
+      });
+    } catch (error: any) {
+      console.error('Error calling SerpAPI:', error);
+      res.status(500).json({ error: 'Error al consultar SerpAPI: ' + error.message });
+    }
+  }));
+
+  // Check all keywords in a campaign
+  app.post('/api/seo/campaigns/:id/check-all', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const keywords = await storage.getSeoKeywords(req.params.id);
+    const activeKeywords = keywords.filter(k => k.activo);
+    
+    if (activeKeywords.length === 0) {
+      return res.json({ message: 'No hay keywords activas para verificar', results: [] });
+    }
+
+    const serpApiKey = process.env.SERPAPI_API_KEY;
+    if (!serpApiKey) {
+      return res.status(400).json({ error: 'API key de SerpAPI no configurada' });
+    }
+
+    const campaign = await storage.getSeoCampaign(req.params.id);
+    if (!campaign) {
+      return res.status(404).json({ error: 'Campaña no encontrada' });
+    }
+
+    const results: any[] = [];
+    const domainToFind = campaign.dominio.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '');
+
+    for (const keyword of activeKeywords) {
+      try {
+        const params = new URLSearchParams({
+          api_key: serpApiKey,
+          q: keyword.keyword,
+          location: keyword.ubicacion || 'Chile',
+          hl: keyword.idioma || 'es',
+          gl: 'cl',
+          device: keyword.dispositivo || 'desktop',
+          num: '100',
+        });
+
+        const serpResponse = await fetch(`https://serpapi.com/search.json?${params}`);
+        const serpData = await serpResponse.json();
+
+        if (!serpData.error) {
+          const organicResults = serpData.organic_results || [];
+          let posicion: number | null = null;
+          let urlEncontrada: string | null = null;
+          let titulo: string | null = null;
+          let snippet: string | null = null;
+
+          for (let i = 0; i < organicResults.length; i++) {
+            const result = organicResults[i];
+            const resultDomain = (result.link || '').toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '');
+            
+            if (resultDomain.includes(domainToFind) || 
+                (keyword.urlObjetivo && result.link?.includes(keyword.urlObjetivo))) {
+              posicion = result.position || (i + 1);
+              urlEncontrada = result.link;
+              titulo = result.title;
+              snippet = result.snippet;
+              break;
+            }
+          }
+
+          await storage.createSeoPositionHistory({
+            keywordId: keyword.id,
+            posicion,
+            urlEncontrada,
+            titulo,
+            snippet,
+            pagina: posicion ? Math.ceil(posicion / 10) : null,
+            totalResultados: serpData.search_information?.total_results || null,
+            busquedasRestantes: serpData.search_metadata?.credits_left || null,
+          });
+
+          results.push({
+            keyword: keyword.keyword,
+            posicion,
+            urlEncontrada,
+            busquedasRestantes: serpData.search_metadata?.credits_left,
+          });
+        }
+
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (error: any) {
+        results.push({
+          keyword: keyword.keyword,
+          error: error.message,
+        });
+      }
+    }
+
+    res.json({ results, total: results.length });
+  }));
+
+  // Get position history for a keyword
+  app.get('/api/seo/keywords/:id/history', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const limit = parseInt(req.query.limit as string) || 30;
+    const history = await storage.getSeoPositionHistory(req.params.id, limit);
+    res.json(history);
+  }));
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -246,6 +246,15 @@ import {
   proyeccionesVentas,
   type ProyeccionVenta,
   type InsertProyeccionVenta,
+  seoCampaigns,
+  seoKeywords,
+  seoPositionHistory,
+  type SeoCampaign,
+  type InsertSeoCampaign,
+  type SeoKeyword,
+  type InsertSeoKeyword,
+  type SeoPositionHistory,
+  type InsertSeoPositionHistory,
   type InsertProyeccionVentaInput,
 } from "@shared/schema";
 import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from "@shared/reclamosAreas";
@@ -20074,6 +20083,126 @@ export class DatabaseStorage implements IStorage {
       })),
       total,
     };
+  }
+
+  // ==================== SEO TRACKING ====================
+
+  async getSeoCampaigns(): Promise<SeoCampaign[]> {
+    return await db
+      .select()
+      .from(seoCampaigns)
+      .orderBy(desc(seoCampaigns.createdAt));
+  }
+
+  async getSeoCampaign(id: string): Promise<SeoCampaign | null> {
+    const result = await db
+      .select()
+      .from(seoCampaigns)
+      .where(eq(seoCampaigns.id, id))
+      .limit(1);
+    return result[0] || null;
+  }
+
+  async createSeoCampaign(data: InsertSeoCampaign): Promise<SeoCampaign> {
+    const result = await db
+      .insert(seoCampaigns)
+      .values(data)
+      .returning();
+    return result[0];
+  }
+
+  async updateSeoCampaign(id: string, data: Partial<InsertSeoCampaign>): Promise<SeoCampaign | null> {
+    const result = await db
+      .update(seoCampaigns)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(seoCampaigns.id, id))
+      .returning();
+    return result[0] || null;
+  }
+
+  async deleteSeoCampaign(id: string): Promise<void> {
+    await db.delete(seoCampaigns).where(eq(seoCampaigns.id, id));
+  }
+
+  async getSeoKeywords(campaignId?: string): Promise<SeoKeyword[]> {
+    let query = db.select().from(seoKeywords);
+    if (campaignId) {
+      query = query.where(eq(seoKeywords.campaignId, campaignId)) as typeof query;
+    }
+    return await query.orderBy(desc(seoKeywords.createdAt));
+  }
+
+  async getSeoKeyword(id: string): Promise<SeoKeyword | null> {
+    const result = await db
+      .select()
+      .from(seoKeywords)
+      .where(eq(seoKeywords.id, id))
+      .limit(1);
+    return result[0] || null;
+  }
+
+  async createSeoKeyword(data: InsertSeoKeyword): Promise<SeoKeyword> {
+    const result = await db
+      .insert(seoKeywords)
+      .values(data)
+      .returning();
+    return result[0];
+  }
+
+  async updateSeoKeyword(id: string, data: Partial<InsertSeoKeyword>): Promise<SeoKeyword | null> {
+    const result = await db
+      .update(seoKeywords)
+      .set(data)
+      .where(eq(seoKeywords.id, id))
+      .returning();
+    return result[0] || null;
+  }
+
+  async deleteSeoKeyword(id: string): Promise<void> {
+    await db.delete(seoKeywords).where(eq(seoKeywords.id, id));
+  }
+
+  async getSeoPositionHistory(keywordId: string, limit?: number): Promise<SeoPositionHistory[]> {
+    let query = db
+      .select()
+      .from(seoPositionHistory)
+      .where(eq(seoPositionHistory.keywordId, keywordId))
+      .orderBy(desc(seoPositionHistory.fechaConsulta));
+    
+    if (limit) {
+      query = query.limit(limit) as typeof query;
+    }
+    
+    return await query;
+  }
+
+  async createSeoPositionHistory(data: InsertSeoPositionHistory): Promise<SeoPositionHistory> {
+    const result = await db
+      .insert(seoPositionHistory)
+      .values(data)
+      .returning();
+    
+    // Update keyword with last position
+    await db
+      .update(seoKeywords)
+      .set({
+        ultimaPosicion: data.posicion,
+        ultimaConsulta: new Date(),
+      })
+      .where(eq(seoKeywords.id, data.keywordId));
+    
+    return result[0];
+  }
+
+  async getSeoKeywordsWithHistory(campaignId: string): Promise<(SeoKeyword & { historial: SeoPositionHistory[] })[]> {
+    const keywords = await this.getSeoKeywords(campaignId);
+    const result = await Promise.all(
+      keywords.map(async (keyword) => {
+        const historial = await this.getSeoPositionHistory(keyword.id, 30); // últimos 30 registros
+        return { ...keyword, historial };
+      })
+    );
+    return result;
   }
 
 }
