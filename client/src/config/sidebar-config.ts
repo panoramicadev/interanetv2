@@ -543,6 +543,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/inventario",
       label: "Inventario",
       icon: Warehouse,
+    },
+    {
+      href: "/marketing",
+      label: "Marketing",
+      icon: TrendingUp,
       separator: true, // Separador antes de Tomador de Pedidos
     },
     {
