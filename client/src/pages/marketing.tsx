@@ -35,7 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import { formatDateForAPI, parseDateFromAPI } from "@/lib/dateUtils";
@@ -83,6 +83,25 @@ interface HitoMarketing {
   color: string;
   completado: boolean;
   createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface TareaMarketing {
+  id: string;
+  titulo: string;
+  descripcion: string | null;
+  estado: 'pendiente' | 'en_proceso' | 'completado';
+  prioridad: 'baja' | 'media' | 'alta';
+  fechaLimite: string | null;
+  solicitudId: string | null;
+  asignadoAId: string | null;
+  asignadoANombre: string | null;
+  creadoPorId: string;
+  creadoPorNombre: string | null;
+  completadoEn: string | null;
+  mes: number;
+  anio: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -146,11 +165,15 @@ export default function Marketing() {
 
       {/* Tabs */}
       <Tabs defaultValue="solicitudes" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 h-auto">
+        <TabsList className="grid w-full grid-cols-4 h-auto">
           <TabsTrigger value="solicitudes" data-testid="tab-solicitudes" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
             <FileText className="h-4 w-4" />
             <span className="hidden sm:inline">Presupuesto y Solicitudes</span>
             <span className="sm:hidden">Solicitudes</span>
+          </TabsTrigger>
+          <TabsTrigger value="tareas" data-testid="tab-tareas" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
+            <ClipboardList className="h-4 w-4" />
+            <span>Tareas</span>
           </TabsTrigger>
           <TabsTrigger value="inventario" data-testid="tab-inventario" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
             <Package className="h-4 w-4" />
@@ -268,6 +291,15 @@ export default function Marketing() {
               setSelectedSolicitud(solicitud);
               setViewDialogOpen(true);
             }}
+            userRole={user.role}
+          />
+        </TabsContent>
+
+        {/* Tab: Tareas */}
+        <TabsContent value="tareas" className="space-y-6">
+          <TareasMarketing 
+            mes={selectedMes} 
+            anio={selectedAnio} 
             userRole={user.role}
           />
         </TabsContent>
@@ -2833,6 +2865,426 @@ function InventarioDialog({
     </Dialog>
   );
 }
+// Tareas Marketing Component
+function TareasMarketing({ 
+  mes, 
+  anio, 
+  userRole 
+}: { 
+  mes: number; 
+  anio: number; 
+  userRole: string; 
+}) {
+  const { toast } = useToast();
+  const [tareaDialogOpen, setTareaDialogOpen] = useState(false);
+  const [selectedTarea, setSelectedTarea] = useState<TareaMarketing | null>(null);
+  const [filtroEstado, setFiltroEstado] = useState<string>("todos");
+
+  const { data: tareas = [], isLoading } = useQuery<TareaMarketing[]>({
+    queryKey: ['/api/marketing/tareas', mes, anio],
+    queryFn: async () => {
+      const response = await fetch(`/api/marketing/tareas?mes=${mes}&anio=${anio}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Error al cargar tareas');
+      return response.json();
+    },
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async (tareaId: string) => {
+      return await apiRequest('POST', `/api/marketing/tareas/${tareaId}/toggle`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/tareas'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo cambiar el estado",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (tareaId: string) => {
+      return await apiRequest('DELETE', `/api/marketing/tareas/${tareaId}`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/tareas'] });
+      toast({
+        title: "Tarea eliminada",
+        description: "La tarea ha sido eliminada correctamente",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo eliminar la tarea",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const tareasFiltradas = filtroEstado === "todos" 
+    ? tareas 
+    : tareas.filter(t => t.estado === filtroEstado);
+
+  const estadoConfig = {
+    pendiente: { label: "Pendiente", color: "bg-gray-500", icon: Circle },
+    en_proceso: { label: "En Proceso", color: "bg-yellow-500", icon: Play },
+    completado: { label: "Completado", color: "bg-green-500", icon: Check },
+  };
+
+  const prioridadConfig = {
+    baja: { label: "Baja", color: "bg-blue-100 text-blue-800" },
+    media: { label: "Media", color: "bg-yellow-100 text-yellow-800" },
+    alta: { label: "Alta", color: "bg-red-100 text-red-800" },
+  };
+
+  const handleToggleEstado = (tareaId: string) => {
+    toggleMutation.mutate(tareaId);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex items-center gap-2">
+          <Label>Filtrar por estado:</Label>
+          <Select value={filtroEstado} onValueChange={setFiltroEstado}>
+            <SelectTrigger className="w-[180px]" data-testid="select-filtro-estado-tareas">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="pendiente">Pendientes</SelectItem>
+              <SelectItem value="en_proceso">En Proceso</SelectItem>
+              <SelectItem value="completado">Completados</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        {(userRole === 'admin' || userRole === 'supervisor') && (
+          <Button onClick={() => { setSelectedTarea(null); setTareaDialogOpen(true); }} data-testid="button-nueva-tarea">
+            <Plus className="h-4 w-4 mr-2" />
+            Nueva Tarea
+          </Button>
+        )}
+      </div>
+
+      {tareasFiltradas.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <ClipboardList className="h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground text-center">
+              No hay tareas para este período
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {tareasFiltradas.map((tarea) => {
+            const config = estadoConfig[tarea.estado];
+            const prioridadCfg = prioridadConfig[tarea.prioridad];
+            const IconEstado = config.icon;
+            
+            return (
+              <Card key={tarea.id} className="hover:shadow-md transition-shadow" data-testid={`card-tarea-${tarea.id}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-4">
+                    <button
+                      onClick={() => handleToggleEstado(tarea.id)}
+                      disabled={toggleMutation.isPending}
+                      className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white transition-all hover:opacity-80 ${config.color}`}
+                      data-testid={`button-toggle-tarea-${tarea.id}`}
+                    >
+                      <IconEstado className="h-4 w-4" />
+                    </button>
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h4 className={`font-medium ${tarea.estado === 'completado' ? 'line-through text-muted-foreground' : ''}`}>
+                            {tarea.titulo}
+                          </h4>
+                          {tarea.descripcion && (
+                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                              {tarea.descripcion}
+                            </p>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Badge className={prioridadCfg.color}>
+                            {prioridadCfg.label}
+                          </Badge>
+                          <Badge className={`${config.color} text-white`}>
+                            {config.label}
+                          </Badge>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
+                        {tarea.fechaLimite && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {format(new Date(tarea.fechaLimite), 'dd/MM/yyyy', { locale: es })}
+                          </span>
+                        )}
+                        {tarea.asignadoANombre && (
+                          <span>Asignado a: {tarea.asignadoANombre}</span>
+                        )}
+                        {tarea.creadoPorNombre && (
+                          <span>Creado por: {tarea.creadoPorNombre}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {userRole === 'admin' && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => { setSelectedTarea(tarea); setTareaDialogOpen(true); }}
+                          data-testid={`button-editar-tarea-${tarea.id}`}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteMutation.mutate(tarea.id)}
+                          disabled={deleteMutation.isPending}
+                          data-testid={`button-eliminar-tarea-${tarea.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      <TareaDialog
+        open={tareaDialogOpen}
+        onOpenChange={setTareaDialogOpen}
+        tarea={selectedTarea}
+        mes={mes}
+        anio={anio}
+      />
+    </div>
+  );
+}
+
+// Tarea Dialog Component
+function TareaDialog({
+  open,
+  onOpenChange,
+  tarea,
+  mes,
+  anio,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  tarea: TareaMarketing | null;
+  mes: number;
+  anio: number;
+}) {
+  const { toast } = useToast();
+  const [titulo, setTitulo] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+  const [prioridad, setPrioridad] = useState("media");
+  const [fechaLimite, setFechaLimite] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      if (tarea) {
+        setTitulo(tarea.titulo);
+        setDescripcion(tarea.descripcion || "");
+        setPrioridad(tarea.prioridad);
+        setFechaLimite(tarea.fechaLimite || "");
+      } else {
+        setTitulo("");
+        setDescripcion("");
+        setPrioridad("media");
+        setFechaLimite("");
+      }
+    }
+  }, [open, tarea]);
+
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest('POST', '/api/marketing/tareas', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/tareas'] });
+      toast({
+        title: "Tarea creada",
+        description: "La tarea ha sido creada correctamente",
+      });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo crear la tarea",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest('PATCH', `/api/marketing/tareas/${tarea?.id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/tareas'] });
+      toast({
+        title: "Tarea actualizada",
+        description: "Los cambios han sido guardados",
+      });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo actualizar la tarea",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!titulo.trim()) {
+      toast({
+        title: "Error",
+        description: "El título es requerido",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const data = {
+      titulo,
+      descripcion: descripcion || null,
+      prioridad,
+      fechaLimite: fechaLimite || null,
+      mes,
+      anio,
+    };
+
+    if (tarea) {
+      updateMutation.mutate(data);
+    } else {
+      createMutation.mutate(data);
+    }
+  };
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg" data-testid="dialog-tarea">
+        <DialogHeader>
+          <DialogTitle>{tarea ? 'Editar Tarea' : 'Nueva Tarea'}</DialogTitle>
+          <DialogDescription>
+            {tarea ? 'Modifique los detalles de la tarea' : 'Complete los campos para crear una nueva tarea'}
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-4">
+          <div>
+            <Label htmlFor="titulo-tarea">Título*</Label>
+            <Input
+              id="titulo-tarea"
+              placeholder="Ej: Diseñar banner promocional"
+              value={titulo}
+              onChange={(e) => setTitulo(e.target.value)}
+              data-testid="input-titulo-tarea"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="descripcion-tarea">Descripción</Label>
+            <Textarea
+              id="descripcion-tarea"
+              placeholder="Describa los detalles de la tarea..."
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              rows={3}
+              data-testid="input-descripcion-tarea"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="prioridad-tarea">Prioridad</Label>
+              <Select value={prioridad} onValueChange={setPrioridad}>
+                <SelectTrigger data-testid="select-prioridad-tarea">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="baja">Baja</SelectItem>
+                  <SelectItem value="media">Media</SelectItem>
+                  <SelectItem value="alta">Alta</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="fecha-limite-tarea">Fecha Límite</Label>
+              <Input
+                id="fecha-limite-tarea"
+                type="date"
+                value={fechaLimite}
+                onChange={(e) => setFechaLimite(e.target.value)}
+                data-testid="input-fecha-limite-tarea"
+              />
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            data-testid="button-cancelar-tarea"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={isPending}
+            data-testid="button-guardar-tarea"
+          >
+            {isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              tarea ? 'Guardar Cambios' : 'Crear Tarea'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Calendario Component
 function CalendarioHitos({ 
   mes, 

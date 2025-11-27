@@ -4094,6 +4094,65 @@ export const insertInventarioMarketingSchema = createInsertSchema(inventarioMark
   stockMinimo: z.number().min(0).optional(),
 });
 
+// Tabla de tareas de marketing
+export const tareasMarketing = pgTable("tareas_marketing", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  titulo: varchar("titulo", { length: 255 }).notNull(),
+  descripcion: text("descripcion"),
+  estado: varchar("estado").notNull().default("pendiente"), // pendiente, en_proceso, completado
+  prioridad: varchar("prioridad").notNull().default("media"), // baja, media, alta
+  fechaLimite: date("fecha_limite"),
+  solicitudId: varchar("solicitud_id").references(() => solicitudesMarketing.id, { onDelete: 'set null' }),
+  asignadoAId: varchar("asignado_a_id").references(() => users.id, { onDelete: 'set null' }),
+  asignadoANombre: varchar("asignado_a_nombre", { length: 255 }),
+  creadoPorId: varchar("creado_por_id").references(() => users.id).notNull(),
+  creadoPorNombre: varchar("creado_por_nombre", { length: 255 }),
+  completadoEn: timestamp("completado_en"),
+  mes: integer("mes").notNull(),
+  anio: integer("anio").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  estadoIdx: index("IDX_tareas_marketing_estado").on(table.estado),
+  asignadoIdx: index("IDX_tareas_marketing_asignado").on(table.asignadoAId),
+  solicitudIdx: index("IDX_tareas_marketing_solicitud").on(table.solicitudId),
+  mesAnioIdx: index("IDX_tareas_marketing_mes_anio").on(table.mes, table.anio),
+}));
+
+// Relations for tareas marketing
+export const tareasMarketingRelations = relations(tareasMarketing, ({ one }) => ({
+  solicitud: one(solicitudesMarketing, {
+    fields: [tareasMarketing.solicitudId],
+    references: [solicitudesMarketing.id],
+  }),
+  asignadoA: one(users, {
+    fields: [tareasMarketing.asignadoAId],
+    references: [users.id],
+  }),
+  creadoPor: one(users, {
+    fields: [tareasMarketing.creadoPorId],
+    references: [users.id],
+  }),
+}));
+
+// Types
+export type TareaMarketing = typeof tareasMarketing.$inferSelect;
+export type InsertTareaMarketing = typeof tareasMarketing.$inferInsert;
+
+// Schema de validación
+export const insertTareaMarketingSchema = createInsertSchema(tareasMarketing).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  completadoEn: true,
+}).extend({
+  titulo: z.string().min(1, "El título es requerido"),
+  estado: z.enum(["pendiente", "en_proceso", "completado"]).default("pendiente"),
+  prioridad: z.enum(["baja", "media", "alta"]).default("media"),
+  mes: z.number().min(1).max(12),
+  anio: z.number().min(2020).max(2100),
+});
+
 // Tabla de gastos empresariales
 export const gastosEmpresariales = pgTable("gastos_empresariales", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
