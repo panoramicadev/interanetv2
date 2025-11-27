@@ -165,7 +165,7 @@ export default function Marketing() {
 
       {/* Tabs */}
       <Tabs defaultValue="solicitudes" className="w-full">
-        <TabsList className={`grid w-full h-auto ${user.role === 'salesperson' ? 'grid-cols-4' : 'grid-cols-5'}`}>
+        <TabsList className={`grid w-full h-auto ${user.role === 'salesperson' ? 'grid-cols-2' : 'grid-cols-5'}`}>
           <TabsTrigger value="solicitudes" data-testid="tab-solicitudes" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
             <FileText className="h-4 w-4" />
             <span>Solicitudes</span>
@@ -174,14 +174,18 @@ export default function Marketing() {
             <Package className="h-4 w-4" />
             <span>Inventario</span>
           </TabsTrigger>
-          <TabsTrigger value="tareas" data-testid="tab-tareas" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
-            <ClipboardList className="h-4 w-4" />
-            <span>Tareas</span>
-          </TabsTrigger>
-          <TabsTrigger value="calendario" data-testid="tab-calendario" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
-            <Calendar className="h-4 w-4" />
-            <span>Calendario</span>
-          </TabsTrigger>
+          {(user.role === 'admin' || user.role === 'supervisor') && (
+            <TabsTrigger value="tareas" data-testid="tab-tareas" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
+              <ClipboardList className="h-4 w-4" />
+              <span>Tareas</span>
+            </TabsTrigger>
+          )}
+          {(user.role === 'admin' || user.role === 'supervisor') && (
+            <TabsTrigger value="calendario" data-testid="tab-calendario" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
+              <Calendar className="h-4 w-4" />
+              <span>Calendario</span>
+            </TabsTrigger>
+          )}
           {(user.role === 'admin' || user.role === 'supervisor') && (
             <TabsTrigger value="presupuesto" data-testid="tab-presupuesto" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
               <DollarSign className="h-4 w-4" />
