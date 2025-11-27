@@ -12111,6 +12111,126 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // ==================================================================================
+  // TAREAS DE MARKETING routes
+  // ==================================================================================
+
+  // Get all tareas with filters
+  app.get('/api/marketing/tareas', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { mes, anio, estado, asignadoAId } = req.query;
+      
+      const filters: any = {};
+      if (mes) filters.mes = parseInt(mes);
+      if (anio) filters.anio = parseInt(anio);
+      if (estado) filters.estado = estado;
+      if (asignadoAId) filters.asignadoAId = asignadoAId;
+      
+      const tareas = await storage.getTareasMarketing(filters);
+      res.json(tareas);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener tareas', error: error.message });
+    }
+  }));
+
+  // Get single tarea by ID
+  app.get('/api/marketing/tareas/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const tarea = await storage.getTareaMarketingById(req.params.id);
+      if (!tarea) {
+        return res.status(404).json({ message: 'Tarea no encontrada' });
+      }
+      res.json(tarea);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener tarea', error: error.message });
+    }
+  }));
+
+  // Create new tarea
+  app.post('/api/marketing/tareas', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only admin and supervisor can create tareas
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'Solo admin y supervisor pueden crear tareas' });
+      }
+      
+      const tareaData = {
+        ...req.body,
+        creadoPorId: user.id,
+        creadoPorNombre: user.salespersonName || `${user.firstName} ${user.lastName}`,
+      };
+      
+      const tarea = await storage.createTareaMarketing(tareaData);
+      res.status(201).json(tarea);
+    } catch (error: any) {
+      console.error('Error creating marketing tarea:', error);
+      res.status(500).json({ message: 'Error al crear tarea', error: error.message });
+    }
+  }));
+
+  // Update tarea
+  app.patch('/api/marketing/tareas/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const tarea = await storage.getTareaMarketingById(req.params.id);
+      
+      if (!tarea) {
+        return res.status(404).json({ message: 'Tarea no encontrada' });
+      }
+      
+      // Admin can update any tarea, others can only update if they created it or are assigned
+      if (user.role !== 'admin' && tarea.creadoPorId !== user.id && tarea.asignadoAId !== user.id) {
+        return res.status(403).json({ message: 'No autorizado para modificar esta tarea' });
+      }
+      
+      const updated = await storage.updateTareaMarketing(req.params.id, req.body);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar tarea', error: error.message });
+    }
+  }));
+
+  // Toggle tarea estado
+  app.post('/api/marketing/tareas/:id/toggle', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const tarea = await storage.getTareaMarketingById(req.params.id);
+      
+      if (!tarea) {
+        return res.status(404).json({ message: 'Tarea no encontrada' });
+      }
+      
+      // Admin and supervisor can toggle any tarea, assigned users can toggle their own
+      if (user.role !== 'admin' && user.role !== 'supervisor' && tarea.asignadoAId !== user.id) {
+        return res.status(403).json({ message: 'No autorizado para modificar el estado de esta tarea' });
+      }
+      
+      const updated = await storage.toggleTareaMarketingEstado(req.params.id);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al cambiar estado de tarea', error: error.message });
+    }
+  }));
+
+  // Delete tarea
+  app.delete('/api/marketing/tareas/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only admin can delete tareas
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'Solo admin puede eliminar tareas' });
+      }
+      
+      await storage.deleteTareaMarketing(req.params.id);
+      res.json({ message: 'Tarea eliminada correctamente' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar tarea', error: error.message });
+    }
+  }));
+
+  // ==================================================================================
   // INVENTORY routes
   // ==================================================================================
   

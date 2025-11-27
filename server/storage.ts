@@ -191,6 +191,10 @@ import {
   type InsertInventarioMarketing,
   type HitoMarketing,
   type InsertHitoMarketing,
+  // Tareas de marketing
+  tareasMarketing,
+  type TareaMarketing,
+  type InsertTareaMarketing,
   // Gastos empresariales
   gastosEmpresariales,
   type GastoEmpresarial,
@@ -15911,6 +15915,94 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(hitosMarketing)
       .where(eq(hitosMarketing.id, id));
+  }
+
+  // ==================== TAREAS DE MARKETING ====================
+
+  async getTareasMarketing(filters?: {
+    mes?: number;
+    anio?: number;
+    estado?: string;
+    asignadoAId?: string;
+  }): Promise<TareaMarketing[]> {
+    const conditions = [];
+    
+    if (filters?.mes) {
+      conditions.push(eq(tareasMarketing.mes, filters.mes));
+    }
+    if (filters?.anio) {
+      conditions.push(eq(tareasMarketing.anio, filters.anio));
+    }
+    if (filters?.estado) {
+      conditions.push(eq(tareasMarketing.estado, filters.estado));
+    }
+    if (filters?.asignadoAId) {
+      conditions.push(eq(tareasMarketing.asignadoAId, filters.asignadoAId));
+    }
+
+    return await db
+      .select()
+      .from(tareasMarketing)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(tareasMarketing.createdAt));
+  }
+
+  async getTareaMarketingById(id: string): Promise<TareaMarketing | undefined> {
+    const [result] = await db
+      .select()
+      .from(tareasMarketing)
+      .where(eq(tareasMarketing.id, id));
+    return result;
+  }
+
+  async createTareaMarketing(data: InsertTareaMarketing): Promise<TareaMarketing> {
+    const [result] = await db
+      .insert(tareasMarketing)
+      .values(data)
+      .returning();
+    return result;
+  }
+
+  async updateTareaMarketing(id: string, updates: Partial<InsertTareaMarketing>): Promise<TareaMarketing> {
+    const updateData: any = {
+      ...updates,
+      updatedAt: new Date(),
+    };
+    
+    // Si se está marcando como completado, registrar la fecha
+    if (updates.estado === 'completado') {
+      updateData.completadoEn = new Date();
+    }
+    
+    const [result] = await db
+      .update(tareasMarketing)
+      .set(updateData)
+      .where(eq(tareasMarketing.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteTareaMarketing(id: string): Promise<void> {
+    await db
+      .delete(tareasMarketing)
+      .where(eq(tareasMarketing.id, id));
+  }
+
+  async toggleTareaMarketingEstado(id: string): Promise<TareaMarketing> {
+    const tarea = await this.getTareaMarketingById(id);
+    if (!tarea) {
+      throw new Error('Tarea no encontrada');
+    }
+    
+    // Ciclo de estados: pendiente -> en_proceso -> completado
+    let nuevoEstado = 'pendiente';
+    if (tarea.estado === 'pendiente') {
+      nuevoEstado = 'en_proceso';
+    } else if (tarea.estado === 'en_proceso') {
+      nuevoEstado = 'completado';
+    }
+    
+    return this.updateTareaMarketing(id, { estado: nuevoEstado });
   }
 
   // ==================================================================================
