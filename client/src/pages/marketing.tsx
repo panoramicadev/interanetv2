@@ -4089,7 +4089,6 @@ function SeoTracking() {
       urlObjetivo: keywordUrl || null,
       ubicacion: keywordUbicacion,
       idioma: 'es',
-      dispositivo: keywordDispositivo,
       activo: true,
     });
   };
@@ -4434,18 +4433,9 @@ function SeoTracking() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label htmlFor="keywordDispositivo">Dispositivo</Label>
-              <Select value={keywordDispositivo} onValueChange={setKeywordDispositivo}>
-                <SelectTrigger data-testid="select-dispositivo">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="desktop">🖥️ Desktop</SelectItem>
-                  <SelectItem value="mobile">📱 Mobile</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              Se analizará automáticamente la posición en Desktop y Mobile
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setKeywordDialogOpen(false)}>
