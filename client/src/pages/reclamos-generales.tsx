@@ -216,6 +216,8 @@ export default function ReclamosGeneralesPage() {
   // Refs to prevent modal closure when interacting with file upload areas
   const resolucionUploadContainerRef = useRef<HTMLDivElement>(null);
   const cerrarUploadContainerRef = useRef<HTMLDivElement>(null);
+  // State to block modal closure during file selection
+  const [isSelectingFile, setIsSelectingFile] = useState(false);
   const [showValidacionTecnicaModal, setShowValidacionTecnicaModal] = useState(false);
   const [selectedReclamoId, setSelectedReclamoId] = useState<string | null>(null);
   const [resumenExpanded, setResumenExpanded] = useState(false);
@@ -571,10 +573,16 @@ export default function ReclamosGeneralesPage() {
 
   // Subir resolución del laboratorio con evidencia
   const resolucionLaboratorioMutation = useMutation({
-    mutationFn: async ({ reclamoId, informe, categoriaResponsable, photos }: { reclamoId: string; informe: string; categoriaResponsable?: string; photos: Array<{ photoUrl: string; description?: string }> }) => {
+    mutationFn: async ({ reclamoId, informe, categoriaResponsable, photos, documents }: { 
+      reclamoId: string; 
+      informe: string; 
+      categoriaResponsable?: string; 
+      photos: Array<{ photoUrl: string; description?: string }>;
+      documents?: Array<{ fileName: string; fileData: string; mimeType: string }>;
+    }) => {
       const response = await apiRequest(`/api/reclamos-generales/${reclamoId}/resolucion-laboratorio`, {
         method: 'POST',
-        data: { informe, categoriaResponsable, photos },
+        data: { informe, categoriaResponsable, photos, documents },
       });
       return await response.json();
     },
@@ -584,11 +592,13 @@ export default function ReclamosGeneralesPage() {
         title: "Resolución enviada",
         description: "La resolución del laboratorio ha sido registrada con éxito.",
       });
+      setIsSelectingFile(false);
       setShowResolucionLaboratorioModal(false);
       setInformeLaboratorio("");
       setCategoriaResponsable("");
       setResolucionPhotos([]);
       setResolucionPreviewUrls([]);
+      setResolucionDocuments([]);
       setResolucionUploadProgress({ current: 0, total: 0 });
       setSelectedReclamoId(null);
     },
@@ -604,10 +614,15 @@ export default function ReclamosGeneralesPage() {
 
   // Subir resolución del área responsable con evidencia
   const resolucionAreaMutation = useMutation({
-    mutationFn: async ({ reclamoId, resolucionDescripcion, photos }: { reclamoId: string; resolucionDescripcion: string; photos: Array<{ photoUrl: string; description?: string }> }) => {
+    mutationFn: async ({ reclamoId, resolucionDescripcion, photos, documents }: { 
+      reclamoId: string; 
+      resolucionDescripcion: string; 
+      photos: Array<{ photoUrl: string; description?: string }>;
+      documents?: Array<{ fileName: string; fileData: string; mimeType: string }>;
+    }) => {
       const response = await apiRequest(`/api/reclamos-generales/${reclamoId}/resolucion-area`, {
         method: 'POST',
-        data: { resolucionDescripcion, photos },
+        data: { resolucionDescripcion, photos, documents },
       });
       return await response.json();
     },
@@ -617,10 +632,12 @@ export default function ReclamosGeneralesPage() {
         title: "Resolución enviada",
         description: "La resolución del área responsable ha sido registrada con éxito.",
       });
+      setIsSelectingFile(false);
       setShowResolucionLaboratorioModal(false);
       setInformeLaboratorio("");
       setResolucionPhotos([]);
       setResolucionPreviewUrls([]);
+      setResolucionDocuments([]);
       setResolucionUploadProgress({ current: 0, total: 0 });
       setSelectedReclamoId(null);
     },
@@ -795,7 +812,9 @@ export default function ReclamosGeneralesPage() {
 
   // Funciones para fotos de evidencia de resolución del laboratorio
   const handleResolucionFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.stopPropagation(); // Prevent modal from closing
+    // Desactivar el bloqueo del modal
+    setIsSelectingFile(false);
+    e.stopPropagation();
     const files = Array.from(e.target.files || []);
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
     
@@ -852,6 +871,8 @@ export default function ReclamosGeneralesPage() {
 
   // Función para manejar selección de documentos
   const handleResolucionDocSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Desactivar el bloqueo del modal
+    setIsSelectingFile(false);
     e.stopPropagation();
     const files = Array.from(e.target.files || []);
     const validTypes = [
@@ -2433,32 +2454,35 @@ export default function ReclamosGeneralesPage() {
       </Dialog>
 
       {/* Modal de Resolución del Laboratorio */}
-      <Dialog open={showResolucionLaboratorioModal} onOpenChange={setShowResolucionLaboratorioModal}>
+      <Dialog open={showResolucionLaboratorioModal} onOpenChange={(open) => {
+        // Block closing when file picker is active
+        if (!open && isSelectingFile) {
+          return;
+        }
+        setShowResolucionLaboratorioModal(open);
+      }}>
         <DialogContent 
           className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full"
           onOpenAutoFocus={(e) => e.preventDefault()}
           onInteractOutside={(e) => {
-            // Prevent closing when clicking file inputs (portaled outside modal)
-            const target = e.target as HTMLElement;
-            if (target.tagName === 'INPUT' && target.getAttribute('type') === 'file') {
+            // Block while file picker is active
+            if (isSelectingFile) {
               e.preventDefault();
               return;
-            }
-            // Prevent closing when clicking anywhere inside the upload container
-            if (resolucionUploadContainerRef.current?.contains(target)) {
-              e.preventDefault();
             }
           }}
           onPointerDownOutside={(e) => {
-            // Prevent closing when clicking file inputs (portaled outside modal)
-            const target = e.target as HTMLElement;
-            if (target.tagName === 'INPUT' && target.getAttribute('type') === 'file') {
+            // Block while file picker is active
+            if (isSelectingFile) {
               e.preventDefault();
               return;
             }
-            // Also prevent pointer down events from closing the modal
-            if (resolucionUploadContainerRef.current?.contains(target)) {
+          }}
+          onEscapeKeyDown={(e) => {
+            // Block escape while file picker is active
+            if (isSelectingFile) {
               e.preventDefault();
+              return;
             }
           }}
         >
@@ -2521,7 +2545,12 @@ export default function ReclamosGeneralesPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => resolucionFileInputRef.current?.click()}
+                  onClick={() => {
+                    setIsSelectingFile(true);
+                    setTimeout(() => {
+                      resolucionFileInputRef.current?.click();
+                    }, 50);
+                  }}
                   className="w-full mb-4"
                   data-testid="button-add-evidencia"
                 >
@@ -2564,7 +2593,12 @@ export default function ReclamosGeneralesPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => resolucionDocInputRef.current?.click()}
+                onClick={() => {
+                  setIsSelectingFile(true);
+                  setTimeout(() => {
+                    resolucionDocInputRef.current?.click();
+                  }, 50);
+                }}
                 className="w-full mb-4"
                 data-testid="button-add-documento"
               >
@@ -2612,6 +2646,7 @@ export default function ReclamosGeneralesPage() {
             <Button
               variant="outline"
               onClick={() => {
+                setIsSelectingFile(false);
                 setShowResolucionLaboratorioModal(false);
                 setInformeLaboratorio("");
                 setCategoriaResponsable("");
