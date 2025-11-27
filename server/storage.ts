@@ -13160,6 +13160,67 @@ export class DatabaseStorage implements IStorage {
     await db.delete(reclamosGenerales).where(eq(reclamosGenerales.id, id));
   }
 
+  async getReclamosNotificaciones(): Promise<{
+    nuevosReclamos: number;
+    nuevasResoluciones: number;
+    reclamosMasRecientes: { id: string; numeroReclamo: string; clientName: string; createdAt: Date }[];
+    resolucionesMasRecientes: { id: string; numeroReclamo: string; clientName: string; resolvedAt: Date }[];
+  }> {
+    const hace24Horas = new Date();
+    hace24Horas.setHours(hace24Horas.getHours() - 24);
+
+    const nuevosReclamos = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(reclamosGenerales)
+      .where(sql`${reclamosGenerales.createdAt} >= ${hace24Horas}`);
+
+    const nuevasResoluciones = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(reclamosGenerales)
+      .where(
+        and(
+          eq(reclamosGenerales.estado, 'resuelto'),
+          sql`${reclamosGenerales.updatedAt} >= ${hace24Horas}`
+        )
+      );
+
+    const reclamosMasRecientes = await db
+      .select({
+        id: reclamosGenerales.id,
+        numeroReclamo: reclamosGenerales.numeroReclamo,
+        clientName: reclamosGenerales.clientName,
+        createdAt: reclamosGenerales.createdAt,
+      })
+      .from(reclamosGenerales)
+      .where(sql`${reclamosGenerales.createdAt} >= ${hace24Horas}`)
+      .orderBy(desc(reclamosGenerales.createdAt))
+      .limit(5);
+
+    const resolucionesMasRecientes = await db
+      .select({
+        id: reclamosGenerales.id,
+        numeroReclamo: reclamosGenerales.numeroReclamo,
+        clientName: reclamosGenerales.clientName,
+        resolvedAt: reclamosGenerales.updatedAt,
+      })
+      .from(reclamosGenerales)
+      .where(
+        and(
+          eq(reclamosGenerales.estado, 'resuelto'),
+          sql`${reclamosGenerales.updatedAt} >= ${hace24Horas}`
+        )
+      )
+      .orderBy(desc(reclamosGenerales.updatedAt))
+      .limit(5);
+
+    return {
+      nuevosReclamos: Number(nuevosReclamos[0]?.count) || 0,
+      nuevasResoluciones: Number(nuevasResoluciones[0]?.count) || 0,
+      reclamosMasRecientes,
+      resolucionesMasRecientes,
+    };
+  }
+
   // Reclamos Generales Photos operations
   async createReclamoGeneralPhoto(photo: InsertReclamoGeneralPhoto): Promise<ReclamoGeneralPhoto> {
     const [newPhoto] = await db
