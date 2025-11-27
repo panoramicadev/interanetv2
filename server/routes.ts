@@ -15528,12 +15528,15 @@ export function registerRoutes(app: Express): Server {
         });
 
         console.log(`[SEO] Checking: "${keyword.keyword}" (${keyword.dispositivo})`);
+        console.log(`[SEO] Domain to find: "${domainToFind}"`);
 
         const serpResponse = await fetch(`https://serpapi.com/search.json?${params}`);
         const serpData = await serpResponse.json();
 
         if (!serpData.error) {
           const organicResults = serpData.organic_results || [];
+          console.log(`[SEO] Received ${organicResults.length} organic results`);
+          
           let posicion: number | null = null;
           let urlEncontrada: string | null = null;
           let titulo: string | null = null;
@@ -15551,9 +15554,17 @@ export function registerRoutes(app: Express): Server {
               urlEncontrada = result.link;
               titulo = result.title;
               snippet = result.snippet;
-              console.log(`[SEO] Found "${keyword.keyword}" at position ${posicion}`);
+              console.log(`[SEO] Found "${keyword.keyword}" at position ${posicion}: ${result.link}`);
               break;
             }
+          }
+          
+          if (!posicion) {
+            console.log(`[SEO] Not found. First 5 results for debugging:`);
+            organicResults.slice(0, 5).forEach((r: any, idx: number) => {
+              const d = (r.link || '').replace(/^(https?:\/\/)/, '').replace(/^www\./, '').split('/')[0];
+              console.log(`[SEO]   ${idx + 1}. ${d} - ${r.link}`);
+            });
           }
 
           await storage.createSeoPositionHistory({
