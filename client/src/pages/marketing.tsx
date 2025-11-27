@@ -2132,18 +2132,25 @@ function ViewSolicitudDialog({
                 </div>
               </div>
 
-              {/* URL de Referencia */}
+              {/* Imagen de Referencia */}
               {solicitud.urlReferencia && (
                 <div>
-                  <Label className="text-muted-foreground text-sm">URL de Referencia</Label>
-                  <a 
-                    href={solicitud.urlReferencia} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="text-base text-blue-500 hover:underline mt-1 block break-all"
-                  >
-                    {solicitud.urlReferencia}
-                  </a>
+                  <Label className="text-muted-foreground text-sm">Imagen de Referencia</Label>
+                  <div className="mt-2">
+                    <a 
+                      href={solicitud.urlReferencia} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                    >
+                      <img 
+                        src={solicitud.urlReferencia} 
+                        alt="Imagen de referencia" 
+                        className="max-w-full max-h-64 rounded-lg border shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                        data-testid="img-referencia"
+                      />
+                    </a>
+                    <p className="text-xs text-muted-foreground mt-1">Click en la imagen para ver en tamaño completo</p>
+                  </div>
                 </div>
               )}
 
