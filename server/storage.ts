@@ -1501,6 +1501,13 @@ export interface IStorage {
       rechazado: number;
     };
   }>;
+  
+  // Solicitantes de marketing (admin, supervisor, vendedor)
+  getMarketingSolicitantes(): Promise<Array<{
+    id: number;
+    name: string;
+    role: string;
+  }>>;
 
   // Inventario Marketing operations
   createInventarioMarketing(item: InsertInventarioMarketing): Promise<InventarioMarketing>;
@@ -15746,6 +15753,33 @@ export class DatabaseStorage implements IStorage {
       totalSolicitudes: solicitudes.length,
       solicitudesPorEstado,
     };
+  }
+  
+  // Solicitantes de marketing (admin, supervisor, vendedor)
+  async getMarketingSolicitantes(): Promise<Array<{
+    id: number;
+    name: string;
+    role: string;
+  }>> {
+    // Get users with roles: admin, supervisor, salesperson
+    const allowedRoles = ['admin', 'supervisor', 'salesperson'];
+    
+    const results = await db
+      .select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        role: users.role,
+      })
+      .from(users)
+      .where(inArray(users.role, allowedRoles))
+      .orderBy(users.firstName, users.lastName);
+    
+    return results.map(u => ({
+      id: u.id,
+      name: `${u.firstName} ${u.lastName}`,
+      role: u.role,
+    }));
   }
 
   // Inventario Marketing operations
