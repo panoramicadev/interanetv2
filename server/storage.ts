@@ -1286,11 +1286,11 @@ export interface IStorage {
   updateInformeTecnico(id: string, informe: string, userId: string, userName: string): Promise<ReclamoGeneral>;
   
   // Resolución laboratorio con evidencia (DEPRECATED - usar updateResolucionArea)
-  updateResolucionLaboratorio(id: string, informe: string, categoriaResponsable: string, photos: Array<{ photoUrl: string; description?: string }>, userId: string, userName: string): Promise<ReclamoGeneral | null>;
+  updateResolucionLaboratorio(id: string, informe: string, categoriaResponsable: string, photos: Array<{ photoUrl: string; description?: string }>, userId: string, userName: string, documents?: Array<{ fileName: string; fileData: string; mimeType: string }>): Promise<ReclamoGeneral | null>;
   getReclamoGeneralResolucionPhotos(reclamoId: string): Promise<any[]>;
   
   // Resolución genérica para cualquier área responsable
-  updateResolucionArea(id: string, resolucionDescripcion: string, photos: Array<{ photoUrl: string; description?: string }>, userId: string, userName: string, userRole: string): Promise<ReclamoGeneral | null>;
+  updateResolucionArea(id: string, resolucionDescripcion: string, photos: Array<{ photoUrl: string; description?: string }>, userId: string, userName: string, userRole: string, documents?: Array<{ fileName: string; fileData: string; mimeType: string }>): Promise<ReclamoGeneral | null>;
   
   // Cerrar reclamo
   cerrarReclamoGeneral(id: string, userId: string, userName: string, notas?: string, photos?: Array<{ photoUrl: string; description?: string }>): Promise<ReclamoGeneral>;
@@ -13580,7 +13580,8 @@ export class DatabaseStorage implements IStorage {
     categoriaResponsable: string,
     photos: Array<{ photoUrl: string; description?: string }>,
     userId: string,
-    userName: string
+    userName: string,
+    documents?: Array<{ fileName: string; fileData: string; mimeType: string }>
   ): Promise<ReclamoGeneral | null> {
     // Obtener el reclamo antes de actualizarlo para guardar el estado anterior
     const reclamoAnterior = await this.getReclamoGeneralById(id);
@@ -13618,14 +13619,31 @@ export class DatabaseStorage implements IStorage {
       });
     }
     
+    // Crear los documentos de evidencia
+    const documentCount = documents?.length || 0;
+    if (documents && documents.length > 0) {
+      for (const doc of documents) {
+        await db.insert(reclamosGeneralesResolucionPhotos).values({
+          reclamoId: id,
+          photoUrl: doc.fileData,
+          description: `Documento: ${doc.fileName}`,
+        });
+      }
+    }
+    
     // Create historial entry
+    const evidenceNotes = [];
+    if (photos.length > 0) evidenceNotes.push(`${photos.length} foto(s)`);
+    if (documentCount > 0) evidenceNotes.push(`${documentCount} documento(s)`);
+    const evidenceText = evidenceNotes.length > 0 ? ` con ${evidenceNotes.join(' y ')} de evidencia` : '';
+    
     await this.createReclamoGeneralHistorial({
       reclamoId: id,
       estadoAnterior: reclamoAnterior.estado,
       estadoNuevo: 'resuelto',
       userId,
       userName,
-      notas: `Resolución de laboratorio agregada con ${photos.length} foto(s) de evidencia. Reclamo finalizado.`,
+      notas: `Resolución de laboratorio agregada${evidenceText}. Reclamo finalizado.`,
     });
 
     // Crear notificaciones para el técnico de obra y el vendedor
@@ -13680,7 +13698,8 @@ export class DatabaseStorage implements IStorage {
     photos: Array<{ photoUrl: string; description?: string }>,
     userId: string,
     userName: string,
-    userRole: string
+    userRole: string,
+    documents?: Array<{ fileName: string; fileData: string; mimeType: string }>
   ): Promise<ReclamoGeneral | null> {
     const reclamo = await this.getReclamoGeneralById(id);
     
@@ -13747,14 +13766,31 @@ export class DatabaseStorage implements IStorage {
       });
     }
     
+    // Crear los documentos de evidencia
+    const documentCount = documents?.length || 0;
+    if (documents && documents.length > 0) {
+      for (const doc of documents) {
+        await db.insert(reclamosGeneralesResolucionPhotos).values({
+          reclamoId: id,
+          photoUrl: doc.fileData,
+          description: `Documento: ${doc.fileName}`,
+        });
+      }
+    }
+    
     // Create historial entry
+    const evidenceNotes = [];
+    if (photos.length > 0) evidenceNotes.push(`${photos.length} foto(s)`);
+    if (documentCount > 0) evidenceNotes.push(`${documentCount} documento(s)`);
+    const evidenceText = evidenceNotes.length > 0 ? ` con ${evidenceNotes.join(' y ')} de evidencia` : '';
+    
     await this.createReclamoGeneralHistorial({
       reclamoId: id,
       estadoAnterior: reclamo.estado,
       estadoNuevo: 'resuelto',
       userId,
       userName,
-      notas: `Resolución agregada por ${areaUsuario} con ${photos.length} foto(s) de evidencia. Reclamo finalizado.`,
+      notas: `Resolución agregada por ${areaUsuario}${evidenceText}. Reclamo finalizado.`,
     });
 
     // Crear notificaciones para el técnico de obra y el vendedor
