@@ -15310,11 +15310,11 @@ export function registerRoutes(app: Express): Server {
     res.json(keywords);
   }));
 
-  // Create keyword (creates both desktop and mobile versions)
+  // Create keyword (only desktop version to save API credits)
   app.post('/api/seo/keywords', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { campaignId, keyword, urlObjetivo, ubicacion, idioma, activo } = req.body;
     
-    // Create desktop version
+    // Create desktop version only (to save SerpAPI credits)
     const desktopKeyword = await storage.createSeoKeyword({
       campaignId,
       keyword,
@@ -15325,18 +15325,7 @@ export function registerRoutes(app: Express): Server {
       activo: activo !== false,
     });
     
-    // Create mobile version
-    const mobileKeyword = await storage.createSeoKeyword({
-      campaignId,
-      keyword,
-      urlObjetivo,
-      ubicacion: ubicacion || 'Chile',
-      idioma: idioma || 'es',
-      dispositivo: 'mobile',
-      activo: activo !== false,
-    });
-    
-    res.status(201).json({ desktop: desktopKeyword, mobile: mobileKeyword });
+    res.status(201).json({ desktop: desktopKeyword });
   }));
 
   // Update keyword
