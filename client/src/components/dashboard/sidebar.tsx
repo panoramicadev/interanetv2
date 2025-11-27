@@ -17,7 +17,8 @@ import {
   Wrench,
   Receipt,
   AlertTriangle,
-  CalendarCheck
+  CalendarCheck,
+  Megaphone
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import type { User, SalespersonUser } from "@shared/schema";
@@ -224,6 +225,21 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
                   Inventario
                 </Button>
               </Link>
+              
+              {['admin', 'supervisor', 'salesperson'].includes(user?.role || '') && (
+                <Link href="/marketing">
+                  <Button
+                    variant="ghost"
+                    className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
+                      location === "/marketing" ? "bg-slate-800 text-white" : ""
+                    }`}
+                    data-testid="nav-marketing"
+                  >
+                    <Megaphone className="w-5 h-5 mr-3" />
+                    Marketing
+                  </Button>
+                </Link>
+              )}
               
               {user?.role === 'admin' && (
                 <>
