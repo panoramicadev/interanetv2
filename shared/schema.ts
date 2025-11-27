@@ -5327,3 +5327,96 @@ export const insertProyeccionVentaSchema = createInsertSchema(proyeccionesVentas
 });
 
 export type InsertProyeccionVentaInput = z.infer<typeof insertProyeccionVentaSchema>;
+
+// SEO Tracking - Campañas de posicionamiento web
+export const seoCampaigns = pgTable("seo_campaigns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nombre: varchar("nombre").notNull(),
+  dominio: varchar("dominio").notNull(), // ej: pinturaspanoramica.cl
+  descripcion: text("descripcion"),
+  activo: boolean("activo").default(true),
+  createdBy: varchar("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type SeoCampaign = typeof seoCampaigns.$inferSelect;
+export type InsertSeoCampaign = typeof seoCampaigns.$inferInsert;
+
+export const insertSeoCampaignSchema = createInsertSchema(seoCampaigns, {
+  nombre: z.string().min(1, "Nombre es requerido"),
+  dominio: z.string().min(1, "Dominio es requerido"),
+  descripcion: z.string().optional().nullable(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertSeoCampaignInput = z.infer<typeof insertSeoCampaignSchema>;
+
+// SEO Keywords - Palabras clave a monitorear
+export const seoKeywords = pgTable("seo_keywords", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  campaignId: varchar("campaign_id").notNull().references(() => seoCampaigns.id, { onDelete: 'cascade' }),
+  keyword: varchar("keyword").notNull(),
+  urlObjetivo: varchar("url_objetivo"), // URL específica a trackear
+  ubicacion: varchar("ubicacion").default("Chile"), // País o ciudad
+  idioma: varchar("idioma").default("es"),
+  dispositivo: varchar("dispositivo").default("desktop"), // desktop, mobile
+  ultimaPosicion: integer("ultima_posicion"), // Última posición encontrada
+  ultimaConsulta: timestamp("ultima_consulta"),
+  activo: boolean("activo").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  campaignIdx: index("IDX_seo_keywords_campaign").on(table.campaignId),
+  keywordIdx: index("IDX_seo_keywords_keyword").on(table.keyword),
+}));
+
+export type SeoKeyword = typeof seoKeywords.$inferSelect;
+export type InsertSeoKeyword = typeof seoKeywords.$inferInsert;
+
+export const insertSeoKeywordSchema = createInsertSchema(seoKeywords, {
+  campaignId: z.string().min(1, "Campaña es requerida"),
+  keyword: z.string().min(1, "Keyword es requerida"),
+  urlObjetivo: z.string().optional().nullable(),
+  ubicacion: z.string().default("Chile"),
+  idioma: z.string().default("es"),
+  dispositivo: z.enum(["desktop", "mobile"]).default("desktop"),
+}).omit({
+  id: true,
+  ultimaPosicion: true,
+  ultimaConsulta: true,
+  createdAt: true,
+});
+
+export type InsertSeoKeywordInput = z.infer<typeof insertSeoKeywordSchema>;
+
+// SEO Position History - Historial de posiciones
+export const seoPositionHistory = pgTable("seo_position_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  keywordId: varchar("keyword_id").notNull().references(() => seoKeywords.id, { onDelete: 'cascade' }),
+  posicion: integer("posicion"), // null si no aparece en resultados
+  urlEncontrada: varchar("url_encontrada"), // URL que apareció en esa posición
+  titulo: text("titulo"), // Título del resultado
+  snippet: text("snippet"), // Descripción del resultado
+  pagina: integer("pagina").default(1), // Página de resultados (1-10)
+  totalResultados: integer("total_resultados"),
+  fechaConsulta: timestamp("fecha_consulta").defaultNow(),
+  busquedasRestantes: integer("busquedas_restantes"), // Créditos restantes en API
+}, (table) => ({
+  keywordIdx: index("IDX_seo_history_keyword").on(table.keywordId),
+  fechaIdx: index("IDX_seo_history_fecha").on(table.fechaConsulta),
+}));
+
+export type SeoPositionHistory = typeof seoPositionHistory.$inferSelect;
+export type InsertSeoPositionHistory = typeof seoPositionHistory.$inferInsert;
+
+export const insertSeoPositionHistorySchema = createInsertSchema(seoPositionHistory, {
+  keywordId: z.string().min(1, "Keyword es requerida"),
+  posicion: z.number().int().optional().nullable(),
+  urlEncontrada: z.string().optional().nullable(),
+}).omit({
+  id: true,
+  fechaConsulta: true,
+});
