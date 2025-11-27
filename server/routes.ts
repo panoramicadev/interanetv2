@@ -657,6 +657,24 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // GDV Pending global endpoint - returns all pending GDV (no date filters)
+  // Returns GDV where esdo IS NULL or esdo != 'C' (open/pending deliveries)
+  app.get('/api/sales/gdv-pending', requireCommercialAccess, async (req, res) => {
+    try {
+      const { salesperson, segment } = req.query;
+      
+      const metrics = await storage.getGdvPendingGlobal({
+        salesperson: salesperson as string,
+        segment: segment as string,
+      });
+      
+      res.json(metrics);
+    } catch (error) {
+      console.error("Error fetching GDV pending:", error);
+      res.status(500).json({ message: "Failed to fetch GDV pending" });
+    }
+  });
+
   // Vendedor-specific metrics endpoint
   app.get('/api/sales/metrics/salesperson/:salespersonName', requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {

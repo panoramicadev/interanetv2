@@ -2222,6 +2222,51 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  // Get global GDV pending (no date filters) - all GDV where esdo IS NULL or esdo != 'C'
+  async getGdvPendingGlobal(filters: {
+    salesperson?: string;
+    segment?: string;
+  } = {}): Promise<{
+    gdvSales: number;
+    gdvCount: number;
+  }> {
+    const { salesperson, segment } = filters;
+    const conditions = [];
+    
+    // Filter for GDV document type
+    conditions.push(eq(factVentas.tido, 'GDV'));
+    
+    // Filter for pending status (esdo IS NULL or esdo != 'C')
+    conditions.push(
+      or(
+        isNull(factVentas.esdo),
+        ne(factVentas.esdo, 'C')
+      )
+    );
+    
+    if (salesperson) {
+      conditions.push(eq(factVentas.nokofu, salesperson));
+    }
+    if (segment) {
+      conditions.push(eq(factVentas.noruen, segment));
+    }
+
+    const whereClause = and(...conditions);
+
+    const [metrics] = await db
+      .select({
+        gdvSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        gdvCount: sql<number>`COUNT(*)`,
+      })
+      .from(factVentas)
+      .where(whereClause);
+
+    return {
+      gdvSales: Number(metrics.gdvSales),
+      gdvCount: Number(metrics.gdvCount),
+    };
+  }
+
   async getYearlyTotals(year: number): Promise<{
     currentYearTotal: number;
     previousYearTotal: number;
