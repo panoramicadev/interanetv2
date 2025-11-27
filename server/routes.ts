@@ -11598,15 +11598,15 @@ export function registerRoutes(app: Express): Server {
           return res.status(400).json({ message: 'Debe especificar el supervisor' });
         }
         
-        // Get supervisor info (can be supervisor or admin)
-        const supervisor = await storage.getUser(req.body.supervisorId);
+        // Get supervisor info from salespeople_users table
+        const supervisor = await storage.getSalespersonUser(req.body.supervisorId);
         if (!supervisor) {
           return res.status(404).json({ message: 'Supervisor no encontrado' });
         }
         
-        // Allow both supervisor and admin roles to be selected
-        if (supervisor.role !== 'supervisor' && supervisor.role !== 'admin') {
-          return res.status(400).json({ message: 'El usuario seleccionado debe ser supervisor o administrador' });
+        // Only allow supervisor role (admin can't be selected due to foreign key constraint)
+        if (supervisor.role !== 'supervisor') {
+          return res.status(400).json({ message: 'El usuario seleccionado debe ser supervisor' });
         }
         
         supervisorId = supervisor.id;
