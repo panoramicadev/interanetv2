@@ -2499,51 +2499,53 @@ export default function ReclamosGeneralesPage() {
               </div>
             )}
 
-            {/* Evidencia fotográfica */}
-            <div ref={resolucionUploadContainerRef}>
-              <Label>Evidencia Fotográfica (Opcional)</Label>
-              <p className="text-sm text-muted-foreground mb-2">
-                Puede adjuntar fotos de evidencia de la resolución si lo considera necesario
-              </p>
-              
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => resolucionFileInputRef.current?.click()}
-                className="w-full mb-4"
-                data-testid="button-add-evidencia"
-              >
-                <Camera className="h-4 w-4 mr-2" />
-                Adjuntar Fotos de Evidencia
-              </Button>
-              
-              {resolucionPreviewUrls.length > 0 && (
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  {resolucionPreviewUrls.map((url, index) => (
-                    <div key={index} className="relative group">
-                      <img
-                        src={url}
-                        alt={`Evidencia ${index + 1}`}
-                        className="w-full h-32 object-cover rounded border"
-                      />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        className="absolute top-2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => removeResolucionFile(index)}
-                        data-testid={`button-remove-evidencia-${index}`}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Evidencia fotográfica y documentos */}
+            <div ref={resolucionUploadContainerRef} className="space-y-6">
+              {/* Fotos */}
+              <div>
+                <Label>Evidencia Fotográfica (Opcional)</Label>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Puede adjuntar fotos de evidencia de la resolución si lo considera necesario
+                </p>
+                
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => resolucionFileInputRef.current?.click()}
+                  className="w-full mb-4"
+                  data-testid="button-add-evidencia"
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  Adjuntar Fotos de Evidencia
+                </Button>
+                
+                {resolucionPreviewUrls.length > 0 && (
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    {resolucionPreviewUrls.map((url, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={url}
+                          alt={`Evidencia ${index + 1}`}
+                          className="w-full h-32 object-cover rounded border"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => removeResolucionFile(index)}
+                          data-testid={`button-remove-evidencia-${index}`}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-            {/* Documentos adjuntos */}
-            <div>
+              {/* Documentos adjuntos */}
+              <div>
               <Label>Documentos Adjuntos (Opcional)</Label>
               <p className="text-sm text-muted-foreground mb-2">
                 Puede adjuntar documentos PDF, Word o Excel como respaldo
@@ -2585,6 +2587,7 @@ export default function ReclamosGeneralesPage() {
                   ))}
                 </div>
               )}
+            </div>
             </div>
 
             {/* Indicador de progreso */}
