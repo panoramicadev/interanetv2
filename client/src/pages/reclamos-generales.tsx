@@ -216,8 +216,6 @@ export default function ReclamosGeneralesPage() {
   // Refs to prevent modal closure when interacting with file upload areas
   const resolucionUploadContainerRef = useRef<HTMLDivElement>(null);
   const cerrarUploadContainerRef = useRef<HTMLDivElement>(null);
-  // State to block modal closure during file selection
-  const [isSelectingFile, setIsSelectingFile] = useState(false);
   const [showValidacionTecnicaModal, setShowValidacionTecnicaModal] = useState(false);
   const [selectedReclamoId, setSelectedReclamoId] = useState<string | null>(null);
   const [resumenExpanded, setResumenExpanded] = useState(false);
@@ -592,7 +590,6 @@ export default function ReclamosGeneralesPage() {
         title: "Resolución enviada",
         description: "La resolución del laboratorio ha sido registrada con éxito.",
       });
-      setIsSelectingFile(false);
       setShowResolucionLaboratorioModal(false);
       setInformeLaboratorio("");
       setCategoriaResponsable("");
@@ -632,7 +629,6 @@ export default function ReclamosGeneralesPage() {
         title: "Resolución enviada",
         description: "La resolución del área responsable ha sido registrada con éxito.",
       });
-      setIsSelectingFile(false);
       setShowResolucionLaboratorioModal(false);
       setInformeLaboratorio("");
       setResolucionPhotos([]);
@@ -812,8 +808,6 @@ export default function ReclamosGeneralesPage() {
 
   // Funciones para fotos de evidencia de resolución del laboratorio
   const handleResolucionFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Desactivar el bloqueo del modal
-    setIsSelectingFile(false);
     e.stopPropagation();
     const files = Array.from(e.target.files || []);
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
@@ -871,8 +865,6 @@ export default function ReclamosGeneralesPage() {
 
   // Función para manejar selección de documentos
   const handleResolucionDocSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Desactivar el bloqueo del modal
-    setIsSelectingFile(false);
     e.stopPropagation();
     const files = Array.from(e.target.files || []);
     const validTypes = [
@@ -2454,37 +2446,10 @@ export default function ReclamosGeneralesPage() {
       </Dialog>
 
       {/* Modal de Resolución del Laboratorio */}
-      <Dialog open={showResolucionLaboratorioModal} onOpenChange={(open) => {
-        // Block closing when file picker is active
-        if (!open && isSelectingFile) {
-          return;
-        }
-        setShowResolucionLaboratorioModal(open);
-      }}>
+      <Dialog open={showResolucionLaboratorioModal} onOpenChange={setShowResolucionLaboratorioModal}>
         <DialogContent 
           className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full"
           onOpenAutoFocus={(e) => e.preventDefault()}
-          onInteractOutside={(e) => {
-            // Block while file picker is active
-            if (isSelectingFile) {
-              e.preventDefault();
-              return;
-            }
-          }}
-          onPointerDownOutside={(e) => {
-            // Block while file picker is active
-            if (isSelectingFile) {
-              e.preventDefault();
-              return;
-            }
-          }}
-          onEscapeKeyDown={(e) => {
-            // Block escape while file picker is active
-            if (isSelectingFile) {
-              e.preventDefault();
-              return;
-            }
-          }}
         >
           <DialogHeader>
             <DialogTitle>
@@ -2545,11 +2510,14 @@ export default function ReclamosGeneralesPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => {
-                    setIsSelectingFile(true);
-                    setTimeout(() => {
-                      resolucionFileInputRef.current?.click();
-                    }, 50);
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    resolucionFileInputRef.current?.click();
                   }}
                   className="w-full mb-4"
                   data-testid="button-add-evidencia"
@@ -2593,11 +2561,14 @@ export default function ReclamosGeneralesPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => {
-                  setIsSelectingFile(true);
-                  setTimeout(() => {
-                    resolucionDocInputRef.current?.click();
-                  }, 50);
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  resolucionDocInputRef.current?.click();
                 }}
                 className="w-full mb-4"
                 data-testid="button-add-documento"
@@ -2646,7 +2617,6 @@ export default function ReclamosGeneralesPage() {
             <Button
               variant="outline"
               onClick={() => {
-                setIsSelectingFile(false);
                 setShowResolucionLaboratorioModal(false);
                 setInformeLaboratorio("");
                 setCategoriaResponsable("");
