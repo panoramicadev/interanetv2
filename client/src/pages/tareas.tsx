@@ -44,7 +44,11 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
-  Trash2
+  Trash2,
+  Circle,
+  Play,
+  Check,
+  Ban
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks } from "date-fns";
 import { es } from "date-fns/locale";
