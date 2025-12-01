@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { ArrowLeft, TrendingUp, ShoppingBag, Package, DollarSign, Clock, CalendarIcon } from "lucide-react";
+import { ArrowLeft, TrendingUp, ShoppingBag, Package, DollarSign, Clock, CalendarIcon, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,6 +16,7 @@ interface ClientDetails {
   transactionCount: number;
   averageTicket: number;
   purchaseFrequency: number; // days between purchases
+  segments: string[];
 }
 
 interface ClientProduct {
@@ -385,16 +386,27 @@ export default function ClientDetail() {
             <div className="modern-card p-5 lg:p-6 hover-lift">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-muted-foreground mb-2">Diversidad de Productos</p>
-                  <p className="text-xl lg:text-2xl font-bold text-teal-600">
-                    {isLoadingDetails ? 'Cargando...' : details?.totalProducts && details?.transactionCount 
-                      ? (details.totalProducts / details.transactionCount * 100).toFixed(1) 
-                      : '0.0'}%
-                    <span className="text-sm text-muted-foreground ml-1">variedad</span>
-                  </p>
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Segmentos de Compra</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {isLoadingDetails ? (
+                      <span className="text-sm text-muted-foreground">Cargando...</span>
+                    ) : details?.segments && details.segments.length > 0 ? (
+                      details.segments.map((segment, idx) => (
+                        <Badge 
+                          key={idx} 
+                          variant="secondary" 
+                          className="text-xs bg-teal-100 text-teal-700 hover:bg-teal-200"
+                        >
+                          {segment}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Sin segmentos</span>
+                    )}
+                  </div>
                 </div>
                 <div className="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center ml-4">
-                  <Package className="w-6 h-6 text-teal-600" />
+                  <Tag className="w-6 h-6 text-teal-600" />
                 </div>
               </div>
             </div>
