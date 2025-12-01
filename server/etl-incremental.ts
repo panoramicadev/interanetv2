@@ -261,7 +261,9 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
   
   let pool: mssql.ConnectionPool | null = null;
   const tiposDoc = ['FCV', 'GDV', 'FVL', 'NCV', 'BLV', 'FDV'];
-  const sucursales = ['004', '006', '007'];
+  // Sucursales vacío = extraer de TODAS las sucursales
+  // Para filtrar sucursales específicas, agregar códigos aquí: ['004', '006', '007']
+  const sucursales: string[] = [];
   let timeoutHandle: NodeJS.Timeout | null = null;
   let timedOut = false;
   let executionLogId: string | null = null; // ID del registro de ejecución
@@ -364,7 +366,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     console.log(`   Desde: ${lastWatermark.toISOString()}`);
     console.log(`   Hasta: ${currentWatermark.toISOString()}`);
     console.log(`   Tipos documento: ${tiposDoc.join(', ')}`);
-    console.log(`   Sucursales: ${sucursales.join(', ')}\n`);
+    console.log(`   Sucursales: ${sucursales.length > 0 ? sucursales.join(', ') : 'TODAS'}\n`);
 
     // Conectar a SQL Server con circuit breaker y retry
     console.log('🔄 Conectando a SQL Server...');
@@ -384,7 +386,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       status: 'running',
       period: periodLabel,
       documentTypes: tiposDoc.join(','),
-      branches: sucursales.join(','),
+      branches: sucursales.length > 0 ? sucursales.join(',') : 'TODAS',
       watermarkDate: currentWatermark,
     }).returning();
     
@@ -417,17 +419,22 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     console.log('║  📝 QUERY SQL MAEEDO - FILTROS APLICADOS                      ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
     console.log(`🔍 TIDO IN: ${tiposDoc.join(', ')}`);
-    console.log(`🔍 SUDO IN: ${sucursales.join(', ')}`);
+    console.log(`🔍 SUDO: ${sucursales.length > 0 ? sucursales.join(', ') : 'TODAS'}`);
     console.log(`🔍 FEEMDO >= '${startDateSQL}' (Fecha de emisión del documento)`);
     console.log(`🔍 FEEMDO <= '${endDateSQL}' (Fecha de emisión del documento)`);
     console.log('');
+    
+    // Construir filtro de sucursales solo si hay sucursales específicas
+    const sudoFilter = sucursales.length > 0 
+      ? `AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})` 
+      : '';
     
     const maeedo = await executeWithResilience(
       async () => pool.request().query(`
         SELECT *
         FROM dbo.MAEEDO
         WHERE TIDO IN (${tiposDoc.map(t => `'${t}'`).join(',')})
-          AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
+          ${sudoFilter}
           AND FEEMDO >= '${startDateSQL}'
           AND FEEMDO <= '${endDateSQL}'
         ORDER BY FEEMDO
@@ -748,12 +755,12 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         CAST(ed.nudo AS NUMERIC(20,0)),
         ed.endo,
         ed.suendo,
-        CAST(ed.sudo AS NUMERIC(20,0)),
+        CASE WHEN ed.sudo ~ '^[0-9]+$' THEN CAST(ed.sudo AS NUMERIC(20,0)) ELSE NULL END,
         ed.feemdo,
         ed.feer,
         ed.esdo,
         ed.espgdo,
-        ed.kofudo,
+        COALESCE(NULLIF(en.kofuen, ''), ed.kofudo),
         ed.modo,
         ed.timodo,
         ed.tamodo,
@@ -767,7 +774,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         CAST(NULL AS NUMERIC(20,0)),
         CAST(NULL AS NUMERIC(18,6)),
         CAST(ed.bosulido AS NUMERIC(20,0)),
-        ed.kofudo,
+        COALESCE(NULLIF(en.kofuen, ''), ed.kofudo),
         false,
         CAST(NULL AS NUMERIC(18,6)),
         pr.tipr,
@@ -828,7 +835,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       INNER JOIN ventas.stg_maeedo ed ON dd.idmaeedo = ed.idmaeedo
       LEFT JOIN ventas.stg_maeen en ON ed.endo = en.koen
       LEFT JOIN ventas.stg_maepr pr ON dd.koprct = pr.kopr
-      LEFT JOIN ventas.stg_maeven ve ON ed.kofudo = ve.kofu  -- Usar código vendedor del DOCUMENTO, no del cliente
+      LEFT JOIN ventas.stg_maeven ve ON COALESCE(NULLIF(en.kofuen, ''), ed.kofudo) = ve.kofu  -- Usa vendedor asignado al cliente, o si está vacío, vendedor del documento
       LEFT JOIN ventas.stg_tabru ru ON en.ruen = ru.koru
       LEFT JOIN ventas.stg_tabbo bo ON ed.suli = bo.suli AND ed.bosulido = bo.bosuli
       LEFT JOIN ventas.stg_tabpp pp ON dd.koprct = pp.kopr
@@ -1088,7 +1095,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
             status: 'error',
             period: 'incremental',
             documentTypes: tiposDoc.join(','),
-            branches: sucursales.join(','),
+            branches: sucursales.length > 0 ? sucursales.join(',') : 'TODAS',
             executionTimeMs,
             errorMessage: error.message,
           });

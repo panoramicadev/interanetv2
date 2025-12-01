@@ -91,3 +91,31 @@ The following were used for manual CSV import and are now deprecated:
 3. **Pending filter** - Always filter by `(eslido IS NULL OR eslido = '')` for pending NVV
 4. **ETL handles cleanup** - Full sync removes closed NVV automatically
 5. **Check deprecation warnings** - Functions log warnings when deprecated code is called
+
+## Ventas ETL Architecture (December 2025)
+
+### ETL Configuration
+- **File**: `server/etl-incremental.ts`
+- **Runs**: Every 30 minutes (configured in scheduler)
+- **Strategy**: Incremental UPSERT based on watermark date
+
+### Key Design Decisions
+1. **All Branches**: ETL extracts from ALL branches (no SUDO filter). The `sucursales` array is empty to include all branches including 004, 006, 007, SUR, and any others.
+2. **Vendor Attribution**: Uses `kofuen` (client-assigned salesperson) as primary, with fallback to `kofudo` (document salesperson). This matches official accounting reports.
+3. **Non-numeric Branch Codes**: The `sudo` field handles text-based branch codes (like "SUR") by using CASE WHEN regex check.
+
+### Vendor Logic
+```sql
+COALESCE(NULLIF(en.kofuen, ''), ed.kofudo)
+```
+- First tries client's assigned salesperson (kofuen from MAEEN)
+- Falls back to document salesperson (kofudo from MAEEDO) if kofuen is empty
+
+### Important Fields
+- `nokofu`: Salesperson name (from stg_maeven via COALESCE logic)
+- `kofudo`: Salesperson code (COALESCE of kofuen/kofudo)
+- `tido`: Document type (FCV=Invoice, GDV=Delivery Note, NCV=Credit Note, etc.)
+
+### Filtering for Reports
+- **Official Invoice Totals**: Filter by `tido = 'FCV'` to match accounting PDF reports
+- **All Documents**: Include FCV, GDV, FVL, NCV, BLV, FDV for complete picture
