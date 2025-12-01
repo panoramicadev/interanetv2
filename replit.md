@@ -45,6 +45,30 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Updates
 
+### NVV ETL - Full Synchronization Mode (December 1, 2025)
+- **Issue**: NVV ETL used incremental watermark-based approach which caused historical accumulation
+- **Problem**: NVV (Notas de Venta) are transient - they disappear when converted to GDV/invoices, so historical data was incorrect
+- **Solution**: Changed to full synchronization (snapshot) approach
+- **Changes Made (server/etl-nvv.ts)**:
+  - Removed watermark-based incremental extraction
+  - Now extracts ALL current NVV from SQL Server (no FEER date filter)
+  - Implements DELETE ALL + INSERT ALL strategy in atomic transaction
+  - NVV that no longer exist in source are automatically removed from fact_nvv
+- **Metrics Implementation**:
+  - `nvv_eliminadas`: Real count of NVV IDs that were removed (compared by ID, not delta)
+  - `status_changes`: Actual state transitions detected (open→closed)
+  - `records_inserted`: Total records inserted after sync
+  - Accurate metrics even when new NVV offset closed ones
+- **Dashboard Changes**:
+  - Vendor/segment mapping now uses fact_nvv table (kofulido field) instead of fact_ventas
+  - Fixed column name bug (total_pendiente vs totalPendiente)
+- **Benefits**:
+  - ✅ Reflects current pending sales state accurately
+  - ✅ Automatically removes NVV converted to invoices
+  - ✅ Accurate metrics for monitoring
+  - ✅ Proper snapshot behavior for transient data
+- **Status**: ✅ Fully implemented and tested
+
 ### Unified Tasks System Implementation (December 1, 2025)
 - **Feature**: Unified task management system that integrates marketing tasks with general tasks
 - **Schema Changes**:
