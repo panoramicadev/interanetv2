@@ -6019,16 +6019,18 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/quotes', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
-      const { status, clientName, limit = 50, offset = 0 } = req.query;
+      const { status, clientName, createdBy, dateFrom, dateTo, limit = 50, offset = 0 } = req.query;
       
       const filters: any = {
-        limit: Math.min(parseInt(limit) || 50, 100),
+        limit: Math.min(parseInt(limit) || 500, 500),
         offset: parseInt(offset) || 0,
       };
       
       // Add filters based on role and user permissions
       if (user.role === 'salesperson') {
         filters.createdBy = user.id;
+      } else if (createdBy) {
+        filters.createdBy = createdBy;
       }
       
       if (status) {
@@ -6038,12 +6040,31 @@ export function registerRoutes(app: Express): Server {
       if (clientName) {
         filters.clientName = clientName;
       }
+
+      if (dateFrom) {
+        filters.dateFrom = dateFrom;
+      }
+
+      if (dateTo) {
+        filters.dateTo = dateTo;
+      }
       
       const quotes = await storage.getQuotes(filters);
       res.json(quotes);
     } catch (error) {
       console.error("Error fetching quotes:", error);
       res.status(500).json({ message: "Failed to fetch quotes" });
+    }
+  });
+
+  // Get unique quote creators for filter dropdown
+  app.get('/api/quotes/creators', requireAuth, async (req: any, res) => {
+    try {
+      const creators = await storage.getQuoteCreators();
+      res.json(creators);
+    } catch (error) {
+      console.error("Error fetching quote creators:", error);
+      res.status(500).json({ message: "Failed to fetch quote creators" });
     }
   });
 
