@@ -45,6 +45,31 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Updates
 
+### Unified Tasks System Implementation (December 1, 2025)
+- **Feature**: Unified task management system that integrates marketing tasks with general tasks
+- **Schema Changes**:
+  - Added `tipo` field to `tareas_marketing` table with values 'marketing' | 'general' (default: 'marketing')
+  - Created index on `tipo` column for efficient filtering
+- **Backend Implementation (server/routes.ts, server/storage.ts)**:
+  - New `/api/tareas` endpoint suite with full RBAC:
+    - GET `/api/tareas` - List tasks with role-based filtering
+    - GET `/api/tareas/usuarios-asignables` - Get assignable users based on role
+    - GET `/api/tareas/:id` - Get single task
+    - POST `/api/tareas` - Create new task (admin/supervisor only)
+    - PATCH `/api/tareas/:id` - Update task
+    - POST `/api/tareas/:id/toggle` - Toggle task status
+    - DELETE `/api/tareas/:id` - Delete task (admin only)
+  - Role-based access control:
+    - Admin: Full access, can assign to anyone
+    - Supervisor: Can view/assign to team members only (via supervisorId relationship)
+    - Salesperson: Can view only assigned tasks, can toggle status
+  - Updated existing `/api/marketing/tareas` to filter/create with `tipo='marketing'`
+- **Frontend Integration**:
+  - Added "Tareas" menu item to sidebar for admin, supervisor, and salesperson roles
+  - Marketing tasks appear in both marketing module and general tasks panel when tipo='marketing'
+- **Security**: DELETE restricted to admin-only; supervisors cannot access outside-team tasks
+- **Status**: ✅ Fully implemented and tested
+
 ### CMMS Mantenciones - Complete Access for Jefe Planta and Mantencion (November 23, 2025)
 - **Issue**: Jefe_planta and mantencion roles needed full access to ALL maintenance module functionalities (create OT, assign technicians, change status, submit resolutions, close OT, pause/resume, manage expenses, update, delete)
 - **Root Cause**: Backend endpoints had hardcoded `allowedRoles` lists that were incomplete for maintenance operations
