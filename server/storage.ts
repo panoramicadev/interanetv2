@@ -5235,6 +5235,7 @@ export class DatabaseStorage implements IStorage {
     transactionCount: number;
     averageTicket: number;
     purchaseFrequency: number;
+    segments: string[];
   }> {
     const conditions = [
       eq(factVentas.nokoen, clientName),
@@ -5305,6 +5306,19 @@ export class DatabaseStorage implements IStorage {
       .from(factVentas)
       .where(and(...conditions));
 
+    // Get unique segments for this client in the period
+    const segmentResults = await db
+      .selectDistinct({
+        segment: factVentas.noruen
+      })
+      .from(factVentas)
+      .where(and(...conditions));
+    
+    const segments = segmentResults
+      .map(r => r.segment)
+      .filter((s): s is string => !!s && s.trim() !== '')
+      .sort();
+
     // Calculate purchase frequency
     const firstPurchase = new Date(result.firstPurchase);
     const lastPurchase = new Date(result.lastPurchase);
@@ -5316,7 +5330,8 @@ export class DatabaseStorage implements IStorage {
       totalProducts: Number(result.totalProducts),
       transactionCount: Number(result.transactionCount),
       averageTicket: Number(result.averageTicket),
-      purchaseFrequency: Number(purchaseFrequency.toFixed(1))
+      purchaseFrequency: Number(purchaseFrequency.toFixed(1)),
+      segments
     };
   }
 
