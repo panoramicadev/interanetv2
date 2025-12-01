@@ -17945,11 +17945,11 @@ export class DatabaseStorage implements IStorage {
 
   async getRunningETLExecution(etlName: string): Promise<any | undefined> {
     const result = await db.execute(sql`
-      SELECT id, etl_name, execution_date, status, period, watermark_date
+      SELECT id, etl_name, start_time, status, period, watermark_date
       FROM ventas.etl_execution_log
       WHERE etl_name = ${etlName}
         AND status = 'running'
-      ORDER BY execution_date DESC
+      ORDER BY start_time DESC
       LIMIT 1
     `);
     
@@ -17965,7 +17965,7 @@ export class DatabaseStorage implements IStorage {
       SET 
         status = 'cancelled',
         error_message = ${errorMessage},
-        execution_time_ms = EXTRACT(EPOCH FROM (${now.toISOString()}::timestamp - execution_date)) * 1000
+        execution_time_ms = EXTRACT(EPOCH FROM (${now.toISOString()}::timestamp - start_time)) * 1000
       WHERE id = ${executionId}
     `);
   }
