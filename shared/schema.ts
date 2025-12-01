@@ -2263,10 +2263,34 @@ export type CartItemType = z.infer<typeof cartItemSchema>;
 export type CartStateType = z.infer<typeof cartStateSchema>;
 
 // ==============================================
-// NVV (Notas de Ventas Pendientes) Table
+// ⚠️ DEPRECATED: NVV (Notas de Ventas Pendientes) Table
+// ==============================================
+// 
+// ⛔ DO NOT USE - This table and associated schemas are DEPRECATED as of December 2025
+// 
+// The NVV system now uses ETL-based data from the following tables:
+//   - nvv.fact_nvv (main NVV data from ETL - USE THIS)
+//   - nvv.stg_* (staging tables for ETL)
+//   - nvv.nvv_sync_log (ETL execution logs)
+//   - nvv.nvv_sync_changes (change tracking)
+//
+// This legacy table was used for manual CSV imports but has been replaced by
+// automated ETL from SQL Server (MAEEDDO, MAEDDDO, etc. tables).
+//
+// The following are kept for backward compatibility but should NOT be used:
+//   - nvvPendingSales table
+//   - insertNvvPendingSalesSchema
+//   - nvvCsvImportSchema
+//   - nvvImportResultSchema
+//
+// See: server/etl-nvv.ts for the current ETL implementation
+// See: server/storage.ts getNvvDashboardData() for current data access pattern
 // ==============================================
 
-// Notas de Ventas Pendientes table for committed orders
+/**
+ * @deprecated Use nvv.fact_nvv from ETL instead. This table is no longer actively used.
+ * Kept for backward compatibility only. Do not add new code that references this table.
+ */
 export const nvvPendingSales = pgTable("nvv_pending_sales", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   
@@ -2389,10 +2413,15 @@ export type NVVTrendPoint = z.infer<typeof nvvTrendPointSchema>;
 export type NVVBreakdownItem = z.infer<typeof nvvBreakdownItemSchema>;
 
 // ==============================================
-// NVV Pending Sales Schemas
+// ⚠️ DEPRECATED: NVV Pending Sales Schemas
 // ==============================================
+// These schemas were used for CSV import which is now replaced by ETL.
+// See deprecation notice above nvvPendingSales table for details.
 
-// NVV Pending Sales insert schema (for CSV import)
+/**
+ * @deprecated CSV import has been replaced by automated ETL from SQL Server.
+ * Do not use for new development.
+ */
 export const insertNvvPendingSalesSchema = createInsertSchema(nvvPendingSales).omit({
   id: true,
   importedAt: true,
@@ -2400,7 +2429,10 @@ export const insertNvvPendingSalesSchema = createInsertSchema(nvvPendingSales).o
   updatedAt: true,
 });
 
-// NVV Pending Sales CSV import schema (flexible for different CSV formats)
+/**
+ * @deprecated CSV import has been replaced by automated ETL from SQL Server.
+ * Do not use for new development.
+ */
 export const nvvCsvImportSchema = z.object({
   // Core required fields
   documentNumber: z.string().min(1, "Número de documento requerido"),
@@ -2428,7 +2460,10 @@ export const nvvCsvImportSchema = z.object({
   notes: z.string().optional(),
 });
 
-// NVV Import result schema
+/**
+ * @deprecated CSV import has been replaced by automated ETL from SQL Server.
+ * Do not use for new development.
+ */
 export const nvvImportResultSchema = z.object({
   success: z.boolean(),
   totalRows: z.number(),
@@ -2469,10 +2504,14 @@ export const insertComunaRegionMappingSchema = createInsertSchema(comunaRegionMa
   updatedAt: true,
 });
 
-// Export NVV Pending Sales types
+// ⚠️ DEPRECATED: Export NVV Pending Sales types (use nvv.fact_nvv from ETL instead)
+/** @deprecated Use ETL data from nvv.fact_nvv instead */
 export type NvvPendingSales = typeof nvvPendingSales.$inferSelect;
+/** @deprecated Use ETL data from nvv.fact_nvv instead */
 export type InsertNvvPendingSales = z.infer<typeof insertNvvPendingSalesSchema>;
+/** @deprecated CSV import replaced by ETL */
 export type NvvCsvImport = z.infer<typeof nvvCsvImportSchema>;
+/** @deprecated CSV import replaced by ETL */
 export type NvvImportResult = z.infer<typeof nvvImportResultSchema>;
 
 // Export Comuna-Region Mapping types
