@@ -7804,8 +7804,31 @@ export function registerRoutes(app: Express): Server {
   // ==============================================
   // NVV (Notas de Ventas Pendientes) Endpoints
   // ==============================================
+  //
+  // ⚠️ ARCHITECTURE NOTE (December 2025):
+  // The NVV system now uses ETL-based data from nvv.fact_nvv.
+  //
+  // CURRENT (ACTIVE) endpoints - use nvv.fact_nvv from ETL:
+  //   - GET /api/nvv/pending
+  //   - GET /api/nvv/total
+  //   - GET /api/nvv/metrics
+  //   - GET /api/nvv/dashboard
+  //   - GET /api/nvv/by-salesperson/:salesperson
+  //   - GET /api/nvv/etl/status (ETL management)
+  //   - POST /api/nvv/etl/run (ETL trigger)
+  //
+  // DEPRECATED endpoints - use nvv_pending_sales table (CSV import):
+  //   - POST /api/nvv/import - DEPRECATED
+  //   - DELETE /api/nvv/clear-all - DEPRECATED
+  //   - DELETE /api/nvv/batch/:batchId - DEPRECATED
+  //
+  // See: server/etl-nvv.ts for the current ETL implementation
+  // ==============================================
 
-  // NVV CSV Import endpoint
+  /**
+   * @deprecated This endpoint is DEPRECATED. NVV data is now loaded via automated ETL.
+   * See /api/nvv/etl/run for triggering the current ETL process.
+   */
   app.post('/api/nvv/import', requireAuth, 
     upload.single('file'),
     asyncHandler(async (req: any, res: any) => {
@@ -7918,7 +7941,10 @@ export function registerRoutes(app: Express): Server {
     res.json(pendingSales);
   }));
 
-  // Clear all NVV data - DESTRUCTIVE OPERATION
+  /**
+   * @deprecated This endpoint is DEPRECATED. It operates on the deprecated nvv_pending_sales table.
+   * NVV data is now managed via ETL which handles its own cleanup through full synchronization.
+   */
   app.delete('/api/nvv/clear-all', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       // Restrict to admin role only for safety
@@ -8002,7 +8028,10 @@ export function registerRoutes(app: Express): Server {
     res.json({ success: true, message: 'Estado actualizado (temporalmente deshabilitado)' });
   }));
 
-  // Delete NVV batch
+  /**
+   * @deprecated This endpoint is DEPRECATED. It operates on the deprecated nvv_pending_sales table.
+   * NVV batch management is now handled by ETL through full synchronization.
+   */
   app.delete('/api/nvv/batch/:batchId', requireAuth, asyncHandler(async (req: any, res: any) => {
     const { batchId } = req.params;
 
