@@ -25,7 +25,8 @@ import {
   Database,
   Bell,
   Key,
-  Calendar
+  Calendar,
+  ExternalLink
 } from "lucide-react";
 
 interface SidebarItem {
@@ -36,6 +37,7 @@ interface SidebarItem {
   comingSoon?: boolean;
   separator?: boolean; // Para mostrar separador después del item
   children?: SidebarItem[]; // Para submenús desplegables
+  isExternalCatalog?: boolean; // Para el enlace dinámico al catálogo público
 }
 
 export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
@@ -579,6 +581,12 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/gastos-empresariales",
       label: "Rendición de Gastos",
       icon: Banknote,
+    },
+    {
+      href: "/catalogo",
+      label: "Mi Catálogo",
+      icon: ExternalLink,
+      isExternalCatalog: true,
     },
     // Tintometría oculta temporalmente para vendedores
     // {
