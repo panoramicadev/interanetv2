@@ -10616,15 +10616,28 @@ export class DatabaseStorage implements IStorage {
       .offset(offset);
     
     // Flatten the result to include creator info directly on quote object
-    return result.map(row => ({
-      ...row.quote,
-      creatorEmail: row.creatorEmail,
-      creatorFirstName: row.creatorFirstName,
-      creatorLastName: row.creatorLastName,
-      creatorName: row.creatorFirstName && row.creatorLastName 
-        ? `${row.creatorFirstName} ${row.creatorLastName}`
-        : row.creatorFirstName || row.creatorLastName || row.creatorEmail?.split('@')[0] || 'Usuario'
-    }));
+    return result.map(row => {
+      let creatorName = 'Usuario desconocido';
+      
+      if (row.creatorFirstName && row.creatorLastName) {
+        creatorName = `${row.creatorFirstName} ${row.creatorLastName}`;
+      } else if (row.creatorFirstName) {
+        creatorName = row.creatorFirstName;
+      } else if (row.creatorLastName) {
+        creatorName = row.creatorLastName;
+      } else if (row.creatorEmail) {
+        // Use email username part if no name is available
+        creatorName = row.creatorEmail.split('@')[0];
+      }
+      
+      return {
+        ...row.quote,
+        creatorEmail: row.creatorEmail,
+        creatorFirstName: row.creatorFirstName,
+        creatorLastName: row.creatorLastName,
+        creatorName
+      };
+    });
   }
 
   async getQuoteCreators(): Promise<Array<{id: string; name: string}>> {
