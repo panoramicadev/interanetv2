@@ -109,6 +109,7 @@ export function setupAuth(app: Express) {
         lastName: user.lastName || undefined,
         profileImageUrl: user.profileImageUrl || undefined,
         salespersonName: user.salespersonName || undefined,
+        publicSlug: (user as any).publicSlug || undefined,
         role: user.role || 'user'
       });
     } catch (error) {
@@ -240,6 +241,7 @@ export function setupAuth(app: Express) {
       lastName: user.lastName,
       role: user.role,
       salespersonName: user.salespersonName,
+      publicSlug: (user as any).publicSlug,
     });
   });
 }
