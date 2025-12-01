@@ -7919,10 +7919,16 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // Get NVV total summary without date filters
+  // Get NVV total summary without date filters (supports segment filter)
   app.get('/api/nvv/total', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const totalSummary = await storage.getNvvTotalSummary();
+      const { salesperson, segment } = req.query;
+      const options: { salesperson?: string; segment?: string } = {};
+      
+      if (salesperson) options.salesperson = salesperson as string;
+      if (segment) options.segment = segment as string;
+      
+      const totalSummary = await storage.getNvvTotalSummary(options);
       res.json(totalSummary);
     } catch (error) {
       console.error('Error fetching NVV total summary:', error);
