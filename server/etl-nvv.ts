@@ -799,6 +799,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         LEFT JOIN nvv.stg_maepr_nvv pr ON dd.koprct = pr.kopr
         LEFT JOIN ventas.stg_tabru ru_prod ON pr.rupr = ru_prod.koru -- Segmento del producto
         LEFT JOIN ventas.stg_tabru ru_cli ON en.ruen = ru_cli.koru -- Segmento del cliente
+        WHERE dd.eslido IS NULL OR dd.eslido = '' -- Solo insertar líneas pendientes (no cerradas)
       `);
     });
 
