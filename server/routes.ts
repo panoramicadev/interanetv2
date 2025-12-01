@@ -8078,6 +8078,74 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Get NVV salesperson mapping from fact_nvv table
+  // This endpoint provides the correct mapping for NVV data (KOFULIDO -> name and segment)
+  app.get('/api/nvv/salesperson-mapping', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      // Get unique salesperson mapping from fact_nvv (NVV ETL data)
+      const salespersonResults = await db.execute(sql`
+        SELECT DISTINCT kofulido, nombre_vendedor
+        FROM nvv.fact_nvv 
+        WHERE kofulido IS NOT NULL 
+          AND kofulido != ''
+          AND nombre_vendedor IS NOT NULL
+          AND nombre_vendedor != ''
+      `);
+
+      // Create mapping object: kofulido -> nombre_vendedor
+      const kofulidoToName: Record<string, string> = {};
+      salespersonResults.rows.forEach((result: any) => {
+        if (result.kofulido && result.nombre_vendedor) {
+          kofulidoToName[result.kofulido.trim()] = result.nombre_vendedor.trim();
+        }
+      });
+
+      // Get mapping from kofulido to segment from fact_nvv
+      const segmentResults = await db.execute(sql`
+        SELECT DISTINCT kofulido, nombre_segmento_cliente
+        FROM nvv.fact_nvv 
+        WHERE kofulido IS NOT NULL 
+          AND kofulido != ''
+          AND nombre_segmento_cliente IS NOT NULL
+          AND nombre_segmento_cliente != ''
+      `);
+
+      // Create mapping: kofulido -> primary segment (first non-empty segment found)
+      const kofulidoToSegment: Record<string, string> = {};
+      segmentResults.rows.forEach((result: any) => {
+        if (result.kofulido && result.nombre_segmento_cliente) {
+          const code = result.kofulido.trim();
+          // Only set if not already set (keep first match)
+          if (!kofulidoToSegment[code]) {
+            kofulidoToSegment[code] = result.nombre_segmento_cliente.trim();
+          }
+        }
+      });
+
+      // Get unique segments
+      const uniqueSegmentsResult = await db.execute(sql`
+        SELECT DISTINCT nombre_segmento_cliente 
+        FROM nvv.fact_nvv 
+        WHERE nombre_segmento_cliente IS NOT NULL 
+          AND nombre_segmento_cliente != ''
+        ORDER BY nombre_segmento_cliente
+      `);
+
+      const segments: string[] = uniqueSegmentsResult.rows
+        .map((r: any) => r.nombre_segmento_cliente?.trim())
+        .filter((s: string) => s);
+
+      res.json({
+        kofulidoToName,
+        kofulidoToSegment,
+        segments
+      });
+    } catch (error: any) {
+      console.error('Error fetching NVV salesperson mapping:', error);
+      res.status(500).json({ message: 'Failed to fetch NVV salesperson mapping' });
+    }
+  }));
+
   // Get NVV Dashboard metrics
   app.get('/api/nvv/dashboard', requireAuth, asyncHandler(async (req: any, res: any) => {
     const metrics = await storage.getNvvDashboardMetrics();
