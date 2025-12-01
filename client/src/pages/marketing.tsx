@@ -3426,7 +3426,7 @@ function CalendarioHitos({
     onAnioChange(today.getFullYear());
   };
 
-  const { data: hitos, isLoading } = useQuery<HitoMarketing[]>({
+  const { data: hitos, isLoading: hitosLoading } = useQuery<HitoMarketing[]>({
     queryKey: ['/api/marketing/hitos', mes, anio],
     queryFn: async () => {
       const response = await fetch(`/api/marketing/hitos?mes=${mes}&anio=${anio}`, {
@@ -3438,6 +3438,21 @@ function CalendarioHitos({
       return response.json();
     },
   });
+
+  const { data: tareas, isLoading: tareasLoading } = useQuery<TareaMarketing[]>({
+    queryKey: ['/api/marketing/tareas', mes, anio, 'calendario'],
+    queryFn: async () => {
+      const response = await fetch(`/api/marketing/tareas?mes=${mes}&anio=${anio}&incluirPorFechaLimite=true`, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error('Error al cargar tareas');
+      }
+      return response.json();
+    },
+  });
+
+  const isLoading = hitosLoading || tareasLoading;
 
   const currentMonth = new Date(anio, mes - 1, 1);
   const monthStart = startOfMonth(currentMonth);
@@ -3471,11 +3486,26 @@ function CalendarioHitos({
     });
   };
 
+  const getTareasForDay = (day: Date) => {
+    if (!tareas) return [];
+    return tareas.filter(tarea => {
+      if (!tarea.fechaLimite) return false;
+      const tareaDate = parseDateFromAPI(tarea.fechaLimite);
+      return tareaDate && isSameDay(tareaDate, day);
+    });
+  };
+
   const tipoColors = {
     general: 'bg-blue-500',
     campaña: 'bg-purple-500',
     evento: 'bg-green-500',
     deadline: 'bg-red-500',
+  };
+
+  const tareaEstadoColors = {
+    pendiente: 'bg-orange-500',
+    en_proceso: 'bg-yellow-500',
+    completado: 'bg-emerald-600',
   };
 
   return (
@@ -3561,6 +3591,10 @@ function CalendarioHitos({
                   <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-red-500" />
                   <span>Deadline</span>
                 </div>
+                <div className="border-l border-border pl-2 sm:pl-4 flex items-center gap-1 sm:gap-2">
+                  <ClipboardList className="w-3 h-3 sm:w-4 sm:h-4 text-orange-500" />
+                  <span>Tareas</span>
+                </div>
               </div>
 
               {/* Calendar Grid */}
@@ -3580,7 +3614,11 @@ function CalendarioHitos({
                 {/* Days of the month */}
                 {daysInMonth.map((day) => {
                   const dayHitos = getHitosForDay(day);
+                  const dayTareas = getTareasForDay(day);
                   const isToday = isSameDay(day, new Date());
+                  const totalItems = dayHitos.length + dayTareas.length;
+                  const maxVisible = 2;
+                  let itemsShown = 0;
 
                   return (
                     <div
@@ -3595,21 +3633,41 @@ function CalendarioHitos({
                         {format(day, 'd')}
                       </div>
                       <div className="space-y-0.5 sm:space-y-1">
-                        {dayHitos.slice(0, 2).map((hito) => (
-                          <div
-                            key={hito.id}
-                            className={`text-[8px] sm:text-xs p-0.5 sm:p-1 rounded truncate cursor-pointer ${tipoColors[hito.tipo]} text-white flex items-center gap-0.5 sm:gap-1`}
-                            onClick={(e) => handleHitoClick(hito, e)}
-                            title={hito.titulo}
-                            data-testid={`hito-${hito.id}`}
-                          >
-                            {hito.completado && <CheckSquare className="h-2 w-2 sm:h-3 sm:w-3 flex-shrink-0" />}
-                            <span className="truncate">{hito.titulo}</span>
-                          </div>
-                        ))}
-                        {dayHitos.length > 2 && (
+                        {/* Mostrar hitos */}
+                        {dayHitos.slice(0, maxVisible).map((hito) => {
+                          itemsShown++;
+                          return (
+                            <div
+                              key={`hito-${hito.id}`}
+                              className={`text-[8px] sm:text-xs p-0.5 sm:p-1 rounded truncate cursor-pointer ${tipoColors[hito.tipo]} text-white flex items-center gap-0.5 sm:gap-1`}
+                              onClick={(e) => handleHitoClick(hito, e)}
+                              title={hito.titulo}
+                              data-testid={`hito-${hito.id}`}
+                            >
+                              {hito.completado && <CheckSquare className="h-2 w-2 sm:h-3 sm:w-3 flex-shrink-0" />}
+                              <span className="truncate">{hito.titulo}</span>
+                            </div>
+                          );
+                        })}
+                        {/* Mostrar tareas (solo si hay espacio después de los hitos) */}
+                        {dayTareas.slice(0, Math.max(0, maxVisible - dayHitos.length)).map((tarea) => {
+                          itemsShown++;
+                          return (
+                            <div
+                              key={`tarea-${tarea.id}`}
+                              className={`text-[8px] sm:text-xs p-0.5 sm:p-1 rounded truncate cursor-pointer ${tareaEstadoColors[tarea.estado]} text-white flex items-center gap-0.5 sm:gap-1`}
+                              onClick={(e) => e.stopPropagation()}
+                              title={`Tarea: ${tarea.titulo}`}
+                              data-testid={`tarea-cal-${tarea.id}`}
+                            >
+                              <ClipboardList className="h-2 w-2 sm:h-3 sm:w-3 flex-shrink-0" />
+                              <span className="truncate">{tarea.titulo}</span>
+                            </div>
+                          );
+                        })}
+                        {totalItems > maxVisible && (
                           <div className="text-[8px] sm:text-xs text-muted-foreground">
-                            +{dayHitos.length - 2}
+                            +{totalItems - maxVisible}
                           </div>
                         )}
                       </div>

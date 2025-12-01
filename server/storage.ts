@@ -16064,15 +16064,39 @@ export class DatabaseStorage implements IStorage {
     anio?: number;
     estado?: string;
     asignadoAId?: string;
+    incluirPorFechaLimite?: boolean;
   }): Promise<TareaMarketing[]> {
     const conditions = [];
     
-    if (filters?.mes) {
-      conditions.push(eq(tareasMarketing.mes, filters.mes));
+    if (filters?.mes && filters?.anio) {
+      if (filters.incluirPorFechaLimite) {
+        const startOfMonth = new Date(filters.anio, filters.mes - 1, 1);
+        const endOfMonth = new Date(filters.anio, filters.mes, 0);
+        const startStr = startOfMonth.toISOString().split('T')[0];
+        const endStr = endOfMonth.toISOString().split('T')[0];
+        
+        conditions.push(
+          or(
+            and(eq(tareasMarketing.mes, filters.mes), eq(tareasMarketing.anio, filters.anio)),
+            and(
+              gte(tareasMarketing.fechaLimite, startStr),
+              lte(tareasMarketing.fechaLimite, endStr)
+            )
+          )
+        );
+      } else {
+        conditions.push(eq(tareasMarketing.mes, filters.mes));
+        conditions.push(eq(tareasMarketing.anio, filters.anio));
+      }
+    } else {
+      if (filters?.mes) {
+        conditions.push(eq(tareasMarketing.mes, filters.mes));
+      }
+      if (filters?.anio) {
+        conditions.push(eq(tareasMarketing.anio, filters.anio));
+      }
     }
-    if (filters?.anio) {
-      conditions.push(eq(tareasMarketing.anio, filters.anio));
-    }
+    
     if (filters?.estado) {
       conditions.push(eq(tareasMarketing.estado, filters.estado));
     }

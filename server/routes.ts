@@ -12184,13 +12184,14 @@ export function registerRoutes(app: Express): Server {
   // Get all tareas with filters
   app.get('/api/marketing/tareas', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
-      const { mes, anio, estado, asignadoAId } = req.query;
+      const { mes, anio, estado, asignadoAId, incluirPorFechaLimite } = req.query;
       
       const filters: any = {};
       if (mes) filters.mes = parseInt(mes);
       if (anio) filters.anio = parseInt(anio);
       if (estado) filters.estado = estado;
       if (asignadoAId) filters.asignadoAId = asignadoAId;
+      if (incluirPorFechaLimite === 'true') filters.incluirPorFechaLimite = true;
       
       const tareas = await storage.getTareasMarketing(filters);
       res.json(tareas);
