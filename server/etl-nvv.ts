@@ -764,7 +764,8 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
           dd.ud02pr,
           dd.ppprne,
           dd.vaneli,
-          dd.vaneli as monto,
+          -- Monto PENDIENTE = (cantidad pedida - cantidad entregada) * precio
+          (GREATEST(COALESCE(dd.caprco2, 0) - COALESCE(dd.caprex2, 0), 0) * COALESCE(dd.ppprne, 0)) as monto,
           en.nokoen,
           en.ruen, -- Código de segmento del cliente
           ru_cli.nokoru as nombre_segmento_cliente, -- Nombre de segmento del cliente (desde ventas.stg_tabru)
