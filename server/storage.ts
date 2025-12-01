@@ -16057,7 +16057,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(hitosMarketing.id, id));
   }
 
-  // ==================== TAREAS DE MARKETING ====================
+  // ==================== TAREAS (UNIFICADAS) ====================
 
   async getTareasMarketing(filters?: {
     mes?: number;
@@ -16065,6 +16065,8 @@ export class DatabaseStorage implements IStorage {
     estado?: string;
     asignadoAId?: string;
     incluirPorFechaLimite?: boolean;
+    tipo?: string;
+    asignadoAIds?: string[];
   }): Promise<TareaMarketing[]> {
     const conditions = [];
     
@@ -16103,12 +16105,25 @@ export class DatabaseStorage implements IStorage {
     if (filters?.asignadoAId) {
       conditions.push(eq(tareasMarketing.asignadoAId, filters.asignadoAId));
     }
+    if (filters?.asignadoAIds && filters.asignadoAIds.length > 0) {
+      conditions.push(inArray(tareasMarketing.asignadoAId, filters.asignadoAIds));
+    }
+    if (filters?.tipo) {
+      conditions.push(eq(tareasMarketing.tipo, filters.tipo));
+    }
 
     return await db
       .select()
       .from(tareasMarketing)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(tareasMarketing.createdAt));
+  }
+
+  async getVendedoresBySupervisor(supervisorId: string): Promise<SalespersonUser[]> {
+    return await db
+      .select()
+      .from(salespeopleUsers)
+      .where(eq(salespeopleUsers.supervisorId, supervisorId));
   }
 
   async getTareaMarketingById(id: string): Promise<TareaMarketing | undefined> {
