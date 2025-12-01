@@ -11135,10 +11135,10 @@ export class DatabaseStorage implements IStorage {
         ? sql`WHERE ${sql.join(conditions, sql` AND `)}`
         : sql``;
       
-      // Get total amount from totalPendiente column (direct sum)
+      // Get total amount from total_pendiente column (direct sum)
       const totalResult = await db.execute(sql`
         SELECT 
-          COALESCE(SUM(CAST("totalPendiente" AS NUMERIC)), 0) as total_amount,
+          COALESCE(SUM(CAST(total_pendiente AS NUMERIC)), 0) as total_amount,
           COUNT(*) as total_records
         FROM nvv_pending_sales
         ${whereClause}
