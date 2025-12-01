@@ -4371,6 +4371,7 @@ export const stgMaeddo = ventasSchema.table("stg_maeddo", {
   koprct: text("koprct"),
   nokopr: text("nokopr"),
   udtrpr: text("udtrpr"),
+  kofulido: text("kofulido"),
   caprco1: numeric("caprco1", { precision: 18, scale: 4 }),
   caprco2: numeric("caprco2", { precision: 18, scale: 4 }),
   preuni: numeric("preuni", { precision: 18, scale: 6 }),

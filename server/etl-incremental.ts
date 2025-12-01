@@ -534,6 +534,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       koprct: row.KOPRCT?.trim() || null,
       nokopr: row.NOKOPR?.trim() || null,
       udtrpr: row.UDTRPR ? String(row.UDTRPR).trim() : null,
+      kofulido: row.KOFULIDO?.trim() || null,
       caprco1: cleanNumeric(row.CAPRCO1 !== undefined ? row.CAPRCO1 : row.CAPRCO),
       caprco2: cleanNumeric(row.CAPRCO2),
       // CORREGIDO: VANELI contiene el valor neto ya calculado (con signo correcto para NCV)
@@ -768,7 +769,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         CAST(NULL AS NUMERIC(20,0)),
         CAST(NULL AS NUMERIC(18,6)),
         CAST(ed.bosulido AS NUMERIC(20,0)),
-        ed.kofudo,
+        dd.kofulido,
         false,
         CAST(NULL AS NUMERIC(18,6)),
         pr.tipr,
@@ -829,7 +830,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       INNER JOIN ventas.stg_maeedo ed ON dd.idmaeedo = ed.idmaeedo
       LEFT JOIN ventas.stg_maeen en ON ed.endo = en.koen
       LEFT JOIN ventas.stg_maepr pr ON dd.koprct = pr.kopr
-      LEFT JOIN ventas.stg_maeven ve ON en.kofuen = ve.kofu
+      LEFT JOIN ventas.stg_maeven ve ON dd.kofulido = ve.kofu
       LEFT JOIN ventas.stg_tabru ru ON en.ruen = ru.koru
       LEFT JOIN ventas.stg_tabbo bo ON ed.suli = bo.suli AND ed.bosulido = bo.bosuli
       LEFT JOIN ventas.stg_tabpp pp ON dd.koprct = pp.kopr
