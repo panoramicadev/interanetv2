@@ -12186,7 +12186,9 @@ export function registerRoutes(app: Express): Server {
     try {
       const { mes, anio, estado, asignadoAId, incluirPorFechaLimite } = req.query;
       
-      const filters: any = {};
+      const filters: any = {
+        tipo: 'marketing', // Solo mostrar tareas de marketing
+      };
       if (mes) filters.mes = parseInt(mes);
       if (anio) filters.anio = parseInt(anio);
       if (estado) filters.estado = estado;
@@ -12225,6 +12227,7 @@ export function registerRoutes(app: Express): Server {
       
       const tareaData = {
         ...req.body,
+        tipo: 'marketing', // Siempre tipo marketing cuando se crea desde el módulo de marketing
         creadoPorId: user.id,
         creadoPorNombre: user.salespersonName || `${user.firstName} ${user.lastName}`,
       };
