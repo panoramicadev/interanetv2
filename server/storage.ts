@@ -10572,6 +10572,8 @@ export class DatabaseStorage implements IStorage {
     createdBy?: string;
     status?: string;
     clientName?: string;
+    dateFrom?: string;
+    dateTo?: string;
     limit?: number;
     offset?: number;
   }): Promise<any[]> {
@@ -10597,6 +10599,12 @@ export class DatabaseStorage implements IStorage {
     if (filters?.clientName) {
       conditions.push(sql`${quotes.clientName} ILIKE ${'%' + filters.clientName + '%'}`);
     }
+    if (filters?.dateFrom) {
+      conditions.push(sql`${quotes.createdAt} >= ${filters.dateFrom}::date`);
+    }
+    if (filters?.dateTo) {
+      conditions.push(sql`${quotes.createdAt} <= (${filters.dateTo}::date + interval '1 day')`);
+    }
     
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as any;
@@ -10615,8 +10623,27 @@ export class DatabaseStorage implements IStorage {
       creatorLastName: row.creatorLastName,
       creatorName: row.creatorFirstName && row.creatorLastName 
         ? `${row.creatorFirstName} ${row.creatorLastName}`
-        : row.creatorEmail || 'Usuario desconocido'
+        : row.creatorFirstName || row.creatorLastName || row.creatorEmail?.split('@')[0] || 'Usuario'
     }));
+  }
+
+  async getQuoteCreators(): Promise<Array<{id: string; name: string}>> {
+    const result = await db.selectDistinct({
+      id: quotes.createdBy,
+      email: users.email,
+      firstName: users.firstName,
+      lastName: users.lastName,
+    })
+    .from(quotes)
+    .leftJoin(users, eq(quotes.createdBy, users.id))
+    .where(isNotNull(quotes.createdBy));
+
+    return result.map(row => ({
+      id: row.id || '',
+      name: row.firstName && row.lastName 
+        ? `${row.firstName} ${row.lastName}` 
+        : row.firstName || row.lastName || row.email?.split('@')[0] || 'Usuario'
+    })).filter(creator => creator.id);
   }
 
   async getQuoteById(id: string): Promise<Quote | undefined> {

@@ -109,8 +109,10 @@ interface QuotesListProps {
 export default function QuotesList({ onEditQuote }: QuotesListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
+  const [creatorFilter, setCreatorFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  const [displayLimit, setDisplayLimit] = useState(20);
   const { toast } = useToast();
   const { user } = useAuth();
   const [, navigate] = useLocation();
@@ -118,8 +120,8 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
   // Build query parameters
   const buildQueryParams = () => {
     const params = new URLSearchParams();
-    params.set('limit', itemsPerPage.toString());
-    params.set('offset', ((currentPage - 1) * itemsPerPage).toString());
+    params.set('limit', '500'); // Get more records for client-side filtering
+    params.set('offset', '0');
     
     if (statusFilter !== "all") {
       params.set('status', statusFilter);
@@ -128,6 +130,18 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
     if (searchTerm.trim()) {
       params.set('clientName', searchTerm.trim());
     }
+
+    if (creatorFilter !== "all") {
+      params.set('createdBy', creatorFilter);
+    }
+
+    if (dateFrom) {
+      params.set('dateFrom', dateFrom);
+    }
+
+    if (dateTo) {
+      params.set('dateTo', dateTo);
+    }
     
     return params.toString();
   };
@@ -135,6 +149,20 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
   const { data: quotes, isLoading, error } = useQuery<Quote[]>({
     queryKey: [`/api/quotes?${buildQueryParams()}`],
   });
+
+  // Get unique creators for filter dropdown
+  const { data: creators } = useQuery<Array<{id: string; name: string}>>({
+    queryKey: ['/api/quotes/creators'],
+  });
+
+  // Reset display limit when filters change
+  const handleFilterChange = () => {
+    setDisplayLimit(20);
+  };
+
+  // Paginated quotes
+  const displayedQuotes = quotes?.slice(0, displayLimit) || [];
+  const hasMore = quotes && quotes.length > displayLimit;
 
   // Mutation to duplicate quote for editing
   const duplicateQuoteMutation = useMutation({
@@ -539,13 +567,13 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
           <Input
             placeholder="Buscar por nombre de cliente..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => { setSearchTerm(e.target.value); handleFilterChange(); }}
             className="pl-10"
             data-testid="input-search-quotes"
           />
         </div>
         
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); handleFilterChange(); }}>
           <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-status-filter">
             <Filter className="w-4 h-4 mr-2" />
             <SelectValue placeholder="Filtrar por estado" />
@@ -559,6 +587,68 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
             <SelectItem value="converted">Convertidas</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+
+      {/* Additional Filters Row */}
+      <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center">
+        {/* Date Range Filters */}
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-gray-400" />
+          <Input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => { setDateFrom(e.target.value); handleFilterChange(); }}
+            className="w-[150px]"
+            placeholder="Desde"
+            data-testid="input-date-from"
+          />
+          <span className="text-gray-400">-</span>
+          <Input
+            type="date"
+            value={dateTo}
+            onChange={(e) => { setDateTo(e.target.value); handleFilterChange(); }}
+            className="w-[150px]"
+            placeholder="Hasta"
+            data-testid="input-date-to"
+          />
+        </div>
+
+        {/* Creator Filter - Only for admin/supervisor */}
+        {(user?.role === 'admin' || user?.role === 'supervisor') && creators && creators.length > 0 && (
+          <Select value={creatorFilter} onValueChange={(value) => { setCreatorFilter(value); handleFilterChange(); }}>
+            <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-creator-filter">
+              <User className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Filtrar por emisor" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los emisores</SelectItem>
+              {creators.map((creator) => (
+                <SelectItem key={creator.id} value={creator.id}>
+                  {creator.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        {/* Clear Filters Button */}
+        {(dateFrom || dateTo || creatorFilter !== "all" || statusFilter !== "all" || searchTerm) && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setDateFrom("");
+              setDateTo("");
+              setCreatorFilter("all");
+              setStatusFilter("all");
+              setSearchTerm("");
+              handleFilterChange();
+            }}
+            data-testid="button-clear-filters"
+          >
+            Limpiar filtros
+          </Button>
+        )}
       </div>
 
       {/* Table */}
@@ -592,8 +682,8 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                       </TableCell>
                     </TableRow>
                   ))
-                ) : quotes && quotes.length > 0 ? (
-                  quotes.map((quote) => (
+                ) : displayedQuotes && displayedQuotes.length > 0 ? (
+                  displayedQuotes.map((quote) => (
                     <TableRow 
                       key={quote.id} 
                       className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors cursor-pointer"
@@ -779,6 +869,28 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Load More Button */}
+      {hasMore && (
+        <div className="flex justify-center pt-4">
+          <Button
+            variant="outline"
+            onClick={() => setDisplayLimit(prev => prev + 20)}
+            className="w-full sm:w-auto"
+            data-testid="button-load-more"
+          >
+            <Clock className="w-4 h-4 mr-2" />
+            Cargar más cotizaciones ({displayLimit} de {quotes?.length || 0})
+          </Button>
+        </div>
+      )}
+
+      {/* Results summary */}
+      {quotes && quotes.length > 0 && (
+        <div className="text-center text-sm text-gray-500">
+          Mostrando {Math.min(displayLimit, quotes.length)} de {quotes.length} cotizaciones
+        </div>
+      )}
     </div>
   );
 }
