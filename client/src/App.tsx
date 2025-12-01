@@ -20,6 +20,7 @@ import Landing from "@/pages/landing";
 import Login from "@/pages/login";
 import Shop from "@/pages/shop";
 import Tienda from "@/pages/tienda";
+import CatalogoPublico from "@/pages/catalogo-publico";
 import Dashboard from "@/pages/dashboard";
 import SalespersonDashboard from "@/pages/salesperson-dashboard";
 import SupervisorDashboard from "@/pages/supervisor-dashboard";
@@ -96,6 +97,9 @@ function Router() {
       <Route path="/tienda">{() => <Tienda />}</Route>
       <Route path="/shop">{() => <Shop />}</Route>
       <Route path="/carrito">{() => <Carrito />}</Route>
+      
+      {/* Catálogo público de vendedores */}
+      <Route path="/catalogo/:slug">{() => <CatalogoPublico />}</Route>
       
       {!user ? (
         <>

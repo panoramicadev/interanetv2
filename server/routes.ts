@@ -3798,6 +3798,71 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // ==================================================================================
+  // PUBLIC CATALOG ROUTES (for salesperson public catalogs)
+  // ==================================================================================
+  
+  // Get public salesperson catalog (profile + products)
+  app.get('/api/public/catalogos/:slug', async (req: any, res) => {
+    try {
+      const { slug } = req.params;
+      
+      // Get salesperson by slug
+      const salesperson = await storage.getPublicSalespersonBySlug(slug);
+      
+      if (!salesperson) {
+        return res.status(404).json({ message: 'Catálogo no encontrado' });
+      }
+      
+      // Get active ecommerce products
+      const products = await storage.getPublicCatalogProducts();
+      
+      res.json({
+        salesperson,
+        products
+      });
+    } catch (error) {
+      console.error('Error fetching public catalog:', error);
+      res.status(500).json({ message: 'Error al cargar el catálogo' });
+    }
+  });
+  
+  // Submit quote request from public catalog (no auth required)
+  app.post('/api/public/catalogos/:slug/cotizacion', async (req: any, res) => {
+    try {
+      const { slug } = req.params;
+      const { publicQuoteRequestSchema } = await import('@shared/schema');
+      
+      // Get salesperson by slug
+      const salesperson = await storage.getPublicSalespersonBySlug(slug);
+      
+      if (!salesperson) {
+        return res.status(404).json({ message: 'Catálogo no encontrado' });
+      }
+      
+      // Validate request body
+      const validation = publicQuoteRequestSchema.safeParse(req.body);
+      
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: 'Datos inválidos',
+          errors: validation.error.errors 
+        });
+      }
+      
+      // Create quote request
+      const quote = await storage.createPublicQuoteRequest(salesperson.id, validation.data);
+      
+      res.status(201).json({
+        message: 'Solicitud de cotización enviada exitosamente',
+        quoteId: quote.id
+      });
+    } catch (error) {
+      console.error('Error creating public quote:', error);
+      res.status(500).json({ message: 'Error al enviar la solicitud de cotización' });
+    }
+  });
+
   // Get prices for authenticated users only
   app.get('/api/products/prices', requireAuth, async (req: any, res) => {
     try {

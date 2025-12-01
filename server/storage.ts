@@ -942,6 +942,29 @@ export interface IStorage {
     status?: string;
   }): Promise<any[]>;
   
+  // Public Catalog operations
+  getPublicSalespersonBySlug(slug: string): Promise<{
+    id: string;
+    salespersonName: string;
+    publicSlug: string;
+    profileImageUrl?: string | null;
+    publicPhone?: string | null;
+    publicEmail?: string | null;
+    bio?: string | null;
+    catalogEnabled: boolean;
+  } | null>;
+  getPublicCatalogProducts(): Promise<Array<{
+    id: string;
+    codigo: string;
+    producto: string;
+    unidad?: string | null;
+    precio: number;
+    categoria?: string | null;
+    descripcion?: string | null;
+    imagenUrl?: string | null;
+  }>>;
+  createPublicQuoteRequest(salespersonId: string, quoteData: any): Promise<any>;
+  
   // Notification operations
   createNotification(notification: any): Promise<any>;
   
@@ -13049,6 +13072,123 @@ export class DatabaseStorage implements IStorage {
     }
     
     return await query;
+  }
+
+  // Public Catalog Operations
+  async getPublicSalespersonBySlug(slug: string) {
+    const { salespeopleUsers } = await import('@shared/schema');
+    
+    const [salesperson] = await db
+      .select({
+        id: salespeopleUsers.id,
+        salespersonName: salespeopleUsers.salespersonName,
+        publicSlug: salespeopleUsers.publicSlug,
+        profileImageUrl: salespeopleUsers.profileImageUrl,
+        publicPhone: salespeopleUsers.publicPhone,
+        publicEmail: salespeopleUsers.publicEmail,
+        bio: salespeopleUsers.bio,
+        catalogEnabled: salespeopleUsers.catalogEnabled,
+      })
+      .from(salespeopleUsers)
+      .where(and(
+        eq(salespeopleUsers.publicSlug, slug),
+        eq(salespeopleUsers.catalogEnabled, true),
+        eq(salespeopleUsers.isActive, true)
+      ))
+      .limit(1);
+    
+    if (!salesperson) return null;
+    
+    return {
+      id: salesperson.id,
+      salespersonName: salesperson.salespersonName,
+      publicSlug: salesperson.publicSlug || '',
+      profileImageUrl: salesperson.profileImageUrl,
+      publicPhone: salesperson.publicPhone,
+      publicEmail: salesperson.publicEmail,
+      bio: salesperson.bio,
+      catalogEnabled: salesperson.catalogEnabled ?? false,
+    };
+  }
+
+  async getPublicCatalogProducts() {
+    const { priceList, ecommerceProducts } = await import('@shared/schema');
+    
+    // Get products that are active in ecommerce
+    const productsData = await db
+      .select({
+        id: priceList.id,
+        codigo: priceList.codigo,
+        producto: priceList.producto,
+        unidad: priceList.unidad,
+        precio: priceList.canalDigital,
+        categoria: ecommerceProducts.categoria,
+        descripcion: ecommerceProducts.descripcion,
+        imagenUrl: ecommerceProducts.imagenUrl,
+        precioEcommerce: ecommerceProducts.precioEcommerce,
+        activo: ecommerceProducts.activo,
+      })
+      .from(priceList)
+      .innerJoin(ecommerceProducts, eq(priceList.id, ecommerceProducts.priceListId))
+      .where(eq(ecommerceProducts.activo, true))
+      .orderBy(priceList.producto);
+    
+    return productsData.map(p => ({
+      id: p.id,
+      codigo: p.codigo,
+      producto: p.producto,
+      unidad: p.unidad,
+      precio: Number(p.precioEcommerce) || Number(p.precio) || 0,
+      categoria: p.categoria,
+      descripcion: p.descripcion,
+      imagenUrl: p.imagenUrl,
+    }));
+  }
+
+  async createPublicQuoteRequest(salespersonId: string, quoteData: any) {
+    const { ecommerceOrders, salespeopleUsers } = await import('@shared/schema');
+    
+    // Get salesperson info
+    const [salesperson] = await db
+      .select({
+        id: salespeopleUsers.id,
+        salespersonName: salespeopleUsers.salespersonName,
+      })
+      .from(salespeopleUsers)
+      .where(eq(salespeopleUsers.id, salespersonId))
+      .limit(1);
+    
+    if (!salesperson) {
+      throw new Error('Vendedor no encontrado');
+    }
+    
+    // Calculate totals
+    const subtotal = quoteData.items.reduce((sum: number, item: any) => 
+      sum + (item.quantity * item.unitPrice), 0
+    );
+    
+    // Create the order with "pendiente" status
+    const [newOrder] = await db
+      .insert(ecommerceOrders)
+      .values({
+        clientId: 'VISITANTE_PUBLICO', // Placeholder for public visitors
+        clientName: quoteData.visitorName,
+        clientEmail: quoteData.visitorEmail,
+        clientPhone: quoteData.visitorPhone,
+        assignedSalespersonId: salesperson.id,
+        assignedSalespersonName: salesperson.salespersonName,
+        status: 'pendiente',
+        items: quoteData.items,
+        subtotal: subtotal.toString(),
+        tax: '0', // Sin impuesto para cotizaciones públicas
+        total: subtotal.toString(),
+        notes: quoteData.message 
+          ? `[CATÁLOGO PÚBLICO]\nEmpresa: ${quoteData.visitorCompany || 'N/A'}\nMensaje: ${quoteData.message}` 
+          : `[CATÁLOGO PÚBLICO]\nEmpresa: ${quoteData.visitorCompany || 'N/A'}`,
+      })
+      .returning();
+    
+    return newOrder;
   }
 
   // Notification operations
