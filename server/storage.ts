@@ -8727,6 +8727,67 @@ export class DatabaseStorage implements IStorage {
     return regionResults;
   }
 
+  // Helper function to calculate date range from sales period
+  private getSalesPeriodDateRange(period: string): { startDate: string; endDate: string } | null {
+    const now = new Date();
+    // Use Chilean timezone
+    const chileanTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Santiago' }));
+    const today = new Date(chileanTime.getFullYear(), chileanTime.getMonth(), chileanTime.getDate());
+    
+    let startDate: Date;
+    let endDate: Date = today;
+    
+    switch (period) {
+      case 'today':
+        startDate = today;
+        break;
+      case 'yesterday':
+        startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - 1);
+        endDate = startDate;
+        break;
+      case 'this_week':
+        startDate = new Date(today);
+        const dayOfWeek = startDate.getDay();
+        const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Monday is start of week
+        startDate.setDate(startDate.getDate() - diff);
+        break;
+      case 'last_week':
+        startDate = new Date(today);
+        const currentDayOfWeek = startDate.getDay();
+        const daysToLastMonday = currentDayOfWeek === 0 ? 13 : currentDayOfWeek + 6;
+        startDate.setDate(startDate.getDate() - daysToLastMonday);
+        endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + 6);
+        break;
+      case 'this_month':
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        break;
+      case 'last_month':
+        startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+        break;
+      case 'last_30_days':
+        startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - 30);
+        break;
+      case 'last_90_days':
+        startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - 90);
+        break;
+      case 'this_year':
+        startDate = new Date(today.getFullYear(), 0, 1);
+        break;
+      default:
+        return null;
+    }
+    
+    return {
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0]
+    };
+  }
+
   // Client operations implementation
   async getClients(filters?: {
     search?: string;
@@ -8736,6 +8797,7 @@ export class DatabaseStorage implements IStorage {
     businessType?: string;
     debtStatus?: string;
     entityType?: string;
+    salesPeriod?: string;
     limit?: number;
     offset?: number;
   }): Promise<Array<Client & {
@@ -8794,14 +8856,27 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
+    // Sales period filter - requires join with factVentas
+    const needsSalesJoin = filters?.salesperson || filters?.salesPeriod;
+    const salesPeriodRange = filters?.salesPeriod ? this.getSalesPeriodDateRange(filters.salesPeriod) : null;
+
     // First get all clients with basic info
     let query = db.select().from(clients);
 
-    // If filtering by salesperson, we need to join with sales transactions
-    if (filters?.salesperson) {
-      const salespersonConditions = conditions.length > 0 
-        ? [...conditions, eq(factVentas.nokofu, filters.salesperson)]
-        : [eq(factVentas.nokofu, filters.salesperson)];
+    // If filtering by salesperson or salesPeriod, we need to join with sales transactions
+    if (needsSalesJoin) {
+      const salesConditions: any[] = [];
+      
+      if (filters?.salesperson) {
+        salesConditions.push(eq(factVentas.nokofu, filters.salesperson));
+      }
+      
+      if (salesPeriodRange) {
+        salesConditions.push(sql`${factVentas.feemdo} >= ${salesPeriodRange.startDate}`);
+        salesConditions.push(sql`${factVentas.feemdo} <= ${salesPeriodRange.endDate}`);
+      }
+      
+      const allConditions = [...conditions, ...salesConditions];
 
       query = db
         .selectDistinct({
@@ -8823,7 +8898,7 @@ export class DatabaseStorage implements IStorage {
         })
         .from(clients)
         .innerJoin(factVentas, eq(clients.nokoen, factVentas.nokoen))
-        .where(and(...salespersonConditions)) as any;
+        .where(allConditions.length > 0 ? and(...allConditions) : undefined) as any;
     } else {
       query = conditions.length > 0 ? query.where(and(...conditions)) as any : query;
     }
@@ -8869,6 +8944,7 @@ export class DatabaseStorage implements IStorage {
     businessType?: string;
     debtStatus?: string;
     entityType?: string;
+    salesPeriod?: string;
   }): Promise<number> {
     const conditions = [];
     
@@ -8918,20 +8994,33 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
+    // Sales period filter - requires join with factVentas
+    const needsSalesJoin = filters?.salesperson || filters?.salesPeriod;
+    const salesPeriodRange = filters?.salesPeriod ? this.getSalesPeriodDateRange(filters.salesPeriod) : null;
+
     // Count query
     let countQuery = db.select({ count: sql<number>`COUNT(*)` }).from(clients);
 
-    // If filtering by salesperson, we need to join with sales transactions
-    if (filters?.salesperson) {
-      const salespersonConditions = conditions.length > 0 
-        ? [...conditions, eq(factVentas.nokofu, filters.salesperson)]
-        : [eq(factVentas.nokofu, filters.salesperson)];
+    // If filtering by salesperson or salesPeriod, we need to join with sales transactions
+    if (needsSalesJoin) {
+      const salesConditions: any[] = [];
+      
+      if (filters?.salesperson) {
+        salesConditions.push(eq(factVentas.nokofu, filters.salesperson));
+      }
+      
+      if (salesPeriodRange) {
+        salesConditions.push(sql`${factVentas.feemdo} >= ${salesPeriodRange.startDate}`);
+        salesConditions.push(sql`${factVentas.feemdo} <= ${salesPeriodRange.endDate}`);
+      }
+      
+      const allConditions = [...conditions, ...salesConditions];
 
       const [result] = await db
         .select({ count: sql<number>`COUNT(DISTINCT ${clients.id})` })
         .from(clients)
         .innerJoin(factVentas, eq(clients.nokoen, factVentas.nokoen))
-        .where(and(...salespersonConditions));
+        .where(allConditions.length > 0 ? and(...allConditions) : undefined);
       
       return Number(result?.count || 0);
     } else {

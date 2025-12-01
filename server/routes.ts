@@ -930,7 +930,7 @@ export function registerRoutes(app: Express): Server {
   // Clients API
   app.get('/api/clients', requireAuth, async (req, res) => {
     try {
-      const { search, segment, salesperson, creditStatus, businessType, debtStatus, entityType, limit, offset } = req.query;
+      const { search, segment, salesperson, creditStatus, businessType, debtStatus, entityType, salesPeriod, limit, offset } = req.query;
       
       const filters = {
         search: search as string,
@@ -940,6 +940,7 @@ export function registerRoutes(app: Express): Server {
         businessType: businessType as string,
         debtStatus: debtStatus as string,
         entityType: entityType as string,
+        salesPeriod: salesPeriod as string,
         limit: limit ? parseInt(limit as string) : 50,
         offset: offset ? parseInt(offset as string) : 0,
       };
