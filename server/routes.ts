@@ -12299,6 +12299,269 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // ==================================================================================
+  // TAREAS GENERALES routes (Sistema unificado de tareas)
+  // ==================================================================================
+
+  // Get all tareas with role-based filtering
+  app.get('/api/tareas', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { mes, anio, estado, tipo, asignadoAId } = req.query;
+      
+      // Solo admin, supervisor y salesperson pueden acceder
+      if (!['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+        return res.status(403).json({ message: 'No tienes permisos para acceder a las tareas' });
+      }
+      
+      const filters: any = {};
+      if (mes) filters.mes = parseInt(mes);
+      if (anio) filters.anio = parseInt(anio);
+      if (estado) filters.estado = estado;
+      if (tipo) filters.tipo = tipo;
+      
+      // Aplicar filtros según rol
+      if (user.role === 'salesperson') {
+        // Vendedor solo ve sus propias tareas asignadas
+        filters.asignadoAId = user.id;
+      } else if (user.role === 'supervisor') {
+        // Supervisor ve sus tareas y las de sus vendedores
+        if (asignadoAId) {
+          filters.asignadoAId = asignadoAId;
+        } else {
+          const vendedores = await storage.getVendedoresBySupervisor(user.id);
+          const vendedorIds = vendedores.map(v => v.id);
+          vendedorIds.push(user.id); // Incluir al supervisor mismo
+          filters.asignadoAIds = vendedorIds;
+        }
+      } else if (user.role === 'admin') {
+        // Admin puede filtrar por asignadoAId si lo proporciona
+        if (asignadoAId) filters.asignadoAId = asignadoAId;
+      }
+      
+      const tareas = await storage.getTareasMarketing(filters);
+      res.json(tareas);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener tareas', error: error.message });
+    }
+  }));
+
+  // Get available users for task assignment (based on role) - MUST be before /:id route
+  app.get('/api/tareas/usuarios-asignables', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'No tienes permisos para ver usuarios asignables' });
+      }
+      
+      let usuarios: any[] = [];
+      
+      if (user.role === 'admin') {
+        // Admin puede asignar a cualquier usuario con rol comercial
+        const allUsers = await storage.getAllUsers();
+        usuarios = allUsers.filter((u: any) => ['admin', 'supervisor', 'salesperson'].includes(u.role));
+      } else if (user.role === 'supervisor') {
+        // Supervisor puede asignar a sí mismo y a sus vendedores
+        const vendedores = await storage.getVendedoresBySupervisor(user.id);
+        const currentUser = await storage.getUserById(user.id);
+        usuarios = [currentUser, ...vendedores].filter(Boolean);
+      }
+      
+      res.json(usuarios.map((u: any) => ({
+        id: u.id,
+        nombre: u.salespersonName || `${u.firstName || ''} ${u.lastName || ''}`.trim(),
+        role: u.role,
+        email: u.email,
+      })));
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener usuarios asignables', error: error.message });
+    }
+  }));
+
+  // Get single tarea by ID
+  app.get('/api/tareas/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const tarea = await storage.getTareaMarketingById(req.params.id);
+      
+      if (!tarea) {
+        return res.status(404).json({ message: 'Tarea no encontrada' });
+      }
+      
+      // Verificar permisos de visualización
+      if (user.role === 'salesperson' && tarea.asignadoAId !== user.id) {
+        return res.status(403).json({ message: 'No tienes permisos para ver esta tarea' });
+      }
+      
+      if (user.role === 'supervisor') {
+        const vendedores = await storage.getVendedoresBySupervisor(user.id);
+        const vendedorIds = vendedores.map(v => v.id);
+        vendedorIds.push(user.id);
+        if (!vendedorIds.includes(tarea.asignadoAId || '') && tarea.asignadoAId !== user.id) {
+          return res.status(403).json({ message: 'No tienes permisos para ver esta tarea' });
+        }
+      }
+      
+      res.json(tarea);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener tarea', error: error.message });
+    }
+  }));
+
+  // Create new tarea
+  app.post('/api/tareas', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Solo admin y supervisor pueden crear tareas
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'Solo admin y supervisor pueden crear tareas' });
+      }
+      
+      const { asignadoAId, tipo = 'general' } = req.body;
+      
+      // Validar que supervisor solo puede asignar a sus vendedores
+      if (user.role === 'supervisor' && asignadoAId && asignadoAId !== user.id) {
+        const vendedores = await storage.getVendedoresBySupervisor(user.id);
+        const vendedorIds = vendedores.map(v => v.id);
+        if (!vendedorIds.includes(asignadoAId)) {
+          return res.status(403).json({ message: 'Solo puedes asignar tareas a tus vendedores' });
+        }
+      }
+      
+      // Obtener nombre del asignado
+      let asignadoANombre = null;
+      if (asignadoAId) {
+        const asignadoUser = await storage.getUserById(asignadoAId);
+        if (asignadoUser) {
+          asignadoANombre = asignadoUser.salespersonName || `${asignadoUser.firstName || ''} ${asignadoUser.lastName || ''}`.trim();
+        }
+      }
+      
+      const tareaData = {
+        ...req.body,
+        tipo,
+        creadoPorId: user.id,
+        creadoPorNombre: user.salespersonName || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+        asignadoANombre,
+      };
+      
+      const tarea = await storage.createTareaMarketing(tareaData);
+      res.status(201).json(tarea);
+    } catch (error: any) {
+      console.error('Error creating tarea:', error);
+      res.status(500).json({ message: 'Error al crear tarea', error: error.message });
+    }
+  }));
+
+  // Update tarea
+  app.patch('/api/tareas/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const tarea = await storage.getTareaMarketingById(req.params.id);
+      
+      if (!tarea) {
+        return res.status(404).json({ message: 'Tarea no encontrada' });
+      }
+      
+      // Verificar permisos de edición
+      if (user.role === 'salesperson') {
+        // Vendedor solo puede cambiar el estado de sus propias tareas
+        if (tarea.asignadoAId !== user.id) {
+          return res.status(403).json({ message: 'No tienes permisos para modificar esta tarea' });
+        }
+        // Solo puede modificar el estado
+        const allowedFields = ['estado'];
+        const updates: any = {};
+        for (const field of allowedFields) {
+          if (req.body[field] !== undefined) {
+            updates[field] = req.body[field];
+          }
+        }
+        const updated = await storage.updateTareaMarketing(req.params.id, updates);
+        return res.json(updated);
+      }
+      
+      if (user.role === 'supervisor') {
+        const vendedores = await storage.getVendedoresBySupervisor(user.id);
+        const vendedorIds = vendedores.map(v => v.id);
+        vendedorIds.push(user.id);
+        
+        // Verificar que la tarea pertenece a su equipo
+        if (tarea.creadoPorId !== user.id && !vendedorIds.includes(tarea.asignadoAId || '')) {
+          return res.status(403).json({ message: 'No tienes permisos para modificar esta tarea' });
+        }
+        
+        // Validar que si cambia asignadoAId, sea a alguien de su equipo
+        if (req.body.asignadoAId && !vendedorIds.includes(req.body.asignadoAId)) {
+          return res.status(403).json({ message: 'Solo puedes asignar tareas a tus vendedores' });
+        }
+      }
+      
+      // Obtener nombre del asignado si cambia
+      if (req.body.asignadoAId) {
+        const asignadoUser = await storage.getUserById(req.body.asignadoAId);
+        if (asignadoUser) {
+          req.body.asignadoANombre = asignadoUser.salespersonName || `${asignadoUser.firstName || ''} ${asignadoUser.lastName || ''}`.trim();
+        }
+      }
+      
+      const updated = await storage.updateTareaMarketing(req.params.id, req.body);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar tarea', error: error.message });
+    }
+  }));
+
+  // Toggle tarea estado
+  app.post('/api/tareas/:id/toggle', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const tarea = await storage.getTareaMarketingById(req.params.id);
+      
+      if (!tarea) {
+        return res.status(404).json({ message: 'Tarea no encontrada' });
+      }
+      
+      // Verificar permisos
+      if (user.role === 'salesperson' && tarea.asignadoAId !== user.id) {
+        return res.status(403).json({ message: 'No tienes permisos para modificar esta tarea' });
+      }
+      
+      if (user.role === 'supervisor') {
+        const vendedores = await storage.getVendedoresBySupervisor(user.id);
+        const vendedorIds = vendedores.map(v => v.id);
+        vendedorIds.push(user.id);
+        if (!vendedorIds.includes(tarea.asignadoAId || '')) {
+          return res.status(403).json({ message: 'No tienes permisos para modificar esta tarea' });
+        }
+      }
+      
+      const updated = await storage.toggleTareaMarketingEstado(req.params.id);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al cambiar estado de tarea', error: error.message });
+    }
+  }));
+
+  // Delete tarea
+  app.delete('/api/tareas/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Solo admin puede eliminar tareas
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'Solo admin puede eliminar tareas' });
+      }
+      
+      await storage.deleteTareaMarketing(req.params.id);
+      res.json({ message: 'Tarea eliminada correctamente' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar tarea', error: error.message });
+    }
+  }));
+
+  // ==================================================================================
   // INVENTORY routes
   // ==================================================================================
   
