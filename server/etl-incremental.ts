@@ -606,23 +606,28 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     }));
     await batchInsert(stgMaepr, maepr_records, 'stg_maepr', logger);
 
-    // 5. EXTRAER vendedores (usando KOFUEN de MAEEN)
+    // 5. EXTRAER vendedores (usando KOFUEN de MAEEN Y KOFUDO de MAEEDO)
     console.log('5️⃣  Extrayendo MAEVEN (Vendedores)...');
-    const kofuens = [...new Set(maeen.recordset.map(r => r.KOFUEN).filter(k => k))];
+    // Combinar códigos de vendedor: del cliente (KOFUEN) y del documento (KOFUDO)
+    const kofuensCliente = maeen.recordset.map(r => r.KOFUEN).filter(k => k);
+    const kofudosDocumento = maeedo.recordset.map(r => r.KOFUDO).filter(k => k);
+    const todosKofus = [...new Set([...kofuensCliente, ...kofudosDocumento])];
+    console.log(`   📋 Códigos de vendedor: ${kofuensCliente.length} de clientes + ${kofudosDocumento.length} de documentos = ${todosKofus.length} únicos`);
+    
     let maeven = { recordset: [] };
     
-    if (kofuens.length > 0) {
+    if (todosKofus.length > 0) {
       maeven = await executeWithResilience(
         async () => pool.request().query(`
           SELECT KOFU, NOKOFU
           FROM dbo.TABFU
-          WHERE KOFU IN (${kofuens.map(k => `'${k}'`).join(',')})
+          WHERE KOFU IN (${todosKofus.map(k => `'${k}'`).join(',')})
         `),
         sqlServerBreaker,
         { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
       );
     }
-    console.log(`   ✅ ${maeven.recordset.length} registros encontrados`);
+    console.log(`   ✅ ${maeven.recordset.length} vendedores encontrados en TABFU`);
 
     const maeven_records = maeven.recordset.map(row => ({
       kofu: row.KOFU?.trim() || '',
@@ -829,7 +834,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       INNER JOIN ventas.stg_maeedo ed ON dd.idmaeedo = ed.idmaeedo
       LEFT JOIN ventas.stg_maeen en ON ed.endo = en.koen
       LEFT JOIN ventas.stg_maepr pr ON dd.koprct = pr.kopr
-      LEFT JOIN ventas.stg_maeven ve ON en.kofuen = ve.kofu
+      LEFT JOIN ventas.stg_maeven ve ON ed.kofudo = ve.kofu  -- Usar código vendedor del DOCUMENTO, no del cliente
       LEFT JOIN ventas.stg_tabru ru ON en.ruen = ru.koru
       LEFT JOIN ventas.stg_tabbo bo ON ed.suli = bo.suli AND ed.bosulido = bo.bosuli
       LEFT JOIN ventas.stg_tabpp pp ON dd.koprct = pp.kopr
