@@ -17715,6 +17715,7 @@ export class DatabaseStorage implements IStorage {
 
   async getPromesasConCumplimiento(filters?: {
     vendedorId?: string;
+    vendedorIds?: string[]; // Array of vendor IDs for supervisor segment filtering
     semana?: string;
     anio?: number;
     startDate?: string;
@@ -17727,8 +17728,14 @@ export class DatabaseStorage implements IStorage {
   }>> {
     const conditions = [];
 
+    // Single vendedorId filter
     if (filters?.vendedorId) {
       conditions.push(eq(promesasCompra.vendedorId, filters.vendedorId));
+    }
+    
+    // Multiple vendedorIds filter (for supervisor segment filtering)
+    if (filters?.vendedorIds && filters.vendedorIds.length > 0 && !filters?.vendedorId) {
+      conditions.push(inArray(promesasCompra.vendedorId, filters.vendedorIds));
     }
 
     // Use date range if provided, otherwise use semana/anio
@@ -17754,6 +17761,10 @@ export class DatabaseStorage implements IStorage {
     const whereParts = [];
     if (filters?.vendedorId) {
       whereParts.push(sql`p.vendedor_id = ${filters.vendedorId}`);
+    }
+    // Multiple vendedorIds filter for raw SQL
+    if (filters?.vendedorIds && filters.vendedorIds.length > 0 && !filters?.vendedorId) {
+      whereParts.push(sql`p.vendedor_id IN (${sql.join(filters.vendedorIds.map(id => sql`${id}`), sql`, `)})`);
     }
     if (filters?.startDate && filters?.endDate) {
       whereParts.push(sql`p.fecha_inicio <= ${filters.endDate}`);
@@ -19119,9 +19130,10 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getSalespeopleBySegment(segment: string): Promise<Array<{ code: string; name: string }>> {
+  async getSalespeopleBySegment(segment: string): Promise<Array<{ id: string; code: string; name: string }>> {
     try {
-      const results = await db
+      // First get salespeople names from ventas for this segment
+      const salespeopleNames = await db
         .selectDistinct({
           name: factVentas.nokofu,
         })
@@ -19136,9 +19148,30 @@ export class DatabaseStorage implements IStorage {
         )
         .orderBy(factVentas.nokofu);
 
-      return results.map(r => ({
-        code: r.name!,
-        name: r.name!,
+      const names = salespeopleNames.map(r => r.name!).filter(Boolean);
+      
+      if (names.length === 0) {
+        return [];
+      }
+
+      // Now find the user IDs for these salespeople
+      const usersResult = await db
+        .select({
+          id: salespeopleUsers.id,
+          salespersonName: salespeopleUsers.salespersonName,
+        })
+        .from(salespeopleUsers)
+        .where(
+          and(
+            inArray(salespeopleUsers.salespersonName, names),
+            eq(salespeopleUsers.isActive, true)
+          )
+        );
+
+      return usersResult.map(r => ({
+        id: r.id,
+        code: r.salespersonName,
+        name: r.salespersonName,
       }));
     } catch (error: any) {
       console.error('Error fetching salespeople by segment:', error.message);
