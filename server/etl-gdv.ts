@@ -180,16 +180,33 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
       .limit(1);
 
     if (runningGDV.length > 0) {
-      console.log(`⚠️  ETL de GDV ya en ejecución (ID: ${runningGDV[0].id})`);
-      return {
-        success: false,
-        recordsProcessed: 0,
-        recordsInserted: 0,
-        recordsUpdated: 0,
-        statusChanges: 0,
-        executionTimeMs: Date.now() - startTime,
-        error: 'ETL de GDV ya en ejecución'
-      };
+      const runningExec = runningGDV[0];
+      const runningTime = Date.now() - new Date(runningExec.executionDate!).getTime();
+      const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutos
+      
+      if (runningTime > STALE_THRESHOLD_MS) {
+        // Ejecución colgada - limpiar automáticamente
+        console.log(`🧹 Limpiando ejecución colgada (ID: ${runningExec.id}, ${Math.round(runningTime / 60000)} minutos)...`);
+        await db.execute(sql`
+          UPDATE gdv.gdv_sync_log 
+          SET status = 'failed', 
+              error_message = 'Ejecución colgada - limpiada automáticamente después de 30+ minutos',
+              execution_time_ms = ${runningTime}
+          WHERE id = ${runningExec.id}
+        `);
+        console.log('✅ Ejecución colgada limpiada\n');
+      } else {
+        console.log(`⚠️  ETL de GDV ya en ejecución (ID: ${runningExec.id})`);
+        return {
+          success: false,
+          recordsProcessed: 0,
+          recordsInserted: 0,
+          recordsUpdated: 0,
+          statusChanges: 0,
+          executionTimeMs: Date.now() - startTime,
+          error: 'ETL de GDV ya en ejecución'
+        };
+      }
     }
     console.log('✅ No hay ejecuciones activas\n');
 

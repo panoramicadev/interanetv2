@@ -263,16 +263,34 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       .limit(1);
 
     if (runningNVV.length > 0) {
-      console.log(`⚠️  ETL de NVV ya en ejecución (DB: ${runningNVV[0].id})`);
-      return {
-        success: false,
-        records_processed: 0,
-        records_inserted: 0,
-        records_updated: 0,
-        status_changes: 0,
-        execution_time_ms: Date.now() - startTime,
-        error: 'ETL de NVV ya en ejecución'
-      };
+      const runningExec = runningNVV[0];
+      const runningTime = Date.now() - new Date(runningExec.startTime!).getTime();
+      const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutos
+      
+      if (runningTime > STALE_THRESHOLD_MS) {
+        // Ejecución colgada - limpiar automáticamente
+        console.log(`🧹 Limpiando ejecución colgada (ID: ${runningExec.id}, ${Math.round(runningTime / 60000)} minutos)...`);
+        await db.execute(sql`
+          UPDATE nvv.nvv_sync_log 
+          SET status = 'failed', 
+              error_message = 'Ejecución colgada - limpiada automáticamente después de 30+ minutos',
+              end_time = NOW(),
+              execution_time_ms = ${runningTime}
+          WHERE id = ${runningExec.id}
+        `);
+        console.log('✅ Ejecución colgada limpiada\n');
+      } else {
+        console.log(`⚠️  ETL de NVV ya en ejecución (DB: ${runningExec.id})`);
+        return {
+          success: false,
+          records_processed: 0,
+          records_inserted: 0,
+          records_updated: 0,
+          status_changes: 0,
+          execution_time_ms: Date.now() - startTime,
+          error: 'ETL de NVV ya en ejecución'
+        };
+      }
     }
     console.log('✅ No hay ejecuciones activas\n');
 
