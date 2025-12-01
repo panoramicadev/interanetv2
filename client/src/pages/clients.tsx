@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Search, Users, CreditCard, TrendingUp, MapPin, Phone, Mail, Upload, FileDown, Eye, X, User, Building2, Calendar, Filter, RotateCcw, Plus } from "lucide-react";
+import { Loader2, Search, Users, CreditCard, TrendingUp, MapPin, Phone, Mail, Upload, FileDown, Eye, X, User, Building2, Calendar, Filter, RotateCcw, Plus, ShoppingCart } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
@@ -79,6 +80,9 @@ export default function Clients() {
   const [selectedDebtStatus, setSelectedDebtStatus] = useState<string>("");
   const [selectedEntityType, setSelectedEntityType] = useState<string>("");
   
+  const [filterBySales, setFilterBySales] = useState(false);
+  const [salesPeriod, setSalesPeriod] = useState<string>("today");
+  
   const isMobile = useIsMobile();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   
@@ -111,7 +115,7 @@ export default function Clients() {
   const queryClient = useQueryClient();
 
   const { data: clientsData, isLoading, error } = useQuery({
-    queryKey: ['/api/clients', debouncedSearch, currentPage, selectedSegment, selectedSalesperson, selectedCreditStatus, selectedBusinessType, selectedDebtStatus, selectedEntityType],
+    queryKey: ['/api/clients', debouncedSearch, currentPage, selectedSegment, selectedSalesperson, selectedCreditStatus, selectedBusinessType, selectedDebtStatus, selectedEntityType, filterBySales, salesPeriod],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (debouncedSearch) params.set('search', debouncedSearch);
@@ -121,6 +125,7 @@ export default function Clients() {
       if (selectedBusinessType) params.set('businessType', selectedBusinessType);
       if (selectedDebtStatus) params.set('debtStatus', selectedDebtStatus);
       if (selectedEntityType) params.set('entityType', selectedEntityType);
+      if (filterBySales) params.set('salesPeriod', salesPeriod);
       params.set('limit', itemsPerPage.toString());
       params.set('offset', ((currentPage - 1) * itemsPerPage).toString());
       
@@ -171,6 +176,8 @@ export default function Clients() {
     setSelectedBusinessType("");
     setSelectedDebtStatus("");
     setSelectedEntityType("");
+    setFilterBySales(false);
+    setSalesPeriod("today");
     setCurrentPage(1);
   }, []);
 
@@ -204,7 +211,7 @@ export default function Clients() {
     setIsDrawerOpen(false);
   };
 
-  const hasActiveFilters = selectedSegment || selectedSalesperson || selectedCreditStatus || selectedBusinessType || selectedDebtStatus || selectedEntityType;
+  const hasActiveFilters = selectedSegment || selectedSalesperson || selectedCreditStatus || selectedBusinessType || selectedDebtStatus || selectedEntityType || filterBySales;
 
   const previewMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -651,6 +658,61 @@ export default function Clients() {
                   {search !== debouncedSearch ? "Escribiendo..." : ""}
                 </div>
               </div>
+            )}
+          </div>
+
+          {/* Sales Period Filter */}
+          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100 dark:border-gray-800">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="filter-sales"
+                checked={filterBySales}
+                onCheckedChange={(checked) => {
+                  setFilterBySales(checked === true);
+                  setCurrentPage(1);
+                }}
+                data-testid="checkbox-filter-sales"
+              />
+              <label 
+                htmlFor="filter-sales" 
+                className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer flex items-center gap-1.5"
+              >
+                <ShoppingCart className="h-4 w-4 text-green-600" />
+                Con ventas en:
+              </label>
+            </div>
+            
+            <Select
+              value={salesPeriod}
+              onValueChange={(value) => {
+                setSalesPeriod(value);
+                if (filterBySales) setCurrentPage(1);
+              }}
+              disabled={!filterBySales}
+            >
+              <SelectTrigger 
+                className={`w-[140px] h-9 ${!filterBySales ? 'opacity-50' : ''}`}
+                data-testid="select-sales-period"
+              >
+                <SelectValue placeholder="Período" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today">Hoy</SelectItem>
+                <SelectItem value="yesterday">Ayer</SelectItem>
+                <SelectItem value="this_week">Esta semana</SelectItem>
+                <SelectItem value="last_week">Semana pasada</SelectItem>
+                <SelectItem value="this_month">Este mes</SelectItem>
+                <SelectItem value="last_month">Mes pasado</SelectItem>
+                <SelectItem value="last_30_days">Últimos 30 días</SelectItem>
+                <SelectItem value="last_90_days">Últimos 90 días</SelectItem>
+                <SelectItem value="this_year">Este año</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {filterBySales && (
+              <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                Filtro activo
+              </Badge>
             )}
           </div>
 
