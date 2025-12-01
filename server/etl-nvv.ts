@@ -644,22 +644,35 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     }));
     await batchInsert(stgTabboNvv, tabbo_records, 'stg_tabbo_nvv', logger);
 
-    // 7. MERGE A FACT_NVV CON DETECCIÓN DE CAMBIOS DE ESTADO
-    emitProgress(7, TOTAL_STEPS, 'Detectando cambios de estado', 'Comparando con registros existentes...');
-    console.log('\n8️⃣  Detectando cambios de estado...');
+    // 7. DETECTAR CAMBIOS Y CALCULAR ELIMINACIONES REALES
+    emitProgress(7, TOTAL_STEPS, 'Detectando cambios', 'Comparando con registros existentes...');
+    console.log('\n8️⃣  Detectando cambios y eliminaciones...');
     
-    // Obtener registros existentes
-    const idmaeddosToProcess = maeddo.recordset.map(r => cleanBigIntId(r.IDMAEDDO));
+    // Conjunto de IDs de la fuente actual
+    const sourceIdSet = new Set(maeddo.recordset.map(r => cleanBigIntId(r.IDMAEDDO)));
+    console.log(`   📋 IDs únicos en fuente: ${sourceIdSet.size}`);
     
-    const existingNVVs = await db
-      .select()
-      .from(factNvv)
-      .where(inArray(factNvv.idmaeddo, idmaeddosToProcess))
-      .execute();
-
-    // Map para detección rápida de cambios
+    // Obtener TODOS los IDs existentes en fact_nvv (para contar eliminaciones)
+    const allExistingResult = await db.execute(sql`
+      SELECT idmaeddo, eslido FROM nvv.fact_nvv
+    `);
+    const allExistingIds = new Set(
+      allExistingResult.rows.map((row: any) => row.idmaeddo?.toString() || '0')
+    );
+    console.log(`   📋 IDs existentes en BD: ${allExistingIds.size}`);
+    
+    // Calcular NVV que ya no existen en fuente (eliminaciones reales)
+    let nvv_eliminadas = 0;
+    for (const existingId of allExistingIds) {
+      if (!sourceIdSet.has(existingId)) {
+        nvv_eliminadas++;
+      }
+    }
+    console.log(`   🗑️  NVV que serán eliminadas (no en fuente): ${nvv_eliminadas}`);
+    
+    // Mapa de existentes para detección de cambios de estado (solo los que coinciden)
     const existingMap = new Map(
-      existingNVVs.map(nvv => [nvv.idmaeddo?.toString() || '0', nvv])
+      allExistingResult.rows.map((row: any) => [row.idmaeddo?.toString() || '0', row])
     );
 
     let status_changes = 0;
@@ -794,14 +807,15 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     const rowsAfterSync = Number(countAfterResult.rows[0].count);
     
     // Calcular estadísticas de sincronización
-    const records_deleted = rowsBeforeSync; // Todos los anteriores fueron eliminados
     const records_inserted = rowsAfterSync; // Todos los actuales fueron insertados
     const net_change = rowsAfterSync - rowsBeforeSync;
 
     console.log(`\n📊 Resultados de SINCRONIZACIÓN COMPLETA:`);
     console.log(`   Registros antes: ${rowsBeforeSync}`);
-    console.log(`   Registros eliminados: ${records_deleted}`);
+    console.log(`   Registros en fuente: ${maeddo.recordset.length}`);
     console.log(`   Registros insertados: ${records_inserted}`);
+    console.log(`   NVV eliminadas (cerradas/facturadas): ${nvv_eliminadas}`);
+    console.log(`   Cambios de estado detectados: ${status_changes}`);
     console.log(`   Cambio neto: ${net_change >= 0 ? '+' : ''}${net_change}`);
     console.log(`   Total en fact_nvv: ${rowsAfterSync}\n`);
 
@@ -813,8 +827,8 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         status: 'success',
         recordsProcessed: maeddo.recordset.length,
         recordsInserted: records_inserted,
-        recordsUpdated: 0, // En sync completa no hay updates, solo delete+insert
-        statusChanges: records_deleted, // Registros que ya no existen (cerrados/facturados)
+        recordsUpdated: nvv_eliminadas, // NVV que ya no existen en fuente (cerradas/facturadas)
+        statusChanges: status_changes, // Cambios de estado detectados (abierto→cerrado)
         executionTimeMs: Date.now() - startTime,
         watermarkStart: null,
         watermarkEnd: currentTimestamp,
@@ -830,14 +844,16 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     console.log('╚═══════════════════════════════════════════════════════════════╝');
     console.log(`⏱️  Tiempo de ejecución: ${(executionTime / 1000).toFixed(2)}s`);
     console.log(`📦 Registros en fuente: ${maeddo.recordset.length}`);
-    console.log(`🗑️  Eliminados: ${records_deleted}`);
     console.log(`➕ Insertados: ${records_inserted}`);
+    console.log(`🗑️  NVV eliminadas: ${nvv_eliminadas}`);
+    console.log(`🔀 Cambios de estado: ${status_changes}`);
     console.log(`📊 Total actual: ${rowsAfterSync}\n`);
 
     logger.info('Sincronización completa de NVV exitosa', {
       records_processed: maeddo.recordset.length,
       records_inserted,
-      records_deleted,
+      nvv_eliminadas,
+      status_changes,
       total_after: rowsAfterSync,
       execution_time_ms: executionTime
     });
@@ -847,8 +863,8 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       success: true,
       records_processed: maeddo.recordset.length,
       records_inserted,
-      records_updated: 0,
-      status_changes: records_deleted, // NVV que ya no existen (cerradas/facturadas)
+      records_updated: nvv_eliminadas, // NVV que ya no existen en fuente
+      status_changes, // Cambios de estado reales detectados
       execution_time_ms: executionTime,
       watermarkDate: currentTimestamp,
     };
