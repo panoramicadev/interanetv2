@@ -41,8 +41,12 @@ import {
   CheckCircle2,
   Loader2,
   Building,
-  ArrowLeft
+  ArrowLeft,
+  MessageCircle,
+  Palette,
+  Sparkles
 } from 'lucide-react';
+import { SiWhatsapp } from 'react-icons/si';
 import { apiRequest } from '@/lib/queryClient';
 
 type CatalogProduct = {
@@ -210,12 +214,17 @@ export default function CatalogoPublico() {
     submitQuoteMutation.mutate(data);
   };
 
+  const getWhatsAppLink = (phone: string) => {
+    const cleanPhone = phone.replace(/\D/g, '');
+    return `https://wa.me/${cleanPhone}`;
+  };
+
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Cargando catálogo...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-400 mx-auto mb-4"></div>
+          <p className="text-slate-400">Cargando catálogo...</p>
         </div>
       </div>
     );
@@ -223,12 +232,12 @@ export default function CatalogoPublico() {
 
   if (error || !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-50">
-        <Card className="max-w-md w-full mx-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800">
+        <Card className="max-w-md w-full mx-4 bg-slate-800 border-slate-700">
           <CardContent className="pt-6 text-center">
-            <Package className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-            <h2 className="text-xl font-semibold mb-2">Catálogo no encontrado</h2>
-            <p className="text-muted-foreground">
+            <Package className="h-16 w-16 mx-auto mb-4 text-slate-500" />
+            <h2 className="text-xl font-semibold mb-2 text-white">Catálogo no encontrado</h2>
+            <p className="text-slate-400">
               El catálogo que buscas no existe o no está disponible.
             </p>
           </CardContent>
@@ -240,124 +249,187 @@ export default function CatalogoPublico() {
   const { salesperson, products } = data;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Header with Salesperson Profile */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              {/* Profile Image */}
+    <div className="min-h-screen bg-slate-50">
+      {/* Hero Banner */}
+      <header className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
+        {/* Decorative elements */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-1/2 -right-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl"></div>
+          <div className="absolute -bottom-1/2 -left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
+          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-500/5 via-transparent to-transparent"></div>
+        </div>
+        
+        <div className="relative container mx-auto px-4 py-8 md:py-12">
+          <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12">
+            {/* Profile Image */}
+            <div className="relative flex-shrink-0">
               <div className="relative">
+                {/* Glow effect behind image */}
+                <div className="absolute inset-0 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full blur-xl opacity-30 scale-110"></div>
+                
                 {salesperson.profileImageUrl ? (
                   <img
                     src={salesperson.profileImageUrl}
                     alt={salesperson.salespersonName}
-                    className="w-14 h-14 rounded-full object-cover border-2 border-primary/20"
+                    className="relative w-32 h-32 md:w-44 md:h-44 rounded-full object-cover border-4 border-amber-400/50 shadow-2xl"
                     data-testid="salesperson-avatar"
                   />
                 ) : (
-                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold">
+                  <div className="relative w-32 h-32 md:w-44 md:h-44 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-4xl md:text-6xl font-bold border-4 border-amber-400/50 shadow-2xl">
                     {salesperson.salespersonName.charAt(0)}
                   </div>
                 )}
               </div>
+            </div>
+            
+            {/* Info Section */}
+            <div className="flex-1 text-center md:text-left">
+              {/* Company Logo */}
+              <div className="mb-4">
+                <img 
+                  src="/panoramica-30-logo.webp" 
+                  alt="Pinturas Panorámica" 
+                  className="h-10 md:h-12 mx-auto md:mx-0 opacity-90"
+                />
+              </div>
               
-              {/* Name and Contact */}
-              <div>
-                <h1 className="text-xl font-bold text-slate-800" data-testid="salesperson-name">
-                  {salesperson.salespersonName}
-                </h1>
-                <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                  {salesperson.publicPhone && (
-                    <a 
-                      href={`tel:${salesperson.publicPhone}`} 
-                      className="flex items-center gap-1 hover:text-primary transition-colors"
-                      data-testid="salesperson-phone"
-                    >
-                      <Phone className="h-3 w-3" />
-                      {salesperson.publicPhone}
-                    </a>
-                  )}
-                  {salesperson.publicEmail && (
-                    <a 
-                      href={`mailto:${salesperson.publicEmail}`} 
-                      className="flex items-center gap-1 hover:text-primary transition-colors"
-                      data-testid="salesperson-email"
-                    >
-                      <Mail className="h-3 w-3" />
-                      {salesperson.publicEmail}
-                    </a>
-                  )}
-                </div>
+              {/* Name */}
+              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-3" data-testid="salesperson-name">
+                {salesperson.salespersonName}
+              </h1>
+              
+              {/* Bio/Tagline */}
+              {salesperson.bio ? (
+                <p className="text-lg md:text-xl text-slate-300 mb-6 max-w-2xl" data-testid="salesperson-bio">
+                  {salesperson.bio}
+                </p>
+              ) : (
+                <p className="text-lg md:text-xl text-slate-300 mb-6 max-w-2xl">
+                  Ejecutivo comercial especializado en pinturas industriales y decorativas
+                </p>
+              )}
+              
+              {/* Service Tags */}
+              <div className="flex flex-wrap gap-2 justify-center md:justify-start mb-6">
+                <Badge className="bg-slate-700/80 text-slate-200 border border-slate-600 px-3 py-1">
+                  <Palette className="w-3 h-3 mr-1" />
+                  Pinturas Industriales
+                </Badge>
+                <Badge className="bg-slate-700/80 text-slate-200 border border-slate-600 px-3 py-1">
+                  <Sparkles className="w-3 h-3 mr-1" />
+                  Pinturas Decorativas
+                </Badge>
+                <Badge className="bg-slate-700/80 text-slate-200 border border-slate-600 px-3 py-1">
+                  <MessageCircle className="w-3 h-3 mr-1" />
+                  Asesoría Personalizada
+                </Badge>
+              </div>
+              
+              {/* Contact Buttons */}
+              <div className="flex flex-wrap gap-3 justify-center md:justify-start">
+                {salesperson.publicPhone && (
+                  <a 
+                    href={getWhatsAppLink(salesperson.publicPhone)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-5 py-2.5 rounded-full font-medium transition-all shadow-lg hover:shadow-green-500/25"
+                    data-testid="button-whatsapp"
+                  >
+                    <SiWhatsapp className="w-5 h-5" />
+                    WhatsApp
+                  </a>
+                )}
+                
+                {salesperson.publicPhone && (
+                  <a 
+                    href={`tel:${salesperson.publicPhone}`}
+                    className="inline-flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-5 py-2.5 rounded-full font-medium transition-all border border-slate-600"
+                    data-testid="salesperson-phone"
+                  >
+                    <Phone className="w-4 h-4" />
+                    {salesperson.publicPhone}
+                  </a>
+                )}
+                
+                {salesperson.publicEmail && (
+                  <a 
+                    href={`mailto:${salesperson.publicEmail}`}
+                    className="inline-flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-5 py-2.5 rounded-full font-medium transition-all border border-slate-600"
+                    data-testid="salesperson-email"
+                  >
+                    <Mail className="w-4 h-4" />
+                    Email
+                  </a>
+                )}
               </div>
             </div>
             
-            {/* Cart Button */}
-            <Button
-              onClick={() => setIsQuoteDialogOpen(true)}
-              disabled={cart.length === 0}
-              className="gap-2"
-              data-testid="button-open-cart"
-            >
-              <ShoppingCart className="h-4 w-4" />
-              <span className="hidden sm:inline">Cotizar</span>
-              {cartItemCount > 0 && (
-                <Badge variant="secondary" className="ml-1 bg-white text-primary">
-                  {cartItemCount}
-                </Badge>
-              )}
-            </Button>
+            {/* Cart Button (Desktop) */}
+            <div className="hidden md:block">
+              <Button
+                onClick={() => setIsQuoteDialogOpen(true)}
+                disabled={cart.length === 0}
+                size="lg"
+                className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold gap-2 shadow-lg hover:shadow-amber-500/25 transition-all"
+                data-testid="button-open-cart"
+              >
+                <ShoppingCart className="h-5 w-5" />
+                Cotizar
+                {cartItemCount > 0 && (
+                  <Badge variant="secondary" className="ml-1 bg-white text-amber-600">
+                    {cartItemCount}
+                  </Badge>
+                )}
+              </Button>
+            </div>
           </div>
-          
-          {/* Bio */}
-          {salesperson.bio && (
-            <p className="mt-3 text-sm text-muted-foreground max-w-2xl" data-testid="salesperson-bio">
-              {salesperson.bio}
-            </p>
-          )}
         </div>
       </header>
 
       {/* Search and Filters */}
-      <div className="container mx-auto px-4 py-6">
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar productos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-              data-testid="input-search"
-            />
-          </div>
-          
-          {categories.length > 0 && (
-            <div className="flex gap-2 flex-wrap">
-              <Button
-                variant={selectedCategory === null ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedCategory(null)}
-                data-testid="filter-all"
-              >
-                Todos
-              </Button>
-              {categories.map(cat => (
-                <Button
-                  key={cat}
-                  variant={selectedCategory === cat ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedCategory(cat)}
-                  data-testid={`filter-category-${cat}`}
-                >
-                  {cat}
-                </Button>
-              ))}
+      <div className="sticky top-0 z-40 bg-white border-b shadow-sm">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar productos..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+                data-testid="input-search"
+              />
             </div>
-          )}
+            
+            {categories.length > 0 && (
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  variant={selectedCategory === null ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedCategory(null)}
+                  data-testid="filter-all"
+                >
+                  Todos
+                </Button>
+                {categories.map(cat => (
+                  <Button
+                    key={cat}
+                    variant={selectedCategory === cat ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedCategory(cat)}
+                    data-testid={`filter-category-${cat}`}
+                  >
+                    {cat}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
+      </div>
 
-        {/* Products Grid */}
+      {/* Products Grid */}
+      <div className="container mx-auto px-4 py-6">
         {filteredProducts.length === 0 ? (
           <div className="text-center py-12">
             <Package className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
@@ -462,12 +534,12 @@ export default function CatalogoPublico() {
       {cart.length > 0 && (
         <div className="fixed bottom-4 left-4 right-4 sm:hidden z-50">
           <Button
-            className="w-full gap-2 h-14 text-lg shadow-lg"
+            className="w-full gap-2 h-14 text-lg shadow-lg bg-amber-500 hover:bg-amber-600 text-slate-900"
             onClick={() => setIsQuoteDialogOpen(true)}
             data-testid="button-mobile-cart"
           >
             <ShoppingCart className="h-5 w-5" />
-            Solicitar Cotización ({cartItemCount} productos)
+            Solicitar Cotización ({cartItemCount})
             <span className="ml-auto">${cartTotal.toLocaleString('es-CL')}</span>
           </Button>
         </div>
@@ -620,12 +692,11 @@ export default function CatalogoPublico() {
                 name="message"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Mensaje adicional</FormLabel>
+                    <FormLabel>Mensaje (opcional)</FormLabel>
                     <FormControl>
                       <Textarea 
                         {...field} 
-                        placeholder="Algún detalle adicional para tu cotización..." 
-                        className="resize-none"
+                        placeholder="¿Algún detalle adicional sobre tu pedido?"
                         rows={3}
                         data-testid="input-message"
                       />
@@ -637,17 +708,9 @@ export default function CatalogoPublico() {
               
               <DialogFooter>
                 <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsQuoteDialogOpen(false)}
-                  data-testid="button-cancel"
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  type="submit" 
+                  type="submit"
+                  className="w-full gap-2"
                   disabled={submitQuoteMutation.isPending}
-                  className="gap-2"
                   data-testid="button-submit-quote"
                 >
                   {submitQuoteMutation.isPending ? (
@@ -658,7 +721,7 @@ export default function CatalogoPublico() {
                   ) : (
                     <>
                       <Send className="h-4 w-4" />
-                      Enviar Solicitud
+                      Enviar Solicitud de Cotización
                     </>
                   )}
                 </Button>
@@ -672,17 +735,20 @@ export default function CatalogoPublico() {
       <Dialog open={isSuccessDialogOpen} onOpenChange={setIsSuccessDialogOpen}>
         <DialogContent className="max-w-sm text-center">
           <div className="py-6">
-            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
               <CheckCircle2 className="h-8 w-8 text-green-600" />
             </div>
-            <DialogTitle className="text-xl mb-2">¡Solicitud Enviada!</DialogTitle>
-            <DialogDescription className="text-base">
-              Tu solicitud de cotización ha sido enviada exitosamente. 
-              {salesperson.salespersonName} te contactará pronto.
+            <DialogTitle className="mb-2">¡Solicitud Enviada!</DialogTitle>
+            <DialogDescription>
+              Hemos recibido tu solicitud de cotización. {salesperson.salespersonName} te contactará pronto.
             </DialogDescription>
           </div>
-          <DialogFooter className="justify-center">
-            <Button onClick={() => setIsSuccessDialogOpen(false)} data-testid="button-close-success">
+          <DialogFooter>
+            <Button 
+              onClick={() => setIsSuccessDialogOpen(false)} 
+              className="w-full"
+              data-testid="button-close-success"
+            >
               Continuar Navegando
             </Button>
           </DialogFooter>
