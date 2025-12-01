@@ -296,19 +296,50 @@ export function NvvDashboard({ salespersonFilter, segmentFilter }: NvvDashboardP
   const calculateSalespersonTotals = () => {
     if (!detailedData) return {};
     
-    const salespersonTotals: Record<string, { amount: number; count: number }> = {};
+    const salespersonTotals: Record<string, { amount: number; count: number; code: string }> = {};
     
     detailedData.forEach((record: NvvRecord) => {
-      const kofulido = record.KOFULIDO || '';
-      // Usar nombre real del vendedor si está disponible, sino usar código
-      const salesperson = salespersonMapping?.kofulidoToName?.[kofulido] || kofulido || 'Sin Vendedor';
+      const kofulidoRaw = record.KOFULIDO || '';
+      const kofulido = kofulidoRaw.trim();
+      
+      // Buscar nombre real del vendedor usando varias estrategias
+      let salespersonName = 'Sin Vendedor';
+      
+      if (salespersonMapping?.kofulidoToName) {
+        // Intentar match directo
+        if (salespersonMapping.kofulidoToName[kofulido]) {
+          salespersonName = salespersonMapping.kofulidoToName[kofulido];
+        } 
+        // Intentar match con mayúsculas
+        else if (salespersonMapping.kofulidoToName[kofulido.toUpperCase()]) {
+          salespersonName = salespersonMapping.kofulidoToName[kofulido.toUpperCase()];
+        }
+        // Intentar match con minúsculas
+        else if (salespersonMapping.kofulidoToName[kofulido.toLowerCase()]) {
+          salespersonName = salespersonMapping.kofulidoToName[kofulido.toLowerCase()];
+        }
+        // Buscar coincidencia case-insensitive en todas las claves
+        else {
+          const matchingKey = Object.keys(salespersonMapping.kofulidoToName).find(
+            key => key.toLowerCase().trim() === kofulido.toLowerCase()
+          );
+          if (matchingKey) {
+            salespersonName = salespersonMapping.kofulidoToName[matchingKey];
+          } else if (kofulido) {
+            salespersonName = kofulido; // Usar código si no hay match
+          }
+        }
+      } else if (kofulido) {
+        salespersonName = kofulido; // Usar código si no hay mapeo disponible
+      }
+      
       const pendingAmount = calculatePendingAmount(record);
       
-      if (salespersonTotals[salesperson]) {
-        salespersonTotals[salesperson].amount += pendingAmount;
-        salespersonTotals[salesperson].count += 1;
+      if (salespersonTotals[salespersonName]) {
+        salespersonTotals[salespersonName].amount += pendingAmount;
+        salespersonTotals[salespersonName].count += 1;
       } else {
-        salespersonTotals[salesperson] = { amount: pendingAmount, count: 1 };
+        salespersonTotals[salespersonName] = { amount: pendingAmount, count: 1, code: kofulido };
       }
     });
     
@@ -403,11 +434,17 @@ export function NvvDashboard({ salespersonFilter, segmentFilter }: NvvDashboardP
           label: function(context: any) {
             const value = context.raw;
             const salesperson = context.label;
-            const count = salespersonTotals[salesperson]?.count || 0;
-            return [
+            const data = salespersonTotals[salesperson];
+            const count = data?.count || 0;
+            const code = data?.code || '';
+            const lines = [
               `Monto: ${formatCurrency(value)}`,
               `NVV: ${count}`
             ];
+            if (code && code !== salesperson) {
+              lines.push(`Código: ${code}`);
+            }
+            return lines;
           }
         },
         titleFont: {
