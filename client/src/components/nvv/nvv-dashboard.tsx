@@ -153,17 +153,17 @@ export function NvvDashboard({ salespersonFilter, segmentFilter }: NvvDashboardP
     retry: false,
   });
 
-  // Obtener mapeo de códigos de vendedor a nombres reales y segmentos
+  // Obtener mapeo de códigos de vendedor a nombres reales y segmentos desde fact_nvv
   const { data: salespersonMapping, isLoading: isLoadingMapping } = useQuery<{
     kofulidoToName: Record<string, string>;
     kofulidoToSegment: Record<string, string>;
-    segments: Record<string, { count: number; amount: number }>;
+    segments: string[];
   }>({
-    queryKey: ['/api/sales-transactions/salesperson-mapping'],
+    queryKey: ['/api/nvv/salesperson-mapping'],
     queryFn: async () => {
-      const response = await fetch('/api/sales-transactions/salesperson-mapping');
+      const response = await fetch('/api/nvv/salesperson-mapping');
       if (!response.ok) {
-        throw new Error('Error al cargar mapeo de vendedores');
+        throw new Error('Error al cargar mapeo de vendedores NVV');
       }
       return response.json();
     },
