@@ -13895,7 +13895,7 @@ export function registerRoutes(app: Express): Server {
       }
       
       // Mark the execution as cancelled
-      await storage.cancelETLExecution(runningExecution.id, req.user.email);
+      await storage.cancelETLExecution(runningExecution.id, req.user.email, etlName as string);
       
       console.log(`✅ ETL ${etlName} cancelled successfully by ${req.user.email}`);
       
