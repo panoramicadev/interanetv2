@@ -283,15 +283,33 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       .limit(1);
 
     if (runningETL.length > 0) {
-      console.log(`\n⚠️  ETL ya en ejecución (ID: ${runningETL[0].id}). Cancelando solicitud duplicada.`);
-      return {
-        success: false,
-        recordsProcessed: 0,
-        executionTimeMs: Date.now() - startTime,
-        period: '',
-        watermarkDate: new Date(),
-        error: 'ETL ya en ejecución. Por favor espera a que termine la ejecución actual.'
-      };
+      const runningExec = runningETL[0];
+      const runningTime = Date.now() - new Date(runningExec.startTime!).getTime();
+      const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutos
+      
+      if (runningTime > STALE_THRESHOLD_MS) {
+        // Ejecución colgada - limpiar automáticamente
+        console.log(`🧹 Limpiando ejecución colgada (ID: ${runningExec.id}, ${Math.round(runningTime / 60000)} minutos)...`);
+        await db.execute(sql`
+          UPDATE ventas.etl_execution_log 
+          SET status = 'failed', 
+              error_message = 'Ejecución colgada - limpiada automáticamente después de 30+ minutos',
+              end_time = NOW(),
+              execution_time_ms = ${runningTime}
+          WHERE id = ${runningExec.id}
+        `);
+        console.log('✅ Ejecución colgada limpiada\n');
+      } else {
+        console.log(`\n⚠️  ETL ya en ejecución (ID: ${runningExec.id}). Cancelando solicitud duplicada.`);
+        return {
+          success: false,
+          recordsProcessed: 0,
+          executionTimeMs: Date.now() - startTime,
+          period: '',
+          watermarkDate: new Date(),
+          error: 'ETL ya en ejecución. Por favor espera a que termine la ejecución actual.'
+        };
+      }
     }
     console.log('✅ No hay ETL en ejecución. Procediendo...\n');
 
