@@ -11022,8 +11022,32 @@ export class DatabaseStorage implements IStorage {
   // ==============================================
   // NVV (Notas de Ventas Pendientes) Operations
   // ==============================================
+  // 
+  // ⚠️ ARCHITECTURE NOTE (December 2025):
+  // The NVV system now uses ETL-based data from nvv.fact_nvv.
+  // 
+  // CURRENT (ACTIVE) functions - use nvv.fact_nvv from ETL:
+  //   - getNvvDashboardData()
+  //   - getNvvPendingSales() 
+  //   - getNvvSummaryMetrics()
+  //   - getNvvBySalesperson()
+  //   - getNvvTotalSummary()
+  //
+  // DEPRECATED functions - use nvv_pending_sales table (CSV import):
+  //   - importNvvFromCsv() - DEPRECATED
+  //   - clearAllNvvData() - DEPRECATED
+  //   - deleteNvvBatch() - DEPRECATED
+  //
+  // See: server/etl-nvv.ts for the current ETL implementation
+  // ==============================================
 
+  /**
+   * @deprecated This function is DEPRECATED. NVV data is now loaded via automated ETL
+   * from SQL Server, not CSV import. See server/etl-nvv.ts for the current implementation.
+   * This function operates on the deprecated nvv_pending_sales table.
+   */
   async importNvvFromCsv(nvvData: InsertNvvPendingSales[], importBatch: string): Promise<NvvImportResult> {
+    console.warn('⚠️ DEPRECATED: importNvvFromCsv() is deprecated. Use ETL from server/etl-nvv.ts instead.');
     const result: NvvImportResult = {
       success: true,
       totalRows: nvvData.length,
@@ -11109,7 +11133,13 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
+  /**
+   * @deprecated This function is DEPRECATED. It operates on the deprecated nvv_pending_sales table.
+   * NVV data is now managed via ETL which handles its own cleanup through full synchronization.
+   * See server/etl-nvv.ts for the current implementation.
+   */
   async clearAllNvvData(): Promise<{ success: boolean; deletedCount: number; message: string }> {
+    console.warn('⚠️ DEPRECATED: clearAllNvvData() is deprecated. NVV cleanup is handled by ETL.');
     try {
       console.log('🗑️ Starting complete NVV data cleanup...');
       
@@ -11338,7 +11368,13 @@ export class DatabaseStorage implements IStorage {
   // Note: Status updates removed since CSV data doesn't include status tracking
   // NVV data is imported as-is from external system
 
+  /**
+   * @deprecated This function is DEPRECATED. It operates on the deprecated nvv_pending_sales table.
+   * NVV batch management is now handled by ETL through full synchronization.
+   * See server/etl-nvv.ts for the current implementation.
+   */
   async deleteNvvBatch(importBatch: string): Promise<boolean> {
+    console.warn('⚠️ DEPRECATED: deleteNvvBatch() is deprecated. NVV management is handled by ETL.');
     try {
       await db
         .delete(nvvPendingSales)
