@@ -606,28 +606,24 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     }));
     await batchInsert(stgMaepr, maepr_records, 'stg_maepr', logger);
 
-    // 5. EXTRAER vendedores (usando KOFUEN de MAEEN Y KOFUDO de MAEEDO)
-    console.log('5️⃣  Extrayendo MAEVEN (Vendedores)...');
-    // Combinar códigos de vendedor: del cliente (KOFUEN) y del documento (KOFUDO)
-    const kofuensCliente = maeen.recordset.map(r => r.KOFUEN).filter(k => k);
-    const kofudosDocumento = maeedo.recordset.map(r => r.KOFUDO).filter(k => k);
-    const todosKofus = [...new Set([...kofuensCliente, ...kofudosDocumento])];
-    console.log(`   📋 Códigos de vendedor: ${kofuensCliente.length} de clientes + ${kofudosDocumento.length} de documentos = ${todosKofus.length} únicos`);
+    // 5. EXTRAER TODOS los vendedores de TABFU (tabla maestra completa)
+    console.log('5️⃣  Extrayendo MAEVEN (Vendedores - tabla completa)...');
     
-    let maeven = { recordset: [] };
-    
-    if (todosKofus.length > 0) {
-      maeven = await executeWithResilience(
-        async () => pool.request().query(`
-          SELECT KOFU, NOKOFU
-          FROM dbo.TABFU
-          WHERE KOFU IN (${todosKofus.map(k => `'${k}'`).join(',')})
-        `),
-        sqlServerBreaker,
-        { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
-      );
-    }
-    console.log(`   ✅ ${maeven.recordset.length} vendedores encontrados en TABFU`);
+    // Extraer TODOS los vendedores de la tabla maestra TABFU
+    // Filtrar nombres inválidos como '.' que son placeholders
+    const maeven = await executeWithResilience(
+      async () => pool.request().query(`
+        SELECT KOFU, NOKOFU
+        FROM dbo.TABFU
+        WHERE NOKOFU IS NOT NULL 
+          AND NOKOFU != '' 
+          AND NOKOFU != '.'
+          AND LEN(LTRIM(RTRIM(NOKOFU))) > 1
+      `),
+      sqlServerBreaker,
+      { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
+    );
+    console.log(`   ✅ ${maeven.recordset.length} vendedores válidos encontrados en TABFU (tabla completa)`);
 
     const maeven_records = maeven.recordset.map(row => ({
       kofu: row.KOFU?.trim() || '',
