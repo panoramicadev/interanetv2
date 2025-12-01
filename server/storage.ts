@@ -1671,7 +1671,7 @@ export interface IStorage {
   // ==================================================================================
   
   getRunningETLExecution(etlName: string): Promise<any | undefined>;
-  cancelETLExecution(executionId: string, cancelledBy: string): Promise<void>;
+  cancelETLExecution(executionId: string, cancelledBy: string, etlName?: string): Promise<void>;
   getLastSalesWatermark(): Promise<Date | null>;
 
   // ==================================================================================
@@ -17947,6 +17947,17 @@ export class DatabaseStorage implements IStorage {
   // ==================================================================================
 
   async getRunningETLExecution(etlName: string): Promise<any | undefined> {
+    if (etlName === 'nvv') {
+      const result = await db.execute(sql`
+        SELECT id, 'nvv' as etl_name, start_time, status, period, watermark_date
+        FROM nvv.nvv_sync_log
+        WHERE status = 'running'
+        ORDER BY start_time DESC
+        LIMIT 1
+      `);
+      return result.rows[0];
+    }
+    
     const result = await db.execute(sql`
       SELECT id, etl_name, start_time, status, period, watermark_date
       FROM ventas.etl_execution_log
@@ -17959,9 +17970,22 @@ export class DatabaseStorage implements IStorage {
     return result.rows[0];
   }
 
-  async cancelETLExecution(executionId: string, cancelledBy: string): Promise<void> {
+  async cancelETLExecution(executionId: string, cancelledBy: string, etlName?: string): Promise<void> {
     const now = new Date();
     const errorMessage = `Proceso cancelado manualmente por ${cancelledBy} el ${now.toLocaleString('es-CL')}`;
+    
+    if (etlName === 'nvv') {
+      await db.execute(sql`
+        UPDATE nvv.nvv_sync_log
+        SET 
+          status = 'cancelled',
+          error_message = ${errorMessage},
+          execution_time_ms = EXTRACT(EPOCH FROM (${now.toISOString()}::timestamp - start_time)) * 1000,
+          end_time = ${now.toISOString()}::timestamp
+        WHERE id = ${executionId}
+      `);
+      return;
+    }
     
     await db.execute(sql`
       UPDATE ventas.etl_execution_log

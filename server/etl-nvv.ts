@@ -12,10 +12,39 @@ import {
   stgTabboNvv,
   factNvv,
   nvvSyncLog,
-  nvvSyncChanges
+  nvvSyncChanges,
+  etlConfigs
 } from '../shared/schema';
 import { CircuitBreaker, executeWithResilience } from './etl-resilience';
 import { createETLLogger } from './production-logger';
+
+// Función para verificar si el ETL de NVV fue cancelado
+async function checkIfCancelled(executionId: string): Promise<boolean> {
+  try {
+    const result = await db
+      .select({ status: nvvSyncLog.status })
+      .from(nvvSyncLog)
+      .where(sql`id = ${executionId}`)
+      .limit(1);
+    
+    if (result.length > 0 && result[0].status === 'cancelled') {
+      console.log('🛑 ETL de NVV cancelado por el usuario');
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error verificando estado de cancelación NVV:', error);
+    return false;
+  }
+}
+
+// Error personalizado para cancelación de NVV
+class NVVETLCancelledException extends Error {
+  constructor() {
+    super('ETL de NVV cancelado por el usuario');
+    this.name = 'NVVETLCancelledException';
+  }
+}
 
 const sqlServerConfig: mssql.config = {
   server: process.env.SQL_SERVER_HOST || '',
@@ -359,6 +388,11 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     
     console.log(`   ✅ ${maeedo.recordset.length} documentos NVV encontrados`);
 
+    // Checkpoint de cancelación después de extraer encabezados
+    if (await checkIfCancelled(executionId)) {
+      throw new NVVETLCancelledException();
+    }
+
     if (maeedo.recordset.length === 0) {
       console.log('\n⚠️  No hay NVV nuevas para procesar en el período especificado\n');
       
@@ -483,6 +517,11 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     }));
     await batchInsert(stgMaeddoNvv, maeddo_records, 'stg_maeddo_nvv', logger);
     emitProgress(5, TOTAL_STEPS, 'Cargando MAEDDO a staging', `${maeddo_records.length} registros`);
+
+    // Checkpoint de cancelación después de cargar staging
+    if (await checkIfCancelled(executionId)) {
+      throw new NVVETLCancelledException();
+    }
 
     // 3-6. EXTRAER TABLAS MAESTRAS (reutilizamos las del esquema ventas)
     emitProgress(6, TOTAL_STEPS, 'Extrayendo tablas maestras', 'MAEEN, MAEPR, TABFU, TABRU, TABBO...');
@@ -658,6 +697,11 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       }
     }
     console.log(`   Total cambios de estado: ${status_changes}\n`);
+
+    // Checkpoint de cancelación antes del MERGE
+    if (await checkIfCancelled(executionId)) {
+      throw new NVVETLCancelledException();
+    }
 
     // 8. MERGE INCREMENTAL usando JOINs a staging
     emitProgress(8, TOTAL_STEPS, 'Procesando MERGE', 'UPSERT incremental en fact_nvv...');
@@ -958,15 +1002,25 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
 
   } catch (error: any) {
     const executionTime = Date.now() - startTime;
-    const error_message = error.message || 'Error desconocido';
+    const isCancellation = error instanceof NVVETLCancelledException || error.name === 'NVVETLCancelledException';
+    const error_message = isCancellation ? 'ETL cancelado por el usuario' : (error.message || 'Error desconocido');
     
-    console.error('\n❌ ERROR EN ETL DE NVV:');
-    console.error(`   Mensaje: ${error_message}`);
-    console.error(`   Tipo: ${error.name || 'Unknown'}`);
-    
-    logger.critical('Error en ETL de NVV', { error_message, error }, error);
+    if (isCancellation) {
+      console.log('\n🛑 ETL DE NVV CANCELADO POR EL USUARIO');
+      console.log(`⏱️  Tiempo hasta cancelación: ${(executionTime / 1000).toFixed(2)}s`);
+      
+      emitProgress(TOTAL_STEPS, TOTAL_STEPS, 'ETL Cancelado', 'Proceso cancelado por el usuario');
+      
+      logger.info('ETL de NVV cancelado por el usuario', { execution_time_ms: executionTime });
+    } else {
+      console.error('\n❌ ERROR EN ETL DE NVV:');
+      console.error(`   Mensaje: ${error_message}`);
+      console.error(`   Tipo: ${error.name || 'Unknown'}`);
+      
+      logger.critical('Error en ETL de NVV', { error_message, error }, error);
+    }
 
-    // Actualizar log de ejecución con error
+    // Actualizar log de ejecución con estado apropiado
     try {
       const runningLog = await db
         .select()
@@ -978,9 +1032,10 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       if (runningLog.length > 0) {
         await db.update(nvvSyncLog)
           .set({
-            status: 'failed',
+            status: isCancellation ? 'cancelled' : 'failed',
             errorMessage: error_message.substring(0, 500),
             executionTimeMs: executionTime,
+            endTime: new Date(),
           })
           .where(sql`id = ${runningLog[0].id}`);
       }

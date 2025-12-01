@@ -312,14 +312,14 @@ export default function ETLMonitor() {
 
       {/* ETL Selector Tabs */}
       <Tabs value={selectedETL} onValueChange={setSelectedETL} className="w-full">
-        <TabsList className="grid w-full grid-cols-1 md:w-auto md:inline-grid" style={{ gridTemplateColumns: `repeat(${ETL_CONFIGS.length}, minmax(0, 1fr))` }}>
+        <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${ETL_CONFIGS.length}, 1fr)` }}>
           {ETL_CONFIGS.map((etl) => {
             const Icon = etl.icon;
             return (
               <TabsTrigger 
                 key={etl.id} 
                 value={etl.id}
-                className="flex items-center gap-2"
+                className="flex items-center justify-center gap-2"
                 data-testid={`tab-${etl.id}`}
               >
                 <Icon className="h-4 w-4" />
