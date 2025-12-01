@@ -4094,11 +4094,12 @@ export const insertInventarioMarketingSchema = createInsertSchema(inventarioMark
   stockMinimo: z.number().min(0).optional(),
 });
 
-// Tabla de tareas de marketing
+// Tabla de tareas (unificada para marketing y general)
 export const tareasMarketing = pgTable("tareas_marketing", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   titulo: varchar("titulo", { length: 255 }).notNull(),
   descripcion: text("descripcion"),
+  tipo: varchar("tipo", { length: 50 }).notNull().default("marketing"), // marketing, general
   estado: varchar("estado").notNull().default("pendiente"), // pendiente, en_proceso, completado
   prioridad: varchar("prioridad").notNull().default("media"), // baja, media, alta
   fechaLimite: date("fecha_limite"),
@@ -4117,6 +4118,7 @@ export const tareasMarketing = pgTable("tareas_marketing", {
   asignadoIdx: index("IDX_tareas_marketing_asignado").on(table.asignadoAId),
   solicitudIdx: index("IDX_tareas_marketing_solicitud").on(table.solicitudId),
   mesAnioIdx: index("IDX_tareas_marketing_mes_anio").on(table.mes, table.anio),
+  tipoIdx: index("IDX_tareas_marketing_tipo").on(table.tipo),
 }));
 
 // Relations for tareas marketing
@@ -4147,6 +4149,7 @@ export const insertTareaMarketingSchema = createInsertSchema(tareasMarketing).om
   completadoEn: true,
 }).extend({
   titulo: z.string().min(1, "El título es requerido"),
+  tipo: z.enum(["marketing", "general"]).default("marketing"),
   estado: z.enum(["pendiente", "en_proceso", "completado"]).default("pendiente"),
   prioridad: z.enum(["baja", "media", "alta"]).default("media"),
   mes: z.number().min(1).max(12),
