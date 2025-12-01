@@ -91,3 +91,38 @@ The following were used for manual CSV import and are now deprecated:
 3. **Pending filter** - Always filter by `(eslido IS NULL OR eslido = '')` for pending NVV
 4. **ETL handles cleanup** - Full sync removes closed NVV automatically
 5. **Check deprecation warnings** - Functions log warnings when deprecated code is called
+
+## GDV Module Architecture (December 2025)
+
+### Current Architecture (ACTIVE)
+The GDV (Guías de Despacho Vigentes) system uses automated ETL from SQL Server with **full synchronization** (snapshot):
+
+**Data Source**: gdv.fact_gdv table (populated by ETL)
+- ETL uses full synchronization strategy (DELETE ALL + INSERT ALL)
+- Extracts ONLY open dispatch guides (ESDO IS NULL or empty, ESLIDO IS NULL or empty)
+- When GDV is invoiced/closed in source system, it automatically disappears from fact_gdv
+- Source tables from SQL Server: MAEEDO, MAEDDO, MAEEN, MAEPR, TABFU, TABRU, TABBO
+
+**Synchronization Strategy**:
+- **Type**: Full sync (snapshot) - same as NVV
+- **Behavior**: TRUNCATE fact_gdv → INSERT only open GDV lines
+- **Automatic cleanup**: Closed GDV disappear automatically
+- **No watermark filtering**: Extracts all open GDV regardless of date
+
+**Active Files**:
+- `server/etl-gdv.ts` - Main ETL implementation (full_sync mode)
+- `server/storage.ts` - GDV query functions
+- `server/routes.ts` - GDV endpoints
+
+**Key Fields**:
+- `esdo` - Document status (null/empty = open, 'C' = closed)
+- `eslido` - Line status (null/empty = pending, 'C' = closed)
+- `kofulido` - Salesperson code (from MAEDDO detail, not header)
+- `monto` - Line amount (vaneli)
+- `cantidad_pendiente` - Boolean: has pending quantity AND not closed AND monto >= 1000
+
+### Important Notes for GDV
+1. **Uses full sync** - TRUNCATE + INSERT, not incremental UPSERT
+2. **Filter by ESLIDO** - Only lines where `eslido IS NULL OR eslido = ''`
+3. **Automatic cleanup** - Closed/invoiced GDV disappear on next sync
+4. **Transient data** - GDV represents pending dispatches, not historical records
