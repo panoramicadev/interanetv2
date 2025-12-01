@@ -4831,7 +4831,7 @@ export class DatabaseStorage implements IStorage {
       ? Math.floor((today.getTime() - lastSaleDate.getTime()) / (1000 * 60 * 60 * 24))
       : 0;
 
-    // Calculate new clients: clients who bought from this salesperson for the first time in this period
+    // Calculate new clients: clients who NEVER bought before this period (in the entire company, not just from this salesperson)
     let newClients = 0;
     if (period) {
       // Get all clients who bought in this period
@@ -4843,23 +4843,24 @@ export class DatabaseStorage implements IStorage {
         .where(and(...conditions))
         .groupBy(factVentas.nokoen);
 
-      // For each client, check if they had previous purchases from this salesperson before this period
+      // For each client, check if they had ANY previous purchases in the ENTIRE company before this period
       const periodStart = this.getPeriodStart(period, filterType);
       
       for (const client of clientsInPeriod) {
+        if (!client.nokoen) continue; // Skip null clients
+        
         const [previousSale] = await db
           .select({
             count: sql<number>`COUNT(*)`
           })
           .from(factVentas)
           .where(and(
-            eq(factVentas.nokofu, salespersonName),
             eq(factVentas.nokoen, client.nokoen),
             sql`${factVentas.tido} != 'GDV'`,
             sql`${factVentas.feemdo} < ${periodStart}`
           ));
         
-        // If no previous sales, this is a new client
+        // If no previous sales in the ENTIRE company, this is a truly new client
         if (Number(previousSale.count) === 0) {
           newClients++;
         }
