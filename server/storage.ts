@@ -4700,26 +4700,25 @@ export class DatabaseStorage implements IStorage {
     console.log(`Found ${kofulidoCodes.length} salespeople mapping to branch ${branchName}: ${kofulidoCodes.join(', ')}`);
 
     // Get all NVV for these salespeople (sin filtros de fecha)
-    const nvvData = await db
-      .select({
-        id: nvvPendingSales.id,
-        NUDO: nvvPendingSales.NUDO,
-        TIDO: nvvPendingSales.TIDO,
-        FEEMDO: nvvPendingSales.FEEMDO,
-        ENDO: nvvPendingSales.ENDO,
-        NOKOEN: nvvPendingSales.NOKOEN,
-        VABRDO: nvvPendingSales.VABRDO,
-        KOFULIDO: nvvPendingSales.KOFULIDO
-      })
-      .from(nvvPendingSales)
-      .where(
-        and(
-          isNotNull(nvvPendingSales.KOFULIDO),
-          sql`UPPER(TRIM(${nvvPendingSales.KOFULIDO})) IN (${sql.raw(kofulidoCodes.map(c => `'${c}'`).join(','))})`
-        )
-      )
-      .orderBy(desc(nvvPendingSales.FEEMDO));
+    // Using nvv.fact_nvv (ETL data) instead of obsolete nvv_pending_sales
+    const queryResult = await db.execute(sql`
+      SELECT 
+        id,
+        nudo as "NUDO",
+        tido as "TIDO",
+        feemdo as "FEEMDO",
+        endo as "ENDO",
+        nokoen as "NOKOEN",
+        vabrdo as "VABRDO",
+        kofulido as "KOFULIDO"
+      FROM nvv.fact_nvv
+      WHERE (eslido IS NULL OR eslido = '')
+        AND kofulido IS NOT NULL
+        AND UPPER(TRIM(kofulido)) IN (${sql.raw(kofulidoCodes.map(c => `'${c}'`).join(','))})
+      ORDER BY feemdo DESC
+    `);
 
+    const nvvData = queryResult.rows as any[];
     console.log(`Found ${nvvData.length} NVV records for branch ${branchName}`);
 
     return nvvData;
@@ -11100,17 +11099,18 @@ export class DatabaseStorage implements IStorage {
     totalRecords: number;
   }> {
     try {
-      // If segment filter is provided, we need to find the salespeople (KOFULIDO codes) that belong to that segment
+      // If segment filter is provided, we need to find the salespeople (kofulido codes) that belong to that segment
       let vendorCodesForSegment: string[] | null = null;
       
       if (options?.segment) {
-        // Get unique vendor codes (kofulido) that belong to the requested segment from fact_ventas
+        // Get unique vendor codes (kofulido) from nvv.fact_nvv for the segment
         const vendorsBySegment = await db.execute(sql`
           SELECT DISTINCT kofulido 
-          FROM ventas.fact_ventas 
-          WHERE noruen = ${options.segment}
+          FROM nvv.fact_nvv 
+          WHERE nombre_segmento_cliente = ${options.segment}
             AND kofulido IS NOT NULL 
             AND kofulido != ''
+            AND (eslido IS NULL OR eslido = '')
         `);
         vendorCodesForSegment = vendorsBySegment.rows.map((row: any) => row.kofulido);
         
@@ -11120,27 +11120,25 @@ export class DatabaseStorage implements IStorage {
         }
       }
       
-      // Build conditions
-      const conditions = [];
+      // Build conditions - always filter for pending NVV only (eslido IS NULL OR eslido = '')
+      const conditions = [sql`(eslido IS NULL OR eslido = '')`];
       
       if (options?.salesperson) {
-        conditions.push(sql`"KOFULIDO" = ${options.salesperson}`);
+        conditions.push(sql`kofulido = ${options.salesperson}`);
       }
       
       if (vendorCodesForSegment && vendorCodesForSegment.length > 0) {
-        conditions.push(sql`"KOFULIDO" IN (${sql.join(vendorCodesForSegment.map(v => sql`${v}`), sql`, `)})`);
+        conditions.push(sql`kofulido IN (${sql.join(vendorCodesForSegment.map(v => sql`${v}`), sql`, `)})`);
       }
       
-      const whereClause = conditions.length > 0 
-        ? sql`WHERE ${sql.join(conditions, sql` AND `)}`
-        : sql``;
+      const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
       
-      // Get total amount from total_pendiente column (direct sum)
+      // Get total amount from monto column in nvv.fact_nvv (ETL data)
       const totalResult = await db.execute(sql`
         SELECT 
-          COALESCE(SUM(CAST(total_pendiente AS NUMERIC)), 0) as total_amount,
+          COALESCE(SUM(monto), 0) as total_amount,
           COUNT(*) as total_records
-        FROM nvv_pending_sales
+        FROM nvv.fact_nvv
         ${whereClause}
       `);
 
@@ -11166,68 +11164,59 @@ export class DatabaseStorage implements IStorage {
     endDate?: Date;
     limit?: number;
     offset?: number;
-  } = {}): Promise<NvvPendingSales[]> {
+  } = {}): Promise<any[]> {
     try {
-      // If segment filter is provided, get vendor codes for that segment first
-      let vendorCodesForSegment: string[] | null = null;
+      // Build conditions - always filter for pending NVV only (eslido IS NULL OR eslido = '')
+      const conditions = [sql`(eslido IS NULL OR eslido = '')`];
       
+      // If segment filter is provided, filter by nombre_segmento_cliente
       if (options.segment) {
-        // Get unique vendor codes (kofulido) that belong to the requested segment from fact_ventas
-        const vendorsBySegment = await db.execute(sql`
-          SELECT DISTINCT kofulido 
-          FROM ventas.fact_ventas 
-          WHERE noruen = ${options.segment}
-            AND kofulido IS NOT NULL 
-            AND kofulido != ''
-        `);
-        vendorCodesForSegment = vendorsBySegment.rows.map((row: any) => row.kofulido);
-        
-        // If no vendors found for segment, return empty array
-        if (vendorCodesForSegment.length === 0) {
-          return [];
-        }
+        conditions.push(sql`nombre_segmento_cliente = ${options.segment}`);
       }
-      
-      let query = db.select().from(nvvPendingSales);
 
-      const conditions = [];
-
-      // Use KOFULIDO for salesperson filtering
+      // Use kofulido for salesperson filtering
       if (options.salesperson) {
-        conditions.push(eq(nvvPendingSales.KOFULIDO, options.salesperson));
+        conditions.push(sql`kofulido = ${options.salesperson}`);
       }
 
-      // Filter by segment using vendor codes from fact_ventas
-      if (vendorCodesForSegment && vendorCodesForSegment.length > 0) {
-        conditions.push(inArray(nvvPendingSales.KOFULIDO, vendorCodesForSegment));
-      }
-
-      // Use FEERLI for date filtering (commitment date)
+      // Use feerli for date filtering (commitment date)
       if (options.startDate) {
-        conditions.push(gte(nvvPendingSales.FEERLI, options.startDate.toISOString().split('T')[0]));
+        conditions.push(sql`feerli >= ${options.startDate.toISOString().split('T')[0]}`);
       }
 
       if (options.endDate) {
-        conditions.push(lte(nvvPendingSales.FEERLI, options.endDate.toISOString().split('T')[0]));
+        conditions.push(sql`feerli <= ${options.endDate.toISOString().split('T')[0]}`);
       }
 
-      if (conditions.length > 0) {
-        query = query.where(and(...conditions));
-      }
+      const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
+      const limitClause = options.limit ? sql`LIMIT ${options.limit}` : sql``;
+      const offsetClause = options.offset ? sql`OFFSET ${options.offset}` : sql``;
 
-      // Order by FEERLI (commitment date) descending
-      query = query.orderBy(desc(nvvPendingSales.FEERLI));
+      // Query from nvv.fact_nvv (ETL data)
+      const results = await db.execute(sql`
+        SELECT 
+          id,
+          nudo as "NUDO",
+          nokoen as "NOKOEN",
+          kofulido as "KOFULIDO",
+          nombre_vendedor,
+          feemdo as "FEEMDO",
+          feerli as "FEERLI",
+          feemli as "FEEMLI",
+          monto as total_pendiente,
+          koprct,
+          nokopr as "NOKOPR",
+          sudo as "SUDO",
+          eslido,
+          nombre_segmento_cliente
+        FROM nvv.fact_nvv
+        ${whereClause}
+        ORDER BY feerli DESC
+        ${limitClause}
+        ${offsetClause}
+      `);
 
-      if (options.limit) {
-        query = query.limit(options.limit);
-      }
-
-      if (options.offset) {
-        query = query.offset(options.offset);
-      }
-
-      const results = await query;
-      return results;
+      return results.rows;
     } catch (error) {
       console.error('Error fetching NVV pending sales:', error);
       return [];
@@ -11248,44 +11237,44 @@ export class DatabaseStorage implements IStorage {
     cancelledCount: number;
   }> {
     try {
-      const conditions = [];
+      // Build conditions - always filter for pending NVV only
+      const conditions = [sql`(eslido IS NULL OR eslido = '')`];
 
-      // Use FEERLI for date filtering
+      // Use feerli for date filtering
       if (options.startDate) {
-        conditions.push(gte(nvvPendingSales.FEERLI, options.startDate.toISOString().split('T')[0]));
+        conditions.push(sql`feerli >= ${options.startDate.toISOString().split('T')[0]}`);
       }
 
       if (options.endDate) {
-        conditions.push(lte(nvvPendingSales.FEERLI, options.endDate.toISOString().split('T')[0]));
+        conditions.push(sql`feerli <= ${options.endDate.toISOString().split('T')[0]}`);
       }
 
-      // Use KOFULIDO for salesperson filtering
+      // Use kofulido for salesperson filtering
       if (options.salesperson) {
-        conditions.push(eq(nvvPendingSales.KOFULIDO, options.salesperson));
+        conditions.push(sql`kofulido = ${options.salesperson}`);
       }
 
-      // Note: segment field doesn't exist in CSV structure, skip filtering by segment
+      // Use nombre_segmento_cliente for segment filtering
+      if (options.segment) {
+        conditions.push(sql`nombre_segmento_cliente = ${options.segment}`);
+      }
 
-      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+      const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
 
-      const results = await db
-        .select({
-          // Use pre-calculated fields from import
-          totalAmount: sql<number>`COALESCE(SUM(CAST(${nvvPendingSales.totalPendiente} AS NUMERIC)), 0)`,
-          totalQuantity: sql<number>`COALESCE(SUM(CAST(${nvvPendingSales.cantidadPendiente} AS NUMERIC)), 0)`,
-          // Note: status columns don't exist in CSV, return basic counts
-          pendingCount: sql<number>`COUNT(*)`, // All records are considered "pending" by default
-          confirmedCount: sql<number>`0`,
-          deliveredCount: sql<number>`0`,
-          cancelledCount: sql<number>`0`,
-        })
-        .from(nvvPendingSales)
-        .where(whereClause);
+      const results = await db.execute(sql`
+        SELECT 
+          COALESCE(SUM(monto), 0) as total_amount,
+          COUNT(*) as pending_count,
+          COUNT(DISTINCT nudo) as document_count
+        FROM nvv.fact_nvv
+        ${whereClause}
+      `);
 
-      return results[0] || {
-        totalAmount: 0,
-        totalQuantity: 0,
-        pendingCount: 0,
+      const row = results.rows[0] as any;
+      return {
+        totalAmount: parseFloat(row?.total_amount?.toString() || '0'),
+        totalQuantity: parseInt(row?.document_count?.toString() || '0'),
+        pendingCount: parseInt(row?.pending_count?.toString() || '0'),
         confirmedCount: 0,
         deliveredCount: 0,
         cancelledCount: 0,
@@ -11423,39 +11412,42 @@ export class DatabaseStorage implements IStorage {
     }>;
   }>> {
     try {
-      const conditions = [];
+      // Build conditions - always filter for pending NVV only
+      const conditions = [sql`(eslido IS NULL OR eslido = '')`];
 
       // Add date filters if provided
       if (options?.startDate && options.startDate instanceof Date && !isNaN(options.startDate.getTime())) {
-        conditions.push(sql`${nvvPendingSales.FEEMDO} >= ${options.startDate.toISOString().split('T')[0]}`);
+        conditions.push(sql`feemdo >= ${options.startDate.toISOString().split('T')[0]}`);
       }
       if (options?.endDate && options.endDate instanceof Date && !isNaN(options.endDate.getTime())) {
-        conditions.push(sql`${nvvPendingSales.FEEMDO} <= ${options.endDate.toISOString().split('T')[0]}`);
+        conditions.push(sql`feemdo <= ${options.endDate.toISOString().split('T')[0]}`);
       }
 
-      // Get all NVV records
-      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+      const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
       
-      const results = await db
-        .select({
-          id: nvvPendingSales.id,
-          NUDO: nvvPendingSales.NUDO,
-          TIDO: nvvPendingSales.TIDO,
-          FEEMDO: nvvPendingSales.FEEMDO,
-          ENDO: nvvPendingSales.ENDO,
-          NOKOEN: nvvPendingSales.NOKOEN,
-          NOKOPR: nvvPendingSales.NOKOPR,
-          KOPRCT: nvvPendingSales.KOPRCT,
-          KOFULIDO: nvvPendingSales.KOFULIDO,
-          CAPREX2: nvvPendingSales.CAPREX2,
-          CAPRCO2: nvvPendingSales.CAPRCO2,
-          PPPRNE: nvvPendingSales.PPPRNE,
-          cantidadPendiente: nvvPendingSales.cantidadPendiente,
-          totalPendiente: nvvPendingSales.totalPendiente
-        })
-        .from(nvvPendingSales)
-        .where(whereClause)
-        .orderBy(desc(nvvPendingSales.FEEMDO));
+      // Query from nvv.fact_nvv (ETL data)
+      const queryResults = await db.execute(sql`
+        SELECT 
+          id,
+          nudo as "NUDO",
+          tido as "TIDO",
+          feemdo as "FEEMDO",
+          endo as "ENDO",
+          nokoen as "NOKOEN",
+          nokopr as "NOKOPR",
+          koprct as "KOPRCT",
+          kofulido as "KOFULIDO",
+          nombre_vendedor,
+          caprex2 as "CAPREX2",
+          caprco2 as "CAPRCO2",
+          ppprne as "PPPRNE",
+          monto as total_pendiente
+        FROM nvv.fact_nvv
+        ${whereClause}
+        ORDER BY feemdo DESC
+      `);
+      
+      const results = queryResults.rows as any[];
 
       // Get salesperson names from SQL Server TABFU table with caching
       const kofulidoToNameMap = await this.getVendorNamesMap();
@@ -11492,8 +11484,10 @@ export class DatabaseStorage implements IStorage {
         }
 
         const group = groupedBySalesperson.get(kofulido)!;
-        group.totalAmount += Number(row.totalPendiente) || 0;
-        group.totalUnits += Number(row.cantidadPendiente) || 0;
+        group.totalAmount += Number(row.total_pendiente) || 0;
+        // Calculate units from (CAPRCO2 - CAPREX2) * PPPRNE
+        const unitsCalc = ((Number(row.CAPRCO2) || 0) - (Number(row.CAPREX2) || 0)) * (Number(row.PPPRNE) || 1);
+        group.totalUnits += unitsCalc;
         group.totalOrders += 1;
         group.records.push({
           id: row.id,
@@ -11507,8 +11501,8 @@ export class DatabaseStorage implements IStorage {
           CAPREX2: Number(row.CAPREX2) || 0,
           CAPRCO2: Number(row.CAPRCO2) || 0,
           PPPRNE: Number(row.PPPRNE) || 0,
-          cantidadPendiente: Number(row.cantidadPendiente) || 0,
-          totalPendiente: Number(row.totalPendiente) || 0
+          cantidadPendiente: unitsCalc,
+          totalPendiente: Number(row.total_pendiente) || 0
         });
       });
 
@@ -11547,190 +11541,68 @@ export class DatabaseStorage implements IStorage {
     }>;
   } | null> {
     try {
-      // Get salesperson names map from SQL Server
-      const kofulidoToNameMap = await this.getVendorNamesMap();
+      // Build conditions - always filter for pending NVV only
+      const conditions = [sql`(eslido IS NULL OR eslido = '')`];
       
-      // Find the KOFULIDO code for this salesperson name
-      let salespersonCode: string | null = null;
+      // Search by salesperson name (nombre_vendedor in fact_nvv)
       const searchName = salespersonName.toUpperCase().trim();
-      
-      // Try exact match first
-      for (const [code, name] of kofulidoToNameMap.entries()) {
-        if (name.toUpperCase().trim() === searchName) {
-          salespersonCode = code;
-          console.log(`[NVV SALESPERSON] Found exact match: "${searchName}" -> ${code}`);
-          break;
-        }
-      }
-      
-      // If no exact match, try partial match (contains)
-      if (!salespersonCode) {
-        for (const [code, name] of kofulidoToNameMap.entries()) {
-          const normalizedName = name.toUpperCase().trim();
-          if (normalizedName.includes(searchName) || searchName.includes(normalizedName)) {
-            salespersonCode = code;
-            console.log(`[NVV SALESPERSON] Found partial match: "${searchName}" matched "${name}" -> ${code}`);
-            break;
-          }
-        }
-      }
-
-      if (!salespersonCode) {
-        console.log(`[NVV SALESPERSON] No code found for salesperson: "${salespersonName}"`);
-        // Log available names for debugging
-        console.log(`[NVV SALESPERSON] Available names in cache:`, Array.from(kofulidoToNameMap.values()).slice(0, 10));
-        return null;
-      }
-
-      const conditions = [];
-      
-      // Filter by salesperson code
-      conditions.push(sql`UPPER(TRIM(${nvvPendingSales.KOFULIDO})) = ${salespersonCode.toUpperCase()}`);
+      conditions.push(sql`UPPER(TRIM(nombre_vendedor)) = ${searchName}`);
 
       // Add date filters if provided
       if (options?.startDate && options.startDate instanceof Date && !isNaN(options.startDate.getTime())) {
-        conditions.push(sql`${nvvPendingSales.FEEMDO} >= ${options.startDate.toISOString().split('T')[0]}`);
+        conditions.push(sql`feemdo >= ${options.startDate.toISOString().split('T')[0]}`);
       }
       if (options?.endDate && options.endDate instanceof Date && !isNaN(options.endDate.getTime())) {
-        conditions.push(sql`${nvvPendingSales.FEEMDO} <= ${options.endDate.toISOString().split('T')[0]}`);
+        conditions.push(sql`feemdo <= ${options.endDate.toISOString().split('T')[0]}`);
       }
 
-      const whereClause = and(...conditions);
+      const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
       
-      const results = await db
-        .select({
-          id: nvvPendingSales.id,
-          NUDO: nvvPendingSales.NUDO,
-          TIDO: nvvPendingSales.TIDO,
-          FEEMDO: nvvPendingSales.FEEMDO,
-          ENDO: nvvPendingSales.ENDO,
-          NOKOEN: nvvPendingSales.NOKOEN,
-          NOKOPR: nvvPendingSales.NOKOPR,
-          KOPRCT: nvvPendingSales.KOPRCT,
-          KOFULIDO: nvvPendingSales.KOFULIDO,
-          CAPREX2: nvvPendingSales.CAPREX2,
-          CAPRCO2: nvvPendingSales.CAPRCO2,
-          PPPRNE: nvvPendingSales.PPPRNE,
-          cantidadPendiente: nvvPendingSales.cantidadPendiente,
-          totalPendiente: nvvPendingSales.totalPendiente
-        })
-        .from(nvvPendingSales)
-        .where(whereClause)
-        .orderBy(desc(nvvPendingSales.FEEMDO));
+      // Query from nvv.fact_nvv (ETL data)
+      const queryResults = await db.execute(sql`
+        SELECT 
+          id,
+          nudo as "NUDO",
+          tido as "TIDO",
+          feemdo as "FEEMDO",
+          endo as "ENDO",
+          nokoen as "NOKOEN",
+          nokopr as "NOKOPR",
+          koprct as "KOPRCT",
+          kofulido as "KOFULIDO",
+          nombre_vendedor,
+          caprex2 as "CAPREX2",
+          caprco2 as "CAPRCO2",
+          ppprne as "PPPRNE",
+          monto as total_pendiente
+        FROM nvv.fact_nvv
+        ${whereClause}
+        ORDER BY feemdo DESC
+      `);
+      
+      const results = queryResults.rows as any[];
 
-      // If no records found with code from TABFU, try to get actual code from nvv_pending_sales
       if (results.length === 0) {
-        console.log(`[NVV SALESPERSON] No pending NVV found with code "${salespersonCode}" from TABFU`);
-        console.log(`[NVV SALESPERSON] Searching all NVV codes to find match for: "${salespersonName}"`);
-        
-        // Get all distinct vendor codes from nvv_pending_sales
-        const allCodesResult = await db
-          .selectDistinct({ code: nvvPendingSales.KOFULIDO })
-          .from(nvvPendingSales)
-          .where(sql`${nvvPendingSales.KOFULIDO} IS NOT NULL AND ${nvvPendingSales.KOFULIDO} != ''`);
-        
-        console.log(`[NVV SALESPERSON] Found ${allCodesResult.length} distinct vendor codes in NVV`);
-        
-        // Check if any code from NVV matches this salesperson in TABFU
-        let actualCode: string | null = null;
-        for (const { code } of allCodesResult) {
-          const codeStr = String(code).trim();
-          const nameForCode = kofulidoToNameMap.get(codeStr);
-          if (nameForCode && nameForCode.toUpperCase().trim() === searchName) {
-            actualCode = codeStr;
-            console.log(`[NVV SALESPERSON] Found match! Code "${actualCode}" maps to "${nameForCode}"`);
-            break;
-          }
-        }
-        
-        if (!actualCode) {
-          console.log(`[NVV SALESPERSON] No matching code found in NVV for: "${salespersonName}"`);
-          return null;
-        }
-        console.log(`[NVV SALESPERSON] Found actual code "${actualCode}" in fact_ventas, retrying search...`);
-        
-        // Retry with the actual code from fact_ventas
-        const retryConditions = [sql`UPPER(TRIM(${nvvPendingSales.KOFULIDO})) = ${actualCode.toUpperCase()}`];
-        
-        if (options?.startDate && options.startDate instanceof Date && !isNaN(options.startDate.getTime())) {
-          retryConditions.push(sql`${nvvPendingSales.FEEMDO} >= ${options.startDate.toISOString().split('T')[0]}`);
-        }
-        if (options?.endDate && options.endDate instanceof Date && !isNaN(options.endDate.getTime())) {
-          retryConditions.push(sql`${nvvPendingSales.FEEMDO} <= ${options.endDate.toISOString().split('T')[0]}`);
-        }
-        
-        const retryResults = await db
-          .select({
-            id: nvvPendingSales.id,
-            NUDO: nvvPendingSales.NUDO,
-            TIDO: nvvPendingSales.TIDO,
-            FEEMDO: nvvPendingSales.FEEMDO,
-            ENDO: nvvPendingSales.ENDO,
-            NOKOEN: nvvPendingSales.NOKOEN,
-            NOKOPR: nvvPendingSales.NOKOPR,
-            KOPRCT: nvvPendingSales.KOPRCT,
-            KOFULIDO: nvvPendingSales.KOFULIDO,
-            CAPREX2: nvvPendingSales.CAPREX2,
-            CAPRCO2: nvvPendingSales.CAPRCO2,
-            PPPRNE: nvvPendingSales.PPPRNE,
-            cantidadPendiente: nvvPendingSales.cantidadPendiente,
-            totalPendiente: nvvPendingSales.totalPendiente
-          })
-          .from(nvvPendingSales)
-          .where(and(...retryConditions))
-          .orderBy(desc(nvvPendingSales.FEEMDO));
-        
-        if (retryResults.length === 0) {
-          console.log(`[NVV SALESPERSON] No pending NVV found even with actual code "${actualCode}"`);
-          return null;
-        }
-        
-        // Use the retry results
-        salespersonCode = actualCode;
-        const totalAmount = retryResults.reduce((sum, row) => sum + (Number(row.totalPendiente) || 0), 0);
-        const totalUnits = retryResults.reduce((sum, row) => sum + (Number(row.cantidadPendiente) || 0), 0);
-        const records = retryResults.map(row => ({
-          id: row.id,
-          NUDO: row.NUDO || '',
-          TIDO: row.TIDO || '',
-          FEEMDO: row.FEEMDO?.toString() || '',
-          ENDO: row.ENDO || '',
-          NOKOEN: row.NOKOEN || '',
-          NOKOPR: row.NOKOPR || '',
-          KOPRCT: row.KOPRCT || '',
-          CAPREX2: Number(row.CAPREX2) || 0,
-          CAPRCO2: Number(row.CAPRCO2) || 0,
-          PPPRNE: Number(row.PPPRNE) || 0,
-          cantidadPendiente: Number(row.cantidadPendiente) || 0,
-          totalPendiente: Number(row.totalPendiente) || 0
-        }));
-        
-        console.log(`[NVV SALESPERSON] Found ${retryResults.length} NVV with actual code "${actualCode}"`);
-        
-        return {
-          salespersonCode,
-          salespersonName,
-          totalAmount,
-          totalUnits,
-          totalOrders: retryResults.length,
-          records
-        };
+        console.log(`[NVV SALESPERSON] No pending NVV found for: "${salespersonName}"`);
+        return null;
       }
+
+      // Get salesperson code from first result
+      const salespersonCode = results[0]?.KOFULIDO || '';
 
       // Aggregate totals
       let totalAmount = 0;
       let totalUnits = 0;
-      let totalOrders = results.length;
 
       const records = results.map(row => {
-        const pendiente = Number(row.totalPendiente) || 0;
-        const unidades = Number(row.cantidadPendiente) || 0;
+        const pendiente = Number(row.total_pendiente) || 0;
+        const unitsCalc = ((Number(row.CAPRCO2) || 0) - (Number(row.CAPREX2) || 0)) * (Number(row.PPPRNE) || 1);
         
         totalAmount += pendiente;
-        totalUnits += unidades;
+        totalUnits += unitsCalc;
 
         return {
-          id: row.id,
+          id: row.id || '',
           NUDO: row.NUDO || '',
           TIDO: row.TIDO || '',
           FEEMDO: row.FEEMDO?.toString() || '',
@@ -11741,17 +11613,19 @@ export class DatabaseStorage implements IStorage {
           CAPREX2: Number(row.CAPREX2) || 0,
           CAPRCO2: Number(row.CAPRCO2) || 0,
           PPPRNE: Number(row.PPPRNE) || 0,
-          cantidadPendiente: unidades,
+          cantidadPendiente: unitsCalc,
           totalPendiente: pendiente
         };
       });
+
+      console.log(`[NVV SALESPERSON] Found ${results.length} NVV for: "${salespersonName}"`);
 
       return {
         salespersonCode,
         salespersonName,
         totalAmount,
         totalUnits,
-        totalOrders,
+        totalOrders: results.length,
         records
       };
     } catch (error) {
@@ -11762,14 +11636,14 @@ export class DatabaseStorage implements IStorage {
 
   async getTotalPendingNVV(): Promise<number> {
     try {
-      const result = await db
-        .select({
-          total: sql<number>`COALESCE(SUM(CAST(${nvvPendingSales.totalPendiente} AS DECIMAL)), 0)`
-        })
-        .from(nvvPendingSales)
-        .execute();
+      // Query from nvv.fact_nvv (ETL data) - only pending lines
+      const result = await db.execute(sql`
+        SELECT COALESCE(SUM(monto), 0) as total
+        FROM nvv.fact_nvv
+        WHERE eslido IS NULL OR eslido = ''
+      `);
 
-      return Number(result[0]?.total || 0);
+      return Number(result.rows[0]?.total || 0);
     } catch (error) {
       console.error('Error getting total pending NVV:', error);
       return 0;
@@ -11796,84 +11670,63 @@ export class DatabaseStorage implements IStorage {
     totalPendiente: number;
   }>> {
     try {
-      // First, get all KOFULIDO codes for salespeople in this segment
-      const salespeopleInSegment = await db
-        .select({
-          kofulido: factVentas.kofulido
-        })
-        .from(factVentas)
-        .where(
-          and(
-            isNotNull(factVentas.kofulido),
-            isNotNull(factVentas.noruen),
-            sql`TRIM(UPPER(${factVentas.noruen})) = TRIM(UPPER(${options.segment}))`
-          )
-        )
-        .groupBy(factVentas.kofulido);
-
-      // If no salespeople found in segment, return empty array
-      if (!salespeopleInSegment || salespeopleInSegment.length === 0) {
-        console.log(`No salespeople found in segment: ${options.segment}`);
-        return [];
-      }
-
-      const kofulidoCodes = salespeopleInSegment
-        .map(sp => sp.kofulido?.trim().toUpperCase())
-        .filter(Boolean) as string[];
-
-      console.log(`Found ${kofulidoCodes.length} salespeople in segment ${options.segment}: ${kofulidoCodes.join(', ')}`);
-
-      // Now filter NVV data using the KOFULIDO codes
-      const conditions = [
-        isNotNull(nvvPendingSales.KOFULIDO),
-        sql`TRIM(UPPER(${nvvPendingSales.KOFULIDO})) IN (${sql.raw(kofulidoCodes.map(k => `'${k}'`).join(','))})`
-      ];
+      // Build conditions - always filter for pending NVV only
+      const conditions = [sql`(eslido IS NULL OR eslido = '')`];
+      
+      // Filter by segment name (nombre_segmento_cliente in fact_nvv)
+      conditions.push(sql`nombre_segmento_cliente = ${options.segment}`);
 
       // Add date filters if provided
       if (options.startDate && options.startDate instanceof Date && !isNaN(options.startDate.getTime())) {
-        conditions.push(sql`${nvvPendingSales.FEEMDO} >= ${options.startDate.toISOString().split('T')[0]}`);
+        conditions.push(sql`feemdo >= ${options.startDate.toISOString().split('T')[0]}`);
       }
       if (options.endDate && options.endDate instanceof Date && !isNaN(options.endDate.getTime())) {
-        conditions.push(sql`${nvvPendingSales.FEEMDO} <= ${options.endDate.toISOString().split('T')[0]}`);
+        conditions.push(sql`feemdo <= ${options.endDate.toISOString().split('T')[0]}`);
       }
 
-      const results = await db
-        .select({
-          id: nvvPendingSales.id,
-          NUDO: nvvPendingSales.NUDO,
-          TIDO: nvvPendingSales.TIDO,
-          FEEMDO: nvvPendingSales.FEEMDO,
-          ENDO: nvvPendingSales.ENDO,
-          NOKOEN: nvvPendingSales.NOKOEN,
-          NOKOPR: nvvPendingSales.NOKOPR,
-          KOPRCT: nvvPendingSales.KOPRCT,
-          CAPREX2: nvvPendingSales.CAPREX2,
-          CAPRCO2: nvvPendingSales.CAPRCO2,
-          PPPRNE: nvvPendingSales.PPPRNE,
-          cantidadPendiente: nvvPendingSales.cantidadPendiente,
-          totalPendiente: nvvPendingSales.totalPendiente
-        })
-        .from(nvvPendingSales)
-        .where(and(...conditions))
-        .orderBy(desc(nvvPendingSales.FEEMDO));
+      const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
 
+      // Query from nvv.fact_nvv (ETL data)
+      const queryResults = await db.execute(sql`
+        SELECT 
+          id,
+          nudo as "NUDO",
+          tido as "TIDO",
+          feemdo as "FEEMDO",
+          endo as "ENDO",
+          nokoen as "NOKOEN",
+          nokopr as "NOKOPR",
+          koprct as "KOPRCT",
+          caprex2 as "CAPREX2",
+          caprco2 as "CAPRCO2",
+          ppprne as "PPPRNE",
+          monto as total_pendiente
+        FROM nvv.fact_nvv
+        ${whereClause}
+        ORDER BY feemdo DESC
+      `);
+
+      const results = queryResults.rows as any[];
       console.log(`Found ${results.length} NVV records for segment ${options.segment}`);
 
-      return results.map(row => ({
-        id: row.id,
-        NUDO: row.NUDO || '',
-        TIDO: row.TIDO || '',
-        FEEMDO: row.FEEMDO?.toString() || '',
-        ENDO: row.ENDO || '',
-        NOKOEN: row.NOKOEN || '',
-        NOKOPR: row.NOKOPR || '',
-        KOPRCT: row.KOPRCT || '',
-        CAPREX2: Number(row.CAPREX2) || 0,
-        CAPRCO2: Number(row.CAPRCO2) || 0,
-        PPPRNE: Number(row.PPPRNE) || 0,
-        cantidadPendiente: Number(row.cantidadPendiente) || 0,
-        totalPendiente: Number(row.totalPendiente) || 0
-      }));
+      return results.map(row => {
+        const unitsCalc = ((Number(row.CAPRCO2) || 0) - (Number(row.CAPREX2) || 0)) * (Number(row.PPPRNE) || 1);
+        return {
+          id: row.id || '',
+          NUDO: row.NUDO || '',
+          TIDO: row.TIDO || '',
+          FEEMDO: row.FEEMDO?.toString() || '',
+          ENDO: row.ENDO || '',
+          NOKOEN: row.NOKOEN || '',
+          NOKOPR: row.NOKOPR || '',
+          KOPRCT: row.KOPRCT || '',
+          CAPREX2: Number(row.CAPREX2) || 0,
+          CAPRCO2: Number(row.CAPRCO2) || 0,
+          PPPRNE: Number(row.PPPRNE) || 0,
+          cantidadPendiente: unitsCalc,
+          totalPendiente: Number(row.total_pendiente) || 0
+        };
+      });
     } catch (error) {
       console.error('Error getting NVV by segment:', error);
       return [];
@@ -11908,115 +11761,63 @@ export class DatabaseStorage implements IStorage {
     }>;
   }> {
     try {
-      // Basic metrics using direct CSV column names
-      const totalRecordsResult = await db
-        .select({ count: sql<number>`COUNT(*)` })
-        .from(nvvPendingSales);
+      // Query from nvv.fact_nvv (ETL data) - only pending lines
+      const metricsResult = await db.execute(sql`
+        SELECT 
+          COUNT(*) as total_records,
+          COUNT(DISTINCT kofulido) as total_salespeople,
+          COUNT(DISTINCT nokoen) as total_companies,
+          COALESCE(SUM(monto), 0) as total_pending_amount,
+          COALESCE(AVG(monto), 0) as avg_order_value
+        FROM nvv.fact_nvv
+        WHERE eslido IS NULL OR eslido = ''
+      `);
 
-      const totalSalespeopleResult = await db
-        .select({ count: sql<number>`COUNT(DISTINCT ${nvvPendingSales.KOFULIDO})` })
-        .from(nvvPendingSales)
-        .where(isNotNull(nvvPendingSales.KOFULIDO));
+      const metrics = metricsResult.rows[0] as any;
 
-      const totalCompaniesResult = await db
-        .select({ count: sql<number>`COUNT(DISTINCT ${nvvPendingSales.NOKOEN})` })
-        .from(nvvPendingSales)
-        .where(isNotNull(nvvPendingSales.NOKOEN));
+      // Top salespeople by monto
+      const topSalespeopleResult = await db.execute(sql`
+        SELECT 
+          COALESCE(nombre_vendedor, kofulido, 'Sin vendedor') as salesperson,
+          SUM(monto) as total_amount,
+          COUNT(*) as record_count
+        FROM nvv.fact_nvv
+        WHERE (eslido IS NULL OR eslido = '') AND kofulido IS NOT NULL
+        GROUP BY nombre_vendedor, kofulido
+        ORDER BY total_amount DESC
+        LIMIT 10
+      `);
 
-      // Calculate pending amount using CSV fields directly
-      const pendingAmountResult = await db
-        .select({
-          totalAmount: sql<number>`
-            COALESCE(SUM(
-              GREATEST(
-                CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
-                CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
-                0
-              ) * CAST(COALESCE(${nvvPendingSales.PPPRNE}, '0') AS NUMERIC)
-            ), 0)`,
-          avgAmount: sql<number>`
-            COALESCE(AVG(
-              GREATEST(
-                CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
-                CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
-                0
-              ) * CAST(COALESCE(${nvvPendingSales.PPPRNE}, '0') AS NUMERIC)
-            ), 0)`
-        })
-        .from(nvvPendingSales);
-
-      // Top salespeople using KOFULIDO
-      const topSalespeopleResult = await db
-        .select({
-          salesperson: sql<string>`TRIM(UPPER(COALESCE(${nvvPendingSales.KOFULIDO}, 'Sin vendedor')))`,
-          totalAmount: sql<number>`
-            COALESCE(SUM(
-              GREATEST(
-                CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
-                CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
-                0
-              ) * CAST(COALESCE(${nvvPendingSales.PPPRNE}, '0') AS NUMERIC)
-            ), 0)`,
-          recordCount: sql<number>`COUNT(*)`
-        })
-        .from(nvvPendingSales)
-        .where(isNotNull(nvvPendingSales.KOFULIDO))
-        .groupBy(sql`TRIM(UPPER(COALESCE(${nvvPendingSales.KOFULIDO}, 'Sin vendedor')))`)
-        .orderBy(sql`
-          SUM(
-            GREATEST(
-              CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
-              CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
-              0
-            ) * CAST(COALESCE(${nvvPendingSales.PPPRNE}, '0') AS NUMERIC)
-          ) DESC`)
-        .limit(10);
-
-      // Top companies using NOKOEN
-      const topCompaniesResult = await db
-        .select({
-          company: sql<string>`TRIM(UPPER(COALESCE(${nvvPendingSales.NOKOEN}, 'Sin nombre')))`,
-          totalAmount: sql<number>`
-            COALESCE(SUM(
-              GREATEST(
-                CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
-                CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
-                0
-              ) * CAST(COALESCE(${nvvPendingSales.PPPRNE}, '0') AS NUMERIC)
-            ), 0)`,
-          recordCount: sql<number>`COUNT(*)`
-        })
-        .from(nvvPendingSales)
-        .where(isNotNull(nvvPendingSales.NOKOEN))
-        .groupBy(sql`TRIM(UPPER(COALESCE(${nvvPendingSales.NOKOEN}, 'Sin nombre')))`)
-        .orderBy(sql`
-          SUM(
-            GREATEST(
-              CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
-              CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
-              0
-            ) * CAST(COALESCE(${nvvPendingSales.PPPRNE}, '0') AS NUMERIC)
-          ) DESC`)
-        .limit(10);
+      // Top companies by monto
+      const topCompaniesResult = await db.execute(sql`
+        SELECT 
+          COALESCE(nokoen, 'Sin nombre') as company,
+          SUM(monto) as total_amount,
+          COUNT(*) as record_count
+        FROM nvv.fact_nvv
+        WHERE (eslido IS NULL OR eslido = '') AND nokoen IS NOT NULL
+        GROUP BY nokoen
+        ORDER BY total_amount DESC
+        LIMIT 10
+      `);
 
       return {
-        totalRecords: totalRecordsResult[0]?.count || 0,
-        totalSalespeople: totalSalespeopleResult[0]?.count || 0,
-        totalCompanies: totalCompaniesResult[0]?.count || 0,
-        totalPendingAmount: pendingAmountResult[0]?.totalAmount || 0,
-        averageOrderValue: pendingAmountResult[0]?.avgAmount || 0,
-        topSalespeople: topSalespeopleResult.map(row => ({
+        totalRecords: Number(metrics?.total_records) || 0,
+        totalSalespeople: Number(metrics?.total_salespeople) || 0,
+        totalCompanies: Number(metrics?.total_companies) || 0,
+        totalPendingAmount: Number(metrics?.total_pending_amount) || 0,
+        averageOrderValue: Number(metrics?.avg_order_value) || 0,
+        topSalespeople: (topSalespeopleResult.rows as any[]).map(row => ({
           salesperson: row.salesperson || 'Sin vendedor',
-          totalAmount: row.totalAmount || 0,
-          recordCount: row.recordCount || 0,
+          totalAmount: Number(row.total_amount) || 0,
+          recordCount: Number(row.record_count) || 0,
         })),
-        topCompanies: topCompaniesResult.map(row => ({
+        topCompanies: (topCompaniesResult.rows as any[]).map(row => ({
           company: row.company || 'Sin nombre',
-          totalAmount: row.totalAmount || 0,
-          recordCount: row.recordCount || 0,
+          totalAmount: Number(row.total_amount) || 0,
+          recordCount: Number(row.record_count) || 0,
         })),
-        // Note: Status and region breakdowns removed since CSV doesn't include these fields
-        statusBreakdown: [{ status: 'pending', count: totalRecordsResult[0]?.count || 0, amount: pendingAmountResult[0]?.totalAmount || 0 }],
+        statusBreakdown: [{ status: 'pending', count: Number(metrics?.total_records) || 0, amount: Number(metrics?.total_pending_amount) || 0 }],
         regionBreakdown: [],
       };
     } catch (error) {
@@ -17901,20 +17702,22 @@ export class DatabaseStorage implements IStorage {
       .map(p => ({ nombre: p.cliente_nombre, fechaInicio: p.fecha_inicio, fechaFin: p.fecha_fin }));
 
     // OPTIMIZED: Batch fetch ALL NVV with a single query, then group in memory
+    // Using nvv.fact_nvv (ETL data) instead of obsolete nvv_pending_sales
     const nvvMap = new Map<string, number>();
     if (clienteSemanas.length > 0) {
       // Build a single query with all cliente/fecha combinations
       const nvvConditions = clienteSemanas.map(cs => 
-        sql`("NOKOEN" = ${cs.nombre} AND "FEEMLI" >= ${cs.fechaInicio} AND "FEEMLI" <= ${cs.fechaFin})`
+        sql`(nokoen = ${cs.nombre} AND feemli >= ${cs.fechaInicio} AND feemli <= ${cs.fechaFin})`
       );
 
       const ventasNvvBatch = await db.execute(sql`
         SELECT 
-          "NOKOEN" as cliente,
-          "FEEMLI" as fecha,
-          total_pendiente
-        FROM nvv_pending_sales
-        WHERE ${sql.join(nvvConditions, sql` OR `)}
+          nokoen as cliente,
+          feemli as fecha,
+          monto as total_pendiente
+        FROM nvv.fact_nvv
+        WHERE (eslido IS NULL OR eslido = '') 
+          AND (${sql.join(nvvConditions, sql` OR `)})
       `);
 
       // Group results by cliente+fechaInicio+fechaFin in memory
