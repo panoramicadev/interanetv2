@@ -153,13 +153,13 @@ async function getLastWatermark(): Promise<Date> {
 
 export async function executeGDVETL(): Promise<GDVETLResult> {
   console.log('\n╔═══════════════════════════════════════════════════════════════╗');
-  console.log('║  📦 ETL DE GUÍAS DE DESPACHO (GDV) - INCREMENTAL            ║');
+  console.log('║  📦 ETL DE GUÍAS DE DESPACHO (GDV) - SINCRONIZACIÓN COMPLETA ║');
   console.log('╚═══════════════════════════════════════════════════════════════╝');
   console.log(`⏰ Inicio: ${new Date().toISOString()}`);
   
   const startTime = Date.now();
   const logger = createETLLogger('gdv_etl');
-  logger.info('ETL de GDV iniciado', { startTime: new Date().toISOString() });
+  logger.info('ETL de GDV iniciado (full_sync)', { startTime: new Date().toISOString() });
   
   let pool: mssql.ConnectionPool | null = null;
   const sucursales = ['004', '006', '007'];
@@ -193,17 +193,15 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
     }
     console.log('✅ No hay ejecuciones activas\n');
 
-    // Obtener watermarks
-    const lastWatermark = await getLastWatermark();
-    const currentWatermark = new Date();
+    // Para sincronización completa, usamos timestamp actual
+    const currentTimestamp = new Date();
     
     console.log('╔═══════════════════════════════════════════════════════════════╗');
-    console.log('║  🔍 CONFIGURACIÓN DEL WATERMARK                               ║');
+    console.log('║  📋 ESTRATEGIA: SINCRONIZACIÓN COMPLETA (SNAPSHOT)           ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
-    console.log(`📍 Watermark inicial: ${lastWatermark.toISOString()}`);
-    console.log(`📍 Watermark actual: ${currentWatermark.toISOString()}`);
-    console.log(`📅 Fecha inicio: ${lastWatermark.toISOString().split('T')[0]}`);
-    console.log(`📅 Fecha fin: ${currentWatermark.toISOString().split('T')[0]}`);
+    console.log('📋 Modo: DELETE ALL + INSERT ALL');
+    console.log('📋 Filtro: Solo GDV abiertas (ESLIDO IS NULL o vacío)');
+    console.log(`📅 Timestamp: ${currentTimestamp.toISOString()}`);
     console.log('');
 
     // Conectar a SQL Server
@@ -217,12 +215,11 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
     console.log('✅ Conectado a SQL Server\n');
 
     // Registrar inicio de ejecución
-    const periodLabel = `${lastWatermark.toISOString().split('T')[0]} to ${currentWatermark.toISOString().split('T')[0]}`;
     const [executionLog] = await db.insert(gdvSyncLog).values({
       status: 'running',
-      period: periodLabel,
+      period: 'full_sync',
       branches: sucursales.join(','),
-      watermarkDate: currentWatermark,
+      watermarkDate: currentTimestamp,
     }).returning();
 
     // Limpiar tablas staging de GDV (propias, no compartidas con ventas)
@@ -236,21 +233,16 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
     await db.execute(sql`TRUNCATE TABLE gdv.stg_tabbo_gdv CASCADE`);
     console.log('✅ Tablas staging limpias (aisladas de ETL ventas)\n');
 
-    // 1. EXTRAER MAEEDO (encabezados GDV) con watermark
-    // CORRECCIÓN: Usar FEER (fecha última actualización) para detectar cambios de estado
-    emitProgress(2, TOTAL_STEPS, 'Extrayendo MAEEDO (GDV)', 'Consultando SQL Server...');
-    console.log('1️⃣  Extrayendo MAEEDO (Encabezados GDV)...');
-    
-    const startDateSQL = lastWatermark.toISOString().split('T')[0];
-    const endDateSQL = currentWatermark.toISOString().split('T')[0];
+    // 1. EXTRAER MAEEDO (encabezados GDV) - TODAS LAS GDV ABIERTAS (sin filtro de fecha)
+    emitProgress(2, TOTAL_STEPS, 'Extrayendo MAEEDO (GDV abiertas)', 'Consultando SQL Server...');
+    console.log('1️⃣  Extrayendo MAEEDO (Encabezados GDV abiertas)...');
     
     console.log('╔═══════════════════════════════════════════════════════════════╗');
-    console.log('║  📝 QUERY SQL MAEEDO - FILTROS APLICADOS                      ║');
+    console.log('║  📝 QUERY SQL MAEEDO - SINCRONIZACIÓN COMPLETA               ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
     console.log(`🔍 TIDO = 'GDV'`);
     console.log(`🔍 SUDO IN: ${sucursales.join(', ')}`);
-    console.log(`🔍 FEER >= '${startDateSQL}' (Fecha última actualización - detecta todos los cambios)`);
-    console.log(`🔍 FEER <= '${endDateSQL}'`);
+    console.log(`🔍 ESDO IS NULL OR ESDO = '' (Solo documentos abiertos)`);
     console.log('');
     
     const maeedo = await executeWithResilience(
@@ -259,18 +251,21 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
         FROM dbo.MAEEDO
         WHERE TIDO = 'GDV'
           AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
-          AND FEER >= '${startDateSQL}'
-          AND FEER <= '${endDateSQL}'
-        ORDER BY FEER
+          AND (ESDO IS NULL OR ESDO = '' OR ESDO NOT IN ('C', 'A'))
+        ORDER BY FEEMDO DESC
       `),
       sqlServerBreaker,
       { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
     );
     
-    console.log(`   ✅ ${maeedo.recordset.length} documentos GDV encontrados`);
+    console.log(`   ✅ ${maeedo.recordset.length} documentos GDV abiertos encontrados`);
 
     if (maeedo.recordset.length === 0) {
-      console.log('\n⚠️  No hay GDV nuevas para procesar en el período especificado\n');
+      console.log('\n⚠️  No hay GDV abiertas en el sistema\n');
+      
+      // En sincronización completa, si no hay GDV abiertas, limpiamos fact_gdv
+      console.log('🧹 Limpiando fact_gdv (no hay GDV abiertas)...');
+      await db.execute(sql`TRUNCATE TABLE gdv.fact_gdv`);
       
       await db.update(gdvSyncLog)
         .set({
@@ -292,7 +287,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
         recordsUpdated: 0,
         statusChanges: 0,
         executionTimeMs: Date.now() - startTime,
-        watermarkDate: currentWatermark,
+        watermarkDate: currentTimestamp,
       };
     }
 
@@ -527,64 +522,27 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
     }));
     await batchInsert(stgTabboGdv, tabbo_records, 'stg_tabbo_gdv', logger);
 
-    // 7. MERGE A FACT_GDV CON DETECCIÓN DE CAMBIOS DE ESTADO
-    emitProgress(7, TOTAL_STEPS, 'Detectando cambios de estado', 'Comparando con registros existentes...');
-    console.log('\n8️⃣  Detectando cambios de estado...');
+    // 7. SINCRONIZACIÓN COMPLETA: DELETE ALL + INSERT ALL
+    emitProgress(7, TOTAL_STEPS, 'Preparando sincronización', 'Contando registros existentes...');
+    console.log('\n8️⃣  Preparando sincronización completa...');
     
-    // Obtener registros existentes
-    const idmaeddosToProcess = maeddo.recordset.map(r => cleanBigIntId(r.IDMAEDDO));
-    
-    const existingGDVs = await db
-      .select()
-      .from(factGdv)
-      .where(inArray(factGdv.idmaeddo, idmaeddosToProcess))
-      .execute();
-
-    // Map para detección rápida de cambios
-    const existingMap = new Map(
-      existingGDVs.map(gdv => [gdv.idmaeddo?.toString() || '0', gdv])
-    );
-
-    let statusChanges = 0;
-
-    // Detectar cambios de estado antes del merge
-    for (const row of maeddo.recordset) {
-      const idmaeddo = cleanBigIntId(row.IDMAEDDO);
-      const existingRecord = existingMap.get(idmaeddo);
-      
-      if (existingRecord) {
-        const oldStatus = existingRecord.esdo;
-        const newStatus = cleanText(maeedo.recordset.find(m => m.IDMAEEDO === row.IDMAEEDO)?.ESDO);
-        
-        // Detectar cambio de estado a cerrado
-        if (!oldStatus && newStatus === 'C') {
-          statusChanges++;
-          logger.info(`Cambio de estado detectado: GDV cerrada`, {
-            idmaeedo: row.IDMAEEDO,
-            oldStatus: 'ABIERTO',
-            newStatus: 'CERRADO'
-          });
-          console.log(`   ✅ Estado cambiado a CERRADO: IDMAEDDO ${idmaeddo}`);
-        }
-      }
-    }
-    console.log(`   Total cambios de estado: ${statusChanges}\n`);
-
-    // 8. MERGE INCREMENTAL usando JOINs a staging
-    emitProgress(8, TOTAL_STEPS, 'Procesando MERGE', 'UPSERT incremental en fact_gdv...');
-    console.log('9️⃣  Procesando MERGE incremental a fact_gdv...');
-    
-    // Contar registros antes
+    // Contar registros antes (para calcular eliminados)
     const countBeforeResult = await db.execute(sql`SELECT COUNT(*) as count FROM gdv.fact_gdv`);
-    const rowsBeforeUpsert = Number(countBeforeResult.rows[0].count);
+    const rowsBeforeSync = Number(countBeforeResult.rows[0].count);
+    console.log(`   📊 Registros actuales en fact_gdv: ${rowsBeforeSync}`);
+
+    // 8. SINCRONIZACIÓN COMPLETA: DELETE ALL + INSERT ALL
+    emitProgress(8, TOTAL_STEPS, 'Sincronizando', 'Reemplazando todos los registros en fact_gdv...');
+    console.log('9️⃣  Procesando SINCRONIZACIÓN COMPLETA a fact_gdv...');
+    console.log('   📋 Estrategia: DELETE ALL + INSERT ALL (snapshot)');
 
     await db.transaction(async (tx) => {
-      // DELETE registros que serán actualizados
-      if (idmaeddosToProcess.length > 0) {
-        await tx.delete(factGdv).where(inArray(factGdv.idmaeddo, idmaeddosToProcess));
-      }
+      // TRUNCATE fact_gdv (eliminar todos los registros)
+      console.log('   🗑️  Eliminando todos los registros existentes...');
+      await tx.execute(sql`TRUNCATE TABLE gdv.fact_gdv`);
 
-      // INSERT con JOINs a staging tables para obtener nombres
+      // INSERT con JOINs a staging tables - solo líneas abiertas
+      console.log('   ➕ Insertando GDV abiertas desde staging...');
       await tx.execute(sql`
         INSERT INTO gdv.fact_gdv (
           idmaeddo, idmaeedo, tido, nudo, endo, suendo, sudo, feemdo, feulvedo,
@@ -663,22 +621,23 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
         LEFT JOIN gdv.stg_maeven_gdv fu ON dd.kofulido = fu.kofu
         LEFT JOIN gdv.stg_tabru_gdv ru ON en.ruen = ru.koru
         LEFT JOIN gdv.stg_tabbo_gdv bo ON ed.suli = bo.suli AND ed.bosulido = bo.bosuli
+        WHERE dd.eslido IS NULL OR dd.eslido = ''
       `);
     });
 
     // Contar registros después
     const countAfterResult = await db.execute(sql`SELECT COUNT(*) as count FROM gdv.fact_gdv`);
-    const rowsAfterUpsert = Number(countAfterResult.rows[0].count);
+    const rowsAfterSync = Number(countAfterResult.rows[0].count);
     
-    const recordsInserted = Math.max(0, rowsAfterUpsert - rowsBeforeUpsert);
-    const recordsUpdated = idmaeddosToProcess.length - recordsInserted;
+    // En sincronización completa, todos son inserts nuevos
+    const recordsInserted = rowsAfterSync;
+    const recordsRemoved = Math.max(0, rowsBeforeSync - rowsAfterSync);
 
-    console.log(`\n📊 Resultados del MERGE:`);
-    console.log(`   Total procesado: ${maeddo.recordset.length} líneas`);
-    console.log(`   Nuevos registros: ${recordsInserted}`);
-    console.log(`   Registros actualizados: ${recordsUpdated}`);
-    console.log(`   Cambios de estado: ${statusChanges}`);
-    console.log(`   Total en fact_gdv: ${rowsAfterUpsert}\n`);
+    console.log(`\n📊 Resultados de la SINCRONIZACIÓN COMPLETA:`);
+    console.log(`   Registros anteriores: ${rowsBeforeSync}`);
+    console.log(`   Registros actuales: ${rowsAfterSync}`);
+    console.log(`   GDV cerradas/eliminadas: ${recordsRemoved}`);
+    console.log(`   Total líneas procesadas: ${maeddo.recordset.length}\n`);
 
     // Actualizar log de ejecución
     emitProgress(10, TOTAL_STEPS, 'Finalizando', 'Actualizando log de sincronización...');
@@ -688,8 +647,8 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
         status: 'success',
         recordsProcessed: maeddo.recordset.length,
         recordsInserted,
-        recordsUpdated,
-        statusChanges,
+        recordsUpdated: 0,
+        statusChanges: recordsRemoved,
         executionTimeMs: Date.now() - startTime,
       })
       .where(sql`id = ${executionLog.id}`);
@@ -698,19 +657,19 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
 
     const executionTime = Date.now() - startTime;
     console.log('╔═══════════════════════════════════════════════════════════════╗');
-    console.log('║  ✅ ETL DE GDV COMPLETADO EXITOSAMENTE                        ║');
+    console.log('║  ✅ ETL DE GDV COMPLETADO EXITOSAMENTE (SYNC COMPLETA)       ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
     console.log(`⏱️  Tiempo de ejecución: ${(executionTime / 1000).toFixed(2)}s`);
-    console.log(`📦 Registros procesados: ${maeddo.recordset.length}`);
-    console.log(`➕ Nuevos: ${recordsInserted}`);
-    console.log(`🔄 Actualizados: ${recordsUpdated}`);
-    console.log(`🔀 Cambios de estado: ${statusChanges}\n`);
+    console.log(`📦 Documentos GDV abiertos: ${maeedo.recordset.length}`);
+    console.log(`📋 Líneas procesadas: ${maeddo.recordset.length}`);
+    console.log(`➕ Registros en fact_gdv: ${rowsAfterSync}`);
+    console.log(`🗑️  GDV cerradas/eliminadas: ${recordsRemoved}\n`);
 
-    logger.info('ETL de GDV completado exitosamente', {
-      recordsProcessed: maeddo.recordset.length,
+    logger.info('ETL de GDV completado exitosamente (full_sync)', {
+      documentsProcessed: maeedo.recordset.length,
+      linesProcessed: maeddo.recordset.length,
       recordsInserted,
-      recordsUpdated,
-      statusChanges,
+      recordsRemoved,
       executionTimeMs: executionTime
     });
 
@@ -718,10 +677,10 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
       success: true,
       recordsProcessed: maeddo.recordset.length,
       recordsInserted,
-      recordsUpdated,
-      statusChanges,
+      recordsUpdated: 0,
+      statusChanges: recordsRemoved,
       executionTimeMs: executionTime,
-      watermarkDate: currentWatermark,
+      watermarkDate: currentTimestamp,
     };
 
   } catch (error: any) {
