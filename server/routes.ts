@@ -13346,6 +13346,73 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Get promesas con cumplimiento (comparación con ventas reales)
+  // IMPORTANTE: Esta ruta debe estar ANTES de /:id para evitar conflictos de matching
+  app.get('/api/promesas-compra/cumplimiento/reporte', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { vendedorId, semana, anio, startDate, endDate } = req.query;
+      
+      const filters: any = {};
+      
+      // Salesperson can only see their own data
+      if (user.role === 'salesperson') {
+        filters.vendedorId = user.id;
+      } else if (vendedorId) {
+        filters.vendedorId = vendedorId;
+      }
+      
+      // Use startDate/endDate if provided, otherwise use semana/anio
+      if (startDate && endDate) {
+        filters.startDate = startDate;
+        filters.endDate = endDate;
+      } else {
+        if (semana) filters.semana = semana;
+        if (anio) filters.anio = parseInt(anio);
+      }
+      
+      console.log('🔍 [PROMESAS] Query filters:', JSON.stringify(filters, null, 2));
+      console.log('🔍 [PROMESAS] User role:', user.role, '| User ID:', user.id);
+      
+      const resultados = await storage.getPromesasConCumplimiento(filters);
+      
+      console.log(`✅ [PROMESAS] Found ${resultados.length} promesas`);
+      if (resultados.length > 0) {
+        console.log('📊 [PROMESAS] Sample:', JSON.stringify(resultados[0], null, 2));
+      }
+      
+      // Add canDelete flag to each promesa based on user authorization
+      const resultadosConPermisos = await Promise.all(
+        resultados.map(async (item: any) => {
+          let canDelete = false;
+          
+          if (user.role === 'admin') {
+            // Admin can delete any promesa
+            canDelete = true;
+          } else if (user.role === 'salesperson') {
+            // Salesperson can delete their own promesas
+            canDelete = item.promesa.vendedorId === user.id;
+          } else if (user.role === 'supervisor') {
+            // Supervisor can delete promesas of salespeople under their supervision
+            const salespersonUser = await storage.getSalespersonUserById(item.promesa.vendedorId);
+            canDelete = salespersonUser?.supervisorId === user.id;
+          }
+          
+          return {
+            ...item,
+            canDelete
+          };
+        })
+      );
+      
+      // Keep the nested structure that the frontend expects
+      res.json(resultadosConPermisos);
+    } catch (error: any) {
+      console.error('[ERROR] /api/promesas-compra/cumplimiento/reporte:', error);
+      res.status(500).json({ message: 'Error al obtener reporte de cumplimiento', error: error.message });
+    }
+  }));
+
   // Get promesa de compra by ID
   app.get('/api/promesas-compra/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
@@ -13424,97 +13491,6 @@ export function registerRoutes(app: Express): Server {
       res.status(204).send();
     } catch (error: any) {
       res.status(500).json({ message: 'Error al eliminar promesa de compra', error: error.message });
-    }
-  }));
-
-  // Update promesa de compra (solo admin/supervisor)
-  app.patch('/api/promesas-compra/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
-    try {
-      const user = req.user;
-      
-      // Solo admin y supervisor pueden editar
-      if (!['admin', 'supervisor'].includes(user.role)) {
-        return res.status(403).json({ message: 'No autorizado para editar promesas' });
-      }
-      
-      const { id } = req.params;
-      const { ventasRealesManual, observaciones } = req.body;
-      
-      const promesa = await storage.updatePromesaCompra(id, {
-        ventasRealesManual: ventasRealesManual ? parseFloat(ventasRealesManual) : null,
-        observaciones
-      });
-      
-      res.json(promesa);
-    } catch (error: any) {
-      console.error('[ERROR] /api/promesas-compra/:id:', error);
-      res.status(500).json({ message: 'Error al actualizar promesa', error: error.message });
-    }
-  }));
-
-  // Get promesas con cumplimiento (comparación con ventas reales)
-  app.get('/api/promesas-compra/cumplimiento/reporte', requireAuth, asyncHandler(async (req: any, res: any) => {
-    try {
-      const user = req.user;
-      const { vendedorId, semana, anio, startDate, endDate } = req.query;
-      
-      const filters: any = {};
-      
-      // Salesperson can only see their own data
-      if (user.role === 'salesperson') {
-        filters.vendedorId = user.id;
-      } else if (vendedorId) {
-        filters.vendedorId = vendedorId;
-      }
-      
-      // Use startDate/endDate if provided, otherwise use semana/anio
-      if (startDate && endDate) {
-        filters.startDate = startDate;
-        filters.endDate = endDate;
-      } else {
-        if (semana) filters.semana = semana;
-        if (anio) filters.anio = parseInt(anio);
-      }
-      
-      console.log('🔍 [PROMESAS] Query filters:', JSON.stringify(filters, null, 2));
-      console.log('🔍 [PROMESAS] User role:', user.role, '| User ID:', user.id);
-      
-      const resultados = await storage.getPromesasConCumplimiento(filters);
-      
-      console.log(`✅ [PROMESAS] Found ${resultados.length} promesas`);
-      if (resultados.length > 0) {
-        console.log('📊 [PROMESAS] Sample:', JSON.stringify(resultados[0], null, 2));
-      }
-      
-      // Add canDelete flag to each promesa based on user authorization
-      const resultadosConPermisos = await Promise.all(
-        resultados.map(async (item: any) => {
-          let canDelete = false;
-          
-          if (user.role === 'admin') {
-            // Admin can delete any promesa
-            canDelete = true;
-          } else if (user.role === 'salesperson') {
-            // Salesperson can delete their own promesas
-            canDelete = item.promesa.vendedorId === user.id;
-          } else if (user.role === 'supervisor') {
-            // Supervisor can delete promesas of salespeople under their supervision
-            const salespersonUser = await storage.getSalespersonUserById(item.promesa.vendedorId);
-            canDelete = salespersonUser?.supervisorId === user.id;
-          }
-          
-          return {
-            ...item,
-            canDelete
-          };
-        })
-      );
-      
-      // Keep the nested structure that the frontend expects
-      res.json(resultadosConPermisos);
-    } catch (error: any) {
-      console.error('[ERROR] /api/promesas-compra/cumplimiento/reporte:', error);
-      res.status(500).json({ message: 'Error al obtener reporte de cumplimiento', error: error.message });
     }
   }));
 

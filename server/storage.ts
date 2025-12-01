@@ -17842,7 +17842,6 @@ export class DatabaseStorage implements IStorage {
       const promesa: PromesaCompra = {
         id: row.id,
         vendedorId: row.vendedor_id,
-        vendedorNombre: row.vendedor_nombre,
         clienteId: row.cliente_id,
         clienteNombre: row.cliente_nombre,
         clienteTipo: row.cliente_tipo,
