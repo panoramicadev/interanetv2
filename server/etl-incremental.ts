@@ -82,6 +82,34 @@ function emitProgress(step: number, totalSteps: number, message: string, details
   }
 }
 
+// Función para verificar si el ETL fue cancelado
+async function checkIfCancelled(executionId: string): Promise<boolean> {
+  try {
+    const result = await db
+      .select({ status: etlExecutionLog.status })
+      .from(etlExecutionLog)
+      .where(sql`id = ${executionId}`)
+      .limit(1);
+    
+    if (result.length > 0 && result[0].status === 'cancelled') {
+      console.log('🛑 ETL cancelado por el usuario');
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error verificando estado de cancelación:', error);
+    return false;
+  }
+}
+
+// Error personalizado para cancelación
+class ETLCancelledException extends Error {
+  constructor() {
+    super('ETL cancelado por el usuario');
+    this.name = 'ETLCancelledException';
+  }
+}
+
 // Función helper para batch insert con manejo de errores robusto y logging
 async function batchInsert<T>(
   table: any, 
@@ -374,6 +402,11 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     await db.execute(sql`TRUNCATE TABLE ventas.stg_tabpp CASCADE`);
     console.log('✅ Tablas staging limpias\n');
 
+    // Verificar cancelación antes de continuar
+    if (await checkIfCancelled(executionLog.id)) {
+      throw new ETLCancelledException();
+    }
+
     // 1. EXTRAER MAEEDO (solo registros con fecha de emisión desde el último watermark)
     console.log('1️⃣  Extrayendo MAEEDO (Encabezados por fecha de emisión)...');
     const startDateSQL = lastWatermark.toISOString().split('T')[0];
@@ -474,6 +507,11 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     await batchInsert(stgMaeedo, maeedo_records, 'stg_maeedo', logger);
     emitProgress(2, TOTAL_STEPS, 'Cargando MAEEDO a staging', `${maeedo_records.length} registros insertados en batch`)
 
+    // Verificar cancelación después de cargar MAEEDO
+    if (await checkIfCancelled(executionLog.id)) {
+      throw new ETLCancelledException();
+    }
+
     // 2. EXTRAER MAEDDO (detalles de los documentos modificados)
     emitProgress(3, TOTAL_STEPS, 'Extrayendo MAEDDO', 'Consultando SQL Server...');
     console.log('2️⃣  Extrayendo MAEDDO (Detalles)...');
@@ -510,6 +548,11 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     }));
     await batchInsert(stgMaeddo, maeddo_records, 'stg_maeddo', logger);
     emitProgress(4, TOTAL_STEPS, 'Cargando MAEDDO a staging', `${maeddo_records.length} registros insertados`)
+
+    // Verificar cancelación después de cargar MAEDDO
+    if (await checkIfCancelled(executionLog.id)) {
+      throw new ETLCancelledException();
+    }
 
     // 3. EXTRAER entidades (clientes únicos) - ENDO en MAEEDO corresponde a KOEN en MAEEN
     emitProgress(5, TOTAL_STEPS, 'Extrayendo tablas maestras', 'MAEEN, MAEPR, MAEVEN, TABRU, TABBO...');
@@ -659,6 +702,11 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       liscosmod: cleanNumeric(row.liscosmod),
     }));
     await batchInsert(stgTabpp, tabpp_records, 'stg_tabpp', logger);
+
+    // Verificar cancelación antes del UPSERT (operación más pesada)
+    if (await checkIfCancelled(executionLog.id)) {
+      throw new ETLCancelledException();
+    }
 
     // 9. PROCESAR A FACT_VENTAS (UPSERT - eliminar registros antiguos e insertar nuevos)
     emitProgress(8, TOTAL_STEPS, 'Procesando FACT_VENTAS', 'Aplicando UPSERT...');
@@ -968,6 +1016,43 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     };
 
   } catch (error: any) {
+    const executionTimeMs = Date.now() - startTime;
+    const isCancelled = error instanceof ETLCancelledException;
+    
+    // Limpiar timeout si hubo error
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+
+    if (isCancelled) {
+      // Manejo específico para cancelación por usuario
+      console.log('\n🛑 ETL CANCELADO POR EL USUARIO');
+      logger.info('ETL cancelado por el usuario', {
+        etlName,
+        executionTimeMs,
+      });
+      
+      // No actualizar el estado porque ya fue marcado como 'cancelled' por el usuario
+      // Solo cerrar la conexión
+      if (pool) {
+        try {
+          await pool.close();
+        } catch (closeError) {
+          console.error('Error cerrando conexión después de cancelación:', closeError);
+        }
+      }
+      
+      return {
+        success: false,
+        recordsProcessed: 0,
+        executionTimeMs,
+        period: 'incremental',
+        watermarkDate: new Date(),
+        error: 'ETL cancelado por el usuario',
+      };
+    }
+    
+    // Manejo de errores normales
     console.error('\n❌ ERROR EN ETL INCREMENTAL:', error.message);
     logger.critical('ETL falló con error crítico', {
       etlName,
@@ -976,13 +1061,6 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       errorMessage: error.message,
       errorStack: error.stack
     }, error);
-    
-    const executionTimeMs = Date.now() - startTime;
-    
-    // Limpiar timeout si hubo error
-    if (timeoutHandle) {
-      clearTimeout(timeoutHandle);
-    }
     
     // Actualizar el registro existente con el error (NO insertar uno nuevo)
     if (!timedOut) {
