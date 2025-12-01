@@ -18,7 +18,8 @@ import {
   Receipt,
   AlertTriangle,
   CalendarCheck,
-  Megaphone
+  Megaphone,
+  ExternalLink
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import type { User, SalespersonUser } from "@shared/schema";
@@ -198,6 +199,23 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
                     Promesas de Compra
                   </Button>
                 </Link>
+              )}
+              
+              {user?.role === 'salesperson' && (user as SalespersonUser)?.publicSlug && (
+                <a 
+                  href={`/catalogo/${(user as SalespersonUser).publicSlug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50"
+                    data-testid="nav-mi-catalogo"
+                  >
+                    <ExternalLink className="w-5 h-5 mr-3" />
+                    Mi Catálogo
+                  </Button>
+                </a>
               )}
               
               <Link href="/facturas">
