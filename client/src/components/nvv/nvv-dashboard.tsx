@@ -102,20 +102,24 @@ const statusColors: Record<string, string> = {
 
 interface NvvDashboardProps {
   salespersonFilter?: string;
+  segmentFilter?: string;
 }
 
-export function NvvDashboard({ salespersonFilter }: NvvDashboardProps) {
+export function NvvDashboard({ salespersonFilter, segmentFilter }: NvvDashboardProps) {
 
   // Obtener sumatoria total sin filtros de fecha
   const { data: totalSummary, isLoading: isLoadingTotal } = useQuery<{
     totalAmount: number;
     totalRecords: number;
   }>({
-    queryKey: ['/api/nvv/total', salespersonFilter],
+    queryKey: ['/api/nvv/total', salespersonFilter, segmentFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (salespersonFilter) {
         params.set('salesperson', salespersonFilter);
+      }
+      if (segmentFilter) {
+        params.set('segment', segmentFilter);
       }
       const response = await fetch(`/api/nvv/total${params.toString() ? '?' + params.toString() : ''}`);
       if (!response.ok) {
@@ -128,7 +132,7 @@ export function NvvDashboard({ salespersonFilter }: NvvDashboardProps) {
 
   // Obtener datos detallados de las notas de venta
   const { data: detailedData, isLoading: isLoadingDetails, error } = useQuery<NvvRecord[]>({
-    queryKey: ['/api/nvv/pending', salespersonFilter],
+    queryKey: ['/api/nvv/pending', salespersonFilter, segmentFilter],
     queryFn: async () => {
       const params = new URLSearchParams({
         limit: '500',
@@ -136,6 +140,9 @@ export function NvvDashboard({ salespersonFilter }: NvvDashboardProps) {
       });
       if (salespersonFilter) {
         params.set('salesperson', salespersonFilter);
+      }
+      if (segmentFilter) {
+        params.set('segment', segmentFilter);
       }
       const response = await fetch(`/api/nvv/pending?${params}`);
       if (!response.ok) {

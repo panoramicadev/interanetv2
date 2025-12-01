@@ -11095,23 +11095,59 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getNvvTotalSummary(): Promise<{
+  async getNvvTotalSummary(options?: { salesperson?: string; segment?: string }): Promise<{
     totalAmount: number;
     totalRecords: number;
   }> {
     try {
+      // If segment filter is provided, we need to find the salespeople (KOFULIDO codes) that belong to that segment
+      let vendorCodesForSegment: string[] | null = null;
+      
+      if (options?.segment) {
+        // Get unique vendor codes (kofulido) that belong to the requested segment from fact_ventas
+        const vendorsBySegment = await db.execute(sql`
+          SELECT DISTINCT kofulido 
+          FROM ventas.fact_ventas 
+          WHERE noruen = ${options.segment}
+            AND kofulido IS NOT NULL 
+            AND kofulido != ''
+        `);
+        vendorCodesForSegment = vendorsBySegment.rows.map((row: any) => row.kofulido);
+        
+        // If no vendors found for segment, return zero results
+        if (vendorCodesForSegment.length === 0) {
+          return { totalAmount: 0, totalRecords: 0 };
+        }
+      }
+      
+      // Build conditions
+      const conditions = [];
+      
+      if (options?.salesperson) {
+        conditions.push(sql`"KOFULIDO" = ${options.salesperson}`);
+      }
+      
+      if (vendorCodesForSegment && vendorCodesForSegment.length > 0) {
+        conditions.push(sql`"KOFULIDO" IN (${sql.join(vendorCodesForSegment.map(v => sql`${v}`), sql`, `)})`);
+      }
+      
+      const whereClause = conditions.length > 0 
+        ? sql`WHERE ${sql.join(conditions, sql` AND `)}`
+        : sql``;
+      
       // Get total amount from totalPendiente column (direct sum)
-      const totalResult = await db
-        .select({
-          totalAmount: sql`COALESCE(SUM(CAST(${nvvPendingSales.totalPendiente} AS NUMERIC)), 0)`,
-          totalRecords: sql`COUNT(*)`
-        })
-        .from(nvvPendingSales);
+      const totalResult = await db.execute(sql`
+        SELECT 
+          COALESCE(SUM(CAST("totalPendiente" AS NUMERIC)), 0) as total_amount,
+          COUNT(*) as total_records
+        FROM nvv_pending_sales
+        ${whereClause}
+      `);
 
-      const result = totalResult[0];
+      const result = totalResult.rows[0];
       return {
-        totalAmount: parseFloat(result.totalAmount?.toString() || '0'),
-        totalRecords: parseInt(result.totalRecords?.toString() || '0')
+        totalAmount: parseFloat(result?.total_amount?.toString() || '0'),
+        totalRecords: parseInt(result?.total_records?.toString() || '0')
       };
     } catch (error) {
       console.error('Error fetching NVV total summary:', error);
@@ -11132,24 +11168,39 @@ export class DatabaseStorage implements IStorage {
     offset?: number;
   } = {}): Promise<NvvPendingSales[]> {
     try {
+      // If segment filter is provided, get vendor codes for that segment first
+      let vendorCodesForSegment: string[] | null = null;
+      
+      if (options.segment) {
+        // Get unique vendor codes (kofulido) that belong to the requested segment from fact_ventas
+        const vendorsBySegment = await db.execute(sql`
+          SELECT DISTINCT kofulido 
+          FROM ventas.fact_ventas 
+          WHERE noruen = ${options.segment}
+            AND kofulido IS NOT NULL 
+            AND kofulido != ''
+        `);
+        vendorCodesForSegment = vendorsBySegment.rows.map((row: any) => row.kofulido);
+        
+        // If no vendors found for segment, return empty array
+        if (vendorCodesForSegment.length === 0) {
+          return [];
+        }
+      }
+      
       let query = db.select().from(nvvPendingSales);
 
       const conditions = [];
-
-      // Note: status field doesn't exist in CSV structure, skip filtering by status
-      // if (options.status) {
-      //   conditions.push(eq(nvvPendingSales.status, options.status));
-      // }
 
       // Use KOFULIDO for salesperson filtering
       if (options.salesperson) {
         conditions.push(eq(nvvPendingSales.KOFULIDO, options.salesperson));
       }
 
-      // Note: segment field doesn't exist in CSV structure, skip filtering by segment
-      // if (options.segment) {
-      //   conditions.push(eq(nvvPendingSales.segment, options.segment));
-      // }
+      // Filter by segment using vendor codes from fact_ventas
+      if (vendorCodesForSegment && vendorCodesForSegment.length > 0) {
+        conditions.push(inArray(nvvPendingSales.KOFULIDO, vendorCodesForSegment));
+      }
 
       // Use FEERLI for date filtering (commitment date)
       if (options.startDate) {
