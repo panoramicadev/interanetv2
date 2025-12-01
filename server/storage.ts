@@ -11331,13 +11331,18 @@ export class DatabaseStorage implements IStorage {
     totalPendiente: number;
   }>> {
     try {
-      // Search directly in factNvv by salesperson name
-      // factNvv has a nombre_vendedor field that we can match against
-      const conditions = [
-        eq(factNvv.cantidadPendiente, true), // Only get pending sales
-        isNotNull(factNvv.nombre_vendedor),
-        sql`TRIM(UPPER(${factNvv.nombre_vendedor})) = TRIM(UPPER(${options.salesperson}))`
+      const searchTerm = options.salesperson.toUpperCase().trim();
+      
+      // Build conditions - always filter for pending NVV only (eslido IS NULL or empty)
+      const conditions: SQL[] = [
+        sql`(${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '')`
       ];
+      
+      // Search by either nombre_vendedor (full name) or kofulido (code)
+      conditions.push(sql`(
+        UPPER(TRIM(${factNvv.nombre_vendedor})) = ${searchTerm}
+        OR UPPER(TRIM(${factNvv.kofulido})) = ${searchTerm}
+      )`);
 
       // Add date filters if provided
       if (options.startDate && options.startDate instanceof Date && !isNaN(options.startDate.getTime())) {
@@ -11366,7 +11371,7 @@ export class DatabaseStorage implements IStorage {
         .where(and(...conditions))
         .orderBy(desc(factNvv.feemdo));
 
-      console.log(`Found ${results.length} pending NVV records for ${options.salesperson}`);
+      console.log(`Found ${results.length} pending NVV records for ${options.salesperson} (searched by name or code)`);
 
       return results.map(row => ({
         id: row.id || '',
@@ -11547,9 +11552,12 @@ export class DatabaseStorage implements IStorage {
       // Build conditions - always filter for pending NVV only
       const conditions = [sql`(eslido IS NULL OR eslido = '')`];
       
-      // Search by salesperson name (nombre_vendedor in fact_nvv)
-      const searchName = salespersonName.toUpperCase().trim();
-      conditions.push(sql`UPPER(TRIM(nombre_vendedor)) = ${searchName}`);
+      // Search by salesperson name OR code (nombre_vendedor or kofulido in fact_nvv)
+      const searchTerm = salespersonName.toUpperCase().trim();
+      conditions.push(sql`(
+        UPPER(TRIM(nombre_vendedor)) = ${searchTerm}
+        OR UPPER(TRIM(kofulido)) = ${searchTerm}
+      )`);
 
       // Add date filters if provided
       if (options?.startDate && options.startDate instanceof Date && !isNaN(options.startDate.getTime())) {
