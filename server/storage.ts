@@ -1941,6 +1941,7 @@ export class DatabaseStorage implements IStorage {
         isActive: salespersonUser.isActive,
         supervisorId: salespersonUser.supervisorId,
         assignedSegment: salespersonUser.assignedSegment,
+        publicSlug: salespersonUser.publicSlug,
       } as User;
     }
 
@@ -1974,6 +1975,7 @@ export class DatabaseStorage implements IStorage {
         isActive: salespersonUser.isActive,
         supervisorId: salespersonUser.supervisorId,
         assignedSegment: salespersonUser.assignedSegment,
+        publicSlug: salespersonUser.publicSlug,
       } as User;
     }
 
