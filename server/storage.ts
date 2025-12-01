@@ -8859,6 +8859,10 @@ export class DatabaseStorage implements IStorage {
     // Sales period filter - requires join with factVentas
     const needsSalesJoin = filters?.salesperson || filters?.salesPeriod;
     const salesPeriodRange = filters?.salesPeriod ? this.getSalesPeriodDateRange(filters.salesPeriod) : null;
+    
+    if (filters?.salesPeriod) {
+      console.log(`[getClients] Sales period filter: ${filters.salesPeriod}, range: ${JSON.stringify(salesPeriodRange)}`);
+    }
 
     // First get all clients with basic info
     let query = db.select().from(clients);
