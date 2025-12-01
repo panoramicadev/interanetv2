@@ -17769,15 +17769,18 @@ export class DatabaseStorage implements IStorage {
 
     // OPTIMIZED: Use LEFT JOIN with weekly_ventas_cliente to get pre-aggregated sales
     // NOTE: w.cliente_id and w.vendedor_id are actually client/vendor NAMES (nokoen/nokofu from fact_ventas)
+    // We need to join with users table to get the vendor's firstName+lastName to match with weekly_ventas_cliente.vendedor_id
     const promesasConVentas = await db.execute(sql`
       SELECT 
         p.*,
         COALESCE(w.total_ventas, 0) as ventas_facturas_agregadas,
-        w.cantidad_transacciones
+        w.cantidad_transacciones,
+        COALESCE(u.first_name || ' ' || u.last_name, u.email, 'Usuario') as vendedor_nombre_calculado
       FROM promesas_compra p
+      LEFT JOIN users u ON p.vendedor_id = u.id
       LEFT JOIN ventas.weekly_ventas_cliente w 
         ON p.cliente_nombre = w.cliente_id
-        AND p.vendedor_nombre = w.vendedor_id
+        AND UPPER(COALESCE(u.first_name || ' ' || u.last_name, u.email, '')) = UPPER(w.vendedor_id)
         AND p.semana = w.semana
       ${whereParts.length > 0 ? sql`WHERE ${sql.join(whereParts, sql` AND `)}` : sql``}
       ORDER BY p.semana DESC
