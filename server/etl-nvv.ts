@@ -221,9 +221,10 @@ async function getLastWatermark(): Promise<Date> {
 
 export async function executeNVVETL(): Promise<NVVETLResult> {
   console.log('\n╔═══════════════════════════════════════════════════════════════╗');
-  console.log('║  📦 ETL DE NOTAS DE VENTA (NVV) - INCREMENTAL            ║');
+  console.log('║  📦 ETL DE NOTAS DE VENTA (NVV) - SINCRONIZACIÓN COMPLETA     ║');
   console.log('╚═══════════════════════════════════════════════════════════════╝');
   console.log(`⏰ Inicio: ${new Date().toISOString()}`);
+  console.log('📋 Modo: Snapshot completo (elimina NVV cerradas/facturadas)');
   
   const startTime = Date.now();
   const logger = createETLLogger('nvv_etl');
@@ -286,14 +287,13 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     
     lastReplayExecutionId = executionId;  // Establecer nuevo pointer para replay buffer
 
-    // Obtener último watermark (lower bound)
-    const lastWatermark = await getLastWatermark();
-    
+    // Para sincronización completa no usamos watermark incremental
+    // Extraemos TODAS las NVV actuales y eliminamos las que ya no existen
     console.log('╔═══════════════════════════════════════════════════════════════╗');
-    console.log('║  🔍 CONFIGURACIÓN DEL WATERMARK                               ║');
+    console.log('║  🔍 MODO SINCRONIZACIÓN COMPLETA (SNAPSHOT)                   ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
-    console.log(`📍 Watermark inicial (lower bound): ${lastWatermark.toISOString()}`);
-    console.log('📍 Watermark final (upper bound): Se capturará justo antes de las consultas');
+    console.log('📍 Extrayendo TODAS las NVV pendientes actuales');
+    console.log('📍 Las NVV que ya no existen serán eliminadas de la BD');
     console.log('');
 
     // Conectar a SQL Server
@@ -306,15 +306,12 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     );
     console.log('✅ Conectado a SQL Server\n');
 
-    // Capturar watermark final JUSTO ANTES de las consultas para minimizar gap
-    const currentWatermark = new Date();
-    console.log(`📍 Watermark final capturado: ${currentWatermark.toISOString()}`);
+    // Timestamp de ejecución actual
+    const currentTimestamp = new Date();
+    console.log(`📍 Timestamp de ejecución: ${currentTimestamp.toISOString()}`);
     console.log('');
 
-    // Registrar inicio de ejecución con execution ID pre-generado
-    // Crear período ISO raw (para backward compatibility) y período display (para UI)
-    const periodISO = `${lastWatermark.toISOString()} to ${currentWatermark.toISOString()}`;
-    
+    // Registrar inicio de ejecución
     const formatTime = (date: Date) => {
       return date.toLocaleTimeString('es-CL', { 
         hour: '2-digit', 
@@ -324,21 +321,18 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       });
     };
     
-    const isSameDay = lastWatermark.toDateString() === currentWatermark.toDateString();
-    const periodDisplay = isSameDay
-      ? `${lastWatermark.toLocaleDateString('es-CL')} ${formatTime(lastWatermark)} - ${formatTime(currentWatermark)}`
-      : `${lastWatermark.toLocaleDateString('es-CL')} ${formatTime(lastWatermark)} - ${currentWatermark.toLocaleDateString('es-CL')} ${formatTime(currentWatermark)}`;
+    const periodDisplay = `Sincronización completa - ${currentTimestamp.toLocaleDateString('es-CL')} ${formatTime(currentTimestamp)}`;
     
     const [executionLog] = await db.insert(nvvSyncLog).values({
       id: executionId,
       startTime: new Date(),
       status: 'running',
-      period: periodISO, // Raw ISO timestamps
+      period: 'full_sync', // Indicar sincronización completa
       periodDisplay: periodDisplay, // Formatted for UI
       branches: sucursales.join(','),
-      watermarkDate: currentWatermark, // Timestamp completo (legacy compatibility)
-      watermarkStart: lastWatermark, // Inicio del rango incremental
-      watermarkEnd: currentWatermark, // Fin del rango incremental
+      watermarkDate: currentTimestamp, // Timestamp de ejecución
+      watermarkStart: null, // No aplica para sync completa
+      watermarkEnd: currentTimestamp,
     }).returning();
 
     // Limpiar tablas staging de NVV (propias, no compartidas con ventas)
@@ -351,24 +345,18 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     await db.execute(sql`TRUNCATE TABLE nvv.stg_tabbo_nvv CASCADE`);
     console.log('✅ Tablas staging limpias (aisladas de ETL ventas)\n');
 
-    // 1. EXTRAER MAEEDO (encabezados NVV) con watermark
-    // CORRECCIÓN: Usar FEER (fecha última actualización) para detectar cambios de estado
-    emitProgress(2, TOTAL_STEPS, 'Extrayendo MAEEDO (NVV)', 'Consultando SQL Server...');
-    console.log('1️⃣  Extrayendo MAEEDO (Encabezados NVV)...');
-    
-    // Usar timestamps completos (ISO) para comparación precisa con FEER (datetime en SQL Server)
-    // Usar >= en lower bound y < en upper bound para evitar gaps (UPSERT manejará duplicados)
-    const startTimestampSQL = lastWatermark.toISOString();
-    const endTimestampSQL = currentWatermark.toISOString();
+    // 1. EXTRAER MAEEDO (encabezados NVV) - SINCRONIZACIÓN COMPLETA
+    // Extraer TODAS las NVV pendientes actuales (sin filtro de watermark)
+    emitProgress(2, TOTAL_STEPS, 'Extrayendo MAEEDO (NVV)', 'Sincronización completa...');
+    console.log('1️⃣  Extrayendo MAEEDO (Encabezados NVV) - TODAS las NVV pendientes...');
     
     console.log('╔═══════════════════════════════════════════════════════════════╗');
-    console.log('║  📝 QUERY SQL MAEEDO - FILTROS APLICADOS                      ║');
+    console.log('║  📝 QUERY SQL MAEEDO - SINCRONIZACIÓN COMPLETA                ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
     console.log(`🔍 TIDO = 'NVV'`);
     console.log(`🔍 SUDO IN: ${sucursales.join(', ')}`);
-    console.log(`🔍 FEER >= '${startTimestampSQL}' (Timestamp desde última ejecución - inclusivo)`);
-    console.log(`🔍 FEER < '${endTimestampSQL}' (Timestamp hasta ahora - exclusivo)`);
-    console.log(`🔍 FEEMDO >= '2025-01-01' (Año mínimo: solo docs de 2025 en adelante)`);
+    console.log(`🔍 FEEMDO >= '2025-01-01' (Solo docs de 2025 en adelante)`);
+    console.log(`📋 Extrayendo TODAS las NVV actuales (sin filtro de fecha FEER)`);
     console.log('');
     
     const maeedo = await executeWithResilience(
@@ -377,16 +365,14 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         FROM dbo.MAEEDO
         WHERE TIDO = 'NVV'
           AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
-          AND FEER >= '${startTimestampSQL}'
-          AND FEER < '${endTimestampSQL}'
           AND FEEMDO >= '2025-01-01'
-        ORDER BY FEER
+        ORDER BY FEEMDO DESC
       `),
       sqlServerBreaker,
       { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
     );
     
-    console.log(`   ✅ ${maeedo.recordset.length} documentos NVV encontrados`);
+    console.log(`   ✅ ${maeedo.recordset.length} documentos NVV encontrados en la fuente`);
 
     // Checkpoint de cancelación después de extraer encabezados
     if (await checkIfCancelled(executionId)) {
@@ -394,7 +380,12 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     }
 
     if (maeedo.recordset.length === 0) {
-      console.log('\n⚠️  No hay NVV nuevas para procesar en el período especificado\n');
+      console.log('\n⚠️  No hay NVV en la fuente - eliminando todas las NVV existentes\n');
+      
+      // Sincronización completa: si no hay NVV en la fuente, eliminar todas de fact_nvv
+      const deleteResult = await db.execute(sql`DELETE FROM nvv.fact_nvv`);
+      const deletedCount = deleteResult.rowCount || 0;
+      console.log(`   🗑️  ${deletedCount} registros eliminados de fact_nvv`);
       
       await db.update(nvvSyncLog)
         .set({
@@ -402,26 +393,25 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
           recordsProcessed: 0,
           recordsInserted: 0,
           recordsUpdated: 0,
-          statusChanges: 0,
+          statusChanges: deletedCount, // Registrar eliminaciones como cambios
           executionTimeMs: Date.now() - startTime,
-          watermarkDate: currentWatermark, // Legacy compatibility - avanzar watermark aun sin datos
-          watermarkStart: lastWatermark,
-          watermarkEnd: currentWatermark,
+          watermarkDate: currentTimestamp,
+          watermarkStart: null,
+          watermarkEnd: currentTimestamp,
           endTime: new Date(),
         })
         .where(sql`id = ${executionLog.id}`);
 
       await pool.close();
       
-      // Buffer persiste para clientes tardíos hasta que la PRÓXIMA ejecución lo limpie
       return {
         success: true,
         records_processed: 0,
         records_inserted: 0,
         records_updated: 0,
-        status_changes: 0,
+        status_changes: deletedCount,
         execution_time_ms: Date.now() - startTime,
-        watermarkDate: currentWatermark,
+        watermarkDate: currentTimestamp,
       };
     }
 
@@ -703,33 +693,24 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       throw new NVVETLCancelledException();
     }
 
-    // 8. MERGE INCREMENTAL usando JOINs a staging
-    emitProgress(8, TOTAL_STEPS, 'Procesando MERGE', 'UPSERT incremental en fact_nvv...');
-    console.log('9️⃣  Procesando MERGE incremental a fact_nvv...');
+    // 8. SINCRONIZACIÓN COMPLETA: DELETE ALL + INSERT ALL
+    emitProgress(8, TOTAL_STEPS, 'Sincronizando', 'Reemplazando todos los registros en fact_nvv...');
+    console.log('9️⃣  Procesando SINCRONIZACIÓN COMPLETA a fact_nvv...');
+    console.log('   📋 Estrategia: DELETE ALL + INSERT ALL (snapshot)');
     
     // Contar registros antes
     const countBeforeResult = await db.execute(sql`SELECT COUNT(*) as count FROM nvv.fact_nvv`);
-    const rowsBeforeUpsert = Number(countBeforeResult.rows[0].count);
-
-    // Capturar documentos existentes antes del DELETE usando .returning()
-    let deletedDocs: Array<{ idmaeedo: string | null; nudo: string | null; sudo: string | null; eslido: string | null; lastStatus: string | null; monto: string | null }> = [];
+    const rowsBeforeSync = Number(countBeforeResult.rows[0].count);
+    console.log(`   📊 Registros existentes antes: ${rowsBeforeSync}`);
     
     await db.transaction(async (tx) => {
-      // DELETE registros que serán actualizados - CAPTURAR estado anterior con .returning()
-      if (idmaeddosToProcess.length > 0) {
-        deletedDocs = await tx.delete(factNvv)
-          .where(inArray(factNvv.idmaeddo, idmaeddosToProcess))
-          .returning({
-            idmaeedo: factNvv.idmaeedo,
-            nudo: factNvv.nudo,
-            sudo: factNvv.sudo,
-            eslido: factNvv.eslido,
-            lastStatus: factNvv.last_status,
-            monto: factNvv.monto
-          });
-      }
+      // PASO 1: Eliminar TODOS los registros existentes
+      console.log('   🗑️  Eliminando todos los registros existentes...');
+      await tx.execute(sql`DELETE FROM nvv.fact_nvv`);
 
-      // INSERT con JOINs a staging tables - AGREGAR last_etl_execution_id y last_status
+      // PASO 2: Insertar TODOS los registros actuales desde staging
+      console.log('   ➕ Insertando registros actuales desde staging...');
+      // INSERT con JOINs a staging tables
       await tx.execute(sql`
         INSERT INTO nvv.fact_nvv (
           idmaeddo, idmaeedo, nudo, tido, endo, sudo, nosudo, feemdo, feer,
@@ -806,151 +787,23 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         LEFT JOIN ventas.stg_tabru ru_prod ON pr.rupr = ru_prod.koru -- Segmento del producto
         LEFT JOIN ventas.stg_tabru ru_cli ON en.ruen = ru_cli.koru -- Segmento del cliente
       `);
-      
-      // Obtener documentos recién insertados/actualizados para detectar cambios
-      const insertedDocs = await tx
-        .select({
-          idmaeedo: factNvv.idmaeedo,
-          nudo: factNvv.nudo,
-          sudo: factNvv.sudo,
-          eslido: factNvv.eslido,
-          monto: factNvv.monto
-        })
-        .from(factNvv)
-        .where(inArray(factNvv.idmaeddo, idmaeddosToProcess));
-      
-      // Agregar por documento (múltiples líneas por documento)
-      // Regla: Documento está CERRADO solo si TODAS sus líneas están cerradas
-      // Regla: Si alguna línea está ABIERTA, el documento está ABIERTO
-      const docMap = new Map<string, { idmaeedo: string; nudo: string | null; sudo: string | null; eslido: string | null; monto: string | null; allLinesClosed: boolean }>();
-      
-      for (const doc of insertedDocs) {
-        const key = doc.idmaeedo?.toString() || '0';
-        const existing = docMap.get(key);
-        const lineStatus = normalizeStatus(doc.eslido);
-        
-        if (!existing) {
-          docMap.set(key, {
-            idmaeedo: key,
-            nudo: doc.nudo,
-            sudo: doc.sudo,
-            eslido: lineStatus,
-            monto: doc.monto,
-            allLinesClosed: lineStatus === 'C'
-          });
-        } else {
-          // Si alguna línea está abierta, el documento está abierto
-          if (lineStatus !== 'C') {
-            existing.allLinesClosed = false;
-            existing.eslido = ''; // Documento abierto
-          }
-          // Agregar montos
-          existing.monto = (parseFloat(existing.monto || '0') + parseFloat(doc.monto || '0')).toString();
-        }
-      }
-      
-      // Agregar documentos eliminados (ANTES del DELETE)
-      // Usar misma lógica de agregación
-      const deletedMap = new Map<string, { idmaeedo: string; nudo: string | null; sudo: string | null; eslido: string | null; lastStatus: string | null; monto: string | null; allLinesClosed: boolean }>();
-      
-      for (const doc of deletedDocs) {
-        const key = doc.idmaeedo?.toString() || '0';
-        const existing = deletedMap.get(key);
-        const lineStatus = normalizeStatus(doc.lastStatus || doc.eslido);
-        
-        if (!existing) {
-          deletedMap.set(key, {
-            idmaeedo: key,
-            nudo: doc.nudo,
-            sudo: doc.sudo,
-            eslido: lineStatus,
-            lastStatus: doc.lastStatus,
-            monto: doc.monto,
-            allLinesClosed: lineStatus === 'C'
-          });
-        } else {
-          // Si alguna línea está abierta, el documento está abierto
-          if (lineStatus !== 'C') {
-            existing.allLinesClosed = false;
-            existing.eslido = ''; // Documento abierto
-            existing.lastStatus = ''; // Documento abierto
-          }
-          // Agregar montos
-          existing.monto = (parseFloat(existing.monto || '0') + parseFloat(doc.monto || '0')).toString();
-        }
-      }
-      
-      // Detectar cambios y poblar nvv_sync_changes
-      const changes: Array<{
-        executionId: string;
-        idmaeedo: string;
-        nudo: string | null;
-        sudo: string | null;
-        changeType: string;
-        previousStatus: string | null;
-        newStatus: string | null;
-        monto: string | null;
-      }> = [];
-      
-      for (const [idmaeedo, current] of Array.from(docMap.entries())) {
-        const previous = deletedMap.get(idmaeedo);
-        
-        // Derivar estado del documento basado en agregación de líneas
-        const currentStatus = current.allLinesClosed ? 'C' : '';
-        
-        if (!previous) {
-          // Documento NUEVO
-          changes.push({
-            executionId,
-            idmaeedo,
-            nudo: current.nudo,
-            sudo: current.sudo,
-            changeType: 'insert',
-            previousStatus: null,
-            newStatus: currentStatus,
-            monto: current.monto
-          });
-        } else {
-          // Documento existente - verificar cambio de estado agregado
-          const previousStatus = previous.allLinesClosed ? 'C' : '';
-          
-          if (previousStatus !== currentStatus) {
-            // CAMBIO DE ESTADO
-            changes.push({
-              executionId,
-              idmaeedo,
-              nudo: current.nudo,
-              sudo: current.sudo,
-              changeType: 'state_change',
-              previousStatus: previousStatus,
-              newStatus: currentStatus,
-              monto: current.monto
-            });
-          }
-          // Si no hay cambio de estado, no registramos nada (según recomendación del architect)
-        }
-      }
-      
-      // Insertar cambios detectados
-      if (changes.length > 0) {
-        await tx.insert(nvvSyncChanges).values(changes);
-        console.log(`   ✅ ${changes.length} cambios registrados en nvv_sync_changes`);
-      }
     });
 
-    // Contar registros después
+    // Contar registros después de la sincronización
     const countAfterResult = await db.execute(sql`SELECT COUNT(*) as count FROM nvv.fact_nvv`);
-    const rowsAfterUpsert = Number(countAfterResult.rows[0].count);
+    const rowsAfterSync = Number(countAfterResult.rows[0].count);
     
-    const records_inserted = Math.max(0, rowsAfterUpsert - rowsBeforeUpsert);
-    const records_updated = idmaeddosToProcess.length - records_inserted;
+    // Calcular estadísticas de sincronización
+    const records_deleted = rowsBeforeSync; // Todos los anteriores fueron eliminados
+    const records_inserted = rowsAfterSync; // Todos los actuales fueron insertados
+    const net_change = rowsAfterSync - rowsBeforeSync;
 
-    console.log(`\n📊 Resultados del MERGE:`);
-    console.log(`   Total procesado: ${maeddo.recordset.length} líneas`);
-    console.log(`   Nuevos registros: ${records_inserted}`);
-    console.log(`   Registros actualizados: ${records_updated}`);
-    console.log(`   Cambios de estado: ${status_changes}`);
-    console.log(`   Total en fact_nvv: ${rowsAfterUpsert}\n`);
+    console.log(`\n📊 Resultados de SINCRONIZACIÓN COMPLETA:`);
+    console.log(`   Registros antes: ${rowsBeforeSync}`);
+    console.log(`   Registros eliminados: ${records_deleted}`);
+    console.log(`   Registros insertados: ${records_inserted}`);
+    console.log(`   Cambio neto: ${net_change >= 0 ? '+' : ''}${net_change}`);
+    console.log(`   Total en fact_nvv: ${rowsAfterSync}\n`);
 
     // Actualizar log de ejecución
     emitProgress(10, TOTAL_STEPS, 'Finalizando', 'Actualizando log de sincronización...');
@@ -960,11 +813,11 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         status: 'success',
         recordsProcessed: maeddo.recordset.length,
         recordsInserted: records_inserted,
-        recordsUpdated: records_updated,
-        statusChanges: status_changes,
+        recordsUpdated: 0, // En sync completa no hay updates, solo delete+insert
+        statusChanges: records_deleted, // Registros que ya no existen (cerrados/facturados)
         executionTimeMs: Date.now() - startTime,
-        watermarkStart: lastWatermark, // Persistir rango incremental
-        watermarkEnd: currentWatermark,
+        watermarkStart: null,
+        watermarkEnd: currentTimestamp,
         endTime: new Date(),
       })
       .where(sql`id = ${executionLog.id}`);
@@ -973,19 +826,19 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
 
     const executionTime = Date.now() - startTime;
     console.log('╔═══════════════════════════════════════════════════════════════╗');
-    console.log('║  ✅ ETL DE NVV COMPLETADO EXITOSAMENTE                        ║');
+    console.log('║  ✅ SINCRONIZACIÓN COMPLETA DE NVV EXITOSA                    ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
     console.log(`⏱️  Tiempo de ejecución: ${(executionTime / 1000).toFixed(2)}s`);
-    console.log(`📦 Registros procesados: ${maeddo.recordset.length}`);
-    console.log(`➕ Nuevos: ${records_inserted}`);
-    console.log(`🔄 Actualizados: ${records_updated}`);
-    console.log(`🔀 Cambios de estado: ${status_changes}\n`);
+    console.log(`📦 Registros en fuente: ${maeddo.recordset.length}`);
+    console.log(`🗑️  Eliminados: ${records_deleted}`);
+    console.log(`➕ Insertados: ${records_inserted}`);
+    console.log(`📊 Total actual: ${rowsAfterSync}\n`);
 
-    logger.info('ETL de NVV completado exitosamente', {
+    logger.info('Sincronización completa de NVV exitosa', {
       records_processed: maeddo.recordset.length,
       records_inserted,
-      records_updated,
-      status_changes,
+      records_deleted,
+      total_after: rowsAfterSync,
       execution_time_ms: executionTime
     });
 
@@ -994,10 +847,10 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       success: true,
       records_processed: maeddo.recordset.length,
       records_inserted,
-      records_updated,
-      status_changes,
+      records_updated: 0,
+      status_changes: records_deleted, // NVV que ya no existen (cerradas/facturadas)
       execution_time_ms: executionTime,
-      watermarkDate: currentWatermark,
+      watermarkDate: currentTimestamp,
     };
 
   } catch (error: any) {
