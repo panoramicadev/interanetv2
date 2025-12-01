@@ -48,15 +48,13 @@ import {
   Circle,
   Play,
   Check,
-  Ban,
-  Target
+  Ban
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks } from "date-fns";
 import { es } from "date-fns/locale";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type Task, type TaskAssignment, type InsertTaskAssignment } from "@shared/schema";
-import Metas from "@/pages/metas";
 import { z } from "zod";
 
 // SECURITY: Frontend schema that excludes createdByUserId to prevent user impersonation
@@ -315,29 +313,6 @@ export default function TareasPage() {
     },
   });
 
-  // Toggle task status mutation (like marketing pattern)
-  const toggleTaskStatusMutation = useMutation({
-    mutationFn: async ({ taskId, assignmentId, currentStatus }: { taskId: string; assignmentId: string; currentStatus: string }) => {
-      const statusOrder: Record<string, string> = {
-        pending: "in_progress",
-        in_progress: "completed",
-        completed: "pending",
-      };
-      const newStatus = statusOrder[currentStatus] || "pending";
-      return await apiRequest("PATCH", `/api/tasks/${taskId}/assignments/${assignmentId}`, { status: newStatus });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks"], type: "all" });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "No se pudo cambiar el estado.",
-        variant: "destructive",
-      });
-    },
-  });
-
   // Loading state
   if (isLoading) {
     return (
@@ -462,15 +437,11 @@ export default function TareasPage() {
         </p>
       </div>
 
-      {/* Tabs para Tareas, Estimación Semanal y Metas */}
+      {/* Tabs para Tareas y Estimación Semanal */}
       <Tabs defaultValue="estimacion" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="estimacion" data-testid="tab-estimacion">Estimación Semanal</TabsTrigger>
           <TabsTrigger value="tareas" data-testid="tab-tareas">Tareas</TabsTrigger>
-          <TabsTrigger value="metas" data-testid="tab-metas" className="flex items-center gap-2">
-            <Target className="h-4 w-4" />
-            <span className="hidden sm:inline">Metas</span>
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="tareas" className="space-y-6">
@@ -826,18 +797,20 @@ export default function TareasPage() {
         </CardContent>
       </Card>
 
-      {/* Tasks List - Marketing Style Cards */}
-      <div className="space-y-3">
+      {/* Tasks List */}
+      <div className="space-y-4">
         {tasksQuery.isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin" data-testid="loader-tasks" />
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Cargando tareas...</p>
           </div>
         ) : filteredTasks.length === 0 ? (
           <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <CheckSquare className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground text-center mb-4">
-                {viewMode === "my-tasks" ? "No tienes tareas asignadas" : "No se encontraron tareas"}
+            <CardContent className="py-12 text-center">
+              <CheckSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No hay tareas</h3>
+              <p className="text-gray-600 mb-4">
+                {viewMode === "my-tasks" ? "No tienes tareas asignadas." : "No se encontraron tareas."}
               </p>
               {canCreateTasks && (
                 <Button 
@@ -851,190 +824,163 @@ export default function TareasPage() {
             </CardContent>
           </Card>
         ) : (
-          filteredTasks.map((task) => {
-            const myAssignment = task.assignments.find(a => 
-              (a.assigneeType === "user" && a.assigneeId === user.id) ||
-              (a.assigneeType === "segment" && a.assigneeId === (user as any).assignedSegment)
-            );
-            const displayStatus = myAssignment?.status ?? task.status ?? 'pending';
-            
-            const statusConfig: Record<string, { label: string; color: string; icon: typeof Circle }> = {
-              pending: { label: "Pendiente", color: "bg-gray-500", icon: Circle },
-              in_progress: { label: "En Progreso", color: "bg-yellow-500", icon: Play },
-              completed: { label: "Completada", color: "bg-green-500", icon: Check },
-              blocked: { label: "Bloqueada", color: "bg-red-500", icon: Ban },
-              cancelled: { label: "Cancelada", color: "bg-gray-400", icon: XCircle },
-            };
-            
-            const priorityConfig: Record<string, { label: string; color: string }> = {
-              low: { label: "Baja", color: "bg-blue-100 text-blue-800" },
-              medium: { label: "Media", color: "bg-yellow-100 text-yellow-800" },
-              high: { label: "Alta", color: "bg-red-100 text-red-800" },
-            };
-            
-            const config = statusConfig[displayStatus] || statusConfig.pending;
-            const priorityConf = priorityConfig[task.priority ?? 'medium'] || priorityConfig.medium;
-            const IconEstado = config.icon;
-            
-            const canToggle = myAssignment && (
-              (myAssignment.assigneeType === "user" && myAssignment.assigneeId === user.id) ||
-              (myAssignment.assigneeType === "segment" && myAssignment.assigneeId === (user as any).assignedSegment) ||
-              user.role === 'admin' || user.role === 'supervisor'
-            );
-            
-            return (
-              <Card key={task.id} className="hover:shadow-md transition-shadow" data-testid={`card-task-${task.id}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-4">
-                    {/* Toggle Status Button - Marketing Style */}
-                    {canToggle && myAssignment ? (
-                      <button
-                        onClick={() => toggleTaskStatusMutation.mutate({
-                          taskId: task.id,
-                          assignmentId: myAssignment.id,
-                          currentStatus: myAssignment.status ?? 'pending'
-                        })}
-                        disabled={toggleTaskStatusMutation.isPending}
-                        className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white transition-all hover:opacity-80 ${config.color}`}
-                        data-testid={`button-toggle-task-${task.id}`}
-                      >
-                        <IconEstado className="h-4 w-4" />
-                      </button>
-                    ) : (
-                      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white ${config.color}`}>
-                        <IconEstado className="h-4 w-4" />
-                      </div>
+          filteredTasks.map((task) => (
+            <Card key={task.id} className="overflow-hidden">
+              <CardHeader className="pb-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div className="space-y-2 flex-1 min-w-0">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <h3 className="text-lg font-semibold truncate" data-testid={`text-task-title-${task.id}`}>
+                        {task.title}
+                      </h3>
+                      {getPriorityBadge(task.priority ?? 'medium')}
+                      {getStatusBadge(task.status ?? 'pending')}
+                    </div>
+                    
+                    {task.description && (
+                      <p className="text-gray-600 text-sm line-clamp-2" data-testid={`text-task-description-${task.id}`}>
+                        {task.description}
+                      </p>
                     )}
                     
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h4 className={`font-medium ${displayStatus === 'completed' ? 'line-through text-muted-foreground' : ''}`} data-testid={`text-task-title-${task.id}`}>
-                            {task.title}
-                          </h4>
-                          {task.description && (
-                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2" data-testid={`text-task-description-${task.id}`}>
-                              {task.description}
-                            </p>
-                          )}
-                        </div>
-                        
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <Badge className={priorityConf.color}>
-                            {priorityConf.label}
-                          </Badge>
-                          <Badge className={`${config.color} text-white`}>
-                            {config.label}
-                          </Badge>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground flex-wrap">
-                        {task.dueDate && (
-                          <span className="flex items-center gap-1" data-testid={`text-task-due-date-${task.id}`}>
-                            <CalendarIcon className="h-3 w-3" />
-                            {format(new Date(task.dueDate), 'dd/MM/yyyy HH:mm', { locale: es })}
+                    <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
+                      {task.dueDate && (
+                        <div className="flex items-center gap-1">
+                          <CalendarIcon className="h-3 w-3" />
+                          <span data-testid={`text-task-due-date-${task.id}`}>
+                            {format(new Date(task.dueDate), "dd MMM yyyy HH:mm", { locale: es })}
                           </span>
-                        )}
-                        <span className="flex items-center gap-1" data-testid={`text-task-assignment-count-${task.id}`}>
-                          <Users className="h-3 w-3" />
-                          {task.assignments.length} asignación{task.assignments.length !== 1 ? 'es' : ''}
-                        </span>
-                        {myAssignment?.readAt && (
-                          <span className="flex items-center gap-1 text-blue-600">
-                            <Eye className="h-3 w-3" />
-                            Leída
-                          </span>
-                        )}
-                      </div>
-                      
-                      {/* Quick Actions */}
-                      {myAssignment && !myAssignment.readAt && myAssignment.status === "pending" && (
-                        <div className="mt-3">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => markAsReadMutation.mutate({
-                              taskId: task.id,
-                              assignmentId: myAssignment.id
-                            })}
-                            disabled={markAsReadMutation.isPending}
-                            data-testid={`button-acknowledge-assignment-${myAssignment.id}`}
-                          >
-                            <Eye className="h-3 w-3 mr-1" />
-                            Acusar Recibo
-                          </Button>
                         </div>
                       )}
-                    </div>
-
-                    {/* Edit/Delete buttons for admin */}
-                    {(user.role === 'admin' || user.role === 'supervisor') && (
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setEditingTask(task);
-                            setShowCreateDialog(true);
-                          }}
-                          data-testid={`button-edit-task-${task.id}`}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Collapsible>
-                          <CollapsibleTrigger 
-                            onClick={() => toggleTaskExpanded(task.id)}
-                            className="p-2 hover:bg-muted rounded"
-                            data-testid={`button-expand-task-${task.id}`}
-                          >
-                            {expandedTasks.has(task.id) ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
-                          </CollapsibleTrigger>
-                        </Collapsible>
+                      <div className="flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        <span data-testid={`text-task-assignment-count-${task.id}`}>
+                          {task.assignments.length} asignación{task.assignments.length !== 1 ? 'es' : ''}
+                        </span>
                       </div>
-                    )}
+                    </div>
                   </div>
-                  
-                  {/* Expandable Assignment Details */}
-                  <Collapsible open={expandedTasks.has(task.id)}>
-                    <CollapsibleContent>
-                      <div className="mt-4 pt-4 border-t">
-                        <h5 className="text-sm font-medium mb-3">Asignaciones:</h5>
-                        <div className="space-y-2">
-                          {task.assignments.map((assignment) => {
-                            const assignConfig = statusConfig[assignment.status ?? 'pending'] || statusConfig.pending;
-                            return (
-                              <div key={assignment.id} className="flex items-center gap-3 p-2 bg-muted/50 rounded-lg">
-                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white ${assignConfig.color}`}>
-                                  {assignment.status === 'completed' ? <Check className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
-                                </div>
-                                <div className="flex-1 min-w-0">
+
+                  <div className="flex items-center gap-2">
+                    {/* Action buttons for user's assignment - shown before toggle */}
+                    {(() => {
+                      const myAssignment = task.assignments.find(a => 
+                        (a.assigneeType === "user" && a.assigneeId === user.id) ||
+                        (a.assigneeType === "segment" && a.assigneeId === (user as any).assignedSegment)
+                      );
+                      
+                      if (!myAssignment || myAssignment.status === "completed") return null;
+                      
+                      const canUpdate = 
+                        (myAssignment.assigneeType === "user" && myAssignment.assigneeId === user.id) ||
+                        (myAssignment.assigneeType === "segment" && myAssignment.assigneeId === (user as any).assignedSegment) ||
+                        user.role === 'admin' || user.role === 'supervisor';
+                      
+                      if (!canUpdate) return null;
+
+                      return (
+                        <>
+                          {/* Acusar Recibo button */}
+                          {!myAssignment.readAt && myAssignment.status === "pending" && (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => markAsReadMutation.mutate({
+                                taskId: task.id,
+                                assignmentId: myAssignment.id
+                              })}
+                              disabled={markAsReadMutation.isPending}
+                              data-testid={`button-acknowledge-assignment-${myAssignment.id}`}
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              Acusar Recibo
+                            </Button>
+                          )}
+                          
+                          {/* Complete button */}
+                          {myAssignment.readAt && (myAssignment.status === "pending" || myAssignment.status === "in_progress") && (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => updateAssignmentMutation.mutate({
+                                taskId: task.id,
+                                assignmentId: myAssignment.id,
+                                status: "completed"
+                              })}
+                              disabled={updateAssignmentMutation.isPending}
+                              data-testid={`button-complete-assignment-${myAssignment.id}`}
+                            >
+                              <CheckSquare className="h-3 w-3 mr-1" />
+                              Completar
+                            </Button>
+                          )}
+                        </>
+                      );
+                    })()}
+
+                    <Collapsible>
+                      <CollapsibleTrigger 
+                        onClick={() => toggleTaskExpanded(task.id)}
+                        className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                        data-testid={`button-toggle-task-${task.id}`}
+                      >
+                        {expandedTasks.has(task.id) ? (
+                          <>
+                            <ChevronDown className="h-4 w-4" />
+                            Ocultar detalles
+                          </>
+                        ) : (
+                          <>
+                            <ChevronRight className="h-4 w-4" />
+                            Ver detalles
+                          </>
+                        )}
+                      </CollapsibleTrigger>
+                    </Collapsible>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <Collapsible open={expandedTasks.has(task.id)}>
+                <CollapsibleContent>
+                  <CardContent className="pt-0">
+                    <div className="border-t pt-4">
+                      <h4 className="text-sm font-medium mb-3 text-gray-900">Asignaciones:</h4>
+                      <div className="space-y-3">
+                        {task.assignments.map((assignment) => {
+                          return (
+                            <div key={assignment.id} className="bg-gray-50 rounded-lg p-3">
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   {getAssigneeDisplay(assignment)}
+                                  {getStatusBadge(assignment.status ?? 'pending')}
+                                  {assignment.readAt && (
+                                    <Badge variant="outline" className="flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                      <Eye className="h-3 w-3" />
+                                      Leída {format(new Date(assignment.readAt), "dd/MM HH:mm", { locale: es })}
+                                    </Badge>
+                                  )}
                                 </div>
-                                <Badge className={`${assignConfig.color} text-white text-xs`}>
-                                  {assignConfig.label}
-                                </Badge>
-                                {assignment.readAt && (
-                                  <Badge variant="outline" className="text-xs">
-                                    <Eye className="h-3 w-3 mr-1" />
-                                    {format(new Date(assignment.readAt), "dd/MM", { locale: es })}
-                                  </Badge>
+                                
+                                {assignment.notes && (
+                                  <div className="flex items-start gap-2 text-xs text-gray-600">
+                                    <MessageSquare className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                                    <span data-testid={`text-assignment-notes-${assignment.id}`}>
+                                      {assignment.notes}
+                                    </span>
+                                  </div>
                                 )}
                               </div>
-                            );
-                          })}
-                        </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </CardContent>
-              </Card>
-            );
-          })
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Collapsible>
+            </Card>
+          ))
         )}
       </div>
         </TabsContent>
@@ -1054,10 +1000,6 @@ export default function TareasPage() {
             setSearchClient={setSearchClient}
             user={user}
           />
-        </TabsContent>
-
-        <TabsContent value="metas" className="space-y-6">
-          <Metas />
         </TabsContent>
       </Tabs>
     </div>

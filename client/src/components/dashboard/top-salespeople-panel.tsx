@@ -16,10 +16,6 @@ interface TopSalespeopleResponse {
   items: TopSalesperson[];
   periodTotalSales: number;
   totalCount: number;
-  unassignedSales?: {
-    totalSales: number;
-    transactionCount: number;
-  };
 }
 
 interface SearchSalesperson {
@@ -321,41 +317,6 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
               ))}
             </Accordion>
             
-            {/* Ventas sin vendedor asignado */}
-            {!debouncedSearchTerm && topSalespeopleResponse?.unassignedSales && topSalespeopleResponse.unassignedSales.totalSales > 0 && (
-              <div 
-                className="flex items-center py-3 px-4 border rounded-lg bg-amber-50/50 dark:bg-amber-900/10"
-                data-testid="unassigned-sales-row"
-              >
-                <div className="min-w-0 flex-1 text-left">
-                  <p className="text-sm text-amber-700 dark:text-amber-400 font-medium">
-                    SIN VENDEDOR ASIGNADO
-                  </p>
-                </div>
-                
-                <div className="w-12 flex-shrink-0 text-right">
-                  <span className="text-xs text-amber-600 dark:text-amber-400">
-                    {periodTotal > 0 ? ((topSalespeopleResponse.unassignedSales.totalSales / periodTotal) * 100).toFixed(1) : '0.0'}%
-                  </span>
-                </div>
-                
-                <div className="w-24 sm:w-32 flex-shrink-0">
-                  <div className="h-2 bg-amber-100 dark:bg-amber-900/30 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-amber-500 dark:bg-amber-600 rounded-full transition-all duration-500 ease-out"
-                      style={{ width: `${periodTotal > 0 ? Math.min((topSalespeopleResponse.unassignedSales.totalSales / periodTotal) * 100, 100) : 0}%` }}
-                    ></div>
-                  </div>
-                </div>
-                
-                <div className="w-24 flex-shrink-0 text-right">
-                  <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">
-                    {formatCurrency(topSalespeopleResponse.unassignedSales.totalSales)}
-                  </span>
-                </div>
-              </div>
-            )}
-            
             {/* Botón Ver más - solo si no hay búsqueda activa y hay más vendedores */}
             {!debouncedSearchTerm && topSalespeopleResponse && displaySalespeople && displaySalespeople.length < topSalespeopleResponse.totalCount && (
               <div className="flex justify-center pt-4 border-t border-gray-200">
@@ -380,7 +341,7 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-green-900 font-bold">
-                      TOTAL ({topSalespeopleResponse?.totalCount || salespeopleWithPercentage.length} vendedores)
+                      TOTAL ({salespeopleWithPercentage.length} vendedores)
                     </p>
                   </div>
                   
