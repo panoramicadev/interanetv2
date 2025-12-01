@@ -76,9 +76,12 @@ interface NvvRecord {
   TIDO: string | null; // Tipo de documento
   COMUNA: string | null; // Comuna
   OBSERVA: string | null; // Observaciones
-  // New calculated columns from database
-  cantidadPendiente: string | null; // New calculated column: CAPRCO2 - CAPREX2
-  totalPendiente: string | null; // New calculated column: PPPRNE * cantidadPendiente
+  // Calculated columns from ETL database
+  cantidadPendiente: string | number | null; // Cantidad pendiente
+  totalPendiente: string | number | null; // Monto pendiente from fact_nvv.monto
+  // ETL fields
+  nombre_vendedor: string | null; // Nombre del vendedor desde ETL
+  nombre_segmento_cliente: string | null; // Segmento del cliente desde ETL
   // System fields
   status?: string;
   importBatch?: string;
@@ -218,10 +221,13 @@ export function NvvDashboard({ salespersonFilter, segmentFilter }: NvvDashboardP
     }
   };
 
-  // Updated to use the pre-calculated totalPendiente column from database
+  // Use the pre-calculated totalPendiente (monto) column from ETL database
   const calculatePendingAmount = (record: NvvRecord) => {
-    // Use the new calculated column from database instead of manual calculation
-    return parseFloat(record.totalPendiente || '0');
+    // totalPendiente comes from fact_nvv.monto (already calculated as (caprco2-caprex2)*ppprne in ETL)
+    const value = record.totalPendiente;
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') return parseFloat(value) || 0;
+    return 0;
   };
 
   const getMonthFromDate = (dateString: string) => {
@@ -299,39 +305,10 @@ export function NvvDashboard({ salespersonFilter, segmentFilter }: NvvDashboardP
     const salespersonTotals: Record<string, { amount: number; count: number; code: string }> = {};
     
     detailedData.forEach((record: NvvRecord) => {
-      const kofulidoRaw = record.KOFULIDO || '';
-      const kofulido = kofulidoRaw.trim();
+      const kofulido = (record.KOFULIDO || '').trim();
       
-      // Buscar nombre real del vendedor usando varias estrategias
-      let salespersonName = 'Sin Vendedor';
-      
-      if (salespersonMapping?.kofulidoToName) {
-        // Intentar match directo
-        if (salespersonMapping.kofulidoToName[kofulido]) {
-          salespersonName = salespersonMapping.kofulidoToName[kofulido];
-        } 
-        // Intentar match con mayúsculas
-        else if (salespersonMapping.kofulidoToName[kofulido.toUpperCase()]) {
-          salespersonName = salespersonMapping.kofulidoToName[kofulido.toUpperCase()];
-        }
-        // Intentar match con minúsculas
-        else if (salespersonMapping.kofulidoToName[kofulido.toLowerCase()]) {
-          salespersonName = salespersonMapping.kofulidoToName[kofulido.toLowerCase()];
-        }
-        // Buscar coincidencia case-insensitive en todas las claves
-        else {
-          const matchingKey = Object.keys(salespersonMapping.kofulidoToName).find(
-            key => key.toLowerCase().trim() === kofulido.toLowerCase()
-          );
-          if (matchingKey) {
-            salespersonName = salespersonMapping.kofulidoToName[matchingKey];
-          } else if (kofulido) {
-            salespersonName = kofulido; // Usar código si no hay match
-          }
-        }
-      } else if (kofulido) {
-        salespersonName = kofulido; // Usar código si no hay mapeo disponible
-      }
+      // Usar nombre_vendedor directamente de fact_nvv (ETL) o fallback al código
+      const salespersonName = record.nombre_vendedor?.trim() || kofulido || 'Sin Vendedor';
       
       const pendingAmount = calculatePendingAmount(record);
       
@@ -347,16 +324,13 @@ export function NvvDashboard({ salespersonFilter, segmentFilter }: NvvDashboardP
   };
 
   const calculateSegmentTotals = () => {
-    if (!detailedData || !salespersonMapping) return {};
+    if (!detailedData) return {};
     
     const segmentTotals: Record<string, { amount: number; count: number }> = {};
     
     detailedData.forEach((record: NvvRecord) => {
-      // Usar KOFULIDO (vendedor) para buscar el segmento desde el mapeo de ventas
-      const salesperson = record.KOFULIDO?.trim();
-      const segment = salesperson && salespersonMapping.kofulidoToSegment?.[salesperson]
-        ? salespersonMapping.kofulidoToSegment[salesperson]
-        : 'Sin Segmento';
+      // Usar nombre_segmento_cliente directamente de fact_nvv (ETL)
+      const segment = record.nombre_segmento_cliente?.trim() || 'Sin Segmento';
       
       const pendingAmount = calculatePendingAmount(record);
       

@@ -11199,16 +11199,19 @@ export class DatabaseStorage implements IStorage {
           nudo as "NUDO",
           nokoen as "NOKOEN",
           kofulido as "KOFULIDO",
-          nombre_vendedor,
+          nombre_vendedor as "nombre_vendedor",
           feemdo as "FEEMDO",
           feerli as "FEERLI",
           feemli as "FEEMLI",
-          monto as total_pendiente,
-          koprct,
+          monto as "totalPendiente",
+          koprct as "KOPRCT",
           nokopr as "NOKOPR",
           sudo as "SUDO",
           eslido,
-          nombre_segmento_cliente
+          nombre_segmento_cliente as "nombre_segmento_cliente",
+          caprco2 as "CAPRCO2",
+          caprex2 as "CAPREX2",
+          ppprne as "PPPRNE"
         FROM nvv.fact_nvv
         ${whereClause}
         ORDER BY feerli DESC
