@@ -2512,6 +2512,7 @@ export class DatabaseStorage implements IStorage {
       transactionCount: number;
       averageOrderValue: number;
       percentage: number;
+      uniqueClients: number;
     }>;
     periodTotalSales: number;
     totalCount: number;
@@ -2569,6 +2570,7 @@ export class DatabaseStorage implements IStorage {
         totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'GDV' THEN 0 WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
         uniqueOrders: sql<number>`COUNT(DISTINCT ${factVentas.nudo})`,
+        uniqueClients: sql<number>`COUNT(DISTINCT ${factVentas.endo})`,
       })
       .from(factVentas)
       .where(productWhereClause)
@@ -2587,6 +2589,7 @@ export class DatabaseStorage implements IStorage {
           transactionCount: Number(r.transactionCount),
           averageOrderValue: totalSales / uniqueOrders,
           percentage: periodTotal > 0 ? (totalSales / periodTotal) * 100 : 0,
+          uniqueClients: Number(r.uniqueClients) || 0,
         };
       }),
       periodTotalSales: periodTotal,
@@ -2699,7 +2702,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
         totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
-        uniqueClients: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
+        uniqueClients: sql<number>`COUNT(DISTINCT ${factVentas.endo})`,
         transactionCount: sql<number>`COUNT(*)`,
       })
       .from(factVentas)
