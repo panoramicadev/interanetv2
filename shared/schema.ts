@@ -1229,9 +1229,20 @@ export const salespeopleUsers = pgTable("salespeople_users", {
   role: varchar("role").default("salesperson"), // "admin" | "supervisor" | "salesperson" | "tecnico_obra" | "client" | "reception" | "jefe_planta" | "mantencion"
   supervisorId: varchar("supervisor_id"), // ID del supervisor que gestiona este vendedor (solo para role="salesperson")
   assignedSegment: varchar("assigned_segment"), // Segmento asignado al supervisor (solo para role="supervisor")
+  
+  // Campos para catálogo público
+  publicSlug: varchar("public_slug").unique(), // URL amigable (ej: "pablo-soto")
+  profileImageUrl: varchar("profile_image_url"), // Foto de perfil del vendedor
+  publicPhone: varchar("public_phone"), // Teléfono de contacto público
+  publicEmail: varchar("public_email"), // Email de contacto público
+  bio: text("bio"), // Descripción/biografía del vendedor
+  catalogEnabled: boolean("catalog_enabled").default(false), // Si el catálogo público está habilitado
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  publicSlugIdx: index("IDX_salespeople_public_slug").on(table.publicSlug),
+}));
 
 export type SalespersonUser = typeof salespeopleUsers.$inferSelect;
 export type InsertSalespersonUser = typeof salespeopleUsers.$inferInsert;
@@ -1257,6 +1268,12 @@ export const insertSalespersonUserSchema = createInsertSchema(salespeopleUsers, 
   role: z.enum(["admin", "supervisor", "salesperson", "tecnico_obra", "client", "reception", "laboratorio", "area_materia_prima", "area_colores", "area_aplicacion", "area_envase", "area_etiqueta", "area_produccion", "area_logistica", "produccion", "logistica_bodega", "planificacion", "bodega_materias_primas", "prevencion_riesgos", "jefe_planta", "mantencion"]).default("salesperson"),
   supervisorId: z.string().optional().nullable(),
   assignedSegment: z.string().optional().nullable(),
+  publicSlug: z.string().regex(/^[a-z0-9-]+$/, "Slug debe contener solo letras minúsculas, números y guiones").optional().nullable(),
+  profileImageUrl: z.string().url("URL de imagen inválida").optional().or(z.literal("")).nullable(),
+  publicPhone: z.string().optional().nullable(),
+  publicEmail: z.string().email("Email inválido").optional().or(z.literal("")).nullable(),
+  bio: z.string().max(500, "Biografía máximo 500 caracteres").optional().nullable(),
+  catalogEnabled: z.boolean().optional().default(false),
 }).omit({
   id: true,
   createdAt: true,
@@ -1264,6 +1281,24 @@ export const insertSalespersonUserSchema = createInsertSchema(salespeopleUsers, 
 });
 
 export type InsertSalespersonUserInput = z.infer<typeof insertSalespersonUserSchema>;
+
+// Schema para cotizaciones públicas (sin autenticación)
+export const publicQuoteRequestSchema = z.object({
+  visitorName: z.string().min(1, "Nombre es requerido"),
+  visitorEmail: z.string().email("Email inválido"),
+  visitorPhone: z.string().optional(),
+  visitorCompany: z.string().optional(),
+  message: z.string().optional(),
+  items: z.array(z.object({
+    productId: z.string(),
+    productName: z.string(),
+    sku: z.string().optional(),
+    quantity: z.number().positive("Cantidad debe ser mayor a 0"),
+    unitPrice: z.number().min(0),
+  })).min(1, "Debe seleccionar al menos un producto"),
+});
+
+export type PublicQuoteRequest = z.infer<typeof publicQuoteRequestSchema>;
 
 // Goals/Metas table for managing sales targets
 export const goals = pgTable("goals", {

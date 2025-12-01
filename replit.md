@@ -126,3 +126,50 @@ The GDV (Guías de Despacho Vigentes) system uses automated ETL from SQL Server 
 2. **Filter by ESLIDO** - Only lines where `eslido IS NULL OR eslido = ''`
 3. **Automatic cleanup** - Closed/invoiced GDV disappear on next sync
 4. **Transient data** - GDV represents pending dispatches, not historical records
+
+## Public Salesperson Catalog (December 2025)
+
+### Overview
+Each salesperson can have a public catalog page where external visitors can browse products and submit quote requests without authentication.
+
+### URL Structure
+- **Public URL**: `/catalogo/:slug` (e.g., `/catalogo/pablo-soto`)
+- **API Endpoints**:
+  - `GET /api/public/catalogos/:slug` - Get salesperson profile and products
+  - `POST /api/public/catalogos/:slug/cotizacion` - Submit quote request
+
+### Database Fields (salespeople_users table)
+- `public_slug` - Unique URL slug (e.g., "pablo-soto")
+- `profile_image_url` - Salesperson photo
+- `public_phone` - Public contact phone
+- `public_email` - Public contact email
+- `bio` - Short biography/description (max 500 chars)
+- `catalog_enabled` - Boolean to enable/disable the public catalog
+
+### Quote Submission Flow
+1. Visitor selects products and quantities from the catalog
+2. Visitor fills contact form (name, email, phone, company, message)
+3. Quote request is saved to `ecommerce_orders` table with:
+   - `status: 'pendiente'`
+   - `client_id: 'VISITANTE_PUBLICO'`
+   - `notes` prefixed with `[CATÁLOGO PÚBLICO]`
+   - `assigned_salesperson_id` set to the catalog owner
+4. Quote appears in "Pedidos de Clientes" section for the salesperson
+
+### Enabling a Salesperson Catalog
+```sql
+UPDATE salespeople_users 
+SET 
+  public_slug = 'nombre-vendedor',
+  catalog_enabled = true,
+  public_email = 'vendedor@empresa.cl',
+  public_phone = '+56 9 1234 5678',
+  bio = 'Descripción del vendedor...'
+WHERE id = 'salesperson-uuid';
+```
+
+### Active Files
+- `client/src/pages/catalogo-publico.tsx` - Public catalog page component
+- `server/storage.ts` - Functions: getPublicSalespersonBySlug(), getPublicCatalogProducts(), createPublicQuoteRequest()
+- `server/routes.ts` - Public catalog API endpoints
+- `shared/schema.ts` - publicQuoteRequestSchema validation
