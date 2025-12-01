@@ -38,3 +38,56 @@ Preferred communication style: Simple, everyday language.
 - **Date Handling**: date-fns
 - **PDF Generation**: @react-pdf/renderer
 - **CSV Parsing**: Papa Parse
+
+## NVV Module Architecture (December 2025)
+
+### Current Architecture (ACTIVE)
+The NVV (Notas de Venta Vigentes) system uses automated ETL from SQL Server:
+
+**Data Source**: nvv.fact_nvv table (populated by ETL)
+- ETL runs every 15 minutes automatically
+- Full synchronization strategy (snapshot of current open NVV records)
+- Only records where `eslido IS NULL OR eslido = ''` are considered pending
+- Source tables from SQL Server: MAEEDDO, MAEDDDO, MAEEDO, MAEPR, MAEVEN, TABBO
+
+**Active Files**:
+- `server/etl-nvv.ts` - Main ETL implementation
+- `server/storage.ts` - Functions: getNvvDashboardData(), getNvvPendingSales(), getNvvSummaryMetrics(), getNvvBySalesperson(), getNvvTotalSummary()
+- `server/routes.ts` - Endpoints: GET /api/nvv/pending, /api/nvv/total, /api/nvv/metrics, /api/nvv/dashboard, /api/nvv/etl/*
+
+**Key Fields**:
+- `nombre_vendedor` - Salesperson name from ETL
+- `nombre_segmento_cliente` - Segment name from ETL
+- `kofulido` - Salesperson code
+- `eslido` - Determines if NVV is closed (null/empty = pending)
+- `monto` - Amount (calculated from ppprne * quantity)
+
+### Deprecated Architecture (DO NOT USE)
+The following were used for manual CSV import and are now deprecated:
+
+**Deprecated Table**: `nvv_pending_sales` (shared/schema.ts)
+- Was used for manual CSV uploads
+- Data is stale and not synchronized with source system
+
+**Deprecated Functions** (server/storage.ts):
+- `importNvvFromCsv()` - ⛔ DEPRECATED
+- `clearAllNvvData()` - ⛔ DEPRECATED
+- `deleteNvvBatch()` - ⛔ DEPRECATED
+
+**Deprecated Endpoints** (server/routes.ts):
+- POST /api/nvv/import - ⛔ DEPRECATED
+- DELETE /api/nvv/clear-all - ⛔ DEPRECATED
+- DELETE /api/nvv/batch/:batchId - ⛔ DEPRECATED
+
+**Deprecated Schemas** (shared/schema.ts):
+- `nvvPendingSales` - ⛔ DEPRECATED
+- `insertNvvPendingSalesSchema` - ⛔ DEPRECATED
+- `nvvCsvImportSchema` - ⛔ DEPRECATED
+- `nvvImportResultSchema` - ⛔ DEPRECATED
+
+### Important Notes for Future Development
+1. **Always use nvv.fact_nvv** - Never query nvv_pending_sales
+2. **Use ETL fields directly** - nombre_vendedor, nombre_segmento_cliente come from ETL
+3. **Pending filter** - Always filter by `(eslido IS NULL OR eslido = '')` for pending NVV
+4. **ETL handles cleanup** - Full sync removes closed NVV automatically
+5. **Check deprecation warnings** - Functions log warnings when deprecated code is called
