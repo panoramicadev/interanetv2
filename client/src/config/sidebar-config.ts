@@ -56,6 +56,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: ClipboardList,
     },
     {
+      href: "/tareas",
+      label: "Tareas",
+      icon: CheckCircle2,
+    },
+    {
       href: "/metas",
       label: "Gestión de Metas",
       icon: Target,
@@ -365,6 +370,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: ClipboardList,
     },
     {
+      href: "/tareas",
+      label: "Tareas",
+      icon: CheckCircle2,
+    },
+    {
       href: "/metas",
       label: "Gestión de Metas",
       icon: Target,
@@ -523,6 +533,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/crm",
       label: "CRM",
       icon: ClipboardList,
+    },
+    {
+      href: "/tareas",
+      label: "Tareas",
+      icon: CheckCircle2,
     },
     {
       href: "/lista-precios",
