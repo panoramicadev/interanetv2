@@ -48,13 +48,15 @@ import {
   Circle,
   Play,
   Check,
-  Ban
+  Ban,
+  Target
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks } from "date-fns";
 import { es } from "date-fns/locale";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type Task, type TaskAssignment, type InsertTaskAssignment } from "@shared/schema";
+import Metas from "@/pages/metas";
 import { z } from "zod";
 
 // SECURITY: Frontend schema that excludes createdByUserId to prevent user impersonation
@@ -437,11 +439,15 @@ export default function TareasPage() {
         </p>
       </div>
 
-      {/* Tabs para Tareas y Estimación Semanal */}
+      {/* Tabs para Tareas, Estimación Semanal y Metas */}
       <Tabs defaultValue="estimacion" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="estimacion" data-testid="tab-estimacion">Estimación Semanal</TabsTrigger>
           <TabsTrigger value="tareas" data-testid="tab-tareas">Tareas</TabsTrigger>
+          <TabsTrigger value="metas" data-testid="tab-metas" className="flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            <span className="hidden sm:inline">Metas</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="tareas" className="space-y-6">
@@ -1000,6 +1006,10 @@ export default function TareasPage() {
             setSearchClient={setSearchClient}
             user={user}
           />
+        </TabsContent>
+
+        <TabsContent value="metas" className="space-y-6">
+          <Metas />
         </TabsContent>
       </Tabs>
     </div>
