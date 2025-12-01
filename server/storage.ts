@@ -362,6 +362,10 @@ export interface IStorage {
     }>;
     periodTotalSales: number;
     totalCount: number;
+    unassignedSales?: {
+      totalSales: number;
+      transactionCount: number;
+    };
   }>;
   searchSalespeople(searchTerm: string, startDate?: string, endDate?: string, segment?: string): Promise<Array<{
     name: string;
@@ -2405,39 +2409,66 @@ export class DatabaseStorage implements IStorage {
     }>;
     periodTotalSales: number;
     totalCount: number;
+    unassignedSales?: {
+      totalSales: number;
+      transactionCount: number;
+    };
   }> {
-    const conditions = [
-      sql`${factVentas.nokofu} IS NOT NULL AND ${factVentas.nokofu} != ''`,
+    // Base conditions without nokofu filter (for total calculation)
+    const baseConditions = [
       sql`${factVentas.tido} != 'GDV'`
     ];
     
     if (startDate) {
-      conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
+      baseConditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
     if (endDate) {
-      conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
+      baseConditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
     }
     if (segment) {
-      conditions.push(sql`${factVentas.noruen} = ${segment}`);
+      baseConditions.push(sql`${factVentas.noruen} = ${segment}`);
     }
     
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const baseWhereClause = baseConditions.length > 0 ? and(...baseConditions) : undefined;
     
-    // Get period total sales
+    // Conditions for salespeople with assigned name
+    const assignedConditions = [
+      ...baseConditions,
+      sql`${factVentas.nokofu} IS NOT NULL AND ${factVentas.nokofu} != ''`
+    ];
+    const assignedWhereClause = and(...assignedConditions);
+    
+    // Conditions for unassigned sales
+    const unassignedConditions = [
+      ...baseConditions,
+      sql`(${factVentas.nokofu} IS NULL OR ${factVentas.nokofu} = '')`
+    ];
+    const unassignedWhereClause = and(...unassignedConditions);
+    
+    // Get TOTAL period sales (including unassigned - this is the real total)
     const [totalResult] = await db
       .select({
         total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
       })
       .from(factVentas)
-      .where(whereClause);
+      .where(baseWhereClause);
     
-    // Get total count of unique salespeople
+    // Get unassigned sales
+    const [unassignedResult] = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(factVentas)
+      .where(unassignedWhereClause);
+    
+    // Get total count of unique salespeople (excluding unassigned)
     const [countResult] = await db
       .select({
         count: sql<number>`COUNT(DISTINCT ${factVentas.nokofu})`,
       })
       .from(factVentas)
-      .where(whereClause);
+      .where(assignedWhereClause);
     
     const results = await db
       .select({
@@ -2446,10 +2477,13 @@ export class DatabaseStorage implements IStorage {
         transactionCount: sql<number>`COUNT(*)`,
       })
       .from(factVentas)
-      .where(whereClause)
+      .where(assignedWhereClause)
       .groupBy(factVentas.nokofu)
       .orderBy(sql`SUM(${factVentas.monto}) DESC`)
       .limit(limit);
+
+    const unassignedTotal = Number(unassignedResult.total);
+    const unassignedCount = Number(unassignedResult.count);
 
     return {
       items: results.map(r => ({
@@ -2458,7 +2492,11 @@ export class DatabaseStorage implements IStorage {
         transactionCount: Number(r.transactionCount),
       })),
       periodTotalSales: Number(totalResult.total),
-      totalCount: Number(countResult.count),
+      totalCount: Number(countResult.count) + (unassignedTotal > 0 ? 1 : 0),
+      unassignedSales: unassignedTotal > 0 ? {
+        totalSales: unassignedTotal,
+        transactionCount: unassignedCount,
+      } : undefined,
     };
   }
 
