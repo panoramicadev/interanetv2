@@ -2200,6 +2200,72 @@ export class DatabaseStorage implements IStorage {
     gdvSales: number;
   }> {
     const { startDate, endDate, salesperson, segment, client, supplier } = filters;
+    
+    // If filtering by salesperson, use mapping by kofulido for sales without vendor name
+    if (salesperson) {
+      let dateCondition = '';
+      if (startDate) {
+        dateCondition += ` AND v.feemdo >= '${startDate}'::date`;
+      }
+      if (endDate) {
+        dateCondition += ` AND v.feemdo <= '${endDate}'::date`;
+      }
+      let segmentCondition = segment ? ` AND v.noruen = '${segment}'` : '';
+      let clientCondition = client ? ` AND v.nokoen = '${client}'` : '';
+      
+      const rawQuery = sql`
+        WITH vendedor_por_codigo AS (
+          SELECT DISTINCT ON (kofulido) 
+            kofulido,
+            nokofu as vendedor_principal
+          FROM ventas.fact_ventas
+          WHERE nokofu IS NOT NULL AND nokofu != '' AND tido != 'GDV'
+            AND kofulido IS NOT NULL AND kofulido != ''
+          GROUP BY kofulido, nokofu
+          ORDER BY kofulido, COUNT(*) DESC
+        ),
+        ventas_filtradas AS (
+          SELECT 
+            CASE 
+              WHEN v.nokofu IS NOT NULL AND v.nokofu != '' THEN v.nokofu
+              WHEN vpc.vendedor_principal IS NOT NULL THEN vpc.vendedor_principal
+              ELSE NULL
+            END as vendedor_efectivo,
+            v.monto,
+            v.tido,
+            v.nudo,
+            v.caprco2,
+            v.nokoen,
+            v.esdo
+          FROM ventas.fact_ventas v
+          LEFT JOIN vendedor_por_codigo vpc ON v.kofulido = vpc.kofulido
+          WHERE 1=1 ${sql.raw(dateCondition)} ${sql.raw(segmentCondition)} ${sql.raw(clientCondition)}
+        )
+        SELECT 
+          COALESCE(SUM(CASE WHEN tido != 'GDV' THEN CAST(monto AS NUMERIC) ELSE 0 END), 0) as total_sales,
+          COUNT(*) as total_transactions,
+          COUNT(DISTINCT nudo) as total_orders,
+          COALESCE(SUM(CASE WHEN tido = 'GDV' THEN 0 WHEN tido = 'NCV' THEN -CAST(caprco2 AS NUMERIC) ELSE CAST(caprco2 AS NUMERIC) END), 0) as total_units,
+          COUNT(DISTINCT nokoen) as active_customers,
+          COALESCE(SUM(CASE WHEN tido = 'GDV' AND (esdo IS NULL OR esdo != 'C') THEN CAST(monto AS NUMERIC) ELSE 0 END), 0) as gdv_sales
+        FROM ventas_filtradas
+        WHERE vendedor_efectivo = ${salesperson}
+      `;
+      
+      const results = await db.execute(rawQuery);
+      const row = results.rows[0] as any;
+      
+      return {
+        totalSales: Number(row?.total_sales || 0),
+        totalTransactions: Number(row?.total_transactions || 0),
+        totalOrders: Number(row?.total_orders || 0),
+        totalUnits: Number(row?.total_units || 0),
+        activeCustomers: Number(row?.active_customers || 0),
+        gdvSales: Number(row?.gdv_sales || 0),
+      };
+    }
+    
+    // Standard query without salesperson mapping
     const conditions = [];
     
     if (startDate) {
@@ -2207,9 +2273,6 @@ export class DatabaseStorage implements IStorage {
     }
     if (endDate) {
       conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
-    }
-    if (salesperson) {
-      conditions.push(eq(factVentas.nokofu, salesperson));
     }
     if (segment) {
       conditions.push(eq(factVentas.noruen, segment));
@@ -2428,38 +2491,43 @@ export class DatabaseStorage implements IStorage {
     }
     
     // Use raw SQL to properly assign sales to vendors based on kofulido when nokofu is missing
-    // This maps sales without vendor name to the most common vendor for that vendor code
+    // This maps sales without vendor name to the vendor with most transactions for that vendor code
     const rawQuery = sql`
-      WITH vendedor_mapping AS (
-        -- Create mapping: for each kofulido, find the most common nokofu (by total sales)
+      WITH vendedor_por_codigo AS (
+        -- Para cada código de vendedor, encontrar el nombre más frecuente (por número de transacciones)
         SELECT DISTINCT ON (kofulido) 
           kofulido,
           nokofu as vendedor_principal
         FROM ventas.fact_ventas
-        WHERE nokofu IS NOT NULL AND nokofu != '' AND tido != 'GDV'
+        WHERE nokofu IS NOT NULL 
+          AND nokofu != '' 
+          AND tido != 'GDV'
+          AND kofulido IS NOT NULL
+          AND kofulido != ''
         GROUP BY kofulido, nokofu
-        ORDER BY kofulido, SUM(CAST(monto AS NUMERIC)) DESC
+        ORDER BY kofulido, COUNT(*) DESC
       ),
-      ventas_normalizadas AS (
-        -- Assign vendor name using the mapping when original is null
+      ventas_con_vendedor AS (
+        -- Asignar nombre de vendedor: usar nokofu si existe, sino mapear por kofulido
         SELECT 
-          COALESCE(
-            NULLIF(v.nokofu, ''), 
-            vm.vendedor_principal,
-            'SIN VENDEDOR ASIGNADO'
-          ) as vendedor_efectivo,
+          CASE 
+            WHEN v.nokofu IS NOT NULL AND v.nokofu != '' THEN v.nokofu
+            WHEN vpc.vendedor_principal IS NOT NULL THEN vpc.vendedor_principal
+            ELSE NULL
+          END as vendedor_efectivo,
           v.monto,
-          v.kofulido
+          v.kofulido,
+          v.nokofu
         FROM ventas.fact_ventas v
-        LEFT JOIN vendedor_mapping vm ON v.kofulido = vm.kofulido
+        LEFT JOIN vendedor_por_codigo vpc ON v.kofulido = vpc.kofulido
         WHERE v.tido != 'GDV' ${sql.raw(dateCondition)} ${sql.raw(segmentCondition)}
       )
       SELECT 
         vendedor_efectivo as salesperson,
         COALESCE(SUM(CAST(monto AS NUMERIC)), 0) as total_sales,
         COUNT(*) as transaction_count
-      FROM ventas_normalizadas
-      WHERE vendedor_efectivo != 'SIN VENDEDOR ASIGNADO'
+      FROM ventas_con_vendedor
+      WHERE vendedor_efectivo IS NOT NULL
       GROUP BY vendedor_efectivo
       ORDER BY total_sales DESC
       LIMIT ${limit}
@@ -2476,54 +2544,56 @@ export class DatabaseStorage implements IStorage {
     const totalResults = await db.execute(totalQuery);
     const periodTotal = Number((totalResults.rows[0] as any)?.total || 0);
     
-    // Get unique count of salespeople (using normalized names)
+    // Get unique count of salespeople (using mapped names)
     const countQuery = sql`
-      WITH vendedor_mapping AS (
+      WITH vendedor_por_codigo AS (
         SELECT DISTINCT ON (kofulido) 
           kofulido,
           nokofu as vendedor_principal
         FROM ventas.fact_ventas
         WHERE nokofu IS NOT NULL AND nokofu != '' AND tido != 'GDV'
+          AND kofulido IS NOT NULL AND kofulido != ''
         GROUP BY kofulido, nokofu
-        ORDER BY kofulido, SUM(CAST(monto AS NUMERIC)) DESC
+        ORDER BY kofulido, COUNT(*) DESC
       ),
-      ventas_normalizadas AS (
+      ventas_con_vendedor AS (
         SELECT 
-          COALESCE(
-            NULLIF(v.nokofu, ''), 
-            vm.vendedor_principal,
-            'SIN VENDEDOR ASIGNADO'
-          ) as vendedor_efectivo
+          CASE 
+            WHEN v.nokofu IS NOT NULL AND v.nokofu != '' THEN v.nokofu
+            WHEN vpc.vendedor_principal IS NOT NULL THEN vpc.vendedor_principal
+            ELSE NULL
+          END as vendedor_efectivo
         FROM ventas.fact_ventas v
-        LEFT JOIN vendedor_mapping vm ON v.kofulido = vm.kofulido
+        LEFT JOIN vendedor_por_codigo vpc ON v.kofulido = vpc.kofulido
         WHERE v.tido != 'GDV' ${sql.raw(dateCondition)} ${sql.raw(segmentCondition)}
       )
       SELECT COUNT(DISTINCT vendedor_efectivo) as count
-      FROM ventas_normalizadas
-      WHERE vendedor_efectivo != 'SIN VENDEDOR ASIGNADO'
+      FROM ventas_con_vendedor
+      WHERE vendedor_efectivo IS NOT NULL
     `;
     const countResults = await db.execute(countQuery);
     const totalCount = Number((countResults.rows[0] as any)?.count || 0);
     
-    // Check for unassigned sales (sales that couldn't be mapped to any vendor)
+    // Get unassigned sales (where we couldn't map to any vendor)
     const unassignedQuery = sql`
-      WITH vendedor_mapping AS (
+      WITH vendedor_por_codigo AS (
         SELECT DISTINCT ON (kofulido) 
           kofulido,
           nokofu as vendedor_principal
         FROM ventas.fact_ventas
         WHERE nokofu IS NOT NULL AND nokofu != '' AND tido != 'GDV'
+          AND kofulido IS NOT NULL AND kofulido != ''
         GROUP BY kofulido, nokofu
-        ORDER BY kofulido, SUM(CAST(monto AS NUMERIC)) DESC
+        ORDER BY kofulido, COUNT(*) DESC
       )
       SELECT 
         COALESCE(SUM(CAST(v.monto AS NUMERIC)), 0) as total,
         COUNT(*) as count
       FROM ventas.fact_ventas v
-      LEFT JOIN vendedor_mapping vm ON v.kofulido = vm.kofulido
+      LEFT JOIN vendedor_por_codigo vpc ON v.kofulido = vpc.kofulido
       WHERE v.tido != 'GDV' ${sql.raw(dateCondition)} ${sql.raw(segmentCondition)}
         AND (v.nokofu IS NULL OR v.nokofu = '')
-        AND vm.vendedor_principal IS NULL
+        AND (vpc.vendedor_principal IS NULL)
     `;
     const unassignedResults = await db.execute(unassignedQuery);
     const unassignedTotal = Number((unassignedResults.rows[0] as any)?.total || 0);
