@@ -261,9 +261,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
   
   let pool: mssql.ConnectionPool | null = null;
   const tiposDoc = ['FCV', 'GDV', 'FVL', 'NCV', 'BLV', 'FDV'];
-  // Sucursales vacío = extraer de TODAS las sucursales
-  // Para filtrar sucursales específicas, agregar códigos aquí: ['004', '006', '007']
-  const sucursales: string[] = [];
+  const sucursales = ['004', '006', '007'];
   let timeoutHandle: NodeJS.Timeout | null = null;
   let timedOut = false;
   let executionLogId: string | null = null; // ID del registro de ejecución
@@ -366,7 +364,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     console.log(`   Desde: ${lastWatermark.toISOString()}`);
     console.log(`   Hasta: ${currentWatermark.toISOString()}`);
     console.log(`   Tipos documento: ${tiposDoc.join(', ')}`);
-    console.log(`   Sucursales: ${sucursales.length > 0 ? sucursales.join(', ') : 'TODAS'}\n`);
+    console.log(`   Sucursales: ${sucursales.join(', ')}\n`);
 
     // Conectar a SQL Server con circuit breaker y retry
     console.log('🔄 Conectando a SQL Server...');
@@ -386,7 +384,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       status: 'running',
       period: periodLabel,
       documentTypes: tiposDoc.join(','),
-      branches: sucursales.length > 0 ? sucursales.join(',') : 'TODAS',
+      branches: sucursales.join(','),
       watermarkDate: currentWatermark,
     }).returning();
     
@@ -419,22 +417,19 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     console.log('║  📝 QUERY SQL MAEEDO - FILTROS APLICADOS                      ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
     console.log(`🔍 TIDO IN: ${tiposDoc.join(', ')}`);
-    console.log(`🔍 SUDO: ${sucursales.length > 0 ? sucursales.join(', ') : 'TODAS'}`);
+    console.log(`🔍 SUDO IN: ${sucursales.join(', ')}`);
     console.log(`🔍 FEEMDO >= '${startDateSQL}' (Fecha de emisión del documento)`);
     console.log(`🔍 FEEMDO <= '${endDateSQL}' (Fecha de emisión del documento)`);
+    console.log(`🔍 YEAR(FEEMDO) >= ${startYear} (dinámico según watermark)`);
     console.log('');
-    
-    // Construir filtro de sucursales solo si hay sucursales específicas
-    const sudoFilter = sucursales.length > 0 
-      ? `AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})` 
-      : '';
     
     const maeedo = await executeWithResilience(
       async () => pool.request().query(`
         SELECT *
         FROM dbo.MAEEDO
         WHERE TIDO IN (${tiposDoc.map(t => `'${t}'`).join(',')})
-          ${sudoFilter}
+          AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
+          AND YEAR(FEEMDO) >= ${startYear}
           AND FEEMDO >= '${startDateSQL}'
           AND FEEMDO <= '${endDateSQL}'
         ORDER BY FEEMDO
@@ -611,24 +606,23 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     }));
     await batchInsert(stgMaepr, maepr_records, 'stg_maepr', logger);
 
-    // 5. EXTRAER TODOS los vendedores de TABFU (tabla maestra completa)
-    console.log('5️⃣  Extrayendo MAEVEN (Vendedores - tabla completa)...');
+    // 5. EXTRAER vendedores (usando KOFUEN de MAEEN)
+    console.log('5️⃣  Extrayendo MAEVEN (Vendedores)...');
+    const kofuens = [...new Set(maeen.recordset.map(r => r.KOFUEN).filter(k => k))];
+    let maeven = { recordset: [] };
     
-    // Extraer TODOS los vendedores de la tabla maestra TABFU
-    // Filtrar nombres inválidos como '.' que son placeholders
-    const maeven = await executeWithResilience(
-      async () => pool.request().query(`
-        SELECT KOFU, NOKOFU
-        FROM dbo.TABFU
-        WHERE NOKOFU IS NOT NULL 
-          AND NOKOFU != '' 
-          AND NOKOFU != '.'
-          AND LEN(LTRIM(RTRIM(NOKOFU))) > 1
-      `),
-      sqlServerBreaker,
-      { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
-    );
-    console.log(`   ✅ ${maeven.recordset.length} vendedores válidos encontrados en TABFU (tabla completa)`);
+    if (kofuens.length > 0) {
+      maeven = await executeWithResilience(
+        async () => pool.request().query(`
+          SELECT KOFU, NOKOFU
+          FROM dbo.TABFU
+          WHERE KOFU IN (${kofuens.map(k => `'${k}'`).join(',')})
+        `),
+        sqlServerBreaker,
+        { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
+      );
+    }
+    console.log(`   ✅ ${maeven.recordset.length} registros encontrados`);
 
     const maeven_records = maeven.recordset.map(row => ({
       kofu: row.KOFU?.trim() || '',
@@ -755,12 +749,12 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         CAST(ed.nudo AS NUMERIC(20,0)),
         ed.endo,
         ed.suendo,
-        CASE WHEN ed.sudo ~ '^[0-9]+$' THEN CAST(ed.sudo AS NUMERIC(20,0)) ELSE NULL END,
+        CAST(ed.sudo AS NUMERIC(20,0)),
         ed.feemdo,
         ed.feer,
         ed.esdo,
         ed.espgdo,
-        COALESCE(NULLIF(en.kofuen, ''), ed.kofudo),
+        ed.kofudo,
         ed.modo,
         ed.timodo,
         ed.tamodo,
@@ -774,7 +768,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         CAST(NULL AS NUMERIC(20,0)),
         CAST(NULL AS NUMERIC(18,6)),
         CAST(ed.bosulido AS NUMERIC(20,0)),
-        COALESCE(NULLIF(en.kofuen, ''), ed.kofudo),
+        ed.kofudo,
         false,
         CAST(NULL AS NUMERIC(18,6)),
         pr.tipr,
@@ -835,7 +829,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       INNER JOIN ventas.stg_maeedo ed ON dd.idmaeedo = ed.idmaeedo
       LEFT JOIN ventas.stg_maeen en ON ed.endo = en.koen
       LEFT JOIN ventas.stg_maepr pr ON dd.koprct = pr.kopr
-      LEFT JOIN ventas.stg_maeven ve ON COALESCE(NULLIF(en.kofuen, ''), ed.kofudo) = ve.kofu  -- Usa vendedor asignado al cliente, o si está vacío, vendedor del documento
+      LEFT JOIN ventas.stg_maeven ve ON en.kofuen = ve.kofu
       LEFT JOIN ventas.stg_tabru ru ON en.ruen = ru.koru
       LEFT JOIN ventas.stg_tabbo bo ON ed.suli = bo.suli AND ed.bosulido = bo.bosuli
       LEFT JOIN ventas.stg_tabpp pp ON dd.koprct = pp.kopr
@@ -1095,7 +1089,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
             status: 'error',
             period: 'incremental',
             documentTypes: tiposDoc.join(','),
-            branches: sucursales.length > 0 ? sucursales.join(',') : 'TODAS',
+            branches: sucursales.join(','),
             executionTimeMs,
             errorMessage: error.message,
           });
