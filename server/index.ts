@@ -6,7 +6,7 @@ import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
 import { executeNVVETL } from "./etl-nvv";
 import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
-import { runProductionMigrations } from "./migrations";
+import { runProductionMigrations, migrateProductImageUrls } from "./migrations";
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -84,6 +84,17 @@ app.use((req, res, next) => {
       console.error('❌ Error crítico en migraciones:', error.message);
       console.error('La aplicación continuará, pero algunas funciones pueden no estar disponibles');
     }
+    
+    // Migrar URLs de imágenes de productos a Object Storage
+    try {
+      await migrateProductImageUrls();
+    } catch (error: any) {
+      console.error('⚠️ Error al migrar URLs de imágenes:', error.message);
+    }
+    
+    // Nota: La subida automática de imágenes a Object Storage está deshabilitada
+    // debido a permisos. Las imágenes se sirven desde el sistema de archivos local
+    // con fallback. Las nuevas imágenes subidas irán a Object Storage automáticamente.
     
     // Inicializar catálogos públicos para todos los vendedores
     try {

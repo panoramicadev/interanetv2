@@ -7154,20 +7154,34 @@ export function registerRoutes(app: Express): Server {
 
   // Object Storage endpoints
   
-  // Serve public objects from Object Storage
+  // Serve public objects from Object Storage with local fallback
   app.get("/public-objects/:filePath(*)", asyncHandler(async (req: any, res: any) => {
     const filePath = req.params.filePath;
     const objectStorageService = new ObjectStorageService();
+    
     try {
+      // First try Object Storage
       const file = await objectStorageService.searchPublicObject(filePath);
-      if (!file) {
-        return res.status(404).json({ error: "File not found" });
+      if (file) {
+        return objectStorageService.downloadObject(file, res);
       }
-      objectStorageService.downloadObject(file, res);
     } catch (error) {
-      console.error("Error searching for public object:", error);
-      return res.status(500).json({ error: "Internal server error" });
+      console.warn("Object Storage search failed, trying local fallback:", error);
     }
+    
+    // Fallback to local file system for product images
+    if (filePath.startsWith('product-images/')) {
+      const localPath = path.join(process.cwd(), 'public', filePath);
+      try {
+        const fs = await import('fs/promises');
+        await fs.access(localPath);
+        return res.sendFile(localPath);
+      } catch {
+        // File doesn't exist locally either
+      }
+    }
+    
+    return res.status(404).json({ error: "File not found" });
   }));
 
   // Single image uploader for eCommerce products
