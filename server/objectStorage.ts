@@ -40,9 +40,12 @@ export class ObjectNotFoundError extends Error {
 
 // The object storage service is used to interact with the object storage service.
 export class ObjectStorageService {
-  private static MANTENCION_BUCKET_ID = "replit-objstore-16fb68d0-f553-422b-802a-5af9fe0e5d7f";
-  
   constructor() {}
+  
+  // Gets the default bucket ID from environment
+  private getDefaultBucketId(): string {
+    return process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID || "replit-objstore-16fb68d0-f553-422b-802a-5af9fe0e5d7f";
+  }
 
   // Gets the public object search paths.
   getPublicObjectSearchPaths(): Array<string> {
@@ -78,7 +81,7 @@ export class ObjectStorageService {
   
   // Gets the Mantencion bucket path for photos
   getMantencionBucketPath(): string {
-    return `/${ObjectStorageService.MANTENCION_BUCKET_ID}/public`;
+    return `/${this.getDefaultBucketId()}/public`;
   }
 
   // Search for a public object from the search paths.
