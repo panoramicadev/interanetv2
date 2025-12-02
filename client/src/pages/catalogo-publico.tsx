@@ -89,6 +89,7 @@ export default function CatalogoPublico() {
   const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
   
   const form = useForm<QuoteFormData>({
     resolver: zodResolver(quoteFormSchema),
@@ -148,6 +149,12 @@ export default function CatalogoPublico() {
     return Array.from(cats) as string[];
   }, [data?.products]);
 
+  const formats = useMemo(() => {
+    if (!data?.products) return [];
+    const fmts = new Set(data.products.map(p => p.unidad).filter(Boolean));
+    return Array.from(fmts) as string[];
+  }, [data?.products]);
+
   const filteredProducts = useMemo(() => {
     if (!data?.products) return [];
     
@@ -158,9 +165,11 @@ export default function CatalogoPublico() {
       
       const matchesCategory = !selectedCategory || product.categoria === selectedCategory;
       
-      return matchesSearch && matchesCategory;
+      const matchesFormat = !selectedFormat || product.unidad === selectedFormat;
+      
+      return matchesSearch && matchesCategory && matchesFormat;
     });
-  }, [data?.products, searchTerm, selectedCategory]);
+  }, [data?.products, searchTerm, selectedCategory, selectedFormat]);
 
   const addToCart = (product: CatalogProduct) => {
     setCart(prev => {
@@ -382,6 +391,32 @@ export default function CatalogoPublico() {
               </div>
             )}
           </div>
+          
+          {/* Format Filters */}
+          {formats.length > 0 && (
+            <div className="flex gap-2 flex-wrap mt-3 pt-3 border-t">
+              <span className="text-sm text-muted-foreground self-center mr-1">Formato:</span>
+              <Button
+                variant={selectedFormat === null ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedFormat(null)}
+                data-testid="filter-format-all"
+              >
+                Todos
+              </Button>
+              {formats.map(fmt => (
+                <Button
+                  key={fmt}
+                  variant={selectedFormat === fmt ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedFormat(fmt)}
+                  data-testid={`filter-format-${fmt}`}
+                >
+                  {fmt}
+                </Button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
