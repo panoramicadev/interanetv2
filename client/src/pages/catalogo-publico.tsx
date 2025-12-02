@@ -257,37 +257,22 @@ export default function CatalogoPublico() {
         
         <div className="relative container mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
-            {/* Profile Image */}
+            {/* Company Logo */}
             <div className="relative flex-shrink-0">
-              <div className="relative">
-                {salesperson.profileImageUrl ? (
-                  <img
-                    src={salesperson.profileImageUrl}
-                    alt={salesperson.salespersonName}
-                    className="relative w-14 h-14 md:w-20 md:h-20 rounded-full object-cover border-2 border-amber-400/50 shadow-lg"
-                    data-testid="salesperson-avatar"
-                  />
-                ) : (
-                  <div className="relative w-14 h-14 md:w-20 md:h-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xl md:text-2xl font-bold border-2 border-amber-400/50 shadow-lg">
-                    {salesperson.salespersonName.charAt(0)}
-                  </div>
-                )}
-              </div>
+              <img
+                src="/attached_assets/favicon_1764634089696.png"
+                alt="Pinturas Panorámica"
+                className="w-12 h-12 md:w-16 md:h-16 object-contain"
+                data-testid="company-logo"
+              />
             </div>
             
             {/* Info Section */}
             <div className="flex-1 min-w-0">
-              {/* Name with logo */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-base md:text-xl lg:text-2xl font-bold text-white truncate" data-testid="salesperson-name">
-                  {salesperson.salespersonName}
-                </h1>
-                <img 
-                  src="/attached_assets/Diseño sin título (10)_1764633885549.png" 
-                  alt="Pinturas Panorámica" 
-                  className="h-5 md:h-6 flex-shrink-0"
-                />
-              </div>
+              {/* Name */}
+              <h1 className="text-base md:text-xl lg:text-2xl font-bold text-white truncate" data-testid="salesperson-name">
+                {salesperson.salespersonName}
+              </h1>
               
               {/* Bio - hidden on mobile, shown on larger screens */}
               {salesperson.bio && (
