@@ -392,30 +392,48 @@ export default function CatalogoPublico() {
             )}
           </div>
           
-          {/* Format Filters */}
+          {/* Format Filters - Dropdown on mobile, buttons on desktop */}
           {formats.length > 0 && (
-            <div className="flex gap-2 flex-wrap mt-3 pt-3 border-t">
-              <span className="text-sm text-muted-foreground self-center mr-1">Formato:</span>
-              <Button
-                variant={selectedFormat === null ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedFormat(null)}
-                data-testid="filter-format-all"
-              >
-                Todos
-              </Button>
-              {formats.map(fmt => (
-                <Button
-                  key={fmt}
-                  variant={selectedFormat === fmt ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedFormat(fmt)}
-                  data-testid={`filter-format-${fmt}`}
+            <>
+              {/* Mobile: Dropdown */}
+              <div className="md:hidden mt-3 pt-3 border-t">
+                <select
+                  value={selectedFormat || ''}
+                  onChange={(e) => setSelectedFormat(e.target.value || null)}
+                  className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
+                  data-testid="filter-format-select"
                 >
-                  {fmt}
+                  <option value="">Todos los formatos</option>
+                  {formats.map(fmt => (
+                    <option key={fmt} value={fmt}>{fmt}</option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Desktop: Buttons */}
+              <div className="hidden md:flex gap-2 flex-wrap mt-3 pt-3 border-t">
+                <span className="text-sm text-muted-foreground self-center mr-1">Formato:</span>
+                <Button
+                  variant={selectedFormat === null ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedFormat(null)}
+                  data-testid="filter-format-all"
+                >
+                  Todos
                 </Button>
-              ))}
-            </div>
+                {formats.map(fmt => (
+                  <Button
+                    key={fmt}
+                    variant={selectedFormat === fmt ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedFormat(fmt)}
+                    data-testid={`filter-format-${fmt}`}
+                  >
+                    {fmt}
+                  </Button>
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>
