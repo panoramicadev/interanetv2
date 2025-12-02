@@ -153,8 +153,9 @@ export default function EcommerceOrdersList() {
     },
   });
 
-  const formatPrice = (price: string | number) => {
-    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+  const formatPrice = (price: string | number | undefined | null) => {
+    if (price === undefined || price === null) return '$0';
+    const numPrice = typeof price === 'string' ? parseFloat(price) || 0 : price;
     return `$${numPrice.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   };
 
