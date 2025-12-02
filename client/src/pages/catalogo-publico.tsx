@@ -255,23 +255,20 @@ export default function CatalogoPublico() {
           <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-500/5 via-transparent to-transparent"></div>
         </div>
         
-        <div className="relative container mx-auto px-4 py-5 md:py-6">
-          <div className="flex flex-col md:flex-row items-center gap-5 md:gap-8">
+        <div className="relative container mx-auto px-4 py-4">
+          <div className="flex items-center gap-4">
             {/* Profile Image */}
             <div className="relative flex-shrink-0">
               <div className="relative">
-                {/* Glow effect behind image */}
-                <div className="absolute inset-0 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full blur-lg opacity-25 scale-110"></div>
-                
                 {salesperson.profileImageUrl ? (
                   <img
                     src={salesperson.profileImageUrl}
                     alt={salesperson.salespersonName}
-                    className="relative w-20 h-20 md:w-24 md:h-24 rounded-full object-cover border-3 border-amber-400/50 shadow-xl"
+                    className="relative w-14 h-14 md:w-20 md:h-20 rounded-full object-cover border-2 border-amber-400/50 shadow-lg"
                     data-testid="salesperson-avatar"
                   />
                 ) : (
-                  <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-2xl md:text-3xl font-bold border-3 border-amber-400/50 shadow-xl">
+                  <div className="relative w-14 h-14 md:w-20 md:h-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xl md:text-2xl font-bold border-2 border-amber-400/50 shadow-lg">
                     {salesperson.salespersonName.charAt(0)}
                   </div>
                 )}
@@ -279,78 +276,79 @@ export default function CatalogoPublico() {
             </div>
             
             {/* Info Section */}
-            <div className="flex-1 text-center md:text-left">
-              {/* Name with logo inline */}
-              <div className="flex items-center gap-2 justify-center md:justify-start mb-1">
-                <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-white" data-testid="salesperson-name">
+            <div className="flex-1 min-w-0">
+              {/* Name with logo */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-base md:text-xl lg:text-2xl font-bold text-white truncate" data-testid="salesperson-name">
                   {salesperson.salespersonName}
                 </h1>
                 <img 
                   src="/panoramica-30-logo.webp" 
                   alt="Pinturas Panorámica" 
-                  className="h-6 md:h-7 opacity-90"
+                  className="h-5 md:h-6 opacity-90 flex-shrink-0"
                 />
               </div>
               
-              {/* Bio/Tagline */}
+              {/* Bio - hidden on mobile, shown on larger screens */}
               {salesperson.bio && (
-                <p className="text-sm md:text-base text-slate-300 mb-3 max-w-xl" data-testid="salesperson-bio">
+                <p className="hidden md:block text-sm text-slate-300 mt-1 line-clamp-2" data-testid="salesperson-bio">
                   {salesperson.bio}
                 </p>
               )}
               
               {/* Contact Buttons */}
-              <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+              <div className="flex flex-wrap gap-1.5 mt-2">
                 {salesperson.publicPhone && (
                   <a 
                     href={getWhatsAppLink(salesperson.publicPhone)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-full text-sm font-medium transition-all shadow-md hover:shadow-green-500/25"
+                    className="inline-flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white px-2.5 py-1 rounded-full text-xs font-medium transition-all"
                     data-testid="button-whatsapp"
                   >
-                    <SiWhatsapp className="w-4 h-4" />
-                    WhatsApp
+                    <SiWhatsapp className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">WhatsApp</span>
                   </a>
                 )}
                 
                 {salesperson.publicPhone && (
                   <a 
                     href={`tel:${salesperson.publicPhone}`}
-                    className="inline-flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-full text-sm font-medium transition-all border border-slate-600"
+                    className="inline-flex items-center gap-1 bg-slate-700/80 hover:bg-slate-600 text-white px-2.5 py-1 rounded-full text-xs font-medium transition-all border border-slate-600"
                     data-testid="salesperson-phone"
                   >
-                    <Phone className="w-3.5 h-3.5" />
-                    {salesperson.publicPhone}
+                    <Phone className="w-3 h-3" />
+                    <span className="hidden sm:inline">{salesperson.publicPhone}</span>
+                    <span className="sm:hidden">Llamar</span>
                   </a>
                 )}
                 
                 {salesperson.publicEmail && (
                   <a 
                     href={`mailto:${salesperson.publicEmail}`}
-                    className="inline-flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-full text-sm font-medium transition-all border border-slate-600"
+                    className="inline-flex items-center gap-1 bg-slate-700/80 hover:bg-slate-600 text-white px-2.5 py-1 rounded-full text-xs font-medium transition-all border border-slate-600"
                     data-testid="salesperson-email"
                   >
-                    <Mail className="w-3.5 h-3.5" />
+                    <Mail className="w-3 h-3" />
                     Email
                   </a>
                 )}
               </div>
             </div>
             
-            {/* Cart Button (Desktop) */}
-            <div className="hidden md:block">
+            {/* Cart Button - always visible */}
+            <div className="flex-shrink-0">
               <Button
                 onClick={() => setIsQuoteDialogOpen(true)}
                 disabled={cart.length === 0}
-                size="lg"
-                className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold gap-2 shadow-lg hover:shadow-amber-500/25 transition-all"
+                size="sm"
+                className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold gap-1 shadow-md text-xs md:text-sm"
                 data-testid="button-open-cart"
               >
-                <ShoppingCart className="h-5 w-5" />
-                Cotizar
+                <ShoppingCart className="h-4 w-4" />
+                <span className="hidden sm:inline">Cotizar</span>
                 {cartItemCount > 0 && (
-                  <Badge variant="secondary" className="ml-1 bg-white text-amber-600">
+                  <Badge variant="secondary" className="ml-0.5 bg-white text-amber-600 text-xs h-5 px-1.5">
                     {cartItemCount}
                   </Badge>
                 )}
