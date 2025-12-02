@@ -260,7 +260,7 @@ export default function CatalogoPublico() {
             {/* Company Logo */}
             <div className="relative flex-shrink-0">
               <img
-                src="/attached_assets/favicon_1764634089696.png"
+                src="/panoramica-icon.png"
                 alt="Pinturas Panorámica"
                 className="w-12 h-12 md:w-16 md:h-16 object-contain"
                 data-testid="company-logo"
