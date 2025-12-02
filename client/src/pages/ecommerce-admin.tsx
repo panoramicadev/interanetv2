@@ -13,8 +13,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers } from "lucide-react";
+import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers, Users, Phone, Mail, Link as LinkIcon, Check, X, Loader2, User } from "lucide-react";
 import ProductGroupsAdmin from "@/components/product-groups-admin";
+import { useAuth } from "@/hooks/useAuth";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 
 interface ProductoEcommerce {
   id: string;
@@ -65,6 +78,33 @@ interface ProductVariant {
   priceListProduct?: any;
 }
 
+interface SalespersonUser {
+  id: string;
+  salespersonName: string;
+  email?: string | null;
+  role: string;
+  isActive: boolean;
+  publicSlug?: string | null;
+  profileImageUrl?: string | null;
+  publicPhone?: string | null;
+  publicEmail?: string | null;
+  bio?: string | null;
+  catalogEnabled?: boolean;
+}
+
+const catalogFormSchema = z.object({
+  publicSlug: z.string()
+    .regex(/^[a-z0-9-]+$/, "Slug debe contener solo letras minúsculas, números y guiones")
+    .min(3, "Mínimo 3 caracteres")
+    .max(50, "Máximo 50 caracteres"),
+  publicEmail: z.string().email("Email inválido").or(z.literal("")).optional(),
+  publicPhone: z.string().optional(),
+  bio: z.string().max(500, "Máximo 500 caracteres").optional(),
+  catalogEnabled: z.boolean(),
+});
+
+type CatalogFormData = z.infer<typeof catalogFormSchema>;
+
 export default function EcommerceAdmin() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -98,7 +138,25 @@ export default function EcommerceAdmin() {
   const [progressData, setProgressData] = useState<any>(null);
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
   
+  // Estados para catálogos públicos
+  const [catalogSearchTerm, setCatalogSearchTerm] = useState('');
+  const [selectedCatalogUser, setSelectedCatalogUser] = useState<SalespersonUser | null>(null);
+  const [isCatalogDialogOpen, setIsCatalogDialogOpen] = useState(false);
+  
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  
+  const catalogForm = useForm<CatalogFormData>({
+    resolver: zodResolver(catalogFormSchema),
+    defaultValues: {
+      publicSlug: '',
+      publicEmail: '',
+      publicPhone: '',
+      bio: '',
+      catalogEnabled: false,
+    },
+  });
 
   // Query para obtener productos de ecommerce (basados en lista de precios)
   const { data: productos = [], isLoading } = useQuery<ProductoEcommerce[]>({
@@ -141,6 +199,85 @@ export default function EcommerceAdmin() {
       const response = await apiRequest('/api/ecommerce/admin/grupos');
       return response.json();
     }
+  });
+
+  // Query para obtener vendedores (solo admin)
+  const { data: salespeople = [], isLoading: isLoadingSalespeople } = useQuery<SalespersonUser[]>({
+    queryKey: ['/api/users/salespeople'],
+    enabled: isAdmin,
+  });
+
+  // Mutación para actualizar catálogo de vendedor
+  const updateCatalogMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: CatalogFormData }) => {
+      const normalizedData = {
+        publicSlug: data.publicSlug,
+        catalogEnabled: data.catalogEnabled,
+        publicEmail: data.publicEmail?.trim() || null,
+        publicPhone: data.publicPhone?.trim() || null,
+        bio: data.bio?.trim() || null,
+      };
+      return await apiRequest(`/api/users/salespeople/${id}`, {
+        method: 'PUT',
+        data: normalizedData,
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Catálogo actualizado',
+        description: 'La configuración del catálogo se guardó correctamente',
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/users/salespeople'] });
+      setIsCatalogDialogOpen(false);
+      setSelectedCatalogUser(null);
+    },
+    onError: (error: any) => {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message || 'No se pudo actualizar el catálogo',
+      });
+    },
+  });
+
+  // Funciones auxiliares para catálogos
+  const generateSlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-');
+  };
+
+  const openCatalogEditDialog = (salesperson: SalespersonUser) => {
+    setSelectedCatalogUser(salesperson);
+    catalogForm.reset({
+      publicSlug: salesperson.publicSlug || generateSlug(salesperson.salespersonName),
+      publicEmail: salesperson.publicEmail || salesperson.email || '',
+      publicPhone: salesperson.publicPhone || '',
+      bio: salesperson.bio || '',
+      catalogEnabled: salesperson.catalogEnabled ?? false,
+    });
+    setIsCatalogDialogOpen(true);
+  };
+
+  const onCatalogSubmit = (data: CatalogFormData) => {
+    if (!selectedCatalogUser) return;
+    updateCatalogMutation.mutate({ id: selectedCatalogUser.id, data });
+  };
+
+  const filteredSalespeople = salespeople.filter(sp => {
+    if (!catalogSearchTerm) return sp.role === 'salesperson' || sp.role === 'supervisor';
+    const search = catalogSearchTerm.toLowerCase();
+    return (
+      (sp.role === 'salesperson' || sp.role === 'supervisor') &&
+      (sp.salespersonName.toLowerCase().includes(search) ||
+       sp.email?.toLowerCase().includes(search) ||
+       sp.publicSlug?.toLowerCase().includes(search))
+    );
   });
 
   // Mutación para actualizar producto
@@ -793,9 +930,9 @@ export default function EcommerceAdmin() {
         </div>
       </div>
 
-      {/* Tabs para organizar Productos y Grupos */}
+      {/* Tabs para organizar Productos, Grupos y Catálogos */}
       <Tabs defaultValue="productos" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className={`grid w-full max-w-lg ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
           <TabsTrigger value="productos" data-testid="tab-productos">
             <Package className="h-4 w-4 mr-2" />
             Productos
@@ -804,6 +941,12 @@ export default function EcommerceAdmin() {
             <Layers className="h-4 w-4 mr-2" />
             Grupos
           </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="catalogos" data-testid="tab-catalogos">
+              <Users className="h-4 w-4 mr-2" />
+              Catálogos
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="productos" className="space-y-6 mt-6">
@@ -1443,6 +1586,261 @@ export default function EcommerceAdmin() {
         <TabsContent value="grupos" className="mt-6">
           <ProductGroupsAdmin />
         </TabsContent>
+
+        {/* Pestaña de Catálogos Públicos - Solo Admin */}
+        {isAdmin && (
+          <TabsContent value="catalogos" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Catálogos Públicos de Vendedores</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Habilita y configura el catálogo público para cada vendedor
+                </p>
+                <div className="relative mt-4">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar vendedor..."
+                    value={catalogSearchTerm}
+                    onChange={(e) => setCatalogSearchTerm(e.target.value)}
+                    className="pl-10"
+                    data-testid="input-catalog-search"
+                  />
+                </div>
+              </CardHeader>
+              <CardContent>
+                {isLoadingSalespeople ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : filteredSalespeople.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    No se encontraron vendedores
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredSalespeople.map(salesperson => (
+                      <div
+                        key={salesperson.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                        data-testid={`catalog-user-row-${salesperson.id}`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                            <User className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{salesperson.salespersonName}</p>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              {salesperson.publicSlug ? (
+                                <span className="flex items-center gap-1">
+                                  <LinkIcon className="h-3 w-3" />
+                                  /catalogo/{salesperson.publicSlug}
+                                </span>
+                              ) : (
+                                <span className="italic">Sin URL configurada</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          {salesperson.catalogEnabled ? (
+                            <Badge variant="default" className="bg-green-500 hover:bg-green-600">
+                              <Check className="h-3 w-3 mr-1" />
+                              Activo
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">
+                              <X className="h-3 w-3 mr-1" />
+                              Inactivo
+                            </Badge>
+                          )}
+
+                          {salesperson.catalogEnabled && salesperson.publicSlug && (
+                            <a
+                              href={`/catalogo/${salesperson.publicSlug}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:text-primary/80"
+                              data-testid={`catalog-preview-${salesperson.id}`}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </a>
+                          )}
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openCatalogEditDialog(salesperson)}
+                            data-testid={`catalog-edit-${salesperson.id}`}
+                          >
+                            Configurar
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Dialog para editar catálogo */}
+            <Dialog open={isCatalogDialogOpen} onOpenChange={setIsCatalogDialogOpen}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Configurar Catálogo Público</DialogTitle>
+                  <DialogDescription>
+                    {selectedCatalogUser?.salespersonName}
+                  </DialogDescription>
+                </DialogHeader>
+
+                <Form {...catalogForm}>
+                  <form onSubmit={catalogForm.handleSubmit(onCatalogSubmit)} className="space-y-4">
+                    <FormField
+                      control={catalogForm.control}
+                      name="catalogEnabled"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-base">Catálogo Habilitado</FormLabel>
+                            <FormDescription>
+                              Activa el catálogo público para este vendedor
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              data-testid="catalog-switch-enabled"
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={catalogForm.control}
+                      name="publicSlug"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>URL del Catálogo</FormLabel>
+                          <FormControl>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                                /catalogo/
+                              </span>
+                              <Input
+                                {...field}
+                                placeholder="nombre-vendedor"
+                                data-testid="catalog-input-slug"
+                              />
+                            </div>
+                          </FormControl>
+                          <FormDescription>
+                            URL amigable para compartir (solo letras minúsculas, números y guiones)
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={catalogForm.control}
+                      name="publicEmail"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email de Contacto</FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                {...field}
+                                type="email"
+                                placeholder="vendedor@empresa.cl"
+                                className="pl-10"
+                                data-testid="catalog-input-email"
+                              />
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={catalogForm.control}
+                      name="publicPhone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Teléfono de Contacto</FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                {...field}
+                                placeholder="+56 9 1234 5678"
+                                className="pl-10"
+                                data-testid="catalog-input-phone"
+                              />
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={catalogForm.control}
+                      name="bio"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Biografía</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              placeholder="Breve descripción del vendedor..."
+                              rows={3}
+                              data-testid="catalog-input-bio"
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Máximo 500 caracteres
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="flex justify-end gap-2 pt-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsCatalogDialogOpen(false)}
+                        data-testid="catalog-button-cancel"
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        type="submit"
+                        disabled={updateCatalogMutation.isPending}
+                        data-testid="catalog-button-save"
+                      >
+                        {updateCatalogMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Guardando...
+                          </>
+                        ) : (
+                          'Guardar'
+                        )}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
