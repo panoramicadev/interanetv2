@@ -85,6 +85,16 @@ app.use((req, res, next) => {
       console.error('La aplicación continuará, pero algunas funciones pueden no estar disponibles');
     }
     
+    // Inicializar catálogos públicos para todos los vendedores
+    try {
+      const result = await storage.initializePublicCatalogs();
+      if (result.updated > 0) {
+        log(`📚 Catálogos públicos inicializados: ${result.updated} vendedores configurados`);
+      }
+    } catch (error: any) {
+      console.error('⚠️ Error al inicializar catálogos públicos:', error.message);
+    }
+    
     // Start ETL automatic scheduler with configurable interval
     try {
       const config = await getETLConfig('ventas_incremental');

@@ -767,6 +767,7 @@ export interface IStorage {
   deleteSalespersonUser(id: string): Promise<void>;
   getSalespersonUser(id: string): Promise<SalespersonUser | undefined>;
   getSalespersonUserByEmail(email: string): Promise<SalespersonUser | undefined>;
+  initializePublicCatalogs(): Promise<{ updated: number; skipped: number }>;
   
   // Session management
   invalidateUserSessions(userId: string): Promise<void>;
@@ -5721,6 +5722,70 @@ export class DatabaseStorage implements IStorage {
       .from(salespeopleUsers)
       .where(eq(salespeopleUsers.email, email));
     return user;
+  }
+
+  async initializePublicCatalogs(): Promise<{ updated: number; skipped: number }> {
+    console.log('🔧 Inicializando catálogos públicos para todos los vendedores...');
+    
+    const salespeople = await db.select().from(salespeopleUsers);
+    
+    let updated = 0;
+    let skipped = 0;
+    
+    for (const salesperson of salespeople) {
+      if (salesperson.publicSlug && salesperson.catalogEnabled) {
+        skipped++;
+        continue;
+      }
+      
+      const generateSlug = (name: string): string => {
+        return name
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .trim()
+          .replace(/^-|-$/g, '');
+      };
+      
+      let baseSlug = generateSlug(salesperson.salespersonName);
+      if (!baseSlug) {
+        baseSlug = `vendedor-${salesperson.id.substring(0, 8)}`;
+      }
+      
+      let slug = baseSlug;
+      let counter = 1;
+      
+      const existingSlugs = await db
+        .select({ slug: salespeopleUsers.publicSlug })
+        .from(salespeopleUsers)
+        .where(sql`${salespeopleUsers.publicSlug} LIKE ${baseSlug + '%'}`);
+      
+      const slugSet = new Set(existingSlugs.map(s => s.slug).filter(Boolean));
+      
+      while (slugSet.has(slug)) {
+        slug = `${baseSlug}-${counter}`;
+        counter++;
+      }
+      
+      await db
+        .update(salespeopleUsers)
+        .set({
+          publicSlug: slug,
+          catalogEnabled: true,
+          updatedAt: new Date()
+        })
+        .where(eq(salespeopleUsers.id, salesperson.id));
+      
+      console.log(`  ✅ Catálogo activado: ${salesperson.salespersonName} → /catalogo/${slug}`);
+      updated++;
+    }
+    
+    console.log(`✅ Catálogos inicializados: ${updated} actualizados, ${skipped} ya configurados`);
+    
+    return { updated, skipped };
   }
 
   async getSalespersonUserById(userId: string): Promise<SalespersonUser | undefined> {
