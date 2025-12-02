@@ -37,10 +37,12 @@ import { Separator } from "@/components/ui/separator";
 export interface OrderItem {
   productId: string;
   productName: string;
-  productCode: string;
+  productCode?: string;
+  sku?: string; // Alternative field from public catalog
   quantity: number;
-  price: number;
-  subtotal: number;
+  price?: number;
+  unitPrice?: number; // Alternative field from public catalog
+  subtotal?: number;
 }
 
 export interface EcommerceOrder {
@@ -161,10 +163,10 @@ export default function EcommerceOrdersList({ onGenerateQuote }: EcommerceOrders
       clientCompany: selectedOrder.clientCompany || '',
       notes: selectedOrder.notes ? `[Pedido ecommerce] ${selectedOrder.notes}` : '[Pedido ecommerce]',
       items: items.map((item) => ({
-        productCode: item.productCode,
+        productCode: item.productCode || item.sku || '', // Support both field names
         productName: item.productName,
         quantity: item.quantity,
-        unitPrice: item.price || 0,
+        unitPrice: item.price || item.unitPrice || 0, // Support both field names
       })),
     };
     
@@ -375,21 +377,25 @@ export default function EcommerceOrdersList({ onGenerateQuote }: EcommerceOrders
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {getOrderItems(selectedOrder).map((item, index) => (
-                        <TableRow key={index}>
-                          <TableCell>
-                            <div>
-                              <div className="font-medium">{item.productName}</div>
-                              <div className="text-xs text-muted-foreground">{item.productCode}</div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center">{item.quantity}</TableCell>
-                          <TableCell className="text-right">{formatPrice(item.price)}</TableCell>
-                          <TableCell className="text-right font-medium">
-                            {formatPrice(item.subtotal || (item.price || 0) * item.quantity)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {getOrderItems(selectedOrder).map((item, index) => {
+                        const itemPrice = item.price || item.unitPrice || 0;
+                        const itemCode = item.productCode || item.sku || '';
+                        return (
+                          <TableRow key={index}>
+                            <TableCell>
+                              <div>
+                                <div className="font-medium">{item.productName}</div>
+                                <div className="text-xs text-muted-foreground">{itemCode}</div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center">{item.quantity}</TableCell>
+                            <TableCell className="text-right">{formatPrice(itemPrice)}</TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatPrice(item.subtotal || itemPrice * item.quantity)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
