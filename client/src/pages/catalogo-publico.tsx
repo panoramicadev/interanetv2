@@ -299,13 +299,9 @@ export default function CatalogoPublico() {
               </h1>
               
               {/* Bio/Tagline */}
-              {salesperson.bio ? (
+              {salesperson.bio && (
                 <p className="text-lg md:text-xl text-slate-300 mb-6 max-w-2xl" data-testid="salesperson-bio">
                   {salesperson.bio}
-                </p>
-              ) : (
-                <p className="text-lg md:text-xl text-slate-300 mb-6 max-w-2xl">
-                  Ejecutivo comercial especializado en pinturas industriales y decorativas
                 </p>
               )}
               
