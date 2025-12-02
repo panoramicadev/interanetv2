@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { useRoute } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
@@ -90,6 +90,13 @@ export default function CatalogoPublico() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
+  const [flyingProduct, setFlyingProduct] = useState<{ 
+    id: string; 
+    imagenUrl: string | null; 
+    startX: number; 
+    startY: number;
+  } | null>(null);
+  const cartButtonRef = useRef<HTMLButtonElement>(null);
   
   const form = useForm<QuoteFormData>({
     resolver: zodResolver(quoteFormSchema),
@@ -171,7 +178,22 @@ export default function CatalogoPublico() {
     });
   }, [data?.products, searchTerm, selectedCategory, selectedFormat]);
 
-  const addToCart = (product: CatalogProduct) => {
+  const addToCart = useCallback((product: CatalogProduct, event?: React.MouseEvent) => {
+    if (event && cartButtonRef.current) {
+      const buttonRect = event.currentTarget.getBoundingClientRect();
+      const startX = buttonRect.left + buttonRect.width / 2;
+      const startY = buttonRect.top;
+      
+      setFlyingProduct({
+        id: product.id,
+        imagenUrl: product.imagenUrl || null,
+        startX,
+        startY,
+      });
+      
+      setTimeout(() => setFlyingProduct(null), 600);
+    }
+    
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
@@ -188,7 +210,7 @@ export default function CatalogoPublico() {
       title: 'Producto agregado',
       description: `${product.producto} agregado al carrito`,
     });
-  };
+  }, [toast]);
 
   const removeFromCart = (productId: string) => {
     setCart(prev => prev.filter(item => item.id !== productId));
@@ -332,6 +354,7 @@ export default function CatalogoPublico() {
             {/* Cart Button - fixed width to prevent layout shift */}
             <div className="flex-shrink-0 ml-2 relative">
               <Button
+                ref={cartButtonRef}
                 onClick={() => setIsQuoteDialogOpen(true)}
                 disabled={cart.length === 0}
                 size="sm"
@@ -350,6 +373,51 @@ export default function CatalogoPublico() {
           </div>
         </div>
       </header>
+
+      {/* Flying Product Animation */}
+      {flyingProduct && cartButtonRef.current && (
+        <div
+          className="fixed z-[100] pointer-events-none"
+          style={{
+            left: flyingProduct.startX,
+            top: flyingProduct.startY,
+            animation: 'flyToCart 0.5s ease-in forwards',
+            '--cart-x': `${cartButtonRef.current.getBoundingClientRect().left + cartButtonRef.current.getBoundingClientRect().width / 2 - flyingProduct.startX}px`,
+            '--cart-y': `${cartButtonRef.current.getBoundingClientRect().top + cartButtonRef.current.getBoundingClientRect().height / 2 - flyingProduct.startY}px`,
+          } as React.CSSProperties}
+        >
+          <div className="w-12 h-12 rounded-lg bg-white shadow-xl border-2 border-amber-400 overflow-hidden transform -translate-x-1/2 -translate-y-1/2">
+            {flyingProduct.imagenUrl ? (
+              <img 
+                src={flyingProduct.imagenUrl} 
+                alt="" 
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-slate-100">
+                <Package className="h-6 w-6 text-amber-500" />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes flyToCart {
+          0% {
+            transform: translate(0, 0) scale(1);
+            opacity: 1;
+          }
+          50% {
+            transform: translate(calc(var(--cart-x) * 0.5), calc(var(--cart-y) * 0.5 - 30px)) scale(0.8);
+            opacity: 0.9;
+          }
+          100% {
+            transform: translate(var(--cart-x), var(--cart-y)) scale(0.3);
+            opacity: 0;
+          }
+        }
+      `}</style>
 
       {/* Search and Filters */}
       <div className="sticky top-0 z-40 bg-white border-b shadow-sm">
@@ -524,7 +592,7 @@ export default function CatalogoPublico() {
                       <Button
                         className="w-full mt-3 h-8"
                         size="sm"
-                        onClick={() => addToCart(product)}
+                        onClick={(e) => addToCart(product, e)}
                         data-testid={`button-add-${product.id}`}
                       >
                         <Plus className="h-3 w-3 mr-1" />
