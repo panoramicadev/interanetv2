@@ -283,9 +283,9 @@ export default function CatalogoPublico() {
                   {salesperson.salespersonName}
                 </h1>
                 <img 
-                  src="/panoramica-30-logo.webp" 
+                  src="/attached_assets/Diseño sin título (10)_1764633885549.png" 
                   alt="Pinturas Panorámica" 
-                  className="h-5 md:h-6 opacity-90 flex-shrink-0"
+                  className="h-5 md:h-6 flex-shrink-0"
                 />
               </div>
               
