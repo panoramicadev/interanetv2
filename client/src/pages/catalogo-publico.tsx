@@ -255,23 +255,23 @@ export default function CatalogoPublico() {
           <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-500/5 via-transparent to-transparent"></div>
         </div>
         
-        <div className="relative container mx-auto px-4 py-8 md:py-12">
-          <div className="flex flex-col md:flex-row items-center gap-8 md:gap-12">
+        <div className="relative container mx-auto px-4 py-5 md:py-6">
+          <div className="flex flex-col md:flex-row items-center gap-5 md:gap-8">
             {/* Profile Image */}
             <div className="relative flex-shrink-0">
               <div className="relative">
                 {/* Glow effect behind image */}
-                <div className="absolute inset-0 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full blur-xl opacity-30 scale-110"></div>
+                <div className="absolute inset-0 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full blur-lg opacity-25 scale-110"></div>
                 
                 {salesperson.profileImageUrl ? (
                   <img
                     src={salesperson.profileImageUrl}
                     alt={salesperson.salespersonName}
-                    className="relative w-32 h-32 md:w-44 md:h-44 rounded-full object-cover border-4 border-amber-400/50 shadow-2xl"
+                    className="relative w-20 h-20 md:w-24 md:h-24 rounded-full object-cover border-3 border-amber-400/50 shadow-xl"
                     data-testid="salesperson-avatar"
                   />
                 ) : (
-                  <div className="relative w-32 h-32 md:w-44 md:h-44 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-4xl md:text-6xl font-bold border-4 border-amber-400/50 shadow-2xl">
+                  <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-2xl md:text-3xl font-bold border-3 border-amber-400/50 shadow-xl">
                     {salesperson.salespersonName.charAt(0)}
                   </div>
                 )}
@@ -281,35 +281,35 @@ export default function CatalogoPublico() {
             {/* Info Section */}
             <div className="flex-1 text-center md:text-left">
               {/* Name with logo inline */}
-              <div className="flex items-center gap-3 justify-center md:justify-start mb-3">
-                <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white" data-testid="salesperson-name">
+              <div className="flex items-center gap-2 justify-center md:justify-start mb-1">
+                <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-white" data-testid="salesperson-name">
                   {salesperson.salespersonName}
                 </h1>
                 <img 
                   src="/panoramica-30-logo.webp" 
                   alt="Pinturas Panorámica" 
-                  className="h-8 md:h-10 opacity-90"
+                  className="h-6 md:h-7 opacity-90"
                 />
               </div>
               
               {/* Bio/Tagline */}
               {salesperson.bio && (
-                <p className="text-lg md:text-xl text-slate-300 mb-4 max-w-2xl" data-testid="salesperson-bio">
+                <p className="text-sm md:text-base text-slate-300 mb-3 max-w-xl" data-testid="salesperson-bio">
                   {salesperson.bio}
                 </p>
               )}
               
               {/* Contact Buttons */}
-              <div className="flex flex-wrap gap-3 justify-center md:justify-start">
+              <div className="flex flex-wrap gap-2 justify-center md:justify-start">
                 {salesperson.publicPhone && (
                   <a 
                     href={getWhatsAppLink(salesperson.publicPhone)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-5 py-2.5 rounded-full font-medium transition-all shadow-lg hover:shadow-green-500/25"
+                    className="inline-flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-full text-sm font-medium transition-all shadow-md hover:shadow-green-500/25"
                     data-testid="button-whatsapp"
                   >
-                    <SiWhatsapp className="w-5 h-5" />
+                    <SiWhatsapp className="w-4 h-4" />
                     WhatsApp
                   </a>
                 )}
@@ -317,10 +317,10 @@ export default function CatalogoPublico() {
                 {salesperson.publicPhone && (
                   <a 
                     href={`tel:${salesperson.publicPhone}`}
-                    className="inline-flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-5 py-2.5 rounded-full font-medium transition-all border border-slate-600"
+                    className="inline-flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-full text-sm font-medium transition-all border border-slate-600"
                     data-testid="salesperson-phone"
                   >
-                    <Phone className="w-4 h-4" />
+                    <Phone className="w-3.5 h-3.5" />
                     {salesperson.publicPhone}
                   </a>
                 )}
@@ -328,10 +328,10 @@ export default function CatalogoPublico() {
                 {salesperson.publicEmail && (
                   <a 
                     href={`mailto:${salesperson.publicEmail}`}
-                    className="inline-flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-5 py-2.5 rounded-full font-medium transition-all border border-slate-600"
+                    className="inline-flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-full text-sm font-medium transition-all border border-slate-600"
                     data-testid="salesperson-email"
                   >
-                    <Mail className="w-4 h-4" />
+                    <Mail className="w-3.5 h-3.5" />
                     Email
                   </a>
                 )}
