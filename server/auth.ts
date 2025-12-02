@@ -87,6 +87,7 @@ export function setupAuth(app: Express) {
             lastName: user.lastName || undefined,
             profileImageUrl: user.profileImageUrl || undefined,
             salespersonName: (user as any).salespersonName || undefined,
+            publicSlug: (user as any).publicSlug || undefined,
             role: user.role || 'user'
           });
         } catch (error) {
