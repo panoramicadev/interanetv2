@@ -291,7 +291,7 @@ export default function CatalogoPublico() {
               )}
               
               {/* Contact Buttons */}
-              <div className="flex gap-1 mt-2">
+              <div className="flex gap-1 mt-2 overflow-x-auto pb-1">
                 {salesperson.publicPhone && (
                   <a 
                     href={getWhatsAppLink(salesperson.publicPhone)}
