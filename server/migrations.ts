@@ -2,10 +2,136 @@ import { db } from './db';
 import { sql } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
+import { ObjectStorageService } from './objectStorage';
 
 interface Migration {
   filename: string;
   number: number;
+}
+
+/**
+ * Migra las URLs de imágenes de productos del sistema de archivos local
+ * a Object Storage persistente.
+ * 
+ * Convierte URLs como: /product-images/SKU_123.png
+ * A URLs como: /public-objects/product-images/SKU_123.png
+ */
+export async function migrateProductImageUrls(): Promise<{ migrated: number }> {
+  console.log('🖼️  Verificando URLs de imágenes de productos...');
+  
+  try {
+    const result = await db.execute(sql`
+      UPDATE ecommerce_products 
+      SET imagen_url = '/public-objects' || imagen_url
+      WHERE imagen_url IS NOT NULL 
+        AND imagen_url LIKE '/product-images/%'
+        AND imagen_url NOT LIKE '/public-objects/%'
+      RETURNING id
+    `);
+    
+    const migrated = result.rowCount || 0;
+    
+    if (migrated > 0) {
+      console.log(`✅ ${migrated} URLs de imágenes migradas a Object Storage`);
+    } else {
+      console.log('✅ Todas las URLs de imágenes ya están actualizadas');
+    }
+    
+    return { migrated };
+  } catch (error: any) {
+    console.error('❌ Error migrando URLs de imágenes:', error.message);
+    return { migrated: 0 };
+  }
+}
+
+/**
+ * Sube las imágenes locales a Object Storage para que sean persistentes.
+ * Sube directamente sin verificar si ya existen (el upload sobrescribe).
+ * Usa un flag en la base de datos para evitar re-subir en cada reinicio.
+ */
+export async function uploadLocalImagesToObjectStorage(): Promise<{ uploaded: number; failed: number; skipped: number }> {
+  console.log('☁️  Verificando imágenes locales para subir a Object Storage...');
+  
+  const localImagesDir = path.join(process.cwd(), 'public', 'product-images');
+  let uploaded = 0;
+  let failed = 0;
+  let skipped = 0;
+  
+  try {
+    // Verificar si ya se ejecutó esta migración
+    const migrationCheck = await db.execute(sql`
+      SELECT filename FROM migrations_log WHERE filename = 'local_images_to_object_storage'
+    `);
+    
+    if (migrationCheck.rows.length > 0) {
+      console.log('✅ Imágenes ya fueron migradas a Object Storage anteriormente');
+      return { uploaded: 0, failed: 0, skipped: 0 };
+    }
+    
+    if (!fs.existsSync(localImagesDir)) {
+      console.log('📁 No hay directorio de imágenes locales');
+      return { uploaded: 0, failed: 0, skipped: 0 };
+    }
+    
+    const files = fs.readdirSync(localImagesDir)
+      .filter(file => /\.(jpg|jpeg|png|gif|webp)$/i.test(file));
+    
+    if (files.length === 0) {
+      console.log('📁 No hay imágenes locales para migrar');
+      return { uploaded: 0, failed: 0, skipped: 0 };
+    }
+    
+    console.log(`📷 Encontradas ${files.length} imágenes locales para subir`);
+    
+    const objectStorageService = new ObjectStorageService();
+    
+    for (const fileName of files) {
+      try {
+        const filePath = path.join(localImagesDir, fileName);
+        const imageBuffer = fs.readFileSync(filePath);
+        
+        const ext = path.extname(fileName).toLowerCase();
+        const mimeTypes: Record<string, string> = {
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.gif': 'image/gif',
+          '.webp': 'image/webp'
+        };
+        const contentType = mimeTypes[ext] || 'image/png';
+        
+        await objectStorageService.uploadImage(
+          `product-images/${fileName}`,
+          imageBuffer,
+          contentType
+        );
+        
+        uploaded++;
+        
+        if (uploaded % 50 === 0) {
+          console.log(`  ☁️  Subidas ${uploaded}/${files.length} imágenes...`);
+        }
+      } catch (error: any) {
+        console.warn(`  ⚠️ Error subiendo ${fileName}: ${error.message}`);
+        failed++;
+      }
+    }
+    
+    // Marcar la migración como completada
+    if (uploaded > 0) {
+      await db.execute(sql`
+        INSERT INTO migrations_log (filename) VALUES ('local_images_to_object_storage')
+        ON CONFLICT (filename) DO NOTHING
+      `);
+    }
+    
+    console.log(`✅ Migración de imágenes completada: ${uploaded} subidas, ${failed} errores`);
+    
+    return { uploaded, failed, skipped };
+  } catch (error: any) {
+    console.error('❌ Error migrando imágenes a Object Storage:', error.message);
+    return { uploaded, failed, skipped };
+  }
 }
 
 /**
