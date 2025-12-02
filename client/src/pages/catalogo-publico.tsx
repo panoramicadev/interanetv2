@@ -40,11 +40,7 @@ import {
   Package,
   CheckCircle2,
   Loader2,
-  Building,
-  ArrowLeft,
-  MessageCircle,
-  Palette,
-  Sparkles
+  Building
 } from 'lucide-react';
 import { SiWhatsapp } from 'react-icons/si';
 import { apiRequest } from '@/lib/queryClient';
@@ -284,42 +280,24 @@ export default function CatalogoPublico() {
             
             {/* Info Section */}
             <div className="flex-1 text-center md:text-left">
-              {/* Company Logo */}
-              <div className="mb-4">
+              {/* Name with logo inline */}
+              <div className="flex items-center gap-3 justify-center md:justify-start mb-3">
+                <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white" data-testid="salesperson-name">
+                  {salesperson.salespersonName}
+                </h1>
                 <img 
                   src="/panoramica-30-logo.webp" 
                   alt="Pinturas Panorámica" 
-                  className="h-10 md:h-12 mx-auto md:mx-0 opacity-90"
+                  className="h-8 md:h-10 opacity-90"
                 />
               </div>
               
-              {/* Name */}
-              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-3" data-testid="salesperson-name">
-                {salesperson.salespersonName}
-              </h1>
-              
               {/* Bio/Tagline */}
               {salesperson.bio && (
-                <p className="text-lg md:text-xl text-slate-300 mb-6 max-w-2xl" data-testid="salesperson-bio">
+                <p className="text-lg md:text-xl text-slate-300 mb-4 max-w-2xl" data-testid="salesperson-bio">
                   {salesperson.bio}
                 </p>
               )}
-              
-              {/* Service Tags */}
-              <div className="flex flex-wrap gap-2 justify-center md:justify-start mb-6">
-                <Badge className="bg-slate-700/80 text-slate-200 border border-slate-600 px-3 py-1">
-                  <Palette className="w-3 h-3 mr-1" />
-                  Pinturas Industriales
-                </Badge>
-                <Badge className="bg-slate-700/80 text-slate-200 border border-slate-600 px-3 py-1">
-                  <Sparkles className="w-3 h-3 mr-1" />
-                  Pinturas Decorativas
-                </Badge>
-                <Badge className="bg-slate-700/80 text-slate-200 border border-slate-600 px-3 py-1">
-                  <MessageCircle className="w-3 h-3 mr-1" />
-                  Asesoría Personalizada
-                </Badge>
-              </div>
               
               {/* Contact Buttons */}
               <div className="flex flex-wrap gap-3 justify-center md:justify-start">
