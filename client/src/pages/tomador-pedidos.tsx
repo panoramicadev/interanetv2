@@ -735,8 +735,8 @@ export default function TomadorPedidos() {
     }
   };
 
-  // Load ecommerce order data into quote builder
-  const loadEcommerceOrderForQuote = (orderData: QuoteFromOrderData) => {
+  // Load ecommerce order data into quote builder with price list lookup
+  const loadEcommerceOrderForQuote = async (orderData: QuoteFromOrderData) => {
     // Clear any existing editing state
     setEditingQuoteId(null);
     setSavedQuoteId(null);
@@ -753,16 +753,76 @@ export default function TomadorPedidos() {
       notes: orderData.notes || '',
     });
     
-    // Convert order items to cart items
-    const cartItems: CartItem[] = orderData.items.map((item, index) => ({
-      id: `ecommerce-${Date.now()}-${index}`,
-      type: 'standard' as const,
-      productName: item.productName,
-      productCode: item.productCode || '',
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      totalPrice: item.unitPrice * item.quantity,
-    }));
+    // Helper function to get available tiers from a product
+    const getProductTiers = (product: PriceList): PriceTierOption[] => {
+      const tiers: PriceTierOption[] = [];
+      const tierMappings = [
+        { key: 'lista' as PriceTier, label: 'Lista', field: product.lista },
+        { key: 'desc10' as PriceTier, label: '10%', field: product.desc10 },
+        { key: 'desc10_5' as PriceTier, label: '10%+5%', field: product.desc10_5 },
+        { key: 'desc10_5_3' as PriceTier, label: '10%+5%+3%', field: product.desc10_5_3 },
+        { key: 'minimo' as PriceTier, label: 'Mínimo', field: product.minimo },
+        { key: 'canalDigital' as PriceTier, label: 'Digital', field: product.canalDigital },
+      ];
+      
+      for (const tier of tierMappings) {
+        const price = parseFloat(tier.field?.toString() || '0');
+        if (price > 0) {
+          tiers.push({ key: tier.key, label: tier.label, price });
+        }
+      }
+      return tiers;
+    };
+    
+    // Search for each product in the price list to get tier prices
+    const cartItems: CartItem[] = await Promise.all(
+      orderData.items.map(async (item, index) => {
+        try {
+          // Search for the product by code
+          const response = await fetch(`/api/price-list?search=${encodeURIComponent(item.productCode)}&limit=10`, {
+            credentials: 'include'
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            const products = data.items || [];
+            // Find exact match by code
+            const product = products.find((p: PriceList) => p.codigo === item.productCode);
+            
+            if (product) {
+              const tierPrices = getProductTiers(product);
+              const listaPrice = parseFloat(product.lista?.toString() || '0');
+              
+              return {
+                id: `ecommerce-${Date.now()}-${index}`,
+                type: 'standard' as const,
+                productName: product.producto || item.productName,
+                productCode: item.productCode,
+                quantity: item.quantity,
+                unitPrice: listaPrice > 0 ? listaPrice : item.unitPrice,
+                totalPrice: (listaPrice > 0 ? listaPrice : item.unitPrice) * item.quantity,
+                priceTier: 'lista' as PriceTier,
+                tierPrices: tierPrices.length > 0 ? tierPrices : undefined,
+                productUnit: product.unidad || 'UN',
+              };
+            }
+          }
+        } catch (error) {
+          console.warn(`Could not find price list for product ${item.productCode}:`, error);
+        }
+        
+        // Fallback: use original data without tier prices
+        return {
+          id: `ecommerce-${Date.now()}-${index}`,
+          type: 'standard' as const,
+          productName: item.productName,
+          productCode: item.productCode || '',
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.unitPrice * item.quantity,
+        };
+      })
+    );
     
     setCart(cartItems);
     setShowQuoteBuilder(true);
