@@ -92,9 +92,16 @@ export default function AdminCatalogos() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: CatalogFormData }) => {
+      const normalizedData = {
+        publicSlug: data.publicSlug,
+        catalogEnabled: data.catalogEnabled,
+        publicEmail: data.publicEmail?.trim() || null,
+        publicPhone: data.publicPhone?.trim() || null,
+        bio: data.bio?.trim() || null,
+      };
       return await apiRequest(`/api/users/salespeople/${id}`, {
         method: 'PUT',
-        data,
+        data: normalizedData,
       });
     },
     onSuccess: () => {

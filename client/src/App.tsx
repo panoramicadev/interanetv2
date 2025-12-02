@@ -66,6 +66,7 @@ import GastosEmpresariales from "@/pages/gastos-empresariales";
 import GastosEmpresarialesForm from "@/pages/gastos-empresariales-form";
 import GastosEmpresarialesDashboard from "@/pages/gastos-empresariales-dashboard";
 import Notificaciones from "@/pages/notificaciones";
+import AdminCatalogos from "@/pages/admin-catalogos";
 import Reception from "@/pages/reception";
 import TintometriaAdmin from "@/pages/tintometria-admin";
 import TintometriaCalculadora from "@/pages/tintometria-calculadora";
@@ -160,6 +161,7 @@ function Router() {
             }} />
             <Route path="/tareas" component={TareasPage} />
             <Route path="/usuarios" component={Users} />
+            <Route path="/admin-catalogos" component={AdminCatalogos} />
             <Route path="/productos" component={Products} />
             <Route path="/lista-precios" component={ListaPrecios} />
             <Route path="/ecommerce" component={EcommerceAdmin} />
