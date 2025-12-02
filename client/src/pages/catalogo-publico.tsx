@@ -277,7 +277,7 @@ export default function CatalogoPublico() {
             </div>
             
             {/* Info Section */}
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 overflow-hidden">
               {/* Name */}
               <h1 className="text-base md:text-xl lg:text-2xl font-bold text-white truncate" data-testid="salesperson-name">
                 {salesperson.salespersonName}
@@ -290,63 +290,59 @@ export default function CatalogoPublico() {
                 </p>
               )}
               
-              {/* Contact Buttons */}
-              <div className="flex flex-wrap gap-1.5 mt-2">
+              {/* Contact Buttons - horizontal scroll on mobile */}
+              <div className="flex gap-1.5 mt-2 overflow-x-auto no-scrollbar">
                 {salesperson.publicPhone && (
                   <a 
                     href={getWhatsAppLink(salesperson.publicPhone)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+                    className="inline-flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded-full text-xs font-medium transition-all flex-shrink-0"
                     data-testid="button-whatsapp"
                   >
                     <SiWhatsapp className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">WhatsApp</span>
                   </a>
                 )}
                 
                 {salesperson.publicPhone && (
                   <a 
                     href={`tel:${salesperson.publicPhone}`}
-                    className="inline-flex items-center gap-1 bg-slate-700/80 hover:bg-slate-600 text-white px-2.5 py-1 rounded-full text-xs font-medium transition-all border border-slate-600"
+                    className="inline-flex items-center gap-1 bg-slate-700/80 hover:bg-slate-600 text-white px-2 py-1 rounded-full text-xs font-medium transition-all border border-slate-600 flex-shrink-0"
                     data-testid="salesperson-phone"
                   >
                     <Phone className="w-3 h-3" />
-                    <span className="hidden sm:inline">{salesperson.publicPhone}</span>
-                    <span className="sm:hidden">Llamar</span>
                   </a>
                 )}
                 
                 {salesperson.publicEmail && (
                   <a 
                     href={`mailto:${salesperson.publicEmail}`}
-                    className="inline-flex items-center gap-1 bg-slate-700/80 hover:bg-slate-600 text-white px-2.5 py-1 rounded-full text-xs font-medium transition-all border border-slate-600"
+                    className="inline-flex items-center gap-1 bg-slate-700/80 hover:bg-slate-600 text-white px-2 py-1 rounded-full text-xs font-medium transition-all border border-slate-600 flex-shrink-0"
                     data-testid="salesperson-email"
                   >
                     <Mail className="w-3 h-3" />
-                    Email
                   </a>
                 )}
               </div>
             </div>
             
-            {/* Cart Button - always visible */}
-            <div className="flex-shrink-0">
+            {/* Cart Button - fixed width to prevent layout shift */}
+            <div className="flex-shrink-0 ml-2 relative">
               <Button
                 onClick={() => setIsQuoteDialogOpen(true)}
                 disabled={cart.length === 0}
                 size="sm"
-                className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold gap-1 shadow-md text-xs md:text-sm"
+                className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold shadow-md h-9 w-9 p-0 md:w-auto md:px-3 md:gap-1"
                 data-testid="button-open-cart"
               >
                 <ShoppingCart className="h-4 w-4" />
-                <span className="hidden sm:inline">Cotizar</span>
-                {cartItemCount > 0 && (
-                  <Badge variant="secondary" className="ml-0.5 bg-white text-amber-600 text-xs h-5 px-1.5">
-                    {cartItemCount}
-                  </Badge>
-                )}
+                <span className="hidden md:inline">Cotizar</span>
               </Button>
+              {cartItemCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-white text-amber-600 text-xs h-5 min-w-5 px-1 rounded-full flex items-center justify-center font-semibold shadow-sm">
+                  {cartItemCount}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -540,21 +536,7 @@ export default function CatalogoPublico() {
         )}
       </div>
 
-      {/* Floating Cart Summary (Mobile) */}
-      {cart.length > 0 && (
-        <div className="fixed bottom-4 left-4 right-4 sm:hidden z-50">
-          <Button
-            className="w-full gap-2 h-14 text-lg shadow-lg bg-amber-500 hover:bg-amber-600 text-slate-900"
-            onClick={() => setIsQuoteDialogOpen(true)}
-            data-testid="button-mobile-cart"
-          >
-            <ShoppingCart className="h-5 w-5" />
-            Solicitar Cotización ({cartItemCount})
-            <span className="ml-auto">${cartTotal.toLocaleString('es-CL')}</span>
-          </Button>
-        </div>
-      )}
-
+      
       {/* Quote Dialog */}
       <Dialog open={isQuoteDialogOpen} onOpenChange={setIsQuoteDialogOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
