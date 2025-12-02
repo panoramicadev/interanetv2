@@ -88,6 +88,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: ShoppingCart,
     },
     {
+      href: "/admin-catalogos",
+      label: "Catálogos Públicos",
+      icon: ExternalLink,
+    },
+    {
       href: "/clientes",
       label: "Gestión de Clientes",
       icon: Users,
