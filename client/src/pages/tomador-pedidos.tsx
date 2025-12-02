@@ -19,7 +19,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 //import panoramicaLogoPath from "@assets/Diseño sin título (27)_1757959070748.png"; // Commented due to special chars in filename"
 import QuotesList from "@/components/order-taker/quotes-list";
 import OrdersList from "@/components/order-taker/orders-list";
-import EcommerceOrdersList from "@/components/order-taker/ecommerce-orders-list";
+import EcommerceOrdersList, { QuoteFromOrderData } from "@/components/order-taker/ecommerce-orders-list";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -733,6 +733,40 @@ export default function TomadorPedidos() {
         variant: "destructive"
       });
     }
+  };
+
+  // Load ecommerce order data into quote builder
+  const loadEcommerceOrderForQuote = (orderData: QuoteFromOrderData) => {
+    // Clear any existing editing state
+    setEditingQuoteId(null);
+    setSavedQuoteId(null);
+    setHasUnsavedChanges(false);
+    
+    // Populate form with client data
+    setQuoteForm({
+      clientName: orderData.clientName,
+      clientRut: '',
+      clientEmail: orderData.clientEmail || '',
+      clientPhone: orderData.clientPhone || '',
+      clientAddress: '',
+      validUntil: '',
+      notes: orderData.notes || '',
+    });
+    
+    // Convert order items to cart items
+    const cartItems: CartItem[] = orderData.items.map((item, index) => ({
+      id: `ecommerce-${Date.now()}-${index}`,
+      type: 'standard' as const,
+      productName: item.productName,
+      productCode: item.productCode || '',
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      totalPrice: item.unitPrice * item.quantity,
+    }));
+    
+    setCart(cartItems);
+    setShowQuoteBuilder(true);
+    setDefaultMobileTab("cart");
   };
   
   const [searchTerm, setSearchTerm] = useState("");
@@ -3423,7 +3457,7 @@ export default function TomadorPedidos() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <EcommerceOrdersList />
+            <EcommerceOrdersList onGenerateQuote={loadEcommerceOrderForQuote} />
           </CardContent>
         </Card>
       </div>

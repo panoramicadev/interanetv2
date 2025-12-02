@@ -1,12 +1,10 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { ShoppingCart, User, DollarSign, Clock, CheckCircle, XCircle, Package, Eye, FileText, Loader2, Phone, Mail } from "lucide-react";
+import { ShoppingCart, User, Clock, CheckCircle, XCircle, Package, Eye, FileText, Phone, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useLocation } from "wouter";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 
-interface OrderItem {
+export interface OrderItem {
   productId: string;
   productName: string;
   productCode: string;
@@ -45,7 +43,7 @@ interface OrderItem {
   subtotal: number;
 }
 
-interface EcommerceOrder {
+export interface EcommerceOrder {
   id: string;
   clientName: string;
   clientEmail?: string;
@@ -58,6 +56,24 @@ interface EcommerceOrder {
   items: OrderItem[] | string;
   notes?: string;
   createdAt: string;
+}
+
+export interface QuoteFromOrderData {
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  clientCompany: string;
+  notes: string;
+  items: {
+    productCode: string;
+    productName: string;
+    quantity: number;
+    unitPrice: number;
+  }[];
+}
+
+interface EcommerceOrdersListProps {
+  onGenerateQuote?: (data: QuoteFromOrderData) => void;
 }
 
 const statusConfig = {
@@ -88,13 +104,12 @@ const statusConfig = {
   },
 };
 
-export default function EcommerceOrdersList() {
+export default function EcommerceOrdersList({ onGenerateQuote }: EcommerceOrdersListProps) {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedOrder, setSelectedOrder] = useState<EcommerceOrder | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
-  const [, navigate] = useLocation();
 
   const { data: orders = [], isLoading } = useQuery<EcommerceOrder[]>({
     queryKey: ['/api/ecommerce/orders', statusFilter],
@@ -108,49 +123,6 @@ export default function EcommerceOrdersList() {
       return response.json();
     },
     retry: false,
-  });
-
-  const createQuoteMutation = useMutation({
-    mutationFn: async (order: EcommerceOrder) => {
-      const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
-      
-      const quoteData = {
-        clientName: order.clientName,
-        clientEmail: order.clientEmail || '',
-        clientPhone: order.clientPhone || '',
-        clientCompany: order.clientCompany || '',
-        notes: order.notes ? `[Generado desde pedido ecommerce] ${order.notes}` : '[Generado desde pedido ecommerce]',
-        items: items.map((item: OrderItem) => ({
-          productCode: item.productCode,
-          productName: item.productName,
-          quantity: item.quantity,
-          unitPrice: item.price,
-        })),
-      };
-      
-      const response = await apiRequest('/api/quotes', {
-        method: 'POST',
-        body: JSON.stringify(quoteData),
-      });
-      
-      return response;
-    },
-    onSuccess: (data) => {
-      toast({
-        title: "Cotización creada",
-        description: "La cotización se ha generado exitosamente",
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/quotes'] });
-      setIsDetailOpen(false);
-      navigate('/tomador-pedidos');
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "No se pudo crear la cotización",
-        variant: "destructive",
-      });
-    },
   });
 
   const formatPrice = (price: string | number | undefined | null) => {
@@ -175,6 +147,34 @@ export default function EcommerceOrdersList() {
   const getOrderItems = (order: EcommerceOrder): OrderItem[] => {
     if (!order.items) return [];
     return typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+  };
+
+  const handleGenerateQuote = () => {
+    if (!selectedOrder || !onGenerateQuote) return;
+    
+    const items = getOrderItems(selectedOrder);
+    
+    const quoteData: QuoteFromOrderData = {
+      clientName: selectedOrder.clientName,
+      clientEmail: selectedOrder.clientEmail || '',
+      clientPhone: selectedOrder.clientPhone || '',
+      clientCompany: selectedOrder.clientCompany || '',
+      notes: selectedOrder.notes ? `[Pedido ecommerce] ${selectedOrder.notes}` : '[Pedido ecommerce]',
+      items: items.map((item) => ({
+        productCode: item.productCode,
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice: item.price || 0,
+      })),
+    };
+    
+    onGenerateQuote(quoteData);
+    setIsDetailOpen(false);
+    
+    toast({
+      title: "Datos cargados",
+      description: "Los datos del pedido se han cargado en el cotizador",
+    });
   };
 
   return (
@@ -386,7 +386,7 @@ export default function EcommerceOrdersList() {
                           <TableCell className="text-center">{item.quantity}</TableCell>
                           <TableCell className="text-right">{formatPrice(item.price)}</TableCell>
                           <TableCell className="text-right font-medium">
-                            {formatPrice(item.subtotal || item.price * item.quantity)}
+                            {formatPrice(item.subtotal || (item.price || 0) * item.quantity)}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -428,23 +428,15 @@ export default function EcommerceOrdersList() {
             >
               Cerrar
             </Button>
-            <Button
-              onClick={() => selectedOrder && createQuoteMutation.mutate(selectedOrder)}
-              disabled={createQuoteMutation.isPending}
-              data-testid="button-generate-quote"
-            >
-              {createQuoteMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Generando...
-                </>
-              ) : (
-                <>
-                  <FileText className="h-4 w-4 mr-2" />
-                  Generar Cotización
-                </>
-              )}
-            </Button>
+            {onGenerateQuote && (
+              <Button
+                onClick={handleGenerateQuote}
+                data-testid="button-generate-quote"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Generar Cotización
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
