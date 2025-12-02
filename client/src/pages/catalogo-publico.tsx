@@ -290,8 +290,8 @@ export default function CatalogoPublico() {
                 </p>
               )}
               
-              {/* Contact Buttons - horizontal scroll on mobile */}
-              <div className="flex gap-1.5 mt-2 overflow-x-auto no-scrollbar">
+              {/* Contact Buttons */}
+              <div className="flex gap-1.5 mt-2 flex-wrap">
                 {salesperson.publicPhone && (
                   <a 
                     href={getWhatsAppLink(salesperson.publicPhone)}
@@ -301,6 +301,7 @@ export default function CatalogoPublico() {
                     data-testid="button-whatsapp"
                   >
                     <SiWhatsapp className="w-3.5 h-3.5" />
+                    WhatsApp
                   </a>
                 )}
                 
@@ -311,6 +312,7 @@ export default function CatalogoPublico() {
                     data-testid="salesperson-phone"
                   >
                     <Phone className="w-3 h-3" />
+                    Teléfono
                   </a>
                 )}
                 
@@ -321,6 +323,7 @@ export default function CatalogoPublico() {
                     data-testid="salesperson-email"
                   >
                     <Mail className="w-3 h-3" />
+                    Correo
                   </a>
                 )}
               </div>
