@@ -92,6 +92,12 @@ import {
   type NvvPendingSales,
   type InsertNvvPendingSales,
   type NvvImportResult,
+  loyaltyTiers,
+  loyaltyTierBenefits,
+  type LoyaltyTier,
+  type InsertLoyaltyTier,
+  type LoyaltyTierBenefit,
+  type InsertLoyaltyTierBenefit,
   visitasTecnicas,
   contactosVisita,
   productosEvaluados,
@@ -1921,6 +1927,32 @@ export interface IStorage {
     }>;
     total: number;
   }>;
+
+  // Loyalty Program (Panoramica Market)
+  getLoyaltyTiers(): Promise<LoyaltyTier[]>;
+  getLoyaltyTierByCode(code: string): Promise<LoyaltyTier | undefined>;
+  createLoyaltyTier(tier: Omit<InsertLoyaltyTier, 'id' | 'createdAt' | 'updatedAt'>): Promise<LoyaltyTier>;
+  updateLoyaltyTier(id: string, tier: Partial<InsertLoyaltyTier>): Promise<LoyaltyTier | undefined>;
+  deleteLoyaltyTier(id: string): Promise<boolean>;
+  getLoyaltyTierBenefits(tierId: string): Promise<LoyaltyTierBenefit[]>;
+  createLoyaltyTierBenefit(benefit: Omit<InsertLoyaltyTierBenefit, 'id' | 'createdAt'>): Promise<LoyaltyTierBenefit>;
+  updateLoyaltyTierBenefit(id: string, benefit: Partial<InsertLoyaltyTierBenefit>): Promise<LoyaltyTierBenefit | undefined>;
+  deleteLoyaltyTierBenefit(id: string): Promise<boolean>;
+  getClientsByLoyaltyTier(tierId: string): Promise<Array<{
+    clientName: string;
+    clientCode: string | null;
+    totalSales: number;
+    transactionCount: number;
+    tierCode: string;
+    tierName: string;
+  }>>;
+  getClientLoyaltyStatus(clientName: string): Promise<{
+    currentTier: LoyaltyTier | null;
+    totalSalesLast90Days: number;
+    transactionsLast90Days: number;
+    nextTier: LoyaltyTier | null;
+    amountToNextTier: number;
+  } | null>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -20928,6 +20960,231 @@ export class DatabaseStorage implements IStorage {
       })
     );
     return result;
+  }
+
+  // ==================================================================================
+  // LOYALTY PROGRAM (PANORAMICA MARKET)
+  // ==================================================================================
+
+  async getLoyaltyTiers(): Promise<LoyaltyTier[]> {
+    return await db
+      .select()
+      .from(loyaltyTiers)
+      .where(eq(loyaltyTiers.activo, true))
+      .orderBy(loyaltyTiers.orden);
+  }
+
+  async getLoyaltyTierByCode(code: string): Promise<LoyaltyTier | undefined> {
+    const [tier] = await db
+      .select()
+      .from(loyaltyTiers)
+      .where(eq(loyaltyTiers.codigo, code));
+    return tier;
+  }
+
+  async createLoyaltyTier(tier: Omit<InsertLoyaltyTier, 'id' | 'createdAt' | 'updatedAt'>): Promise<LoyaltyTier> {
+    const [result] = await db
+      .insert(loyaltyTiers)
+      .values(tier)
+      .returning();
+    return result;
+  }
+
+  async updateLoyaltyTier(id: string, tier: Partial<InsertLoyaltyTier>): Promise<LoyaltyTier | undefined> {
+    const [result] = await db
+      .update(loyaltyTiers)
+      .set({ ...tier, updatedAt: new Date() })
+      .where(eq(loyaltyTiers.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteLoyaltyTier(id: string): Promise<boolean> {
+    const result = await db
+      .delete(loyaltyTiers)
+      .where(eq(loyaltyTiers.id, id))
+      .returning();
+    return result.length > 0;
+  }
+
+  async getLoyaltyTierBenefits(tierId: string): Promise<LoyaltyTierBenefit[]> {
+    return await db
+      .select()
+      .from(loyaltyTierBenefits)
+      .where(and(
+        eq(loyaltyTierBenefits.tierId, tierId),
+        eq(loyaltyTierBenefits.activo, true)
+      ))
+      .orderBy(loyaltyTierBenefits.orden);
+  }
+
+  async createLoyaltyTierBenefit(benefit: Omit<InsertLoyaltyTierBenefit, 'id' | 'createdAt'>): Promise<LoyaltyTierBenefit> {
+    const [result] = await db
+      .insert(loyaltyTierBenefits)
+      .values(benefit)
+      .returning();
+    return result;
+  }
+
+  async updateLoyaltyTierBenefit(id: string, benefit: Partial<InsertLoyaltyTierBenefit>): Promise<LoyaltyTierBenefit | undefined> {
+    const [result] = await db
+      .update(loyaltyTierBenefits)
+      .set(benefit)
+      .where(eq(loyaltyTierBenefits.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteLoyaltyTierBenefit(id: string): Promise<boolean> {
+    const result = await db
+      .delete(loyaltyTierBenefits)
+      .where(eq(loyaltyTierBenefits.id, id))
+      .returning();
+    return result.length > 0;
+  }
+
+  async getClientsByLoyaltyTier(tierId: string): Promise<Array<{
+    clientName: string;
+    clientCode: string | null;
+    totalSales: number;
+    transactionCount: number;
+    tierCode: string;
+    tierName: string;
+  }>> {
+    // Get the tier first
+    const [tier] = await db
+      .select()
+      .from(loyaltyTiers)
+      .where(eq(loyaltyTiers.id, tierId));
+    
+    if (!tier) return [];
+
+    // Calculate date 90 days ago (or tier's period)
+    const daysAgo = tier.periodoEvaluacionDias || 90;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysAgo);
+    const startDateStr = startDate.toISOString().split('T')[0];
+
+    // Get all tiers to determine ranges
+    const allTiers = await db
+      .select()
+      .from(loyaltyTiers)
+      .where(eq(loyaltyTiers.activo, true))
+      .orderBy(loyaltyTiers.montoMinimo);
+
+    // Find the tier's range (min and max)
+    const tierIndex = allTiers.findIndex(t => t.id === tierId);
+    const minAmount = Number(tier.montoMinimo);
+    const maxAmount = tierIndex < allTiers.length - 1 
+      ? Number(allTiers[tierIndex + 1].montoMinimo) 
+      : null; // No max for highest tier
+
+    // Get clients with their sales in the period
+    const clientSales = await db
+      .select({
+        clientName: salesTransactions.nokoen,
+        clientCode: clients.koen,
+        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.vaneli}), 0)`,
+        transactionCount: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
+      })
+      .from(salesTransactions)
+      .leftJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
+      .where(
+        and(
+          sql`${salesTransactions.feemdo} >= ${startDateStr}`,
+          isNotNull(salesTransactions.nokoen)
+        )
+      )
+      .groupBy(salesTransactions.nokoen, clients.koen)
+      .having(
+        maxAmount
+          ? and(
+              sql`COALESCE(SUM(${salesTransactions.vaneli}), 0) >= ${minAmount}`,
+              sql`COALESCE(SUM(${salesTransactions.vaneli}), 0) < ${maxAmount}`
+            )
+          : sql`COALESCE(SUM(${salesTransactions.vaneli}), 0) >= ${minAmount}`
+      )
+      .orderBy(sql`COALESCE(SUM(${salesTransactions.vaneli}), 0) DESC`);
+
+    return clientSales.map(c => ({
+      clientName: c.clientName || 'Sin nombre',
+      clientCode: c.clientCode,
+      totalSales: Number(c.totalSales) || 0,
+      transactionCount: Number(c.transactionCount) || 0,
+      tierCode: tier.codigo,
+      tierName: tier.nombre,
+    }));
+  }
+
+  async getClientLoyaltyStatus(clientName: string): Promise<{
+    currentTier: LoyaltyTier | null;
+    totalSalesLast90Days: number;
+    transactionsLast90Days: number;
+    nextTier: LoyaltyTier | null;
+    amountToNextTier: number;
+  } | null> {
+    // Get all active tiers ordered by monto_minimo
+    const allTiers = await db
+      .select()
+      .from(loyaltyTiers)
+      .where(eq(loyaltyTiers.activo, true))
+      .orderBy(loyaltyTiers.montoMinimo);
+
+    if (allTiers.length === 0) return null;
+
+    // Calculate date 90 days ago
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 90);
+    const startDateStr = startDate.toISOString().split('T')[0];
+
+    // Get client's sales in the period
+    const [clientStats] = await db
+      .select({
+        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.vaneli}), 0)`,
+        transactionCount: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
+      })
+      .from(salesTransactions)
+      .where(
+        and(
+          eq(salesTransactions.nokoen, clientName),
+          sql`${salesTransactions.feemdo} >= ${startDateStr}`
+        )
+      );
+
+    const totalSales = Number(clientStats?.totalSales) || 0;
+    const transactionCount = Number(clientStats?.transactionCount) || 0;
+
+    // Determine current tier (highest tier where client meets minimum)
+    let currentTier: LoyaltyTier | null = null;
+    for (const tier of allTiers) {
+      if (totalSales >= Number(tier.montoMinimo)) {
+        currentTier = tier;
+      }
+    }
+
+    // Determine next tier
+    let nextTier: LoyaltyTier | null = null;
+    let amountToNextTier = 0;
+
+    if (currentTier) {
+      const currentIndex = allTiers.findIndex(t => t.id === currentTier!.id);
+      if (currentIndex < allTiers.length - 1) {
+        nextTier = allTiers[currentIndex + 1];
+        amountToNextTier = Number(nextTier.montoMinimo) - totalSales;
+      }
+    } else {
+      // No tier yet, next tier is the first one
+      nextTier = allTiers[0];
+      amountToNextTier = Number(nextTier.montoMinimo) - totalSales;
+    }
+
+    return {
+      currentTier,
+      totalSalesLast90Days: totalSales,
+      transactionsLast90Days: transactionCount,
+      nextTier,
+      amountToNextTier: Math.max(0, amountToNextTier),
+    };
   }
 
 }

@@ -16242,6 +16242,113 @@ export function registerRoutes(app: Express): Server {
     res.json(history);
   }));
 
+  // ==================================================================================
+  // PANORAMICA MARKET - Programa de Lealtad de Clientes
+  // ==================================================================================
+
+  // Get all loyalty tiers
+  app.get('/api/loyalty/tiers', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const tiers = await storage.getLoyaltyTiers();
+    res.json(tiers);
+  }));
+
+  // Get tier by code
+  app.get('/api/loyalty/tiers/code/:code', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const tier = await storage.getLoyaltyTierByCode(req.params.code);
+    if (!tier) {
+      return res.status(404).json({ error: 'Tier no encontrado' });
+    }
+    res.json(tier);
+  }));
+
+  // Create loyalty tier (admin only)
+  app.post('/api/loyalty/tiers', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const tier = await storage.createLoyaltyTier(req.body);
+    res.status(201).json(tier);
+  }));
+
+  // Update loyalty tier (admin only)
+  app.patch('/api/loyalty/tiers/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const tier = await storage.updateLoyaltyTier(req.params.id, req.body);
+    if (!tier) {
+      return res.status(404).json({ error: 'Tier no encontrado' });
+    }
+    res.json(tier);
+  }));
+
+  // Delete loyalty tier (admin only)
+  app.delete('/api/loyalty/tiers/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const deleted = await storage.deleteLoyaltyTier(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Tier no encontrado' });
+    }
+    res.json({ success: true });
+  }));
+
+  // Get benefits for a tier
+  app.get('/api/loyalty/tiers/:id/benefits', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const benefits = await storage.getLoyaltyTierBenefits(req.params.id);
+    res.json(benefits);
+  }));
+
+  // Create benefit for a tier
+  app.post('/api/loyalty/benefits', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const benefit = await storage.createLoyaltyTierBenefit(req.body);
+    res.status(201).json(benefit);
+  }));
+
+  // Update benefit
+  app.patch('/api/loyalty/benefits/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const benefit = await storage.updateLoyaltyTierBenefit(req.params.id, req.body);
+    if (!benefit) {
+      return res.status(404).json({ error: 'Beneficio no encontrado' });
+    }
+    res.json(benefit);
+  }));
+
+  // Delete benefit
+  app.delete('/api/loyalty/benefits/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const deleted = await storage.deleteLoyaltyTierBenefit(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Beneficio no encontrado' });
+    }
+    res.json({ success: true });
+  }));
+
+  // Get clients by tier
+  app.get('/api/loyalty/tiers/:id/clients', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const clients = await storage.getClientsByLoyaltyTier(req.params.id);
+    res.json(clients);
+  }));
+
+  // Get client loyalty status
+  app.get('/api/loyalty/client-status', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const clientName = req.query.clientName as string;
+    if (!clientName) {
+      return res.status(400).json({ error: 'clientName es requerido' });
+    }
+    const status = await storage.getClientLoyaltyStatus(clientName);
+    res.json(status);
+  }));
+
+  // Get all tiers with their client counts (summary for dashboard)
+  app.get('/api/loyalty/summary', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const tiers = await storage.getLoyaltyTiers();
+    const summary = await Promise.all(
+      tiers.map(async (tier) => {
+        const clients = await storage.getClientsByLoyaltyTier(tier.id);
+        const benefits = await storage.getLoyaltyTierBenefits(tier.id);
+        return {
+          ...tier,
+          clientCount: clients.length,
+          totalSales: clients.reduce((sum, c) => sum + c.totalSales, 0),
+          benefitCount: benefits.length,
+        };
+      })
+    );
+    res.json(summary);
+  }));
+
   const httpServer = createServer(app);
   return httpServer;
 }
