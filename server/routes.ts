@@ -4345,7 +4345,7 @@ export function registerRoutes(app: Express): Server {
   // Update eCommerce product in admin panel
   app.patch('/api/ecommerce/admin/productos/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
-    const { categoria, descripcion, imagenUrl, precio, activo, groupId, variantLabel, isMainVariant } = req.body;
+    const { categoria, descripcion, imagenUrl, precio, activo, groupId, variantLabel, isMainVariant, productFamily, color } = req.body;
     
     console.log('🔄 [BACKEND] Recibida solicitud PATCH para producto:', {
       id,
@@ -4363,7 +4363,9 @@ export function registerRoutes(app: Express): Server {
       precioEcommerce: precio,
       groupId,
       variantLabel,
-      isMainVariant
+      isMainVariant,
+      productFamily,
+      color
     });
     
     try {
@@ -4376,7 +4378,9 @@ export function registerRoutes(app: Express): Server {
         activo,
         groupId,
         variantLabel,
-        isMainVariant
+        isMainVariant,
+        productFamily,
+        color
       });
       
       console.log('✅ [BACKEND] Producto actualizado exitosamente:', product);
@@ -4453,7 +4457,13 @@ export function registerRoutes(app: Express): Server {
 
   // Get all product groups
   app.get('/api/ecommerce/admin/grupos', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
-    const { search, categoria, activo } = req.query;
+    const { search, categoria, activo, withVariations } = req.query;
+    
+    // If withVariations=true, return groups with nested variations
+    if (withVariations === 'true') {
+      const groupsWithVariations = await storage.getProductGroupsWithVariations();
+      return res.json(groupsWithVariations);
+    }
     
     const groups = await storage.getProductGroups({
       search,
