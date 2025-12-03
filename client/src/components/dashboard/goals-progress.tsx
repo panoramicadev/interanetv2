@@ -91,6 +91,22 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
   const nvvTotal = Number(nvvGlobalMetrics?.totalAmount || 0);
   const gdvTotal = Number(gdvGlobalMetrics?.gdvSales || 0);
 
+  // Helper function to check if we're viewing the current month
+  const isCurrentMonth = (): boolean => {
+    if (!selectedPeriod) return false;
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const currentMonthStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+    
+    // selectedPeriod format is "YYYY-MM" for months
+    if (selectedPeriod.match(/^\d{4}-\d{2}$/)) {
+      return selectedPeriod === currentMonthStr;
+    }
+    
+    return false;
+  };
+
   // Normalize function to handle case and accent insensitive comparison
   const normalize = (str: string | null | undefined): string => {
     if (!str) return '';
@@ -297,8 +313,8 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
                       />
                     </div>
                     
-                    {/* Segunda barra de progreso - Total Combinado (más sutil y pequeña) */}
-                    {(nvvTotal > 0 || gdvTotal > 0) && (() => {
+                    {/* Segunda barra de progreso - Total Combinado (más sutil y pequeña) - Solo en mes actual */}
+                    {isCurrentMonth() && (nvvTotal > 0 || gdvTotal > 0) && (() => {
                       const combinedTotal = goal.currentSales + nvvTotal + gdvTotal;
                       const combinedPercentage = goal.targetAmount > 0 
                         ? (combinedTotal / goal.targetAmount) * 100 

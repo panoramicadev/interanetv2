@@ -360,6 +360,26 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     );
   }
 
+  // Helper function to check if we're viewing the current month
+  const isCurrentMonth = (): boolean => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const currentMonthStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+    
+    if (filterType === "month" && selectedPeriod.match(/^\d{4}-\d{2}$/)) {
+      return selectedPeriod === currentMonthStr;
+    }
+    
+    // For day filter, check if the day is in the current month
+    if (filterType === "day" && selectedPeriod.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return selectedPeriod.startsWith(currentMonthStr);
+    }
+    
+    // For year filter or range, don't show NVV/GDV (only current month matters)
+    return false;
+  };
+
   // Helper function to get period label for comparison
   const getPeriodLabel = (period: string, filterType: string): string => {
     const now = new Date();
@@ -590,15 +610,17 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 </span>
               )}
             </div>
-            {/* Información adicional: NVV + GDV Pendiente y Total Combinado */}
-            <div className="mt-2 pt-2 border-t border-gray-100">
-              <p className="text-xs text-gray-500 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`NVV: ${formatCurrency(nvvTotal)} + GDV Pendiente: ${formatCurrency(gdvSales)}`}>
-                NVV: {formatCurrency(nvvTotal)} + GDV Pendiente: {formatCurrency(gdvSales)}
-              </p>
-              <p className="text-xs font-semibold text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`Total Combinado: ${formatCurrency(combinedTotal)}`}>
-                Total Combinado: {formatCurrency(combinedTotal)}
-              </p>
-            </div>
+            {/* Información adicional: NVV + GDV Pendiente y Total Combinado - Solo mostrar en mes actual */}
+            {isCurrentMonth() && (
+              <div className="mt-2 pt-2 border-t border-gray-100">
+                <p className="text-xs text-gray-500 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`NVV: ${formatCurrency(nvvTotal)} + GDV Pendiente: ${formatCurrency(gdvSales)}`}>
+                  NVV: {formatCurrency(nvvTotal)} + GDV Pendiente: {formatCurrency(gdvSales)}
+                </p>
+                <p className="text-xs font-semibold text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`Total Combinado: ${formatCurrency(combinedTotal)}`}>
+                  Total Combinado: {formatCurrency(combinedTotal)}
+                </p>
+              </div>
+            )}
           </div>
           <div className={`w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center self-end lg:self-auto lg:ml-4 transition-transform hover:scale-105`}>
             <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
