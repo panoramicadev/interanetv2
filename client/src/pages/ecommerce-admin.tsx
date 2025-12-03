@@ -147,6 +147,11 @@ export default function EcommerceAdmin() {
   const [selectedCatalogUser, setSelectedCatalogUser] = useState<SalespersonUser | null>(null);
   const [isCatalogDialogOpen, setIsCatalogDialogOpen] = useState(false);
   
+  // Estados para selección masiva de productos
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
+  const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
+  const [bulkTargetGroupId, setBulkTargetGroupId] = useState<string>("");
+  
   const { toast } = useToast();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
@@ -215,6 +220,78 @@ export default function EcommerceAdmin() {
     const colors = new Set(productos.map(p => p.color).filter(Boolean) as string[]);
     return Array.from(colors).sort();
   }, [productos]);
+
+  // Mutación para asignar múltiples productos a un grupo
+  const bulkAssignMutation = useMutation({
+    mutationFn: async ({ productIds, groupId }: { productIds: string[]; groupId: string }) => {
+      const response = await apiRequest('/api/ecommerce/admin/productos/bulk-assign', {
+        method: 'POST',
+        data: { productIds, groupId }
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/grupos'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/productos'] });
+      setSelectedProducts(new Set());
+      setShowBulkAssignModal(false);
+      setBulkTargetGroupId("");
+      toast({
+        title: "Productos asignados",
+        description: `Se asignaron ${data.count || selectedProducts.size} productos al grupo`
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudieron asignar los productos",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Toggle selección de producto
+  const toggleProductSelection = (productId: string) => {
+    setSelectedProducts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(productId)) {
+        newSet.delete(productId);
+      } else {
+        newSet.add(productId);
+      }
+      return newSet;
+    });
+  };
+
+  // Seleccionar/deseleccionar todos los productos filtrados
+  const toggleSelectAll = () => {
+    const allSelected = filteredProducts.every(p => selectedProducts.has(p.id));
+    setSelectedProducts(prev => {
+      const newSet = new Set(prev);
+      if (allSelected) {
+        filteredProducts.forEach(p => newSet.delete(p.id));
+      } else {
+        filteredProducts.forEach(p => newSet.add(p.id));
+      }
+      return newSet;
+    });
+  };
+
+  // Ejecutar asignación masiva
+  const handleBulkAssign = () => {
+    if (selectedProducts.size === 0 || !bulkTargetGroupId) {
+      toast({
+        title: "Selección incompleta",
+        description: "Selecciona productos y un grupo destino",
+        variant: "destructive"
+      });
+      return;
+    }
+    bulkAssignMutation.mutate({
+      productIds: Array.from(selectedProducts),
+      groupId: bulkTargetGroupId
+    });
+  };
 
   // Query para obtener vendedores (solo admin)
   const { data: salespeople = [], isLoading: isLoadingSalespeople } = useQuery<SalespersonUser[]>({
@@ -1240,13 +1317,38 @@ export default function EcommerceAdmin() {
 
       {/* Tabla de productos */}
       <Card>
-        <CardHeader>
-          <CardTitle>Productos ({filteredProducts.length})</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div className="flex items-center gap-4">
+            <CardTitle>Productos ({filteredProducts.length})</CardTitle>
+            {selectedProducts.size > 0 && (
+              <Badge variant="secondary">
+                {selectedProducts.size} seleccionados
+              </Badge>
+            )}
+          </div>
+          {selectedProducts.size > 0 && (
+            <Button 
+              onClick={() => setShowBulkAssignModal(true)}
+              data-testid="button-assign-to-group"
+            >
+              <Layers className="h-4 w-4 mr-2" />
+              Asignar a Grupo
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12">
+                  <input
+                    type="checkbox"
+                    checked={filteredProducts.length > 0 && filteredProducts.every(p => selectedProducts.has(p.id))}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4"
+                    data-testid="checkbox-select-all"
+                  />
+                </TableHead>
                 <TableHead className="w-20">Imagen</TableHead>
                 <TableHead>Código</TableHead>
                 <TableHead>Producto</TableHead>
@@ -1258,7 +1360,25 @@ export default function EcommerceAdmin() {
             </TableHeader>
             <TableBody>
               {filteredProducts.map((product) => (
-                <TableRow key={product.id}>
+                <TableRow 
+                  key={product.id}
+                  className={selectedProducts.has(product.id) ? 'bg-primary/5' : ''}
+                >
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedProducts.has(product.id)}
+                        onChange={() => toggleProductSelection(product.id)}
+                        className="h-4 w-4"
+                        data-testid={`checkbox-product-${product.id}`}
+                      />
+                      <span 
+                        className={`w-2 h-2 rounded-full flex-shrink-0 ${product.groupId ? 'bg-green-500' : 'bg-gray-400'}`}
+                        title={product.groupId ? 'Agrupado' : 'Sin agrupar'}
+                      />
+                    </div>
+                  </TableCell>
                   <TableCell>
                     {product.imagenUrl ? (
                       <img 
@@ -1911,6 +2031,64 @@ export default function EcommerceAdmin() {
           </TabsContent>
         )}
       </Tabs>
+
+      {/* Modal para asignar productos a grupo */}
+      <Dialog open={showBulkAssignModal} onOpenChange={setShowBulkAssignModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Asignar Productos a Grupo</DialogTitle>
+            <DialogDescription>
+              {selectedProducts.size} producto(s) seleccionado(s)
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="bulk-group-select">Selecciona el grupo destino</Label>
+              <Select value={bulkTargetGroupId} onValueChange={setBulkTargetGroupId}>
+                <SelectTrigger id="bulk-group-select" data-testid="select-bulk-group">
+                  <SelectValue placeholder="Seleccionar grupo..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {grupos.map((grupo) => (
+                    <SelectItem key={grupo.id} value={grupo.id}>
+                      {grupo.nombre} ({grupo.variantCount || 0} variantes)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowBulkAssignModal(false);
+                  setBulkTargetGroupId("");
+                }}
+                data-testid="button-cancel-bulk-assign"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleBulkAssign}
+                disabled={!bulkTargetGroupId || bulkAssignMutation.isPending}
+                data-testid="button-confirm-bulk-assign"
+              >
+                {bulkAssignMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Asignando...
+                  </>
+                ) : (
+                  <>
+                    <Layers className="h-4 w-4 mr-2" />
+                    Asignar
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
