@@ -13,7 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Search, Edit, Plus, Trash2, Layers, Package } from "lucide-react";
+import { Search, Edit, Plus, Trash2, Layers, Package, ChevronDown, ChevronRight, Palette, Box, DollarSign, Image, Loader2, MoveHorizontal, Unlink } from "lucide-react";
 import { insertEcommerceProductGroupSchema } from "@shared/schema";
 import type { InsertEcommerceProductGroupInput } from "@shared/schema";
 
@@ -43,6 +43,28 @@ interface ProductVariant {
   };
 }
 
+interface GroupWithVariations {
+  id: string;
+  nombre: string;
+  descripcion?: string;
+  imagenPrincipal?: string;
+  categoria?: string;
+  activo: boolean;
+  variationCount: number;
+  variations: Array<{
+    id: string;
+    priceListId: string;
+    codigo: string;
+    producto: string;
+    precio: number;
+    color?: string;
+    unidad?: string;
+    imagenUrl?: string;
+    isMainVariant: boolean;
+    activo: boolean;
+  }>;
+}
+
 export default function ProductGroupsAdmin() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -51,6 +73,7 @@ export default function ProductGroupsAdmin() {
   const [editingGroup, setEditingGroup] = useState<ProductGroup | null>(null);
   const [showProductsDialog, setShowProductsDialog] = useState(false);
   const [managingGroupId, setManagingGroupId] = useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   
   // States for adding products to group
   const [productSearch, setProductSearch] = useState("");
@@ -58,6 +81,23 @@ export default function ProductGroupsAdmin() {
   const [selectedProductsToAdd, setSelectedProductsToAdd] = useState<any[]>([]);
   const [variantLabels, setVariantLabels] = useState<Record<string, string>>({});
   const [mainVariantId, setMainVariantId] = useState<string | null>(null);
+  
+  // States for reassigning variations
+  const [showReassignDialog, setShowReassignDialog] = useState(false);
+  const [reassigningVariation, setReassigningVariation] = useState<{id: string; producto: string; currentGroupId: string} | null>(null);
+  const [selectedNewGroupId, setSelectedNewGroupId] = useState<string>("");
+
+  const toggleGroupExpansion = (groupId: string) => {
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(groupId)) {
+        newSet.delete(groupId);
+      } else {
+        newSet.add(groupId);
+      }
+      return newSet;
+    });
+  };
   
   const { toast } = useToast();
 
@@ -72,19 +112,46 @@ export default function ProductGroupsAdmin() {
     }
   });
 
-  // Query para obtener grupos de productos
-  const { data: groups = [], isLoading } = useQuery<ProductGroup[]>({
-    queryKey: ['/api/ecommerce/admin/grupos', { search: searchTerm, categoria: selectedCategory, activo: selectedStatus }],
+  // Query para obtener grupos de productos CON variaciones
+  const { data: groupsWithVariations = [], isLoading } = useQuery<GroupWithVariations[]>({
+    queryKey: ['/api/ecommerce/admin/grupos', 'withVariations'],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (searchTerm) params.append('search', searchTerm);
-      if (selectedCategory !== 'all') params.append('categoria', selectedCategory);
-      if (selectedStatus !== 'all') params.append('activo', selectedStatus);
-      
-      const response = await apiRequest(`/api/ecommerce/admin/grupos?${params.toString()}`);
+      const response = await apiRequest('/api/ecommerce/admin/grupos?withVariations=true');
       return response.json();
     }
   });
+
+  // Filter groups based on search, category and status (case-insensitive)
+  const filteredGroups = groupsWithVariations.filter(group => {
+    // Search filter - case insensitive, trims whitespace
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase().trim();
+      const nameLower = (group.nombre || '').toLowerCase().trim();
+      const descLower = (group.descripcion || '').toLowerCase().trim();
+      if (!nameLower.includes(searchLower) && !descLower.includes(searchLower)) {
+        return false;
+      }
+    }
+    // Category filter - case insensitive comparison
+    if (selectedCategory !== 'all') {
+      const groupCat = (group.categoria || '').toLowerCase().trim();
+      const selectedCat = selectedCategory.toLowerCase().trim();
+      if (groupCat !== selectedCat) {
+        return false;
+      }
+    }
+    // Status filter
+    if (selectedStatus !== 'all') {
+      const isActive = selectedStatus === 'true';
+      if (group.activo !== isActive) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  // Alias for backward compatibility
+  const groups = filteredGroups;
 
   // Query para obtener categorías (reutiliza la misma de productos)
   const { data: categorias = [] } = useQuery<{id: string; nombre: string}[]>({
@@ -209,6 +276,49 @@ export default function ProductGroupsAdmin() {
       });
     }
   });
+
+  // Mutación para reasignar variación a otro grupo
+  const reassignVariationMutation = useMutation({
+    mutationFn: async ({ variationId, newGroupId }: { variationId: string; newGroupId: string | null }) => {
+      const response = await apiRequest(`/api/ecommerce/admin/variaciones/${variationId}/reasignar`, {
+        method: 'POST',
+        data: { newGroupId }
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/grupos'] });
+      setShowReassignDialog(false);
+      setReassigningVariation(null);
+      setSelectedNewGroupId("");
+      toast({
+        title: "Variación reasignada",
+        description: "La variación se movió correctamente"
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo reasignar la variación",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const handleReassignVariation = (variationId: string, producto: string, currentGroupId: string) => {
+    setReassigningVariation({ id: variationId, producto, currentGroupId });
+    setSelectedNewGroupId("");
+    setShowReassignDialog(true);
+  };
+
+  const confirmReassign = () => {
+    if (reassigningVariation) {
+      reassignVariationMutation.mutate({
+        variationId: reassigningVariation.id,
+        newGroupId: selectedNewGroupId || null
+      });
+    }
+  };
 
   const resetForm = () => {
     form.reset({
@@ -430,52 +540,96 @@ export default function ProductGroupsAdmin() {
         </Select>
       </div>
 
-      {/* Tabla de grupos */}
+      {/* Tabla de grupos con variaciones expandibles */}
       <Card>
         <CardHeader>
-          <CardTitle>Grupos ({groups.length})</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            <span>Grupos ({groups.length})</span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isLoading || groups.length === 0}
+              onClick={() => {
+                if (expandedGroups.size === groups.length && groups.length > 0) {
+                  setExpandedGroups(new Set());
+                } else {
+                  setExpandedGroups(new Set(groups.map(g => g.id)));
+                }
+              }}
+            >
+              {expandedGroups.size === groups.length && groups.length > 0 ? "Colapsar todo" : "Expandir todo"}
+            </Button>
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Categoría</TableHead>
-                <TableHead>Variantes</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {groups.map((group) => (
-                <TableRow key={group.id}>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{group.nombre}</div>
-                      {group.descripcion && (
-                        <div className="text-sm text-muted-foreground">{group.descripcion}</div>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-muted-foreground">Cargando grupos...</span>
+            </div>
+          ) : (
+          <div className="space-y-2">
+            {groups.map((group) => {
+              const isExpanded = expandedGroups.has(group.id);
+              const variations = group.variations || [];
+              
+              return (
+                <div key={group.id} className="border rounded-lg overflow-hidden">
+                  {/* Group header row */}
+                  <div 
+                    className="flex items-center gap-3 p-3 bg-muted/50 hover:bg-muted cursor-pointer transition-colors"
+                    onClick={() => toggleGroupExpansion(group.id)}
+                  >
+                    <button className="flex-shrink-0">
+                      {isExpanded ? (
+                        <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </button>
+                    
+                    {/* Group image */}
+                    <div className="w-12 h-12 rounded bg-background border flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      {group.imagenPrincipal ? (
+                        <img src={group.imagenPrincipal} alt="" className="w-full h-full object-cover" />
+                      ) : variations[0]?.imagenUrl ? (
+                        <img src={variations[0].imagenUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <Package className="h-6 w-6 text-muted-foreground" />
                       )}
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    {group.categoria ? (
-                      <Badge variant="secondary">{group.categoria}</Badge>
-                    ) : (
-                      <span className="text-muted-foreground">Sin categoría</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge>{group.variantCount || 0} variantes</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={group.activo ? "default" : "secondary"}>
+                    
+                    {/* Group info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{group.nombre}</div>
+                      {group.descripcion && (
+                        <div className="text-sm text-muted-foreground truncate">{group.descripcion}</div>
+                      )}
+                    </div>
+                    
+                    {/* Category */}
+                    <div className="hidden sm:block">
+                      {group.categoria ? (
+                        <Badge variant="secondary">{group.categoria}</Badge>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Sin categoría</span>
+                      )}
+                    </div>
+                    
+                    {/* Variation count */}
+                    <Badge className="flex-shrink-0">
+                      {variations.length} variante{variations.length !== 1 ? 's' : ''}
+                    </Badge>
+                    
+                    {/* Status */}
+                    <Badge variant={group.activo ? "default" : "secondary"} className="flex-shrink-0">
                       {group.activo ? "Activo" : "Inactivo"}
                     </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
+                    
+                    {/* Actions */}
+                    <div className="flex gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                       <Button 
-                        variant="outline" 
+                        variant="ghost" 
                         size="sm" 
                         onClick={() => {
                           setManagingGroupId(group.id);
@@ -487,34 +641,145 @@ export default function ProductGroupsAdmin() {
                         <Layers className="h-4 w-4" />
                       </Button>
                       <Button 
-                        variant="outline" 
+                        variant="ghost" 
                         size="sm" 
-                        onClick={() => handleEditGroup(group)}
+                        onClick={() => handleEditGroup(group as any)}
                         data-testid={`button-edit-group-${group.id}`}
                         title="Editar grupo"
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
                       <Button 
-                        variant="outline" 
+                        variant="ghost" 
                         size="sm" 
                         onClick={() => handleDeleteGroup(group.id)}
                         data-testid={`button-delete-group-${group.id}`}
                         title="Eliminar grupo"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          
-          {groups.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              No se encontraron grupos de productos
-            </div>
+                  </div>
+                  
+                  {/* Expanded variations */}
+                  {isExpanded && variations.length > 0 && (
+                    <div className="bg-background">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-muted/30">
+                            <TableHead className="w-12"></TableHead>
+                            <TableHead>SKU</TableHead>
+                            <TableHead>Producto</TableHead>
+                            <TableHead>Color</TableHead>
+                            <TableHead>Formato</TableHead>
+                            <TableHead>Precio</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead className="w-20">Mover</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {variations.map((variation) => (
+                            <TableRow key={variation.id} className="hover:bg-muted/20">
+                              <TableCell className="w-12">
+                                <div className="w-8 h-8 rounded bg-muted flex items-center justify-center overflow-hidden">
+                                  {variation.imagenUrl ? (
+                                    <img src={variation.imagenUrl} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <Image className="h-4 w-4 text-muted-foreground" />
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                                  {variation.codigo}
+                                </code>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm">{variation.producto}</span>
+                                  {variation.isMainVariant && (
+                                    <Badge variant="outline" className="text-xs">Principal</Badge>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                {variation.color ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <Palette className="h-3.5 w-3.5 text-muted-foreground" />
+                                    <span className="text-sm">{variation.color}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {variation.unidad ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <Box className="h-3.5 w-3.5 text-muted-foreground" />
+                                    <span className="text-sm">{variation.unidad}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1 text-sm font-medium">
+                                  <DollarSign className="h-3.5 w-3.5 text-green-600" />
+                                  {variation.precio.toLocaleString('es-CL')}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={variation.activo ? "default" : "secondary"} className="text-xs">
+                                  {variation.activo ? "Activo" : "Inactivo"}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleReassignVariation(variation.id, variation.producto, group.id)}
+                                    title="Mover a otro grupo"
+                                    data-testid={`button-move-variation-${variation.id}`}
+                                  >
+                                    <MoveHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                  
+                  {/* Empty variations message */}
+                  {isExpanded && variations.length === 0 && (
+                    <div className="p-4 text-center text-sm text-muted-foreground bg-background">
+                      Este grupo no tiene variaciones asignadas.
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={() => {
+                          setManagingGroupId(group.id);
+                          setShowProductsDialog(true);
+                        }}
+                        className="ml-1"
+                      >
+                        Agregar productos
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {groups.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                No se encontraron grupos de productos
+              </div>
+            )}
+          </div>
           )}
         </CardContent>
       </Card>
@@ -872,6 +1137,96 @@ export default function ProductGroupsAdmin() {
                 data-testid="button-close-products-dialog"
               >
                 Cerrar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para reasignar variación a otro grupo */}
+      <Dialog open={showReassignDialog} onOpenChange={(open) => {
+        setShowReassignDialog(open);
+        if (!open) {
+          setReassigningVariation(null);
+          setSelectedNewGroupId("");
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MoveHorizontal className="h-5 w-5" />
+              Mover Variación
+            </DialogTitle>
+            <DialogDescription>
+              {reassigningVariation?.producto}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Selecciona el grupo destino:</label>
+              <Select value={selectedNewGroupId} onValueChange={setSelectedNewGroupId}>
+                <SelectTrigger data-testid="select-new-group">
+                  <SelectValue placeholder="Seleccionar grupo..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__ungroup__" data-testid="select-item-ungroup">
+                    <div className="flex items-center gap-2">
+                      <Unlink className="h-4 w-4 text-muted-foreground" />
+                      <span>Sin grupo (desagrupar)</span>
+                    </div>
+                  </SelectItem>
+                  {groupsWithVariations
+                    .filter(g => g.id !== reassigningVariation?.currentGroupId)
+                    .map(group => (
+                      <SelectItem key={group.id} value={group.id} data-testid={`select-item-group-${group.id}`}>
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-muted-foreground" />
+                          <span>{group.nombre}</span>
+                          <Badge variant="secondary" className="ml-1 text-xs">
+                            {group.variations?.length || 0}
+                          </Badge>
+                        </div>
+                      </SelectItem>
+                    ))
+                  }
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex justify-end gap-2 pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={() => setShowReassignDialog(false)}
+                data-testid="button-cancel-reassign"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => {
+                  if (selectedNewGroupId === "__ungroup__") {
+                    reassignVariationMutation.mutate({
+                      variationId: reassigningVariation!.id,
+                      newGroupId: null
+                    });
+                  } else {
+                    confirmReassign();
+                  }
+                }}
+                disabled={!selectedNewGroupId || reassignVariationMutation.isPending}
+                data-testid="button-confirm-reassign"
+              >
+                {reassignVariationMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Moviendo...
+                  </>
+                ) : (
+                  <>
+                    <MoveHorizontal className="h-4 w-4 mr-2" />
+                    Mover
+                  </>
+                )}
               </Button>
             </div>
           </div>
