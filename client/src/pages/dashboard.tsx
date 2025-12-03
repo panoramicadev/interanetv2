@@ -1254,6 +1254,7 @@ export default function Dashboard() {
                   periods={comparativePeriods}
                   segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
                   salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                  client={selectedClient}
                 />
               </div>
 
@@ -1262,6 +1263,7 @@ export default function Dashboard() {
                 periods={comparativePeriods}
                 segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
                 salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                client={selectedClient}
               />
 
               {/* Evolución de Ventas por Segmento */}
