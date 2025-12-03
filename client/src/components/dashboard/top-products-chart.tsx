@@ -29,9 +29,10 @@ interface TopProductsChartProps {
   filterType: "day" | "month" | "year" | "range";
   segment?: string;
   salesperson?: string;
+  client?: string;
 }
 
-export default function TopProductsChart({ selectedPeriod, filterType, segment, salesperson }: TopProductsChartProps) {
+export default function TopProductsChart({ selectedPeriod, filterType, segment, salesperson, client }: TopProductsChartProps) {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
@@ -49,13 +50,13 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
   
   // Query for paginated top products (default view)
   const { data: topProductsResponse, isLoading } = useQuery<TopProductsResponse>({
-    queryKey: [`/api/sales/top-products?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    queryKey: [`/api/sales/top-products?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}${client ? `&client=${encodeURIComponent(client)}` : ''}`],
     enabled: !debouncedSearchTerm, // Disable when searching
   });
 
   // Query for search results (when typing)
   const { data: searchResults, isLoading: isSearchLoading } = useQuery<SearchProduct[]>({
-    queryKey: [`/api/products/search?q=${encodeURIComponent(debouncedSearchTerm)}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    queryKey: [`/api/products/search?q=${encodeURIComponent(debouncedSearchTerm)}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}${client ? `&client=${encodeURIComponent(client)}` : ''}`],
     enabled: debouncedSearchTerm.length >= 2, // Only search if 2+ characters
   });
 

@@ -29,9 +29,10 @@ interface TopSalespeoplePanelProps {
   filterType: "day" | "month" | "year" | "range";
   segment?: string;
   salesperson?: string;
+  client?: string;
 }
 
-export default function TopSalespeoplePanel({ selectedPeriod, filterType, segment, salesperson }: TopSalespeoplePanelProps) {
+export default function TopSalespeoplePanel({ selectedPeriod, filterType, segment, salesperson, client }: TopSalespeoplePanelProps) {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
@@ -49,13 +50,13 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
   
   // Query for paginated top salespeople (default view)
   const { data: topSalespeopleResponse, isLoading } = useQuery<TopSalespeopleResponse>({
-    queryKey: [`/api/sales/top-salespeople?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}`],
+    queryKey: [`/api/sales/top-salespeople?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${client ? `&client=${encodeURIComponent(client)}` : ''}`],
     enabled: !debouncedSearchTerm, // Disable when searching
   });
 
   // Query for search results (when typing)
   const { data: searchResults, isLoading: isSearchLoading } = useQuery<SearchSalesperson[]>({
-    queryKey: [`/api/salespeople/search?q=${encodeURIComponent(debouncedSearchTerm)}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}`],
+    queryKey: [`/api/salespeople/search?q=${encodeURIComponent(debouncedSearchTerm)}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${client ? `&client=${encodeURIComponent(client)}` : ''}`],
     enabled: debouncedSearchTerm.length >= 2, // Only search if 2+ characters
   });
 
