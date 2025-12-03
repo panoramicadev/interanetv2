@@ -903,6 +903,7 @@ export interface IStorage {
     id: string;
     activo: boolean;
   }>;
+  bulkAssignProductsToGroup(productIds: string[], groupId: string): Promise<{ count: number }>;
   createEcommerceAdminCategory(data: {
     nombre: string;
     descripcion?: string;
@@ -7654,6 +7655,56 @@ export class DatabaseStorage implements IStorage {
       id: ecomProduct.id,
       activo: ecomProduct.activo ?? false,
     };
+  }
+
+  async bulkAssignProductsToGroup(productIds: string[], groupId: string): Promise<{ count: number }> {
+    const { ecommerceProducts, ecommerceProductGroups } = await import('@shared/schema');
+    
+    // Verify group exists
+    const [group] = await db
+      .select()
+      .from(ecommerceProductGroups)
+      .where(eq(ecommerceProductGroups.id, groupId))
+      .limit(1);
+    
+    if (!group) {
+      throw new Error('Group not found');
+    }
+    
+    let count = 0;
+    
+    for (const priceListId of productIds) {
+      // Check if ecommerce record exists
+      const [existingProduct] = await db
+        .select()
+        .from(ecommerceProducts)
+        .where(eq(ecommerceProducts.priceListId, priceListId))
+        .limit(1);
+      
+      if (existingProduct) {
+        // Update existing record
+        await db
+          .update(ecommerceProducts)
+          .set({
+            groupId: groupId,
+            updatedAt: new Date()
+          })
+          .where(eq(ecommerceProducts.id, existingProduct.id));
+      } else {
+        // Create new ecommerce record with group assignment
+        await db
+          .insert(ecommerceProducts)
+          .values({
+            priceListId: priceListId,
+            groupId: groupId,
+            activo: true,
+          });
+      }
+      count++;
+    }
+    
+    console.log(`✅ Bulk assigned ${count} products to group ${group.nombre}`);
+    return { count };
   }
 
   async createEcommerceAdminCategory(data: {
