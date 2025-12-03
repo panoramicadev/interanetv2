@@ -86,6 +86,14 @@ export default function ProductGroupsAdmin() {
   const [showReassignDialog, setShowReassignDialog] = useState(false);
   const [reassigningVariation, setReassigningVariation] = useState<{id: string; producto: string; currentGroupId: string} | null>(null);
   const [selectedNewGroupId, setSelectedNewGroupId] = useState<string>("");
+  
+  // States for bulk product assignment
+  const [showBulkAssignDialog, setShowBulkAssignDialog] = useState(false);
+  const [bulkProductSearch, setBulkProductSearch] = useState("");
+  const [bulkSelectedUnidad, setBulkSelectedUnidad] = useState<string>("all");
+  const [bulkShowOnlyUngrouped, setBulkShowOnlyUngrouped] = useState(false);
+  const [bulkSelectedProducts, setBulkSelectedProducts] = useState<Set<string>>(new Set());
+  const [bulkTargetGroupId, setBulkTargetGroupId] = useState<string>("");
 
   const toggleGroupExpansion = (groupId: string) => {
     setExpandedGroups(prev => {
@@ -320,6 +328,115 @@ export default function ProductGroupsAdmin() {
     }
   };
 
+  // Query para obtener TODOS los productos para asignación masiva
+  const { data: allProducts = [], isLoading: loadingAllProducts } = useQuery<any[]>({
+    queryKey: ['/api/ecommerce/admin/productos', 'bulk'],
+    queryFn: async () => {
+      const response = await apiRequest('/api/ecommerce/admin/productos?activo=true');
+      return response.json();
+    },
+    enabled: showBulkAssignDialog
+  });
+
+  // Mutación para asignar múltiples productos a un grupo
+  const bulkAssignMutation = useMutation({
+    mutationFn: async ({ productIds, groupId }: { productIds: string[]; groupId: string }) => {
+      const response = await apiRequest('/api/ecommerce/admin/productos/bulk-assign', {
+        method: 'POST',
+        data: { productIds, groupId }
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/grupos'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/productos'] });
+      setBulkSelectedProducts(new Set());
+      setShowBulkAssignDialog(false);
+      toast({
+        title: "Productos asignados",
+        description: `Se asignaron ${data.count || bulkSelectedProducts.size} productos al grupo`
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudieron asignar los productos",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Toggle bulk product selection
+  const toggleBulkProductSelection = (productId: string) => {
+    setBulkSelectedProducts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(productId)) {
+        newSet.delete(productId);
+      } else {
+        newSet.add(productId);
+      }
+      return newSet;
+    });
+  };
+
+  // Select/deselect all filtered products
+  const toggleSelectAllFiltered = (products: any[]) => {
+    const allSelected = products.every(p => bulkSelectedProducts.has(p.id));
+    setBulkSelectedProducts(prev => {
+      const newSet = new Set(prev);
+      if (allSelected) {
+        products.forEach(p => newSet.delete(p.id));
+      } else {
+        products.forEach(p => newSet.add(p.id));
+      }
+      return newSet;
+    });
+  };
+
+  // Get unique unidades for bulk filter
+  const bulkUniqueUnidades = Array.from(
+    new Set(
+      allProducts
+        .filter(p => p.unidad)
+        .map(p => p.unidad)
+    )
+  ).sort();
+
+  // Filter products for bulk assignment view
+  const filteredBulkProducts = allProducts.filter(p => {
+    // Search filter
+    if (bulkProductSearch && 
+        !p.producto?.toLowerCase().includes(bulkProductSearch.toLowerCase()) &&
+        !p.codigo?.toLowerCase().includes(bulkProductSearch.toLowerCase())) {
+      return false;
+    }
+    // Unidad filter
+    if (bulkSelectedUnidad !== "all" && p.unidad !== bulkSelectedUnidad) {
+      return false;
+    }
+    // Ungrouped filter
+    if (bulkShowOnlyUngrouped && p.groupId) {
+      return false;
+    }
+    return true;
+  });
+
+  // Handle bulk assign action
+  const handleBulkAssign = () => {
+    if (bulkSelectedProducts.size === 0 || !bulkTargetGroupId) {
+      toast({
+        title: "Selección incompleta",
+        description: "Selecciona productos y un grupo destino",
+        variant: "destructive"
+      });
+      return;
+    }
+    bulkAssignMutation.mutate({
+      productIds: Array.from(bulkSelectedProducts),
+      groupId: bulkTargetGroupId
+    });
+  };
+
   const resetForm = () => {
     form.reset({
       nombre: "",
@@ -489,10 +606,27 @@ export default function ProductGroupsAdmin() {
             Gestiona grupos de productos con variaciones (colores, tamaños, etc.)
           </p>
         </div>
-        <Button onClick={() => { resetForm(); setShowGroupDialog(true); }} data-testid="button-new-group">
-          <Plus className="h-4 w-4 mr-2" />
-          Nuevo Grupo
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              setBulkSelectedProducts(new Set());
+              setBulkTargetGroupId("");
+              setBulkProductSearch("");
+              setBulkSelectedUnidad("all");
+              setBulkShowOnlyUngrouped(false);
+              setShowBulkAssignDialog(true);
+            }} 
+            data-testid="button-bulk-assign"
+          >
+            <Package className="h-4 w-4 mr-2" />
+            Asignación Masiva
+          </Button>
+          <Button onClick={() => { resetForm(); setShowGroupDialog(true); }} data-testid="button-new-group">
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo Grupo
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -1228,6 +1362,231 @@ export default function ProductGroupsAdmin() {
                   </>
                 )}
               </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para asignación masiva de productos */}
+      <Dialog open={showBulkAssignDialog} onOpenChange={setShowBulkAssignDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Asignación Masiva de Productos
+            </DialogTitle>
+            <DialogDescription>
+              Selecciona productos y asígnalos a un grupo. Los productos con punto verde ya están agrupados.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-hidden flex flex-col space-y-4">
+            {/* Filtros */}
+            <div className="flex flex-wrap gap-3">
+              <div className="flex-1 min-w-[200px]">
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar productos..."
+                    value={bulkProductSearch}
+                    onChange={(e) => setBulkProductSearch(e.target.value)}
+                    className="pl-10"
+                    data-testid="input-bulk-search"
+                  />
+                </div>
+              </div>
+              
+              <Select value={bulkSelectedUnidad} onValueChange={setBulkSelectedUnidad}>
+                <SelectTrigger className="w-[180px]" data-testid="select-bulk-unidad">
+                  <SelectValue placeholder="Todos los envases" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los envases</SelectItem>
+                  {bulkUniqueUnidades.map(unidad => (
+                    <SelectItem key={unidad} value={unidad}>
+                      {unidad}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Button
+                variant={bulkShowOnlyUngrouped ? "default" : "outline"}
+                size="sm"
+                onClick={() => setBulkShowOnlyUngrouped(!bulkShowOnlyUngrouped)}
+                className="h-10"
+                data-testid="button-toggle-ungrouped"
+              >
+                <span className="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2" />
+                Solo sin agrupar
+              </Button>
+            </div>
+
+            {/* Stats bar */}
+            <div className="flex items-center justify-between text-sm bg-muted/50 px-4 py-2 rounded-lg">
+              <div className="flex items-center gap-4">
+                <span>
+                  <span className="font-medium">{filteredBulkProducts.length}</span> productos mostrados
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
+                  <span>{allProducts.filter(p => p.groupId).length} agrupados</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full bg-gray-400" />
+                  <span>{allProducts.filter(p => !p.groupId).length} sin agrupar</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">
+                  {bulkSelectedProducts.size} seleccionados
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => toggleSelectAllFiltered(filteredBulkProducts)}
+                  data-testid="button-select-all"
+                >
+                  {filteredBulkProducts.every(p => bulkSelectedProducts.has(p.id)) 
+                    ? "Deseleccionar todos" 
+                    : "Seleccionar todos"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Lista de productos */}
+            <div className="flex-1 overflow-y-auto border rounded-lg">
+              {loadingAllProducts ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : filteredBulkProducts.length === 0 ? (
+                <div className="text-center text-muted-foreground py-12">
+                  No se encontraron productos
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {filteredBulkProducts.map(product => {
+                    const isSelected = bulkSelectedProducts.has(product.id);
+                    const isGrouped = !!product.groupId;
+                    return (
+                      <div
+                        key={product.id}
+                        className={`flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors cursor-pointer ${
+                          isSelected ? 'bg-primary/10' : ''
+                        }`}
+                        onClick={() => toggleBulkProductSelection(product.id)}
+                        data-testid={`bulk-product-row-${product.id}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleBulkProductSelection(product.id)}
+                          className="h-4 w-4"
+                          onClick={(e) => e.stopPropagation()}
+                          data-testid={`checkbox-bulk-product-${product.id}`}
+                        />
+                        
+                        {/* Indicador de estado */}
+                        <div className="flex-shrink-0" title={isGrouped ? "Agrupado" : "Sin agrupar"}>
+                          <span 
+                            className={`inline-block w-3 h-3 rounded-full ${
+                              isGrouped ? 'bg-green-500' : 'bg-gray-400'
+                            }`}
+                          />
+                        </div>
+                        
+                        {/* Info del producto */}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">{product.producto}</div>
+                          <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
+                            <span>{product.codigo}</span>
+                            {product.unidad && (
+                              <>
+                                <span className="text-muted-foreground/50">•</span>
+                                <span>{product.unidad}</span>
+                              </>
+                            )}
+                            {product.color && (
+                              <>
+                                <span className="text-muted-foreground/50">•</span>
+                                <Palette className="h-3 w-3" />
+                                <span>{product.color}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Precio */}
+                        <div className="text-right flex-shrink-0">
+                          <div className="font-medium">
+                            ${new Intl.NumberFormat('es-CL').format(product.precio)}
+                          </div>
+                        </div>
+                        
+                        {/* Grupo actual si tiene */}
+                        {isGrouped && (
+                          <Badge variant="outline" className="flex-shrink-0 text-xs">
+                            {groupsWithVariations.find(g => g.id === product.groupId)?.nombre?.substring(0, 20) || 'Grupo'}
+                          </Badge>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer con selección de grupo y botón de asignar */}
+            <div className="border-t pt-4 space-y-3">
+              <div className="flex items-center gap-4">
+                <label className="text-sm font-medium whitespace-nowrap">Asignar al grupo:</label>
+                <Select value={bulkTargetGroupId} onValueChange={setBulkTargetGroupId}>
+                  <SelectTrigger className="flex-1" data-testid="select-bulk-target-group">
+                    <SelectValue placeholder="Selecciona un grupo destino..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groupsWithVariations.map(group => (
+                      <SelectItem key={group.id} value={group.id} data-testid={`select-item-bulk-group-${group.id}`}>
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-muted-foreground" />
+                          <span>{group.nombre}</span>
+                          <Badge variant="secondary" className="ml-1 text-xs">
+                            {group.variationCount || 0}
+                          </Badge>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowBulkAssignDialog(false)}
+                  data-testid="button-cancel-bulk-assign"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleBulkAssign}
+                  disabled={bulkSelectedProducts.size === 0 || !bulkTargetGroupId || bulkAssignMutation.isPending}
+                  data-testid="button-confirm-bulk-assign"
+                >
+                  {bulkAssignMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Asignando...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Asignar {bulkSelectedProducts.size} producto(s)
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </DialogContent>
