@@ -8,14 +8,16 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Search, Users, CreditCard, TrendingUp, MapPin, Phone, Mail, Upload, FileDown, Eye, X, User, Building2, Calendar, Filter, RotateCcw, Plus, ShoppingCart } from "lucide-react";
+import { Loader2, Search, Users, CreditCard, TrendingUp, MapPin, Phone, Mail, Upload, FileDown, Eye, X, User, Building2, Calendar, Filter, RotateCcw, Plus, ShoppingCart, Gift } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { apiRequest } from "@/lib/queryClient";
+import PanoramicaMarket from "@/components/clients/panoramica-market";
 
 interface Client {
   id: string;
@@ -82,6 +84,7 @@ export default function Clients() {
   
   const [filterBySales, setFilterBySales] = useState(false);
   const [salesPeriod, setSalesPeriod] = useState<string>("today");
+  const [activeTab, setActiveTab] = useState<string>("clientes");
   
   const isMobile = useIsMobile();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -468,90 +471,116 @@ export default function Clients() {
             </p>
           </div>
           
-          {/* Desktop Actions */}
-          <div className="hidden sm:flex items-center gap-2 ml-4">
+          {/* Desktop Actions - Only show on clientes tab */}
+          {activeTab === "clientes" && (
+            <div className="hidden sm:flex items-center gap-2 ml-4">
+              <Button 
+                variant="outline" 
+                onClick={downloadTemplate} 
+                data-testid="button-download-template" 
+                size="sm"
+                className="rounded-xl border-gray-200 shadow-sm"
+              >
+                <FileDown className="h-4 w-4 mr-2" />
+                Plantilla
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                onChange={handleFileChange}
+                className="hidden"
+                data-testid="input-file-clients"
+              />
+              <Button 
+                onClick={() => fileInputRef.current?.click()}
+                disabled={previewMutation.isPending || isImporting}
+                data-testid="button-import-clients"
+                size="sm"
+                className="rounded-xl shadow-sm"
+              >
+                {previewMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4 mr-2" />
+                )}
+                Importar
+              </Button>
+              <Button 
+                onClick={() => setIsNewClientModalOpen(true)}
+                data-testid="button-new-client"
+                size="sm"
+                className="rounded-xl shadow-sm bg-green-600 hover:bg-green-700 text-white"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Nuevo Cliente
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Tabs Navigation */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="clientes" className="flex items-center gap-2" data-testid="tab-clientes">
+              <Users className="h-4 w-4" />
+              Clientes
+            </TabsTrigger>
+            <TabsTrigger value="market" className="flex items-center gap-2" data-testid="tab-panoramica-market">
+              <Gift className="h-4 w-4" />
+              Panoramica Market
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {/* Mobile Actions - Only show on clientes tab */}
+        {activeTab === "clientes" && (
+          <div className="flex sm:hidden gap-2 mb-4">
             <Button 
               variant="outline" 
               onClick={downloadTemplate} 
-              data-testid="button-download-template" 
+              data-testid="button-download-template-mobile" 
               size="sm"
-              className="rounded-xl border-gray-200 shadow-sm"
+              className="flex-1 rounded-xl border-gray-200 shadow-sm text-xs"
             >
-              <FileDown className="h-4 w-4 mr-2" />
+              <FileDown className="h-3.5 w-3.5 mr-1.5" />
               Plantilla
             </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv"
-              onChange={handleFileChange}
-              className="hidden"
-              data-testid="input-file-clients"
-            />
             <Button 
               onClick={() => fileInputRef.current?.click()}
               disabled={previewMutation.isPending || isImporting}
-              data-testid="button-import-clients"
+              data-testid="button-import-clients-mobile"
               size="sm"
-              className="rounded-xl shadow-sm"
+              className="flex-1 rounded-xl shadow-sm text-xs"
             >
               {previewMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
               ) : (
-                <Upload className="h-4 w-4 mr-2" />
+                <Upload className="h-3.5 w-3.5 mr-1.5" />
               )}
               Importar
             </Button>
             <Button 
               onClick={() => setIsNewClientModalOpen(true)}
-              data-testid="button-new-client"
+              data-testid="button-new-client-mobile"
               size="sm"
-              className="rounded-xl shadow-sm bg-green-600 hover:bg-green-700 text-white"
+              className="flex-1 rounded-xl shadow-sm text-xs bg-green-600 hover:bg-green-700 text-white"
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Nuevo Cliente
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Nuevo
             </Button>
           </div>
-        </div>
-
-        {/* Mobile Actions */}
-        <div className="flex sm:hidden gap-2 mb-4">
-          <Button 
-            variant="outline" 
-            onClick={downloadTemplate} 
-            data-testid="button-download-template-mobile" 
-            size="sm"
-            className="flex-1 rounded-xl border-gray-200 shadow-sm text-xs"
-          >
-            <FileDown className="h-3.5 w-3.5 mr-1.5" />
-            Plantilla
-          </Button>
-          <Button 
-            onClick={() => fileInputRef.current?.click()}
-            disabled={previewMutation.isPending || isImporting}
-            data-testid="button-import-clients-mobile"
-            size="sm"
-            className="flex-1 rounded-xl shadow-sm text-xs"
-          >
-            {previewMutation.isPending ? (
-              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <Upload className="h-3.5 w-3.5 mr-1.5" />
-            )}
-            Importar
-          </Button>
-          <Button 
-            onClick={() => setIsNewClientModalOpen(true)}
-            data-testid="button-new-client-mobile"
-            size="sm"
-            className="flex-1 rounded-xl shadow-sm text-xs bg-green-600 hover:bg-green-700 text-white"
-          >
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
-            Nuevo
-          </Button>
-        </div>
+        )}
       </div>
 
+      {/* Panoramica Market Tab Content */}
+      {activeTab === "market" && (
+        <PanoramicaMarket />
+      )}
+
+      {/* Clientes Tab Content */}
+      {activeTab === "clientes" && (
+        <>
       {/* Import Preview */}
       {showImportPreview && previewData && (
         <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800">
@@ -985,6 +1014,8 @@ export default function Clients() {
             Siguiente
           </Button>
         </div>
+      )}
+        </>
       )}
 
       {/* Client Details Modal */}
