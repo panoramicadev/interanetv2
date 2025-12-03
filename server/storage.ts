@@ -7197,6 +7197,8 @@ export class DatabaseStorage implements IStorage {
     groupId?: string | null;
     variantLabel?: string | null;
     isMainVariant?: boolean;
+    productFamily?: string | null;
+    color?: string | null;
   }>> {
     // Use direct imports instead of dynamic imports
     const { priceList, ecommerceProducts } = await import('@shared/schema');
@@ -7220,6 +7222,8 @@ export class DatabaseStorage implements IStorage {
         groupId: ecommerceProducts.groupId,
         variantLabel: ecommerceProducts.variantLabel,
         isMainVariant: ecommerceProducts.isMainVariant,
+        productFamily: ecommerceProducts.productFamily,
+        color: ecommerceProducts.color,
       })
       .from(priceList)
       .leftJoin(ecommerceProducts, eq(priceList.id, ecommerceProducts.priceListId));
@@ -7291,7 +7295,124 @@ export class DatabaseStorage implements IStorage {
       groupId: row.groupId || null,
       variantLabel: row.variantLabel || null,
       isMainVariant: row.isMainVariant ?? false,
+      productFamily: row.productFamily || null,
+      color: row.color || null,
     }));
+  }
+
+  async getProductGroupsWithVariations(): Promise<Array<{
+    id: string;
+    nombre: string;
+    descripcion?: string;
+    imagenPrincipal?: string;
+    categoria?: string;
+    activo: boolean;
+    variationCount: number;
+    variations: Array<{
+      id: string;
+      priceListId: string;
+      codigo: string;
+      producto: string;
+      unidad?: string;
+      color?: string;
+      precio: number;
+      imagenUrl?: string;
+      activo: boolean;
+      isMainVariant: boolean;
+    }>;
+  }>> {
+    const { ecommerceProductGroups, ecommerceProducts, priceList } = await import('@shared/schema');
+    
+    const groups = await db
+      .select()
+      .from(ecommerceProductGroups)
+      .orderBy(ecommerceProductGroups.nombre);
+    
+    const variations = await db
+      .select({
+        id: ecommerceProducts.id,
+        priceListId: ecommerceProducts.priceListId,
+        groupId: ecommerceProducts.groupId,
+        color: ecommerceProducts.color,
+        imagenUrl: ecommerceProducts.imagenUrl,
+        activo: ecommerceProducts.activo,
+        isMainVariant: ecommerceProducts.isMainVariant,
+        precioEcommerce: ecommerceProducts.precioEcommerce,
+        codigo: priceList.codigo,
+        producto: priceList.producto,
+        unidad: priceList.unidad,
+        precioLista: priceList.canalDigital,
+      })
+      .from(ecommerceProducts)
+      .innerJoin(priceList, eq(ecommerceProducts.priceListId, priceList.id))
+      .where(isNotNull(ecommerceProducts.groupId))
+      .orderBy(ecommerceProducts.color, priceList.unidad);
+    
+    const variationsByGroup = new Map<string, typeof variations>();
+    for (const v of variations) {
+      const groupVariations = variationsByGroup.get(v.groupId!) || [];
+      groupVariations.push(v);
+      variationsByGroup.set(v.groupId!, groupVariations);
+    }
+    
+    return groups.map(group => ({
+      id: group.id,
+      nombre: group.nombre,
+      descripcion: group.descripcion || undefined,
+      imagenPrincipal: group.imagenPrincipal || undefined,
+      categoria: group.categoria || undefined,
+      activo: group.activo ?? true,
+      variationCount: variationsByGroup.get(group.id)?.length || 0,
+      variations: (variationsByGroup.get(group.id) || []).map(v => ({
+        id: v.id,
+        priceListId: v.priceListId,
+        codigo: v.codigo || '',
+        producto: v.producto || '',
+        unidad: v.unidad || undefined,
+        color: v.color || undefined,
+        precio: Number(v.precioEcommerce) || Number(v.precioLista) || 0,
+        imagenUrl: v.imagenUrl || undefined,
+        activo: v.activo ?? true,
+        isMainVariant: v.isMainVariant ?? false,
+      })),
+    }));
+  }
+
+  async updateProductGroup(id: string, updates: {
+    nombre?: string;
+    descripcion?: string;
+    imagenPrincipal?: string;
+    categoria?: string;
+    activo?: boolean;
+  }): Promise<{ id: string; nombre: string }> {
+    const { ecommerceProductGroups } = await import('@shared/schema');
+    
+    const [updated] = await db
+      .update(ecommerceProductGroups)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(ecommerceProductGroups.id, id))
+      .returning();
+    
+    if (!updated) {
+      throw new Error('Product group not found');
+    }
+    
+    return { id: updated.id, nombre: updated.nombre };
+  }
+
+  async reassignVariationToGroup(variationId: string, newGroupId: string | null): Promise<void> {
+    const { ecommerceProducts } = await import('@shared/schema');
+    
+    await db
+      .update(ecommerceProducts)
+      .set({
+        groupId: newGroupId,
+        updatedAt: new Date(),
+      })
+      .where(eq(ecommerceProducts.id, variationId));
   }
 
   async getEcommerceAdminCategories(): Promise<Array<{
@@ -7380,6 +7501,8 @@ export class DatabaseStorage implements IStorage {
     groupId?: string | null;
     variantLabel?: string | null;
     isMainVariant?: boolean;
+    productFamily?: string | null;
+    color?: string | null;
   }): Promise<{
     id: string;
     codigo: string;

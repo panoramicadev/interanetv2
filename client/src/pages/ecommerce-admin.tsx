@@ -44,6 +44,8 @@ interface ProductoEcommerce {
   groupId?: string | null; // ID del grupo de producto
   variantLabel?: string | null; // Etiqueta de la variante (ej: "Blanco", "Gris")
   isMainVariant?: boolean; // Si es la variante principal del grupo
+  productFamily?: string | null; // Familia del producto (ej: "ANTICORROSIVO ESTRUCTURAL")
+  color?: string | null; // Color del producto (ej: "BLANCO", "GRIS")
 }
 
 interface CategoriaEcommerce {
@@ -123,6 +125,8 @@ export default function EcommerceAdmin() {
   const [productGroupId, setProductGroupId] = useState<string>("");
   const [productVariantLabel, setProductVariantLabel] = useState("");
   const [productIsMainVariant, setProductIsMainVariant] = useState(false);
+  const [productFamily, setProductFamily] = useState("");
+  const [productColor, setProductColor] = useState("");
   
   // Estados para nueva categoría
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -200,6 +204,17 @@ export default function EcommerceAdmin() {
       return response.json();
     }
   });
+
+  // Obtener familias y colores únicos de los productos existentes
+  const uniqueFamilies = React.useMemo(() => {
+    const families = new Set(productos.map(p => p.productFamily).filter(Boolean) as string[]);
+    return Array.from(families).sort();
+  }, [productos]);
+
+  const uniqueColors = React.useMemo(() => {
+    const colors = new Set(productos.map(p => p.color).filter(Boolean) as string[]);
+    return Array.from(colors).sort();
+  }, [productos]);
 
   // Query para obtener vendedores (solo admin)
   const { data: salespeople = [], isLoading: isLoadingSalespeople } = useQuery<SalespersonUser[]>({
@@ -575,6 +590,8 @@ export default function EcommerceAdmin() {
     setProductGroupId(product.groupId || "");
     setProductVariantLabel(product.variantLabel || "");
     setProductIsMainVariant(product.isMainVariant || false);
+    setProductFamily(product.productFamily || "");
+    setProductColor(product.color || "");
     setShowProductDialog(true);
   };
 
@@ -588,6 +605,8 @@ export default function EcommerceAdmin() {
       imagenUrl: productImagen,
       precio: parseFloat(productPrecio),
       activo: productActivo,
+      productFamily: productFamily.trim() || null,
+      color: productColor.trim() || null,
     };
 
     if (productGroupId) {
@@ -1348,6 +1367,56 @@ export default function EcommerceAdmin() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              
+              <div className="border-t pt-4">
+                <h3 className="font-medium mb-3 flex items-center gap-2">
+                  <Layers className="h-4 w-4" />
+                  Clasificación para Catálogo Público
+                </h3>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Estos campos determinan cómo se agrupa el producto en el catálogo público de vendedores.
+                </p>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="productFamily">Familia de Producto</Label>
+                    <div className="relative">
+                      <Input
+                        id="productFamily"
+                        value={productFamily}
+                        onChange={(e) => setProductFamily(e.target.value.toUpperCase())}
+                        placeholder="Ej: ANTICORROSIVO ESTRUCTURAL"
+                        list="family-suggestions"
+                        data-testid="input-product-family"
+                      />
+                      <datalist id="family-suggestions">
+                        {uniqueFamilies.map(family => (
+                          <option key={family} value={family} />
+                        ))}
+                      </datalist>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="productColor">Color</Label>
+                    <div className="relative">
+                      <Input
+                        id="productColor"
+                        value={productColor}
+                        onChange={(e) => setProductColor(e.target.value.toUpperCase())}
+                        placeholder="Ej: BLANCO, GRIS"
+                        list="color-suggestions"
+                        data-testid="input-product-color"
+                      />
+                      <datalist id="color-suggestions">
+                        {uniqueColors.map(color => (
+                          <option key={color} value={color} />
+                        ))}
+                      </datalist>
+                    </div>
+                  </div>
+                </div>
               </div>
               
               <div>
