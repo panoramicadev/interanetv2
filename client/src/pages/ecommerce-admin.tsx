@@ -1021,7 +1021,7 @@ export default function EcommerceAdmin() {
             Importador de Imágenes
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Sube un archivo ZIP con imágenes o imágenes individuales. Los archivos deben llamarse igual que el código del producto (ej: PCA106BLANC02.png)
+            Sube imágenes de productos. Los archivos deben llamarse igual que el código del producto (ej: PCA106BLANC02.png)
           </p>
         </CardHeader>
         <CardContent>
@@ -1060,8 +1060,8 @@ export default function EcommerceAdmin() {
                   {uploadStatus === 'processing' && <Image className="h-5 w-5 animate-spin" />}
                   {uploadStatus === 'completed' && <CheckCircle className="h-5 w-5 text-green-600" />}
                   <h4 className="font-medium">
-                    {uploadStatus === 'uploading' && 'Subiendo archivo ZIP...'}
-                    {uploadStatus === 'scanning' && 'Escaneando archivo ZIP...'}
+                    {uploadStatus === 'uploading' && 'Subiendo imágenes...'}
+                    {uploadStatus === 'scanning' && 'Analizando imágenes...'}
                     {uploadStatus === 'processing' && 'Procesando y subiendo imágenes...'}
                     {uploadStatus === 'completed' && 'Importación completada'}
                   </h4>
@@ -1129,9 +1129,9 @@ export default function EcommerceAdmin() {
                 <div className="space-y-3">
                   <Upload className="h-12 w-12 text-muted-foreground mx-auto" />
                   <div>
-                    <p className="text-lg font-medium">Arrastra archivo ZIP o imágenes aquí</p>
+                    <p className="text-lg font-medium">Arrastra imágenes aquí</p>
                     <p className="text-sm text-muted-foreground">
-                      ZIP (max 100MB) o imágenes JPG/PNG/GIF/WEBP (max 10MB)
+                      Imágenes JPG/PNG/GIF/WEBP (max 10MB)
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
                       Las imágenes se asocian automáticamente por nombre de archivo = SKU
@@ -1139,8 +1139,8 @@ export default function EcommerceAdmin() {
                   </div>
                   <input
                     type="file"
-                    id="zip-upload"
-                    accept=".zip,image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                    id="image-upload"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
                     multiple
                     className="hidden"
                     onChange={(e) => {
@@ -1153,10 +1153,10 @@ export default function EcommerceAdmin() {
                   />
                   <Button
                     variant="outline"
-                    onClick={() => document.getElementById('zip-upload')?.click()}
-                    data-testid="button-select-zip"
+                    onClick={() => document.getElementById('image-upload')?.click()}
+                    data-testid="button-select-images"
                   >
-                    Seleccionar Archivo
+                    Seleccionar Imágenes
                   </Button>
                 </div>
               </div>
