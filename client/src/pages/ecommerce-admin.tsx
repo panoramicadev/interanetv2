@@ -170,9 +170,13 @@ export default function EcommerceAdmin() {
   // Query para obtener productos de ecommerce (basados en lista de precios)
   // El filtrado por búsqueda se hace localmente para evitar recargas por cada letra
   const { data: productos = [], isLoading } = useQuery<ProductoEcommerce[]>({
-    queryKey: ['/api/ecommerce/admin/productos'],
+    queryKey: ['/api/ecommerce/admin/productos', { categoria: selectedCategory, activo: selectedStatus }],
     queryFn: async () => {
-      const response = await apiRequest('/api/ecommerce/admin/productos');
+      const params = new URLSearchParams();
+      if (selectedCategory !== 'all') params.append('categoria', selectedCategory);
+      if (selectedStatus !== 'all') params.append('activo', selectedStatus);
+      
+      const response = await apiRequest(`/api/ecommerce/admin/productos?${params.toString()}`);
       return response.json();
     }
   });
