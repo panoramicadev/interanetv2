@@ -4540,6 +4540,19 @@ export function registerRoutes(app: Express): Server {
     res.json({ message: 'Producto removido del grupo correctamente' });
   }));
 
+  // Reassign variation to different group
+  app.post('/api/ecommerce/admin/variaciones/:id/reasignar', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { id: variationId } = req.params;
+    const { newGroupId } = req.body;
+    
+    if (!variationId) {
+      return res.status(400).json({ message: 'variationId es requerido' });
+    }
+    
+    await storage.reassignVariationToGroup(variationId, newGroupId || null);
+    res.json({ message: newGroupId ? 'Variación reasignada correctamente' : 'Variación desagrupada correctamente' });
+  }));
+
   // ===================== End eCommerce Admin API Routes =====================
 
   // ⚠️ DEPRECATED - Preview CSV endpoint (legacy backup system)
