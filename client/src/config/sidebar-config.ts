@@ -69,7 +69,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/facturas",
-      label: "Facturas",
+      label: "Finanzas",
       icon: Receipt,
     },
     {
@@ -383,7 +383,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/facturas",
-      label: "Facturas",
+      label: "Finanzas",
       icon: Receipt,
     },
     {
@@ -753,7 +753,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/facturas",
-      label: "Facturas",
+      label: "Finanzas",
       icon: Receipt,
     },
     {
