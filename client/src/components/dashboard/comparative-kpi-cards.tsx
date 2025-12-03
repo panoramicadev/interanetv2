@@ -12,21 +12,23 @@ interface ComparativeKPICardsProps {
   periods: Array<{ period: string; label: string; filterType: "day" | "month" | "year" }>;
   segment?: string;
   salesperson?: string;
+  client?: string;
 }
 
-export default function ComparativeKPICards({ periods, segment, salesperson }: ComparativeKPICardsProps) {
+export default function ComparativeKPICards({ periods, segment, salesperson, client }: ComparativeKPICardsProps) {
   // Fetch metrics for all periods using useQueries to respect Rules of Hooks
   const metricsQueries = useQueries({
     queries: periods.map(({ period, filterType }) => ({
       queryKey: [`/api/sales/metrics?period=${period}&filterType=${filterType}${
         segment ? `&segment=${encodeURIComponent(segment)}` : ''
-      }${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+      }${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}${client ? `&client=${encodeURIComponent(client)}` : ''}`],
       queryFn: async () => {
         const params = new URLSearchParams();
         params.append('period', period);
         params.append('filterType', filterType);
         if (segment) params.append('segment', segment);
         if (salesperson) params.append('salesperson', salesperson);
+        if (client) params.append('client', client);
         
         const res = await fetch(`/api/sales/metrics?${params}`, { credentials: "include" });
         if (!res.ok) throw new Error('Failed to fetch');
