@@ -6,7 +6,7 @@ import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
 import { executeNVVETL } from "./etl-nvv";
 import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
-import { runProductionMigrations, migrateProductImageUrls, uploadLocalImagesToObjectStorage } from "./migrations";
+import { runProductionMigrations, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor } from "./migrations";
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -100,6 +100,16 @@ app.use((req, res, next) => {
       }
     } catch (error: any) {
       console.error('⚠️ Error al sincronizar imágenes a Object Storage:', error.message);
+    }
+    
+    // Poblar campos de familia y color de productos
+    try {
+      const familyResult = await populateProductFamilyAndColor();
+      if (familyResult.updated > 0) {
+        log(`🏷️ Productos clasificados: ${familyResult.updated} actualizados`);
+      }
+    } catch (error: any) {
+      console.error('⚠️ Error al clasificar productos:', error.message);
     }
     
     // Inicializar catálogos públicos para todos los vendedores
