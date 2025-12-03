@@ -1926,6 +1926,8 @@ export const ecommerceProducts = pgTable("ecommerce_products", {
   variantLabel: varchar("variant_label"), // Etiqueta de variación (ej: "Color: Rojo")
   isMainVariant: boolean("is_main_variant").default(false), // Si es la variante principal del grupo
   orden: integer("orden").default(0), // Orden de visualización
+  productFamily: varchar("product_family"), // Familia de producto sin color (ej: "ANTICORROSIVO ESTRUCTURAL")
+  color: varchar("color"), // Color del producto (ej: "BLANCO", "GRIS")
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -1968,6 +1970,8 @@ export const insertEcommerceProductSchema = createInsertSchema(ecommerceProducts
   imagenUrl: z.string().url("URL de imagen inválida").optional().or(z.literal("")),
   variantLabel: z.string().optional(),
   isMainVariant: z.boolean().optional(),
+  productFamily: z.string().optional(),
+  color: z.string().optional(),
 }).omit({
   id: true,
   createdAt: true,

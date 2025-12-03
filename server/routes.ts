@@ -3806,6 +3806,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/public/catalogos/:slug', async (req: any, res) => {
     try {
       const { slug } = req.params;
+      const { grouped } = req.query;
       
       // Get salesperson by slug
       const salesperson = await storage.getPublicSalespersonBySlug(slug);
@@ -3814,16 +3815,30 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ message: 'Catálogo no encontrado' });
       }
       
-      // Get active ecommerce products
-      const products = await storage.getPublicCatalogProducts();
+      // Get active ecommerce products (grouped or flat)
+      const products = grouped === 'true' 
+        ? await storage.getGroupedCatalogProducts()
+        : await storage.getPublicCatalogProducts();
       
       res.json({
         salesperson,
-        products
+        products,
+        isGrouped: grouped === 'true'
       });
     } catch (error) {
       console.error('Error fetching public catalog:', error);
       res.status(500).json({ message: 'Error al cargar el catálogo' });
+    }
+  });
+  
+  // Get grouped products for public catalog
+  app.get('/api/public/products/grouped', async (req: any, res) => {
+    try {
+      const groupedProducts = await storage.getGroupedCatalogProducts();
+      res.json(groupedProducts);
+    } catch (error) {
+      console.error('Error fetching grouped products:', error);
+      res.status(500).json({ message: 'Error al cargar productos agrupados' });
     }
   });
   

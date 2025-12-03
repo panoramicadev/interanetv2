@@ -5,7 +5,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -23,12 +22,18 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { 
-  User, 
   Phone, 
   Mail, 
   ShoppingCart, 
@@ -40,20 +45,32 @@ import {
   Package,
   CheckCircle2,
   Loader2,
-  Building
+  Building,
+  Palette,
+  Layers
 } from 'lucide-react';
 import { SiWhatsapp } from 'react-icons/si';
 import { apiRequest } from '@/lib/queryClient';
 
-type CatalogProduct = {
+type ProductFormat = {
   id: string;
   codigo: string;
-  producto: string;
-  unidad?: string | null;
+  unidad: string;
   precio: number;
-  categoria?: string | null;
-  descripcion?: string | null;
-  imagenUrl?: string | null;
+  imagenUrl: string | null;
+};
+
+type ProductColor = {
+  color: string;
+  formats: ProductFormat[];
+};
+
+type ProductFamily = {
+  family: string;
+  imagenUrl: string | null;
+  categoria: string | null;
+  descripcion: string | null;
+  colors: ProductColor[];
 };
 
 type SalespersonProfile = {
@@ -67,7 +84,15 @@ type SalespersonProfile = {
   catalogEnabled: boolean;
 };
 
-type CartItem = CatalogProduct & { quantity: number };
+type CartItem = {
+  id: string;
+  codigo: string;
+  producto: string;
+  unidad: string;
+  precio: number;
+  imagenUrl: string | null;
+  quantity: number;
+};
 
 const quoteFormSchema = z.object({
   visitorName: z.string().min(1, 'Nombre es requerido'),
@@ -88,8 +113,8 @@ export default function CatalogoPublico() {
   const [isQuoteDialogOpen, setIsQuoteDialogOpen] = useState(false);
   const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
+  const [selectedColors, setSelectedColors] = useState<Record<string, string>>({});
+  const [selectedFormats, setSelectedFormats] = useState<Record<string, string>>({});
   const [flyingProduct, setFlyingProduct] = useState<{ 
     id: string; 
     imagenUrl: string | null; 
@@ -111,9 +136,15 @@ export default function CatalogoPublico() {
 
   const { data, isLoading, error } = useQuery<{
     salesperson: SalespersonProfile;
-    products: CatalogProduct[];
+    products: ProductFamily[];
+    isGrouped: boolean;
   }>({
-    queryKey: ['/api/public/catalogos', slug],
+    queryKey: ['/api/public/catalogos', slug, 'grouped'],
+    queryFn: async () => {
+      const response = await fetch(`/api/public/catalogos/${slug}?grouped=true`);
+      if (!response.ok) throw new Error('Failed to fetch catalog');
+      return response.json();
+    },
     enabled: !!slug,
   });
 
@@ -150,35 +181,29 @@ export default function CatalogoPublico() {
     },
   });
 
-  const categories = useMemo(() => {
-    if (!data?.products) return [];
-    const cats = new Set(data.products.map(p => p.categoria).filter(Boolean));
-    return Array.from(cats) as string[];
-  }, [data?.products]);
-
-  const formats = useMemo(() => {
-    if (!data?.products) return [];
-    const fmts = new Set(data.products.map(p => p.unidad).filter(Boolean));
-    return Array.from(fmts) as string[];
-  }, [data?.products]);
-
-  const filteredProducts = useMemo(() => {
+  const filteredFamilies = useMemo(() => {
     if (!data?.products) return [];
     
-    return data.products.filter(product => {
-      const matchesSearch = !searchTerm || 
-        product.producto.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.codigo.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesCategory = !selectedCategory || product.categoria === selectedCategory;
-      
-      const matchesFormat = !selectedFormat || product.unidad === selectedFormat;
-      
-      return matchesSearch && matchesCategory && matchesFormat;
-    });
-  }, [data?.products, searchTerm, selectedCategory, selectedFormat]);
+    if (!searchTerm) return data.products;
+    
+    return data.products.filter(family => 
+      family.family.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [data?.products, searchTerm]);
 
-  const addToCart = useCallback((product: CatalogProduct, event?: React.MouseEvent) => {
+  const getSelectedProduct = useCallback((family: ProductFamily): ProductFormat | null => {
+    const selectedColor = selectedColors[family.family];
+    const selectedFormat = selectedFormats[family.family];
+    
+    if (!selectedColor || !selectedFormat) return null;
+    
+    const colorData = family.colors.find(c => c.color === selectedColor);
+    if (!colorData) return null;
+    
+    return colorData.formats.find(f => f.unidad === selectedFormat) || null;
+  }, [selectedColors, selectedFormats]);
+
+  const addToCart = useCallback((family: ProductFamily, product: ProductFormat, event?: React.MouseEvent) => {
     if (event && cartButtonRef.current) {
       const buttonRect = event.currentTarget.getBoundingClientRect();
       const startX = buttonRect.left + buttonRect.width / 2;
@@ -186,13 +211,16 @@ export default function CatalogoPublico() {
       
       setFlyingProduct({
         id: product.id,
-        imagenUrl: product.imagenUrl || null,
+        imagenUrl: product.imagenUrl,
         startX,
         startY,
       });
       
       setTimeout(() => setFlyingProduct(null), 600);
     }
+    
+    const selectedColor = selectedColors[family.family] || '';
+    const productName = `${family.family} ${selectedColor}`.trim();
     
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
@@ -203,14 +231,22 @@ export default function CatalogoPublico() {
             : item
         );
       }
-      return [...prev, { ...product, quantity: 1 }];
+      return [...prev, { 
+        id: product.id,
+        codigo: product.codigo,
+        producto: productName,
+        unidad: product.unidad,
+        precio: product.precio,
+        imagenUrl: product.imagenUrl,
+        quantity: 1 
+      }];
     });
     
     toast({
       title: 'Producto agregado',
-      description: `${product.producto} agregado al carrito`,
+      description: `${productName} - ${product.unidad} agregado al carrito`,
     });
-  }, [toast]);
+  }, [selectedColors, toast]);
 
   const removeFromCart = (productId: string) => {
     setCart(prev => prev.filter(item => item.id !== productId));
@@ -237,13 +273,34 @@ export default function CatalogoPublico() {
     return cart.reduce((sum, item) => sum + item.quantity, 0);
   }, [cart]);
 
-  const onSubmitQuote = (data: QuoteFormData) => {
-    submitQuoteMutation.mutate(data);
+  const onSubmitQuote = (formData: QuoteFormData) => {
+    submitQuoteMutation.mutate(formData);
   };
 
   const getWhatsAppLink = (phone: string) => {
     const cleanPhone = phone.replace(/\D/g, '');
     return `https://wa.me/${cleanPhone}`;
+  };
+
+  const handleColorChange = (familyName: string, color: string) => {
+    setSelectedColors(prev => ({ ...prev, [familyName]: color }));
+    setSelectedFormats(prev => {
+      const newFormats = { ...prev };
+      delete newFormats[familyName];
+      return newFormats;
+    });
+  };
+
+  const handleFormatChange = (familyName: string, format: string) => {
+    setSelectedFormats(prev => ({ ...prev, [familyName]: format }));
+  };
+
+  const getAvailableFormats = (family: ProductFamily): ProductFormat[] => {
+    const selectedColor = selectedColors[family.family];
+    if (!selectedColor) return [];
+    
+    const colorData = family.colors.find(c => c.color === selectedColor);
+    return colorData?.formats || [];
   };
 
   if (isLoading) {
@@ -279,16 +336,13 @@ export default function CatalogoPublico() {
     <div className="min-h-screen bg-slate-50">
       {/* Hero Banner */}
       <header className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
-        {/* Decorative elements */}
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-1/2 -right-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl"></div>
           <div className="absolute -bottom-1/2 -left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
-          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-500/5 via-transparent to-transparent"></div>
         </div>
         
         <div className="relative container mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
-            {/* Company Logo */}
             <div className="relative flex-shrink-0">
               <img
                 src="/panoramica-icon.png"
@@ -298,22 +352,18 @@ export default function CatalogoPublico() {
               />
             </div>
             
-            {/* Info Section */}
             <div className="flex-1 min-w-0 overflow-hidden">
-              {/* Name */}
               <h1 className="text-base md:text-xl lg:text-2xl font-bold text-white truncate" data-testid="salesperson-name">
                 {salesperson.salespersonName}
               </h1>
               
-              {/* Bio - hidden on mobile, shown on larger screens */}
               {salesperson.bio && (
                 <p className="hidden md:block text-sm text-slate-300 mt-1 line-clamp-2" data-testid="salesperson-bio">
                   {salesperson.bio}
                 </p>
               )}
               
-              {/* Contact Buttons */}
-              <div className="flex gap-1 mt-2 overflow-x-auto pb-1 hide-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
+              <div className="flex gap-1 mt-2 overflow-x-auto pb-1 hide-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 {salesperson.publicPhone && (
                   <a 
                     href={getWhatsAppLink(salesperson.publicPhone)}
@@ -351,7 +401,6 @@ export default function CatalogoPublico() {
               </div>
             </div>
             
-            {/* Cart Button - fixed width to prevent layout shift */}
             <div className="flex-shrink-0 ml-2 relative">
               <Button
                 ref={cartButtonRef}
@@ -388,11 +437,7 @@ export default function CatalogoPublico() {
         >
           <div className="w-12 h-12 rounded-lg bg-white shadow-xl border-2 border-amber-400 overflow-hidden transform -translate-x-1/2 -translate-y-1/2">
             {flyingProduct.imagenUrl ? (
-              <img 
-                src={flyingProduct.imagenUrl} 
-                alt="" 
-                className="w-full h-full object-cover"
-              />
+              <img src={flyingProduct.imagenUrl} alt="" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-slate-100">
                 <Package className="h-6 w-6 text-amber-500" />
@@ -404,202 +449,191 @@ export default function CatalogoPublico() {
 
       <style>{`
         @keyframes flyToCart {
-          0% {
-            transform: translate(0, 0) scale(1);
-            opacity: 1;
-          }
-          50% {
-            transform: translate(calc(var(--cart-x) * 0.5), calc(var(--cart-y) * 0.5 - 30px)) scale(0.8);
-            opacity: 0.9;
-          }
-          100% {
-            transform: translate(var(--cart-x), var(--cart-y)) scale(0.3);
-            opacity: 0;
-          }
+          0% { transform: translate(0, 0) scale(1); opacity: 1; }
+          50% { transform: translate(calc(var(--cart-x) * 0.5), calc(var(--cart-y) * 0.5 - 30px)) scale(0.8); opacity: 0.9; }
+          100% { transform: translate(var(--cart-x), var(--cart-y)) scale(0.3); opacity: 0; }
         }
-        .hide-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
       `}</style>
 
-      {/* Search and Filters */}
+      {/* Search */}
       <div className="sticky top-0 z-40 bg-white border-b shadow-sm">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar productos..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-                data-testid="input-search"
-              />
-            </div>
-            
-            {categories.length > 0 && (
-              <div className="flex gap-2 flex-wrap">
-                <Button
-                  variant={selectedCategory === null ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedCategory(null)}
-                  data-testid="filter-all"
-                >
-                  Todos
-                </Button>
-                {categories.map(cat => (
-                  <Button
-                    key={cat}
-                    variant={selectedCategory === cat ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedCategory(cat)}
-                    data-testid={`filter-category-${cat}`}
-                  >
-                    {cat}
-                  </Button>
-                ))}
-              </div>
-            )}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar productos..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+              data-testid="input-search"
+            />
           </div>
-          
-          {/* Format Filters - Dropdown on mobile, buttons on desktop */}
-          {formats.length > 0 && (
-            <>
-              {/* Mobile: Dropdown */}
-              <div className="md:hidden mt-3 pt-3 border-t">
-                <select
-                  value={selectedFormat || ''}
-                  onChange={(e) => setSelectedFormat(e.target.value || null)}
-                  className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
-                  data-testid="filter-format-select"
-                >
-                  <option value="">Todos los formatos</option>
-                  {formats.map(fmt => (
-                    <option key={fmt} value={fmt}>{fmt}</option>
-                  ))}
-                </select>
-              </div>
-              
-              {/* Desktop: Buttons */}
-              <div className="hidden md:flex gap-2 flex-wrap mt-3 pt-3 border-t">
-                <span className="text-sm text-muted-foreground self-center mr-1">Formato:</span>
-                <Button
-                  variant={selectedFormat === null ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedFormat(null)}
-                  data-testid="filter-format-all"
-                >
-                  Todos
-                </Button>
-                {formats.map(fmt => (
-                  <Button
-                    key={fmt}
-                    variant={selectedFormat === fmt ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedFormat(fmt)}
-                    data-testid={`filter-format-${fmt}`}
-                  >
-                    {fmt}
-                  </Button>
-                ))}
-              </div>
-            </>
-          )}
+          <p className="text-sm text-muted-foreground mt-2">
+            {filteredFamilies.length} producto{filteredFamilies.length !== 1 ? 's' : ''} disponible{filteredFamilies.length !== 1 ? 's' : ''}
+          </p>
         </div>
       </div>
 
-      {/* Products Grid */}
+      {/* Products Grid - Grouped View */}
       <div className="container mx-auto px-4 py-6">
-        {filteredProducts.length === 0 ? (
+        {filteredFamilies.length === 0 ? (
           <div className="text-center py-12">
             <Package className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
             <p className="text-muted-foreground">No se encontraron productos</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {filteredProducts.map(product => {
-              const cartItem = cart.find(item => item.id === product.id);
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredFamilies.map(family => {
+              const selectedColor = selectedColors[family.family];
+              const selectedFormat = selectedFormats[family.family];
+              const availableFormats = getAvailableFormats(family);
+              const selectedProduct = getSelectedProduct(family);
+              const cartItem = selectedProduct ? cart.find(item => item.id === selectedProduct.id) : null;
+              const displayImage = selectedProduct?.imagenUrl || family.imagenUrl;
               
               return (
                 <Card 
-                  key={product.id} 
-                  className="overflow-hidden hover:shadow-lg transition-shadow group"
-                  data-testid={`product-card-${product.id}`}
+                  key={family.family} 
+                  className="overflow-hidden hover:shadow-lg transition-shadow"
+                  data-testid={`product-family-${family.family}`}
                 >
                   {/* Product Image */}
                   <div className="aspect-square relative bg-slate-100">
-                    {product.imagenUrl ? (
+                    {displayImage ? (
                       <img
-                        src={product.imagenUrl}
-                        alt={product.producto}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        src={displayImage}
+                        alt={family.family}
+                        className="w-full h-full object-cover"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <Package className="h-12 w-12 text-muted-foreground/30" />
+                        <Package className="h-16 w-16 text-muted-foreground/30" />
                       </div>
                     )}
                     
-                    {product.categoria && (
-                      <Badge 
-                        variant="secondary" 
-                        className="absolute top-2 left-2 text-xs"
-                      >
-                        {product.categoria}
+                    {family.categoria && (
+                      <Badge variant="secondary" className="absolute top-2 left-2 text-xs">
+                        {family.categoria}
+                      </Badge>
+                    )}
+                    
+                    {family.colors.length > 1 && (
+                      <Badge variant="outline" className="absolute top-2 right-2 text-xs bg-white/90">
+                        {family.colors.length} colores
                       </Badge>
                     )}
                   </div>
                   
-                  <CardContent className="p-3">
-                    <h3 className="font-medium text-sm line-clamp-2 mb-1" title={product.producto}>
-                      {product.producto}
+                  <CardContent className="p-4 space-y-3">
+                    {/* Family Name */}
+                    <h3 className="font-semibold text-base line-clamp-2" title={family.family}>
+                      {family.family}
                     </h3>
-                    <p className="text-xs text-muted-foreground mb-2">
-                      SKU: {product.codigo}
-                    </p>
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-primary">
-                        ${product.precio.toLocaleString('es-CL')}
-                      </span>
-                      {product.unidad && (
-                        <span className="text-xs text-muted-foreground">
-                          /{product.unidad}
-                        </span>
-                      )}
+                    
+                    {/* Color Selector */}
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Palette className="h-3 w-3" />
+                        Color
+                      </label>
+                      <Select
+                        value={selectedColor || ''}
+                        onValueChange={(value) => handleColorChange(family.family, value)}
+                      >
+                        <SelectTrigger className="h-9" data-testid={`select-color-${family.family}`}>
+                          <SelectValue placeholder="Seleccionar color" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {family.colors.map(colorOption => (
+                            <SelectItem key={colorOption.color} value={colorOption.color}>
+                              {colorOption.color}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     
-                    {/* Add to cart / Quantity controls */}
-                    {cartItem ? (
-                      <div className="flex items-center justify-between mt-3">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => updateQuantity(product.id, cartItem.quantity - 1)}
-                          data-testid={`button-decrease-${product.id}`}
-                        >
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        <span className="font-medium">{cartItem.quantity}</span>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => updateQuantity(product.id, cartItem.quantity + 1)}
-                          data-testid={`button-increase-${product.id}`}
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button
-                        className="w-full mt-3 h-8"
-                        size="sm"
-                        onClick={(e) => addToCart(product, e)}
-                        data-testid={`button-add-${product.id}`}
+                    {/* Format Selector */}
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Layers className="h-3 w-3" />
+                        Formato
+                      </label>
+                      <Select
+                        value={selectedFormat || ''}
+                        onValueChange={(value) => handleFormatChange(family.family, value)}
+                        disabled={!selectedColor}
                       >
-                        <Plus className="h-3 w-3 mr-1" />
-                        Agregar
+                        <SelectTrigger className="h-9" data-testid={`select-format-${family.family}`}>
+                          <SelectValue placeholder={selectedColor ? "Seleccionar formato" : "Primero selecciona color"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableFormats.map(format => (
+                            <SelectItem key={format.unidad} value={format.unidad}>
+                              {format.unidad} - ${format.precio.toLocaleString('es-CL')}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {/* Price Display */}
+                    {selectedProduct && (
+                      <div className="flex items-center justify-between pt-2 border-t">
+                        <div>
+                          <span className="text-lg font-bold text-primary">
+                            ${selectedProduct.precio.toLocaleString('es-CL')}
+                          </span>
+                          <span className="text-xs text-muted-foreground ml-1">
+                            /{selectedProduct.unidad}
+                          </span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          SKU: {selectedProduct.codigo}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Add to cart / Quantity controls */}
+                    {selectedProduct && (
+                      cartItem ? (
+                        <div className="flex items-center justify-between">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9"
+                            onClick={() => updateQuantity(selectedProduct.id, cartItem.quantity - 1)}
+                            data-testid={`button-decrease-${selectedProduct.id}`}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <span className="font-semibold text-lg">{cartItem.quantity}</span>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9"
+                            onClick={() => updateQuantity(selectedProduct.id, cartItem.quantity + 1)}
+                            data-testid={`button-increase-${selectedProduct.id}`}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          className="w-full"
+                          onClick={(e) => addToCart(family, selectedProduct, e)}
+                          data-testid={`button-add-${family.family}`}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Agregar al carrito
+                        </Button>
+                      )
+                    )}
+                    
+                    {!selectedProduct && (
+                      <Button className="w-full" disabled>
+                        Selecciona color y formato
                       </Button>
                     )}
                   </CardContent>
@@ -610,7 +644,6 @@ export default function CatalogoPublico() {
         )}
       </div>
 
-      
       {/* Quote Dialog */}
       <Dialog open={isQuoteDialogOpen} onOpenChange={setIsQuoteDialogOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -624,63 +657,52 @@ export default function CatalogoPublico() {
             </DialogDescription>
           </DialogHeader>
           
-          {/* Cart Items */}
+          {/* Cart Summary */}
           <div className="space-y-3 max-h-48 overflow-y-auto">
             {cart.map(item => (
-              <div 
-                key={item.id} 
-                className="flex items-center gap-3 p-2 bg-slate-50 rounded-lg"
-                data-testid={`cart-item-${item.id}`}
-              >
-                <div className="w-12 h-12 bg-white rounded overflow-hidden flex-shrink-0">
+              <div key={item.id} className="flex items-center gap-3 p-2 bg-muted rounded-lg">
+                <div className="w-12 h-12 rounded overflow-hidden bg-slate-100 flex-shrink-0">
                   {item.imagenUrl ? (
                     <img src={item.imagenUrl} alt={item.producto} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <Package className="h-6 w-6 text-muted-foreground/30" />
+                      <Package className="h-6 w-6 text-muted-foreground" />
                     </div>
                   )}
                 </div>
+                
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm truncate">{item.producto}</p>
                   <p className="text-xs text-muted-foreground">
-                    ${item.precio.toLocaleString('es-CL')} x {item.quantity}
+                    {item.unidad} x {item.quantity}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min="1"
-                    value={item.quantity}
-                    onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
-                    className="w-16 h-8 text-center"
-                    data-testid={`input-quantity-${item.id}`}
-                  />
+                
+                <div className="text-right flex-shrink-0">
+                  <p className="font-semibold">
+                    ${(item.precio * item.quantity).toLocaleString('es-CL')}
+                  </p>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive"
+                    className="h-6 w-6"
                     onClick={() => removeFromCart(item.id)}
                     data-testid={`button-remove-${item.id}`}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3 w-3 text-destructive" />
                   </Button>
                 </div>
               </div>
             ))}
           </div>
           
-          <Separator />
-          
-          {/* Total */}
-          <div className="flex justify-between items-center font-semibold text-lg">
-            <span>Total Estimado:</span>
-            <span className="text-primary">${cartTotal.toLocaleString('es-CL')}</span>
+          <div className="flex justify-between items-center py-2 border-t border-b">
+            <span className="font-medium">Total:</span>
+            <span className="text-xl font-bold text-primary">
+              ${cartTotal.toLocaleString('es-CL')}
+            </span>
           </div>
           
-          <Separator />
-          
-          {/* Contact Form */}
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmitQuote)} className="space-y-4">
               <FormField
@@ -690,10 +712,7 @@ export default function CatalogoPublico() {
                   <FormItem>
                     <FormLabel>Nombre completo *</FormLabel>
                     <FormControl>
-                      <div className="relative">
-                        <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input {...field} placeholder="Tu nombre" className="pl-10" data-testid="input-name" />
-                      </div>
+                      <Input placeholder="Tu nombre" {...field} data-testid="input-name" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -705,12 +724,9 @@ export default function CatalogoPublico() {
                 name="visitorEmail"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email *</FormLabel>
+                    <FormLabel>Correo electrónico *</FormLabel>
                     <FormControl>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input {...field} type="email" placeholder="tu@email.com" className="pl-10" data-testid="input-email" />
-                      </div>
+                      <Input type="email" placeholder="tu@email.com" {...field} data-testid="input-email" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -725,10 +741,7 @@ export default function CatalogoPublico() {
                     <FormItem>
                       <FormLabel>Teléfono</FormLabel>
                       <FormControl>
-                        <div className="relative">
-                          <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input {...field} placeholder="+56 9..." className="pl-10" data-testid="input-phone" />
-                        </div>
+                        <Input placeholder="+56 9 1234 5678" {...field} data-testid="input-phone" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -742,10 +755,7 @@ export default function CatalogoPublico() {
                     <FormItem>
                       <FormLabel>Empresa</FormLabel>
                       <FormControl>
-                        <div className="relative">
-                          <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input {...field} placeholder="Tu empresa" className="pl-10" data-testid="input-company" />
-                        </div>
+                        <Input placeholder="Nombre de empresa" {...field} data-testid="input-company" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -758,12 +768,13 @@ export default function CatalogoPublico() {
                 name="message"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Mensaje (opcional)</FormLabel>
+                    <FormLabel>Mensaje adicional</FormLabel>
                     <FormControl>
                       <Textarea 
-                        {...field} 
-                        placeholder="¿Algún detalle adicional sobre tu pedido?"
+                        placeholder="¿Algún comentario o pregunta?"
+                        className="resize-none"
                         rows={3}
+                        {...field}
                         data-testid="input-message"
                       />
                     </FormControl>
@@ -774,20 +785,26 @@ export default function CatalogoPublico() {
               
               <DialogFooter>
                 <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsQuoteDialogOpen(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
                   type="submit"
-                  className="w-full gap-2"
                   disabled={submitQuoteMutation.isPending}
                   data-testid="button-submit-quote"
                 >
                   {submitQuoteMutation.isPending ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Enviando...
                     </>
                   ) : (
                     <>
-                      <Send className="h-4 w-4" />
-                      Enviar Solicitud de Cotización
+                      <Send className="h-4 w-4 mr-2" />
+                      Enviar Solicitud
                     </>
                   )}
                 </Button>
@@ -799,23 +816,23 @@ export default function CatalogoPublico() {
 
       {/* Success Dialog */}
       <Dialog open={isSuccessDialogOpen} onOpenChange={setIsSuccessDialogOpen}>
-        <DialogContent className="max-w-sm text-center">
-          <div className="py-6">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
+        <DialogContent className="max-w-sm">
+          <div className="text-center py-6">
+            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
               <CheckCircle2 className="h-8 w-8 text-green-600" />
             </div>
             <DialogTitle className="mb-2">¡Solicitud Enviada!</DialogTitle>
             <DialogDescription>
-              Hemos recibido tu solicitud de cotización. {salesperson.salespersonName} te contactará pronto.
+              Hemos recibido tu solicitud de cotización. {salesperson.salespersonName} se pondrá en contacto contigo pronto.
             </DialogDescription>
           </div>
           <DialogFooter>
-            <Button 
-              onClick={() => setIsSuccessDialogOpen(false)} 
+            <Button
               className="w-full"
+              onClick={() => setIsSuccessDialogOpen(false)}
               data-testid="button-close-success"
             >
-              Continuar Navegando
+              Continuar
             </Button>
           </DialogFooter>
         </DialogContent>

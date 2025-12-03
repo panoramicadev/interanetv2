@@ -963,6 +963,24 @@ export interface IStorage {
     categoria?: string | null;
     descripcion?: string | null;
     imagenUrl?: string | null;
+    productFamily?: string | null;
+    color?: string | null;
+  }>>;
+  getGroupedCatalogProducts(): Promise<Array<{
+    family: string;
+    imagenUrl: string | null;
+    categoria: string | null;
+    descripcion: string | null;
+    colors: Array<{
+      color: string;
+      formats: Array<{
+        id: string;
+        codigo: string;
+        unidad: string;
+        precio: number;
+        imagenUrl: string | null;
+      }>;
+    }>;
   }>>;
   createPublicQuoteRequest(salespersonId: string, quoteData: any): Promise<any>;
   
@@ -13194,6 +13212,8 @@ export class DatabaseStorage implements IStorage {
         imagenUrl: ecommerceProducts.imagenUrl,
         precioEcommerce: ecommerceProducts.precioEcommerce,
         activo: ecommerceProducts.activo,
+        productFamily: ecommerceProducts.productFamily,
+        color: ecommerceProducts.color,
       })
       .from(priceList)
       .innerJoin(ecommerceProducts, eq(priceList.id, ecommerceProducts.priceListId))
@@ -13209,7 +13229,80 @@ export class DatabaseStorage implements IStorage {
       categoria: p.categoria,
       descripcion: p.descripcion,
       imagenUrl: p.imagenUrl,
+      productFamily: p.productFamily,
+      color: p.color,
     }));
+  }
+
+  async getGroupedCatalogProducts() {
+    const products = await this.getPublicCatalogProducts();
+    
+    // Group products by family
+    const familyMap = new Map<string, {
+      family: string;
+      colors: Map<string, {
+        color: string;
+        formats: Array<{
+          id: string;
+          codigo: string;
+          unidad: string;
+          precio: number;
+          imagenUrl: string | null;
+        }>;
+      }>;
+      imagenUrl: string | null;
+      categoria: string | null;
+      descripcion: string | null;
+    }>();
+    
+    for (const product of products) {
+      const family = product.productFamily || product.producto;
+      const color = product.color || 'SIN COLOR';
+      
+      if (!familyMap.has(family)) {
+        familyMap.set(family, {
+          family,
+          colors: new Map(),
+          imagenUrl: product.imagenUrl,
+          categoria: product.categoria,
+          descripcion: product.descripcion,
+        });
+      }
+      
+      const familyData = familyMap.get(family)!;
+      
+      if (!familyData.colors.has(color)) {
+        familyData.colors.set(color, {
+          color,
+          formats: [],
+        });
+      }
+      
+      familyData.colors.get(color)!.formats.push({
+        id: product.id,
+        codigo: product.codigo,
+        unidad: product.unidad,
+        precio: product.precio,
+        imagenUrl: product.imagenUrl,
+      });
+      
+      // Update family image if current product has one
+      if (product.imagenUrl && !familyData.imagenUrl) {
+        familyData.imagenUrl = product.imagenUrl;
+      }
+    }
+    
+    // Convert to array format
+    return Array.from(familyMap.values()).map(f => ({
+      family: f.family,
+      imagenUrl: f.imagenUrl,
+      categoria: f.categoria,
+      descripcion: f.descripcion,
+      colors: Array.from(f.colors.values()).map(c => ({
+        color: c.color,
+        formats: c.formats.sort((a, b) => a.precio - b.precio), // Sort by price
+      })),
+    })).sort((a, b) => a.family.localeCompare(b.family));
   }
 
   async createPublicQuoteRequest(salespersonId: string, quoteData: any) {

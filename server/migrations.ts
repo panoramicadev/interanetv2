@@ -4,6 +4,122 @@ import fs from 'fs';
 import path from 'path';
 import { ObjectStorageService } from './objectStorage';
 
+// Lista de colores conocidos para pintura
+const KNOWN_COLORS = [
+  // Colores básicos
+  'BLANCO', 'NEGRO', 'GRIS', 'GRIS CLARO', 'GRIS OSCURO', 'GRIS PERLA',
+  'ROJO', 'ROJO OXIDO', 'ROJO COLONIAL',
+  'AZUL', 'AZUL COLONIAL', 'AZUL MAR', 'AZUL CIELO', 'AZUL NOCHE', 'AZUL ACERO',
+  'VERDE', 'VERDE MUSGO', 'VERDE BOSQUE', 'VERDE LIMON', 'VERDE OLIVO',
+  'AMARILLO', 'AMARILLO REY', 'AMARILLO TOPACIO', 'AMARILLO OCRE',
+  'NARANJA', 'OCRE', 'CAFÉ', 'CAFE', 'MARRON', 'CHOCOLATE', 'TIERRA',
+  'BEIGE', 'CREMA', 'HUESO', 'MARFIL', 'ARENA',
+  // Maderas (para barnices)
+  'ALERCE', 'CAOBA', 'MAPLE', 'NATURAL', 'NOGAL', 'ROBLE', 'CEDRO', 'CEREZO', 'PINO',
+  // Colores especiales
+  'DAMASCO', 'COLONIAL', 'INVIERNO', 'JAPON', 'GLACIAR AUSTRAL',
+  'BOSQUE ENCANTADO', 'BUENAS VIBRAS', 'CALIDA CALMA', 'CENIZA ACTIVA',
+  'LINO SUAVE', 'PERLA MARINA', 'SEDA', 'TERRACOTA', 'SALMON',
+  // Bases
+  'BASE MEDIA', 'BASE OSCURA', 'BASE PASTEL', 'BASE CLARA',
+].sort((a, b) => b.length - a.length); // Ordenar por longitud descendente para matchear primero los más específicos
+
+/**
+ * Extrae el color de un nombre de producto
+ * @param productName Nombre del producto (ej: "ANTICORROSIVO ESTRUCTURAL BLANCO")
+ * @returns Color encontrado o null
+ */
+function extractColorFromProductName(productName: string): string | null {
+  const upperName = productName.toUpperCase();
+  
+  for (const color of KNOWN_COLORS) {
+    // Buscar el color como palabra completa al final o en medio del nombre
+    const regex = new RegExp(`\\b${color}\\b`, 'i');
+    if (regex.test(upperName)) {
+      return color;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Extrae la familia de producto (nombre sin el color)
+ * @param productName Nombre del producto
+ * @param color Color a remover
+ * @returns Nombre de la familia de producto
+ */
+function extractProductFamily(productName: string, color: string | null): string {
+  if (!color) {
+    return productName.trim();
+  }
+  
+  // Remover el color del nombre, manteniendo el resto
+  const regex = new RegExp(`\\s*\\b${color}\\b\\s*`, 'gi');
+  return productName.replace(regex, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Pobla los campos product_family y color para todos los productos de ecommerce
+ * basándose en el análisis del nombre del producto en price_list
+ */
+export async function populateProductFamilyAndColor(): Promise<{ updated: number; errors: number }> {
+  console.log('🏷️  Poblando campos de familia y color de productos...');
+  
+  let updated = 0;
+  let errors = 0;
+  
+  try {
+    // Obtener todos los productos activos con su información de price_list
+    const products = await db.execute(sql`
+      SELECT 
+        ep.id,
+        ep.product_family,
+        ep.color,
+        pl.producto as product_name
+      FROM ecommerce_products ep
+      JOIN price_list pl ON ep.price_list_id = pl.id
+      WHERE ep.activo = true
+        AND (ep.product_family IS NULL OR ep.color IS NULL)
+    `);
+    
+    if (products.rows.length === 0) {
+      console.log('✅ Todos los productos ya tienen familia y color asignados');
+      return { updated: 0, errors: 0 };
+    }
+    
+    console.log(`📦 Procesando ${products.rows.length} productos...`);
+    
+    for (const product of products.rows as any[]) {
+      try {
+        const productName = product.product_name as string;
+        const color = extractColorFromProductName(productName);
+        const family = extractProductFamily(productName, color);
+        
+        await db.execute(sql`
+          UPDATE ecommerce_products 
+          SET 
+            product_family = ${family},
+            color = ${color}
+          WHERE id = ${product.id}
+        `);
+        
+        updated++;
+      } catch (error: any) {
+        console.warn(`⚠️ Error actualizando producto ${product.id}: ${error.message}`);
+        errors++;
+      }
+    }
+    
+    console.log(`✅ Familia y color asignados: ${updated} productos actualizados, ${errors} errores`);
+    
+    return { updated, errors };
+  } catch (error: any) {
+    console.error('❌ Error poblando familias de productos:', error.message);
+    return { updated, errors };
+  }
+}
+
 interface Migration {
   filename: string;
   number: number;
