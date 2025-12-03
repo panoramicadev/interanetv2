@@ -2753,6 +2753,9 @@ export class DatabaseStorage implements IStorage {
       .from(factVentas)
       .where(whereClause);
 
+    console.log('[DEBUG getProductDetails] Raw metrics:', JSON.stringify(metrics));
+    console.log('[DEBUG getProductDetails] uniqueClients raw:', metrics?.uniqueClients, 'type:', typeof metrics?.uniqueClients);
+
     if (!metrics || Number(metrics.totalSales) === 0) {
       return null;
     }
