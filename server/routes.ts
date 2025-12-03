@@ -4415,6 +4415,27 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Bulk assign products to a group
+  app.post('/api/ecommerce/admin/productos/bulk-assign', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { productIds, groupId } = req.body;
+    
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({ message: 'Se requiere una lista de productos' });
+    }
+    
+    if (!groupId) {
+      return res.status(400).json({ message: 'Se requiere un grupo destino' });
+    }
+    
+    try {
+      const result = await storage.bulkAssignProductsToGroup(productIds, groupId);
+      res.json({ success: true, count: result.count });
+    } catch (error: any) {
+      console.error('Error in bulk assign:', error);
+      throw error;
+    }
+  }));
+
   // Create new category in admin panel
   app.post('/api/ecommerce/admin/categorias', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { nombre, descripcion } = req.body;
