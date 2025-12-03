@@ -2747,7 +2747,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
         totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
-        uniqueClients: sql<number>`COUNT(DISTINCT ${factVentas.endo})`,
+        uniqueClients: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
         transactionCount: sql<number>`COUNT(*)`,
       })
       .from(factVentas)
