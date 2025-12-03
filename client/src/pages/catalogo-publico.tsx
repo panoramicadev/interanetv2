@@ -47,7 +47,10 @@ import {
   Loader2,
   Building,
   Palette,
-  Layers
+  Layers,
+  Store,
+  User,
+  X
 } from 'lucide-react';
 import { SiWhatsapp } from 'react-icons/si';
 import { apiRequest } from '@/lib/queryClient';
@@ -122,6 +125,10 @@ export default function CatalogoPublico() {
     startY: number;
   } | null>(null);
   const cartButtonRef = useRef<HTMLButtonElement>(null);
+  
+  const [isClientDialogOpen, setIsClientDialogOpen] = useState(false);
+  const [clientBusinessName, setClientBusinessName] = useState('');
+  const [tempBusinessName, setTempBusinessName] = useState('');
   
   const form = useForm<QuoteFormData>({
     resolver: zodResolver(quoteFormSchema),
@@ -332,8 +339,102 @@ export default function CatalogoPublico() {
 
   const { salesperson, products } = data;
 
+  const handleClientConfirm = () => {
+    if (tempBusinessName.trim()) {
+      setClientBusinessName(tempBusinessName.trim());
+      setIsClientDialogOpen(false);
+      setTempBusinessName('');
+    }
+  };
+
+  const handleClearClient = () => {
+    setClientBusinessName('');
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* Client Identification Banner */}
+      {!clientBusinessName ? (
+        <div 
+          className="bg-gradient-to-r from-amber-500 to-orange-500 text-white cursor-pointer hover:from-amber-600 hover:to-orange-600 transition-all"
+          onClick={() => setIsClientDialogOpen(true)}
+          data-testid="banner-client-question"
+        >
+          <div className="container mx-auto px-4 py-2 flex items-center justify-center gap-2">
+            <Store className="w-4 h-4" />
+            <span className="text-sm font-medium">¿Eres cliente? Haz clic aquí para identificarte</span>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white" data-testid="banner-client-identified">
+          <div className="container mx-auto px-4 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Store className="w-5 h-5" />
+              <div>
+                <p className="text-sm font-bold">{clientBusinessName}</p>
+                <p className="text-xs opacity-90">Atendido por {salesperson.salespersonName}</p>
+              </div>
+            </div>
+            <button 
+              onClick={handleClearClient}
+              className="p-1 hover:bg-white/20 rounded-full transition-colors"
+              data-testid="button-clear-client"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Client Identification Dialog */}
+      <Dialog open={isClientDialogOpen} onOpenChange={setIsClientDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Store className="w-5 h-5 text-amber-500" />
+              Identificación de Cliente
+            </DialogTitle>
+            <DialogDescription>
+              Ingresa el nombre de tu comercio para una atención personalizada.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label htmlFor="businessName" className="text-sm font-medium">
+                Nombre del Comercio
+              </label>
+              <Input
+                id="businessName"
+                placeholder="Ej: Ferretería El Constructor"
+                value={tempBusinessName}
+                onChange={(e) => setTempBusinessName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleClientConfirm()}
+                data-testid="input-business-name"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsClientDialogOpen(false);
+                setTempBusinessName('');
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleClientConfirm}
+              disabled={!tempBusinessName.trim()}
+              className="bg-amber-500 hover:bg-amber-600 text-white"
+              data-testid="button-confirm-client"
+            >
+              Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Hero Banner */}
       <header className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">
