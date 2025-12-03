@@ -21079,32 +21079,32 @@ export class DatabaseStorage implements IStorage {
       ? Number(allTiers[tierIndex + 1].montoMinimo) 
       : null; // No max for highest tier
 
-    // Get clients with their sales in the period
+    // Get clients with their sales in the period - using factVentas (ETL data)
     const clientSales = await db
       .select({
-        clientName: salesTransactions.nokoen,
+        clientName: factVentas.nokoen,
         clientCode: clients.koen,
-        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.vaneli}), 0)`,
-        transactionCount: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.vaneli}), 0)`,
+        transactionCount: sql<number>`COUNT(DISTINCT ${factVentas.nudo})`,
       })
-      .from(salesTransactions)
-      .leftJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
+      .from(factVentas)
+      .leftJoin(clients, eq(factVentas.nokoen, clients.nokoen))
       .where(
         and(
-          sql`${salesTransactions.feemdo} >= ${startDateStr}`,
-          isNotNull(salesTransactions.nokoen)
+          sql`${factVentas.feemdo} >= ${startDateStr}`,
+          isNotNull(factVentas.nokoen)
         )
       )
-      .groupBy(salesTransactions.nokoen, clients.koen)
+      .groupBy(factVentas.nokoen, clients.koen)
       .having(
         maxAmount
           ? and(
-              sql`COALESCE(SUM(${salesTransactions.vaneli}), 0) >= ${minAmount}`,
-              sql`COALESCE(SUM(${salesTransactions.vaneli}), 0) < ${maxAmount}`
+              sql`COALESCE(SUM(${factVentas.vaneli}), 0) >= ${minAmount}`,
+              sql`COALESCE(SUM(${factVentas.vaneli}), 0) < ${maxAmount}`
             )
-          : sql`COALESCE(SUM(${salesTransactions.vaneli}), 0) >= ${minAmount}`
+          : sql`COALESCE(SUM(${factVentas.vaneli}), 0) >= ${minAmount}`
       )
-      .orderBy(sql`COALESCE(SUM(${salesTransactions.vaneli}), 0) DESC`);
+      .orderBy(sql`COALESCE(SUM(${factVentas.vaneli}), 0) DESC`);
 
     return clientSales.map(c => ({
       clientName: c.clientName || 'Sin nombre',
@@ -21137,17 +21137,17 @@ export class DatabaseStorage implements IStorage {
     startDate.setDate(startDate.getDate() - 90);
     const startDateStr = startDate.toISOString().split('T')[0];
 
-    // Get client's sales in the period
+    // Get client's sales in the period - using factVentas (ETL data)
     const [clientStats] = await db
       .select({
-        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.vaneli}), 0)`,
-        transactionCount: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.vaneli}), 0)`,
+        transactionCount: sql<number>`COUNT(DISTINCT ${factVentas.nudo})`,
       })
-      .from(salesTransactions)
+      .from(factVentas)
       .where(
         and(
-          eq(salesTransactions.nokoen, clientName),
-          sql`${salesTransactions.feemdo} >= ${startDateStr}`
+          eq(factVentas.nokoen, clientName),
+          sql`${factVentas.feemdo} >= ${startDateStr}`
         )
       );
 
