@@ -6,7 +6,7 @@ import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
 import { executeNVVETL } from "./etl-nvv";
 import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
-import { runProductionMigrations, migrateProductImageUrls } from "./migrations";
+import { runProductionMigrations, migrateProductImageUrls, uploadLocalImagesToObjectStorage } from "./migrations";
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -92,9 +92,15 @@ app.use((req, res, next) => {
       console.error('⚠️ Error al migrar URLs de imágenes:', error.message);
     }
     
-    // Nota: La subida automática de imágenes a Object Storage está deshabilitada
-    // debido a permisos. Las imágenes se sirven desde el sistema de archivos local
-    // con fallback. Las nuevas imágenes subidas irán a Object Storage automáticamente.
+    // Subir imágenes locales a Object Storage para persistencia
+    try {
+      const uploadResult = await uploadLocalImagesToObjectStorage();
+      if (uploadResult.uploaded > 0) {
+        log(`☁️ Imágenes sincronizadas a Object Storage: ${uploadResult.uploaded} subidas, ${uploadResult.failed} errores`);
+      }
+    } catch (error: any) {
+      console.error('⚠️ Error al sincronizar imágenes a Object Storage:', error.message);
+    }
     
     // Inicializar catálogos públicos para todos los vendedores
     try {
