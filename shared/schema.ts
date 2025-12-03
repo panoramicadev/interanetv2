@@ -5502,3 +5502,86 @@ export const insertSeoPositionHistorySchema = createInsertSchema(seoPositionHist
   id: true,
   fechaConsulta: true,
 });
+
+// ==================================================================================
+// PANORAMICA MARKET - Programa de Lealtad de Clientes
+// ==================================================================================
+
+// Tiers de lealtad (Lider, Gold, Platinum)
+export const loyaltyTiers = pgTable("loyalty_tiers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nombre: varchar("nombre", { length: 100 }).notNull().unique(), // Panoramica Lider, Gold, Platinum
+  codigo: varchar("codigo", { length: 50 }).notNull().unique(), // lider, gold, platinum
+  descripcion: text("descripcion"),
+  montoMinimo: numeric("monto_minimo", { precision: 15, scale: 2 }).notNull(), // Monto mínimo en período
+  periodoEvaluacionDias: integer("periodo_evaluacion_dias").notNull().default(90), // 90 días por defecto
+  colorPrimario: varchar("color_primario", { length: 20 }).default("#6B7280"), // Color para UI
+  colorSecundario: varchar("color_secundario", { length: 20 }).default("#F3F4F6"),
+  icono: varchar("icono", { length: 50 }).default("Award"), // Icono de lucide-react
+  orden: integer("orden").notNull().default(1), // Orden de visualización (1=básico, 3=premium)
+  activo: boolean("activo").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type LoyaltyTier = typeof loyaltyTiers.$inferSelect;
+export type InsertLoyaltyTier = typeof loyaltyTiers.$inferInsert;
+
+export const insertLoyaltyTierSchema = createInsertSchema(loyaltyTiers, {
+  nombre: z.string().min(1, "Nombre es requerido"),
+  codigo: z.string().min(1, "Código es requerido").regex(/^[a-z0-9_]+$/, "Solo letras minúsculas, números y guiones bajos"),
+  montoMinimo: z.string().or(z.number()).transform(val => String(val)),
+  periodoEvaluacionDias: z.number().int().min(1).default(90),
+  colorPrimario: z.string().optional(),
+  colorSecundario: z.string().optional(),
+  icono: z.string().optional(),
+  orden: z.number().int().min(1),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertLoyaltyTierInput = z.infer<typeof insertLoyaltyTierSchema>;
+
+// Beneficios/Términos de cada tier
+export const loyaltyTierBenefits = pgTable("loyalty_tier_benefits", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tierId: varchar("tier_id").notNull().references(() => loyaltyTiers.id, { onDelete: 'cascade' }),
+  titulo: varchar("titulo", { length: 200 }).notNull(), // Ej: "Descuento en compras"
+  descripcion: text("descripcion"), // Descripción detallada del beneficio
+  tipo: varchar("tipo", { length: 50 }).default("beneficio"), // beneficio, termino, condicion
+  valor: varchar("valor", { length: 100 }), // Ej: "5%", "Envío gratis", etc.
+  orden: integer("orden").default(1),
+  activo: boolean("activo").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type LoyaltyTierBenefit = typeof loyaltyTierBenefits.$inferSelect;
+export type InsertLoyaltyTierBenefit = typeof loyaltyTierBenefits.$inferInsert;
+
+export const insertLoyaltyTierBenefitSchema = createInsertSchema(loyaltyTierBenefits, {
+  tierId: z.string().min(1, "Tier es requerido"),
+  titulo: z.string().min(1, "Título es requerido"),
+  descripcion: z.string().optional().nullable(),
+  tipo: z.enum(["beneficio", "termino", "condicion"]).default("beneficio"),
+  valor: z.string().optional().nullable(),
+  orden: z.number().int().min(1).default(1),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertLoyaltyTierBenefitInput = z.infer<typeof insertLoyaltyTierBenefitSchema>;
+
+// Relaciones para loyalty
+export const loyaltyTiersRelations = relations(loyaltyTiers, ({ many }) => ({
+  benefits: many(loyaltyTierBenefits),
+}));
+
+export const loyaltyTierBenefitsRelations = relations(loyaltyTierBenefits, ({ one }) => ({
+  tier: one(loyaltyTiers, {
+    fields: [loyaltyTierBenefits.tierId],
+    references: [loyaltyTiers.id],
+  }),
+}));
