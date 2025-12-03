@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { TrendingUp, Target, Grid3x3, Users, Check, ChevronDown } from "lucide-react";
+import { TrendingUp, Target, Grid3x3, Users, UserCircle, Check, ChevronDown } from "lucide-react";
 
-export type DashboardView = "all" | "goals-only" | "by-segment" | "by-salesperson";
+export type DashboardView = "all" | "goals-only" | "by-segment" | "by-salesperson" | "by-client";
 
 interface ViewSelectorProps {
   value: DashboardView;
@@ -34,6 +34,12 @@ const VIEW_OPTIONS = [
     label: "Por vendedor",
     icon: Users,
     color: "text-purple-600",
+  },
+  {
+    value: "by-client" as DashboardView,
+    label: "Por cliente",
+    icon: UserCircle,
+    color: "text-orange-600",
   },
 ];
 

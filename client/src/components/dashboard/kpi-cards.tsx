@@ -37,10 +37,11 @@ interface KPICardsProps {
   filterType: "day" | "month" | "year" | "range";
   segment?: string;
   salesperson?: string;
+  client?: string;
   comparePeriod?: string;
 }
 
-export default function KPICards({ selectedPeriod, filterType, segment, salesperson, comparePeriod }: KPICardsProps) {
+export default function KPICards({ selectedPeriod, filterType, segment, salesperson, client, comparePeriod }: KPICardsProps) {
   // Helper function to resolve comparison periods to actual period strings
   const resolveComparisonPeriod = (comparePeriod: string, currentPeriod: string, filterType: string): string => {
     if (!comparePeriod || comparePeriod === "none") return "";
@@ -220,13 +221,14 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   const resolvedComparePeriod = resolveComparisonPeriod(comparePeriod || "", selectedPeriod, filterType);
 
   const { data: metrics, isLoading } = useQuery<SalesMetrics>({
-    queryKey: ['/api/sales/metrics', selectedPeriod, filterType, segment, salesperson],
+    queryKey: ['/api/sales/metrics', selectedPeriod, filterType, segment, salesperson, client],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append('period', selectedPeriod);
       params.append('filterType', filterType);
       if (segment) params.append('segment', segment);
       if (salesperson) params.append('salesperson', salesperson);
+      if (client) params.append('client', client);
       const res = await fetch(`/api/sales/metrics?${params.toString()}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
@@ -235,13 +237,14 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
   // Query for comparison data if comparePeriod is set
   const { data: comparisonMetrics } = useQuery<SalesMetrics>({
-    queryKey: ['/api/sales/metrics', resolvedComparePeriod, filterType, segment, salesperson, 'comparison'],
+    queryKey: ['/api/sales/metrics', resolvedComparePeriod, filterType, segment, salesperson, client, 'comparison'],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append('period', resolvedComparePeriod);
       params.append('filterType', filterType);
       if (segment) params.append('segment', segment);
       if (salesperson) params.append('salesperson', salesperson);
+      if (client) params.append('client', client);
       const res = await fetch(`/api/sales/metrics?${params.toString()}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
@@ -258,13 +261,14 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     deliveredCount: number;
     cancelledCount: number;
   }>({
-    queryKey: ['/api/nvv/metrics', selectedPeriod, filterType, segment, salesperson],
+    queryKey: ['/api/nvv/metrics', selectedPeriod, filterType, segment, salesperson, client],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append('period', selectedPeriod);
       params.append('filterType', filterType);
       if (segment) params.append('segment', segment);
       if (salesperson) params.append('salesperson', salesperson);
+      if (client) params.append('client', client);
       const res = await fetch(`/api/nvv/metrics?${params.toString()}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
@@ -280,12 +284,13 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     deliveredCount: number;
     cancelledCount: number;
   }>({
-    queryKey: ['/api/nvv/metrics', 'global', segment, salesperson],
+    queryKey: ['/api/nvv/metrics', 'global', segment, salesperson, client],
     queryFn: async () => {
       const params = new URLSearchParams();
       // No period/filterType params - returns all historical data
       if (segment) params.append('segment', segment);
       if (salesperson) params.append('salesperson', salesperson);
+      if (client) params.append('client', client);
       const res = await fetch(`/api/nvv/metrics?${params.toString()}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
@@ -297,12 +302,13 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     gdvSales: number;
     gdvCount: number;
   }>({
-    queryKey: ['/api/sales/gdv-pending', 'global', segment, salesperson],
+    queryKey: ['/api/sales/gdv-pending', 'global', segment, salesperson, client],
     queryFn: async () => {
       const params = new URLSearchParams();
       // No period/filterType params - returns all pending GDV
       if (segment) params.append('segment', segment);
       if (salesperson) params.append('salesperson', salesperson);
+      if (client) params.append('client', client);
       const res = await fetch(`/api/sales/gdv-pending?${params.toString()}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();

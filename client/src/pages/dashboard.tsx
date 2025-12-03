@@ -369,6 +369,9 @@ export default function Dashboard() {
         case "salesperson":
           vistaText = globalFilter.value ? `Vendedor: ${globalFilter.value}` : "Por vendedor";
           break;
+        case "client":
+          vistaText = globalFilter.value ? `Cliente: ${globalFilter.value}` : "Por cliente";
+          break;
       }
       chips.push({
         key: "vista",
@@ -405,6 +408,21 @@ export default function Dashboard() {
       });
       const response = await fetch(`/api/goals/data/salespeople?${params}`);
       if (!response.ok) throw new Error('Failed to fetch salespeople');
+      return response.json();
+    }
+  });
+
+  // Fetch clients for the filter dropdown (top 100 clients by sales)
+  const { data: clients } = useQuery<{ items: Array<{ clientName: string; totalSales: number }> }>({
+    queryKey: ["/api/sales/top-clients", selectedPeriod, filterType, 100],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        period: selectedPeriod,
+        filterType,
+        limit: "100"
+      });
+      const response = await fetch(`/api/sales/top-clients?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch clients');
       return response.json();
     }
   });
@@ -791,6 +809,10 @@ export default function Dashboard() {
     );
   }
 
+  // Si hay un cliente seleccionado, mostrar el dashboard filtrado por cliente
+  // (no usa componente embedido, usa los mismos componentes del dashboard principal con filtro de cliente)
+  const selectedClient = globalFilter.type === "client" && globalFilter.value ? globalFilter.value : undefined;
+
   return (
     <div>
         {/* Header */}
@@ -852,6 +874,8 @@ export default function Dashboard() {
                                   setLocalGlobalFilter({ type: "branch", value: undefined });
                                 } else if (value === "salesperson") {
                                   setLocalGlobalFilter({ type: "salesperson", value: undefined });
+                                } else if (value === "client") {
+                                  setLocalGlobalFilter({ type: "client", value: undefined });
                                 }
                               }}
                             >
@@ -883,14 +907,20 @@ export default function Dashboard() {
                                     <span>Por vendedor</span>
                                   </div>
                                 </SelectItem>
+                                <SelectItem value="client">
+                                  <div className="flex items-center space-x-2">
+                                    <Users className="h-4 w-4 text-orange-500" />
+                                    <span>Por cliente</span>
+                                  </div>
+                                </SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                           
-                          {(localSelectedFilter === "segment" || localSelectedFilter === "branch" || localSelectedFilter === "salesperson") && (
+                          {(localSelectedFilter === "segment" || localSelectedFilter === "branch" || localSelectedFilter === "salesperson" || localSelectedFilter === "client") && (
                             <div>
                               <label className="text-sm font-medium text-gray-700 block mb-2">
-                                {localSelectedFilter === "segment" ? "Segmento específico" : localSelectedFilter === "branch" ? "Sucursal específica" : "Vendedor específico"}
+                                {localSelectedFilter === "segment" ? "Segmento específico" : localSelectedFilter === "branch" ? "Sucursal específica" : localSelectedFilter === "salesperson" ? "Vendedor específico" : "Cliente específico"}
                               </label>
                               <Select 
                                 key={localSelectedFilter}
@@ -902,12 +932,14 @@ export default function Dashboard() {
                                     setLocalGlobalFilter({ type: "branch", value });
                                   } else if (localSelectedFilter === "salesperson") {
                                     setLocalGlobalFilter({ type: "salesperson", value });
+                                  } else if (localSelectedFilter === "client") {
+                                    setLocalGlobalFilter({ type: "client", value });
                                   }
                                 }}
                               >
                                 <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
                                   <SelectValue placeholder={
-                                    localSelectedFilter === "segment" ? "Selecciona segmento" : localSelectedFilter === "branch" ? "Selecciona sucursal" : "Selecciona vendedor"
+                                    localSelectedFilter === "segment" ? "Selecciona segmento" : localSelectedFilter === "branch" ? "Selecciona sucursal" : localSelectedFilter === "salesperson" ? "Selecciona vendedor" : "Selecciona cliente"
                                   } />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-gray-200 max-h-60 overflow-y-auto">
@@ -923,10 +955,16 @@ export default function Dashboard() {
                                         {branch}
                                       </SelectItem>
                                     ))
-                                  ) : (
+                                  ) : localSelectedFilter === "salesperson" ? (
                                     salespeople?.map((salesperson) => (
                                       <SelectItem key={salesperson} value={salesperson}>
                                         {salesperson}
+                                      </SelectItem>
+                                    ))
+                                  ) : (
+                                    clients?.items?.map((client: any) => (
+                                      <SelectItem key={client.clientName} value={client.clientName}>
+                                        {client.clientName}
                                       </SelectItem>
                                     ))
                                   )}
@@ -1034,6 +1072,8 @@ export default function Dashboard() {
                         setGlobalFilter({ type: "branch", value: undefined });
                       } else if (value === "salesperson") {
                         setGlobalFilter({ type: "salesperson", value: undefined });
+                      } else if (value === "client") {
+                        setGlobalFilter({ type: "client", value: undefined });
                       }
                     }}
                   >
@@ -1065,15 +1105,21 @@ export default function Dashboard() {
                           <span>Por vendedor</span>
                         </div>
                       </SelectItem>
+                      <SelectItem value="client">
+                        <div className="flex items-center space-x-2">
+                          <Users className="h-3.5 w-3.5 text-orange-500" />
+                          <span>Por cliente</span>
+                        </div>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                {/* Segment/Branch/Salesperson selector - shown conditionally */}
-                {(selectedFilter === "segment" || selectedFilter === "branch" || selectedFilter === "salesperson") && (
+                {/* Segment/Branch/Salesperson/Client selector - shown conditionally */}
+                {(selectedFilter === "segment" || selectedFilter === "branch" || selectedFilter === "salesperson" || selectedFilter === "client") && (
                   <div className="flex items-center gap-2" key={`specific-selector-${selectedFilter}`}>
                     <span className="text-sm font-medium text-gray-700">
-                      {selectedFilter === "segment" ? "Segmento:" : selectedFilter === "branch" ? "Sucursal:" : "Vendedor:"}
+                      {selectedFilter === "segment" ? "Segmento:" : selectedFilter === "branch" ? "Sucursal:" : selectedFilter === "salesperson" ? "Vendedor:" : "Cliente:"}
                     </span>
                     <Select 
                       key={selectedFilter}
@@ -1085,11 +1131,13 @@ export default function Dashboard() {
                           setGlobalFilter({ type: "branch", value });
                         } else if (selectedFilter === "salesperson") {
                           setGlobalFilter({ type: "salesperson", value });
+                        } else if (selectedFilter === "client") {
+                          setGlobalFilter({ type: "client", value });
                         }
                       }}
                     >
                       <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
-                        <SelectValue placeholder={selectedFilter === "segment" ? "Selecciona segmento" : selectedFilter === "branch" ? "Selecciona sucursal" : "Selecciona vendedor"} />
+                        <SelectValue placeholder={selectedFilter === "segment" ? "Selecciona segmento" : selectedFilter === "branch" ? "Selecciona sucursal" : selectedFilter === "salesperson" ? "Selecciona vendedor" : "Selecciona cliente"} />
                       </SelectTrigger>
                       <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
                         {selectedFilter === "segment" ? (
@@ -1104,10 +1152,16 @@ export default function Dashboard() {
                               {branch}
                             </SelectItem>
                           ))
-                        ) : (
+                        ) : selectedFilter === "salesperson" ? (
                           salespeople?.map((salesperson) => (
                             <SelectItem key={salesperson} value={salesperson}>
                               {salesperson}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          clients?.items?.map((client) => (
+                            <SelectItem key={client.clientName} value={client.clientName}>
+                              {client.clientName}
                             </SelectItem>
                           ))
                         )}
@@ -1137,7 +1191,8 @@ export default function Dashboard() {
                     <div className="text-xs font-medium text-purple-900">
                       Vista: {selectedFilter === "all" ? "Todo el dashboard" : 
                              selectedFilter === "segment" ? "Por segmento" :
-                             selectedFilter === "branch" ? "Por sucursal" : "Por vendedor"}
+                             selectedFilter === "branch" ? "Por sucursal" : 
+                             selectedFilter === "salesperson" ? "Por vendedor" : "Por cliente"}
                     </div>
                   </div>
                 </div>
@@ -1166,6 +1221,7 @@ export default function Dashboard() {
                         {selectedFilter === "segment" && `Segmento: ${globalFilter.value}`}
                         {selectedFilter === "branch" && `Sucursal: ${globalFilter.value}`}
                         {selectedFilter === "salesperson" && `Vendedor: ${globalFilter.value}`}
+                        {selectedFilter === "client" && `Cliente: ${globalFilter.value}`}
                       </div>
                     </div>
                   </div>
@@ -1238,6 +1294,7 @@ export default function Dashboard() {
                   filterType={filterType}
                   segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
                   salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                  client={selectedClient}
                   comparePeriod={comparePeriod}
                 />
               </div>
@@ -1336,6 +1393,7 @@ export default function Dashboard() {
                     filterType={filterType}
                     segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
                     salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                    client={selectedClient}
                     comparisonPeriods={convertToComparisonPeriods(comparePeriod, selectedPeriod, filterType)}
                   />
                 </div>
@@ -1362,6 +1420,7 @@ export default function Dashboard() {
                   filterType={filterType}
                   segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
                   salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                  client={selectedClient}
                 />
               </div>
 
@@ -1372,6 +1431,7 @@ export default function Dashboard() {
                   filterType={filterType}
                   segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
                   salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                  client={selectedClient}
                 />
               </div>
 
@@ -1381,6 +1441,7 @@ export default function Dashboard() {
                   filterType={filterType}
                   segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
                   salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                  client={selectedClient}
                 />
               </div>
 
@@ -1391,6 +1452,7 @@ export default function Dashboard() {
                   filterType={filterType}
                   segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
                   salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                  client={selectedClient}
                 />
               </div>
 
@@ -1401,6 +1463,7 @@ export default function Dashboard() {
                   filterType={filterType}
                   segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
                   salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                  client={selectedClient}
                 />
               </div>
             </>

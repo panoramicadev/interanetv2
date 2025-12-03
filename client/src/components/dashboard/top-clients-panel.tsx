@@ -28,9 +28,10 @@ interface TopClientsPanelProps {
   filterType: "day" | "month" | "year" | "range";
   segment?: string;
   salesperson?: string;
+  client?: string;
 }
 
-export default function TopClientsPanel({ selectedPeriod, filterType, segment, salesperson }: TopClientsPanelProps) {
+export default function TopClientsPanel({ selectedPeriod, filterType, segment, salesperson, client }: TopClientsPanelProps) {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
@@ -47,13 +48,13 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
   
   // Query for paginated top clients (default view)
   const { data: topClientsResponse, isLoading } = useQuery<TopClientsResponse>({
-    queryKey: [`/api/sales/top-clients?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    queryKey: [`/api/sales/top-clients?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}${client ? `&client=${encodeURIComponent(client)}` : ''}`],
     enabled: !debouncedSearchTerm,
   });
 
   // Query for search results (when typing)
   const { data: searchResults, isLoading: isSearchLoading } = useQuery<SearchClient[]>({
-    queryKey: [`/api/clients/search?q=${encodeURIComponent(debouncedSearchTerm)}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    queryKey: [`/api/clients/search?q=${encodeURIComponent(debouncedSearchTerm)}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}${client ? `&client=${encodeURIComponent(client)}` : ''}`],
     enabled: debouncedSearchTerm.length >= 2,
   });
 
