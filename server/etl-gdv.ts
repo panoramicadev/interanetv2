@@ -181,7 +181,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
 
     if (runningGDV.length > 0) {
       const runningExec = runningGDV[0];
-      const runningTime = Date.now() - new Date(runningExec.executionDate!).getTime();
+      const runningTime = Date.now() - new Date(runningExec.startTime!).getTime();
       const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutos
       
       if (runningTime > STALE_THRESHOLD_MS) {
@@ -716,7 +716,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
         .select()
         .from(gdvSyncLog)
         .where(sql`status = 'running'`)
-        .orderBy(desc(gdvSyncLog.executionDate))
+        .orderBy(desc(gdvSyncLog.startTime))
         .limit(1);
 
       if (runningLog.length > 0) {
