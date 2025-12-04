@@ -449,7 +449,7 @@ export default function SegmentDetail({
   });
 
   // Fetch client recurrence data (new vs recurring clients)
-  const { data: clientRecurrence, isLoading: isLoadingRecurrence } = useQuery<{ recurringCount: number; newCount: number }>({
+  const { data: clientRecurrence, isLoading: isLoadingRecurrence, isError: isRecurrenceError } = useQuery<{ recurringCount: number; newCount: number }>({
     queryKey: ['/api/sales/segment', segmentName, 'client-recurrence', selectedPeriod, filterType],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -460,6 +460,7 @@ export default function SegmentDetail({
       return await res.json();
     },
     enabled: !!segmentName,
+    retry: 2,
   });
 
   if (!segmentName) {
@@ -951,6 +952,10 @@ export default function SegmentDetail({
                       <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Recurrentes / Nuevos</p>
                       {isLoadingRecurrence ? (
                         <div className="h-6 lg:h-8 bg-gray-200 rounded animate-pulse w-20"></div>
+                      ) : isRecurrenceError ? (
+                        <p className="text-base sm:text-lg lg:text-2xl font-bold text-gray-400" data-testid="text-client-recurrence">
+                          No disponible
+                        </p>
                       ) : (
                         <p className="text-base sm:text-lg lg:text-2xl font-bold text-teal-600" data-testid="text-client-recurrence">
                           {formatNumber(clientRecurrence?.recurringCount || 0)} / {formatNumber(clientRecurrence?.newCount || 0)}
