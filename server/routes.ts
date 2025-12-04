@@ -2182,6 +2182,20 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Segment client recurrence - new vs recurring clients
+  app.get("/api/sales/segment/:segmentName/client-recurrence", requireAuth, async (req, res) => {
+    try {
+      const { segmentName } = req.params;
+      const { period, filterType = "month" } = req.query;
+      
+      const recurrence = await storage.getSegmentClientRecurrence(segmentName, period as string, filterType as string);
+      res.json(recurrence);
+    } catch (error) {
+      console.error("Error fetching segment client recurrence:", error);
+      res.status(500).json({ message: "Failed to fetch segment client recurrence" });
+    }
+  });
+
   // Segment-scoped top salespeople (alias to /api/sales/top-salespeople with segment filter)
   app.get("/api/segments/:segment/top-salespeople", requireAuth, async (req, res) => {
     try {

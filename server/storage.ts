@@ -654,6 +654,10 @@ export interface IStorage {
     averageTicket: number;
     percentage: number;
   }>>;
+  getSegmentClientRecurrence(segmentName: string, period?: string, filterType?: string): Promise<{
+    recurringCount: number;
+    newCount: number;
+  }>;
   
   // Branch detail operations
   getBranchClients(branchName: string, period?: string, filterType?: string): Promise<Array<{
@@ -4571,6 +4575,118 @@ export class DatabaseStorage implements IStorage {
       averageTicket: Number(salesperson.averageTicket),
       percentage: segmentTotal > 0 ? (Number(salesperson.totalSales) / segmentTotal) * 100 : 0
     }));
+  }
+
+  async getSegmentClientRecurrence(segmentName: string, period?: string, filterType: string = 'month'): Promise<{
+    recurringCount: number;
+    newCount: number;
+  }> {
+    // Build date filter condition based on period and filterType
+    let periodStartDate: string;
+    let periodEndDate: string;
+
+    // Calculate period start and end dates based on filter type
+    if (period) {
+      switch (filterType) {
+        case 'day':
+          periodStartDate = period;
+          periodEndDate = period;
+          break;
+        case 'month':
+          if (period === 'current-month') {
+            const now = new Date();
+            periodStartDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+            const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+            periodEndDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${lastDay}`;
+          } else if (period === 'last-month') {
+            const now = new Date();
+            const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            periodStartDate = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}-01`;
+            const lastDay = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0).getDate();
+            periodEndDate = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}-${lastDay}`;
+          } else {
+            const [year, month] = period.split('-');
+            periodStartDate = `${year}-${month}-01`;
+            const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+            periodEndDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+          }
+          break;
+        case 'year':
+          const yearForFilter = period.split('-')[0];
+          periodStartDate = `${yearForFilter}-01-01`;
+          periodEndDate = `${yearForFilter}-12-31`;
+          break;
+        case 'range':
+          if (period.includes('_')) {
+            const [startDate, endDate] = period.split('_');
+            periodStartDate = startDate;
+            periodEndDate = endDate;
+          } else if (period === 'last-30-days') {
+            const now = new Date();
+            const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            periodStartDate = thirtyDaysAgo.toISOString().split('T')[0];
+            periodEndDate = now.toISOString().split('T')[0];
+          } else if (period === 'last-7-days') {
+            const now = new Date();
+            const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            periodStartDate = sevenDaysAgo.toISOString().split('T')[0];
+            periodEndDate = now.toISOString().split('T')[0];
+          } else {
+            const now = new Date();
+            periodStartDate = `${now.getFullYear()}-01-01`;
+            periodEndDate = now.toISOString().split('T')[0];
+          }
+          break;
+        default:
+          const now = new Date();
+          periodStartDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+          const lastDayDefault = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+          periodEndDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${lastDayDefault}`;
+      }
+    } else {
+      const now = new Date();
+      periodStartDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      periodEndDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${lastDay}`;
+    }
+
+    // Query to get all unique clients in the segment for the period,
+    // with their first-ever sale date to determine new vs recurring
+    const result = await db.execute(sql`
+      WITH period_clients AS (
+        -- Get all unique clients who purchased in the segment during the period
+        SELECT DISTINCT nokoen as client_name
+        FROM ventas.fact_ventas
+        WHERE noruen = ${segmentName}
+          AND tido != 'GDV'
+          AND DATE(feemdo) >= ${periodStartDate}::date
+          AND DATE(feemdo) <= ${periodEndDate}::date
+          AND nokoen IS NOT NULL
+      ),
+      client_first_sale AS (
+        -- Get the first-ever sale date for each client in the segment
+        SELECT 
+          nokoen as client_name,
+          MIN(DATE(feemdo)) as first_sale_date
+        FROM ventas.fact_ventas
+        WHERE noruen = ${segmentName}
+          AND tido != 'GDV'
+          AND nokoen IS NOT NULL
+        GROUP BY nokoen
+      )
+      SELECT 
+        COUNT(CASE WHEN cfs.first_sale_date >= ${periodStartDate}::date THEN 1 END) as new_count,
+        COUNT(CASE WHEN cfs.first_sale_date < ${periodStartDate}::date THEN 1 END) as recurring_count
+      FROM period_clients pc
+      JOIN client_first_sale cfs ON pc.client_name = cfs.client_name
+    `);
+
+    const row = result.rows[0] as { new_count: string | number; recurring_count: string | number } | undefined;
+    
+    return {
+      recurringCount: Number(row?.recurring_count || 0),
+      newCount: Number(row?.new_count || 0)
+    };
   }
 
   // Branch detail operations
