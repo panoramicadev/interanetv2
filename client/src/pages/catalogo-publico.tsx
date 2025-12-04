@@ -128,6 +128,10 @@ export default function CatalogoPublico() {
   
   const [isClientDialogOpen, setIsClientDialogOpen] = useState(false);
   const [clientBusinessName, setClientBusinessName] = useState('');
+  const [clientLoyaltyTier, setClientLoyaltyTier] = useState<{
+    code: string;
+    name: string;
+  } | null>(null);
   const [tempRut, setTempRut] = useState('');
   const [isSearchingClient, setIsSearchingClient] = useState(false);
   const [rutError, setRutError] = useState('');
@@ -353,6 +357,7 @@ export default function CatalogoPublico() {
       
       if (response.ok && result.found) {
         setClientBusinessName(result.clientName);
+        setClientLoyaltyTier(result.loyaltyTier || null);
         setIsClientDialogOpen(false);
         setTempRut('');
       } else {
@@ -367,7 +372,21 @@ export default function CatalogoPublico() {
 
   const handleClearClient = () => {
     setClientBusinessName('');
+    setClientLoyaltyTier(null);
     setRutError('');
+  };
+
+  const getTierBadgeColor = (tierCode: string) => {
+    switch (tierCode.toLowerCase()) {
+      case 'platinum':
+        return 'bg-gradient-to-r from-slate-400 to-slate-300 text-slate-900';
+      case 'gold':
+        return 'bg-gradient-to-r from-amber-400 to-yellow-300 text-amber-900';
+      case 'lider':
+        return 'bg-gradient-to-r from-blue-500 to-cyan-400 text-white';
+      default:
+        return 'bg-slate-600 text-white';
+    }
   };
 
   return (
@@ -476,10 +495,18 @@ export default function CatalogoPublico() {
             </div>
             
             <div className="flex-1 min-w-0 overflow-hidden">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-base md:text-xl lg:text-2xl font-bold text-white truncate" data-testid="salesperson-name">
                   {clientBusinessName || salesperson.salespersonName}
                 </h1>
+                {clientBusinessName && clientLoyaltyTier && (
+                  <span 
+                    className={`px-2 py-0.5 rounded-full text-xs font-bold shadow-sm ${getTierBadgeColor(clientLoyaltyTier.code)}`}
+                    data-testid="loyalty-tier-badge"
+                  >
+                    {clientLoyaltyTier.name}
+                  </span>
+                )}
                 {clientBusinessName && (
                   <button 
                     onClick={handleClearClient}
