@@ -373,7 +373,7 @@ export default function CatalogoPublico() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Client Identification Banner */}
-      {!clientBusinessName ? (
+      {!clientBusinessName && (
         <div 
           className="bg-gradient-to-r from-amber-500 to-orange-500 text-white cursor-pointer hover:from-amber-600 hover:to-orange-600 transition-all"
           onClick={() => setIsClientDialogOpen(true)}
@@ -382,25 +382,6 @@ export default function CatalogoPublico() {
           <div className="container mx-auto px-4 py-2 flex items-center justify-center gap-2">
             <Store className="w-4 h-4" />
             <span className="text-sm font-medium">¿Eres cliente? Haz clic aquí para identificarte</span>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white" data-testid="banner-client-identified">
-          <div className="container mx-auto px-4 py-2 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Store className="w-5 h-5" />
-              <div>
-                <p className="text-sm font-bold">{clientBusinessName}</p>
-                <p className="text-xs opacity-90">Atendido por {salesperson.salespersonName}</p>
-              </div>
-            </div>
-            <button 
-              onClick={handleClearClient}
-              className="p-1 hover:bg-white/20 rounded-full transition-colors"
-              data-testid="button-clear-client"
-            >
-              <X className="w-4 h-4" />
-            </button>
           </div>
         </div>
       )}
@@ -495,11 +476,27 @@ export default function CatalogoPublico() {
             </div>
             
             <div className="flex-1 min-w-0 overflow-hidden">
-              <h1 className="text-base md:text-xl lg:text-2xl font-bold text-white truncate" data-testid="salesperson-name">
-                {salesperson.salespersonName}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base md:text-xl lg:text-2xl font-bold text-white truncate" data-testid="salesperson-name">
+                  {clientBusinessName || salesperson.salespersonName}
+                </h1>
+                {clientBusinessName && (
+                  <button 
+                    onClick={handleClearClient}
+                    className="p-1 hover:bg-white/20 rounded-full transition-colors flex-shrink-0"
+                    title="Cerrar sesión"
+                    data-testid="button-clear-client"
+                  >
+                    <X className="w-4 h-4 text-white/70 hover:text-white" />
+                  </button>
+                )}
+              </div>
               
-              {salesperson.bio && (
+              {clientBusinessName ? (
+                <p className="text-sm text-amber-300 mt-1" data-testid="attended-by">
+                  Atendido por {salesperson.salespersonName}
+                </p>
+              ) : salesperson.bio && (
                 <p className="hidden md:block text-sm text-slate-300 mt-1 line-clamp-2" data-testid="salesperson-bio">
                   {salesperson.bio}
                 </p>
