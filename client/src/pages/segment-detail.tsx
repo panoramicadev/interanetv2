@@ -917,7 +917,7 @@ export default function SegmentDetail({
           ) : (
             <>
               {/* KPI Cards Summary */}
-              <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
+              <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
                 <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
@@ -978,20 +978,6 @@ export default function SegmentDetail({
                     </div>
                     <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-purple-100 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
                       <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-purple-600" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Ticket Promedio</p>
-                      <p className="text-base sm:text-lg lg:text-2xl font-bold text-orange-600" data-testid="text-average-ticket">
-                        {formatCurrency(averageTicket)}
-                      </p>
-                    </div>
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-orange-100 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
-                      <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-orange-600" />
                     </div>
                   </div>
                 </div>
