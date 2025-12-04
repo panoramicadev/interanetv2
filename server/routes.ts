@@ -3865,11 +3865,26 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ message: 'Cliente no encontrado' });
       }
 
-      // Return only public info
+      // Get client's loyalty status based on their purchase history
+      let loyaltyTier = null;
+      try {
+        const loyaltyStatus = await storage.getClientLoyaltyStatus(client.nokoen);
+        if (loyaltyStatus?.currentTier) {
+          loyaltyTier = {
+            code: loyaltyStatus.currentTier.codigo,
+            name: loyaltyStatus.currentTier.nombre
+          };
+        }
+      } catch (e) {
+        console.error('Error fetching loyalty status:', e);
+      }
+
+      // Return client info with loyalty tier
       res.json({
         found: true,
         clientName: client.nokoen,
-        clientCode: client.koen
+        clientCode: client.koen,
+        loyaltyTier
       });
     } catch (error) {
       console.error('Error searching client by RUT:', error);
