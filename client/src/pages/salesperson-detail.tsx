@@ -686,6 +686,26 @@ export default function SalespersonDetail({
     return currentWeekStart.getTime() === selectedWeekStart.getTime();
   };
 
+  // Helper function to check if we're viewing the current month
+  const isCurrentMonth = (): boolean => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const currentMonthStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+    
+    if (filterType === "month" && selectedPeriod.match(/^\d{4}-\d{2}$/)) {
+      return selectedPeriod === currentMonthStr;
+    }
+    
+    // For day filter, check if the day is in the current month
+    if (filterType === "day" && selectedPeriod.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return selectedPeriod.startsWith(currentMonthStr);
+    }
+    
+    // For year filter or range, don't show NVV (only current month matters)
+    return false;
+  };
+
   // Export salesperson data to CSV
   const exportSalespersonDataToCSV = () => {
     const csvData = [];
@@ -1286,8 +1306,8 @@ export default function SalespersonDetail({
             </Card>
           </div>
 
-          {/* NVV Pendientes - Sales pending from NVV (shows ALL pending, not filtered by period) */}
-          {salespersonName && (
+          {/* NVV Pendientes - Sales pending from NVV (solo en mes actual) */}
+          {salespersonName && isCurrentMonth() && (
             <SalespersonPendingNVV
               salesperson={salespersonName}
               applyPeriodFilter={false}
