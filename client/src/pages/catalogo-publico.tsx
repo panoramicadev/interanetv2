@@ -128,7 +128,9 @@ export default function CatalogoPublico() {
   
   const [isClientDialogOpen, setIsClientDialogOpen] = useState(false);
   const [clientBusinessName, setClientBusinessName] = useState('');
-  const [tempBusinessName, setTempBusinessName] = useState('');
+  const [tempRut, setTempRut] = useState('');
+  const [isSearchingClient, setIsSearchingClient] = useState(false);
+  const [rutError, setRutError] = useState('');
   
   const form = useForm<QuoteFormData>({
     resolver: zodResolver(quoteFormSchema),
@@ -339,16 +341,33 @@ export default function CatalogoPublico() {
 
   const { salesperson, products } = data;
 
-  const handleClientConfirm = () => {
-    if (tempBusinessName.trim()) {
-      setClientBusinessName(tempBusinessName.trim());
-      setIsClientDialogOpen(false);
-      setTempBusinessName('');
+  const handleClientConfirm = async () => {
+    if (!tempRut.trim()) return;
+    
+    setIsSearchingClient(true);
+    setRutError('');
+    
+    try {
+      const response = await fetch(`/api/public/clients/search-by-rut?rut=${encodeURIComponent(tempRut.trim())}`);
+      const result = await response.json();
+      
+      if (response.ok && result.found) {
+        setClientBusinessName(result.clientName);
+        setIsClientDialogOpen(false);
+        setTempRut('');
+      } else {
+        setRutError(result.message || 'Cliente no encontrado. Verifica el RUT ingresado.');
+      }
+    } catch (error) {
+      setRutError('Error al buscar cliente. Intenta nuevamente.');
+    } finally {
+      setIsSearchingClient(false);
     }
   };
 
   const handleClearClient = () => {
     setClientBusinessName('');
+    setRutError('');
   };
 
   return (
@@ -387,7 +406,13 @@ export default function CatalogoPublico() {
       )}
 
       {/* Client Identification Dialog */}
-      <Dialog open={isClientDialogOpen} onOpenChange={setIsClientDialogOpen}>
+      <Dialog open={isClientDialogOpen} onOpenChange={(open) => {
+        setIsClientDialogOpen(open);
+        if (!open) {
+          setTempRut('');
+          setRutError('');
+        }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -395,22 +420,29 @@ export default function CatalogoPublico() {
               Identificación de Cliente
             </DialogTitle>
             <DialogDescription>
-              Ingresa el nombre de tu comercio para una atención personalizada.
+              Ingresa el RUT de tu comercio para una atención personalizada.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label htmlFor="businessName" className="text-sm font-medium">
-                Nombre del Comercio
+              <label htmlFor="clientRut" className="text-sm font-medium">
+                RUT del Comercio
               </label>
               <Input
-                id="businessName"
-                placeholder="Ej: Ferretería El Constructor"
-                value={tempBusinessName}
-                onChange={(e) => setTempBusinessName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleClientConfirm()}
-                data-testid="input-business-name"
+                id="clientRut"
+                placeholder="Ej: 76.123.456-7"
+                value={tempRut}
+                onChange={(e) => {
+                  setTempRut(e.target.value);
+                  setRutError('');
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && !isSearchingClient && handleClientConfirm()}
+                data-testid="input-client-rut"
+                disabled={isSearchingClient}
               />
+              {rutError && (
+                <p className="text-sm text-red-500" data-testid="text-rut-error">{rutError}</p>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -418,18 +450,27 @@ export default function CatalogoPublico() {
               variant="outline"
               onClick={() => {
                 setIsClientDialogOpen(false);
-                setTempBusinessName('');
+                setTempRut('');
+                setRutError('');
               }}
+              disabled={isSearchingClient}
             >
               Cancelar
             </Button>
             <Button
               onClick={handleClientConfirm}
-              disabled={!tempBusinessName.trim()}
+              disabled={!tempRut.trim() || isSearchingClient}
               className="bg-amber-500 hover:bg-amber-600 text-white"
               data-testid="button-confirm-client"
             >
-              Confirmar
+              {isSearchingClient ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Buscando...
+                </>
+              ) : (
+                'Confirmar'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

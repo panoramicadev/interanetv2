@@ -3841,6 +3841,41 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ message: 'Error al cargar productos agrupados' });
     }
   });
+
+  // Search client by RUT for public catalog identification
+  app.get('/api/public/clients/search-by-rut', async (req: any, res) => {
+    try {
+      const { rut } = req.query;
+      
+      if (!rut || typeof rut !== 'string') {
+        return res.status(400).json({ message: 'RUT es requerido' });
+      }
+
+      // Clean and normalize RUT (remove dots and dashes, uppercase)
+      const cleanRut = rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
+      
+      if (cleanRut.length < 7) {
+        return res.status(400).json({ message: 'RUT inválido' });
+      }
+
+      // Search client by RUT in the clients table
+      const client = await storage.getClientByRut(cleanRut);
+      
+      if (!client) {
+        return res.status(404).json({ message: 'Cliente no encontrado' });
+      }
+
+      // Return only public info
+      res.json({
+        found: true,
+        clientName: client.nokoen,
+        clientCode: client.koen
+      });
+    } catch (error) {
+      console.error('Error searching client by RUT:', error);
+      res.status(500).json({ message: 'Error al buscar cliente' });
+    }
+  });
   
   // Submit quote request from public catalog (no auth required)
   app.post('/api/public/catalogos/:slug/cotizacion', async (req: any, res) => {
