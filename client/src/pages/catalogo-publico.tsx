@@ -498,11 +498,12 @@ export default function CatalogoPublico() {
               {clientBusinessName && clientLoyaltyTier && (
                 <div className="mb-1">
                   <span 
-                    className={`relative overflow-hidden px-2 py-0.5 rounded-full text-xs font-bold shadow-sm ${getTierBadgeColor(clientLoyaltyTier.code)}`}
+                    className={`relative inline-block overflow-hidden px-2 py-0.5 rounded-full text-xs font-bold shadow-sm ${getTierBadgeColor(clientLoyaltyTier.code)}`}
+                    style={{ isolation: 'isolate' }}
                     data-testid="loyalty-tier-badge"
                   >
-                    {clientLoyaltyTier.name}
-                    <span className="absolute inset-0 animate-shine bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+                    <span className="relative z-10">{clientLoyaltyTier.name}</span>
+                    <span className="absolute inset-0 z-0 animate-shine bg-gradient-to-r from-transparent via-white/40 to-transparent" style={{ clipPath: 'inset(0 round 9999px)' }} />
                   </span>
                 </div>
               )}
