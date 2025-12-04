@@ -237,6 +237,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
       period: 'full_sync',
       branches: sucursales.join(','),
       watermarkDate: currentTimestamp,
+      startTime: new Date(),
     }).returning();
 
     // Limpiar tablas staging de GDV (propias, no compartidas con ventas)
@@ -292,6 +293,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
           recordsUpdated: 0,
           statusChanges: 0,
           executionTimeMs: Date.now() - startTime,
+          endTime: new Date(),
         })
         .where(sql`id = ${executionLog.id}`);
 
@@ -667,6 +669,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
         recordsUpdated: 0,
         statusChanges: recordsRemoved,
         executionTimeMs: Date.now() - startTime,
+        endTime: new Date(),
       })
       .where(sql`id = ${executionLog.id}`);
 
@@ -725,6 +728,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
             status: 'failed',
             errorMessage: errorMessage.substring(0, 500),
             executionTimeMs: executionTime,
+            endTime: new Date(),
           })
           .where(sql`id = ${runningLog[0].id}`);
       }
