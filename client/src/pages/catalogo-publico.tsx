@@ -513,11 +513,10 @@ export default function CatalogoPublico() {
                 {clientBusinessName && (
                   <button 
                     onClick={handleClearClient}
-                    className="p-1 hover:bg-white/20 rounded-full transition-colors flex-shrink-0"
-                    title="Cerrar sesión"
+                    className="px-2 py-0.5 text-xs font-medium bg-white/20 hover:bg-white/30 text-white rounded transition-colors flex-shrink-0"
                     data-testid="button-clear-client"
                   >
-                    <X className="w-4 h-4 text-white/70 hover:text-white" />
+                    Salir
                   </button>
                 )}
               </div>
