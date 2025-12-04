@@ -116,16 +116,23 @@ The GDV (Guías de Despacho Vigentes) system uses automated ETL from SQL Server 
 
 **Key Fields**:
 - `esdo` - Document status (null/empty = open, 'C' = closed)
-- `eslido` - Line status (null/empty = pending, 'C' = closed)
+- `eslido` - Line status (null/empty = pending, 'C' = closed) - **PRIMARY FILTER**
 - `kofulido` - Salesperson code (from MAEDDO detail, not header)
-- `monto` - Line amount (vaneli)
-- `cantidad_pendiente` - Boolean: has pending quantity AND not closed AND monto >= 1000
+- `vaneli` - Line net amount (used for calculations) - **USE THIS FOR AMOUNTS**
+- `monto` - Pre-calculated line amount (may not be accurate)
+- `cantidadPendiente` - Boolean: has pending quantity AND not closed AND monto >= 1000
+
+**Filtering Logic (same as NVV)**:
+- Pending lines: `(eslido IS NULL OR eslido = '') AND cantidadPendiente = true`
+- Amount calculation: `SUM(vaneli)` - never use `monto` or `vanedo`
+- Count documents: `COUNT(DISTINCT idmaeedo)`
 
 ### Important Notes for GDV
-1. **Uses full sync** - TRUNCATE + INSERT, not incremental UPSERT
-2. **Filter by ESLIDO** - Only lines where `eslido IS NULL OR eslido = ''`
-3. **Automatic cleanup** - Closed/invoiced GDV disappear on next sync
-4. **Transient data** - GDV represents pending dispatches, not historical records
+1. **Uses full sync** - TRUNCATE + INSERT, not incremental UPSERT (volatile data like NVV)
+2. **Filter by ESLIDO + cantidadPendiente** - Only lines where `(eslido IS NULL OR eslido = '') AND cantidadPendiente = true`
+3. **Use vaneli for amounts** - Never use `monto` or `vanedo` (header amount) for calculations
+4. **Automatic cleanup** - Closed/invoiced GDV disappear on next sync
+5. **Transient data** - GDV represents pending dispatches, not historical records
 
 ## Public Salesperson Catalog (December 2025)
 

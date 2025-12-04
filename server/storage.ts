@@ -2331,32 +2331,31 @@ export class DatabaseStorage implements IStorage {
     const { salesperson, segment } = filters;
     const conditions = [];
     
-    // Filter for GDV document type
-    conditions.push(eq(factVentas.tido, 'GDV'));
-    
-    // Filter for pending status (esdo IS NULL or esdo != 'C')
+    // GDV uses volatile data from fact_gdv (full snapshot like NVV)
+    // Filter by eslido (line status) and cantidadPendiente for pending lines
     conditions.push(
       or(
-        isNull(factVentas.esdo),
-        ne(factVentas.esdo, 'C')
+        isNull(factGdv.eslido),
+        eq(factGdv.eslido, '')
       )
     );
+    conditions.push(eq(factGdv.cantidadPendiente, true));
     
     if (salesperson) {
-      conditions.push(eq(factVentas.nokofu, salesperson));
+      conditions.push(eq(factGdv.nokofu, salesperson));
     }
     if (segment) {
-      conditions.push(eq(factVentas.noruen, segment));
+      conditions.push(eq(factGdv.noruen, segment));
     }
 
     const whereClause = and(...conditions);
 
     const [metrics] = await db
       .select({
-        gdvSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
-        gdvCount: sql<number>`COUNT(*)`,
+        gdvSales: sql<number>`COALESCE(SUM(${factGdv.vaneli}), 0)`,
+        gdvCount: sql<number>`COUNT(DISTINCT ${factGdv.idmaeedo})`,
       })
-      .from(factVentas)
+      .from(factGdv)
       .where(whereClause);
 
     return {
@@ -20199,13 +20198,16 @@ export class DatabaseStorage implements IStorage {
     montoAbiertas: number;
     montoCerradas: number;
   }> {
+    // GDV uses volatile data (full snapshot like NVV)
+    // Filter by eslido (line status) and cantidadPendiente for pending lines
+    // Use vaneli for accurate line-level amounts
     let query = db.select({
       total: countDistinct(factGdv.idmaeedo),
-      abiertas: sql<number>`COUNT(DISTINCT CASE WHEN ${factGdv.esdo} IS NULL OR ${factGdv.esdo} != 'C' THEN ${factGdv.idmaeedo} END)`,
-      cerradas: sql<number>`COUNT(DISTINCT CASE WHEN ${factGdv.esdo} = 'C' THEN ${factGdv.idmaeedo} END)`,
-      montoTotal: sum(factGdv.monto),
-      montoAbiertas: sql<number>`SUM(CASE WHEN ${factGdv.esdo} IS NULL OR ${factGdv.esdo} != 'C' THEN ${factGdv.monto} ELSE 0 END)`,
-      montoCerradas: sql<number>`SUM(CASE WHEN ${factGdv.esdo} = 'C' THEN ${factGdv.monto} ELSE 0 END)`,
+      abiertas: sql<number>`COUNT(DISTINCT CASE WHEN (${factGdv.eslido} IS NULL OR ${factGdv.eslido} = '') AND ${factGdv.cantidadPendiente} = true THEN ${factGdv.idmaeedo} END)`,
+      cerradas: sql<number>`COUNT(DISTINCT CASE WHEN ${factGdv.eslido} = 'C' OR ${factGdv.cantidadPendiente} = false THEN ${factGdv.idmaeedo} END)`,
+      montoTotal: sql<number>`COALESCE(SUM(${factGdv.vaneli}), 0)`,
+      montoAbiertas: sql<number>`COALESCE(SUM(CASE WHEN (${factGdv.eslido} IS NULL OR ${factGdv.eslido} = '') AND ${factGdv.cantidadPendiente} = true THEN ${factGdv.vaneli} ELSE 0 END), 0)`,
+      montoCerradas: sql<number>`COALESCE(SUM(CASE WHEN ${factGdv.eslido} = 'C' OR ${factGdv.cantidadPendiente} = false THEN ${factGdv.vaneli} ELSE 0 END), 0)`,
     }).from(factGdv);
 
     const conditions = [];
@@ -20249,14 +20251,17 @@ export class DatabaseStorage implements IStorage {
     montoAbiertas: number;
     montoCerradas: number;
   }>> {
+    // GDV uses volatile data (full snapshot like NVV)
+    // Filter by eslido (line status) and cantidadPendiente for pending lines
+    // Use vaneli for accurate line-level amounts
     let query = db.select({
       sucursal: factGdv.sudo,
       total: countDistinct(factGdv.idmaeedo),
-      abiertas: sql<number>`COUNT(DISTINCT CASE WHEN ${factGdv.esdo} IS NULL OR ${factGdv.esdo} != 'C' THEN ${factGdv.idmaeedo} END)`,
-      cerradas: sql<number>`COUNT(DISTINCT CASE WHEN ${factGdv.esdo} = 'C' THEN ${factGdv.idmaeedo} END)`,
-      montoTotal: sum(factGdv.monto),
-      montoAbiertas: sql<number>`SUM(CASE WHEN ${factGdv.esdo} IS NULL OR ${factGdv.esdo} != 'C' THEN ${factGdv.monto} ELSE 0 END)`,
-      montoCerradas: sql<number>`SUM(CASE WHEN ${factGdv.esdo} = 'C' THEN ${factGdv.monto} ELSE 0 END)`,
+      abiertas: sql<number>`COUNT(DISTINCT CASE WHEN (${factGdv.eslido} IS NULL OR ${factGdv.eslido} = '') AND ${factGdv.cantidadPendiente} = true THEN ${factGdv.idmaeedo} END)`,
+      cerradas: sql<number>`COUNT(DISTINCT CASE WHEN ${factGdv.eslido} = 'C' OR ${factGdv.cantidadPendiente} = false THEN ${factGdv.idmaeedo} END)`,
+      montoTotal: sql<number>`COALESCE(SUM(${factGdv.vaneli}), 0)`,
+      montoAbiertas: sql<number>`COALESCE(SUM(CASE WHEN (${factGdv.eslido} IS NULL OR ${factGdv.eslido} = '') AND ${factGdv.cantidadPendiente} = true THEN ${factGdv.vaneli} ELSE 0 END), 0)`,
+      montoCerradas: sql<number>`COALESCE(SUM(CASE WHEN ${factGdv.eslido} = 'C' OR ${factGdv.cantidadPendiente} = false THEN ${factGdv.vaneli} ELSE 0 END), 0)`,
     }).from(factGdv);
 
     const conditions = [];
