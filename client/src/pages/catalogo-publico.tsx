@@ -495,11 +495,8 @@ export default function CatalogoPublico() {
             </div>
             
             <div className="flex-1 min-w-0 overflow-hidden">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-base md:text-xl lg:text-2xl font-bold text-white truncate" data-testid="salesperson-name">
-                  {clientBusinessName || salesperson.salespersonName}
-                </h1>
-                {clientBusinessName && clientLoyaltyTier && (
+              {clientBusinessName && clientLoyaltyTier && (
+                <div className="mb-1">
                   <span 
                     className={`relative overflow-hidden px-2 py-0.5 rounded-full text-xs font-bold shadow-sm ${getTierBadgeColor(clientLoyaltyTier.code)}`}
                     data-testid="loyalty-tier-badge"
@@ -507,7 +504,12 @@ export default function CatalogoPublico() {
                     {clientLoyaltyTier.name}
                     <span className="absolute inset-0 animate-shine bg-gradient-to-r from-transparent via-white/40 to-transparent" />
                   </span>
-                )}
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <h1 className="text-base md:text-xl lg:text-2xl font-bold text-white truncate" data-testid="salesperson-name">
+                  {clientBusinessName || salesperson.salespersonName}
+                </h1>
                 {clientBusinessName && (
                   <button 
                     onClick={handleClearClient}
