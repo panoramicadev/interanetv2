@@ -4849,7 +4849,6 @@ export const stgTabruGdv = gdvSchema.table("stg_tabru_gdv", {
 // ===== TABLA DE LOG DE SINCRONIZACIÓN GDV =====
 export const gdvSyncLog = gdvSchema.table("gdv_sync_log", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  executionDate: timestamp("execution_date").notNull().defaultNow(),
   status: varchar("status", { length: 20 }).notNull(), // success, failed, running
   period: varchar("period", { length: 100 }).notNull(), // Descripción del período
   branches: text("branches").notNull().default('004,006,007'), // Sucursales GDV
@@ -4860,6 +4859,8 @@ export const gdvSyncLog = gdvSchema.table("gdv_sync_log", {
   executionTimeMs: integer("execution_time_ms"),
   errorMessage: text("error_message"),
   watermarkDate: timestamp("watermark_date"), // Última fecha procesada
+  startTime: timestamp("start_time").notNull().defaultNow(), // Inicio de ejecución
+  endTime: timestamp("end_time").defaultNow(), // Fin de ejecución
 });
 
 // Types para gdvSyncLog
