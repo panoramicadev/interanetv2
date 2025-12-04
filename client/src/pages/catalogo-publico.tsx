@@ -501,10 +501,11 @@ export default function CatalogoPublico() {
                 </h1>
                 {clientBusinessName && clientLoyaltyTier && (
                   <span 
-                    className={`px-2 py-0.5 rounded-full text-xs font-bold shadow-sm ${getTierBadgeColor(clientLoyaltyTier.code)}`}
+                    className={`relative overflow-hidden px-2 py-0.5 rounded-full text-xs font-bold shadow-sm ${getTierBadgeColor(clientLoyaltyTier.code)}`}
                     data-testid="loyalty-tier-badge"
                   >
                     {clientLoyaltyTier.name}
+                    <span className="absolute inset-0 animate-shine bg-gradient-to-r from-transparent via-white/40 to-transparent" />
                   </span>
                 )}
                 {clientBusinessName && (
@@ -618,6 +619,13 @@ export default function CatalogoPublico() {
           0% { transform: translate(0, 0) scale(1); opacity: 1; }
           50% { transform: translate(calc(var(--cart-x) * 0.5), calc(var(--cart-y) * 0.5 - 30px)) scale(0.8); opacity: 0.9; }
           100% { transform: translate(var(--cart-x), var(--cart-y)) scale(0.3); opacity: 0; }
+        }
+        @keyframes shine {
+          0% { transform: translateX(-100%); }
+          50%, 100% { transform: translateX(100%); }
+        }
+        .animate-shine {
+          animation: shine 2.5s ease-in-out infinite;
         }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
       `}</style>
