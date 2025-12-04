@@ -510,6 +510,26 @@ export default function SegmentDetail({
     return Math.round(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   };
 
+  // Helper function to check if we're viewing the current month
+  const isCurrentMonth = (): boolean => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const currentMonthStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+    
+    if (filterType === "month" && selectedPeriod.match(/^\d{4}-\d{2}$/)) {
+      return selectedPeriod === currentMonthStr;
+    }
+    
+    // For day filter, check if the day is in the current month
+    if (filterType === "day" && selectedPeriod.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return selectedPeriod.startsWith(currentMonthStr);
+    }
+    
+    // For year filter or range, don't show NVV (only current month matters)
+    return false;
+  };
+
   // Determine which client data to display (search results or paginated list)
   const displayClients = debouncedClientSearch.length >= 2 ? clientSearchResults : clients;
   const currentClientLoading = debouncedClientSearch.length >= 2 ? isClientSearchLoading : isLoadingClients;
@@ -1041,8 +1061,8 @@ export default function SegmentDetail({
                 </div>
               )}
 
-          {/* NVV Pendientes - Notas de Venta Pendientes by Segment (sin filtros de fecha para coincidir con módulo NVV) */}
-          {segmentName && (
+          {/* NVV Pendientes - Notas de Venta Pendientes by Segment (solo en mes actual) */}
+          {segmentName && isCurrentMonth() && (
             <SegmentPendingNVV
               segment={segmentName}
             />
