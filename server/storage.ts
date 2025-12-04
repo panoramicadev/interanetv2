@@ -21097,22 +21097,21 @@ export class DatabaseStorage implements IStorage {
       : null; // No max for highest tier
 
     // Get clients with their sales in the period - using factVentas (ETL data)
+    // Group only by client NAME (nokoen) since sales are tracked by name, not individual codes
     const clientSales = await db
       .select({
         clientName: factVentas.nokoen,
-        clientCode: clients.koen,
         totalSales: sql<number>`COALESCE(SUM(${factVentas.vaneli}), 0)`,
         transactionCount: sql<number>`COUNT(DISTINCT ${factVentas.nudo})`,
       })
       .from(factVentas)
-      .leftJoin(clients, eq(factVentas.nokoen, clients.nokoen))
       .where(
         and(
           sql`${factVentas.feemdo} >= ${startDateStr}`,
           isNotNull(factVentas.nokoen)
         )
       )
-      .groupBy(factVentas.nokoen, clients.koen)
+      .groupBy(factVentas.nokoen)
       .having(
         maxAmount
           ? and(
@@ -21123,9 +21122,21 @@ export class DatabaseStorage implements IStorage {
       )
       .orderBy(sql`COALESCE(SUM(${factVentas.vaneli}), 0) DESC`);
 
+    // Get first client code for each unique client name (for display purposes)
+    const clientCodes = await db
+      .select({
+        nokoen: clients.nokoen,
+        koen: sql<string>`MIN(${clients.koen})`,
+      })
+      .from(clients)
+      .where(inArray(clients.nokoen, clientSales.map(c => c.clientName).filter(Boolean) as string[]))
+      .groupBy(clients.nokoen);
+
+    const codeMap = new Map(clientCodes.map(c => [c.nokoen, c.koen]));
+
     return clientSales.map(c => ({
       clientName: c.clientName || 'Sin nombre',
-      clientCode: c.clientCode,
+      clientCode: codeMap.get(c.clientName || '') || null,
       totalSales: Number(c.totalSales) || 0,
       transactionCount: Number(c.transactionCount) || 0,
       tierCode: tier.codigo,
