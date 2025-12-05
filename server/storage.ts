@@ -20307,16 +20307,16 @@ export class DatabaseStorage implements IStorage {
     endDate?: string;
     sucursales?: string[];
   }): Promise<{
-    totalGdv: number;
-    totalAbiertas: number;
-    totalCerradas: number;
-    montoTotal: number;
-    montoAbiertas: number;
-    montoCerradas: number;
+    totalGdvPendientes: number;
+    montoPendiente: number;
+    lineasPendientes: number;
   }> {
     try {
-      let whereClause = '';
       const conditions: string[] = [];
+      
+      // Solo mostrar GDV pendientes (líneas abiertas con cantidad pendiente)
+      conditions.push(`(eslido IS NULL OR eslido = '')`);
+      conditions.push(`cantidad_pendiente = true`);
       
       if (filters?.startDate) {
         conditions.push(`feemdo >= '${filters.startDate}'`);
@@ -20328,18 +20328,13 @@ export class DatabaseStorage implements IStorage {
         conditions.push(`sudo IN (${filters.sucursales.join(',')})`);
       }
       
-      if (conditions.length > 0) {
-        whereClause = `WHERE ${conditions.join(' AND ')}`;
-      }
+      const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
       const query = sql.raw(`
         SELECT 
-          COUNT(DISTINCT idmaeedo) as total,
-          COUNT(DISTINCT CASE WHEN (eslido IS NULL OR eslido = '') AND cantidad_pendiente = true THEN idmaeedo END) as abiertas,
-          COUNT(DISTINCT CASE WHEN eslido = 'C' OR cantidad_pendiente = false THEN idmaeedo END) as cerradas,
-          COALESCE(SUM(vaneli::numeric), 0) as monto_total,
-          COALESCE(SUM(CASE WHEN (eslido IS NULL OR eslido = '') AND cantidad_pendiente = true THEN vaneli::numeric ELSE 0 END), 0) as monto_abiertas,
-          COALESCE(SUM(CASE WHEN eslido = 'C' OR cantidad_pendiente = false THEN vaneli::numeric ELSE 0 END), 0) as monto_cerradas
+          COUNT(DISTINCT idmaeedo) as total_documentos,
+          COUNT(*) as total_lineas,
+          COALESCE(SUM(vaneli::numeric), 0) as monto_pendiente
         FROM gdv.fact_gdv
         ${whereClause}
       `);
@@ -20348,12 +20343,9 @@ export class DatabaseStorage implements IStorage {
       const row = result.rows[0] as any;
       
       return {
-        totalGdv: Number(row?.total || 0),
-        totalAbiertas: Number(row?.abiertas || 0),
-        totalCerradas: Number(row?.cerradas || 0),
-        montoTotal: Number(row?.monto_total || 0),
-        montoAbiertas: Number(row?.monto_abiertas || 0),
-        montoCerradas: Number(row?.monto_cerradas || 0),
+        totalGdvPendientes: Number(row?.total_documentos || 0),
+        montoPendiente: Number(row?.monto_pendiente || 0),
+        lineasPendientes: Number(row?.total_lineas || 0),
       };
     } catch (error) {
       console.error('[getGdvSummary] Error:', error);
@@ -20367,16 +20359,17 @@ export class DatabaseStorage implements IStorage {
     sucursales?: string[];
   }): Promise<Array<{
     sucursal: string;
-    totalGdv: number;
-    abiertas: number;
-    cerradas: number;
-    montoTotal: number;
-    montoAbiertas: number;
-    montoCerradas: number;
+    sucursalNombre: string;
+    totalGdvPendientes: number;
+    lineasPendientes: number;
+    montoPendiente: number;
   }>> {
     try {
-      let whereClause = '';
       const conditions: string[] = [];
+      
+      // Solo mostrar GDV pendientes (líneas abiertas con cantidad pendiente)
+      conditions.push(`(eslido IS NULL OR eslido = '')`);
+      conditions.push(`cantidad_pendiente = true`);
       
       if (filters?.startDate) {
         conditions.push(`feemdo >= '${filters.startDate}'`);
@@ -20388,35 +20381,36 @@ export class DatabaseStorage implements IStorage {
         conditions.push(`sudo IN (${filters.sucursales.join(',')})`);
       }
       
-      if (conditions.length > 0) {
-        whereClause = `WHERE ${conditions.join(' AND ')}`;
-      }
+      const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
       const query = sql.raw(`
         SELECT 
           sudo as sucursal,
-          COUNT(DISTINCT idmaeedo) as total,
-          COUNT(DISTINCT CASE WHEN (eslido IS NULL OR eslido = '') AND cantidad_pendiente = true THEN idmaeedo END) as abiertas,
-          COUNT(DISTINCT CASE WHEN eslido = 'C' OR cantidad_pendiente = false THEN idmaeedo END) as cerradas,
-          COALESCE(SUM(vaneli::numeric), 0) as monto_total,
-          COALESCE(SUM(CASE WHEN (eslido IS NULL OR eslido = '') AND cantidad_pendiente = true THEN vaneli::numeric ELSE 0 END), 0) as monto_abiertas,
-          COALESCE(SUM(CASE WHEN eslido = 'C' OR cantidad_pendiente = false THEN vaneli::numeric ELSE 0 END), 0) as monto_cerradas
+          nosudo as sucursal_nombre,
+          COUNT(DISTINCT idmaeedo) as total_documentos,
+          COUNT(*) as total_lineas,
+          COALESCE(SUM(vaneli::numeric), 0) as monto_pendiente
         FROM gdv.fact_gdv
         ${whereClause}
-        GROUP BY sudo
-        ORDER BY sudo
+        GROUP BY sudo, nosudo
+        ORDER BY monto_pendiente DESC
       `);
 
       const result = await db.execute(query);
 
+      // Mapeo de códigos de sucursal a nombres
+      const sucursalNombres: Record<string, string> = {
+        '4': 'Santiago',
+        '6': 'Concepción', 
+        '7': 'Temuco',
+      };
+
       return result.rows.map((row: any) => ({
         sucursal: String(row?.sucursal || ''),
-        totalGdv: Number(row?.total || 0),
-        abiertas: Number(row?.abiertas || 0),
-        cerradas: Number(row?.cerradas || 0),
-        montoTotal: Number(row?.monto_total || 0),
-        montoAbiertas: Number(row?.monto_abiertas || 0),
-        montoCerradas: Number(row?.monto_cerradas || 0),
+        sucursalNombre: row?.sucursal_nombre || sucursalNombres[String(row?.sucursal)] || `Sucursal ${row?.sucursal}`,
+        totalGdvPendientes: Number(row?.total_documentos || 0),
+        lineasPendientes: Number(row?.total_lineas || 0),
+        montoPendiente: Number(row?.monto_pendiente || 0),
       }));
     } catch (error) {
       console.error('[getGdvBySucursal] Error:', error);

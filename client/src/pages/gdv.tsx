@@ -45,22 +45,17 @@ interface GdvSyncLog {
 }
 
 interface GdvSummary {
-  totalGdv: number;
-  totalAbiertas: number;
-  totalCerradas: number;
-  montoTotal: number;
-  montoAbiertas: number;
-  montoCerradas: number;
+  totalGdvPendientes: number;
+  montoPendiente: number;
+  lineasPendientes: number;
 }
 
 interface GdvBySucursal {
   sucursal: string;
-  totalGdv: number;
-  abiertas: number;
-  cerradas: number;
-  montoTotal: number;
-  montoAbiertas: number;
-  montoCerradas: number;
+  sucursalNombre: string;
+  totalGdvPendientes: number;
+  lineasPendientes: number;
+  montoPendiente: number;
 }
 
 function formatCurrency(amount: number): string {
@@ -217,71 +212,54 @@ export default function GDVPage() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200" data-testid="card-total-gdv">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 border-amber-200" data-testid="card-gdv-pendientes">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                    <CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-300 flex items-center gap-2">
                       <FileText className="w-4 h-4" />
-                      Total Documentos GDV
+                      GDV Pendientes
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold text-blue-900 dark:text-blue-100" data-testid="value-total-gdv">
-                      {(gdvSummary?.totalGdv ?? 0).toLocaleString('es-CL')}
+                    <div className="text-3xl font-bold text-amber-900 dark:text-amber-100" data-testid="value-gdv-pendientes">
+                      {(gdvSummary?.totalGdvPendientes ?? 0).toLocaleString('es-CL')}
                     </div>
-                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                      guías de despacho en sistema
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                      guías pendientes de facturar
                     </p>
                   </CardContent>
                 </Card>
 
-                <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200" data-testid="card-monto-abiertas">
+                <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200" data-testid="card-monto-pendiente">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium text-green-700 dark:text-green-300 flex items-center gap-2">
                       <DollarSign className="w-4 h-4" />
-                      Monto GDV Abiertas
+                      Monto Pendiente
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold text-green-900 dark:text-green-100" data-testid="value-monto-abiertas">
-                      {formatCurrency(gdvSummary?.montoAbiertas ?? 0)}
+                    <div className="text-3xl font-bold text-green-900 dark:text-green-100" data-testid="value-monto-pendiente">
+                      {formatCurrency(gdvSummary?.montoPendiente ?? 0)}
                     </div>
                     <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                      valor neto pendiente de facturar
+                      valor neto por facturar
                     </p>
                   </CardContent>
                 </Card>
 
-                <Card className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 border-amber-200" data-testid="card-abiertas">
+                <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200" data-testid="card-lineas-pendientes">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                    <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300 flex items-center gap-2">
                       <Package className="w-4 h-4" />
-                      GDV Abiertas
+                      Líneas Pendientes
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold text-amber-900 dark:text-amber-100" data-testid="value-abiertas">
-                      {(gdvSummary?.totalAbiertas ?? 0).toLocaleString('es-CL')}
+                    <div className="text-3xl font-bold text-blue-900 dark:text-blue-100" data-testid="value-lineas-pendientes">
+                      {(gdvSummary?.lineasPendientes ?? 0).toLocaleString('es-CL')}
                     </div>
-                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                      pendientes de cierre
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200" data-testid="card-monto-total">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-purple-700 dark:text-purple-300 flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4" />
-                      Monto Total
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold text-purple-900 dark:text-purple-100" data-testid="value-monto-total">
-                      {formatCurrency(gdvSummary?.montoTotal ?? 0)}
-                    </div>
-                    <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
-                      valor neto total (abiertas + cerradas)
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                      items por despachar/facturar
                     </p>
                   </CardContent>
                 </Card>
@@ -309,12 +287,12 @@ export default function GDVPage() {
                             data-testid={`sucursal-item-${item.sucursal}`}
                           >
                             <div>
-                              <p className="font-medium">{getSucursalName(item.sucursal)}</p>
-                              <p className="text-sm text-gray-500">{item.totalGdv} documentos ({item.abiertas} abiertas)</p>
+                              <p className="font-medium">{item.sucursalNombre || getSucursalName(item.sucursal)}</p>
+                              <p className="text-sm text-gray-500">{item.totalGdvPendientes} guías · {item.lineasPendientes} líneas</p>
                             </div>
                             <div className="text-right">
-                              <p className="font-bold text-green-600">{formatCurrency(item.montoAbiertas)}</p>
-                              <p className="text-sm text-gray-500">pendiente</p>
+                              <p className="font-bold text-green-600">{formatCurrency(item.montoPendiente)}</p>
+                              <p className="text-sm text-gray-500">por facturar</p>
                             </div>
                           </div>
                         ))}
