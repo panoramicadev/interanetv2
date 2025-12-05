@@ -50,9 +50,9 @@ interface GdvSummary {
   lineasPendientes: number;
 }
 
-interface GdvBySucursal {
-  sucursal: string;
-  sucursalNombre: string;
+interface GdvByVendedor {
+  codigoVendedor: string;
+  nombreVendedor: string;
   totalGdvPendientes: number;
   lineasPendientes: number;
   montoPendiente: number;
@@ -112,8 +112,8 @@ export default function GDVPage() {
     enabled: canSync,
   });
 
-  const { data: gdvBySucursal, isLoading: isLoadingBySucursal } = useQuery<GdvBySucursal[]>({
-    queryKey: ['/api/etl/gdv/by-sucursal'],
+  const { data: gdvByVendedor, isLoading: isLoadingByVendedor } = useQuery<GdvByVendedor[]>({
+    queryKey: ['/api/etl/gdv/by-vendedor'],
     enabled: canSync,
   });
 
@@ -129,7 +129,7 @@ export default function GDVPage() {
       });
       queryClient.invalidateQueries({ queryKey: ['/api/etl/sync-gdv/history'] });
       queryClient.invalidateQueries({ queryKey: ['/api/etl/gdv/summary'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/etl/gdv/by-sucursal'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/etl/gdv/by-vendedor'] });
       queryClient.invalidateQueries({ queryKey: ['/api/sales/gdv-pending'] });
     },
     onError: (error: any) => {
@@ -266,31 +266,31 @@ export default function GDVPage() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card data-testid="card-by-sucursal">
+                <Card data-testid="card-by-vendedor">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Building2 className="w-5 h-5" />
-                      Por Sucursal
+                      Por Vendedor
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {isLoadingBySucursal ? (
-                      <div className="flex items-center justify-center py-8" data-testid="loading-by-sucursal">
+                    {isLoadingByVendedor ? (
+                      <div className="flex items-center justify-center py-8" data-testid="loading-by-vendedor">
                         <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                       </div>
-                    ) : gdvBySucursal && gdvBySucursal.length > 0 ? (
-                      <div className="space-y-4">
-                        {gdvBySucursal.map((item, idx) => (
+                    ) : gdvByVendedor && gdvByVendedor.length > 0 ? (
+                      <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                        {gdvByVendedor.map((item, idx) => (
                           <div 
-                            key={`${item.sucursal}-${idx}`} 
+                            key={`${item.codigoVendedor}-${idx}`} 
                             className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                            data-testid={`sucursal-item-${item.sucursal}`}
+                            data-testid={`vendedor-item-${item.codigoVendedor}`}
                           >
-                            <div>
-                              <p className="font-medium">{item.sucursalNombre || getSucursalName(item.sucursal)}</p>
+                            <div className="flex-1 min-w-0 mr-3">
+                              <p className="font-medium truncate">{item.nombreVendedor}</p>
                               <p className="text-sm text-gray-500">{item.totalGdvPendientes} guías · {item.lineasPendientes} líneas</p>
                             </div>
-                            <div className="text-right">
+                            <div className="text-right flex-shrink-0">
                               <p className="font-bold text-green-600">{formatCurrency(item.montoPendiente)}</p>
                               <p className="text-sm text-gray-500">por facturar</p>
                             </div>
@@ -298,7 +298,7 @@ export default function GDVPage() {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-center text-gray-500 py-8" data-testid="text-no-data-sucursal">No hay datos disponibles. Ejecuta una sincronización.</p>
+                      <p className="text-center text-gray-500 py-8" data-testid="text-no-data-vendedor">No hay datos disponibles. Ejecuta una sincronización.</p>
                     )}
                   </CardContent>
                 </Card>

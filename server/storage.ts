@@ -20353,13 +20353,12 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getGdvBySucursal(filters?: {
+  async getGdvByVendedor(filters?: {
     startDate?: string;
     endDate?: string;
-    sucursales?: string[];
   }): Promise<Array<{
-    sucursal: string;
-    sucursalNombre: string;
+    codigoVendedor: string;
+    nombreVendedor: string;
     totalGdvPendientes: number;
     lineasPendientes: number;
     montoPendiente: number;
@@ -20377,43 +20376,33 @@ export class DatabaseStorage implements IStorage {
       if (filters?.endDate) {
         conditions.push(`feemdo <= '${filters.endDate}'`);
       }
-      if (filters?.sucursales && filters.sucursales.length > 0) {
-        conditions.push(`sudo IN (${filters.sucursales.join(',')})`);
-      }
       
       const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
       const query = sql.raw(`
         SELECT 
-          sudo as sucursal,
-          nosudo as sucursal_nombre,
+          COALESCE(kofulido, 'SIN VENDEDOR') as codigo_vendedor,
+          COALESCE(nokofu, 'Sin vendedor asignado') as nombre_vendedor,
           COUNT(DISTINCT idmaeedo) as total_documentos,
           COUNT(*) as total_lineas,
           COALESCE(SUM(vaneli::numeric), 0) as monto_pendiente
         FROM gdv.fact_gdv
         ${whereClause}
-        GROUP BY sudo, nosudo
+        GROUP BY kofulido, nokofu
         ORDER BY monto_pendiente DESC
       `);
 
       const result = await db.execute(query);
 
-      // Mapeo de códigos de sucursal a nombres
-      const sucursalNombres: Record<string, string> = {
-        '4': 'Santiago',
-        '6': 'Concepción', 
-        '7': 'Temuco',
-      };
-
       return result.rows.map((row: any) => ({
-        sucursal: String(row?.sucursal || ''),
-        sucursalNombre: row?.sucursal_nombre || sucursalNombres[String(row?.sucursal)] || `Sucursal ${row?.sucursal}`,
+        codigoVendedor: String(row?.codigo_vendedor || 'SIN VENDEDOR'),
+        nombreVendedor: String(row?.nombre_vendedor || 'Sin vendedor asignado'),
         totalGdvPendientes: Number(row?.total_documentos || 0),
         lineasPendientes: Number(row?.total_lineas || 0),
         montoPendiente: Number(row?.monto_pendiente || 0),
       }));
     } catch (error) {
-      console.error('[getGdvBySucursal] Error:', error);
+      console.error('[getGdvByVendedor] Error:', error);
       throw error;
     }
   }

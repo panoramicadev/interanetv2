@@ -13252,28 +13252,18 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // Get GDV by sucursal
-  app.get('/api/etl/gdv/by-sucursal', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  // Get GDV by vendedor
+  app.get('/api/etl/gdv/by-vendedor', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
     try {
-      // Normalize sucursales: handle both comma-delimited strings and repeated query params
-      let sucursales: string[] | undefined = undefined;
-      if (req.query.sucursales) {
-        const raw = req.query.sucursales;
-        const values = Array.isArray(raw) ? raw : raw.split(',');
-        const filtered = values.map((v: string) => v.trim()).filter((v: string) => v !== '');
-        sucursales = filtered.length > 0 ? filtered : undefined;
-      }
-
       const filters = {
         startDate: req.query.startDate as string | undefined,
         endDate: req.query.endDate as string | undefined,
-        sucursales,
       };
-      const metrics = await storage.getGdvBySucursal(filters);
+      const metrics = await storage.getGdvByVendedor(filters);
       res.json(metrics);
     } catch (error: any) {
-      console.error('[GDV By Sucursal Error]', error);
-      res.status(500).json({ message: 'Error al obtener métricas de GDV por sucursal', error: error.message });
+      console.error('[GDV By Vendedor Error]', error);
+      res.status(500).json({ message: 'Error al obtener métricas de GDV por vendedor', error: error.message });
     }
   }));
 
