@@ -20314,44 +20314,51 @@ export class DatabaseStorage implements IStorage {
     montoAbiertas: number;
     montoCerradas: number;
   }> {
-    // GDV uses volatile data (full snapshot like NVV)
-    // Filter by eslido (line status) and cantidadPendiente for pending lines
-    // Use vaneli for accurate line-level amounts
-    let query = db.select({
-      total: countDistinct(factGdv.idmaeedo),
-      abiertas: sql<number>`COUNT(DISTINCT CASE WHEN (${factGdv.eslido} IS NULL OR ${factGdv.eslido} = '') AND ${factGdv.cantidadPendiente} = true THEN ${factGdv.idmaeedo} END)`,
-      cerradas: sql<number>`COUNT(DISTINCT CASE WHEN ${factGdv.eslido} = 'C' OR ${factGdv.cantidadPendiente} = false THEN ${factGdv.idmaeedo} END)`,
-      montoTotal: sql<number>`COALESCE(SUM(${factGdv.vaneli}), 0)`,
-      montoAbiertas: sql<number>`COALESCE(SUM(CASE WHEN (${factGdv.eslido} IS NULL OR ${factGdv.eslido} = '') AND ${factGdv.cantidadPendiente} = true THEN ${factGdv.vaneli} ELSE 0 END), 0)`,
-      montoCerradas: sql<number>`COALESCE(SUM(CASE WHEN ${factGdv.eslido} = 'C' OR ${factGdv.cantidadPendiente} = false THEN ${factGdv.vaneli} ELSE 0 END), 0)`,
-    }).from(factGdv);
+    try {
+      let whereClause = '';
+      const conditions: string[] = [];
+      
+      if (filters?.startDate) {
+        conditions.push(`feemdo >= '${filters.startDate}'`);
+      }
+      if (filters?.endDate) {
+        conditions.push(`feemdo <= '${filters.endDate}'`);
+      }
+      if (filters?.sucursales && filters.sucursales.length > 0) {
+        conditions.push(`sudo IN (${filters.sucursales.join(',')})`);
+      }
+      
+      if (conditions.length > 0) {
+        whereClause = `WHERE ${conditions.join(' AND ')}`;
+      }
 
-    const conditions = [];
-    
-    if (filters?.startDate) {
-      conditions.push(sql`${factGdv.feemdo} >= ${filters.startDate}`);
-    }
-    if (filters?.endDate) {
-      conditions.push(sql`${factGdv.feemdo} <= ${filters.endDate}`);
-    }
-    if (filters?.sucursales && filters.sucursales.length > 0) {
-      conditions.push(inArray(factGdv.sudo, filters.sucursales.map(s => Number(s))));
-    }
+      const query = sql.raw(`
+        SELECT 
+          COUNT(DISTINCT idmaeedo) as total,
+          COUNT(DISTINCT CASE WHEN (eslido IS NULL OR eslido = '') AND cantidad_pendiente = true THEN idmaeedo END) as abiertas,
+          COUNT(DISTINCT CASE WHEN eslido = 'C' OR cantidad_pendiente = false THEN idmaeedo END) as cerradas,
+          COALESCE(SUM(vaneli::numeric), 0) as monto_total,
+          COALESCE(SUM(CASE WHEN (eslido IS NULL OR eslido = '') AND cantidad_pendiente = true THEN vaneli::numeric ELSE 0 END), 0) as monto_abiertas,
+          COALESCE(SUM(CASE WHEN eslido = 'C' OR cantidad_pendiente = false THEN vaneli::numeric ELSE 0 END), 0) as monto_cerradas
+        FROM gdv.fact_gdv
+        ${whereClause}
+      `);
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
+      const result = await db.execute(query);
+      const row = result.rows[0] as any;
+      
+      return {
+        totalGdv: Number(row?.total || 0),
+        totalAbiertas: Number(row?.abiertas || 0),
+        totalCerradas: Number(row?.cerradas || 0),
+        montoTotal: Number(row?.monto_total || 0),
+        montoAbiertas: Number(row?.monto_abiertas || 0),
+        montoCerradas: Number(row?.monto_cerradas || 0),
+      };
+    } catch (error) {
+      console.error('[getGdvSummary] Error:', error);
+      throw error;
     }
-
-    const result = await query;
-    
-    return {
-      totalGdv: Number(result[0]?.total || 0),
-      totalAbiertas: Number(result[0]?.abiertas || 0),
-      totalCerradas: Number(result[0]?.cerradas || 0),
-      montoTotal: Number(result[0]?.montoTotal || 0),
-      montoAbiertas: Number(result[0]?.montoAbiertas || 0),
-      montoCerradas: Number(result[0]?.montoCerradas || 0),
-    };
   }
 
   async getGdvBySucursal(filters?: {
@@ -20367,46 +20374,54 @@ export class DatabaseStorage implements IStorage {
     montoAbiertas: number;
     montoCerradas: number;
   }>> {
-    // GDV uses volatile data (full snapshot like NVV)
-    // Filter by eslido (line status) and cantidadPendiente for pending lines
-    // Use vaneli for accurate line-level amounts
-    let query = db.select({
-      sucursal: factGdv.sudo,
-      total: countDistinct(factGdv.idmaeedo),
-      abiertas: sql<number>`COUNT(DISTINCT CASE WHEN (${factGdv.eslido} IS NULL OR ${factGdv.eslido} = '') AND ${factGdv.cantidadPendiente} = true THEN ${factGdv.idmaeedo} END)`,
-      cerradas: sql<number>`COUNT(DISTINCT CASE WHEN ${factGdv.eslido} = 'C' OR ${factGdv.cantidadPendiente} = false THEN ${factGdv.idmaeedo} END)`,
-      montoTotal: sql<number>`COALESCE(SUM(${factGdv.vaneli}), 0)`,
-      montoAbiertas: sql<number>`COALESCE(SUM(CASE WHEN (${factGdv.eslido} IS NULL OR ${factGdv.eslido} = '') AND ${factGdv.cantidadPendiente} = true THEN ${factGdv.vaneli} ELSE 0 END), 0)`,
-      montoCerradas: sql<number>`COALESCE(SUM(CASE WHEN ${factGdv.eslido} = 'C' OR ${factGdv.cantidadPendiente} = false THEN ${factGdv.vaneli} ELSE 0 END), 0)`,
-    }).from(factGdv);
+    try {
+      let whereClause = '';
+      const conditions: string[] = [];
+      
+      if (filters?.startDate) {
+        conditions.push(`feemdo >= '${filters.startDate}'`);
+      }
+      if (filters?.endDate) {
+        conditions.push(`feemdo <= '${filters.endDate}'`);
+      }
+      if (filters?.sucursales && filters.sucursales.length > 0) {
+        conditions.push(`sudo IN (${filters.sucursales.join(',')})`);
+      }
+      
+      if (conditions.length > 0) {
+        whereClause = `WHERE ${conditions.join(' AND ')}`;
+      }
 
-    const conditions = [];
-    
-    if (filters?.startDate) {
-      conditions.push(sql`${factGdv.feemdo} >= ${filters.startDate}`);
-    }
-    if (filters?.endDate) {
-      conditions.push(sql`${factGdv.feemdo} <= ${filters.endDate}`);
-    }
-    if (filters?.sucursales && filters.sucursales.length > 0) {
-      conditions.push(inArray(factGdv.sudo, filters.sucursales.map(s => Number(s))));
-    }
+      const query = sql.raw(`
+        SELECT 
+          sudo as sucursal,
+          COUNT(DISTINCT idmaeedo) as total,
+          COUNT(DISTINCT CASE WHEN (eslido IS NULL OR eslido = '') AND cantidad_pendiente = true THEN idmaeedo END) as abiertas,
+          COUNT(DISTINCT CASE WHEN eslido = 'C' OR cantidad_pendiente = false THEN idmaeedo END) as cerradas,
+          COALESCE(SUM(vaneli::numeric), 0) as monto_total,
+          COALESCE(SUM(CASE WHEN (eslido IS NULL OR eslido = '') AND cantidad_pendiente = true THEN vaneli::numeric ELSE 0 END), 0) as monto_abiertas,
+          COALESCE(SUM(CASE WHEN eslido = 'C' OR cantidad_pendiente = false THEN vaneli::numeric ELSE 0 END), 0) as monto_cerradas
+        FROM gdv.fact_gdv
+        ${whereClause}
+        GROUP BY sudo
+        ORDER BY sudo
+      `);
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
+      const result = await db.execute(query);
+
+      return result.rows.map((row: any) => ({
+        sucursal: String(row?.sucursal || ''),
+        totalGdv: Number(row?.total || 0),
+        abiertas: Number(row?.abiertas || 0),
+        cerradas: Number(row?.cerradas || 0),
+        montoTotal: Number(row?.monto_total || 0),
+        montoAbiertas: Number(row?.monto_abiertas || 0),
+        montoCerradas: Number(row?.monto_cerradas || 0),
+      }));
+    } catch (error) {
+      console.error('[getGdvBySucursal] Error:', error);
+      throw error;
     }
-
-    const result = await query.groupBy(factGdv.sudo);
-
-    return result.map(row => ({
-      sucursal: String(row.sucursal || ''),
-      totalGdv: Number(row.total || 0),
-      abiertas: Number(row.abiertas || 0),
-      cerradas: Number(row.cerradas || 0),
-      montoTotal: Number(row.montoTotal || 0),
-      montoAbiertas: Number(row.montoAbiertas || 0),
-      montoCerradas: Number(row.montoCerradas || 0),
-    }));
   }
 
   // NVV ETL operations

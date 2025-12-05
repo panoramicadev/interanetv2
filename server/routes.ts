@@ -13247,6 +13247,7 @@ export function registerRoutes(app: Express): Server {
       const summary = await storage.getGdvSummary(filters);
       res.json(summary);
     } catch (error: any) {
+      console.error('[GDV Summary Error]', error);
       res.status(500).json({ message: 'Error al obtener resumen de GDV', error: error.message });
     }
   }));
@@ -13271,6 +13272,7 @@ export function registerRoutes(app: Express): Server {
       const metrics = await storage.getGdvBySucursal(filters);
       res.json(metrics);
     } catch (error: any) {
+      console.error('[GDV By Sucursal Error]', error);
       res.status(500).json({ message: 'Error al obtener métricas de GDV por sucursal', error: error.message });
     }
   }));
