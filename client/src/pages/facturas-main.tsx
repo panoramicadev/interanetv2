@@ -3,9 +3,10 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, TrendingUp, BarChart3 } from "lucide-react";
+import { FileText, TrendingUp, BarChart3, Truck } from "lucide-react";
 import { FacturasTable } from "@/components/facturas/facturas-table";
 import NVVPage from "./nvv";
+import GDVPage from "./gdv";
 import ProyeccionPage from "./proyeccion";
 
 export default function FacturasMainPage() {
@@ -34,7 +35,7 @@ export default function FacturasMainPage() {
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className={`grid w-full ${canSeeProyeccion ? 'grid-cols-4' : 'grid-cols-3'}`}>
+        <TabsList className={`grid w-full ${canSeeProyeccion ? 'grid-cols-5' : 'grid-cols-4'}`}>
           <TabsTrigger value="facturas" className="flex items-center space-x-2" data-testid="tab-facturas">
             <FileText className="h-4 w-4" />
             <span>Facturas</span>
@@ -42,6 +43,10 @@ export default function FacturasMainPage() {
           <TabsTrigger value="nvv" className="flex items-center space-x-2" data-testid="tab-nvv">
             <TrendingUp className="h-4 w-4" />
             <span>Notas de Venta (NVV)</span>
+          </TabsTrigger>
+          <TabsTrigger value="gdv" className="flex items-center space-x-2" data-testid="tab-gdv">
+            <Truck className="h-4 w-4" />
+            <span>Guías de Despacho (GDV)</span>
           </TabsTrigger>
           {canSeeProyeccion && (
             <TabsTrigger value="proyeccion" className="flex items-center space-x-2" data-testid="tab-proyeccion">
@@ -63,6 +68,11 @@ export default function FacturasMainPage() {
         {/* NVV Tab */}
         <TabsContent value="nvv" className="mt-6">
           <NVVPage />
+        </TabsContent>
+
+        {/* GDV Tab */}
+        <TabsContent value="gdv" className="mt-6">
+          <GDVPage />
         </TabsContent>
 
         {/* Proyección Tab */}
