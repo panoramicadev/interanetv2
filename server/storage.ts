@@ -20295,7 +20295,7 @@ export class DatabaseStorage implements IStorage {
     const history = await db
       .select()
       .from(gdvSyncLog)
-      .orderBy(desc(gdvSyncLog.executionDate))
+      .orderBy(desc(gdvSyncLog.startTime))
       .limit(limit)
       .offset(offset);
     
