@@ -35,30 +35,37 @@ export default function FacturasMainPage() {
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className={`grid w-full ${canSeeProyeccion ? 'grid-cols-5' : 'grid-cols-4'}`}>
-          <TabsTrigger value="facturas" className="flex items-center space-x-2" data-testid="tab-facturas">
-            <FileText className="h-4 w-4" />
-            <span>Facturas</span>
-          </TabsTrigger>
-          <TabsTrigger value="nvv" className="flex items-center space-x-2" data-testid="tab-nvv">
-            <TrendingUp className="h-4 w-4" />
-            <span>Notas de Venta (NVV)</span>
-          </TabsTrigger>
-          <TabsTrigger value="gdv" className="flex items-center space-x-2" data-testid="tab-gdv">
-            <Truck className="h-4 w-4" />
-            <span>Guías de Despacho (GDV)</span>
-          </TabsTrigger>
-          {canSeeProyeccion && (
-            <TabsTrigger value="proyeccion" className="flex items-center space-x-2" data-testid="tab-proyeccion">
-              <BarChart3 className="h-4 w-4" />
-              <span>Proyección</span>
+        <div className="overflow-x-auto -mx-2 px-2">
+          <TabsList className="inline-flex min-w-max gap-1 p-1">
+            <TabsTrigger value="facturas" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-facturas">
+              <FileText className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Facturas</span>
+              <span className="sm:hidden">Fact.</span>
             </TabsTrigger>
-          )}
-          <TabsTrigger value="solicitud-credito" className="flex items-center space-x-2" data-testid="tab-solicitud-credito">
-            <FileText className="h-4 w-4" />
-            <span>Solicitud de Crédito</span>
-          </TabsTrigger>
-        </TabsList>
+            <TabsTrigger value="nvv" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-nvv">
+              <TrendingUp className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Notas de Venta (NVV)</span>
+              <span className="sm:hidden">NVV</span>
+            </TabsTrigger>
+            <TabsTrigger value="gdv" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-gdv">
+              <Truck className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Guías de Despacho (GDV)</span>
+              <span className="sm:hidden">GDV</span>
+            </TabsTrigger>
+            {canSeeProyeccion && (
+              <TabsTrigger value="proyeccion" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-proyeccion">
+                <BarChart3 className="h-4 w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Proyección</span>
+                <span className="sm:hidden">Proy.</span>
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="solicitud-credito" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-solicitud-credito">
+              <FileText className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Solicitud de Crédito</span>
+              <span className="sm:hidden">Crédito</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Facturas Tab */}
         <TabsContent value="facturas" className="mt-6">
