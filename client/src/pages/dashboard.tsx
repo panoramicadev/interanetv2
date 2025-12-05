@@ -88,6 +88,26 @@ export default function Dashboard() {
     return "month";
   })();
   
+  // Helper function to check if we're viewing the current month
+  const isCurrentMonth = (): boolean => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const currentMonthStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+    
+    if (filterType === "month" && selectedPeriod.match(/^\d{4}-\d{2}$/)) {
+      return selectedPeriod === currentMonthStr;
+    }
+    
+    // For day filter, check if the day is in the current month
+    if (filterType === "day" && selectedPeriod.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return selectedPeriod.startsWith(currentMonthStr);
+    }
+    
+    // For year filter or range, don't show NVV (only current month matters)
+    return false;
+  };
+  
   const selectedDate = (() => {
     if ((selection.period === "day" || selection.period === "days") && selection.days && selection.days.length > 0) {
       const year = selection.years[0];
@@ -1311,8 +1331,8 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* NVV Pendientes - Solo mostrar cuando hay un vendedor seleccionado */}
-              {globalFilter.type === "salesperson" && globalFilter.value && (
+              {/* NVV Pendientes - Solo mostrar cuando hay un vendedor seleccionado Y estamos en el mes actual */}
+              {globalFilter.type === "salesperson" && globalFilter.value && isCurrentMonth() && (
                 <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
                   <SalespersonPendingNVV
                     salesperson={globalFilter.value}
@@ -1321,8 +1341,8 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* NVV Pendientes - Todos los vendedores (mostrar cuando NO hay vendedor específico seleccionado) */}
-              {globalFilter.type !== "salesperson" && (
+              {/* NVV Pendientes - Todos los vendedores (solo en mes actual y cuando NO hay vendedor específico seleccionado) */}
+              {globalFilter.type !== "salesperson" && isCurrentMonth() && (
                 <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
                   <AllSalespeopleNVV
                     selectedPeriod={selectedPeriod}
