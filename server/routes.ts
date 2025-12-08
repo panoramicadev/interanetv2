@@ -387,6 +387,11 @@ export function registerRoutes(app: Express): Server {
     limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
   });
 
+  // Fast readiness check - responds immediately for Cloud Run health checks
+  app.get('/api/ready', (req: any, res: any) => {
+    res.status(200).json({ status: 'ready', timestamp: new Date().toISOString() });
+  });
+
   // Health check endpoint - Production monitoring
   app.get('/api/health', asyncHandler(async (req: any, res: any) => {
     const dbHealth = await checkDbHealth();
