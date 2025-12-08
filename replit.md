@@ -26,6 +26,7 @@ Preferred communication style: Simple, everyday language.
     - **Service & Operations**: Technical visits, Complaints management (workflow, photo uploads, state machine, specific area mapping to operative areas), Maintenance management (CMMS: equipment requests, preventive plans supporting equipment-specific and general tasks, work orders, expense tracking, full lifecycle management), Inventory module (real-time stock, alerts), Expense management.
     - **Internal Systems**: Internal notification system, ETL monitoring modules with change tracking and state change auditing.
 - **Production Deployment**: Replit Autoscale Deployment with automated database migrations, ETL scheduler, preventive maintenance scheduler, and health monitoring. Includes reliability features like circuit breaker, automatic retry, health check endpoint, automated alerting, and data quality validation.
+- **Database Bootstrap System**: On application startup, `bootstrapDatabase()` runs BEFORE migrations to ensure all schemas (ventas, gdv, nvv) and staging tables exist with required columns. This is idempotent and safe to run multiple times, preventing production drift issues.
 
 ## External Dependencies
 
