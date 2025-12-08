@@ -20407,6 +20407,52 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getGdvPendingRecords(limit: number = 100): Promise<Array<{
+    numeroGuia: string;
+    fecha: string;
+    cliente: string;
+    vendedor: string;
+    sucursal: string;
+    producto: string;
+    cantidad: number;
+    monto: number;
+  }>> {
+    try {
+      const query = sql.raw(`
+        SELECT 
+          COALESCE(nudo::text, '') as numero_guia,
+          COALESCE(feemdo::text, '') as fecha,
+          COALESCE(nokoen, 'Sin cliente') as cliente,
+          COALESCE(nokofu, 'Sin vendedor') as vendedor,
+          COALESCE(nosudo, '') as sucursal,
+          COALESCE(nokoprct, 'Sin producto') as producto,
+          COALESCE(caprco2::numeric, 0) as cantidad,
+          COALESCE(vaneli::numeric, 0) as monto
+        FROM gdv.fact_gdv
+        WHERE (eslido IS NULL OR eslido = '')
+          AND cantidad_pendiente = true
+        ORDER BY feemdo DESC, vaneli DESC
+        LIMIT ${limit}
+      `);
+
+      const result = await db.execute(query);
+
+      return result.rows.map((row: any) => ({
+        numeroGuia: String(row?.numero_guia || ''),
+        fecha: String(row?.fecha || ''),
+        cliente: String(row?.cliente || 'Sin cliente'),
+        vendedor: String(row?.vendedor || 'Sin vendedor'),
+        sucursal: String(row?.sucursal || ''),
+        producto: String(row?.producto || 'Sin producto'),
+        cantidad: Number(row?.cantidad || 0),
+        monto: Number(row?.monto || 0),
+      }));
+    } catch (error) {
+      console.error('[getGdvPendingRecords] Error:', error);
+      throw error;
+    }
+  }
+
   // NVV ETL operations
   async getNvvSyncHistory(limit: number = 20, offset: number = 0): Promise<NvvSyncLog[]> {
     const history = await db

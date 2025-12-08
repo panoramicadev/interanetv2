@@ -13267,6 +13267,18 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Get GDV pending records (all individual records)
+  app.get('/api/etl/gdv/pending-records', requireRoles(['admin', 'supervisor', 'logistica_bodega']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 500;
+      const records = await storage.getGdvPendingRecords(limit);
+      res.json(records);
+    } catch (error: any) {
+      console.error('[GDV Pending Records Error]', error);
+      res.status(500).json({ message: 'Error al obtener registros GDV pendientes', error: error.message });
+    }
+  }));
+
   // ==================================================================================
   // NVV ETL SYNCHRONIZATION routes
   // ==================================================================================

@@ -58,6 +58,17 @@ interface GdvByVendedor {
   montoPendiente: number;
 }
 
+interface GdvPendingRecord {
+  numeroGuia: string;
+  fecha: string;
+  cliente: string;
+  vendedor: string;
+  sucursal: string;
+  producto: string;
+  cantidad: number;
+  monto: number;
+}
+
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('es-CL', {
     style: 'currency',
@@ -117,6 +128,11 @@ export default function GDVPage() {
     enabled: canSync,
   });
 
+  const { data: gdvPendingRecords, isLoading: isLoadingRecords } = useQuery<GdvPendingRecord[]>({
+    queryKey: ['/api/etl/gdv/pending-records'],
+    enabled: true,
+  });
+
   const syncMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest('POST', '/api/etl/sync-gdv');
@@ -130,6 +146,7 @@ export default function GDVPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/etl/sync-gdv/history'] });
       queryClient.invalidateQueries({ queryKey: ['/api/etl/gdv/summary'] });
       queryClient.invalidateQueries({ queryKey: ['/api/etl/gdv/by-vendedor'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/etl/gdv/pending-records'] });
       queryClient.invalidateQueries({ queryKey: ['/api/sales/gdv-pending'] });
     },
     onError: (error: any) => {
@@ -265,90 +282,57 @@ export default function GDVPage() {
                 </Card>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card data-testid="card-by-vendedor">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Building2 className="w-5 h-5" />
-                      Por Vendedor
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {isLoadingByVendedor ? (
-                      <div className="flex items-center justify-center py-8" data-testid="loading-by-vendedor">
-                        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                      </div>
-                    ) : gdvByVendedor && gdvByVendedor.length > 0 ? (
-                      <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                        {gdvByVendedor.map((item, idx) => (
-                          <div 
-                            key={`${item.codigoVendedor}-${idx}`} 
-                            className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                            data-testid={`vendedor-item-${item.codigoVendedor}`}
-                          >
-                            <div className="flex-1 min-w-0 mr-3">
-                              <p className="font-medium truncate">{item.nombreVendedor}</p>
-                              <p className="text-sm text-gray-500">{item.totalGdvPendientes} guías · {item.lineasPendientes} líneas</p>
-                            </div>
-                            <div className="text-right flex-shrink-0">
-                              <p className="font-bold text-green-600">{formatCurrency(item.montoPendiente)}</p>
-                              <p className="text-sm text-gray-500">por facturar</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-center text-gray-500 py-8" data-testid="text-no-data-vendedor">No hay datos disponibles. Ejecuta una sincronización.</p>
+              <Card data-testid="card-gdv-table">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="w-5 h-5" />
+                    Detalle de Guías Pendientes
+                    {gdvPendingRecords && (
+                      <Badge variant="secondary" className="ml-2">{gdvPendingRecords.length} registros</Badge>
                     )}
-                  </CardContent>
-                </Card>
-
-                <Card data-testid="card-sync-status">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Database className="w-5 h-5" />
-                      Estado de la Sincronización
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {lastSync ? (
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-600">Estado:</span>
-                          {getStatusBadge(lastSync.status)}
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-600">Fecha:</span>
-                          <span className="font-medium" data-testid="value-sync-date">{formatDate(lastSync.startTime)}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-600">Registros procesados:</span>
-                          <span className="font-medium" data-testid="value-records-processed">{(lastSync.recordsProcessed ?? 0).toLocaleString('es-CL')}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-600">Registros insertados:</span>
-                          <span className="font-medium" data-testid="value-records-inserted">{(lastSync.recordsInserted ?? 0).toLocaleString('es-CL')}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-600">GDV eliminadas:</span>
-                          <span className="font-medium" data-testid="value-status-changes">{(lastSync.statusChanges ?? 0).toLocaleString('es-CL')}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-600">Tiempo de ejecución:</span>
-                          <span className="font-medium" data-testid="value-execution-time">{lastSync.executionTimeMs ? `${(lastSync.executionTimeMs / 1000).toFixed(2)}s` : '-'}</span>
-                        </div>
-                        {lastSync.errorMessage && (
-                          <div className="p-3 bg-red-50 border border-red-200 rounded-lg" data-testid="error-message">
-                            <p className="text-sm text-red-700">{lastSync.errorMessage}</p>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-center text-gray-500 py-8" data-testid="text-no-sync">No hay sincronizaciones registradas</p>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingRecords ? (
+                    <div className="flex items-center justify-center py-8" data-testid="loading-records">
+                      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                    </div>
+                  ) : gdvPendingRecords && gdvPendingRecords.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="whitespace-nowrap">N° Guía</TableHead>
+                            <TableHead className="whitespace-nowrap">Fecha</TableHead>
+                            <TableHead>Cliente</TableHead>
+                            <TableHead>Vendedor</TableHead>
+                            <TableHead>Sucursal</TableHead>
+                            <TableHead>Producto</TableHead>
+                            <TableHead className="text-right">Cantidad</TableHead>
+                            <TableHead className="text-right">Monto</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {gdvPendingRecords.map((record, idx) => (
+                            <TableRow key={`${record.numeroGuia}-${idx}`} data-testid={`gdv-row-${idx}`}>
+                              <TableCell className="font-medium">{record.numeroGuia}</TableCell>
+                              <TableCell className="whitespace-nowrap">{record.fecha}</TableCell>
+                              <TableCell className="max-w-[200px] truncate" title={record.cliente}>{record.cliente}</TableCell>
+                              <TableCell className="max-w-[150px] truncate" title={record.vendedor}>{record.vendedor}</TableCell>
+                              <TableCell>{record.sucursal}</TableCell>
+                              <TableCell className="max-w-[200px] truncate" title={record.producto}>{record.producto}</TableCell>
+                              <TableCell className="text-right">{record.cantidad.toLocaleString('es-CL')}</TableCell>
+                              <TableCell className="text-right font-medium text-green-600">{formatCurrency(record.monto)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <p className="text-center text-gray-500 py-8" data-testid="text-no-records">No hay guías pendientes. Ejecuta una sincronización.</p>
+                  )}
+                </CardContent>
+              </Card>
             </>
           )}
         </TabsContent>
