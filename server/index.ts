@@ -6,7 +6,7 @@ import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
 import { executeNVVETL } from "./etl-nvv";
 import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
-import { runProductionMigrations, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor } from "./migrations";
+import { runProductionMigrations, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, bootstrapDatabase } from "./migrations";
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -90,6 +90,14 @@ app.use((req, res, next) => {
 // Background services initialization - runs after server is ready
 async function initializeBackgroundServices() {
   log('🚀 Starting background services initialization...');
+  
+  // Bootstrap de base de datos - crea esquemas y tablas base ANTES de migraciones
+  try {
+    await bootstrapDatabase();
+  } catch (error: any) {
+    console.error('❌ Error en bootstrap de base de datos:', error.message);
+    console.error('La aplicación continuará, pero algunas funciones pueden no estar disponibles');
+  }
   
   // Ejecutar migraciones de base de datos
   try {

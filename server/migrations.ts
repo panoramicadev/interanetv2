@@ -4,6 +4,224 @@ import fs from 'fs';
 import path from 'path';
 import { ObjectStorageService } from './objectStorage';
 
+/**
+ * Bootstrap de base de datos - Se ejecuta ANTES de las migraciones
+ * Crea esquemas y tablas base que son prerrequisitos para las migraciones
+ * Es idempotente y seguro de ejecutar múltiples veces
+ */
+export async function bootstrapDatabase(): Promise<void> {
+  console.log('🚀 Ejecutando bootstrap de base de datos...');
+  
+  try {
+    // 1. Crear esquemas necesarios
+    console.log('  📁 Creando esquemas...');
+    await db.execute(sql`CREATE SCHEMA IF NOT EXISTS ventas`);
+    await db.execute(sql`CREATE SCHEMA IF NOT EXISTS gdv`);
+    await db.execute(sql`CREATE SCHEMA IF NOT EXISTS nvv`);
+    
+    // 2. Crear tablas staging de VENTAS con todas las columnas necesarias
+    console.log('  📋 Verificando tablas de ventas...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ventas.stg_maeddo (
+        idmaeddo NUMERIC(20, 0) PRIMARY KEY,
+        idmaeedo NUMERIC(20, 0),
+        koprct TEXT,
+        sulido TEXT,
+        bosulido TEXT,
+        kofulido TEXT,
+        eslido TEXT,
+        caprco1 NUMERIC(18, 4),
+        caprco2 NUMERIC(18, 4),
+        caprad1 NUMERIC(18, 4),
+        caprad2 NUMERIC(18, 4),
+        caprnc1 NUMERIC(18, 4),
+        caprnc2 NUMERIC(18, 4),
+        vaneli NUMERIC(18, 4),
+        feemli DATE,
+        feerli TIMESTAMP
+      )
+    `);
+    await db.execute(sql`ALTER TABLE ventas.stg_maeddo ADD COLUMN IF NOT EXISTS kofulido TEXT`);
+    
+    // 3. Crear tablas staging de GDV
+    console.log('  📋 Verificando tablas de GDV...');
+    
+    // stg_maeedo_gdv (Encabezados)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS gdv.stg_maeedo_gdv (
+        idmaeedo NUMERIC(20, 0) PRIMARY KEY,
+        empresa TEXT,
+        tido TEXT,
+        nudo TEXT,
+        endo TEXT,
+        suendo TEXT,
+        endofi TEXT,
+        tigedo TEXT,
+        sudo TEXT,
+        luvtdo TEXT,
+        feemdo DATE,
+        kofudo TEXT,
+        esdo TEXT,
+        espgdo TEXT,
+        suli TEXT,
+        bosulido TEXT,
+        feer DATE,
+        vanedo NUMERIC(18, 4),
+        vaivdo NUMERIC(18, 4),
+        vabrdo NUMERIC(18, 4),
+        lilg TEXT,
+        modo TEXT,
+        timodo TEXT,
+        tamodo NUMERIC(18, 4),
+        ocdo TEXT,
+        feulvedo DATE
+      )
+    `);
+    
+    // stg_maeddo_gdv (Detalles de líneas)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS gdv.stg_maeddo_gdv (
+        idmaeddo NUMERIC(20, 0) PRIMARY KEY,
+        idmaeedo NUMERIC(20, 0),
+        koprct TEXT,
+        sulido TEXT,
+        bosulido TEXT,
+        kofulido TEXT,
+        eslido TEXT,
+        caprco1 NUMERIC(18, 4),
+        caprco2 NUMERIC(18, 4),
+        caprad1 NUMERIC(18, 4),
+        caprad2 NUMERIC(18, 4),
+        caprnc1 NUMERIC(18, 4),
+        caprnc2 NUMERIC(18, 4),
+        vaneli NUMERIC(18, 4),
+        feemli DATE,
+        feerli TIMESTAMP,
+        devol1 NUMERIC(18, 4),
+        devol2 NUMERIC(18, 4),
+        stockfis NUMERIC(18, 4),
+        nokopr TEXT,
+        udtrpr TEXT,
+        nulido TEXT,
+        luvtlido TEXT,
+        preuni NUMERIC(18, 6)
+      )
+    `);
+    // Agregar columnas faltantes por si la tabla ya existía sin ellas
+    await db.execute(sql`ALTER TABLE gdv.stg_maeddo_gdv ADD COLUMN IF NOT EXISTS nokopr TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.stg_maeddo_gdv ADD COLUMN IF NOT EXISTS udtrpr TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.stg_maeddo_gdv ADD COLUMN IF NOT EXISTS nulido TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.stg_maeddo_gdv ADD COLUMN IF NOT EXISTS luvtlido TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.stg_maeddo_gdv ADD COLUMN IF NOT EXISTS preuni NUMERIC(18, 6)`);
+    
+    // stg_maeen_gdv (Entidades/Clientes)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS gdv.stg_maeen_gdv (
+        koen TEXT PRIMARY KEY,
+        nokoen TEXT,
+        ruen TEXT,
+        rut TEXT
+      )
+    `);
+    await db.execute(sql`ALTER TABLE gdv.stg_maeen_gdv ADD COLUMN IF NOT EXISTS rut TEXT`);
+    
+    // stg_maepr_gdv (Productos)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS gdv.stg_maepr_gdv (
+        kopr TEXT PRIMARY KEY,
+        nomrpr TEXT,
+        nokopr TEXT,
+        rupr TEXT,
+        ud01pr TEXT,
+        ud02pr TEXT,
+        tipr TEXT
+      )
+    `);
+    
+    // stg_maeven_gdv (Vendedores)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS gdv.stg_maeven_gdv (
+        kofu TEXT PRIMARY KEY,
+        nokofu TEXT
+      )
+    `);
+    
+    // stg_tabbo_gdv (Bodegas)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS gdv.stg_tabbo_gdv (
+        suli TEXT NOT NULL,
+        bosuli TEXT NOT NULL,
+        nobosuli TEXT,
+        PRIMARY KEY (suli, bosuli)
+      )
+    `);
+    
+    // stg_tabru_gdv (Segmentos)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS gdv.stg_tabru_gdv (
+        koru TEXT PRIMARY KEY,
+        nokoru TEXT
+      )
+    `);
+    
+    // fact_gdv (Tabla de hechos)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS gdv.fact_gdv (
+        id SERIAL PRIMARY KEY,
+        idmaeedo NUMERIC(20, 0),
+        idmaeddo NUMERIC(20, 0),
+        tido TEXT,
+        nudo TEXT,
+        feemdo DATE,
+        endo TEXT,
+        nokoen TEXT,
+        ruen TEXT,
+        koprct TEXT,
+        nokopr TEXT,
+        kofulido TEXT,
+        nokofu TEXT,
+        suli TEXT,
+        bosulido TEXT,
+        nobosuli TEXT,
+        esdo TEXT,
+        eslido TEXT,
+        vaneli NUMERIC(18, 4),
+        monto NUMERIC(18, 4),
+        cantidad_pendiente NUMERIC(18, 4),
+        "cantidadPendiente" BOOLEAN DEFAULT false,
+        sync_timestamp TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // gdv_sync_log (Log de sincronización)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS gdv.gdv_sync_log (
+        id SERIAL PRIMARY KEY,
+        started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        completed_at TIMESTAMP,
+        status TEXT DEFAULT 'running',
+        records_processed INTEGER DEFAULT 0,
+        error_message TEXT
+      )
+    `);
+    
+    // 4. Crear índices importantes
+    console.log('  🔍 Creando índices...');
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_stg_maeddo_kofulido ON ventas.stg_maeddo(kofulido)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_stg_maeddo_gdv_idmaeedo ON gdv.stg_maeddo_gdv(idmaeedo)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_stg_maeddo_gdv_kofulido ON gdv.stg_maeddo_gdv(kofulido)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_stg_maeen_gdv_rut ON gdv.stg_maeen_gdv(rut)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_fact_gdv_kofulido ON gdv.fact_gdv(kofulido)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_fact_gdv_feemdo ON gdv.fact_gdv(feemdo)`);
+    
+    console.log('✅ Bootstrap de base de datos completado');
+    
+  } catch (error: any) {
+    console.error('❌ Error en bootstrap de base de datos:', error.message);
+    throw error;
+  }
+}
+
 // Lista de colores conocidos para pintura
 const KNOWN_COLORS = [
   // Colores básicos
