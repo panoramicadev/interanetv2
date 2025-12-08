@@ -251,15 +251,21 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
     await db.execute(sql`TRUNCATE TABLE gdv.stg_tabbo_gdv CASCADE`);
     console.log('✅ Tablas staging limpias (aisladas de ETL ventas)\n');
 
-    // 1. EXTRAER MAEEDO (encabezados GDV) - TODAS LAS GDV ABIERTAS (sin filtro de fecha)
-    emitProgress(2, TOTAL_STEPS, 'Extrayendo MAEEDO (GDV abiertas)', 'Consultando SQL Server...');
-    console.log('1️⃣  Extrayendo MAEEDO (Encabezados GDV abiertas)...');
+    // 1. EXTRAER MAEEDO (encabezados GDV) - Solo GDV del MES ACTUAL (datos volátiles)
+    emitProgress(2, TOTAL_STEPS, 'Extrayendo MAEEDO (GDV mes actual)', 'Consultando SQL Server...');
+    console.log('1️⃣  Extrayendo MAEEDO (Encabezados GDV del mes actual)...');
+    
+    // Calcular primer día del mes actual para filtrar solo GDV recientes
+    const now = new Date();
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const dateFilter = firstDayOfMonth.toISOString().split('T')[0]; // YYYY-MM-DD
     
     console.log('╔═══════════════════════════════════════════════════════════════╗');
-    console.log('║  📝 QUERY SQL MAEEDO - SINCRONIZACIÓN COMPLETA               ║');
+    console.log('║  📝 QUERY SQL MAEEDO - SOLO MES ACTUAL (DATOS VOLÁTILES)     ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
     console.log(`🔍 TIDO = 'GDV'`);
     console.log(`🔍 SUDO IN: ${sucursales.join(', ')}`);
+    console.log(`🔍 FEEMDO >= '${dateFilter}' (Solo mes actual)`);
     console.log(`🔍 ESDO IS NULL OR ESDO = '' (Solo documentos abiertos)`);
     console.log('');
     
@@ -269,6 +275,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
         FROM dbo.MAEEDO
         WHERE TIDO = 'GDV'
           AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
+          AND FEEMDO >= '${dateFilter}'
           AND (ESDO IS NULL OR ESDO = '' OR ESDO NOT IN ('C', 'A'))
         ORDER BY FEEMDO DESC
       `),

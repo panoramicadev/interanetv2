@@ -20312,11 +20312,17 @@ export class DatabaseStorage implements IStorage {
     lineasPendientes: number;
   }> {
     try {
+      // Solo mostrar GDV del mes actual (datos volátiles)
+      const now = new Date();
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const dateFilter = firstDayOfMonth.toISOString().split('T')[0];
+      
       const conditions: string[] = [];
       
       // Solo mostrar GDV pendientes (líneas abiertas con cantidad pendiente)
       conditions.push(`(eslido IS NULL OR eslido = '')`);
       conditions.push(`cantidad_pendiente = true`);
+      conditions.push(`feemdo >= '${dateFilter}'`); // Solo mes actual
       
       if (filters?.startDate) {
         conditions.push(`feemdo >= '${filters.startDate}'`);
@@ -20364,11 +20370,17 @@ export class DatabaseStorage implements IStorage {
     montoPendiente: number;
   }>> {
     try {
+      // Solo mostrar GDV del mes actual (datos volátiles)
+      const now = new Date();
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const dateFilter = firstDayOfMonth.toISOString().split('T')[0];
+      
       const conditions: string[] = [];
       
       // Solo mostrar GDV pendientes (líneas abiertas con cantidad pendiente)
       conditions.push(`(eslido IS NULL OR eslido = '')`);
       conditions.push(`cantidad_pendiente = true`);
+      conditions.push(`feemdo >= '${dateFilter}'`); // Solo mes actual
       
       if (filters?.startDate) {
         conditions.push(`feemdo >= '${filters.startDate}'`);
@@ -20407,7 +20419,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getGdvPendingRecords(limit: number = 100): Promise<Array<{
+  async getGdvPendingRecords(limit: number = 500): Promise<Array<{
     numeroGuia: string;
     fecha: string;
     cliente: string;
@@ -20418,6 +20430,11 @@ export class DatabaseStorage implements IStorage {
     monto: number;
   }>> {
     try {
+      // Solo mostrar GDV del mes actual (datos volátiles)
+      const now = new Date();
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const dateFilter = firstDayOfMonth.toISOString().split('T')[0];
+      
       const query = sql.raw(`
         SELECT 
           COALESCE(nudo::text, '') as numero_guia,
@@ -20431,6 +20448,7 @@ export class DatabaseStorage implements IStorage {
         FROM gdv.fact_gdv
         WHERE (eslido IS NULL OR eslido = '')
           AND cantidad_pendiente = true
+          AND feemdo >= '${dateFilter}'
         ORDER BY feemdo DESC, vaneli DESC
         LIMIT ${limit}
       `);
