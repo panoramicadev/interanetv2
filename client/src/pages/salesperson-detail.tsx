@@ -16,6 +16,7 @@ import { useFilter } from "@/contexts/FilterContext";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import ComparativeSalespersonTable from "@/components/dashboard/comparative-salesperson-table";
 import SalespersonPendingNVV from "@/components/dashboard/salesperson-pending-nvv";
+import SalespersonPendingGDV from "@/components/dashboard/salesperson-pending-gdv";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -1311,6 +1312,13 @@ export default function SalespersonDetail({
             <SalespersonPendingNVV
               salesperson={salespersonName}
               applyPeriodFilter={false}
+            />
+          )}
+
+          {/* GDV Pendientes - Guías de despacho pendientes (solo en mes actual) */}
+          {salespersonName && isCurrentMonth() && (
+            <SalespersonPendingGDV
+              salesperson={salespersonName}
             />
           )}
 

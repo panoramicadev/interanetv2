@@ -20419,6 +20419,55 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getGdvBySalesperson(salesperson: string): Promise<Array<{
+    numeroGuia: string;
+    fecha: string;
+    cliente: string;
+    codigoCliente: string;
+    producto: string;
+    cantidad: number;
+    monto: number;
+  }>> {
+    try {
+      // Solo mostrar GDV del mes actual (datos volátiles)
+      const now = new Date();
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const dateFilter = firstDayOfMonth.toISOString().split('T')[0];
+      
+      const query = sql.raw(`
+        SELECT 
+          COALESCE(nudo::text, '') as numero_guia,
+          COALESCE(feemdo::text, '') as fecha,
+          COALESCE(nokoen, 'Sin cliente') as cliente,
+          COALESCE(endo, '') as codigo_cliente,
+          COALESCE(nokoprct, 'Sin producto') as producto,
+          COALESCE(caprco2::numeric, 0) as cantidad,
+          COALESCE(vaneli::numeric, 0) as monto
+        FROM gdv.fact_gdv
+        WHERE (eslido IS NULL OR eslido = '')
+          AND cantidad_pendiente = true
+          AND feemdo >= '${dateFilter}'
+          AND UPPER(TRIM(nokofu)) = UPPER(TRIM('${salesperson.replace(/'/g, "''")}'))
+        ORDER BY feemdo DESC, vaneli DESC
+      `);
+
+      const result = await db.execute(query);
+
+      return result.rows.map((row: any) => ({
+        numeroGuia: String(row?.numero_guia || ''),
+        fecha: String(row?.fecha || ''),
+        cliente: String(row?.cliente || 'Sin cliente'),
+        codigoCliente: String(row?.codigo_cliente || ''),
+        producto: String(row?.producto || 'Sin producto'),
+        cantidad: Number(row?.cantidad || 0),
+        monto: Number(row?.monto || 0),
+      }));
+    } catch (error) {
+      console.error('[getGdvBySalesperson] Error:', error);
+      throw error;
+    }
+  }
+
   async getGdvPendingRecords(limit: number = 500): Promise<Array<{
     numeroGuia: string;
     fecha: string;
