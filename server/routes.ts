@@ -13279,6 +13279,21 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Get GDV by salesperson (for dashboard view)
+  app.get('/api/gdv/by-salesperson', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const salesperson = req.query.salesperson as string;
+      if (!salesperson) {
+        return res.status(400).json({ message: 'Se requiere el parámetro salesperson' });
+      }
+      const records = await storage.getGdvBySalesperson(salesperson);
+      res.json(records);
+    } catch (error: any) {
+      console.error('[GDV By Salesperson Error]', error);
+      res.status(500).json({ message: 'Error al obtener GDV por vendedor', error: error.message });
+    }
+  }));
+
   // ==================================================================================
   // NVV ETL SYNCHRONIZATION routes
   // ==================================================================================
