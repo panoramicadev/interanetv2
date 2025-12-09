@@ -405,16 +405,41 @@ export default function Reception() {
       }
 
       // Obtener lista de precios completa para consultar unidades de productos
-      let priceList: Array<{ codigo: string; unidad: string }> = [];
+      // Crear mapa de unidades por código de producto
+      const unitMap = new Map<string, string>();
       try {
         // Usar limit alto para obtener todos los productos
         const response = await fetch('/api/price-list?limit=10000', {
           credentials: 'include'
         });
         if (response.ok) {
-          const data = await response.json() as { items?: Array<{ codigo: string; unidad: string }> };
-          priceList = data?.items || [];
-          console.log(`Lista de precios cargada: ${priceList.length} productos`);
+          const data = await response.json();
+          console.log('Respuesta API price-list:', JSON.stringify(data).substring(0, 500));
+          const items = data?.items || [];
+          console.log(`Lista de precios cargada: ${items.length} productos`);
+          
+          // Mostrar primeros 3 items para verificar estructura
+          if (items.length > 0) {
+            console.log('Ejemplo de item:', JSON.stringify(items[0]));
+            console.log('Campos disponibles:', Object.keys(items[0]));
+          }
+          
+          // Crear mapa de unidades por código
+          items.forEach((item: Record<string, unknown>) => {
+            const codigo = item.codigo as string;
+            const unidad = item.unidad as string;
+            if (codigo) {
+              unitMap.set(codigo, unidad || '');
+            }
+          });
+          console.log(`Mapa de unidades creado: ${unitMap.size} productos`);
+          
+          // Verificar productos específicos de la cotización
+          const testCodes = ['PANES930BL001', 'PCA103MADPLU2', 'PANES930BL056'];
+          testCodes.forEach(code => {
+            const unidad = unitMap.get(code);
+            console.log(`Test unitMap[${code}] = "${unidad}"`);
+          });
         } else {
           console.error('Error al cargar lista de precios:', response.status, response.statusText);
         }
@@ -424,16 +449,16 @@ export default function Reception() {
 
       // Función para determinar si es unidad primaria (GL) o secundaria (1/4, BD, etc.)
       const isPrimaryUnit = (productCode: string): boolean => {
-        const product = priceList.find(p => p.codigo === productCode);
-        if (!product) {
-          console.warn(`Producto no encontrado en lista de precios: ${productCode}`);
+        const unidad = unitMap.get(productCode);
+        if (unidad === undefined) {
+          console.warn(`Producto no encontrado en mapa de unidades: ${productCode}`);
           return true; // Por defecto, asumir primaria
         }
-        const unidad = (product.unidad || '').toUpperCase().trim();
+        const unidadUpper = (unidad || '').toUpperCase().trim();
         // Unidad primaria: SOLO "GL" exacto (Galón)
         // Unidad secundaria: 1/4, BD, cualquier otra cosa que no sea exactamente "GL"
-        const esPrimaria = unidad === 'GL';
-        console.log(`Producto ${productCode}: unidad="${unidad}", primaria=${esPrimaria}`);
+        const esPrimaria = unidadUpper === 'GL';
+        console.log(`Producto ${productCode}: unidad="${unidadUpper}", primaria=${esPrimaria}`);
         return esPrimaria;
       };
 
