@@ -8789,6 +8789,20 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Get estadísticas mensuales para gráficos
+  app.get('/api/visitas-tecnicas/estadisticas-mensuales', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const estadisticas = await storage.getEstadisticasMensualesVisitas();
+      res.json(estadisticas);
+    } catch (error: any) {
+      console.error('❌ Error al obtener estadísticas mensuales de visitas técnicas:', error);
+      res.status(500).json({
+        message: 'Error al obtener estadísticas mensuales',
+        error: error.message
+      });
+    }
+  }));
+
   // Get listado de visitas técnicas con filtros
   app.get('/api/visitas-tecnicas/listado', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
