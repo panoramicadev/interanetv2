@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target, Eye, Building, Home, Download, Search, X, UserPlus, RefreshCw } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target, Eye, Building, Home, Download, Search, X, UserPlus, RefreshCw, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -32,6 +32,14 @@ interface SegmentSalesperson {
   totalSales: number;
   transactionCount: number;
   averageTicket: number;
+  percentage: number;
+}
+
+interface SegmentProduct {
+  productName: string;
+  totalSales: number;
+  totalQuantity: number;
+  transactionCount: number;
   percentage: number;
 }
 
@@ -104,6 +112,10 @@ export default function SegmentDetail({
   const [debouncedSalespersonSearch, setDebouncedSalespersonSearch] = useState("");
   const [salespersonLimit, setSalespersonLimit] = useState(10);
   const [expandedSalesperson, setExpandedSalesperson] = useState<string>("");
+  
+  // State for products
+  const [productLimit, setProductLimit] = useState(10);
+  const [expandedProduct, setExpandedProduct] = useState<string>("");
   
   // Debounce client search
   useEffect(() => {
@@ -424,6 +436,31 @@ export default function SegmentDetail({
       }));
     },
     enabled: !!segmentName && debouncedSalespersonSearch.length >= 2,
+  });
+
+  // Top products for segment
+  const { data: products = [], isLoading: isLoadingProducts } = useQuery<SegmentProduct[]>({
+    queryKey: ['/api/sales/top-products', segmentName, selectedPeriod, filterType, productLimit],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      params.append('segment', segmentName || '');
+      params.append('limit', productLimit.toString());
+      const res = await fetch(`/api/sales/top-products?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      const data = await res.json();
+      // Calculate percentages based on max sales
+      const maxSales = data.length > 0 ? Math.max(...data.map((p: any) => p.totalSales)) : 1;
+      return data.map((p: any) => ({
+        productName: p.productName,
+        totalSales: p.totalSales,
+        totalQuantity: p.totalQuantity || 0,
+        transactionCount: p.transactionCount || 0,
+        percentage: (p.totalSales / maxSales) * 100
+      }));
+    },
+    enabled: !!segmentName,
   });
 
   // Fetch segment goal (only for monthly periods)
@@ -1349,6 +1386,103 @@ export default function SegmentDetail({
                   )}
                 </>
               )}
+              </div>
+            </div>
+
+            {/* Top Products Section */}
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <div className="flex items-center space-x-2 sm:space-x-3">
+                  <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Package className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+                  </div>
+                  <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Productos del Segmento</h2>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                {isLoadingProducts ? (
+                  <div className="space-y-3">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="animate-pulse h-12 bg-gray-200 rounded"></div>
+                    ))}
+                  </div>
+                ) : products.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">No hay productos en este segmento</p>
+                ) : (
+                  <>
+                    <Accordion
+                      type="single"
+                      collapsible
+                      value={expandedProduct}
+                      onValueChange={setExpandedProduct}
+                      className="space-y-2"
+                    >
+                      {products.map((product, index) => (
+                        <AccordionItem
+                          key={product.productName}
+                          value={product.productName}
+                          className="border rounded-lg overflow-hidden bg-green-50/30"
+                        >
+                          <AccordionTrigger
+                            className="px-4 py-3 hover:bg-green-50/50 hover:no-underline"
+                            data-testid={`accordion-trigger-product-${index}`}
+                          >
+                            <div className="flex items-center gap-3 w-full pr-4">
+                              <div className="flex-1 min-w-0 text-left">
+                                <p className="text-sm font-medium text-gray-900 truncate">
+                                  {product.productName}
+                                </p>
+                              </div>
+                              <div className="w-12 flex-shrink-0 text-right">
+                                <span className="text-xs text-gray-600">
+                                  {product.percentage.toFixed(1)}%
+                                </span>
+                              </div>
+                              <div className="w-24 sm:w-32 flex-shrink-0">
+                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-green-500 rounded-full transition-all duration-500"
+                                    style={{ width: `${Math.min(product.percentage, 100)}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                              <div className="w-28 flex-shrink-0 text-right">
+                                <span className="text-sm font-semibold text-gray-900">
+                                  {formatCurrency(product.totalSales)}
+                                </span>
+                              </div>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className="px-4 pb-4 pt-2 bg-white">
+                            <div className="space-y-2 text-sm">
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Cantidad Vendida:</span>
+                                <span className="font-medium">{formatNumber(product.totalQuantity)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Transacciones:</span>
+                                <span className="font-medium">{formatNumber(product.transactionCount)}</span>
+                              </div>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
+                    {products.length >= productLimit && (
+                      <div className="text-center pt-3">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setProductLimit(prev => prev + 10)}
+                          data-testid="button-load-more-products"
+                        >
+                          Ver más
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           </div>
