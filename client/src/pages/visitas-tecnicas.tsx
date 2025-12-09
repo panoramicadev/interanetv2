@@ -43,7 +43,8 @@ import {
   CheckCircle,
   Users,
   Package,
-  TrendingUp
+  TrendingUp,
+  PenLine
 } from "lucide-react";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -1044,7 +1045,20 @@ export default function VisitasTecnicasPage() {
                       )}
                     </div>
                   </div>
-                  <div className="w-full sm:w-auto">
+                  <div className="w-full sm:w-auto flex flex-col gap-2">
+                    <Button 
+                      variant="default" 
+                      size="sm" 
+                      className="w-full"
+                      onClick={() => {
+                        setSelectedVisitId(visita.id);
+                        setShowDetailModal(true);
+                      }}
+                      data-testid={`button-firmar-${visita.id}`}
+                    >
+                      <PenLine className="w-4 h-4 mr-2" />
+                      Firmar
+                    </Button>
                     <Button 
                       variant="outline" 
                       size="sm" 
