@@ -12695,6 +12695,104 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getEstadisticasMensualesVisitas(): Promise<{
+    visitasPorMes: Array<{ mes: string; completadas: number; pendientes: number; total: number }>;
+    obrasActivas: number;
+    totalTecnicos: number;
+    productosEvaluadosTotal: number;
+    reclamosResueltosUltimoMes: number;
+    visitasUltimos30Dias: number;
+  }> {
+    try {
+      const now = new Date();
+      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+      
+      // Get visitas from last 6 months
+      const visitas = await db.select().from(visitasTecnicas)
+        .where(
+          sql`${visitasTecnicas.createdAt}::date >= ${sixMonthsAgo.toISOString().split('T')[0]}::date`
+        );
+      
+      // Group by month
+      const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+      const visitasPorMes: Array<{ mes: string; completadas: number; pendientes: number; total: number }> = [];
+      
+      for (let i = 5; i >= 0; i--) {
+        const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthKey = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`;
+        const monthLabel = `${monthNames[monthDate.getMonth()]} ${monthDate.getFullYear()}`;
+        
+        const monthVisitas = visitas.filter(v => {
+          const visitaDate = new Date(v.createdAt!);
+          return visitaDate.getFullYear() === monthDate.getFullYear() && 
+                 visitaDate.getMonth() === monthDate.getMonth();
+        });
+        
+        visitasPorMes.push({
+          mes: monthLabel,
+          completadas: monthVisitas.filter(v => v.estado === 'completada').length,
+          pendientes: monthVisitas.filter(v => v.estado !== 'completada').length,
+          total: monthVisitas.length
+        });
+      }
+      
+      // Count active obras (unique obras from visitas in last 3 months)
+      const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+      const recentVisitas = visitas.filter(v => new Date(v.createdAt!) >= threeMonthsAgo);
+      const uniqueObras = new Set(recentVisitas.map(v => v.nombreObra));
+      const obrasActivas = uniqueObras.size;
+      
+      // Count active technicians
+      const tecnicos = await db.selectDistinct({ tecnicoId: visitasTecnicas.tecnicoId })
+        .from(visitasTecnicas)
+        .where(sql`${visitasTecnicas.createdAt}::date >= ${threeMonthsAgo.toISOString().split('T')[0]}::date`);
+      const totalTecnicos = tecnicos.length;
+      
+      // Count total products evaluated
+      const visitaIds = visitas.map(v => v.id);
+      let productosEvaluadosTotal = 0;
+      if (visitaIds.length > 0) {
+        const productos = await db.select().from(productosEvaluados)
+          .where(inArray(productosEvaluados.visitaId, visitaIds));
+        productosEvaluadosTotal = productos.length;
+      }
+      
+      // Count resolved reclamos in last month
+      const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      const reclamosResueltos = await db.select().from(reclamos)
+        .where(
+          and(
+            eq(reclamos.estado, 'resuelto'),
+            sql`${reclamos.updatedAt}::date >= ${oneMonthAgo.toISOString().split('T')[0]}::date`
+          )
+        );
+      const reclamosResueltosUltimoMes = reclamosResueltos.length;
+      
+      // Count visitas in last 30 days
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const visitasUltimos30Dias = visitas.filter(v => new Date(v.createdAt!) >= thirtyDaysAgo).length;
+      
+      return {
+        visitasPorMes,
+        obrasActivas,
+        totalTecnicos,
+        productosEvaluadosTotal,
+        reclamosResueltosUltimoMes,
+        visitasUltimos30Dias
+      };
+    } catch (error) {
+      console.error('Error getting monthly visitas statistics:', error);
+      return {
+        visitasPorMes: [],
+        obrasActivas: 0,
+        totalTecnicos: 0,
+        productosEvaluadosTotal: 0,
+        reclamosResueltosUltimoMes: 0,
+        visitasUltimos30Dias: 0
+      };
+    }
+  }
+
   async getListadoVisitasTecnicas(options: {
     search?: string;
     estado?: string;
