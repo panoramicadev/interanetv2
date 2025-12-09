@@ -95,7 +95,7 @@ export default function ReclamoResolucionPage() {
         title: "Resolución enviada",
         description: "La resolución del laboratorio ha sido registrada con éxito.",
       });
-      setLocation('/reclamos');
+      setLocation('/reclamos-generales');
     },
     onError: (error) => {
       setResolucionUploadProgress({ current: 0, total: 0 });
@@ -127,7 +127,7 @@ export default function ReclamoResolucionPage() {
         title: "Resolución enviada",
         description: "La resolución del área responsable ha sido registrada con éxito.",
       });
-      setLocation('/reclamos');
+      setLocation('/reclamos-generales');
     },
     onError: (error) => {
       setResolucionUploadProgress({ current: 0, total: 0 });
@@ -317,7 +317,7 @@ export default function ReclamoResolucionPage() {
             <Button 
               variant="outline" 
               className="mt-4 mx-auto block"
-              onClick={() => setLocation('/reclamos')}
+              onClick={() => setLocation('/reclamos-generales')}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Volver a Reclamos
@@ -332,7 +332,7 @@ export default function ReclamoResolucionPage() {
     <div className="container mx-auto p-4 max-w-2xl">
       <Button
         variant="ghost"
-        onClick={() => setLocation('/reclamos')}
+        onClick={() => setLocation('/reclamos-generales')}
         className="mb-4"
         data-testid="button-back"
       >
@@ -506,7 +506,7 @@ export default function ReclamoResolucionPage() {
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button
               variant="outline"
-              onClick={() => setLocation('/reclamos')}
+              onClick={() => setLocation('/reclamos-generales')}
               data-testid="button-cancel"
             >
               Cancelar

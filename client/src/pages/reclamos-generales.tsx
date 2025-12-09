@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -197,6 +198,7 @@ function PortaledFilePicker({ inputRef, onChange, accept = "image/*", multiple =
 export default function ReclamosGeneralesPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("mis-reclamos");
   const [filterTab, setFilterTab] = useState(() => {
     // Initialize with "asignados-area" for area, laboratorio, jefe_planta, and organizational roles
@@ -1577,7 +1579,8 @@ export default function ReclamosGeneralesPage() {
                                             setShowDetailModal(true);
                                             setTimeout(() => setShowResolucionViewModal(true), 300);
                                           } else {
-                                            setShowResolucionLaboratorioModal(true);
+                                            // Navegar a página separada para evitar problema de cierre en móvil
+                                            setLocation(`/reclamos/resolucion/${reclamo.id}`);
                                           }
                                         }}
                                         data-testid={`menu-resolucion-laboratorio-${reclamo.id}`}
@@ -2034,9 +2037,9 @@ export default function ReclamosGeneralesPage() {
                     // Si ya tiene resolución, abrir el modal de visualización
                     setShowResolucionViewModal(true);
                   } else {
-                    // Si no tiene resolución, abrir el modal de carga
+                    // Navegar a página separada para evitar problema de cierre en móvil
                     setShowDetailModal(false);
-                    setShowResolucionLaboratorioModal(true);
+                    setLocation(`/reclamos/resolucion/${reclamoDetails.id}`);
                   }
                 }}
                 className={`mt-2 w-full ${reclamoDetails.informeLaboratorio ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
