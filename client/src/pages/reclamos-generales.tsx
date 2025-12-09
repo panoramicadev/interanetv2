@@ -2447,30 +2447,37 @@ export default function ReclamosGeneralesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Resolución del Laboratorio */}
-      <Dialog open={showResolucionLaboratorioModal} onOpenChange={(open) => {
-        console.log('[DEBUG] Dialog onOpenChange called with:', open, 'isFilePickerOpen:', isFilePickerOpenRef.current);
-        // Never close via onOpenChange - only via explicit buttons
-      }}>
+      {/* Modal de Resolución del Laboratorio - Custom implementation to prevent close on file picker */}
+      {showResolucionLaboratorioModal && (
+        <div className="fixed inset-0 z-50 bg-black/80" aria-hidden="true" />
+      )}
+      <Dialog 
+        open={showResolucionLaboratorioModal} 
+        onOpenChange={() => {
+          // Intentionally empty - never allow automatic close
+        }}
+        modal={false}
+      >
         <DialogContent 
-          className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full"
+          className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full z-[100]"
           hideCloseButton={true}
           onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
           onInteractOutside={(e) => {
-            console.log('[DEBUG] onInteractOutside triggered');
             e.preventDefault();
+            e.stopPropagation();
           }}
           onPointerDownOutside={(e) => {
-            console.log('[DEBUG] onPointerDownOutside triggered');
             e.preventDefault();
+            e.stopPropagation();
           }}
           onFocusOutside={(e) => {
-            console.log('[DEBUG] onFocusOutside triggered');
             e.preventDefault();
+            e.stopPropagation();
           }}
           onEscapeKeyDown={(e) => {
-            console.log('[DEBUG] onEscapeKeyDown triggered');
             e.preventDefault();
+            e.stopPropagation();
           }}
         >
           <DialogHeader>
