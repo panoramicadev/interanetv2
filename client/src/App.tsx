@@ -50,6 +50,7 @@ import QuotesPage from "@/pages/quotes";
 import OrdersPage from "@/pages/orders";
 import VisitasTecnicasPage from "@/pages/visitas-tecnicas";
 import ReclamosGeneralesPage from "@/pages/reclamos-generales";
+import ReclamoResolucionPage from "@/pages/reclamo-resolucion";
 import MantencionesPage from "@/pages/mantenciones";
 import CMMSDashboard from "@/pages/cmms-dashboard";
 import CMMSEquipos from "@/pages/cmms-equipos";
@@ -190,6 +191,7 @@ function Router() {
             <Route path="/tareas" component={TareasPage} />
             <Route path="/visitas-tecnicas" component={VisitasTecnicasPage} />
             <Route path="/reclamos-generales" component={ReclamosGeneralesPage} />
+            <Route path="/reclamos/resolucion/:id" component={ReclamoResolucionPage} />
             <Route path="/mantenciones" component={MantencionesPage} />
             <Route path="/cmms" component={() => {
               // Solo roles con gestión pueden ver el dashboard CMMS (admin, jefe_planta, mantencion, supervisor)
