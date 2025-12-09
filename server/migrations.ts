@@ -120,10 +120,12 @@ export async function bootstrapDatabase(): Promise<void> {
         koen TEXT PRIMARY KEY,
         nokoen TEXT,
         ruen TEXT,
-        rut TEXT
+        rut TEXT,
+        zona TEXT
       )
     `);
     await db.execute(sql`ALTER TABLE gdv.stg_maeen_gdv ADD COLUMN IF NOT EXISTS rut TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.stg_maeen_gdv ADD COLUMN IF NOT EXISTS zona TEXT`);
     
     // stg_maepr_gdv (Productos)
     await db.execute(sql`
