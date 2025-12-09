@@ -15224,8 +15224,253 @@ export function registerRoutes(app: Express): Server {
       migrationsExecuted.push('Tablas staging recreadas con estructura correcta');
       console.log('');
 
-      // 6. Insert default ETL config if not exists
-      console.log('6️⃣  Insertando configuración ETL por defecto...');
+      // 6. GDV Schema and tables - Complete column definitions
+      console.log('6️⃣  Verificando/creando schema y tablas GDV...');
+      try {
+        await db.execute(sql`CREATE SCHEMA IF NOT EXISTS gdv`);
+        console.log('   ✅ Schema GDV OK');
+
+        // stg_maeen_gdv - ALL columns
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS gdv.stg_maeen_gdv (
+            koen TEXT PRIMARY KEY,
+            nokoen TEXT,
+            rut TEXT,
+            ruen TEXT,
+            zona TEXT,
+            kofuen TEXT
+          )
+        `);
+        await db.execute(sql`ALTER TABLE gdv.stg_maeen_gdv ADD COLUMN IF NOT EXISTS rut TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.stg_maeen_gdv ADD COLUMN IF NOT EXISTS ruen TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.stg_maeen_gdv ADD COLUMN IF NOT EXISTS zona TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.stg_maeen_gdv ADD COLUMN IF NOT EXISTS kofuen TEXT`);
+        console.log('   ✅ stg_maeen_gdv OK');
+
+        // stg_maeddo_gdv - ALL columns
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS gdv.stg_maeddo_gdv (
+            idmaeddo NUMERIC(20, 0) PRIMARY KEY,
+            idmaeedo NUMERIC(20, 0),
+            koprct TEXT,
+            sulido TEXT,
+            bosulido TEXT,
+            kofulido TEXT,
+            eslido TEXT,
+            caprco1 NUMERIC(18, 4),
+            caprco2 NUMERIC(18, 4),
+            caprad1 NUMERIC(18, 4),
+            caprad2 NUMERIC(18, 4),
+            caprnc1 NUMERIC(18, 4),
+            caprnc2 NUMERIC(18, 4),
+            vaneli NUMERIC(18, 4),
+            feemli DATE,
+            feerli TIMESTAMP,
+            devol1 NUMERIC(18, 4),
+            devol2 NUMERIC(18, 4),
+            stockfis NUMERIC(18, 4),
+            nokopr TEXT,
+            udtrpr TEXT,
+            nulido TEXT,
+            luvtlido TEXT,
+            preuni NUMERIC(18, 6)
+          )
+        `);
+        await db.execute(sql`ALTER TABLE gdv.stg_maeddo_gdv ADD COLUMN IF NOT EXISTS nokopr TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.stg_maeddo_gdv ADD COLUMN IF NOT EXISTS udtrpr TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.stg_maeddo_gdv ADD COLUMN IF NOT EXISTS nulido TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.stg_maeddo_gdv ADD COLUMN IF NOT EXISTS luvtlido TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.stg_maeddo_gdv ADD COLUMN IF NOT EXISTS preuni NUMERIC(18, 6)`);
+        await db.execute(sql`ALTER TABLE gdv.stg_maeddo_gdv ADD COLUMN IF NOT EXISTS sulido TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.stg_maeddo_gdv ADD COLUMN IF NOT EXISTS bosulido TEXT`);
+        console.log('   ✅ stg_maeddo_gdv OK');
+
+        // stg_maeedo_gdv
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS gdv.stg_maeedo_gdv (
+            idmaeedo NUMERIC(20, 0) PRIMARY KEY,
+            empresa TEXT,
+            tido TEXT,
+            nudo TEXT,
+            endo TEXT,
+            suendo TEXT,
+            endofi TEXT,
+            tigedo TEXT,
+            sudo TEXT,
+            luvtdo TEXT,
+            feemdo DATE,
+            kofudo TEXT,
+            esdo TEXT,
+            espgdo TEXT,
+            suli TEXT,
+            bosulido TEXT,
+            feer DATE,
+            vanedo NUMERIC(18, 4),
+            vaivdo NUMERIC(18, 4),
+            vabrdo NUMERIC(18, 4),
+            lilg TEXT,
+            modo TEXT,
+            timodo TEXT,
+            tamodo NUMERIC(18, 4),
+            ocdo TEXT,
+            feulvedo DATE
+          )
+        `);
+        console.log('   ✅ stg_maeedo_gdv OK');
+
+        // stg_maepr_gdv
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS gdv.stg_maepr_gdv (
+            kopr TEXT PRIMARY KEY,
+            nomrpr TEXT,
+            nokopr TEXT,
+            ud01pr TEXT,
+            ud02pr TEXT,
+            tipr TEXT
+          )
+        `);
+        console.log('   ✅ stg_maepr_gdv OK');
+
+        // stg_maeven_gdv
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS gdv.stg_maeven_gdv (
+            kofu TEXT PRIMARY KEY,
+            nokofu TEXT
+          )
+        `);
+        console.log('   ✅ stg_maeven_gdv OK');
+
+        // stg_tabbo_gdv
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS gdv.stg_tabbo_gdv (
+            suli TEXT NOT NULL,
+            bosuli TEXT NOT NULL,
+            nobosuli TEXT,
+            PRIMARY KEY (suli, bosuli)
+          )
+        `);
+        console.log('   ✅ stg_tabbo_gdv OK');
+
+        // stg_tabru_gdv
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS gdv.stg_tabru_gdv (
+            koru TEXT PRIMARY KEY,
+            nokoru TEXT
+          )
+        `);
+        console.log('   ✅ stg_tabru_gdv OK');
+
+        // fact_gdv - ALL columns used by ETL
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS gdv.fact_gdv (
+            idmaeddo NUMERIC(20, 0) PRIMARY KEY,
+            idmaeedo NUMERIC(20, 0),
+            tido TEXT,
+            nudo NUMERIC(20, 0),
+            endo TEXT,
+            suendo TEXT,
+            sudo NUMERIC(20, 0),
+            feemdo DATE,
+            feulvedo DATE,
+            esdo TEXT,
+            espgdo TEXT,
+            kofudo TEXT,
+            modo TEXT,
+            timodo TEXT,
+            tamodo NUMERIC(18, 6),
+            vanedo NUMERIC(18, 4),
+            vaivdo NUMERIC(18, 4),
+            vabrdo NUMERIC(18, 4),
+            lilg TEXT,
+            bosulido NUMERIC(20, 0),
+            kofulido TEXT,
+            koprct TEXT,
+            ud01pr TEXT,
+            ud02pr TEXT,
+            caprco1 NUMERIC(18, 4),
+            caprco2 NUMERIC(18, 4),
+            caprad1 NUMERIC(18, 4),
+            caprad2 NUMERIC(18, 4),
+            caprnc1 NUMERIC(18, 4),
+            caprnc2 NUMERIC(18, 4),
+            vaneli NUMERIC(18, 4),
+            feemli TIMESTAMP,
+            feerli TIMESTAMP,
+            devol1 NUMERIC(18, 4),
+            devol2 NUMERIC(18, 4),
+            stockfis NUMERIC(18, 4),
+            ocdo TEXT,
+            nokoprct TEXT,
+            nosudo TEXT,
+            nokofu TEXT,
+            nobosuli TEXT,
+            nokoen TEXT,
+            noruen TEXT,
+            monto NUMERIC(18, 4),
+            eslido TEXT,
+            cantidad_pendiente BOOLEAN DEFAULT FALSE,
+            last_etl_sync TIMESTAMP,
+            data_source TEXT
+          )
+        `);
+        // Add missing columns to existing fact_gdv table
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS suendo TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS feulvedo DATE`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS espgdo TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS kofudo TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS modo TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS timodo TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS tamodo NUMERIC(18, 6)`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS vanedo NUMERIC(18, 4)`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS vaivdo NUMERIC(18, 4)`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS vabrdo NUMERIC(18, 4)`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS ud01pr TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS ud02pr TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS caprco1 NUMERIC(18, 4)`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS caprco2 NUMERIC(18, 4)`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS caprad1 NUMERIC(18, 4)`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS caprad2 NUMERIC(18, 4)`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS caprnc1 NUMERIC(18, 4)`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS caprnc2 NUMERIC(18, 4)`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS feemli TIMESTAMP`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS feerli TIMESTAMP`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS devol1 NUMERIC(18, 4)`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS devol2 NUMERIC(18, 4)`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS stockfis NUMERIC(18, 4)`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS ocdo TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS nokoprct TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS nosudo TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS nokofu TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS nobosuli TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS nokoen TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS noruen TEXT`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS cantidad_pendiente BOOLEAN DEFAULT FALSE`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS last_etl_sync TIMESTAMP`);
+        await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS data_source TEXT`);
+        console.log('   ✅ fact_gdv OK');
+
+        // gdv_sync_log
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS gdv.gdv_sync_log (
+            id SERIAL PRIMARY KEY,
+            started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            completed_at TIMESTAMP,
+            status TEXT DEFAULT 'running',
+            records_processed INTEGER DEFAULT 0,
+            error_message TEXT
+          )
+        `);
+        console.log('   ✅ gdv_sync_log OK');
+
+        migrationsExecuted.push('Schema GDV y todas sus tablas creadas/actualizadas');
+        console.log('   ✅ Todas las tablas GDV verificadas\n');
+      } catch (err: any) {
+        errors.push(`Error en migraciones GDV: ${err.message}`);
+        console.error('   ❌ Error GDV:', err.message, '\n');
+      }
+
+      // 7. Insert default ETL config if not exists
+      console.log('7️⃣  Insertando configuración ETL por defecto...');
       try {
         await db.execute(sql`
           INSERT INTO ventas.etl_config (etl_name, custom_watermark, use_custom_watermark, timeout_minutes, interval_minutes)
