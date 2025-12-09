@@ -195,6 +195,10 @@ export default function GastosEmpresarialesForm() {
       }
     } catch (error) {
       console.error('OCR extraction error:', error);
+      toast({
+        title: "OCR no disponible",
+        description: "No se pudo procesar la imagen. Por favor ingrese los datos manualmente.",
+      });
     } finally {
       setIsExtractingOCR(false);
     }
