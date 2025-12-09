@@ -2447,19 +2447,14 @@ export default function ReclamosGeneralesPage() {
       </Dialog>
 
       {/* Modal de Resolución del Laboratorio */}
-      <Dialog open={showResolucionLaboratorioModal} onOpenChange={(open) => {
-        // Prevent closing if file picker is active
-        if (!open && isFilePickerOpenRef.current) {
-          return;
-        }
-        setShowResolucionLaboratorioModal(open);
-      }}>
+      <Dialog open={showResolucionLaboratorioModal} onOpenChange={() => {}}>
         <DialogContent 
           className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full"
           onOpenAutoFocus={(e) => e.preventDefault()}
           onInteractOutside={(e) => e.preventDefault()}
           onPointerDownOutside={(e) => e.preventDefault()}
           onFocusOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
         >
           <DialogHeader>
             <DialogTitle>
