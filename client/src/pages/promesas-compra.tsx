@@ -610,7 +610,7 @@ function CreatePromesaDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md" data-testid="dialog-crear-promesa">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto" data-testid="dialog-crear-promesa">
         <DialogHeader>
           <DialogTitle>Nueva Promesa de Compra</DialogTitle>
           <DialogDescription>
