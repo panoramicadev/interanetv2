@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Home, Eye, Building, ChevronDown, ChevronUp, Download, Search, X } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Home, Eye, Building, ChevronDown, ChevronUp, Download, Search, X, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -18,6 +18,7 @@ import ComparativeSalespersonTable from "@/components/dashboard/comparative-sale
 import SalespersonPendingNVV from "@/components/dashboard/salesperson-pending-nvv";
 import SalespersonPendingGDV from "@/components/dashboard/salesperson-pending-gdv";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from "@/hooks/useAuth";
 
 interface GoalProgress {
@@ -1307,19 +1308,51 @@ export default function SalespersonDetail({
             </Card>
           </div>
 
-          {/* NVV Pendientes - Sales pending from NVV (solo en mes actual) */}
+          {/* NVV y GDV Pendientes - Secciones colapsables (solo en mes actual) */}
           {salespersonName && isCurrentMonth() && (
-            <SalespersonPendingNVV
-              salesperson={salespersonName}
-              applyPeriodFilter={false}
-            />
-          )}
-
-          {/* GDV Pendientes - Guías de despacho pendientes (solo en mes actual) */}
-          {salespersonName && isCurrentMonth() && (
-            <SalespersonPendingGDV
-              salesperson={salespersonName}
-            />
+            <div className="space-y-4">
+              {/* NVV Colapsable */}
+              <Collapsible defaultOpen={false} className="rounded-2xl shadow-md border-0 bg-white overflow-hidden">
+                <CollapsibleTrigger className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors group" data-testid="trigger-nvv-collapsible">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-amber-500 rounded-full p-2">
+                      <ShoppingCart className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="font-semibold text-gray-900">Notas de Venta Pendientes</h3>
+                      <p className="text-sm text-gray-500">Pedidos por entregar</p>
+                    </div>
+                  </div>
+                  <ChevronDown className="h-5 w-5 text-gray-500 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="border-t border-gray-200">
+                    <SalespersonPendingNVV salesperson={salespersonName} applyPeriodFilter={false} />
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+              
+              {/* GDV Colapsable */}
+              <Collapsible defaultOpen={false} className="rounded-2xl shadow-md border-0 bg-white overflow-hidden">
+                <CollapsibleTrigger className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors group" data-testid="trigger-gdv-collapsible">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-purple-500 rounded-full p-2">
+                      <Truck className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="font-semibold text-gray-900">Guías de Despacho Pendientes</h3>
+                      <p className="text-sm text-gray-500">Guías por facturar</p>
+                    </div>
+                  </div>
+                  <ChevronDown className="h-5 w-5 text-gray-500 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="border-t border-gray-200">
+                    <SalespersonPendingGDV salesperson={salespersonName} />
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
           )}
 
           {/* Promesas de Compra - Always show for salespeople */}
