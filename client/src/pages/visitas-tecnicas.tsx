@@ -53,6 +53,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { SignaturePad } from "@/components/ui/signature-pad";
 import type { Obra, InsertObra } from "@shared/schema";
 
 interface VisitaResumen {
@@ -140,6 +141,14 @@ export default function VisitasTecnicasPage() {
   const [showNewVisitModal, setShowNewVisitModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
+  
+  // Estados para modal de firma
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [signatureVisitId, setSignatureVisitId] = useState<string | null>(null);
+  const [firmaTecnicoNombre, setFirmaTecnicoNombre] = useState("");
+  const [firmaTecnicoData, setFirmaTecnicoData] = useState<string | null>(null);
+  const [firmaRecepcionistaNombre, setFirmaRecepcionistaNombre] = useState("");
+  const [firmaRecepcionistaData, setFirmaRecepcionistaData] = useState<string | null>(null);
   
   // Estados para el flujo de creación de visita
   const [visitStep, setVisitStep] = useState<'basic' | 'products' | 'evaluation' | 'observations'>('basic');
@@ -332,6 +341,108 @@ export default function VisitasTecnicasPage() {
       handleCloseModal();
     },
   });
+
+  // Mutation para guardar firmas
+  const saveSignaturesMutation = useMutation({
+    mutationFn: async (data: { 
+      visitaId: string; 
+      firmaTecnicoNombre: string;
+      firmaTecnicoData: string | null;
+      firmaRecepcionistaNombre: string;
+      firmaRecepcionistaData: string | null;
+    }) => {
+      return await apiRequest(`/api/visitas-tecnicas/${data.visitaId}/firmas`, {
+        method: 'POST',
+        data: {
+          firmaTecnicoNombre: data.firmaTecnicoNombre,
+          firmaTecnicoData: data.firmaTecnicoData,
+          firmaRecepcionistaNombre: data.firmaRecepcionistaNombre,
+          firmaRecepcionistaData: data.firmaRecepcionistaData,
+        },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/visitas-tecnicas/listado'] });
+      toast({
+        title: "Firmas guardadas",
+        description: "La visita ha sido firmada correctamente",
+      });
+      handleCloseSignatureModal();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudieron guardar las firmas",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleOpenSignatureModal = (visitaId: string) => {
+    setSignatureVisitId(visitaId);
+    setFirmaTecnicoNombre("");
+    setFirmaTecnicoData(null);
+    setFirmaRecepcionistaNombre("");
+    setFirmaRecepcionistaData(null);
+    setShowSignatureModal(true);
+  };
+
+  const handleCloseSignatureModal = () => {
+    setShowSignatureModal(false);
+    setSignatureVisitId(null);
+    setFirmaTecnicoNombre("");
+    setFirmaTecnicoData(null);
+    setFirmaRecepcionistaNombre("");
+    setFirmaRecepcionistaData(null);
+  };
+
+  const handleSaveSignatures = () => {
+    if (!signatureVisitId) return;
+    
+    if (!firmaTecnicoNombre.trim()) {
+      toast({
+        title: "Error",
+        description: "Debe ingresar el nombre del técnico",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!firmaRecepcionistaNombre.trim()) {
+      toast({
+        title: "Error",
+        description: "Debe ingresar el nombre del recepcionista",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!firmaTecnicoData) {
+      toast({
+        title: "Error",
+        description: "Debe agregar la firma del técnico",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!firmaRecepcionistaData) {
+      toast({
+        title: "Error",
+        description: "Debe agregar la firma del recepcionista",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    saveSignaturesMutation.mutate({
+      visitaId: signatureVisitId,
+      firmaTecnicoNombre,
+      firmaTecnicoData,
+      firmaRecepcionistaNombre,
+      firmaRecepcionistaData,
+    });
+  };
 
   // Query para estadísticas del dashboard
   const { data: estadisticas, isLoading: loadingStats } = useQuery<EstadisticasVisitas>({
@@ -1050,10 +1161,7 @@ export default function VisitasTecnicasPage() {
                       variant="default" 
                       size="sm" 
                       className="w-full"
-                      onClick={() => {
-                        setSelectedVisitId(visita.id);
-                        setShowDetailModal(true);
-                      }}
+                      onClick={() => handleOpenSignatureModal(visita.id)}
                       data-testid={`button-firmar-${visita.id}`}
                     >
                       <PenLine className="w-4 h-4 mr-2" />
@@ -2511,6 +2619,96 @@ export default function VisitasTecnicasPage() {
             >
               {deleteObraMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Eliminar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Firmas */}
+      <Dialog open={showSignatureModal} onOpenChange={setShowSignatureModal}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PenLine className="w-5 h-5" />
+              Firmar Visita Técnica
+            </DialogTitle>
+            <DialogDescription>
+              Complete los datos y firmas para registrar la recepción de la visita técnica
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            {/* Firma del Técnico */}
+            <div className="space-y-3">
+              <h3 className="font-semibold text-sm flex items-center gap-2">
+                <User className="w-4 h-4" />
+                Técnico que realiza la visita
+              </h3>
+              <div className="space-y-2">
+                <Label htmlFor="firmaTecnicoNombre">Nombre completo</Label>
+                <Input
+                  id="firmaTecnicoNombre"
+                  placeholder="Ingrese el nombre del técnico"
+                  value={firmaTecnicoNombre}
+                  onChange={(e) => setFirmaTecnicoNombre(e.target.value)}
+                  data-testid="input-firma-tecnico-nombre"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Firma del técnico</Label>
+                <SignaturePad
+                  onSignatureChange={setFirmaTecnicoData}
+                  width={400}
+                  height={150}
+                />
+              </div>
+            </div>
+
+            {/* Separador */}
+            <div className="border-t pt-4" />
+
+            {/* Firma del Recepcionista */}
+            <div className="space-y-3">
+              <h3 className="font-semibold text-sm flex items-center gap-2">
+                <User className="w-4 h-4" />
+                Persona que recepciona la obra
+              </h3>
+              <div className="space-y-2">
+                <Label htmlFor="firmaRecepcionistaNombre">Nombre completo</Label>
+                <Input
+                  id="firmaRecepcionistaNombre"
+                  placeholder="Ingrese el nombre del recepcionista"
+                  value={firmaRecepcionistaNombre}
+                  onChange={(e) => setFirmaRecepcionistaNombre(e.target.value)}
+                  data-testid="input-firma-recepcionista-nombre"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Firma del recepcionista</Label>
+                <SignaturePad
+                  onSignatureChange={setFirmaRecepcionistaData}
+                  width={400}
+                  height={150}
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={handleCloseSignatureModal}
+              data-testid="button-cancel-signature"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveSignatures}
+              disabled={saveSignaturesMutation.isPending}
+              data-testid="button-save-signature"
+            >
+              {saveSignaturesMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Guardar Firmas
             </Button>
           </DialogFooter>
         </DialogContent>
