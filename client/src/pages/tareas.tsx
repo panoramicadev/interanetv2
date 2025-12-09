@@ -1428,8 +1428,13 @@ function CreatePromesaDialog({
   const [selectedSalesperson, setSelectedSalesperson] = useState("");
 
   // Query para obtener lista de vendedores (solo admin/supervisor)
+  // Supervisores solo ven vendedores de su segmento, admin ve todos
+  const salespeopleEndpoint = user?.role === 'supervisor' 
+    ? `/api/supervisor/${user.id}/salespeople` 
+    : '/api/users/salespeople';
+  
   const { data: salespeople = [] } = useQuery<Array<{ id: string; fullName: string; salespersonName: string }>>({
-    queryKey: ['/api/users/salespeople'],
+    queryKey: [salespeopleEndpoint],
     enabled: user?.role === 'admin' || user?.role === 'supervisor',
   });
 
