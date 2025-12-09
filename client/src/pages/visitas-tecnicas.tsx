@@ -425,7 +425,7 @@ export default function VisitasTecnicasPage() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterEstado, setFilterEstado] = useState<string>("all");
-  const [filtroMes, setFiltroMes] = useState<string>("current");
+  const [filtroMes, setFiltroMes] = useState<string>("all");
   const [showNewVisitModal, setShowNewVisitModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
@@ -1115,6 +1115,7 @@ export default function VisitasTecnicasPage() {
             <SelectValue placeholder="Seleccionar período" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="all">Histórico (Todo)</SelectItem>
             <SelectItem value="current">Mes actual</SelectItem>
             <SelectItem value="last">Mes anterior</SelectItem>
             <SelectItem value="quarter">Último trimestre</SelectItem>
