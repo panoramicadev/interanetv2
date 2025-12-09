@@ -27,15 +27,17 @@ import ComparativeSalespeopleTable from "@/components/dashboard/comparative-sale
 import ComparativeProductsTable from "@/components/dashboard/comparative-products-table";
 import ComparativePackagingTable from "@/components/dashboard/comparative-packaging-table";
 import SalespersonPendingNVV from "@/components/dashboard/salesperson-pending-nvv";
+import SalespersonPendingGDV from "@/components/dashboard/salesperson-pending-gdv";
 import AllSalespeopleNVV from "@/components/dashboard/all-salespeople-nvv";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, RefreshCw, Eye, AlertCircle, DollarSign } from "lucide-react";
+import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, RefreshCw, Eye, AlertCircle, DollarSign, ChevronDown, ShoppingCart, Truck } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -50,6 +52,58 @@ interface YearMonthSelection {
   startDate?: Date;
   endDate?: Date;
   display: string;
+}
+
+function CollapsibleNVVSection({ salesperson }: { salesperson: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="modern-card hover-lift overflow-hidden">
+      <CollapsibleTrigger className="w-full p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors" data-testid="trigger-nvv-collapsible">
+        <div className="flex items-center gap-3">
+          <div className="bg-amber-500 rounded-full p-2">
+            <ShoppingCart className="h-5 w-5 text-white" />
+          </div>
+          <div className="text-left">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100">Notas de Venta Pendientes</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Pedidos por entregar</p>
+          </div>
+        </div>
+        <ChevronDown className={`h-5 w-5 text-gray-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="border-t border-gray-200 dark:border-gray-700">
+          <SalespersonPendingNVV salesperson={salesperson} applyPeriodFilter={false} />
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function CollapsibleGDVSection({ salesperson }: { salesperson: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="modern-card hover-lift overflow-hidden">
+      <CollapsibleTrigger className="w-full p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors" data-testid="trigger-gdv-collapsible">
+        <div className="flex items-center gap-3">
+          <div className="bg-purple-500 rounded-full p-2">
+            <Truck className="h-5 w-5 text-white" />
+          </div>
+          <div className="text-left">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100">Guías de Despacho Pendientes</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Guías por facturar</p>
+          </div>
+        </div>
+        <ChevronDown className={`h-5 w-5 text-gray-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="border-t border-gray-200 dark:border-gray-700">
+          <SalespersonPendingGDV salesperson={salesperson} />
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
 }
 
 export default function Dashboard() {
@@ -1331,13 +1385,14 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* NVV Pendientes - Solo mostrar cuando hay un vendedor seleccionado Y estamos en el mes actual */}
+              {/* NVV y GDV Pendientes - Solo mostrar cuando hay un vendedor seleccionado Y estamos en el mes actual */}
               {globalFilter.type === "salesperson" && globalFilter.value && isCurrentMonth() && (
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-                  <SalespersonPendingNVV
-                    salesperson={globalFilter.value}
-                    applyPeriodFilter={false}
-                  />
+                <div className="space-y-4">
+                  {/* NVV Colapsable */}
+                  <CollapsibleNVVSection salesperson={globalFilter.value} />
+                  
+                  {/* GDV Colapsable */}
+                  <CollapsibleGDVSection salesperson={globalFilter.value} />
                 </div>
               )}
 
