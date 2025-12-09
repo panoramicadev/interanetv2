@@ -404,11 +404,31 @@ export default function Reception() {
         return;
       }
 
+      // Obtener lista de precios para consultar unidades de productos
+      let priceList: Array<{ codigo: string; unidad: string }> = [];
+      try {
+        priceList = await queryClient.fetchQuery({
+          queryKey: ["/api/price-list"],
+        });
+      } catch (e) {
+        console.warn("No se pudo obtener lista de precios para unidades");
+      }
+
+      // Función para determinar si es unidad primaria (GL) o secundaria (1/4, BD, etc.)
+      const isPrimaryUnit = (productCode: string): boolean => {
+        const product = priceList.find(p => p.codigo === productCode);
+        if (!product) return true; // Por defecto, asumir primaria
+        const unidad = (product.unidad || '').toUpperCase();
+        // Unidad primaria: GL (Galón) sin modificadores
+        // Unidad secundaria: 1/4, BD (Balde), cualquier otra cosa
+        return unidad === 'GL' || unidad === 'GALON' || unidad === 'GALÓN';
+      };
+
       // Generar líneas según especificaciones (solo campos 1-6 obligatorios)
       // 1. Código del producto (max 20 chars, alfanumérico)
-      // 2. cantidad udad 1 (max 10 chars, numérico con punto decimal)
-      // 3. cantidad udad 2 (max 10 chars, numérico con punto decimal)
-      // 4. Unidad de transaccion (max 1 char, 1=ud1, 2=ud2)
+      // 2. cantidad udad 1 (max 10 chars, numérico) - cantidad si es unidad primaria
+      // 3. cantidad udad 2 (max 10 chars, numérico) - cantidad si es unidad secundaria
+      // 4. Unidad de transaccion (1=ud1 primaria, 2=ud2 secundaria)
       // 5. Bodega de Destino (max 3 chars, alfanumérico)
       // 6. Precio del articulo (max 10 chars, numérico con punto decimal)
       const lines = quoteWithItems.items.map(item => {
@@ -416,14 +436,17 @@ export default function Reception() {
         const codigoRaw = item.type === 'custom' ? (item.customSku || '') : (item.productCode || '');
         const codigo = codigoRaw.substring(0, 20);
         
-        // Campo 2: cantidad udad 1 (max 10 chars, usar punto como decimal)
-        const cantidadUd1 = String(item.quantity || 0).substring(0, 10);
+        // Determinar si es unidad primaria o secundaria
+        const esPrimaria = item.type === 'custom' ? true : isPrimaryUnit(item.productCode || '');
         
-        // Campo 3: cantidad udad 2 (max 10 chars)
-        const cantidadUd2 = '0';
+        // Campo 2: cantidad udad 1 (si es unidad primaria)
+        const cantidadUd1 = esPrimaria ? String(item.quantity || 0).substring(0, 10) : '0';
         
-        // Campo 4: Unidad de transaccion (1 char)
-        const unidadTransaccion = '1';
+        // Campo 3: cantidad udad 2 (si es unidad secundaria)
+        const cantidadUd2 = esPrimaria ? '0' : String(item.quantity || 0).substring(0, 10);
+        
+        // Campo 4: Unidad de transaccion (1=primaria, 2=secundaria)
+        const unidadTransaccion = esPrimaria ? '1' : '2';
         
         // Campo 5: Bodega de Destino (max 3 chars) - vacío, se usará bodega actual
         const bodegaDestino = '';
