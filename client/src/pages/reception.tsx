@@ -407,11 +407,13 @@ export default function Reception() {
       // Obtener lista de precios para consultar unidades de productos
       let priceList: Array<{ codigo: string; unidad: string }> = [];
       try {
-        priceList = await queryClient.fetchQuery({
+        const response = await queryClient.fetchQuery({
           queryKey: ["/api/price-list"],
-        });
+        }) as { items?: Array<{ codigo: string; unidad: string }> } | Array<{ codigo: string; unidad: string }>;
+        // La API puede devolver { items: [...] } o directamente un array
+        priceList = Array.isArray(response) ? response : (response?.items || []);
       } catch (e) {
-        console.warn("No se pudo obtener lista de precios para unidades");
+        console.warn("No se pudo obtener lista de precios para unidades", e);
       }
 
       // Función para determinar si es unidad primaria (GL) o secundaria (1/4, BD, etc.)
