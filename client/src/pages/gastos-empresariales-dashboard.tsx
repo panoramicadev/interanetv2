@@ -189,6 +189,9 @@ export default function GastosEmpresarialesDashboard() {
       if (estadoFilter !== 'todos') {
         url += `&estado=${estadoFilter}`;
       }
+      if (categoriaFilter !== 'todas') {
+        url += `&categoria=${encodeURIComponent(categoriaFilter)}`;
+      }
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Error al cargar gastos recientes');
       return response.json();
