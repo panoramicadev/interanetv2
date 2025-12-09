@@ -44,7 +44,8 @@ import {
   Users,
   Package,
   TrendingUp,
-  PenLine
+  PenLine,
+  Download
 } from "lucide-react";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -54,7 +55,132 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { SignaturePad } from "@/components/ui/signature-pad";
+import { Document, Page, Text, View, StyleSheet, pdf, Image } from '@react-pdf/renderer';
 import type { Obra, InsertObra } from "@shared/schema";
+
+// Estilos para el PDF de visita técnica
+const pdfStyles = StyleSheet.create({
+  page: {
+    padding: 30,
+    fontFamily: 'Helvetica',
+    fontSize: 10,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    borderBottomWidth: 2,
+    borderBottomColor: '#2563eb',
+    paddingBottom: 10,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1e40af',
+  },
+  subtitle: {
+    fontSize: 10,
+    color: '#6b7280',
+    marginTop: 4,
+  },
+  section: {
+    marginBottom: 15,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    backgroundColor: '#f3f4f6',
+    padding: 6,
+    marginBottom: 8,
+    color: '#374151',
+  },
+  row: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  label: {
+    width: 120,
+    fontWeight: 'bold',
+    color: '#4b5563',
+  },
+  value: {
+    flex: 1,
+    color: '#111827',
+  },
+  signatureContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    paddingTop: 15,
+  },
+  signatureBox: {
+    width: '45%',
+    alignItems: 'center',
+  },
+  signatureLabel: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    marginBottom: 5,
+    color: '#374151',
+  },
+  signatureName: {
+    fontSize: 10,
+    marginBottom: 5,
+    color: '#111827',
+  },
+  signatureImage: {
+    width: 150,
+    height: 60,
+    border: '1px solid #d1d5db',
+  },
+  signatureLine: {
+    width: 150,
+    height: 1,
+    backgroundColor: '#9ca3af',
+    marginTop: 10,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 30,
+    left: 30,
+    right: 30,
+    textAlign: 'center',
+    fontSize: 8,
+    color: '#9ca3af',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    paddingTop: 10,
+  },
+  productRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    paddingVertical: 4,
+  },
+  productName: {
+    flex: 2,
+  },
+  productDetail: {
+    flex: 1,
+    textAlign: 'center',
+  },
+  badge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    fontSize: 9,
+  },
+  badgeSuccess: {
+    backgroundColor: '#dcfce7',
+    color: '#166534',
+  },
+  badgeWarning: {
+    backgroundColor: '#fef9c3',
+    color: '#854d0e',
+  },
+});
 
 interface VisitaResumen {
   id: string;
@@ -116,6 +242,168 @@ interface NotificacionesReclamos {
   reclamosMasRecientes: { id: string; numeroReclamo: string; clientName: string; createdAt: string }[];
   resolucionesMasRecientes: { id: string; numeroReclamo: string; clientName: string; resolvedAt: string }[];
 }
+
+interface VisitaDetalle {
+  id: string;
+  nombreObra: string;
+  direccionObra: string;
+  tecnicoId: string;
+  clienteId?: string;
+  clienteManual?: string;
+  recepcionistaNombre?: string;
+  recepcionistaCargo?: string;
+  estado: string;
+  aplicacionGeneral?: string;
+  tipoSuperficie?: string;
+  ambiente?: string;
+  condicionesClimaticas?: string;
+  dilucion?: string;
+  observacionesGenerales?: string;
+  comentarios?: string;
+  firmaTecnicoNombre?: string;
+  firmaTecnicoData?: string;
+  firmaRecepcionistaData?: string;
+  fechaFirma?: string;
+  createdAt?: string;
+  productos?: Array<{
+    id: string;
+    productoManual?: string;
+    formato?: string;
+    color?: string;
+    lote?: string;
+    porcentajeAvance?: string;
+  }>;
+}
+
+// Componente PDF para la visita técnica
+const VisitaPDFDocument = ({ visita }: { visita: VisitaDetalle }) => (
+  <Document>
+    <Page size="A4" style={pdfStyles.page}>
+      {/* Header */}
+      <View style={pdfStyles.header}>
+        <View>
+          <Text style={pdfStyles.title}>Informe de Visita Técnica</Text>
+          <Text style={pdfStyles.subtitle}>Pinturas Panorámica</Text>
+        </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={pdfStyles.subtitle}>
+            Fecha: {visita.createdAt ? new Date(visita.createdAt).toLocaleDateString('es-CL') : '-'}
+          </Text>
+          <Text style={[pdfStyles.badge, visita.estado === 'completada' ? pdfStyles.badgeSuccess : pdfStyles.badgeWarning]}>
+            {visita.estado === 'completada' ? 'Completada' : 'Borrador'}
+          </Text>
+        </View>
+      </View>
+
+      {/* Información de la Obra */}
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Información de la Obra</Text>
+        <View style={pdfStyles.row}>
+          <Text style={pdfStyles.label}>Nombre Obra:</Text>
+          <Text style={pdfStyles.value}>{visita.nombreObra}</Text>
+        </View>
+        <View style={pdfStyles.row}>
+          <Text style={pdfStyles.label}>Dirección:</Text>
+          <Text style={pdfStyles.value}>{visita.direccionObra}</Text>
+        </View>
+        {visita.recepcionistaNombre && (
+          <View style={pdfStyles.row}>
+            <Text style={pdfStyles.label}>Recepcionista:</Text>
+            <Text style={pdfStyles.value}>{visita.recepcionistaNombre} {visita.recepcionistaCargo ? `(${visita.recepcionistaCargo})` : ''}</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Evaluación Técnica */}
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Evaluación Técnica</Text>
+        {visita.aplicacionGeneral && (
+          <View style={pdfStyles.row}>
+            <Text style={pdfStyles.label}>Aplicación:</Text>
+            <Text style={pdfStyles.value}>{visita.aplicacionGeneral === 'correcta' ? 'Correcta' : 'Deficiente'}</Text>
+          </View>
+        )}
+        {visita.tipoSuperficie && (
+          <View style={pdfStyles.row}>
+            <Text style={pdfStyles.label}>Tipo Superficie:</Text>
+            <Text style={pdfStyles.value}>{visita.tipoSuperficie}</Text>
+          </View>
+        )}
+        {visita.ambiente && (
+          <View style={pdfStyles.row}>
+            <Text style={pdfStyles.label}>Ambiente:</Text>
+            <Text style={pdfStyles.value}>{visita.ambiente === 'interior' ? 'Interior' : 'Exterior'}</Text>
+          </View>
+        )}
+        {visita.condicionesClimaticas && (
+          <View style={pdfStyles.row}>
+            <Text style={pdfStyles.label}>Clima:</Text>
+            <Text style={pdfStyles.value}>{visita.condicionesClimaticas}</Text>
+          </View>
+        )}
+        {visita.dilucion && (
+          <View style={pdfStyles.row}>
+            <Text style={pdfStyles.label}>Dilución:</Text>
+            <Text style={pdfStyles.value}>{visita.dilucion}</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Observaciones */}
+      {(visita.observacionesGenerales || visita.comentarios) && (
+        <View style={pdfStyles.section}>
+          <Text style={pdfStyles.sectionTitle}>Observaciones</Text>
+          {visita.observacionesGenerales && (
+            <Text style={{ marginBottom: 8 }}>{visita.observacionesGenerales}</Text>
+          )}
+          {visita.comentarios && (
+            <Text>{visita.comentarios}</Text>
+          )}
+        </View>
+      )}
+
+      {/* Firmas */}
+      {(visita.firmaTecnicoData || visita.firmaRecepcionistaData) && (
+        <View style={pdfStyles.signatureContainer}>
+          <View style={pdfStyles.signatureBox}>
+            <Text style={pdfStyles.signatureLabel}>Técnico</Text>
+            {visita.firmaTecnicoNombre && (
+              <Text style={pdfStyles.signatureName}>{visita.firmaTecnicoNombre}</Text>
+            )}
+            {visita.firmaTecnicoData && (
+              <Image src={visita.firmaTecnicoData} style={pdfStyles.signatureImage} />
+            )}
+            {!visita.firmaTecnicoData && <View style={pdfStyles.signatureLine} />}
+          </View>
+          <View style={pdfStyles.signatureBox}>
+            <Text style={pdfStyles.signatureLabel}>Recepcionista</Text>
+            {visita.recepcionistaNombre && (
+              <Text style={pdfStyles.signatureName}>{visita.recepcionistaNombre}</Text>
+            )}
+            {visita.firmaRecepcionistaData && (
+              <Image src={visita.firmaRecepcionistaData} style={pdfStyles.signatureImage} />
+            )}
+            {!visita.firmaRecepcionistaData && <View style={pdfStyles.signatureLine} />}
+          </View>
+        </View>
+      )}
+
+      {/* Fecha de firma */}
+      {visita.fechaFirma && (
+        <View style={{ marginTop: 10, alignItems: 'center' }}>
+          <Text style={{ fontSize: 9, color: '#6b7280' }}>
+            Firmado el: {new Date(visita.fechaFirma).toLocaleString('es-CL')}
+          </Text>
+        </View>
+      )}
+
+      {/* Footer */}
+      <Text style={pdfStyles.footer}>
+        Documento generado automáticamente - Pinturas Panorámica © {new Date().getFullYear()}
+      </Text>
+    </Page>
+  </Document>
+);
 
 export default function VisitasTecnicasPage() {
   const { user } = useAuth();
@@ -442,6 +730,45 @@ export default function VisitasTecnicasPage() {
       firmaRecepcionistaNombre,
       firmaRecepcionistaData,
     });
+  };
+
+  // Función para descargar PDF de visita
+  const handleDownloadPDF = async (visitaId: string) => {
+    try {
+      toast({
+        title: "Generando PDF",
+        description: "Por favor espere...",
+      });
+
+      // Obtener detalles de la visita
+      const response = await apiRequest(`/api/visitas-tecnicas/${visitaId}`);
+      const visita = await response.json();
+      
+      // Generar PDF
+      const pdfBlob = await pdf(<VisitaPDFDocument visita={visita} />).toBlob();
+      const url = URL.createObjectURL(pdfBlob);
+      
+      // Descargar
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Visita_Tecnica_${visita.nombreObra.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "PDF descargado",
+        description: "El informe se ha descargado correctamente",
+      });
+    } catch (error: any) {
+      console.error('Error al generar PDF:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo generar el PDF",
+        variant: "destructive",
+      });
+    }
   };
 
   // Query para estadísticas del dashboard
@@ -1127,6 +1454,16 @@ export default function VisitasTecnicasPage() {
                       data-testid={`button-ver-${visita.id}`}
                     >
                       Ver Detalle
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full"
+                      onClick={() => handleDownloadPDF(visita.id)}
+                      data-testid={`button-pdf-${visita.id}`}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Descargar PDF
                     </Button>
                   </div>
                 </div>
