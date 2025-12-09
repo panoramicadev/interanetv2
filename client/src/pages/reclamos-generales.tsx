@@ -809,6 +809,7 @@ export default function ReclamosGeneralesPage() {
 
   // Funciones para fotos de evidencia de resolución del laboratorio
   const handleResolucionFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('[DEBUG] handleResolucionFileSelect called, files:', e.target.files?.length);
     e.stopPropagation();
     const files = Array.from(e.target.files || []);
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
@@ -2447,14 +2448,29 @@ export default function ReclamosGeneralesPage() {
       </Dialog>
 
       {/* Modal de Resolución del Laboratorio */}
-      <Dialog open={showResolucionLaboratorioModal} onOpenChange={() => {}}>
+      <Dialog open={showResolucionLaboratorioModal} onOpenChange={(open) => {
+        console.log('[DEBUG] Dialog onOpenChange called with:', open, 'isFilePickerOpen:', isFilePickerOpenRef.current);
+        // Never close via onOpenChange - only via explicit buttons
+      }}>
         <DialogContent 
           className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full"
           onOpenAutoFocus={(e) => e.preventDefault()}
-          onInteractOutside={(e) => e.preventDefault()}
-          onPointerDownOutside={(e) => e.preventDefault()}
-          onFocusOutside={(e) => e.preventDefault()}
-          onEscapeKeyDown={(e) => e.preventDefault()}
+          onInteractOutside={(e) => {
+            console.log('[DEBUG] onInteractOutside triggered');
+            e.preventDefault();
+          }}
+          onPointerDownOutside={(e) => {
+            console.log('[DEBUG] onPointerDownOutside triggered');
+            e.preventDefault();
+          }}
+          onFocusOutside={(e) => {
+            console.log('[DEBUG] onFocusOutside triggered');
+            e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            console.log('[DEBUG] onEscapeKeyDown triggered');
+            e.preventDefault();
+          }}
         >
           <DialogHeader>
             <DialogTitle>
@@ -2522,10 +2538,11 @@ export default function ReclamosGeneralesPage() {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    console.log('[DEBUG] Adjuntar Fotos clicked - opening file picker');
                     isFilePickerOpenRef.current = true;
                     resolucionFileInputRef.current?.click();
-                    // Reset the flag after a delay to handle cancel
                     setTimeout(() => {
+                      console.log('[DEBUG] Resetting file picker flag');
                       isFilePickerOpenRef.current = false;
                     }, 1000);
                   }}
