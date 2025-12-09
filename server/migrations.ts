@@ -114,18 +114,21 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE gdv.stg_maeddo_gdv ADD COLUMN IF NOT EXISTS luvtlido TEXT`);
     await db.execute(sql`ALTER TABLE gdv.stg_maeddo_gdv ADD COLUMN IF NOT EXISTS preuni NUMERIC(18, 6)`);
     
-    // stg_maeen_gdv (Entidades/Clientes)
+    // stg_maeen_gdv (Entidades/Clientes) - TODAS las columnas del esquema
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS gdv.stg_maeen_gdv (
         koen TEXT PRIMARY KEY,
         nokoen TEXT,
-        ruen TEXT,
         rut TEXT,
-        zona TEXT
+        ruen TEXT,
+        zona TEXT,
+        kofuen TEXT
       )
     `);
     await db.execute(sql`ALTER TABLE gdv.stg_maeen_gdv ADD COLUMN IF NOT EXISTS rut TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.stg_maeen_gdv ADD COLUMN IF NOT EXISTS ruen TEXT`);
     await db.execute(sql`ALTER TABLE gdv.stg_maeen_gdv ADD COLUMN IF NOT EXISTS zona TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.stg_maeen_gdv ADD COLUMN IF NOT EXISTS kofuen TEXT`);
     
     // stg_maepr_gdv (Productos)
     await db.execute(sql`
