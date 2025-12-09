@@ -6831,8 +6831,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const { search, unidad, tipoProducto, color, limit = 50, offset = 0 } = req.query;
       
-      // Validate and clamp pagination parameters
-      const validatedLimit = Math.min(Math.max(parseInt(limit as string) || 50, 1), 200);
+      // Validate and clamp pagination parameters (allow up to 10000 for bulk operations like reception file export)
+      const validatedLimit = Math.min(Math.max(parseInt(limit as string) || 50, 1), 10000);
       const validatedOffset = Math.max(parseInt(offset as string) || 0, 0);
       
       const items = await storage.getPriceList({
