@@ -2658,6 +2658,12 @@ export const visitasTecnicas = pgTable("visitas_tecnicas", {
   // Comentarios generales
   comentarios: text("comentarios"),
   
+  // Firmas de recepción
+  firmaTecnicoNombre: text("firma_tecnico_nombre"),
+  firmaTecnicoData: text("firma_tecnico_data"), // Base64 de la firma
+  firmaRecepcionistaData: text("firma_recepcionista_data"), // Base64 de la firma
+  fechaFirma: timestamp("fecha_firma"),
+  
   // Metadata
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
