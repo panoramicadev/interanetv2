@@ -278,6 +278,13 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_fact_gdv_kofulido ON gdv.fact_gdv(kofulido)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_fact_gdv_feemdo ON gdv.fact_gdv(feemdo)`);
     
+    // 7. Agregar columnas de firma a visitas_tecnicas si no existen
+    console.log('  ✏️ Verificando columnas de firmas en visitas técnicas...');
+    await db.execute(sql`ALTER TABLE visitas_tecnicas ADD COLUMN IF NOT EXISTS firma_tecnico_nombre TEXT`);
+    await db.execute(sql`ALTER TABLE visitas_tecnicas ADD COLUMN IF NOT EXISTS firma_tecnico_data TEXT`);
+    await db.execute(sql`ALTER TABLE visitas_tecnicas ADD COLUMN IF NOT EXISTS firma_recepcionista_data TEXT`);
+    await db.execute(sql`ALTER TABLE visitas_tecnicas ADD COLUMN IF NOT EXISTS fecha_firma TIMESTAMP`);
+    
     console.log('✅ Bootstrap de base de datos completado');
     
   } catch (error: any) {
