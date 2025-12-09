@@ -12835,7 +12835,8 @@ export class DatabaseStorage implements IStorage {
           clienteId: visitasTecnicas.clienteId,
           tecnicoFirstName: users.firstName,
           tecnicoLastName: users.lastName,
-          clienteName: clients.koen,
+          clienteRut: clients.koen,
+          clienteNombre: clients.nokoen,
         })
         .from(visitasTecnicas)
         .leftJoin(users, eq(visitasTecnicas.tecnicoId, users.id))
@@ -12902,18 +12903,30 @@ export class DatabaseStorage implements IStorage {
       }
       
       // Format results
-      const formattedResults = results.map(r => ({
-        id: r.id,
-        nombreObra: r.nombreObra,
-        fechaVisita: r.createdAt,
-        tecnico: (r.tecnicoFirstName && r.tecnicoLastName) 
-          ? `${r.tecnicoFirstName} ${r.tecnicoLastName}` 
-          : r.tecnicoFirstName || r.tecnicoLastName || 'Sin asignar',
-        cliente: r.clienteName || 'Sin cliente',
-        estado: r.estado,
-        productosEvaluados: productosCountMap[r.id] || 0,
-        reclamosTotal: reclamosCountMap[r.id] || 0
-      }));
+      const formattedResults = results.map(r => {
+        // Combinar RUT y nombre del cliente
+        let clienteDisplay = 'Sin cliente';
+        if (r.clienteRut && r.clienteNombre) {
+          clienteDisplay = `${r.clienteRut} - ${r.clienteNombre}`;
+        } else if (r.clienteNombre) {
+          clienteDisplay = r.clienteNombre;
+        } else if (r.clienteRut) {
+          clienteDisplay = r.clienteRut;
+        }
+        
+        return {
+          id: r.id,
+          nombreObra: r.nombreObra,
+          fechaVisita: r.createdAt,
+          tecnico: (r.tecnicoFirstName && r.tecnicoLastName) 
+            ? `${r.tecnicoFirstName} ${r.tecnicoLastName}` 
+            : r.tecnicoFirstName || r.tecnicoLastName || 'Sin asignar',
+          cliente: clienteDisplay,
+          estado: r.estado,
+          productosEvaluados: productosCountMap[r.id] || 0,
+          reclamosTotal: reclamosCountMap[r.id] || 0
+        };
+      });
       
       console.log('✅ Resultados formateados:', formattedResults);
       

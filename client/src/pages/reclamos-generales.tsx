@@ -1445,7 +1445,7 @@ export default function ReclamosGeneralesPage() {
                             <div className="flex-1 space-y-2">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <h3 className="font-semibold" data-testid={`text-reclamo-cliente-${reclamo.id}`}>
-                                  {reclamo.clientName}
+                                  {reclamo.clientName} {reclamo.clientRut && <span className="text-muted-foreground font-normal">- {reclamo.clientRut}</span>}
                                 </h3>
                                 <Badge className={gravedadInfo?.color} data-testid={`badge-gravedad-${reclamo.id}`}>
                                   {gravedadInfo?.label}
