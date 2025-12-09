@@ -12639,10 +12639,15 @@ export class DatabaseStorage implements IStorage {
         const productos = await db.select().from(productosEvaluados)
           .where(inArray(productosEvaluados.visitaId, visitaIds));
         
-        productosCount = productos.length;
-        
+        // Only count products that have valid porcentaje_avance for the average
         productos.forEach(p => {
-          if (p.porcentajeAvance) totalProgreso += parseFloat(p.porcentajeAvance.toString());
+          if (p.porcentajeAvance && p.porcentajeAvance.toString().trim() !== '') {
+            const avance = parseFloat(p.porcentajeAvance.toString());
+            if (!isNaN(avance) && avance > 0) {
+              totalProgreso += avance;
+              productosCount++;
+            }
+          }
         });
         
         // Get evaluaciones to count aplicaciones correctas/deficientes
