@@ -404,61 +404,54 @@ export default function Reception() {
         return;
       }
 
-      // Obtener lista de precios completa para consultar unidades de productos
-      // Crear mapa de unidades por código de producto
+      // Obtener unidades secundarias desde inventory_products (igual que bodegas)
+      // En inventory_products: unidad2='GL' significa primaria, cualquier otro valor (BD, 04) es secundaria
       const unitMap = new Map<string, string>();
       try {
-        // Usar limit alto para obtener todos los productos
-        const response = await fetch('/api/price-list?limit=10000', {
+        // Consultar inventario con precios para obtener unit2 de cada producto
+        const response = await fetch('/api/inventory-with-prices', {
           credentials: 'include'
         });
         if (response.ok) {
-          const data = await response.json();
-          console.log('Respuesta API price-list:', JSON.stringify(data).substring(0, 500));
-          const items = data?.items || [];
-          console.log(`Lista de precios cargada: ${items.length} productos`);
+          const items = await response.json() as Array<{ productSku: string; unit2?: string }>;
+          console.log(`Inventario cargado: ${items.length} registros`);
           
-          // Mostrar primeros 3 items para verificar estructura
-          if (items.length > 0) {
-            console.log('Ejemplo de item:', JSON.stringify(items[0]));
-            console.log('Campos disponibles:', Object.keys(items[0]));
-          }
-          
-          // Crear mapa de unidades por código
-          items.forEach((item: Record<string, unknown>) => {
-            const codigo = item.codigo as string;
-            const unidad = item.unidad as string;
-            if (codigo) {
-              unitMap.set(codigo, unidad || '');
+          // Crear mapa de unidad2 por SKU (usar el primer registro encontrado)
+          items.forEach((item) => {
+            const sku = item.productSku;
+            const unit2 = item.unit2 || 'GL';
+            if (sku && !unitMap.has(sku)) {
+              unitMap.set(sku, unit2);
             }
           });
-          console.log(`Mapa de unidades creado: ${unitMap.size} productos`);
+          console.log(`Mapa de unidades creado: ${unitMap.size} productos únicos`);
           
           // Verificar productos específicos de la cotización
           const testCodes = ['PANES930BL001', 'PCA103MADPLU2', 'PANES930BL056'];
           testCodes.forEach(code => {
-            const unidad = unitMap.get(code);
-            console.log(`Test unitMap[${code}] = "${unidad}"`);
+            const unit2 = unitMap.get(code);
+            console.log(`Test unitMap[${code}] = "${unit2}" (primaria=${unit2?.toUpperCase() === 'GL'})`);
           });
         } else {
-          console.error('Error al cargar lista de precios:', response.status, response.statusText);
+          console.error('Error al cargar inventario:', response.status, response.statusText);
         }
       } catch (e) {
-        console.warn("No se pudo obtener lista de precios para unidades", e);
+        console.warn("No se pudo obtener inventario para unidades", e);
       }
 
-      // Función para determinar si es unidad primaria (GL) o secundaria (1/4, BD, etc.)
+      // Función para determinar si es unidad primaria (GL) o secundaria (BD, 04, etc.)
+      // Usa unidad2 de inventory_products: GL=primaria, cualquier otra cosa=secundaria
       const isPrimaryUnit = (productCode: string): boolean => {
-        const unidad = unitMap.get(productCode);
-        if (unidad === undefined) {
-          console.warn(`Producto no encontrado en mapa de unidades: ${productCode}`);
+        const unit2 = unitMap.get(productCode);
+        if (unit2 === undefined) {
+          console.warn(`Producto no encontrado en inventario: ${productCode}`);
           return true; // Por defecto, asumir primaria
         }
-        const unidadUpper = (unidad || '').toUpperCase().trim();
-        // Unidad primaria: SOLO "GL" exacto (Galón)
-        // Unidad secundaria: 1/4, BD, cualquier otra cosa que no sea exactamente "GL"
-        const esPrimaria = unidadUpper === 'GL';
-        console.log(`Producto ${productCode}: unidad="${unidadUpper}", primaria=${esPrimaria}`);
+        const unit2Upper = (unit2 || 'GL').toUpperCase().trim();
+        // Unidad primaria: unidad2='GL' (galón)
+        // Unidad secundaria: unidad2='BD' (balde), '04' (cuarto), etc.
+        const esPrimaria = unit2Upper === 'GL';
+        console.log(`Producto ${productCode}: unit2="${unit2Upper}", primaria=${esPrimaria}`);
         return esPrimaria;
       };
 
