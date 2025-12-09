@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, X, FileText } from "lucide-react";
+import { ArrowLeft, Upload, X, FileText, Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   userId: z.string().min(1, "Debe seleccionar un vendedor"),
@@ -48,6 +48,7 @@ export default function GastosEmpresarialesForm() {
   const { toast } = useToast();
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isExtractingOCR, setIsExtractingOCR] = useState(false);
 
   // Fetch salespeople
   const { data: salespeople = [], isLoading: isLoadingSalespeople } = useQuery<any[]>({
@@ -122,6 +123,11 @@ export default function GastosEmpresarialesForm() {
         title: "Archivo subido",
         description: "El archivo de evidencia ha sido cargado correctamente",
       });
+      
+      // Trigger OCR extraction for images
+      if (file.type.startsWith('image/')) {
+        extractDataFromImage(file);
+      }
     } catch (error) {
       toast({
         title: "Error",
@@ -130,6 +136,67 @@ export default function GastosEmpresarialesForm() {
       });
     } finally {
       setIsUploading(false);
+    }
+  };
+  
+  const extractDataFromImage = async (file: File) => {
+    setIsExtractingOCR(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const response = await fetch('/api/gastos-empresariales/ocr-extract', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Error en extracción OCR');
+      }
+      
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        const data = result.data;
+        
+        // Auto-fill form fields with extracted data
+        if (data.monto) {
+          form.setValue('monto', String(data.monto));
+        }
+        if (data.descripcion) {
+          form.setValue('descripcion', data.descripcion);
+        }
+        if (data.numeroDocumento) {
+          form.setValue('numeroDocumento', data.numeroDocumento);
+        }
+        if (data.rutProveedor) {
+          form.setValue('rutProveedor', data.rutProveedor);
+        }
+        if (data.proveedor) {
+          form.setValue('proveedor', data.proveedor);
+        }
+        if (data.fechaEmision) {
+          form.setValue('fechaEmision', data.fechaEmision);
+        }
+        if (data.tipoDocumento) {
+          form.setValue('tipoDocumento', data.tipoDocumento);
+        }
+        
+        toast({
+          title: "Datos extraídos",
+          description: "Los datos del documento han sido detectados automáticamente. Por favor revíselos.",
+        });
+      } else {
+        toast({
+          title: "OCR no disponible",
+          description: result.message || "No se pudieron extraer datos. Por favor ingrese los datos manualmente.",
+        });
+      }
+    } catch (error) {
+      console.error('OCR extraction error:', error);
+    } finally {
+      setIsExtractingOCR(false);
     }
   };
 
@@ -223,6 +290,13 @@ export default function GastosEmpresarialesForm() {
                   
                   {isUploading && (
                     <p className="text-sm text-gray-600 text-center">Subiendo archivo...</p>
+                  )}
+                  
+                  {isExtractingOCR && (
+                    <div className="flex items-center justify-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                      <p className="text-sm text-blue-700">Extrayendo datos del documento...</p>
+                    </div>
                   )}
                 </div>
               </div>
@@ -354,13 +428,18 @@ export default function GastosEmpresarialesForm() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Centro de Costos</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Ej: Ventas Santiago"
-                            {...field}
-                            data-testid="input-centro-costos"
-                          />
-                        </FormControl>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-centro-costos">
+                              <SelectValue placeholder="Seleccionar centro" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Maipú">Maipú</SelectItem>
+                            <SelectItem value="Concepción">Concepción</SelectItem>
+                            <SelectItem value="Lautaro">Lautaro</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
