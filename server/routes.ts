@@ -8950,6 +8950,39 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Guardar firmas de visita técnica
+  app.post('/api/visitas-tecnicas/:id/firmas', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const { firmaTecnicoNombre, firmaTecnicoData, firmaRecepcionistaNombre, firmaRecepcionistaData } = req.body;
+      
+      console.log('📝 Guardando firmas para visita:', id);
+      
+      const visitaActualizada = await storage.updateVisitaTecnica(id, {
+        firmaTecnicoNombre,
+        firmaTecnicoData,
+        recepcionistaNombre: firmaRecepcionistaNombre, // Also update the existing field
+        firmaRecepcionistaData,
+        fechaFirma: new Date(),
+      });
+      
+      if (!visitaActualizada) {
+        return res.status(404).json({
+          message: 'Visita técnica no encontrada'
+        });
+      }
+
+      console.log('✅ Firmas guardadas correctamente para visita:', id);
+      res.json(visitaActualizada);
+    } catch (error: any) {
+      console.error('❌ Error al guardar firmas:', error);
+      res.status(500).json({
+        message: 'Error al guardar firmas',
+        error: error.message
+      });
+    }
+  }));
+
   // Update visita técnica
   app.put('/api/visitas-tecnicas/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
