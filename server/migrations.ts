@@ -169,34 +169,93 @@ export async function bootstrapDatabase(): Promise<void> {
       )
     `);
     
-    // fact_gdv (Tabla de hechos)
+    // fact_gdv (Tabla de hechos) - TODAS las columnas usadas por ETL
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS gdv.fact_gdv (
-        id SERIAL PRIMARY KEY,
+        idmaeddo NUMERIC(20, 0) PRIMARY KEY,
         idmaeedo NUMERIC(20, 0),
-        idmaeddo NUMERIC(20, 0),
         tido TEXT,
-        nudo TEXT,
-        feemdo DATE,
+        nudo NUMERIC(20, 0),
         endo TEXT,
-        nokoen TEXT,
-        ruen TEXT,
-        koprct TEXT,
-        nokopr TEXT,
-        kofulido TEXT,
-        nokofu TEXT,
-        suli TEXT,
-        bosulido TEXT,
-        nobosuli TEXT,
+        suendo TEXT,
+        sudo NUMERIC(20, 0),
+        feemdo DATE,
+        feulvedo DATE,
         esdo TEXT,
-        eslido TEXT,
+        espgdo TEXT,
+        kofudo TEXT,
+        modo TEXT,
+        timodo TEXT,
+        tamodo NUMERIC(18, 6),
+        vanedo NUMERIC(18, 4),
+        vaivdo NUMERIC(18, 4),
+        vabrdo NUMERIC(18, 4),
+        lilg TEXT,
+        bosulido NUMERIC(20, 0),
+        kofulido TEXT,
+        koprct TEXT,
+        ud01pr TEXT,
+        ud02pr TEXT,
+        caprco1 NUMERIC(18, 4),
+        caprco2 NUMERIC(18, 4),
+        caprad1 NUMERIC(18, 4),
+        caprad2 NUMERIC(18, 4),
+        caprnc1 NUMERIC(18, 4),
+        caprnc2 NUMERIC(18, 4),
         vaneli NUMERIC(18, 4),
+        feemli TIMESTAMP,
+        feerli TIMESTAMP,
+        devol1 NUMERIC(18, 4),
+        devol2 NUMERIC(18, 4),
+        stockfis NUMERIC(18, 4),
+        ocdo TEXT,
+        nokoprct TEXT,
+        nosudo TEXT,
+        nokofu TEXT,
+        nobosuli TEXT,
+        nokoen TEXT,
+        noruen TEXT,
         monto NUMERIC(18, 4),
-        cantidad_pendiente NUMERIC(18, 4),
-        "cantidadPendiente" BOOLEAN DEFAULT false,
-        sync_timestamp TIMESTAMP DEFAULT NOW()
+        eslido TEXT,
+        cantidad_pendiente BOOLEAN DEFAULT FALSE,
+        last_etl_sync TIMESTAMP,
+        data_source TEXT
       )
     `);
+    // Agregar columnas faltantes si la tabla ya existe
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS suendo TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS feulvedo DATE`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS espgdo TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS kofudo TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS modo TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS timodo TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS tamodo NUMERIC(18, 6)`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS vanedo NUMERIC(18, 4)`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS vaivdo NUMERIC(18, 4)`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS vabrdo NUMERIC(18, 4)`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS ud01pr TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS ud02pr TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS caprco1 NUMERIC(18, 4)`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS caprco2 NUMERIC(18, 4)`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS caprad1 NUMERIC(18, 4)`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS caprad2 NUMERIC(18, 4)`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS caprnc1 NUMERIC(18, 4)`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS caprnc2 NUMERIC(18, 4)`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS feemli TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS feerli TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS devol1 NUMERIC(18, 4)`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS devol2 NUMERIC(18, 4)`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS stockfis NUMERIC(18, 4)`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS ocdo TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS nokoprct TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS nosudo TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS nokofu TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS nobosuli TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS nokoen TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS noruen TEXT`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS cantidad_pendiente BOOLEAN DEFAULT FALSE`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS last_etl_sync TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE gdv.fact_gdv ADD COLUMN IF NOT EXISTS data_source TEXT`);
     
     // gdv_sync_log (Log de sincronización)
     await db.execute(sql`
