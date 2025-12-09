@@ -404,14 +404,20 @@ export default function Reception() {
         return;
       }
 
-      // Obtener lista de precios para consultar unidades de productos
+      // Obtener lista de precios completa para consultar unidades de productos
       let priceList: Array<{ codigo: string; unidad: string }> = [];
       try {
-        const response = await queryClient.fetchQuery({
-          queryKey: ["/api/price-list"],
-        }) as { items?: Array<{ codigo: string; unidad: string }> } | Array<{ codigo: string; unidad: string }>;
-        // La API puede devolver { items: [...] } o directamente un array
-        priceList = Array.isArray(response) ? response : (response?.items || []);
+        // Usar limit alto para obtener todos los productos
+        const response = await fetch('/api/price-list?limit=10000', {
+          credentials: 'include'
+        });
+        if (response.ok) {
+          const data = await response.json() as { items?: Array<{ codigo: string; unidad: string }> };
+          priceList = data?.items || [];
+          console.log(`Lista de precios cargada: ${priceList.length} productos`);
+        } else {
+          console.error('Error al cargar lista de precios:', response.status, response.statusText);
+        }
       } catch (e) {
         console.warn("No se pudo obtener lista de precios para unidades", e);
       }
@@ -419,11 +425,16 @@ export default function Reception() {
       // Función para determinar si es unidad primaria (GL) o secundaria (1/4, BD, etc.)
       const isPrimaryUnit = (productCode: string): boolean => {
         const product = priceList.find(p => p.codigo === productCode);
-        if (!product) return true; // Por defecto, asumir primaria
-        const unidad = (product.unidad || '').toUpperCase();
-        // Unidad primaria: GL (Galón) sin modificadores
-        // Unidad secundaria: 1/4, BD (Balde), cualquier otra cosa
-        return unidad === 'GL' || unidad === 'GALON' || unidad === 'GALÓN';
+        if (!product) {
+          console.warn(`Producto no encontrado en lista de precios: ${productCode}`);
+          return true; // Por defecto, asumir primaria
+        }
+        const unidad = (product.unidad || '').toUpperCase().trim();
+        // Unidad primaria: SOLO "GL" exacto (Galón)
+        // Unidad secundaria: 1/4, BD, cualquier otra cosa que no sea exactamente "GL"
+        const esPrimaria = unidad === 'GL';
+        console.log(`Producto ${productCode}: unidad="${unidad}", primaria=${esPrimaria}`);
+        return esPrimaria;
       };
 
       // Generar líneas según especificaciones (solo campos 1-6 obligatorios)
