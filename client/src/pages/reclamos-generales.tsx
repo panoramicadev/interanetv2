@@ -216,6 +216,7 @@ export default function ReclamosGeneralesPage() {
   // Refs to prevent modal closure when interacting with file upload areas
   const resolucionUploadContainerRef = useRef<HTMLDivElement>(null);
   const cerrarUploadContainerRef = useRef<HTMLDivElement>(null);
+  const isFilePickerOpenRef = useRef(false);
   const [showValidacionTecnicaModal, setShowValidacionTecnicaModal] = useState(false);
   const [selectedReclamoId, setSelectedReclamoId] = useState<string | null>(null);
   const [resumenExpanded, setResumenExpanded] = useState(false);
@@ -2446,12 +2447,19 @@ export default function ReclamosGeneralesPage() {
       </Dialog>
 
       {/* Modal de Resolución del Laboratorio */}
-      <Dialog open={showResolucionLaboratorioModal} onOpenChange={setShowResolucionLaboratorioModal}>
+      <Dialog open={showResolucionLaboratorioModal} onOpenChange={(open) => {
+        // Prevent closing if file picker is active
+        if (!open && isFilePickerOpenRef.current) {
+          return;
+        }
+        setShowResolucionLaboratorioModal(open);
+      }}>
         <DialogContent 
           className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full"
           onOpenAutoFocus={(e) => e.preventDefault()}
           onInteractOutside={(e) => e.preventDefault()}
           onPointerDownOutside={(e) => e.preventDefault()}
+          onFocusOutside={(e) => e.preventDefault()}
         >
           <DialogHeader>
             <DialogTitle>
@@ -2519,7 +2527,12 @@ export default function ReclamosGeneralesPage() {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    isFilePickerOpenRef.current = true;
                     resolucionFileInputRef.current?.click();
+                    // Reset the flag after a delay to handle cancel
+                    setTimeout(() => {
+                      isFilePickerOpenRef.current = false;
+                    }, 1000);
                   }}
                   className="w-full mb-4"
                   data-testid="button-add-evidencia"
@@ -2570,7 +2583,11 @@ export default function ReclamosGeneralesPage() {
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
+                  isFilePickerOpenRef.current = true;
                   resolucionDocInputRef.current?.click();
+                  setTimeout(() => {
+                    isFilePickerOpenRef.current = false;
+                  }, 1000);
                 }}
                 className="w-full mb-4"
                 data-testid="button-add-documento"
