@@ -15056,8 +15056,8 @@ export class DatabaseStorage implements IStorage {
       throw new Error(`Solo se puede iniciar trabajo desde estado pendiente, registrado o programada. Estado actual: ${mantencion.estado}`);
     }
 
-    // Validar permisos
-    const rolesAutorizados = ['admin', 'supervisor', 'produccion'];
+    // Validar permisos - incluir jefe_planta y mantencion que tienen acceso completo al módulo CMMS
+    const rolesAutorizados = ['admin', 'supervisor', 'produccion', 'jefe_planta', 'mantencion'];
     const esTecnicoAsignado = mantencion.tecnicoAsignadoId === userId;
     
     if (!rolesAutorizados.includes(userRole) && !esTecnicoAsignado) {
