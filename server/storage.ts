@@ -5959,11 +5959,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSalespersonUserById(userId: string): Promise<SalespersonUser | undefined> {
-    // Look up salespersonUser by their linked userId
+    // Look up salespersonUser by their id
     const [salespersonUser] = await db
       .select()
       .from(salespeopleUsers)
-      .where(eq(salespeopleUsers.userId, userId));
+      .where(eq(salespeopleUsers.id, userId));
     return salespersonUser;
   }
 
