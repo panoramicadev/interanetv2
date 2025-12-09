@@ -10,6 +10,16 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Bar } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
 import { 
   Plus, 
   FileText, 
@@ -30,8 +40,13 @@ import {
   Trash2,
   Loader2,
   Bell,
-  CheckCircle
+  CheckCircle,
+  Users,
+  Package,
+  TrendingUp
 } from "lucide-react";
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -58,6 +73,15 @@ interface EstadisticasVisitas {
   aplicacionesDeficientes: number;
   reclamosPendientes: number;
   promedioProgreso: number;
+}
+
+interface EstadisticasMensuales {
+  visitasPorMes: Array<{ mes: string; completadas: number; pendientes: number; total: number }>;
+  obrasActivas: number;
+  totalTecnicos: number;
+  productosEvaluadosTotal: number;
+  reclamosResueltosUltimoMes: number;
+  visitasUltimos30Dias: number;
 }
 
 interface Client {
@@ -313,6 +337,16 @@ export default function VisitasTecnicasPage() {
     queryKey: ['/api/visitas-tecnicas/estadisticas', filtroMes],
     queryFn: async () => {
       const response = await apiRequest(`/api/visitas-tecnicas/estadisticas/${filtroMes}`);
+      return response.json();
+    },
+    enabled: activeTab === 'dashboard',
+  });
+
+  // Query para estadísticas mensuales (gráfico de barras)
+  const { data: estadisticasMensuales, isLoading: loadingMensual } = useQuery<EstadisticasMensuales>({
+    queryKey: ['/api/visitas-tecnicas/estadisticas-mensuales'],
+    queryFn: async () => {
+      const response = await apiRequest('/api/visitas-tecnicas/estadisticas-mensuales');
       return response.json();
     },
     enabled: activeTab === 'dashboard',
@@ -740,8 +774,125 @@ export default function VisitasTecnicasPage() {
         </Card>
       </div>
 
-      {/* Resumen rápido */}
+      {/* Métricas adicionales */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Visitas 30 días</CardTitle>
+            <TrendingUp className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold" data-testid="stat-visitas-30-dias">
+              {loadingMensual ? "..." : estadisticasMensuales?.visitasUltimos30Dias ?? 0}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Obras Activas</CardTitle>
+            <Building2 className="h-4 w-4 text-purple-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-600" data-testid="stat-obras-activas">
+              {loadingMensual ? "..." : estadisticasMensuales?.obrasActivas ?? 0}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Técnicos Activos</CardTitle>
+            <Users className="h-4 w-4 text-indigo-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-indigo-600" data-testid="stat-tecnicos-activos">
+              {loadingMensual ? "..." : estadisticasMensuales?.totalTecnicos ?? 0}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Productos Evaluados</CardTitle>
+            <Package className="h-4 w-4 text-teal-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-teal-600" data-testid="stat-productos-evaluados">
+              {loadingMensual ? "..." : estadisticasMensuales?.productosEvaluadosTotal ?? 0}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Gráfico de barras y progreso */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Visitas por Mes
+            </CardTitle>
+            <CardDescription>
+              Visitas completadas vs pendientes (últimos 6 meses)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingMensual ? (
+              <div className="h-64 flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+              </div>
+            ) : estadisticasMensuales?.visitasPorMes && estadisticasMensuales.visitasPorMes.length > 0 ? (
+              <div className="h-64">
+                <Bar
+                  data={{
+                    labels: estadisticasMensuales.visitasPorMes.map(m => m.mes),
+                    datasets: [
+                      {
+                        label: 'Completadas',
+                        data: estadisticasMensuales.visitasPorMes.map(m => m.completadas),
+                        backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                        borderRadius: 4,
+                      },
+                      {
+                        label: 'Pendientes',
+                        data: estadisticasMensuales.visitasPorMes.map(m => m.pendientes),
+                        backgroundColor: 'rgba(251, 191, 36, 0.8)',
+                        borderRadius: 4,
+                      },
+                    ],
+                  }}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: {
+                        position: 'top' as const,
+                      },
+                    },
+                    scales: {
+                      x: {
+                        stacked: false,
+                      },
+                      y: {
+                        beginAtZero: true,
+                        ticks: {
+                          stepSize: 1,
+                        },
+                      },
+                    },
+                  }}
+                  data-testid="chart-visitas-mensuales"
+                />
+              </div>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-gray-400">
+                Sin datos de visitas
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -752,42 +903,42 @@ export default function VisitasTecnicasPage() {
               Porcentaje promedio de avance en obras visitadas
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold mb-2" data-testid="stat-progreso-promedio">
-              {loadingStats ? "..." : `${estadisticas?.promedioProgreso ?? 0}%`}
+          <CardContent className="space-y-6">
+            <div>
+              <div className="text-3xl font-bold mb-2" data-testid="stat-progreso-promedio">
+                {loadingStats ? "..." : `${estadisticas?.promedioProgreso ?? 0}%`}
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-3">
+                <div 
+                  className="bg-blue-600 h-3 rounded-full transition-all"
+                  style={{ width: `${estadisticas?.promedioProgreso ?? 0}%` }}
+                ></div>
+              </div>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-blue-600 h-2 rounded-full transition-all"
-                style={{ width: `${estadisticas?.promedioProgreso ?? 0}%` }}
-              ></div>
-            </div>
-          </CardContent>
-        </Card>
 
-        <Card className="hidden lg:block">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Acciones Rápidas
-            </CardTitle>
-            <CardDescription>
-              Gestionar visitas técnicas y reportes
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button 
-              className="w-full justify-start" 
-              onClick={handleNewVisit}
-              data-testid="button-nueva-visita-desktop"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Nueva Visita Técnica
-            </Button>
-            <Button variant="outline" className="w-full justify-start" data-testid="button-exportar-reportes-desktop">
-              <FileText className="w-4 h-4 mr-2" />
-              Exportar Reportes
-            </Button>
+            <div className="pt-4 border-t">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-muted-foreground">Reclamos Resueltos (último mes)</span>
+                <span className="font-semibold text-green-600" data-testid="stat-reclamos-resueltos">
+                  {loadingMensual ? "..." : estadisticasMensuales?.reclamosResueltosUltimoMes ?? 0}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-4 border-t">
+              <Button 
+                className="w-full justify-start" 
+                onClick={handleNewVisit}
+                data-testid="button-nueva-visita-desktop"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Nueva Visita Técnica
+              </Button>
+              <Button variant="outline" className="w-full justify-start" data-testid="button-exportar-reportes-desktop">
+                <FileText className="w-4 h-4 mr-2" />
+                Exportar Reportes
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
