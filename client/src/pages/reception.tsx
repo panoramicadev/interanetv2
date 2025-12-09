@@ -404,34 +404,42 @@ export default function Reception() {
         return;
       }
 
-      // Generar contenido del archivo según especificaciones
+      // Generar líneas según especificaciones (solo campos 1-6 obligatorios)
+      // 1. Código del producto (max 20 chars, alfanumérico)
+      // 2. cantidad udad 1 (max 10 chars, numérico con punto decimal)
+      // 3. cantidad udad 2 (max 10 chars, numérico con punto decimal)
+      // 4. Unidad de transaccion (max 1 char, 1=ud1, 2=ud2)
+      // 5. Bodega de Destino (max 3 chars, alfanumérico)
+      // 6. Precio del articulo (max 10 chars, numérico con punto decimal)
       const lines = quoteWithItems.items.map(item => {
-        const codigo = item.type === 'custom' ? (item.customSku || '') : (item.productCode || '');
-        const cantidadUd1 = String(item.quantity || 0);
+        // Campo 1: Código del producto (max 20 chars)
+        const codigoRaw = item.type === 'custom' ? (item.customSku || '') : (item.productCode || '');
+        const codigo = codigoRaw.substring(0, 20);
+        
+        // Campo 2: cantidad udad 1 (max 10 chars, usar punto como decimal)
+        const cantidadUd1 = String(item.quantity || 0).substring(0, 10);
+        
+        // Campo 3: cantidad udad 2 (max 10 chars)
         const cantidadUd2 = '0';
+        
+        // Campo 4: Unidad de transaccion (1 char)
         const unidadTransaccion = '1';
+        
+        // Campo 5: Bodega de Destino (max 3 chars) - vacío, se usará bodega actual
         const bodegaDestino = '';
-        const precio = String(item.unitPrice || 0);
         
-        // Formato fecha AAAAMMDD
-        const fecha = new Date(quoteWithItems.createdAt);
-        const year = fecha.getFullYear();
-        const month = String(fecha.getMonth() + 1).padStart(2, '0');
-        const day = String(fecha.getDate()).padStart(2, '0');
-        const fechaFormato = `${year}${month}${day}`;
+        // Campo 6: Precio del articulo (max 10 chars, usar punto como decimal)
+        const precio = String(item.unitPrice || 0).substring(0, 10);
         
-        const observaciones = item.notes || '';
-        
-        return `${codigo};${cantidadUd1};${cantidadUd2};${unidadTransaccion};${bodegaDestino};${precio};${fechaFormato};${observaciones}`;
+        // Solo campos 1-6 obligatorios (separados por punto y coma)
+        return `${codigo};${cantidadUd1};${cantidadUd2};${unidadTransaccion};${bodegaDestino};${precio}`;
       });
 
-      const fileContent = lines.join('\n');
+      // Máximo 13 líneas por documento
+      const MAX_LINES_PER_FILE = 13;
+      const totalChunks = Math.ceil(lines.length / MAX_LINES_PER_FILE);
       
-      // Crear y descargar el archivo
-      const blob = new Blob([fileContent], { type: 'text/csv;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      
-      // Generar nombre del archivo
+      // Generar nombre base del archivo
       const cleanName = quoteWithItems.clientName
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
@@ -444,20 +452,61 @@ export default function Reception() {
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const year = String(date.getFullYear()).slice(-2);
       
-      const filename = `${cleanName}-${day}${month}${year}-${quoteWithItems.quoteNumber}.csv`;
+      const baseFilename = `${cleanName}-${day}${month}${year}-${quoteWithItems.quoteNumber}`;
       
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      if (totalChunks === 1) {
+        // Solo un archivo
+        const fileContent = lines.join('\n');
+        const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const filename = `${baseFilename}.txt`;
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
 
-      toast({
-        title: "Archivo descargado",
-        description: `El archivo ${filename} se ha descargado correctamente.`,
-      });
+        toast({
+          title: "Archivo descargado",
+          description: `El archivo ${filename} se ha descargado correctamente (${lines.length} líneas).`,
+        });
+      } else {
+        // Múltiples archivos - descargar cada uno
+        const downloadedFiles: string[] = [];
+        
+        for (let i = 0; i < totalChunks; i++) {
+          const startIdx = i * MAX_LINES_PER_FILE;
+          const endIdx = Math.min((i + 1) * MAX_LINES_PER_FILE, lines.length);
+          const chunkLines = lines.slice(startIdx, endIdx);
+          const fileContent = chunkLines.join('\n');
+          
+          const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const partNum = i + 1;
+          const filename = `${baseFilename}_parte${partNum}.txt`;
+          
+          // Pequeño delay entre descargas para que el navegador las procese
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          
+          downloadedFiles.push(filename);
+        }
+
+        toast({
+          title: "Archivos descargados",
+          description: `Se descargaron ${totalChunks} archivos (${lines.length} líneas totales, máx. 13 por archivo).`,
+        });
+      }
     } catch (error) {
       console.error("Error generating file:", error);
       toast({
