@@ -18351,26 +18351,34 @@ export class DatabaseStorage implements IStorage {
 
     const gastos = await query;
 
-    const totalGastos = gastos.length;
-    const totalAprobados = gastos.filter(g => g.estado === 'aprobado').length;
-    const totalPendientes = gastos.filter(g => g.estado === 'pendiente').length;
-    const totalRechazados = gastos.filter(g => g.estado === 'rechazado').length;
-
-    const montoPendiente = gastos
+    const count = gastos.length;
+    
+    const totalPendiente = gastos
       .filter(g => g.estado === 'pendiente')
       .reduce((sum, g) => sum + parseFloat(g.monto as any || '0'), 0);
 
-    const montoAprobado = gastos
+    const totalAprobado = gastos
       .filter(g => g.estado === 'aprobado')
       .reduce((sum, g) => sum + parseFloat(g.monto as any || '0'), 0);
 
+    const totalRechazado = gastos
+      .filter(g => g.estado === 'rechazado')
+      .reduce((sum, g) => sum + parseFloat(g.monto as any || '0'), 0);
+
+    const total = gastos.reduce((sum, g) => sum + parseFloat(g.monto as any || '0'), 0);
+
     return {
-      totalGastos,
-      totalAprobados,
-      totalPendientes,
-      totalRechazados,
-      montoPendiente,
-      montoAprobado,
+      total,
+      count,
+      totalPendiente,
+      totalAprobado,
+      totalRechazado,
+      totalGastos: count,
+      totalAprobados: gastos.filter(g => g.estado === 'aprobado').length,
+      totalPendientes: gastos.filter(g => g.estado === 'pendiente').length,
+      totalRechazados: gastos.filter(g => g.estado === 'rechazado').length,
+      montoPendiente: totalPendiente,
+      montoAprobado: totalAprobado,
     };
   }
 
@@ -18400,9 +18408,6 @@ export class DatabaseStorage implements IStorage {
       );
     }
 
-    // Only count approved expenses for analytics
-    conditions.push(eq(gastosEmpresariales.estado, 'aprobado'));
-
     const results = await db
       .select({
         categoria: gastosEmpresariales.categoria,
@@ -18410,7 +18415,7 @@ export class DatabaseStorage implements IStorage {
         cantidad: sql<number>`COUNT(*)`,
       })
       .from(gastosEmpresariales)
-      .where(and(...conditions))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .groupBy(gastosEmpresariales.categoria);
 
     return results.map(r => ({
