@@ -13977,17 +13977,13 @@ export function registerRoutes(app: Express): Server {
       if (user.role === 'salesperson') {
         filters.vendedorId = user.id;
       } else if (user.role === 'supervisor') {
-        // Supervisor can only see data from salespeople in their segment
-        // Get all salespeople IDs that report to this supervisor or are in their segment
-        const supervisorSegment = user.assignedSegment;
-        if (supervisorSegment) {
-          // Get all salespeople in the supervisor's segment
-          const salespeopleInSegment = await storage.getSalespeopleBySegment(supervisorSegment);
-          if (salespeopleInSegment.length > 0) {
-            filters.vendedorIds = salespeopleInSegment.map((s: any) => s.id);
-          }
+        // Supervisor can only see data from salespeople under their supervision
+        // Uses the same method as the salespeople dropdown for consistency
+        const salespeopleUnderSupervisor = await storage.getSalespeopleUnderSupervisor(user.id);
+        if (salespeopleUnderSupervisor.length > 0) {
+          filters.vendedorIds = salespeopleUnderSupervisor.map((s: any) => s.id);
         }
-        // If a specific vendedorId is requested, only allow if it's in the supervisor's segment
+        // If a specific vendedorId is requested, only allow if it's under the supervisor
         if (vendedorId) {
           if (!filters.vendedorIds || filters.vendedorIds.includes(vendedorId)) {
             filters.vendedorId = vendedorId;
