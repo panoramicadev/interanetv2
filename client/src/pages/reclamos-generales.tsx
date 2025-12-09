@@ -2447,47 +2447,20 @@ export default function ReclamosGeneralesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Resolución del Laboratorio - Custom implementation to prevent close on file picker */}
+      {/* Modal de Resolución del Laboratorio - Pure React modal without Radix to prevent file picker issues */}
       {showResolucionLaboratorioModal && (
-        <div className="fixed inset-0 z-50 bg-black/80" aria-hidden="true" />
-      )}
-      <Dialog 
-        open={showResolucionLaboratorioModal} 
-        onOpenChange={() => {
-          // Intentionally empty - never allow automatic close
-        }}
-        modal={false}
-      >
-        <DialogContent 
-          className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full z-[100]"
-          hideCloseButton={true}
-          onOpenAutoFocus={(e) => e.preventDefault()}
-          onCloseAutoFocus={(e) => e.preventDefault()}
-          onInteractOutside={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          onPointerDownOutside={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          onFocusOutside={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          onEscapeKeyDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>
-              {user?.role === 'laboratorio' ? 'Resolución del Laboratorio' : 'Resolución del Área Responsable'}
-            </DialogTitle>
-            <DialogDescription>
-              Ingrese el informe de resolución y adjunte fotos de evidencia
-            </DialogDescription>
-          </DialogHeader>
+        <>
+          <div className="fixed inset-0 z-50 bg-black/80" aria-hidden="true" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-background border rounded-lg shadow-lg max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full p-6">
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold">
+                  {user?.role === 'laboratorio' ? 'Resolución del Laboratorio' : 'Resolución del Área Responsable'}
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Ingrese el informe de resolución y adjunte fotos de evidencia
+                </p>
+              </div>
           
           <div className="space-y-6">
             {/* Informe */}
@@ -2652,42 +2625,44 @@ export default function ReclamosGeneralesPage() {
             )}
           </div>
 
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowResolucionLaboratorioModal(false);
-                setInformeLaboratorio("");
-                setCategoriaResponsable("");
-                setResolucionPhotos([]);
-                setResolucionPreviewUrls([]);
-                setResolucionDocuments([]);
-                setResolucionUploadProgress({ current: 0, total: 0 });
-                setSelectedReclamoId(null);
-              }}
-              data-testid="button-cancel-resolucion"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSubmitResolucion}
-              disabled={resolucionLaboratorioMutation.isPending || resolucionAreaMutation.isPending}
-              data-testid="button-submit-resolucion"
-            >
-              {(resolucionLaboratorioMutation.isPending || resolucionAreaMutation.isPending) && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              )}
-              {resolucionUploadProgress.total > 0 ? (
-                `Subiendo foto ${resolucionUploadProgress.current}/${resolucionUploadProgress.total}...`
-              ) : (resolucionLaboratorioMutation.isPending || resolucionAreaMutation.isPending) ? (
-                'Enviando resolución...'
-              ) : (
-                'Enviar Resolución'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowResolucionLaboratorioModal(false);
+                    setInformeLaboratorio("");
+                    setCategoriaResponsable("");
+                    setResolucionPhotos([]);
+                    setResolucionPreviewUrls([]);
+                    setResolucionDocuments([]);
+                    setResolucionUploadProgress({ current: 0, total: 0 });
+                    setSelectedReclamoId(null);
+                  }}
+                  data-testid="button-cancel-resolucion"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleSubmitResolucion}
+                  disabled={resolucionLaboratorioMutation.isPending || resolucionAreaMutation.isPending}
+                  data-testid="button-submit-resolucion"
+                >
+                  {(resolucionLaboratorioMutation.isPending || resolucionAreaMutation.isPending) && (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  )}
+                  {resolucionUploadProgress.total > 0 ? (
+                    `Subiendo foto ${resolucionUploadProgress.current}/${resolucionUploadProgress.total}...`
+                  ) : (resolucionLaboratorioMutation.isPending || resolucionAreaMutation.isPending) ? (
+                    'Enviando resolución...'
+                  ) : (
+                    'Enviar Resolución'
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Modal de Vista Ampliada de Imagen */}
       <Dialog open={showImageModal} onOpenChange={(open) => {
