@@ -2450,6 +2450,8 @@ export default function ReclamosGeneralesPage() {
         <DialogContent 
           className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full"
           onOpenAutoFocus={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
         >
           <DialogHeader>
             <DialogTitle>
