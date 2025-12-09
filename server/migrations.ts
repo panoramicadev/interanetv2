@@ -285,6 +285,25 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE visitas_tecnicas ADD COLUMN IF NOT EXISTS firma_recepcionista_data TEXT`);
     await db.execute(sql`ALTER TABLE visitas_tecnicas ADD COLUMN IF NOT EXISTS fecha_firma TIMESTAMP`);
     
+    // 8. Seed loyalty tiers (Panoramica Market) if they don't exist
+    console.log('  🏆 Verificando tiers de lealtad (Panoramica Market)...');
+    const existingTiers = await db.execute(sql`SELECT COUNT(*) as count FROM loyalty_tiers`);
+    const tierCount = Number(existingTiers.rows[0]?.count) || 0;
+    
+    if (tierCount === 0) {
+      console.log('  🏆 Creando tiers de Panoramica Market...');
+      await db.execute(sql`
+        INSERT INTO loyalty_tiers (id, nombre, codigo, descripcion, monto_minimo, periodo_evaluacion_dias, color_primario, color_secundario, icono, orden, activo)
+        VALUES 
+          (gen_random_uuid(), 'Panoramica Lider', 'lider', 'Clientes con compras de al menos $1.500.000 en los últimos 90 días', 1500000.00, 90, '#3B82F6', '#DBEAFE', 'Award', 1, true),
+          (gen_random_uuid(), 'Panoramica Gold', 'gold', 'Clientes con compras de al menos $5.000.000 en los últimos 90 días', 5000000.00, 90, '#F59E0B', '#FEF3C7', 'Star', 2, true),
+          (gen_random_uuid(), 'Panoramica Platinum', 'platinum', 'Clientes con compras de al menos $15.000.000 en los últimos 90 días', 15000000.00, 90, '#8B5CF6', '#EDE9FE', 'Crown', 3, true)
+      `);
+      console.log('  ✅ Tiers de Panoramica Market creados');
+    } else {
+      console.log('  ✓ Tiers de Panoramica Market ya existen');
+    }
+    
     console.log('✅ Bootstrap de base de datos completado');
     
   } catch (error: any) {
