@@ -449,13 +449,15 @@ export default function SegmentDetail({
       params.append('limit', productLimit.toString());
       const res = await fetch(`/api/sales/top-products?${params}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      const data = await res.json();
+      const response = await res.json();
+      // The endpoint returns { items: [...], periodTotalSales, totalCount }
+      const data = response.items || [];
       // Calculate percentages based on max sales
       const maxSales = data.length > 0 ? Math.max(...data.map((p: any) => p.totalSales)) : 1;
       return data.map((p: any) => ({
         productName: p.productName,
         totalSales: p.totalSales,
-        totalQuantity: p.totalQuantity || 0,
+        totalQuantity: p.totalUnits || p.totalQuantity || 0,
         transactionCount: p.transactionCount || 0,
         percentage: (p.totalSales / maxSales) * 100
       }));
