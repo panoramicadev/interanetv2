@@ -12589,6 +12589,11 @@ export class DatabaseStorage implements IStorage {
       let endDate: Date;
       
       switch (periodo) {
+        case 'all':
+          // Get all visitas from all time
+          startDate = new Date(2020, 0, 1); // From 2020
+          endDate = new Date(now.getFullYear() + 1, 11, 31); // Until end of next year
+          break;
         case 'current':
           startDate = new Date(now.getFullYear(), now.getMonth(), 1);
           endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -12607,8 +12612,8 @@ export class DatabaseStorage implements IStorage {
           endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
           break;
         default:
-          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          startDate = new Date(2020, 0, 1); // Default to all time
+          endDate = new Date(now.getFullYear() + 1, 11, 31);
       }
       
       // Get visitas in date range using SQL CAST for date comparison
