@@ -13675,6 +13675,109 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // OCR extraction from receipt/invoice image
+  app.post('/api/gastos-empresariales/ocr-extract', requireAuth, upload.single('file'), asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['salesperson', 'supervisor', 'admin'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      if (!req.file) {
+        return res.status(400).json({ message: 'No se ha subido ningún archivo' });
+      }
+
+      const file = req.file;
+      
+      // Check if it's an image (not PDF for now)
+      if (!file.mimetype.startsWith('image/')) {
+        return res.json({ 
+          success: false, 
+          message: 'OCR solo disponible para imágenes. Por favor ingrese los datos manualmente.',
+          data: null 
+        });
+      }
+
+      // Convert image to base64
+      const base64Image = file.buffer.toString('base64');
+      const imageDataUrl = `data:${file.mimetype};base64,${base64Image}`;
+
+      // Use OpenAI Vision to extract data
+      const OpenAI = (await import('openai')).default;
+      const openai = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `Analiza esta imagen de un documento comercial chileno (boleta, factura, o recibo) y extrae la siguiente información en formato JSON:
+                
+{
+  "monto": (número, el monto total a pagar, sin símbolo de moneda ni puntos de miles),
+  "descripcion": (string, una breve descripción del gasto basada en los items o concepto del documento),
+  "numeroDocumento": (string, número de folio, número de boleta o factura),
+  "rutProveedor": (string, RUT del emisor/proveedor en formato XX.XXX.XXX-X),
+  "proveedor": (string, razón social o nombre del emisor/proveedor),
+  "fechaEmision": (string, fecha de emisión en formato YYYY-MM-DD),
+  "tipoDocumento": (string, uno de: "Boleta", "Factura", "Recibo", "Otro")
+}
+
+Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el JSON, sin explicaciones adicionales.`
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: imageDataUrl,
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 500,
+      });
+
+      const content = response.choices[0]?.message?.content || '{}';
+      
+      // Parse the JSON response
+      let extractedData;
+      try {
+        // Remove markdown code blocks if present
+        const jsonStr = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        extractedData = JSON.parse(jsonStr);
+      } catch (parseError) {
+        console.error('Error parsing OCR response:', content);
+        return res.json({
+          success: false,
+          message: 'No se pudo interpretar el documento',
+          data: null
+        });
+      }
+
+      console.log('🔍 [OCR] Extracted data:', extractedData);
+      
+      res.json({
+        success: true,
+        message: 'Datos extraídos correctamente',
+        data: extractedData
+      });
+    } catch (error: any) {
+      console.error('Error in OCR extraction:', error);
+      res.json({
+        success: false,
+        message: 'Error al procesar el documento',
+        data: null
+      });
+    }
+  }));
+
   // Create gasto
   app.post('/api/gastos-empresariales', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
