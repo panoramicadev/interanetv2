@@ -688,7 +688,9 @@ export default function MantencionesPage() {
   });
 
   const tecnicos = useMemo(() => {
-    return usuarios.filter(u => u.role === 'produccion');
+    // Incluir todos los roles que pueden ser técnicos internos de mantención
+    const rolesTecnicos = ['produccion', 'jefe_planta', 'mantencion'];
+    return usuarios.filter(u => rolesTecnicos.includes(u.role));
   }, [usuarios]);
 
   const selectedEquipo = useMemo(() => {

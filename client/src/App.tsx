@@ -130,6 +130,10 @@ function Router() {
                   // Los clientes van directamente al ecommerce
                   window.location.replace('/tienda');
                   return null;
+                case 'jefe_planta':
+                case 'mantencion':
+                  // Roles de mantención van al módulo de mantenciones
+                  return <MantencionesPage />;
                 case 'produccion':
                 case 'planificacion':
                 case 'bodega_materias_primas':
