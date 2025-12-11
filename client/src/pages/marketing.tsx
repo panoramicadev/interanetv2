@@ -4642,14 +4642,16 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
   const [skuPopoverOpen, setSkuPopoverOpen] = useState(false);
   const [skuSearchTerm, setSkuSearchTerm] = useState("");
 
-  const { data: productosLista = [] } = useQuery<{ sku: string; descripcion: string; precio: number }[]>({
+  const { data: productosListaRaw } = useQuery<{ sku: string; descripcion: string; precio: number }[]>({
     queryKey: ["/api/price-list"],
     enabled: precioDialogOpen,
   });
 
+  const productosLista = Array.isArray(productosListaRaw) ? productosListaRaw : [];
+
   const filteredProductos = productosLista.filter(p => 
-    p.sku.toLowerCase().includes(skuSearchTerm.toLowerCase()) || 
-    p.descripcion.toLowerCase().includes(skuSearchTerm.toLowerCase())
+    p.sku?.toLowerCase().includes(skuSearchTerm.toLowerCase()) || 
+    p.descripcion?.toLowerCase().includes(skuSearchTerm.toLowerCase())
   ).slice(0, 100);
 
   const [nuevoCompetidor, setNuevoCompetidor] = useState({
