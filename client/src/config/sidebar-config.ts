@@ -116,12 +116,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       ],
     },
     {
-      href: "/configuracion",
-      label: "Configuración",
-      icon: Settings,
-      separator: true,
-    },
-    {
       href: "/tintometria",
       label: "Tintometría",
       icon: Palette,
@@ -194,6 +188,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: Calendar,
         },
       ],
+    },
+    {
+      href: "/configuracion",
+      label: "Configuración",
+      icon: Settings,
     },
 
   ],
