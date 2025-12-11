@@ -4958,35 +4958,33 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
                         >
                           <Edit className="h-3 w-3" />
                         </Button>
-                        {userRole === 'admin' && (
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-red-500"
-                                onClick={(e) => e.stopPropagation()}
-                                data-testid={`button-delete-producto-${p.id}`}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Eliminar Producto</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  ¿Eliminar "{p.nombreProducto}"? Esto también eliminará todos sus precios de competencia.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => deleteProductoMutation.mutate(p.id)}>
-                                  Eliminar
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        )}
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-500"
+                              onClick={(e) => e.stopPropagation()}
+                              data-testid={`button-delete-producto-${p.id}`}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Eliminar Producto</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                ¿Eliminar "{p.nombreProducto}"? Esto también eliminará todos sus precios de competencia.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => deleteProductoMutation.mutate(p.id)}>
+                                Eliminar
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                   ))}
