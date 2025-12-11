@@ -4369,6 +4369,88 @@ export const insertHitoMarketingSchema = createInsertSchema(hitosMarketing).omit
   createdBy: z.string().min(1, "El creador es requerido"),
 });
 
+// ==================================================================================
+// PRECIOS DE COMPETENCIA
+// ==================================================================================
+
+// Tabla de competidores
+export const competidores = pgTable("competidores", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nombre: varchar("nombre", { length: 255 }).notNull(),
+  descripcion: text("descripcion"),
+  activo: boolean("activo").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  nombreIdx: index("IDX_competidores_nombre").on(table.nombre),
+}));
+
+// Tabla de precios de competencia por SKU
+export const preciosCompetencia = pgTable("precios_competencia", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sku: varchar("sku", { length: 50 }).notNull(),
+  nombreProducto: varchar("nombre_producto", { length: 255 }),
+  competidorId: varchar("competidor_id").notNull().references(() => competidores.id, { onDelete: 'cascade' }),
+  precioNormal: numeric("precio_normal", { precision: 15, scale: 2 }),
+  precioOferta: numeric("precio_oferta", { precision: 15, scale: 2 }),
+  fechaRegistro: date("fecha_registro").defaultNow(),
+  notas: text("notas"),
+  urlReferencia: text("url_referencia"),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  skuIdx: index("IDX_precios_competencia_sku").on(table.sku),
+  competidorIdx: index("IDX_precios_competencia_competidor").on(table.competidorId),
+  fechaIdx: index("IDX_precios_competencia_fecha").on(table.fechaRegistro),
+}));
+
+// Relations
+export const competidoresRelations = relations(competidores, ({ many }) => ({
+  precios: many(preciosCompetencia),
+}));
+
+export const preciosCompetenciaRelations = relations(preciosCompetencia, ({ one }) => ({
+  competidor: one(competidores, {
+    fields: [preciosCompetencia.competidorId],
+    references: [competidores.id],
+  }),
+  creador: one(users, {
+    fields: [preciosCompetencia.createdBy],
+    references: [users.id],
+  }),
+}));
+
+// Types
+export type Competidor = typeof competidores.$inferSelect;
+export type InsertCompetidor = typeof competidores.$inferInsert;
+export type PrecioCompetencia = typeof preciosCompetencia.$inferSelect;
+export type InsertPrecioCompetencia = typeof preciosCompetencia.$inferInsert;
+
+// Schemas de validación
+export const insertCompetidorSchema = createInsertSchema(competidores).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  nombre: z.string().min(1, "El nombre es requerido"),
+  activo: z.boolean().default(true),
+});
+
+export const insertPrecioCompetenciaSchema = createInsertSchema(preciosCompetencia).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  sku: z.string().min(1, "El SKU es requerido"),
+  competidorId: z.string().min(1, "El competidor es requerido"),
+  precioNormal: z.string().or(z.number()).optional().transform(val => val ? String(val) : null),
+  precioOferta: z.string().or(z.number()).optional().transform(val => val ? String(val) : null),
+  fechaRegistro: z.string().or(z.date()).optional().transform(val => 
+    val ? (typeof val === 'string' ? new Date(val) : val) : new Date()
+  ),
+});
+
 // ===== ESQUEMA VENTAS PARA TABLAS ETL =====
 export const ventasSchema = pgSchema("ventas");
 
