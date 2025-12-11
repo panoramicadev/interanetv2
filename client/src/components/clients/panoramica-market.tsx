@@ -137,8 +137,7 @@ export default function PanoramicaMarket() {
     mutationFn: async (data: { id: string; updates: Partial<LoyaltyTier> }) => {
       const res = await apiRequest(`/api/loyalty/tiers/${data.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data.updates),
+        data: data.updates,
       });
       return res.json();
     },
@@ -156,8 +155,7 @@ export default function PanoramicaMarket() {
     mutationFn: async (data: Omit<LoyaltyBenefit, 'id' | 'createdAt' | 'activo'>) => {
       const res = await apiRequest('/api/loyalty/benefits', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        data: data,
       });
       return res.json();
     },
@@ -177,8 +175,7 @@ export default function PanoramicaMarket() {
     mutationFn: async (data: { id: string; updates: Partial<LoyaltyBenefit> }) => {
       const res = await apiRequest(`/api/loyalty/benefits/${data.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data.updates),
+        data: data.updates,
       });
       return res.json();
     },
