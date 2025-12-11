@@ -84,6 +84,21 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: ClipboardCheck,
     },
     {
+      href: "/inventario",
+      label: "Inventario",
+      icon: Warehouse,
+    },
+    {
+      href: "/gastos-empresariales",
+      label: "Rendición de Gastos",
+      icon: Banknote,
+    },
+    {
+      href: "/marketing",
+      label: "Marketing",
+      icon: TrendingUp,
+    },
+    {
       href: "/post-venta",
       label: "Post-Venta",
       icon: ClipboardCheck,
@@ -99,21 +114,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: AlertTriangle,
         },
       ],
-    },
-    {
-      href: "/marketing",
-      label: "Marketing",
-      icon: TrendingUp,
-    },
-    {
-      href: "/gastos-empresariales",
-      label: "Rendición de Gastos",
-      icon: Banknote,
-    },
-    {
-      href: "/inventario",
-      label: "Inventario",
-      icon: Warehouse,
     },
     {
       href: "/configuracion",
