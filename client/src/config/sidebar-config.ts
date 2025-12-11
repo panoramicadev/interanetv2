@@ -97,6 +97,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/gastos-empresariales",
       label: "Rendición de Gastos",
       icon: Banknote,
+      separator: true,
     },
     {
       href: "/post-venta",
