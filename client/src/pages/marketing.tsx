@@ -5057,19 +5057,31 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
             </div>
             <div>
               <Label>Competidor *</Label>
-              <Select 
-                value={nuevoPrecio.competidorId} 
-                onValueChange={(v) => setNuevoPrecio({ ...nuevoPrecio, competidorId: v })}
-              >
-                <SelectTrigger data-testid="select-precio-competidor">
-                  <SelectValue placeholder="Seleccionar..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {competidores.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <Select 
+                  value={nuevoPrecio.competidorId} 
+                  onValueChange={(v) => setNuevoPrecio({ ...nuevoPrecio, competidorId: v })}
+                >
+                  <SelectTrigger data-testid="select-precio-competidor" className="flex-1">
+                    <SelectValue placeholder="Seleccionar..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {competidores.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="icon"
+                  onClick={() => setCompetidorDialogOpen(true)}
+                  title="Agregar nuevo competidor"
+                  data-testid="button-add-competidor-inline"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
