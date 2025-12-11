@@ -189,11 +189,17 @@ import {
   solicitudesMarketing,
   inventarioMarketing,
   hitosMarketing,
+  competidores,
+  preciosCompetencia,
   type PresupuestoMarketing,
   type InsertPresupuestoMarketing,
   type SolicitudMarketing,
   type InsertSolicitudMarketing,
   type InventarioMarketing,
+  type Competidor,
+  type InsertCompetidor,
+  type PrecioCompetencia,
+  type InsertPrecioCompetencia,
   type InsertInventarioMarketing,
   type HitoMarketing,
   type InsertHitoMarketing,
@@ -16868,6 +16874,171 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(hitosMarketing)
       .where(eq(hitosMarketing.id, id));
+  }
+
+  // ==================== PRECIOS DE COMPETENCIA ====================
+
+  async getCompetidores(): Promise<Competidor[]> {
+    return await db
+      .select()
+      .from(competidores)
+      .where(eq(competidores.activo, true))
+      .orderBy(asc(competidores.nombre));
+  }
+
+  async getCompetidorById(id: string): Promise<Competidor | undefined> {
+    const [result] = await db
+      .select()
+      .from(competidores)
+      .where(eq(competidores.id, id));
+    return result;
+  }
+
+  async createCompetidor(data: InsertCompetidor): Promise<Competidor> {
+    const [result] = await db
+      .insert(competidores)
+      .values(data)
+      .returning();
+    return result;
+  }
+
+  async updateCompetidor(id: string, updates: Partial<InsertCompetidor>): Promise<Competidor> {
+    const [result] = await db
+      .update(competidores)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(competidores.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteCompetidor(id: string): Promise<void> {
+    await db
+      .update(competidores)
+      .set({ activo: false, updatedAt: new Date() })
+      .where(eq(competidores.id, id));
+  }
+
+  async getPreciosCompetencia(filters?: {
+    sku?: string;
+    competidorId?: string;
+    fechaDesde?: string;
+    fechaHasta?: string;
+    search?: string;
+  }): Promise<(PrecioCompetencia & { competidorNombre: string })[]> {
+    const conditions = [];
+    
+    if (filters?.sku) {
+      conditions.push(eq(preciosCompetencia.sku, filters.sku));
+    }
+    if (filters?.competidorId) {
+      conditions.push(eq(preciosCompetencia.competidorId, filters.competidorId));
+    }
+    if (filters?.fechaDesde) {
+      conditions.push(gte(preciosCompetencia.fechaRegistro, filters.fechaDesde));
+    }
+    if (filters?.fechaHasta) {
+      conditions.push(lte(preciosCompetencia.fechaRegistro, filters.fechaHasta));
+    }
+    if (filters?.search) {
+      const searchTerm = `%${filters.search.toLowerCase()}%`;
+      conditions.push(
+        or(
+          ilike(preciosCompetencia.sku, searchTerm),
+          ilike(preciosCompetencia.nombreProducto, searchTerm)
+        )
+      );
+    }
+
+    const results = await db
+      .select({
+        id: preciosCompetencia.id,
+        sku: preciosCompetencia.sku,
+        nombreProducto: preciosCompetencia.nombreProducto,
+        competidorId: preciosCompetencia.competidorId,
+        precioNormal: preciosCompetencia.precioNormal,
+        precioOferta: preciosCompetencia.precioOferta,
+        fechaRegistro: preciosCompetencia.fechaRegistro,
+        notas: preciosCompetencia.notas,
+        urlReferencia: preciosCompetencia.urlReferencia,
+        createdBy: preciosCompetencia.createdBy,
+        createdAt: preciosCompetencia.createdAt,
+        updatedAt: preciosCompetencia.updatedAt,
+        competidorNombre: competidores.nombre,
+      })
+      .from(preciosCompetencia)
+      .leftJoin(competidores, eq(preciosCompetencia.competidorId, competidores.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(preciosCompetencia.fechaRegistro), asc(preciosCompetencia.sku));
+
+    return results.map(r => ({
+      ...r,
+      competidorNombre: r.competidorNombre || 'Desconocido',
+    }));
+  }
+
+  async getPrecioCompetenciaById(id: string): Promise<PrecioCompetencia | undefined> {
+    const [result] = await db
+      .select()
+      .from(preciosCompetencia)
+      .where(eq(preciosCompetencia.id, id));
+    return result;
+  }
+
+  async createPrecioCompetencia(data: InsertPrecioCompetencia): Promise<PrecioCompetencia> {
+    const [result] = await db
+      .insert(preciosCompetencia)
+      .values(data)
+      .returning();
+    return result;
+  }
+
+  async updatePrecioCompetencia(id: string, updates: Partial<InsertPrecioCompetencia>): Promise<PrecioCompetencia> {
+    const [result] = await db
+      .update(preciosCompetencia)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(preciosCompetencia.id, id))
+      .returning();
+    return result;
+  }
+
+  async deletePrecioCompetencia(id: string): Promise<void> {
+    await db
+      .delete(preciosCompetencia)
+      .where(eq(preciosCompetencia.id, id));
+  }
+
+  async getPreciosCompetenciaBySku(sku: string): Promise<(PrecioCompetencia & { competidorNombre: string })[]> {
+    const results = await db
+      .select({
+        id: preciosCompetencia.id,
+        sku: preciosCompetencia.sku,
+        nombreProducto: preciosCompetencia.nombreProducto,
+        competidorId: preciosCompetencia.competidorId,
+        precioNormal: preciosCompetencia.precioNormal,
+        precioOferta: preciosCompetencia.precioOferta,
+        fechaRegistro: preciosCompetencia.fechaRegistro,
+        notas: preciosCompetencia.notas,
+        urlReferencia: preciosCompetencia.urlReferencia,
+        createdBy: preciosCompetencia.createdBy,
+        createdAt: preciosCompetencia.createdAt,
+        updatedAt: preciosCompetencia.updatedAt,
+        competidorNombre: competidores.nombre,
+      })
+      .from(preciosCompetencia)
+      .leftJoin(competidores, eq(preciosCompetencia.competidorId, competidores.id))
+      .where(eq(preciosCompetencia.sku, sku))
+      .orderBy(desc(preciosCompetencia.fechaRegistro));
+
+    return results.map(r => ({
+      ...r,
+      competidorNombre: r.competidorNombre || 'Desconocido',
+    }));
   }
 
   // ==================== TAREAS (UNIFICADAS) ====================
