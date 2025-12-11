@@ -84,14 +84,21 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: ClipboardCheck,
     },
     {
-      href: "/visitas-tecnicas",
-      label: "Visita Técnica",
-      icon: FileCheck,
-    },
-    {
-      href: "/reclamos-generales",
-      label: "Reclamos",
-      icon: AlertTriangle,
+      href: "/post-venta",
+      label: "Post-Venta",
+      icon: ClipboardCheck,
+      children: [
+        {
+          href: "/visitas-tecnicas",
+          label: "Visita Técnica",
+          icon: FileCheck,
+        },
+        {
+          href: "/reclamos-generales",
+          label: "Reclamos",
+          icon: AlertTriangle,
+        },
+      ],
     },
     {
       href: "/marketing",
