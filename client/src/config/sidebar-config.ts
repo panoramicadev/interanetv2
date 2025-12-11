@@ -94,6 +94,49 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: AlertTriangle,
     },
     {
+      href: "/marketing",
+      label: "Marketing",
+      icon: TrendingUp,
+    },
+    {
+      href: "/gastos-empresariales",
+      label: "Rendición de Gastos",
+      icon: Banknote,
+    },
+    {
+      href: "/inventario",
+      label: "Inventario",
+      icon: Warehouse,
+    },
+    {
+      href: "/configuracion",
+      label: "Configuración",
+      icon: Settings,
+      separator: true,
+    },
+    {
+      href: "/tintometria",
+      label: "Tintometría",
+      icon: Palette,
+      children: [
+        {
+          href: "/tintometria/admin",
+          label: "Administrar Datos",
+          icon: Settings,
+        },
+        {
+          href: "/tintometria/calculadora",
+          label: "Calcular Costos",
+          icon: DollarSign,
+        },
+        {
+          href: "/tintometria/selector",
+          label: "Selector Visual",
+          icon: PaintBucket,
+        },
+      ],
+    },
+    {
       href: "/mantenciones",
       label: "Mantención",
       icon: Wrench,
@@ -142,49 +185,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/cmms/calendario",
           label: "Calendario",
           icon: Calendar,
-        },
-      ],
-    },
-    {
-      href: "/marketing",
-      label: "Marketing",
-      icon: TrendingUp,
-    },
-    {
-      href: "/gastos-empresariales",
-      label: "Rendición de Gastos",
-      icon: Banknote,
-    },
-    {
-      href: "/inventario",
-      label: "Inventario",
-      icon: Warehouse,
-    },
-    {
-      href: "/configuracion",
-      label: "Configuración",
-      icon: Settings,
-      separator: true,
-    },
-    {
-      href: "/tintometria",
-      label: "Tintometría",
-      icon: Palette,
-      children: [
-        {
-          href: "/tintometria/admin",
-          label: "Administrar Datos",
-          icon: Settings,
-        },
-        {
-          href: "/tintometria/calculadora",
-          label: "Calcular Costos",
-          icon: DollarSign,
-        },
-        {
-          href: "/tintometria/selector",
-          label: "Selector Visual",
-          icon: PaintBucket,
         },
       ],
     },
