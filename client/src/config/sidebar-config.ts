@@ -58,14 +58,14 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Receipt,
     },
     {
-      href: "/ecommerce",
-      label: "eCommerce",
-      icon: ShoppingCart,
-    },
-    {
       href: "/marketing",
       label: "Marketing",
       icon: TrendingUp,
+    },
+    {
+      href: "/ecommerce",
+      label: "eCommerce",
+      icon: ShoppingCart,
       separator: true,
     },
     {
