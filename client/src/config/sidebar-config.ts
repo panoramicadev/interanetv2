@@ -58,6 +58,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Receipt,
     },
     {
+      href: "/clientes",
+      label: "Panoramica Market",
+      icon: Users,
+    },
+    {
       href: "/marketing",
       label: "Marketing",
       icon: TrendingUp,
@@ -77,11 +82,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/tareas",
       label: "Tareas",
       icon: CheckCircle2,
-    },
-    {
-      href: "/clientes",
-      label: "Gestión de Clientes",
-      icon: Users,
     },
     {
       href: "/tomador-pedidos",
