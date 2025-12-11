@@ -401,6 +401,10 @@ export async function bootstrapDatabase(): Promise<void> {
     // Actualizar la tabla para usar el nuevo sistema: sku opcional, productoMonitoreoId obligatorio
     await db.execute(sql`ALTER TABLE precios_competencia ALTER COLUMN sku DROP NOT NULL`);
     await db.execute(sql`ALTER TABLE precios_competencia ALTER COLUMN producto_monitoreo_id SET NOT NULL`);
+    // Agregar columnas de precios por canal (Web, Ferretería, Construcción)
+    await db.execute(sql`ALTER TABLE precios_competencia ADD COLUMN IF NOT EXISTS precio_web NUMERIC(15, 2)`);
+    await db.execute(sql`ALTER TABLE precios_competencia ADD COLUMN IF NOT EXISTS precio_ferreteria NUMERIC(15, 2)`);
+    await db.execute(sql`ALTER TABLE precios_competencia ADD COLUMN IF NOT EXISTS precio_construccion NUMERIC(15, 2)`);
     
     console.log('✅ Bootstrap de base de datos completado');
     

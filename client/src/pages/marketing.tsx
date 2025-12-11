@@ -4616,8 +4616,9 @@ interface PrecioCompetencia {
   id: string;
   productoMonitoreoId: string;
   competidorId: string;
-  precioNormal: string | null;
-  precioOferta: string | null;
+  precioWeb: string | null;
+  precioFerreteria: string | null;
+  precioConstruccion: string | null;
   fechaRegistro: string;
   notas: string | null;
   urlReferencia: string | null;
@@ -4648,8 +4649,9 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
   const [nuevoPrecio, setNuevoPrecio] = useState({
     productoMonitoreoId: "",
     competidorId: "",
-    precioNormal: "",
-    precioOferta: "",
+    precioWeb: "",
+    precioFerreteria: "",
+    precioConstruccion: "",
     notas: "",
     urlReferencia: "",
   });
@@ -4756,7 +4758,7 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
       queryClient.invalidateQueries({ queryKey: ["/api/marketing/productos-monitoreo", selectedProducto?.id, "precios"] });
       toast({ title: "Precio registrado", description: "El precio de competencia se registró correctamente" });
       setPrecioDialogOpen(false);
-      setNuevoPrecio({ productoMonitoreoId: "", competidorId: "", precioNormal: "", precioOferta: "", notas: "", urlReferencia: "" });
+      setNuevoPrecio({ productoMonitoreoId: "", competidorId: "", precioWeb: "", precioFerreteria: "", precioConstruccion: "", notas: "", urlReferencia: "" });
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Error al registrar precio", variant: "destructive" });
@@ -4824,8 +4826,9 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
     setNuevoPrecio({
       productoMonitoreoId: selectedProducto.id,
       competidorId: "",
-      precioNormal: "",
-      precioOferta: "",
+      precioWeb: "",
+      precioFerreteria: "",
+      precioConstruccion: "",
       notas: "",
       urlReferencia: "",
     });
@@ -5050,35 +5053,28 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Competidor</TableHead>
-                          <TableHead className="text-right">Precio Normal</TableHead>
-                          <TableHead className="text-right">Precio Oferta</TableHead>
-                          <TableHead className="text-right">vs Lista</TableHead>
+                          <TableHead className="text-right">Precio Web</TableHead>
+                          <TableHead className="text-right">Precio Ferretería</TableHead>
+                          <TableHead className="text-right">Precio Construcción</TableHead>
                           <TableHead>Fecha</TableHead>
                           <TableHead className="text-right">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {preciosProducto.map((p) => {
-                          const precioLista = parseFloat(selectedProducto.precioLista || "0");
-                          const precioComp = parseFloat(p.precioNormal || "0");
-                          const diff = precioLista > 0 ? ((precioComp - precioLista) / precioLista * 100) : 0;
                           return (
                             <TableRow key={p.id} data-testid={`row-precio-${p.id}`}>
                               <TableCell>
                                 <Badge variant="outline">{p.competidorNombre}</Badge>
                               </TableCell>
                               <TableCell className="text-right font-medium">
-                                {formatPrice(p.precioNormal)}
+                                {formatPrice(p.precioWeb)}
                               </TableCell>
                               <TableCell className="text-right">
-                                {p.precioOferta ? (
-                                  <span className="text-green-600 font-medium">{formatPrice(p.precioOferta)}</span>
-                                ) : "-"}
+                                {formatPrice(p.precioFerreteria)}
                               </TableCell>
                               <TableCell className="text-right">
-                                <Badge variant={diff > 0 ? "destructive" : diff < 0 ? "default" : "secondary"}>
-                                  {diff > 0 ? "+" : ""}{diff.toFixed(1)}%
-                                </Badge>
+                                {formatPrice(p.precioConstruccion)}
                               </TableCell>
                               <TableCell>
                                 {format(new Date(p.fechaRegistro), "dd/MM/yyyy", { locale: es })}
@@ -5241,25 +5237,35 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
                 </Button>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
-                <Label>Precio Normal</Label>
+                <Label>Precio Web</Label>
                 <Input
                   type="number"
-                  value={nuevoPrecio.precioNormal}
-                  onChange={(e) => setNuevoPrecio({ ...nuevoPrecio, precioNormal: e.target.value })}
+                  value={nuevoPrecio.precioWeb}
+                  onChange={(e) => setNuevoPrecio({ ...nuevoPrecio, precioWeb: e.target.value })}
                   placeholder="0"
-                  data-testid="input-precio-normal"
+                  data-testid="input-precio-web"
                 />
               </div>
               <div>
-                <Label>Precio Oferta</Label>
+                <Label>Precio Ferretería</Label>
                 <Input
                   type="number"
-                  value={nuevoPrecio.precioOferta}
-                  onChange={(e) => setNuevoPrecio({ ...nuevoPrecio, precioOferta: e.target.value })}
+                  value={nuevoPrecio.precioFerreteria}
+                  onChange={(e) => setNuevoPrecio({ ...nuevoPrecio, precioFerreteria: e.target.value })}
                   placeholder="0"
-                  data-testid="input-precio-oferta"
+                  data-testid="input-precio-ferreteria"
+                />
+              </div>
+              <div>
+                <Label>Precio Construcción</Label>
+                <Input
+                  type="number"
+                  value={nuevoPrecio.precioConstruccion}
+                  onChange={(e) => setNuevoPrecio({ ...nuevoPrecio, precioConstruccion: e.target.value })}
+                  placeholder="0"
+                  data-testid="input-precio-construccion"
                 />
               </div>
             </div>
