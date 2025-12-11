@@ -43,6 +43,46 @@ export async function bootstrapDatabase(): Promise<void> {
     `);
     await db.execute(sql`ALTER TABLE ventas.stg_maeddo ADD COLUMN IF NOT EXISTS kofulido TEXT`);
     
+    // 2.1 Crear tabla fact_ventas (tabla principal de ventas para análisis)
+    console.log('  📋 Verificando tabla fact_ventas...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ventas.fact_ventas (
+        id SERIAL PRIMARY KEY,
+        idmaeedo NUMERIC(20, 0),
+        idmaeddo NUMERIC(20, 0),
+        empresa TEXT,
+        tido TEXT,
+        nudo TEXT,
+        feemdo DATE,
+        nokoen TEXT,
+        koen TEXT,
+        endo TEXT,
+        koprct TEXT,
+        nombre_producto TEXT,
+        cantidad1 NUMERIC(18, 4),
+        cantidad2 NUMERIC(18, 4),
+        vaneli NUMERIC(18, 4),
+        feemli DATE,
+        nokofu TEXT,
+        kofudo TEXT,
+        bosulido TEXT,
+        noruen TEXT,
+        vakoen TEXT,
+        vavven TEXT,
+        eslido TEXT,
+        esdo TEXT,
+        feulvedo DATE,
+        data_source TEXT,
+        last_etl_sync TIMESTAMP
+      )
+    `);
+    
+    // Agregar índices importantes para fact_ventas
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_fact_ventas_feemdo ON ventas.fact_ventas(feemdo)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_fact_ventas_nokoen ON ventas.fact_ventas(nokoen)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_fact_ventas_koprct ON ventas.fact_ventas(koprct)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_fact_ventas_kofudo ON ventas.fact_ventas(kofudo)`);
+    
     // 3. Crear tablas staging de GDV
     console.log('  📋 Verificando tablas de GDV...');
     
@@ -285,8 +325,43 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE visitas_tecnicas ADD COLUMN IF NOT EXISTS firma_recepcionista_data TEXT`);
     await db.execute(sql`ALTER TABLE visitas_tecnicas ADD COLUMN IF NOT EXISTS fecha_firma TIMESTAMP`);
     
-    // 8. Seed loyalty tiers (Panoramica Market) if they don't exist
-    console.log('  🏆 Verificando tiers de lealtad (Panoramica Market)...');
+    // 8. Crear tabla loyalty_tiers si no existe (Panoramica Market)
+    console.log('  🏆 Verificando tabla de tiers de lealtad...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS loyalty_tiers (
+        id VARCHAR(255) PRIMARY KEY DEFAULT gen_random_uuid(),
+        nombre VARCHAR(255) NOT NULL,
+        codigo VARCHAR(50) NOT NULL UNIQUE,
+        descripcion TEXT,
+        monto_minimo NUMERIC(15, 2) NOT NULL DEFAULT 0,
+        periodo_evaluacion_dias INTEGER NOT NULL DEFAULT 90,
+        color_primario VARCHAR(20),
+        color_secundario VARCHAR(20),
+        icono VARCHAR(50),
+        orden INTEGER NOT NULL DEFAULT 0,
+        activo BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Crear tabla loyalty_tier_benefits si no existe
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS loyalty_tier_benefits (
+        id VARCHAR(255) PRIMARY KEY DEFAULT gen_random_uuid(),
+        tier_id VARCHAR(255) NOT NULL REFERENCES loyalty_tiers(id) ON DELETE CASCADE,
+        titulo VARCHAR(255) NOT NULL,
+        descripcion TEXT,
+        tipo VARCHAR(50) NOT NULL DEFAULT 'beneficio',
+        valor VARCHAR(255),
+        orden INTEGER NOT NULL DEFAULT 0,
+        activo BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // 9. Seed loyalty tiers (Panoramica Market) if they don't exist
+    console.log('  🏆 Verificando datos de tiers de Panoramica Market...');
     const existingTiers = await db.execute(sql`SELECT COUNT(*) as count FROM loyalty_tiers`);
     const tierCount = Number(existingTiers.rows[0]?.count) || 0;
     
