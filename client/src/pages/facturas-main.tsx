@@ -3,11 +3,12 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, TrendingUp, BarChart3, Truck } from "lucide-react";
+import { FileText, TrendingUp, BarChart3, Truck, DollarSign } from "lucide-react";
 import { FacturasTable } from "@/components/facturas/facturas-table";
 import NVVPage from "./nvv";
 import GDVPage from "./gdv";
 import ProyeccionPage from "./proyeccion";
+import ListaPrecios from "./lista-precios";
 
 export default function FacturasMainPage() {
   const [, setLocation] = useLocation();
@@ -64,6 +65,11 @@ export default function FacturasMainPage() {
               <span className="hidden sm:inline">Solicitud de Crédito</span>
               <span className="sm:hidden">Crédito</span>
             </TabsTrigger>
+            <TabsTrigger value="lista-precios" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-lista-precios">
+              <DollarSign className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Lista de Precios</span>
+              <span className="sm:hidden">Precios</span>
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -92,6 +98,11 @@ export default function FacturasMainPage() {
         {/* Solicitud de Crédito Tab */}
         <TabsContent value="solicitud-credito" className="mt-6">
           <SolicitudCreditoForm />
+        </TabsContent>
+
+        {/* Lista de Precios Tab */}
+        <TabsContent value="lista-precios" className="mt-6">
+          <ListaPrecios />
         </TabsContent>
       </Tabs>
     </div>
