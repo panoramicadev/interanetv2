@@ -3,6 +3,7 @@ import {
   index,
   jsonb,
   pgTable,
+  pgEnum,
   timestamp,
   varchar,
   text,
