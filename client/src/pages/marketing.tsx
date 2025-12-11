@@ -4618,6 +4618,7 @@ interface PrecioCompetencia {
   id: string;
   productoMonitoreoId: string;
   competidorId: string;
+  formato: string | null;
   precioWeb: string | null;
   precioFerreteria: string | null;
   precioConstruccion: string | null;
@@ -4638,6 +4639,7 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
   const [selectedProducto, setSelectedProducto] = useState<ProductoMonitoreo | null>(null);
   const [productoDialogOpen, setProductoDialogOpen] = useState(false);
   const [precioDialogOpen, setPrecioDialogOpen] = useState(false);
+  const [filtroFormato, setFiltroFormato] = useState<"TODOS" | "GL" | "14" | "BALDE4" | "BALDE5">("TODOS");
   const [competidorDialogOpen, setCompetidorDialogOpen] = useState(false);
   const [editingProducto, setEditingProducto] = useState<ProductoMonitoreo | null>(null);
   const [editingCompetidor, setEditingCompetidor] = useState<Competidor | null>(null);
@@ -5062,10 +5064,48 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
                   </div>
                 ) : (
                   <div className="space-y-4">
+                    <div className="flex gap-2 flex-wrap">
+                      <Button 
+                        variant={filtroFormato === "TODOS" ? "default" : "outline"} 
+                        size="sm"
+                        onClick={() => setFiltroFormato("TODOS")}
+                      >
+                        Todos
+                      </Button>
+                      <Button 
+                        variant={filtroFormato === "GL" ? "default" : "outline"} 
+                        size="sm"
+                        onClick={() => setFiltroFormato("GL")}
+                      >
+                        Galón
+                      </Button>
+                      <Button 
+                        variant={filtroFormato === "14" ? "default" : "outline"} 
+                        size="sm"
+                        onClick={() => setFiltroFormato("14")}
+                      >
+                        1/4 Galón
+                      </Button>
+                      <Button 
+                        variant={filtroFormato === "BALDE4" ? "default" : "outline"} 
+                        size="sm"
+                        onClick={() => setFiltroFormato("BALDE4")}
+                      >
+                        Balde 4GL
+                      </Button>
+                      <Button 
+                        variant={filtroFormato === "BALDE5" ? "default" : "outline"} 
+                        size="sm"
+                        onClick={() => setFiltroFormato("BALDE5")}
+                      >
+                        Balde 5GL
+                      </Button>
+                    </div>
                     <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Competidor</TableHead>
+                          <TableHead>Formato</TableHead>
                           <TableHead className="text-right">Precio Web</TableHead>
                           <TableHead className="text-right">Precio Ferretería</TableHead>
                           <TableHead className="text-right">Precio Construcción</TableHead>
@@ -5074,11 +5114,17 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {preciosProducto.map((p) => {
+                        {preciosProducto
+                          .filter(p => filtroFormato === "TODOS" || p.formato === filtroFormato)
+                          .map((p) => {
+                          const formatoLabel = p.formato === "GL" ? "Galón" : p.formato === "14" ? "1/4 Galón" : p.formato === "BALDE4" ? "Balde 4GL" : p.formato === "BALDE5" ? "Balde 5GL" : p.formato || "-";
                           return (
                             <TableRow key={p.id} data-testid={`row-precio-${p.id}`}>
                               <TableCell>
                                 <Badge variant="outline">{p.competidorNombre}</Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="secondary">{formatoLabel}</Badge>
                               </TableCell>
                               <TableCell className="text-right font-medium">
                                 {formatPrice(p.precioWeb)}
