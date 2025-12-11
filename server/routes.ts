@@ -12739,12 +12739,16 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/marketing/precios-competencia', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      console.log('[PRECIO-COMPETENCIA] Creating precio with body:', JSON.stringify(req.body));
+      const { productoMonitoreoId, competidorId, precioNormal, precioOferta, notas, urlReferencia } = req.body;
       const precioData = {
-        ...req.body,
+        productoMonitoreoId,
+        competidorId,
+        precioNormal: precioNormal && precioNormal !== '' ? precioNormal : null,
+        precioOferta: precioOferta && precioOferta !== '' ? precioOferta : null,
+        notas: notas || null,
+        urlReferencia: urlReferencia || null,
         createdBy: user.id,
       };
-      console.log('[PRECIO-COMPETENCIA] Precio data to insert:', JSON.stringify(precioData));
       const precio = await storage.createPrecioCompetencia(precioData);
       res.status(201).json(precio);
     } catch (error: any) {
