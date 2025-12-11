@@ -5160,12 +5160,20 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
             </div>
             <div>
               <Label>Formato</Label>
-              <Input
-                value={nuevoProducto.formato}
-                onChange={(e) => setNuevoProducto({ ...nuevoProducto, formato: e.target.value })}
-                placeholder="Ej: 1 galón, 1/4 galón, 1 litro"
-                data-testid="input-producto-formato"
-              />
+              <Select 
+                value={nuevoProducto.formato} 
+                onValueChange={(v) => setNuevoProducto({ ...nuevoProducto, formato: v })}
+              >
+                <SelectTrigger data-testid="select-producto-formato">
+                  <SelectValue placeholder="Seleccionar formato" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Galón (GL)">Galón (GL)</SelectItem>
+                  <SelectItem value="1/4 Galón">1/4 Galón</SelectItem>
+                  <SelectItem value="Balde (4 GL)">Balde (4 GL)</SelectItem>
+                  <SelectItem value="Balde (5 GL)">Balde (5 GL)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Precio Lista</Label>
