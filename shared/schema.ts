@@ -4385,11 +4385,24 @@ export const competidores = pgTable("competidores", {
   nombreIdx: index("IDX_competidores_nombre").on(table.nombre),
 }));
 
-// Tabla de precios de competencia por SKU
+// Tabla de productos a monitorear (productos propios para comparar precios)
+export const productosMonitoreo = pgTable("productos_monitoreo", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nombreProducto: varchar("nombre_producto", { length: 255 }).notNull(),
+  formato: varchar("formato", { length: 100 }), // ej: "1 galón", "1/4 galón", "1 litro"
+  precioLista: numeric("precio_lista", { precision: 15, scale: 2 }),
+  activo: boolean("activo").default(true),
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  nombreIdx: index("IDX_productos_monitoreo_nombre").on(table.nombreProducto),
+}));
+
+// Tabla de precios de competencia por producto
 export const preciosCompetencia = pgTable("precios_competencia", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  sku: varchar("sku", { length: 50 }).notNull(),
-  nombreProducto: varchar("nombre_producto", { length: 255 }),
+  productoMonitoreoId: varchar("producto_monitoreo_id").notNull().references(() => productosMonitoreo.id, { onDelete: 'cascade' }),
   competidorId: varchar("competidor_id").notNull().references(() => competidores.id, { onDelete: 'cascade' }),
   precioNormal: numeric("precio_normal", { precision: 15, scale: 2 }),
   precioOferta: numeric("precio_oferta", { precision: 15, scale: 2 }),
@@ -4400,7 +4413,7 @@ export const preciosCompetencia = pgTable("precios_competencia", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
-  skuIdx: index("IDX_precios_competencia_sku").on(table.sku),
+  productoIdx: index("IDX_precios_competencia_producto").on(table.productoMonitoreoId),
   competidorIdx: index("IDX_precios_competencia_competidor").on(table.competidorId),
   fechaIdx: index("IDX_precios_competencia_fecha").on(table.fechaRegistro),
 }));
@@ -4410,7 +4423,15 @@ export const competidoresRelations = relations(competidores, ({ many }) => ({
   precios: many(preciosCompetencia),
 }));
 
+export const productosMonitoreoRelations = relations(productosMonitoreo, ({ many }) => ({
+  precios: many(preciosCompetencia),
+}));
+
 export const preciosCompetenciaRelations = relations(preciosCompetencia, ({ one }) => ({
+  producto: one(productosMonitoreo, {
+    fields: [preciosCompetencia.productoMonitoreoId],
+    references: [productosMonitoreo.id],
+  }),
   competidor: one(competidores, {
     fields: [preciosCompetencia.competidorId],
     references: [competidores.id],
@@ -4424,6 +4445,8 @@ export const preciosCompetenciaRelations = relations(preciosCompetencia, ({ one 
 // Types
 export type Competidor = typeof competidores.$inferSelect;
 export type InsertCompetidor = typeof competidores.$inferInsert;
+export type ProductoMonitoreo = typeof productosMonitoreo.$inferSelect;
+export type InsertProductoMonitoreo = typeof productosMonitoreo.$inferInsert;
 export type PrecioCompetencia = typeof preciosCompetencia.$inferSelect;
 export type InsertPrecioCompetencia = typeof preciosCompetencia.$inferInsert;
 
@@ -4437,12 +4460,23 @@ export const insertCompetidorSchema = createInsertSchema(competidores).omit({
   activo: z.boolean().default(true),
 });
 
+export const insertProductoMonitoreoSchema = createInsertSchema(productosMonitoreo).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  nombreProducto: z.string().min(1, "El nombre del producto es requerido"),
+  formato: z.string().optional(),
+  precioLista: z.string().or(z.number()).optional().transform(val => val ? String(val) : null),
+  activo: z.boolean().default(true),
+});
+
 export const insertPrecioCompetenciaSchema = createInsertSchema(preciosCompetencia).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 }).extend({
-  sku: z.string().min(1, "El SKU es requerido"),
+  productoMonitoreoId: z.string().min(1, "El producto es requerido"),
   competidorId: z.string().min(1, "El competidor es requerido"),
   precioNormal: z.string().or(z.number()).optional().transform(val => val ? String(val) : null),
   precioOferta: z.string().or(z.number()).optional().transform(val => val ? String(val) : null),

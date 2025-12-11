@@ -12612,12 +12612,104 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // ==================================================================================
+  // PRODUCTOS MONITOREO routes (Productos propios para monitoreo de precios)
+  // ==================================================================================
+
+  // Get all productos monitoreo
+  app.get('/api/marketing/productos-monitoreo', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { activo, search } = req.query;
+      const filters: any = {};
+      if (activo !== undefined) filters.activo = activo === 'true';
+      if (search) filters.search = search;
+      
+      const productos = await storage.getProductosMonitoreo(filters);
+      res.json(productos);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener productos de monitoreo', error: error.message });
+    }
+  }));
+
+  // Get single producto monitoreo by ID
+  app.get('/api/marketing/productos-monitoreo/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const producto = await storage.getProductoMonitoreoById(req.params.id);
+      if (!producto) {
+        return res.status(404).json({ message: 'Producto no encontrado' });
+      }
+      res.json(producto);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener producto', error: error.message });
+    }
+  }));
+
+  // Get precios for a specific producto monitoreo
+  app.get('/api/marketing/productos-monitoreo/:id/precios', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const precios = await storage.getPreciosByProductoMonitoreoId(req.params.id);
+      res.json(precios);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener precios del producto', error: error.message });
+    }
+  }));
+
+  // Create producto monitoreo
+  app.post('/api/marketing/productos-monitoreo', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'No tienes permisos para crear productos de monitoreo' });
+      }
+      const productoData = {
+        ...req.body,
+        createdBy: user.id,
+      };
+      const producto = await storage.createProductoMonitoreo(productoData);
+      res.status(201).json(producto);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear producto de monitoreo', error: error.message });
+    }
+  }));
+
+  // Update producto monitoreo
+  app.patch('/api/marketing/productos-monitoreo/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'No tienes permisos para editar productos de monitoreo' });
+      }
+      const producto = await storage.updateProductoMonitoreo(req.params.id, req.body);
+      res.json(producto);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar producto', error: error.message });
+    }
+  }));
+
+  // Delete producto monitoreo (soft delete)
+  app.delete('/api/marketing/productos-monitoreo/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'Solo admin puede eliminar productos de monitoreo' });
+      }
+      await storage.deleteProductoMonitoreo(req.params.id);
+      res.json({ message: 'Producto eliminado correctamente' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar producto', error: error.message });
+    }
+  }));
+
+  // ==================================================================================
+  // PRECIOS DE COMPETENCIA routes
+  // ==================================================================================
+
   // Get all precios competencia with filters
   app.get('/api/marketing/precios-competencia', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
-      const { sku, competidorId, fechaDesde, fechaHasta, search } = req.query;
+      const { productoMonitoreoId, competidorId, fechaDesde, fechaHasta, search } = req.query;
       const filters: any = {};
-      if (sku) filters.sku = sku;
+      if (productoMonitoreoId) filters.productoMonitoreoId = productoMonitoreoId;
       if (competidorId) filters.competidorId = competidorId;
       if (fechaDesde) filters.fechaDesde = fechaDesde;
       if (fechaHasta) filters.fechaHasta = fechaHasta;
@@ -12627,16 +12719,6 @@ export function registerRoutes(app: Express): Server {
       res.json(precios);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener precios de competencia', error: error.message });
-    }
-  }));
-
-  // Get precios by SKU
-  app.get('/api/marketing/precios-competencia/sku/:sku', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
-    try {
-      const precios = await storage.getPreciosCompetenciaBySku(req.params.sku);
-      res.json(precios);
-    } catch (error: any) {
-      res.status(500).json({ message: 'Error al obtener precios por SKU', error: error.message });
     }
   }));
 

@@ -191,6 +191,7 @@ import {
   hitosMarketing,
   competidores,
   preciosCompetencia,
+  productosMonitoreo,
   type PresupuestoMarketing,
   type InsertPresupuestoMarketing,
   type SolicitudMarketing,
@@ -200,6 +201,8 @@ import {
   type InsertCompetidor,
   type PrecioCompetencia,
   type InsertPrecioCompetencia,
+  type ProductoMonitoreo,
+  type InsertProductoMonitoreo,
   type InsertInventarioMarketing,
   type HitoMarketing,
   type InsertHitoMarketing,
@@ -16921,42 +16924,74 @@ export class DatabaseStorage implements IStorage {
       .where(eq(competidores.id, id));
   }
 
-  async getPreciosCompetencia(filters?: {
-    sku?: string;
-    competidorId?: string;
-    fechaDesde?: string;
-    fechaHasta?: string;
+  // ==================== PRODUCTOS MONITOREO ====================
+
+  async getProductosMonitoreo(filters?: {
+    activo?: boolean;
     search?: string;
-  }): Promise<(PrecioCompetencia & { competidorNombre: string })[]> {
+  }): Promise<ProductoMonitoreo[]> {
     const conditions = [];
     
-    if (filters?.sku) {
-      conditions.push(eq(preciosCompetencia.sku, filters.sku));
-    }
-    if (filters?.competidorId) {
-      conditions.push(eq(preciosCompetencia.competidorId, filters.competidorId));
-    }
-    if (filters?.fechaDesde) {
-      conditions.push(gte(preciosCompetencia.fechaRegistro, filters.fechaDesde));
-    }
-    if (filters?.fechaHasta) {
-      conditions.push(lte(preciosCompetencia.fechaRegistro, filters.fechaHasta));
+    if (filters?.activo !== undefined) {
+      conditions.push(eq(productosMonitoreo.activo, filters.activo));
     }
     if (filters?.search) {
       const searchTerm = `%${filters.search.toLowerCase()}%`;
       conditions.push(
         or(
-          ilike(preciosCompetencia.sku, searchTerm),
-          ilike(preciosCompetencia.nombreProducto, searchTerm)
+          ilike(productosMonitoreo.nombreProducto, searchTerm),
+          ilike(productosMonitoreo.formato, searchTerm)
         )
       );
     }
 
+    return await db
+      .select()
+      .from(productosMonitoreo)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(asc(productosMonitoreo.nombreProducto));
+  }
+
+  async getProductoMonitoreoById(id: string): Promise<ProductoMonitoreo | undefined> {
+    const [result] = await db
+      .select()
+      .from(productosMonitoreo)
+      .where(eq(productosMonitoreo.id, id));
+    return result;
+  }
+
+  async createProductoMonitoreo(data: InsertProductoMonitoreo): Promise<ProductoMonitoreo> {
+    const [result] = await db
+      .insert(productosMonitoreo)
+      .values(data)
+      .returning();
+    return result;
+  }
+
+  async updateProductoMonitoreo(id: string, updates: Partial<InsertProductoMonitoreo>): Promise<ProductoMonitoreo> {
+    const [result] = await db
+      .update(productosMonitoreo)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(productosMonitoreo.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteProductoMonitoreo(id: string): Promise<void> {
+    await db
+      .update(productosMonitoreo)
+      .set({ activo: false, updatedAt: new Date() })
+      .where(eq(productosMonitoreo.id, id));
+  }
+
+  async getPreciosByProductoMonitoreoId(productoMonitoreoId: string): Promise<(PrecioCompetencia & { competidorNombre: string })[]> {
     const results = await db
       .select({
         id: preciosCompetencia.id,
-        sku: preciosCompetencia.sku,
-        nombreProducto: preciosCompetencia.nombreProducto,
+        productoMonitoreoId: preciosCompetencia.productoMonitoreoId,
         competidorId: preciosCompetencia.competidorId,
         precioNormal: preciosCompetencia.precioNormal,
         precioOferta: preciosCompetencia.precioOferta,
@@ -16970,12 +17005,71 @@ export class DatabaseStorage implements IStorage {
       })
       .from(preciosCompetencia)
       .leftJoin(competidores, eq(preciosCompetencia.competidorId, competidores.id))
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(preciosCompetencia.fechaRegistro), asc(preciosCompetencia.sku));
+      .where(eq(preciosCompetencia.productoMonitoreoId, productoMonitoreoId))
+      .orderBy(desc(preciosCompetencia.fechaRegistro));
 
     return results.map(r => ({
       ...r,
       competidorNombre: r.competidorNombre || 'Desconocido',
+    }));
+  }
+
+  async getPreciosCompetencia(filters?: {
+    productoMonitoreoId?: string;
+    competidorId?: string;
+    fechaDesde?: string;
+    fechaHasta?: string;
+    search?: string;
+  }): Promise<(PrecioCompetencia & { competidorNombre: string; productoNombre: string; productoFormato: string | null })[]> {
+    const conditions = [];
+    
+    if (filters?.productoMonitoreoId) {
+      conditions.push(eq(preciosCompetencia.productoMonitoreoId, filters.productoMonitoreoId));
+    }
+    if (filters?.competidorId) {
+      conditions.push(eq(preciosCompetencia.competidorId, filters.competidorId));
+    }
+    if (filters?.fechaDesde) {
+      conditions.push(gte(preciosCompetencia.fechaRegistro, filters.fechaDesde));
+    }
+    if (filters?.fechaHasta) {
+      conditions.push(lte(preciosCompetencia.fechaRegistro, filters.fechaHasta));
+    }
+    if (filters?.search) {
+      const searchTerm = `%${filters.search.toLowerCase()}%`;
+      conditions.push(
+        ilike(productosMonitoreo.nombreProducto, searchTerm)
+      );
+    }
+
+    const results = await db
+      .select({
+        id: preciosCompetencia.id,
+        productoMonitoreoId: preciosCompetencia.productoMonitoreoId,
+        competidorId: preciosCompetencia.competidorId,
+        precioNormal: preciosCompetencia.precioNormal,
+        precioOferta: preciosCompetencia.precioOferta,
+        fechaRegistro: preciosCompetencia.fechaRegistro,
+        notas: preciosCompetencia.notas,
+        urlReferencia: preciosCompetencia.urlReferencia,
+        createdBy: preciosCompetencia.createdBy,
+        createdAt: preciosCompetencia.createdAt,
+        updatedAt: preciosCompetencia.updatedAt,
+        competidorNombre: competidores.nombre,
+        productoNombre: productosMonitoreo.nombreProducto,
+        productoFormato: productosMonitoreo.formato,
+      })
+      .from(preciosCompetencia)
+      .leftJoin(competidores, eq(preciosCompetencia.competidorId, competidores.id))
+      .leftJoin(productosMonitoreo, eq(preciosCompetencia.productoMonitoreoId, productosMonitoreo.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(preciosCompetencia.fechaRegistro), asc(productosMonitoreo.nombreProducto));
+
+    return results.map(r => ({
+      ...r,
+      competidorNombre: r.competidorNombre || 'Desconocido',
+      productoNombre: r.productoNombre || 'Producto no encontrado',
+      productoFormato: r.productoFormato || null,
     }));
   }
 
@@ -17011,34 +17105,6 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(preciosCompetencia)
       .where(eq(preciosCompetencia.id, id));
-  }
-
-  async getPreciosCompetenciaBySku(sku: string): Promise<(PrecioCompetencia & { competidorNombre: string })[]> {
-    const results = await db
-      .select({
-        id: preciosCompetencia.id,
-        sku: preciosCompetencia.sku,
-        nombreProducto: preciosCompetencia.nombreProducto,
-        competidorId: preciosCompetencia.competidorId,
-        precioNormal: preciosCompetencia.precioNormal,
-        precioOferta: preciosCompetencia.precioOferta,
-        fechaRegistro: preciosCompetencia.fechaRegistro,
-        notas: preciosCompetencia.notas,
-        urlReferencia: preciosCompetencia.urlReferencia,
-        createdBy: preciosCompetencia.createdBy,
-        createdAt: preciosCompetencia.createdAt,
-        updatedAt: preciosCompetencia.updatedAt,
-        competidorNombre: competidores.nombre,
-      })
-      .from(preciosCompetencia)
-      .leftJoin(competidores, eq(preciosCompetencia.competidorId, competidores.id))
-      .where(eq(preciosCompetencia.sku, sku))
-      .orderBy(desc(preciosCompetencia.fechaRegistro));
-
-    return results.map(r => ({
-      ...r,
-      competidorNombre: r.competidorNombre || 'Desconocido',
-    }));
   }
 
   // ==================== TAREAS (UNIFICADAS) ====================
