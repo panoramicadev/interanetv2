@@ -398,6 +398,9 @@ export async function bootstrapDatabase(): Promise<void> {
     // Agregar columna producto_monitoreo_id a precios_competencia si no existe
     await db.execute(sql`ALTER TABLE precios_competencia ADD COLUMN IF NOT EXISTS producto_monitoreo_id VARCHAR(255) REFERENCES productos_monitoreo(id) ON DELETE CASCADE`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_precios_competencia_producto" ON precios_competencia (producto_monitoreo_id)`);
+    // Actualizar la tabla para usar el nuevo sistema: sku opcional, productoMonitoreoId obligatorio
+    await db.execute(sql`ALTER TABLE precios_competencia ALTER COLUMN sku DROP NOT NULL`);
+    await db.execute(sql`ALTER TABLE precios_competencia ALTER COLUMN producto_monitoreo_id SET NOT NULL`);
     
     console.log('✅ Bootstrap de base de datos completado');
     
