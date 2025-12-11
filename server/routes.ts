@@ -12621,7 +12621,12 @@ export function registerRoutes(app: Express): Server {
     try {
       const { activo, search } = req.query;
       const filters: any = {};
-      if (activo !== undefined) filters.activo = activo === 'true';
+      // Por defecto solo mostrar productos activos, a menos que se pida explícitamente ver todos
+      if (activo === 'false') {
+        filters.activo = false;
+      } else {
+        filters.activo = true; // Por defecto solo activos
+      }
       if (search) filters.search = search;
       
       const productos = await storage.getProductosMonitoreo(filters);
