@@ -379,6 +379,26 @@ export async function bootstrapDatabase(): Promise<void> {
       console.log('  ✓ Tiers de Panoramica Market ya existen');
     }
     
+    // 10. Crear tabla productos_monitoreo para precios de competencia
+    console.log('  📊 Verificando tabla de productos a monitorear...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS productos_monitoreo (
+        id VARCHAR(255) PRIMARY KEY DEFAULT gen_random_uuid(),
+        nombre_producto VARCHAR(255) NOT NULL,
+        formato VARCHAR(100),
+        precio_lista NUMERIC(15, 2),
+        activo BOOLEAN DEFAULT true,
+        created_by VARCHAR(255) REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_productos_monitoreo_nombre" ON productos_monitoreo (nombre_producto)`);
+    
+    // Agregar columna producto_monitoreo_id a precios_competencia si no existe
+    await db.execute(sql`ALTER TABLE precios_competencia ADD COLUMN IF NOT EXISTS producto_monitoreo_id VARCHAR(255) REFERENCES productos_monitoreo(id) ON DELETE CASCADE`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_precios_competencia_producto" ON precios_competencia (producto_monitoreo_id)`);
+    
     console.log('✅ Bootstrap de base de datos completado');
     
   } catch (error: any) {
