@@ -46,7 +46,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import { formatDateForAPI, parseDateFromAPI } from "@/lib/dateUtils";
@@ -176,7 +176,7 @@ export default function Marketing() {
 
       {/* Tabs */}
       <Tabs defaultValue="solicitudes" className="w-full">
-        <TabsList className={`grid w-full h-auto ${user.role === 'salesperson' ? 'grid-cols-2' : 'grid-cols-6'}`}>
+        <TabsList className={`grid w-full h-auto ${user.role === 'salesperson' ? 'grid-cols-2' : 'grid-cols-7'}`}>
           <TabsTrigger value="solicitudes" data-testid="tab-solicitudes" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
             <FileText className="h-4 w-4" />
             <span>Solicitudes</span>
@@ -195,6 +195,12 @@ export default function Marketing() {
             <TabsTrigger value="calendario" data-testid="tab-calendario" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
               <Calendar className="h-4 w-4" />
               <span>Calendario</span>
+            </TabsTrigger>
+          )}
+          {(user.role === 'admin' || user.role === 'supervisor') && (
+            <TabsTrigger value="competencia" data-testid="tab-competencia" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
+              <Target className="h-4 w-4" />
+              <span>Competencia</span>
             </TabsTrigger>
           )}
           {(user.role === 'admin' || user.role === 'supervisor') && (
@@ -321,6 +327,13 @@ export default function Marketing() {
             onAnioChange={setSelectedAnio}
           />
         </TabsContent>
+
+        {/* Tab: Precios de Competencia */}
+        {(user.role === 'admin' || user.role === 'supervisor') && (
+          <TabsContent value="competencia" className="space-y-6">
+            <PreciosCompetencia userRole={user.role} />
+          </TabsContent>
+        )}
 
         {/* Tab: Presupuesto (solo admin y supervisor) */}
         {(user.role === 'admin' || user.role === 'supervisor') && (
@@ -4570,6 +4583,615 @@ function SeoTracking() {
                 </>
               ) : (
                 'Agregar Keyword'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+interface Competidor {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  activo: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface PrecioCompetencia {
+  id: string;
+  sku: string;
+  nombreProducto: string | null;
+  competidorId: string;
+  precioNormal: string | null;
+  precioOferta: string | null;
+  fechaRegistro: string;
+  notas: string | null;
+  urlReferencia: string | null;
+  competidorNombre: string;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function PreciosCompetencia({ userRole }: { userRole: string }) {
+  const { toast } = useToast();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCompetidor, setSelectedCompetidor] = useState<string>("all");
+  const [precioDialogOpen, setPrecioDialogOpen] = useState(false);
+  const [competidorDialogOpen, setCompetidorDialogOpen] = useState(false);
+  const [editingPrecio, setEditingPrecio] = useState<PrecioCompetencia | null>(null);
+  const [editingCompetidor, setEditingCompetidor] = useState<Competidor | null>(null);
+
+  const [nuevoPrecio, setNuevoPrecio] = useState({
+    sku: "",
+    nombreProducto: "",
+    competidorId: "",
+    precioNormal: "",
+    precioOferta: "",
+    notas: "",
+    urlReferencia: "",
+  });
+
+  const [nuevoCompetidor, setNuevoCompetidor] = useState({
+    nombre: "",
+    descripcion: "",
+  });
+
+  const { data: competidores = [], isLoading: loadingCompetidores } = useQuery<Competidor[]>({
+    queryKey: ["/api/marketing/competidores"],
+  });
+
+  const { data: precios = [], isLoading: loadingPrecios } = useQuery<PrecioCompetencia[]>({
+    queryKey: ["/api/marketing/precios-competencia", { search: searchTerm, competidorId: selectedCompetidor !== "all" ? selectedCompetidor : undefined }],
+  });
+
+  const createCompetidorMutation = useMutation({
+    mutationFn: async (data: { nombre: string; descripcion: string }) => {
+      return await apiRequest("/api/marketing/competidores", { method: "POST", body: JSON.stringify(data) });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/marketing/competidores"] });
+      toast({ title: "Competidor creado", description: "El competidor se creó correctamente" });
+      setCompetidorDialogOpen(false);
+      setNuevoCompetidor({ nombre: "", descripcion: "" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Error al crear competidor", variant: "destructive" });
+    },
+  });
+
+  const updateCompetidorMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: { nombre: string; descripcion: string } }) => {
+      return await apiRequest(`/api/marketing/competidores/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/marketing/competidores"] });
+      toast({ title: "Competidor actualizado", description: "El competidor se actualizó correctamente" });
+      setCompetidorDialogOpen(false);
+      setEditingCompetidor(null);
+      setNuevoCompetidor({ nombre: "", descripcion: "" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Error al actualizar competidor", variant: "destructive" });
+    },
+  });
+
+  const deleteCompetidorMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest(`/api/marketing/competidores/${id}`, { method: "DELETE" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/marketing/competidores"] });
+      toast({ title: "Competidor eliminado", description: "El competidor se eliminó correctamente" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Error al eliminar competidor", variant: "destructive" });
+    },
+  });
+
+  const createPrecioMutation = useMutation({
+    mutationFn: async (data: typeof nuevoPrecio) => {
+      return await apiRequest("/api/marketing/precios-competencia", { method: "POST", body: JSON.stringify(data) });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/marketing/precios-competencia"] });
+      toast({ title: "Precio registrado", description: "El precio de competencia se registró correctamente" });
+      setPrecioDialogOpen(false);
+      resetPrecioForm();
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Error al registrar precio", variant: "destructive" });
+    },
+  });
+
+  const updatePrecioMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: typeof nuevoPrecio }) => {
+      return await apiRequest(`/api/marketing/precios-competencia/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/marketing/precios-competencia"] });
+      toast({ title: "Precio actualizado", description: "El precio se actualizó correctamente" });
+      setPrecioDialogOpen(false);
+      setEditingPrecio(null);
+      resetPrecioForm();
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Error al actualizar precio", variant: "destructive" });
+    },
+  });
+
+  const deletePrecioMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest(`/api/marketing/precios-competencia/${id}`, { method: "DELETE" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/marketing/precios-competencia"] });
+      toast({ title: "Precio eliminado", description: "El registro se eliminó correctamente" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Error al eliminar precio", variant: "destructive" });
+    },
+  });
+
+  const resetPrecioForm = () => {
+    setNuevoPrecio({
+      sku: "",
+      nombreProducto: "",
+      competidorId: "",
+      precioNormal: "",
+      precioOferta: "",
+      notas: "",
+      urlReferencia: "",
+    });
+  };
+
+  const handleEditPrecio = (precio: PrecioCompetencia) => {
+    setEditingPrecio(precio);
+    setNuevoPrecio({
+      sku: precio.sku,
+      nombreProducto: precio.nombreProducto || "",
+      competidorId: precio.competidorId,
+      precioNormal: precio.precioNormal || "",
+      precioOferta: precio.precioOferta || "",
+      notas: precio.notas || "",
+      urlReferencia: precio.urlReferencia || "",
+    });
+    setPrecioDialogOpen(true);
+  };
+
+  const handleEditCompetidor = (competidor: Competidor) => {
+    setEditingCompetidor(competidor);
+    setNuevoCompetidor({
+      nombre: competidor.nombre,
+      descripcion: competidor.descripcion || "",
+    });
+    setCompetidorDialogOpen(true);
+  };
+
+  const handleSavePrecio = () => {
+    if (!nuevoPrecio.sku || !nuevoPrecio.competidorId) {
+      toast({ title: "Error", description: "SKU y Competidor son obligatorios", variant: "destructive" });
+      return;
+    }
+    if (editingPrecio) {
+      updatePrecioMutation.mutate({ id: editingPrecio.id, data: nuevoPrecio });
+    } else {
+      createPrecioMutation.mutate(nuevoPrecio);
+    }
+  };
+
+  const handleSaveCompetidor = () => {
+    if (!nuevoCompetidor.nombre) {
+      toast({ title: "Error", description: "El nombre es obligatorio", variant: "destructive" });
+      return;
+    }
+    if (editingCompetidor) {
+      updateCompetidorMutation.mutate({ id: editingCompetidor.id, data: nuevoCompetidor });
+    } else {
+      createCompetidorMutation.mutate(nuevoCompetidor);
+    }
+  };
+
+  const formatPrice = (price: string | null) => {
+    if (!price) return "-";
+    const num = parseFloat(price);
+    return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(num);
+  };
+
+  const filteredPrecios = precios.filter(p => {
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      if (!p.sku.toLowerCase().includes(search) && !(p.nombreProducto || "").toLowerCase().includes(search)) {
+        return false;
+      }
+    }
+    if (selectedCompetidor !== "all" && p.competidorId !== selectedCompetidor) {
+      return false;
+    }
+    return true;
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold">Precios de Competencia</h2>
+          <p className="text-muted-foreground">Monitorea precios de la competencia por SKU</p>
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline"
+            onClick={() => {
+              setEditingCompetidor(null);
+              setNuevoCompetidor({ nombre: "", descripcion: "" });
+              setCompetidorDialogOpen(true);
+            }}
+            data-testid="button-gestionar-competidores"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Competidor
+          </Button>
+          <Button 
+            onClick={() => {
+              setEditingPrecio(null);
+              resetPrecioForm();
+              setPrecioDialogOpen(true);
+            }}
+            data-testid="button-nuevo-precio"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Registrar Precio
+          </Button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <Label>Buscar por SKU o Producto</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                  data-testid="input-search-precio"
+                />
+              </div>
+            </div>
+            <div className="w-full sm:w-64">
+              <Label>Competidor</Label>
+              <Select value={selectedCompetidor} onValueChange={setSelectedCompetidor}>
+                <SelectTrigger data-testid="select-competidor-filter">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los competidores</SelectItem>
+                  {competidores.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Competidores List */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Target className="h-5 w-5" />
+            Competidores Registrados
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loadingCompetidores ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : competidores.length === 0 ? (
+            <p className="text-muted-foreground text-center py-4">No hay competidores registrados</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {competidores.map((c) => (
+                <Badge 
+                  key={c.id} 
+                  variant="secondary" 
+                  className="px-3 py-1 flex items-center gap-2"
+                >
+                  {c.nombre}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-4 w-4 p-0 hover:bg-transparent"
+                    onClick={() => handleEditCompetidor(c)}
+                    data-testid={`button-edit-competidor-${c.id}`}
+                  >
+                    <Edit className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Precios Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Historial de Precios</CardTitle>
+          <CardDescription>
+            {filteredPrecios.length} registros encontrados
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loadingPrecios ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : filteredPrecios.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">No hay precios registrados</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Producto</TableHead>
+                    <TableHead>Competidor</TableHead>
+                    <TableHead className="text-right">Precio Normal</TableHead>
+                    <TableHead className="text-right">Precio Oferta</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Notas</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredPrecios.map((p) => (
+                    <TableRow key={p.id} data-testid={`row-precio-${p.id}`}>
+                      <TableCell className="font-mono text-sm">{p.sku}</TableCell>
+                      <TableCell>{p.nombreProducto || "-"}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{p.competidorNombre}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatPrice(p.precioNormal)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {p.precioOferta ? (
+                          <span className="text-green-600 font-medium">{formatPrice(p.precioOferta)}</span>
+                        ) : "-"}
+                      </TableCell>
+                      <TableCell>
+                        {format(new Date(p.fechaRegistro), "dd/MM/yyyy", { locale: es })}
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate">
+                        {p.notas || "-"}
+                        {p.urlReferencia && (
+                          <a 
+                            href={p.urlReferencia} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="ml-2 inline-flex items-center text-blue-500 hover:text-blue-700"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditPrecio(p)}
+                            data-testid={`button-edit-precio-${p.id}`}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          {(userRole === 'admin' || userRole === 'supervisor') && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-red-500 hover:text-red-700"
+                                  data-testid={`button-delete-precio-${p.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Eliminar Precio</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    ¿Estás seguro de eliminar este registro de precio?
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => deletePrecioMutation.mutate(p.id)}>
+                                    Eliminar
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Dialog: Nuevo/Editar Precio */}
+      <Dialog open={precioDialogOpen} onOpenChange={setPrecioDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingPrecio ? "Editar Precio" : "Registrar Precio de Competencia"}</DialogTitle>
+            <DialogDescription>
+              {editingPrecio ? "Modifica los datos del precio" : "Ingresa el precio de la competencia para un SKU"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>SKU *</Label>
+                <Input
+                  value={nuevoPrecio.sku}
+                  onChange={(e) => setNuevoPrecio({ ...nuevoPrecio, sku: e.target.value.toUpperCase() })}
+                  placeholder="Ej: PANES930BL001"
+                  data-testid="input-precio-sku"
+                />
+              </div>
+              <div>
+                <Label>Competidor *</Label>
+                <Select 
+                  value={nuevoPrecio.competidorId} 
+                  onValueChange={(v) => setNuevoPrecio({ ...nuevoPrecio, competidorId: v })}
+                >
+                  <SelectTrigger data-testid="select-precio-competidor">
+                    <SelectValue placeholder="Seleccionar..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {competidores.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Nombre del Producto</Label>
+              <Input
+                value={nuevoPrecio.nombreProducto}
+                onChange={(e) => setNuevoPrecio({ ...nuevoPrecio, nombreProducto: e.target.value })}
+                placeholder="Nombre descriptivo del producto"
+                data-testid="input-precio-nombre"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Precio Normal</Label>
+                <Input
+                  type="number"
+                  value={nuevoPrecio.precioNormal}
+                  onChange={(e) => setNuevoPrecio({ ...nuevoPrecio, precioNormal: e.target.value })}
+                  placeholder="0"
+                  data-testid="input-precio-normal"
+                />
+              </div>
+              <div>
+                <Label>Precio Oferta</Label>
+                <Input
+                  type="number"
+                  value={nuevoPrecio.precioOferta}
+                  onChange={(e) => setNuevoPrecio({ ...nuevoPrecio, precioOferta: e.target.value })}
+                  placeholder="0"
+                  data-testid="input-precio-oferta"
+                />
+              </div>
+            </div>
+            <div>
+              <Label>URL de Referencia</Label>
+              <Input
+                value={nuevoPrecio.urlReferencia}
+                onChange={(e) => setNuevoPrecio({ ...nuevoPrecio, urlReferencia: e.target.value })}
+                placeholder="https://..."
+                data-testid="input-precio-url"
+              />
+            </div>
+            <div>
+              <Label>Notas</Label>
+              <Textarea
+                value={nuevoPrecio.notas}
+                onChange={(e) => setNuevoPrecio({ ...nuevoPrecio, notas: e.target.value })}
+                placeholder="Observaciones adicionales..."
+                rows={2}
+                data-testid="input-precio-notas"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPrecioDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleSavePrecio}
+              disabled={createPrecioMutation.isPending || updatePrecioMutation.isPending}
+              data-testid="button-guardar-precio"
+            >
+              {(createPrecioMutation.isPending || updatePrecioMutation.isPending) ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                editingPrecio ? "Actualizar" : "Registrar"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Nuevo/Editar Competidor */}
+      <Dialog open={competidorDialogOpen} onOpenChange={setCompetidorDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingCompetidor ? "Editar Competidor" : "Nuevo Competidor"}</DialogTitle>
+            <DialogDescription>
+              {editingCompetidor ? "Modifica los datos del competidor" : "Agrega un nuevo competidor para monitorear"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Nombre *</Label>
+              <Input
+                value={nuevoCompetidor.nombre}
+                onChange={(e) => setNuevoCompetidor({ ...nuevoCompetidor, nombre: e.target.value })}
+                placeholder="Ej: Sherwin Williams"
+                data-testid="input-competidor-nombre"
+              />
+            </div>
+            <div>
+              <Label>Descripción</Label>
+              <Textarea
+                value={nuevoCompetidor.descripcion}
+                onChange={(e) => setNuevoCompetidor({ ...nuevoCompetidor, descripcion: e.target.value })}
+                placeholder="Información adicional..."
+                rows={2}
+                data-testid="input-competidor-descripcion"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCompetidorDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleSaveCompetidor}
+              disabled={createCompetidorMutation.isPending || updateCompetidorMutation.isPending}
+              data-testid="button-guardar-competidor"
+            >
+              {(createCompetidorMutation.isPending || updateCompetidorMutation.isPending) ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                editingCompetidor ? "Actualizar" : "Crear"
               )}
             </Button>
           </DialogFooter>
