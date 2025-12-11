@@ -53,16 +53,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: LayoutDashboard,
     },
     {
-      href: "/crm",
-      label: "CRM",
-      icon: ClipboardList,
-    },
-    {
-      href: "/tareas",
-      label: "Tareas",
-      icon: CheckCircle2,
-    },
-    {
       href: "/facturas",
       label: "Finanzas",
       icon: Receipt,
@@ -73,10 +63,25 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: ShoppingCart,
     },
     {
+      href: "/marketing",
+      label: "Marketing",
+      icon: TrendingUp,
+      separator: true,
+    },
+    {
+      href: "/crm",
+      label: "CRM",
+      icon: ClipboardList,
+    },
+    {
+      href: "/tareas",
+      label: "Tareas",
+      icon: CheckCircle2,
+    },
+    {
       href: "/clientes",
       label: "Gestión de Clientes",
       icon: Users,
-      separator: true, // Separador antes de Tomador de Pedidos
     },
     {
       href: "/tomador-pedidos",
@@ -92,11 +97,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/gastos-empresariales",
       label: "Rendición de Gastos",
       icon: Banknote,
-    },
-    {
-      href: "/marketing",
-      label: "Marketing",
-      icon: TrendingUp,
     },
     {
       href: "/post-venta",
