@@ -63,19 +63,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: CheckCircle2,
     },
     {
-      href: "/metas",
-      label: "Gestión de Metas",
-      icon: Target,
-    },
-    {
       href: "/facturas",
       label: "Finanzas",
       icon: Receipt,
-    },
-    {
-      href: "/usuarios",
-      label: "Gestión de Usuarios",
-      icon: User,
     },
     {
       href: "/ecommerce",
@@ -171,14 +161,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Warehouse,
     },
     {
-      href: "/etl-monitor",
-      label: "Monitor ETL",
-      icon: Database,
-    },
-    {
-      href: "/api-keys",
-      label: "API Keys",
-      icon: Key,
+      href: "/configuracion",
+      label: "Configuración",
+      icon: Settings,
       separator: true,
     },
     {
@@ -372,19 +357,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: CheckCircle2,
     },
     {
-      href: "/metas",
-      label: "Gestión de Metas",
-      icon: Target,
-    },
-    {
       href: "/facturas",
       label: "Finanzas",
       icon: Receipt,
-    },
-    {
-      href: "/usuarios",
-      label: "Gestión de Usuarios",
-      icon: User,
     },
     {
       href: "/ecommerce",
