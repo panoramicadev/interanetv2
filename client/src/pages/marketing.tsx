@@ -4653,6 +4653,7 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
   const [nuevoPrecio, setNuevoPrecio] = useState({
     productoMonitoreoId: "",
     competidorId: "",
+    formato: "GL" as "GL" | "14" | "BALDE4" | "BALDE5",
     precioWeb: "",
     precioFerreteria: "",
     precioConstruccion: "",
@@ -4762,7 +4763,7 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
       queryClient.invalidateQueries({ queryKey: ["/api/marketing/productos-monitoreo", selectedProducto?.id, "precios"] });
       toast({ title: "Precio registrado", description: "El precio de competencia se registró correctamente" });
       setPrecioDialogOpen(false);
-      setNuevoPrecio({ productoMonitoreoId: "", competidorId: "", precioWeb: "", precioFerreteria: "", precioConstruccion: "", notas: "", urlReferencia: "" });
+      setNuevoPrecio({ productoMonitoreoId: "", competidorId: "", formato: "GL", precioWeb: "", precioFerreteria: "", precioConstruccion: "", notas: "", urlReferencia: "" });
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Error al registrar precio", variant: "destructive" });
@@ -4832,6 +4833,7 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
     setNuevoPrecio({
       productoMonitoreoId: selectedProducto.id,
       competidorId: "",
+      formato: "GL",
       precioWeb: "",
       precioFerreteria: "",
       precioConstruccion: "",
@@ -5243,32 +5245,51 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label>Competidor *</Label>
-              <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Competidor *</Label>
+                <div className="flex gap-2">
+                  <Select 
+                    value={nuevoPrecio.competidorId} 
+                    onValueChange={(v) => setNuevoPrecio({ ...nuevoPrecio, competidorId: v })}
+                  >
+                    <SelectTrigger data-testid="select-precio-competidor" className="flex-1">
+                      <SelectValue placeholder="Seleccionar competidor..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {competidores.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="icon"
+                    onClick={() => setCompetidorDialogOpen(true)}
+                    title="Agregar nuevo competidor"
+                    data-testid="button-add-competidor-inline"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div>
+                <Label>Formato *</Label>
                 <Select 
-                  value={nuevoPrecio.competidorId} 
-                  onValueChange={(v) => setNuevoPrecio({ ...nuevoPrecio, competidorId: v })}
+                  value={nuevoPrecio.formato} 
+                  onValueChange={(v: "GL" | "14" | "BALDE4" | "BALDE5") => setNuevoPrecio({ ...nuevoPrecio, formato: v })}
                 >
-                  <SelectTrigger data-testid="select-precio-competidor" className="flex-1">
-                    <SelectValue placeholder="Seleccionar competidor..." />
+                  <SelectTrigger data-testid="select-precio-formato">
+                    <SelectValue placeholder="Seleccionar formato..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {competidores.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
-                    ))}
+                    <SelectItem value="GL">Galón (GL)</SelectItem>
+                    <SelectItem value="14">1/4 Galón</SelectItem>
+                    <SelectItem value="BALDE4">Balde 4 GL</SelectItem>
+                    <SelectItem value="BALDE5">Balde 5 GL</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  size="icon"
-                  onClick={() => setCompetidorDialogOpen(true)}
-                  title="Agregar nuevo competidor"
-                  data-testid="button-add-competidor-inline"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-4">
