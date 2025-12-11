@@ -78,11 +78,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: User,
     },
     {
-      href: "/lista-precios",
-      label: "Lista de Precios",
-      icon: DollarSign,
-    },
-    {
       href: "/ecommerce",
       label: "eCommerce",
       icon: ShoppingCart,
@@ -392,11 +387,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: User,
     },
     {
-      href: "/lista-precios",
-      label: "Lista de Precios",
-      icon: DollarSign,
-    },
-    {
       href: "/ecommerce",
       label: "eCommerce",
       icon: ShoppingCart,
@@ -542,14 +532,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: CheckCircle2,
     },
     {
-      href: "/lista-precios",
-      label: "Lista de Precios",
-      icon: DollarSign,
-    },
-    {
-      href: "/nvv",
+      href: "/facturas",
       label: "Finanzas",
-      icon: TrendingUp,
+      icon: Receipt,
     },
     {
       href: "/clientes",
