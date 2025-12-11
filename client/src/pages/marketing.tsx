@@ -4604,8 +4604,10 @@ interface Competidor {
 interface ProductoMonitoreo {
   id: string;
   nombreProducto: string;
-  formato: string | null;
-  precioLista: string | null;
+  precioListaGL: string | null;
+  precioLista14: string | null;
+  precioListaBalde4: string | null;
+  precioListaBalde5: string | null;
   activo: boolean;
   createdBy: string | null;
   createdAt: string;
@@ -4642,8 +4644,10 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
 
   const [nuevoProducto, setNuevoProducto] = useState({
     nombreProducto: "",
-    formato: "",
-    precioLista: "",
+    precioListaGL: "",
+    precioLista14: "",
+    precioListaBalde4: "",
+    precioListaBalde5: "",
   });
 
   const [nuevoPrecio, setNuevoPrecio] = useState({
@@ -4682,7 +4686,7 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
       queryClient.invalidateQueries({ queryKey: ["/api/marketing/productos-monitoreo"] });
       toast({ title: "Producto creado", description: "El producto se agregó correctamente" });
       setProductoDialogOpen(false);
-      setNuevoProducto({ nombreProducto: "", formato: "", precioLista: "" });
+      setNuevoProducto({ nombreProducto: "", precioListaGL: "", precioLista14: "", precioListaBalde4: "", precioListaBalde5: "" });
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Error al crear producto", variant: "destructive" });
@@ -4698,7 +4702,7 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
       toast({ title: "Producto actualizado", description: "El producto se actualizó correctamente" });
       setProductoDialogOpen(false);
       setEditingProducto(null);
-      setNuevoProducto({ nombreProducto: "", formato: "", precioLista: "" });
+      setNuevoProducto({ nombreProducto: "", precioListaGL: "", precioLista14: "", precioListaBalde4: "", precioListaBalde5: "" });
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Error al actualizar producto", variant: "destructive" });
@@ -4782,8 +4786,10 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
     setEditingProducto(producto);
     setNuevoProducto({
       nombreProducto: producto.nombreProducto,
-      formato: producto.formato || "",
-      precioLista: producto.precioLista || "",
+      precioListaGL: producto.precioListaGL || "",
+      precioLista14: producto.precioLista14 || "",
+      precioListaBalde4: producto.precioListaBalde4 || "",
+      precioListaBalde5: producto.precioListaBalde5 || "",
     });
     setProductoDialogOpen(true);
   };
@@ -4852,7 +4858,7 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
   const filteredProductos = productos.filter(p => {
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
-      if (!p.nombreProducto.toLowerCase().includes(search) && !(p.formato || "").toLowerCase().includes(search)) {
+      if (!p.nombreProducto.toLowerCase().includes(search)) {
         return false;
       }
     }
@@ -4882,7 +4888,7 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
           <Button 
             onClick={() => {
               setEditingProducto(null);
-              setNuevoProducto({ nombreProducto: "", formato: "", precioLista: "" });
+              setNuevoProducto({ nombreProducto: "", precioListaGL: "", precioLista14: "", precioListaBalde4: "", precioListaBalde5: "" });
               setProductoDialogOpen(true);
             }}
             data-testid="button-nuevo-producto"
@@ -4933,11 +4939,14 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <p className="font-medium">{p.nombreProducto}</p>
-                          {p.formato && <p className="text-sm text-muted-foreground">{p.formato}</p>}
+                          <div className="flex gap-2 text-xs text-muted-foreground mt-1">
+                            {p.precioListaGL && <span>GL: {formatPrice(p.precioListaGL)}</span>}
+                            {p.precioLista14 && <span>1/4: {formatPrice(p.precioLista14)}</span>}
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-primary">{formatPrice(p.precioLista)}</p>
-                          <p className="text-xs text-muted-foreground">Precio Lista</p>
+                        <div className="text-right text-xs text-muted-foreground">
+                          {p.precioListaBalde4 && <div>B4: {formatPrice(p.precioListaBalde4)}</div>}
+                          {p.precioListaBalde5 && <div>B5: {formatPrice(p.precioListaBalde5)}</div>}
                         </div>
                       </div>
                       <div className="flex gap-1 mt-2">
@@ -5026,8 +5035,12 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
                   <div>
                     <CardTitle>{selectedProducto.nombreProducto}</CardTitle>
                     <CardDescription>
-                      {selectedProducto.formato && <span className="mr-4">{selectedProducto.formato}</span>}
-                      Precio Lista: <span className="font-semibold text-primary">{formatPrice(selectedProducto.precioLista)}</span>
+                      <div className="flex flex-wrap gap-3 mt-1">
+                        {selectedProducto.precioListaGL && <span>GL: <span className="font-semibold text-primary">{formatPrice(selectedProducto.precioListaGL)}</span></span>}
+                        {selectedProducto.precioLista14 && <span>1/4: <span className="font-semibold text-primary">{formatPrice(selectedProducto.precioLista14)}</span></span>}
+                        {selectedProducto.precioListaBalde4 && <span>B4GL: <span className="font-semibold text-primary">{formatPrice(selectedProducto.precioListaBalde4)}</span></span>}
+                        {selectedProducto.precioListaBalde5 && <span>B5GL: <span className="font-semibold text-primary">{formatPrice(selectedProducto.precioListaBalde5)}</span></span>}
+                      </div>
                     </CardDescription>
                   </div>
                   <Button onClick={handleAddPrecio} data-testid="button-agregar-precio">
@@ -5158,32 +5171,47 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
                 data-testid="input-producto-nombre"
               />
             </div>
-            <div>
-              <Label>Formato</Label>
-              <Select 
-                value={nuevoProducto.formato} 
-                onValueChange={(v) => setNuevoProducto({ ...nuevoProducto, formato: v })}
-              >
-                <SelectTrigger data-testid="select-producto-formato">
-                  <SelectValue placeholder="Seleccionar formato" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Galón (GL)">Galón (GL)</SelectItem>
-                  <SelectItem value="1/4 Galón">1/4 Galón</SelectItem>
-                  <SelectItem value="Balde (4 GL)">Balde (4 GL)</SelectItem>
-                  <SelectItem value="Balde (5 GL)">Balde (5 GL)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Precio Lista</Label>
-              <Input
-                type="number"
-                value={nuevoProducto.precioLista}
-                onChange={(e) => setNuevoProducto({ ...nuevoProducto, precioLista: e.target.value })}
-                placeholder="0"
-                data-testid="input-producto-precio"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Precio Galón (GL)</Label>
+                <Input
+                  type="number"
+                  value={nuevoProducto.precioListaGL}
+                  onChange={(e) => setNuevoProducto({ ...nuevoProducto, precioListaGL: e.target.value })}
+                  placeholder="0"
+                  data-testid="input-producto-precio-gl"
+                />
+              </div>
+              <div>
+                <Label>Precio 1/4 Galón</Label>
+                <Input
+                  type="number"
+                  value={nuevoProducto.precioLista14}
+                  onChange={(e) => setNuevoProducto({ ...nuevoProducto, precioLista14: e.target.value })}
+                  placeholder="0"
+                  data-testid="input-producto-precio-14"
+                />
+              </div>
+              <div>
+                <Label>Precio Balde (4 GL)</Label>
+                <Input
+                  type="number"
+                  value={nuevoProducto.precioListaBalde4}
+                  onChange={(e) => setNuevoProducto({ ...nuevoProducto, precioListaBalde4: e.target.value })}
+                  placeholder="0"
+                  data-testid="input-producto-precio-balde4"
+                />
+              </div>
+              <div>
+                <Label>Precio Balde (5 GL)</Label>
+                <Input
+                  type="number"
+                  value={nuevoProducto.precioListaBalde5}
+                  onChange={(e) => setNuevoProducto({ ...nuevoProducto, precioListaBalde5: e.target.value })}
+                  placeholder="0"
+                  data-testid="input-producto-precio-balde5"
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>

@@ -4386,11 +4386,14 @@ export const competidores = pgTable("competidores", {
 }));
 
 // Tabla de productos a monitorear (productos propios para comparar precios)
+// Cada producto tiene 4 formatos con sus respectivos precios de lista
 export const productosMonitoreo = pgTable("productos_monitoreo", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   nombreProducto: varchar("nombre_producto", { length: 255 }).notNull(),
-  formato: varchar("formato", { length: 100 }), // ej: "1 galón", "1/4 galón", "1 litro"
-  precioLista: numeric("precio_lista", { precision: 15, scale: 2 }),
+  precioListaGL: numeric("precio_lista_gl", { precision: 15, scale: 2 }),
+  precioLista14: numeric("precio_lista_14", { precision: 15, scale: 2 }),
+  precioListaBalde4: numeric("precio_lista_balde4", { precision: 15, scale: 2 }),
+  precioListaBalde5: numeric("precio_lista_balde5", { precision: 15, scale: 2 }),
   activo: boolean("activo").default(true),
   createdBy: varchar("created_by").references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp("created_at").defaultNow(),
@@ -4399,11 +4402,15 @@ export const productosMonitoreo = pgTable("productos_monitoreo", {
   nombreIdx: index("IDX_productos_monitoreo_nombre").on(table.nombreProducto),
 }));
 
-// Tabla de precios de competencia por producto
+// Formatos disponibles para productos
+export const formatoProductoEnum = pgEnum("formato_producto", ["GL", "14", "BALDE4", "BALDE5"]);
+
+// Tabla de precios de competencia por producto y formato
 export const preciosCompetencia = pgTable("precios_competencia", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   productoMonitoreoId: varchar("producto_monitoreo_id").notNull().references(() => productosMonitoreo.id, { onDelete: 'cascade' }),
   competidorId: varchar("competidor_id").notNull().references(() => competidores.id, { onDelete: 'cascade' }),
+  formato: varchar("formato", { length: 20 }).notNull().default("GL"),
   precioWeb: numeric("precio_web", { precision: 15, scale: 2 }),
   precioFerreteria: numeric("precio_ferreteria", { precision: 15, scale: 2 }),
   precioConstruccion: numeric("precio_construccion", { precision: 15, scale: 2 }),
@@ -4417,6 +4424,7 @@ export const preciosCompetencia = pgTable("precios_competencia", {
   productoIdx: index("IDX_precios_competencia_producto").on(table.productoMonitoreoId),
   competidorIdx: index("IDX_precios_competencia_competidor").on(table.competidorId),
   fechaIdx: index("IDX_precios_competencia_fecha").on(table.fechaRegistro),
+  formatoIdx: index("IDX_precios_competencia_formato").on(table.formato),
 }));
 
 // Relations
