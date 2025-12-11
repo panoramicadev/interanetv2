@@ -12661,13 +12661,18 @@ export function registerRoutes(app: Express): Server {
       if (user.role !== 'admin' && user.role !== 'supervisor') {
         return res.status(403).json({ message: 'No tienes permisos para crear productos de monitoreo' });
       }
+      console.log('[DEBUG] productos-monitoreo POST body:', JSON.stringify(req.body, null, 2));
       const productoData = {
-        ...req.body,
+        nombreProducto: req.body.nombreProducto,
+        formato: req.body.formato || null,
+        precioLista: req.body.precioLista ? String(req.body.precioLista) : null,
         createdBy: user.id,
       };
+      console.log('[DEBUG] productoData to insert:', JSON.stringify(productoData, null, 2));
       const producto = await storage.createProductoMonitoreo(productoData);
       res.status(201).json(producto);
     } catch (error: any) {
+      console.error('[DEBUG] Error creating producto monitoreo:', error);
       res.status(500).json({ message: 'Error al crear producto de monitoreo', error: error.message });
     }
   }));
