@@ -46,10 +46,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, ChevronsUpDown } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import { formatDateForAPI, parseDateFromAPI } from "@/lib/dateUtils";
@@ -4639,21 +4636,6 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
     urlReferencia: "",
   });
 
-  const [skuPopoverOpen, setSkuPopoverOpen] = useState(false);
-  const [skuSearchTerm, setSkuSearchTerm] = useState("");
-
-  const { data: productosListaRaw } = useQuery<{ sku: string; descripcion: string; precio: number }[]>({
-    queryKey: ["/api/price-list"],
-    enabled: precioDialogOpen,
-  });
-
-  const productosLista = Array.isArray(productosListaRaw) ? productosListaRaw : [];
-
-  const filteredProductos = productosLista.filter(p => 
-    p.sku?.toLowerCase().includes(skuSearchTerm.toLowerCase()) || 
-    p.descripcion?.toLowerCase().includes(skuSearchTerm.toLowerCase())
-  ).slice(0, 100);
-
   const [nuevoCompetidor, setNuevoCompetidor] = useState({
     nombre: "",
     descripcion: "",
@@ -4765,8 +4747,6 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
       notas: "",
       urlReferencia: "",
     });
-    setSkuSearchTerm("");
-    setSkuPopoverOpen(false);
   };
 
   const handleEditPrecio = (precio: PrecioCompetencia) => {
@@ -5066,88 +5046,30 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>SKU *</Label>
-                <Popover open={skuPopoverOpen} onOpenChange={setSkuPopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={skuPopoverOpen}
-                      className="w-full justify-between font-normal"
-                      data-testid="select-precio-sku"
-                    >
-                      {nuevoPrecio.sku || "Seleccionar producto..."}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[400px] p-0" align="start">
-                    <Command shouldFilter={false}>
-                      <CommandInput 
-                        placeholder="Buscar por SKU o nombre..." 
-                        value={skuSearchTerm}
-                        onValueChange={setSkuSearchTerm}
-                      />
-                      <CommandList>
-                        <CommandEmpty>No se encontraron productos</CommandEmpty>
-                        <CommandGroup>
-                          <ScrollArea className="h-[200px]">
-                            {filteredProductos.map((producto) => (
-                              <CommandItem
-                                key={producto.sku}
-                                value={producto.sku}
-                                onSelect={() => {
-                                  setNuevoPrecio({ 
-                                    ...nuevoPrecio, 
-                                    sku: producto.sku,
-                                    nombreProducto: producto.descripcion 
-                                  });
-                                  setSkuPopoverOpen(false);
-                                  setSkuSearchTerm("");
-                                }}
-                              >
-                                <Check className={`mr-2 h-4 w-4 ${nuevoPrecio.sku === producto.sku ? "opacity-100" : "opacity-0"}`} />
-                                <div className="flex flex-col">
-                                  <span className="font-medium">{producto.sku}</span>
-                                  <span className="text-xs text-muted-foreground truncate max-w-[320px]">{producto.descripcion}</span>
-                                </div>
-                              </CommandItem>
-                            ))}
-                          </ScrollArea>
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div>
-                <Label>Competidor *</Label>
-                <Select 
-                  value={nuevoPrecio.competidorId} 
-                  onValueChange={(v) => setNuevoPrecio({ ...nuevoPrecio, competidorId: v })}
-                >
-                  <SelectTrigger data-testid="select-precio-competidor">
-                    <SelectValue placeholder="Seleccionar..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {competidores.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
             <div>
-              <Label>Nombre del Producto</Label>
+              <Label>Nombre del Producto *</Label>
               <Input
                 value={nuevoPrecio.nombreProducto}
                 onChange={(e) => setNuevoPrecio({ ...nuevoPrecio, nombreProducto: e.target.value })}
-                placeholder="Se autocompleta al seleccionar SKU"
-                readOnly
-                className="bg-muted"
+                placeholder="Ej: Esmalte al agua blanco 1 galón"
                 data-testid="input-precio-nombre"
               />
+            </div>
+            <div>
+              <Label>Competidor *</Label>
+              <Select 
+                value={nuevoPrecio.competidorId} 
+                onValueChange={(v) => setNuevoPrecio({ ...nuevoPrecio, competidorId: v })}
+              >
+                <SelectTrigger data-testid="select-precio-competidor">
+                  <SelectValue placeholder="Seleccionar..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {competidores.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
