@@ -12557,6 +12557,142 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // ==================================================================================
+  // PRECIOS DE COMPETENCIA routes
+  // ==================================================================================
+
+  // Get all competidores
+  app.get('/api/marketing/competidores', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const competidores = await storage.getCompetidores();
+      res.json(competidores);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener competidores', error: error.message });
+    }
+  }));
+
+  // Create competidor
+  app.post('/api/marketing/competidores', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'No tienes permisos para crear competidores' });
+      }
+      const competidor = await storage.createCompetidor(req.body);
+      res.status(201).json(competidor);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear competidor', error: error.message });
+    }
+  }));
+
+  // Update competidor
+  app.patch('/api/marketing/competidores/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'No tienes permisos para editar competidores' });
+      }
+      const competidor = await storage.updateCompetidor(req.params.id, req.body);
+      res.json(competidor);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar competidor', error: error.message });
+    }
+  }));
+
+  // Delete competidor
+  app.delete('/api/marketing/competidores/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'Solo admin puede eliminar competidores' });
+      }
+      await storage.deleteCompetidor(req.params.id);
+      res.json({ message: 'Competidor eliminado correctamente' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar competidor', error: error.message });
+    }
+  }));
+
+  // Get all precios competencia with filters
+  app.get('/api/marketing/precios-competencia', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { sku, competidorId, fechaDesde, fechaHasta, search } = req.query;
+      const filters: any = {};
+      if (sku) filters.sku = sku;
+      if (competidorId) filters.competidorId = competidorId;
+      if (fechaDesde) filters.fechaDesde = fechaDesde;
+      if (fechaHasta) filters.fechaHasta = fechaHasta;
+      if (search) filters.search = search;
+      
+      const precios = await storage.getPreciosCompetencia(filters);
+      res.json(precios);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener precios de competencia', error: error.message });
+    }
+  }));
+
+  // Get precios by SKU
+  app.get('/api/marketing/precios-competencia/sku/:sku', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const precios = await storage.getPreciosCompetenciaBySku(req.params.sku);
+      res.json(precios);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener precios por SKU', error: error.message });
+    }
+  }));
+
+  // Get single precio by ID
+  app.get('/api/marketing/precios-competencia/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const precio = await storage.getPrecioCompetenciaById(req.params.id);
+      if (!precio) {
+        return res.status(404).json({ message: 'Precio no encontrado' });
+      }
+      res.json(precio);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener precio', error: error.message });
+    }
+  }));
+
+  // Create precio competencia
+  app.post('/api/marketing/precios-competencia', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const precioData = {
+        ...req.body,
+        createdBy: user.id,
+      };
+      const precio = await storage.createPrecioCompetencia(precioData);
+      res.status(201).json(precio);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear precio de competencia', error: error.message });
+    }
+  }));
+
+  // Update precio competencia
+  app.patch('/api/marketing/precios-competencia/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const precio = await storage.updatePrecioCompetencia(req.params.id, req.body);
+      res.json(precio);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar precio', error: error.message });
+    }
+  }));
+
+  // Delete precio competencia
+  app.delete('/api/marketing/precios-competencia/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'No tienes permisos para eliminar precios' });
+      }
+      await storage.deletePrecioCompetencia(req.params.id);
+      res.json({ message: 'Precio eliminado correctamente' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar precio', error: error.message });
+    }
+  }));
+
+  // ==================================================================================
   // TAREAS DE MARKETING routes
   // ==================================================================================
 
