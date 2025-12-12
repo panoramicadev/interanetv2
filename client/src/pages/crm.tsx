@@ -1968,7 +1968,12 @@ function EditLeadDialog({
   onDelete: () => void;
 }) {
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [selectedSupervisorId, setSelectedSupervisorId] = useState<string>(lead.supervisorId || '');
+
+  const isAdmin = currentUser?.role === 'admin';
+  const isSupervisor = currentUser?.role === 'supervisor';
 
   const { data: segments = [] } = useQuery<string[]>({
     queryKey: ['/api/goals/data/segments'],
@@ -1978,8 +1983,19 @@ function EditLeadDialog({
     queryKey: ['/api/users'],
   });
 
+  const { data: supervisors = [] } = useQuery<any[]>({
+    queryKey: ['/api/users/salespeople/supervisors'],
+    enabled: isAdmin,
+  });
+
+  const { data: supervisorSalespeople = [] } = useQuery<any[]>({
+    queryKey: ['/api/supervisor', selectedSupervisorId, 'salespeople'],
+    enabled: !!selectedSupervisorId,
+  });
+
   const formSchema = z.object({
     clientName: z.string().min(1, "Nombre del cliente es requerido"),
+    supervisorId: z.string().optional(),
     salespersonId: z.string().min(1, "Vendedor es requerido"),
     clientPhone: z.string().optional(),
     clientEmail: z.string().email("Email inválido").optional().or(z.literal("")),
@@ -1995,6 +2011,7 @@ function EditLeadDialog({
     resolver: zodResolver(formSchema),
     defaultValues: {
       clientName: lead.clientName || '',
+      supervisorId: lead.supervisorId || '',
       clientPhone: lead.clientPhone || '',
       clientEmail: lead.clientEmail || '',
       clientCompany: lead.clientCompany || '',
@@ -2012,6 +2029,7 @@ function EditLeadDialog({
     if (open) {
       form.reset({
         clientName: lead.clientName || '',
+        supervisorId: lead.supervisorId || '',
         clientPhone: lead.clientPhone || '',
         clientEmail: lead.clientEmail || '',
         clientCompany: lead.clientCompany || '',
@@ -2022,20 +2040,32 @@ function EditLeadDialog({
         clientType: lead.clientType || 'nuevo',
         nombreObra: lead.nombreObra || '',
       });
+      setSelectedSupervisorId(lead.supervisorId || '');
     }
   }, [open, lead, form]);
+
+  // Determinar qué vendedores mostrar según el rol
+  const availableSalespeople = isAdmin && selectedSupervisorId
+    ? supervisorSalespeople
+    : isSupervisor
+      ? users.filter((u: any) => u.supervisorId === currentUser?.id && u.role === 'salesperson')
+      : users.filter((u: any) => u.role === 'salesperson' || u.role === 'supervisor');
 
   const updateLeadMutation = useMutation({
     mutationFn: async (data: any) => {
       // Find the selected salesperson's name from users list
-      const selectedUser = users.find((u: any) => u.id === data.salespersonId);
+      const selectedUser = users.find((u: any) => u.id === data.salespersonId) || 
+        supervisorSalespeople.find((u: any) => u.id === data.salespersonId);
       const salespersonName = selectedUser?.salespersonName || selectedUser?.firstName || selectedUser?.email || lead.salespersonName;
+      
+      // Get supervisor info if admin selected one
+      const supervisorId = isAdmin ? (selectedSupervisorId || data.supervisorId || lead.supervisorId) : lead.supervisorId;
       
       const cleanData = {
         clientName: data.clientName,
         salespersonId: data.salespersonId,
-        salespersonName: salespersonName, // Preserve denormalized name
-        supervisorId: lead.supervisorId, // Preserve supervisor assignment
+        salespersonName: salespersonName,
+        supervisorId: supervisorId,
         clientPhone: data.clientPhone || null,
         clientEmail: data.clientEmail || null,
         clientCompany: data.clientCompany || null,
@@ -2169,6 +2199,36 @@ function EditLeadDialog({
                   </FormItem>
                 )}
               />
+
+              {/* Selector de Supervisor - Solo para admin */}
+              {isAdmin && (
+                <FormItem>
+                  <FormLabel>Jefe de Segmento</FormLabel>
+                  <Select 
+                    onValueChange={(value) => {
+                      setSelectedSupervisorId(value);
+                      form.setValue('salespersonId', '');
+                    }} 
+                    value={selectedSupervisorId}
+                  >
+                    <SelectTrigger data-testid="select-edit-supervisor">
+                      <SelectValue placeholder="Selecciona jefe de segmento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Sin asignar</SelectItem>
+                      {supervisors.map((sup: any) => (
+                        <SelectItem key={sup.id} value={sup.id}>
+                          {sup.salespersonName || sup.firstName || sup.email} ({sup.segment || 'Sin segmento'})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            </div>
+
+            {/* Selector de Vendedor */}
+            <div className="grid grid-cols-1 gap-4">
               <FormField
                 control={form.control}
                 name="salespersonId"
@@ -2178,17 +2238,19 @@ function EditLeadDialog({
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger data-testid="select-edit-salesperson">
-                          <SelectValue placeholder="Selecciona vendedor" />
+                          <SelectValue placeholder={isAdmin && !selectedSupervisorId ? "Primero selecciona un jefe" : "Selecciona vendedor"} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {users
-                          .filter((u: any) => u.role === 'salesperson' || u.role === 'supervisor' || u.role === 'admin')
-                          .map((user: any) => (
+                        {isAdmin && !selectedSupervisorId ? (
+                          <SelectItem value="" disabled>Selecciona un jefe de segmento primero</SelectItem>
+                        ) : (
+                          availableSalespeople.map((user: any) => (
                             <SelectItem key={user.id} value={user.id}>
                               {user.salespersonName || user.firstName || user.email}
                             </SelectItem>
-                          ))}
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                     <FormMessage />
