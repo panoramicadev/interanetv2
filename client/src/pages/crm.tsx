@@ -2614,8 +2614,14 @@ function SeguimientoClientesTab() {
   const [selectedClient, setSelectedClient] = useState<any | null>(null);
   const [isAddNoteOpen, setIsAddNoteOpen] = useState(false);
   const [noteContent, setNoteContent] = useState('');
+  const [isCreateClientOpen, setIsCreateClientOpen] = useState(false);
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientCompany, setNewClientCompany] = useState('');
+  const [newClientSegment, setNewClientSegment] = useState('');
 
   const isSalesperson = currentUser?.role === 'salesperson';
+  const isAdmin = currentUser?.role === 'admin';
+  const isSupervisor = currentUser?.role === 'supervisor';
 
   const { data: clientesRecurrentes = [], isLoading } = useQuery<any[]>({
     queryKey: ['/api/crm/clientes-recurrentes'],
@@ -2641,6 +2647,43 @@ function SeguimientoClientesTab() {
       toast({
         title: "Error",
         description: error.message || "No se pudo agregar la nota",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const createClientMutation = useMutation({
+    mutationFn: async (data: { clientName: string; clientCompany: string; segment: string }) => {
+      return apiRequest('/api/crm/leads', {
+        method: 'POST',
+        data: {
+          clientName: data.clientName,
+          clientCompany: data.clientCompany,
+          segment: data.segment,
+          clientType: 'recurrente',
+          stage: 'leads',
+          priority: 'media',
+          salespersonId: currentUser?.id,
+          salespersonName: currentUser?.salespersonName || currentUser?.fullName,
+          supervisorId: currentUser?.supervisorId || currentUser?.id,
+        }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/crm/clientes-recurrentes'] });
+      toast({
+        title: "Cliente agregado",
+        description: "El cliente se agregó al seguimiento correctamente",
+      });
+      setIsCreateClientOpen(false);
+      setNewClientName('');
+      setNewClientCompany('');
+      setNewClientSegment('');
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo agregar el cliente",
         variant: "destructive",
       });
     },
@@ -2679,9 +2722,90 @@ function SeguimientoClientesTab() {
             data-testid="input-search-seguimiento"
           />
         </div>
-        <Badge variant="outline" className="text-sm">
-          {filteredClients.length} clientes en seguimiento
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-sm">
+            {filteredClients.length} clientes en seguimiento
+          </Badge>
+          <Dialog open={isCreateClientOpen} onOpenChange={setIsCreateClientOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" data-testid="button-add-client-seguimiento">
+                <Plus className="w-4 h-4 mr-1" />
+                Nuevo Cliente
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Agregar Cliente al Seguimiento</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="clientName">Nombre del Cliente *</Label>
+                  <Input
+                    id="clientName"
+                    value={newClientName}
+                    onChange={(e) => setNewClientName(e.target.value)}
+                    placeholder="Nombre del cliente"
+                    data-testid="input-new-client-name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="clientCompany">Empresa</Label>
+                  <Input
+                    id="clientCompany"
+                    value={newClientCompany}
+                    onChange={(e) => setNewClientCompany(e.target.value)}
+                    placeholder="Nombre de la empresa"
+                    data-testid="input-new-client-company"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="segment">Segmento</Label>
+                  <Select value={newClientSegment} onValueChange={setNewClientSegment}>
+                    <SelectTrigger data-testid="select-new-client-segment">
+                      <SelectValue placeholder="Seleccionar segmento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Retail">Retail</SelectItem>
+                      <SelectItem value="Industrial">Industrial</SelectItem>
+                      <SelectItem value="Construcción">Construcción</SelectItem>
+                      <SelectItem value="Automotriz">Automotriz</SelectItem>
+                      <SelectItem value="Otro">Otro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex justify-end gap-2 pt-4">
+                  <Button variant="outline" onClick={() => setIsCreateClientOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (!newClientName.trim()) {
+                        toast({
+                          title: "Error",
+                          description: "El nombre del cliente es requerido",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      createClientMutation.mutate({
+                        clientName: newClientName,
+                        clientCompany: newClientCompany,
+                        segment: newClientSegment,
+                      });
+                    }}
+                    disabled={createClientMutation.isPending}
+                    data-testid="button-submit-new-client"
+                  >
+                    {createClientMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                    ) : null}
+                    Agregar
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {filteredClients.length === 0 ? (
