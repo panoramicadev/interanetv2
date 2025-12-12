@@ -1531,7 +1531,7 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
   // Create validation schema for the form
   const formSchema = z.object({
     clientName: z.string().min(1, "Nombre del cliente es requerido"),
-    salespersonId: z.string().min(1, "Vendedor es requerido"),
+    salespersonId: z.string().optional(),
     stage: z.string().default(defaultStage),
     clientPhone: z.string().optional(),
     clientEmail: z.string().email("Email inválido").optional().or(z.literal("")),
