@@ -5449,13 +5449,57 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ message: "Lead not found" });
       }
       
-      // Check authorization
+      // Check basic authorization
       const canEdit = user.role === 'admin' || 
                      user.role === 'supervisor' || 
                      lead.salespersonId === user.id;
       
       if (!canEdit) {
         return res.status(403).json({ message: "Not authorized to edit this lead" });
+      }
+      
+      // Validate salesperson assignment based on role
+      const { salespersonId, supervisorId } = req.body;
+      
+      if (user.role === 'supervisor') {
+        // Supervisors can only assign to their own salespeople
+        if (salespersonId) {
+          const salespeople = await storage.getSalespeopleUnderSupervisor(user.id);
+          const validAssignment = salespeople.some(sp => sp.id === salespersonId) || 
+                                   salespersonId === user.id;
+          
+          if (!validAssignment) {
+            return res.status(403).json({ 
+              message: "Solo puede asignar leads a vendedores de su segmento" 
+            });
+          }
+        }
+        // Force supervisorId to be the supervisor's own ID
+        req.body.supervisorId = user.id;
+      }
+      
+      if (user.role === 'admin') {
+        // Check if admin is changing salesperson
+        const isChangingSalesperson = salespersonId && salespersonId !== lead.salespersonId;
+        
+        if (isChangingSalesperson) {
+          // Admin must provide a valid supervisorId when changing salesperson
+          if (!supervisorId) {
+            return res.status(400).json({ 
+              message: "Debe seleccionar un jefe de segmento al reasignar el vendedor" 
+            });
+          }
+          
+          // Validate salesperson belongs to the selected supervisor
+          const salespeople = await storage.getSalespeopleUnderSupervisor(supervisorId);
+          const validAssignment = salespeople.some(sp => sp.id === salespersonId);
+          
+          if (!validAssignment) {
+            return res.status(400).json({ 
+              message: "El vendedor seleccionado no pertenece al jefe de segmento indicado" 
+            });
+          }
+        }
       }
       
       const updatedLead = await storage.updateLead(id, req.body);

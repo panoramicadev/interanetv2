@@ -2045,27 +2045,35 @@ function EditLeadDialog({
   }, [open, lead, form]);
 
   // Determinar qué vendedores mostrar según el rol
-  const availableSalespeople = isAdmin && selectedSupervisorId
-    ? supervisorSalespeople
+  const availableSalespeople = isAdmin 
+    ? (selectedSupervisorId ? supervisorSalespeople : [])
     : isSupervisor
       ? users.filter((u: any) => u.supervisorId === currentUser?.id && u.role === 'salesperson')
       : users.filter((u: any) => u.role === 'salesperson' || u.role === 'supervisor');
 
   const updateLeadMutation = useMutation({
     mutationFn: async (data: any) => {
-      // Find the selected salesperson's name from users list
-      const selectedUser = users.find((u: any) => u.id === data.salespersonId) || 
-        supervisorSalespeople.find((u: any) => u.id === data.salespersonId);
+      // Find the selected salesperson's name from available list
+      const selectedUser = availableSalespeople.find((u: any) => u.id === data.salespersonId) ||
+        users.find((u: any) => u.id === data.salespersonId);
       const salespersonName = selectedUser?.salespersonName || selectedUser?.firstName || selectedUser?.email || lead.salespersonName;
       
-      // Get supervisor info if admin selected one
-      const supervisorId = isAdmin ? (selectedSupervisorId || data.supervisorId || lead.supervisorId) : lead.supervisorId;
+      // Determine supervisorId based on role:
+      // - Admin: use selected supervisor from picker
+      // - Supervisor: use their own ID as supervisor
+      // - Salesperson: keep existing
+      let finalSupervisorId = lead.supervisorId;
+      if (isAdmin) {
+        finalSupervisorId = selectedSupervisorId || null;
+      } else if (isSupervisor) {
+        finalSupervisorId = currentUser?.id || lead.supervisorId;
+      }
       
       const cleanData = {
         clientName: data.clientName,
         salespersonId: data.salespersonId,
         salespersonName: salespersonName,
-        supervisorId: supervisorId,
+        supervisorId: finalSupervisorId,
         clientPhone: data.clientPhone || null,
         clientEmail: data.clientEmail || null,
         clientCompany: data.clientCompany || null,
