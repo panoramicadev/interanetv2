@@ -5342,7 +5342,7 @@ export const insertCrmLeadSchema = createInsertSchema(crmLeads, {
   clientPhone: z.string().optional().nullable(),
   clientEmail: z.string().email("Email inválido").optional().nullable().or(z.literal("")),
   stage: z.string().default("lead"),
-  salespersonId: z.string().min(1, "Vendedor es requerido"),
+  salespersonId: z.string().optional().nullable(),
   clientType: z.enum(["nuevo", "recurrente"]).default("nuevo"),
   nombreObra: z.string().optional().nullable(),
   estimatedValue: z.union([z.string(), z.number()]).transform((val) => 
