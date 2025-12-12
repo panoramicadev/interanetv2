@@ -98,7 +98,7 @@ export default function CRMPage() {
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<'leads' | 'promesas'>('leads');
-  const [clientTypeFilter, setClientTypeFilter] = useState<'todos' | 'nuevos' | 'recurrentes'>('todos');
+  const [clientTypeFilter] = useState<'nuevos'>('nuevos');
   const [searchQuery, setSearchQuery] = useState('');
   const [segmentFilter, setSegmentFilter] = useState('all');
   
@@ -356,33 +356,6 @@ export default function CRMPage() {
               </AlertDescription>
             </Alert>
           )}
-
-          {/* Client Type Tabs */}
-          <Tabs value={clientTypeFilter} onValueChange={(v) => setClientTypeFilter(v as 'todos' | 'nuevos' | 'recurrentes')}>
-            <TabsList className="w-full grid grid-cols-3 p-0 h-auto bg-transparent gap-0 border-b-2 border-gray-200 dark:border-gray-700">
-              <TabsTrigger 
-                value="todos" 
-                className="relative flex-1 text-xs sm:text-base px-4 sm:px-8 py-3 sm:py-4 font-semibold rounded-none border-b-2 -mb-[2px] border-transparent data-[state=active]:border-gray-900 dark:data-[state=active]:border-white data-[state=active]:bg-gray-50/50 dark:data-[state=active]:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-all duration-200 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white text-gray-600 dark:text-gray-400" 
-                data-testid="tab-todos"
-              >
-                Todos
-              </TabsTrigger>
-              <TabsTrigger 
-                value="nuevos" 
-                className="relative flex-1 text-xs sm:text-base px-4 sm:px-8 py-3 sm:py-4 font-semibold rounded-none border-b-2 -mb-[2px] border-transparent data-[state=active]:border-gray-900 dark:data-[state=active]:border-white data-[state=active]:bg-gray-50/50 dark:data-[state=active]:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-all duration-200 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white text-gray-600 dark:text-gray-400" 
-                data-testid="tab-nuevos"
-              >
-                Leads Nuevos
-              </TabsTrigger>
-              <TabsTrigger 
-                value="recurrentes" 
-                className="relative flex-1 text-xs sm:text-base px-4 sm:px-8 py-3 sm:py-4 font-semibold rounded-none border-b-2 -mb-[2px] border-transparent data-[state=active]:border-gray-900 dark:data-[state=active]:border-white data-[state=active]:bg-gray-50/50 dark:data-[state=active]:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-all duration-200 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white text-gray-600 dark:text-gray-400" 
-                data-testid="tab-recurrentes"
-              >
-                Clientes Recurrentes
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
 
           {/* Barra de búsqueda y filtros */}
           <div className="flex flex-col gap-2 sm:gap-3">
