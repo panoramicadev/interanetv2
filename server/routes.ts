@@ -5410,16 +5410,23 @@ export function registerRoutes(app: Express): Server {
         });
       }
       
-      // Get salesperson info
-      const salesperson = await storage.getSalespersonUser(validation.data.salespersonId);
-      if (!salesperson) {
-        return res.status(400).json({ message: "Salesperson not found" });
+      // Get salesperson info (optional - may not be assigned)
+      let salespersonName: string | null = null;
+      let supervisorId: string | undefined = undefined;
+      
+      if (validation.data.salespersonId) {
+        const salesperson = await storage.getSalespersonUser(validation.data.salespersonId);
+        if (!salesperson) {
+          return res.status(400).json({ message: "Salesperson not found" });
+        }
+        salespersonName = salesperson.salespersonName;
+        supervisorId = salesperson.supervisorId || undefined;
       }
       
       const leadData = {
         ...validation.data,
-        salespersonName: salesperson.salespersonName,
-        supervisorId: salesperson.supervisorId || undefined,
+        salespersonName,
+        supervisorId,
       };
       
       const newLead = await storage.createLead(leadData);
@@ -5428,7 +5435,7 @@ export function registerRoutes(app: Express): Server {
       await NotifyHelper.notifyNuevoLead(
         leadData.clientName,
         leadData.segment || 'Sin segmento',
-        leadData.salespersonName
+        leadData.salespersonName || 'Sin asignar'
       );
       
       res.status(201).json(newLead);
