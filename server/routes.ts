@@ -5846,6 +5846,35 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Clientes Recurrentes (Seguimiento de Clientes)
+  app.get('/api/crm/clientes-recurrentes', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const clientesRecurrentes = await storage.getClientesRecurrentes(user.id, user.role);
+      res.json(clientesRecurrentes);
+    } catch (error) {
+      console.error("Error fetching clientes recurrentes:", error);
+      res.status(500).json({ message: "Failed to fetch clientes recurrentes" });
+    }
+  });
+
+  app.post('/api/crm/clientes-recurrentes/notes', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { clientId, note } = req.body;
+
+      if (!clientId || !note) {
+        return res.status(400).json({ message: "Client ID and note are required" });
+      }
+
+      const result = await storage.addClienteRecurrenteNote(clientId, note, user.id, user.firstName || user.email);
+      res.json(result);
+    } catch (error) {
+      console.error("Error adding cliente recurrente note:", error);
+      res.status(500).json({ message: "Failed to add note" });
+    }
+  });
+
   // Combined endpoint to create CRM lead from inactive client (from salesperson dashboard)
   app.post('/api/crm/inactive-clients/:id/create-lead', requireCommercialAccess, async (req: any, res) => {
     try {

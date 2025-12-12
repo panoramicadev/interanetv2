@@ -19668,6 +19668,117 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ==================================================================================
+  // CLIENTES RECURRENTES (Seguimiento de Clientes)
+  // ==================================================================================
+
+  async getClientesRecurrentes(userId: string, role: string): Promise<any[]> {
+    try {
+      const conditions = [];
+      
+      // Filtrar por clientType = 'recurrente' (clientes que ya compraron)
+      conditions.push(eq(crmLeads.clientType, 'recurrente'));
+      
+      // Filtrado por rol
+      if (role === 'salesperson') {
+        conditions.push(eq(crmLeads.salespersonId, userId));
+      } else if (role === 'supervisor') {
+        conditions.push(eq(crmLeads.supervisorId, userId));
+      }
+      // Admin ve todos
+      
+      const results = await db
+        .select()
+        .from(crmLeads)
+        .where(and(...conditions))
+        .orderBy(desc(crmLeads.updatedAt));
+      
+      // Parsear notas del campo notes (formato: [fecha] Usuario: contenido\n\n[fecha] Usuario: contenido)
+      const parseNotes = (notesText: string | null): any[] => {
+        if (!notesText) return [];
+        
+        // Dividir por doble salto de línea (separador entre notas)
+        const noteEntries = notesText.split('\n\n').filter(entry => entry.trim());
+        
+        return noteEntries.map((entry, index) => {
+          // Intentar parsear formato [fecha] Usuario: contenido
+          const match = entry.match(/^\[([^\]]+)\]\s*([^:]+):\s*(.+)$/s);
+          if (match) {
+            return {
+              content: match[3].trim(),
+              userName: match[2].trim(),
+              createdAt: match[1].trim()
+            };
+          }
+          // Si no coincide el formato, devolver como nota sin parsear
+          return {
+            content: entry.trim(),
+            userName: 'Sistema',
+            createdAt: new Date().toISOString()
+          };
+        });
+      };
+      
+      const clientesConNotas = results.map(lead => ({
+        id: lead.id,
+        clientName: lead.clientName,
+        company: lead.clientCompany,
+        segment: lead.segment,
+        salespersonId: lead.salespersonId,
+        salespersonName: lead.salespersonName,
+        lastPurchaseDate: lead.updatedAt,
+        notes: parseNotes(lead.notes)
+      }));
+      
+      return clientesConNotas;
+    } catch (error: any) {
+      console.error('Error getting clientes recurrentes:', error.message);
+      return [];
+    }
+  }
+
+  async addClienteRecurrenteNote(clientId: string, note: string, userId: string, userName: string): Promise<any> {
+    try {
+      // Obtener el lead actual
+      const [lead] = await db
+        .select()
+        .from(crmLeads)
+        .where(eq(crmLeads.id, clientId))
+        .limit(1);
+      
+      if (!lead) {
+        throw new Error('Cliente no encontrado');
+      }
+      
+      // Agregar la nueva nota al campo notes (formato: [fecha] Usuario: nota)
+      const timestamp = new Date().toISOString();
+      const formattedNote = `[${new Date().toLocaleDateString('es-CL', { 
+        day: '2-digit', 
+        month: 'short', 
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })}] ${userName}: ${note}`;
+      
+      const updatedNotes = lead.notes 
+        ? `${formattedNote}\n\n${lead.notes}`
+        : formattedNote;
+      
+      await db
+        .update(crmLeads)
+        .set({ 
+          notes: updatedNotes,
+          updatedAt: new Date()
+        })
+        .where(eq(crmLeads.id, clientId));
+      
+      return { success: true, note: formattedNote };
+    } catch (error: any) {
+      console.error('Error adding cliente recurrente note:', error.message);
+      throw error;
+    }
+  }
+
+  // ==================================================================================
   // NOTIFICATIONS operations - Sistema robusto de notificaciones internas
   // ==================================================================================
 

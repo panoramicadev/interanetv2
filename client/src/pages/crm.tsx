@@ -17,7 +17,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2, Settings, Edit, AlertCircle, X, User, Home, Clock, MapPin } from "lucide-react";
+import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2, Settings, Edit, AlertCircle, X, User, Home, Clock, MapPin, Users, Search, Loader2, ChevronUp, ChevronDown, FileText } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -97,7 +97,7 @@ function getInactivityAlert(days: number): { show: boolean; level: 'warning' | '
 export default function CRMPage() {
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
-  const [activeTab, setActiveTab] = useState<'leads' | 'promesas'>('leads');
+  const [activeTab, setActiveTab] = useState<'leads' | 'promesas' | 'seguimiento'>('leads');
   const [clientTypeFilter] = useState<'nuevos'>('nuevos');
   const [searchQuery, setSearchQuery] = useState('');
   const [segmentFilter, setSegmentFilter] = useState('all');
@@ -323,9 +323,10 @@ export default function CRMPage() {
       </div>
 
       {/* Tabs principales */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'leads' | 'promesas')}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'leads' | 'promesas' | 'seguimiento')}>
         <TabsList className="h-9 sm:h-10">
           <TabsTrigger value="leads" className="text-xs sm:text-sm" data-testid="tab-leads">Leads</TabsTrigger>
+          <TabsTrigger value="seguimiento" className="text-xs sm:text-sm" data-testid="tab-seguimiento">Seguimiento de Clientes</TabsTrigger>
           <TabsTrigger value="promesas" className="text-xs sm:text-sm" data-testid="tab-promesas">Promesas de Compra</TabsTrigger>
         </TabsList>
 
@@ -582,6 +583,11 @@ export default function CRMPage() {
               })}
             </div>
           )}
+        </TabsContent>
+
+        {/* Tab de Seguimiento de Clientes */}
+        <TabsContent value="seguimiento" className="space-y-4">
+          <SeguimientoClientesTab />
         </TabsContent>
 
         {/* Tab de Promesas */}
@@ -2599,5 +2605,216 @@ function StageManagementDialog({ open, onOpenChange }: { open: boolean; onOpenCh
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SeguimientoClientesTab() {
+  const { toast } = useToast();
+  const { user: currentUser } = useAuth();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedClient, setSelectedClient] = useState<any | null>(null);
+  const [isAddNoteOpen, setIsAddNoteOpen] = useState(false);
+  const [noteContent, setNoteContent] = useState('');
+
+  const isSalesperson = currentUser?.role === 'salesperson';
+
+  const { data: clientesRecurrentes = [], isLoading } = useQuery<any[]>({
+    queryKey: ['/api/crm/clientes-recurrentes'],
+  });
+
+  const addNoteMutation = useMutation({
+    mutationFn: async ({ clientId, note }: { clientId: string; note: string }) => {
+      return apiRequest('/api/crm/clientes-recurrentes/notes', {
+        method: 'POST',
+        data: { clientId, note, userId: currentUser?.id }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/crm/clientes-recurrentes'] });
+      toast({
+        title: "Nota agregada",
+        description: "La nota se guardó correctamente",
+      });
+      setIsAddNoteOpen(false);
+      setNoteContent('');
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo agregar la nota",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const filteredClients = clientesRecurrentes.filter(client => {
+    const matchesSearch = !searchQuery || 
+      client.clientName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      client.company?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesSalesperson = !isSalesperson || 
+      client.salespersonId === currentUser?.id ||
+      client.salespersonName === currentUser?.salespersonName;
+    
+    return matchesSearch && matchesSalesperson;
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+        <div className="relative flex-1 w-full sm:max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Input
+            placeholder="Buscar cliente..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+            data-testid="input-search-seguimiento"
+          />
+        </div>
+        <Badge variant="outline" className="text-sm">
+          {filteredClients.length} clientes en seguimiento
+        </Badge>
+      </div>
+
+      {filteredClients.length === 0 ? (
+        <Card className="p-8 text-center">
+          <Users className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+          <h3 className="font-semibold text-lg mb-2">Sin clientes en seguimiento</h3>
+          <p className="text-gray-500 text-sm">
+            Los clientes recurrentes aparecerán aquí para llevar un seguimiento de sus interacciones.
+          </p>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {filteredClients.map((client) => (
+            <Card key={client.id} className="p-4 hover:shadow-md transition-shadow" data-testid={`card-client-${client.id}`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-semibold">{client.clientName}</h4>
+                    {client.segment && (
+                      <Badge variant="outline" className="text-xs">{client.segment}</Badge>
+                    )}
+                  </div>
+                  {client.company && (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{client.company}</p>
+                  )}
+                  <div className="flex items-center gap-4 text-xs text-gray-500">
+                    {client.lastPurchaseDate && (
+                      <span>Última compra: {new Date(client.lastPurchaseDate).toLocaleDateString('es-CL')}</span>
+                    )}
+                    {client.salespersonName && (
+                      <span>Vendedor: {client.salespersonName}</span>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedClient(client);
+                      setIsAddNoteOpen(true);
+                    }}
+                    data-testid={`button-add-note-${client.id}`}
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Agregar Nota
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setSelectedClient(selectedClient?.id === client.id ? null : client)}
+                    data-testid={`button-toggle-notes-${client.id}`}
+                  >
+                    {selectedClient?.id === client.id ? (
+                      <ChevronUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {selectedClient?.id === client.id && client.notes && client.notes.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
+                  <h5 className="font-medium text-sm flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    Bitácora de Seguimiento
+                  </h5>
+                  <div className="space-y-2">
+                    {client.notes.map((note: any, index: number) => (
+                      <div key={index} className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-sm">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium text-gray-700 dark:text-gray-300">
+                            {note.userName || 'Usuario'}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {note.createdAt ? new Date(note.createdAt).toLocaleDateString('es-CL', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            }) : ''}
+                          </span>
+                        </div>
+                        <p className="text-gray-600 dark:text-gray-400">{note.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={isAddNoteOpen} onOpenChange={setIsAddNoteOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Agregar Nota - {selectedClient?.clientName}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Textarea
+              placeholder="Escribe una nota sobre la interacción con el cliente..."
+              value={noteContent}
+              onChange={(e) => setNoteContent(e.target.value)}
+              rows={4}
+              data-testid="textarea-note-content"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsAddNoteOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => {
+                  if (selectedClient && noteContent.trim()) {
+                    addNoteMutation.mutate({ 
+                      clientId: selectedClient.id, 
+                      note: noteContent.trim() 
+                    });
+                  }
+                }}
+                disabled={!noteContent.trim() || addNoteMutation.isPending}
+                data-testid="button-save-note"
+              >
+                {addNoteMutation.isPending ? 'Guardando...' : 'Guardar Nota'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
