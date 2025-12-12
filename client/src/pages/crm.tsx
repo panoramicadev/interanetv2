@@ -120,6 +120,8 @@ export default function CRMPage() {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const savedScrollPosition = useRef<number>(0);
   const isAdmin = currentUser?.role === 'admin';
+  const isSupervisor = currentUser?.role === 'supervisor';
+  const canCreateLeads = isAdmin || isSupervisor;
 
   // Detect mobile view
   useEffect(() => {
@@ -293,35 +295,37 @@ export default function CRMPage() {
             Gestión de clientes y promesas de compra
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" size="sm" className="h-8 text-xs sm:text-sm sm:h-9" data-testid="button-export">
-            <Download className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Export</span>
-          </Button>
-          <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
-            setIsCreateDialogOpen(open);
-            if (!open) setPrefilledClientData(null);
-          }}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="h-8 text-xs sm:text-sm sm:h-9" data-testid="button-create-lead">
-                <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                Nuevo Lead
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Crear Nuevo Lead</DialogTitle>
-              </DialogHeader>
-              <CreateLeadForm 
-                onSuccess={() => {
-                  setIsCreateDialogOpen(false);
-                  setPrefilledClientData(null);
-                }} 
-                prefilledData={prefilledClientData}
-              />
-            </DialogContent>
-          </Dialog>
-        </div>
+        {canCreateLeads && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="outline" size="sm" className="h-8 text-xs sm:text-sm sm:h-9" data-testid="button-export">
+              <Download className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Export</span>
+            </Button>
+            <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+              setIsCreateDialogOpen(open);
+              if (!open) setPrefilledClientData(null);
+            }}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="h-8 text-xs sm:text-sm sm:h-9" data-testid="button-create-lead">
+                  <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                  Nuevo Lead
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Crear Nuevo Lead</DialogTitle>
+                </DialogHeader>
+                <CreateLeadForm 
+                  onSuccess={() => {
+                    setIsCreateDialogOpen(false);
+                    setPrefilledClientData(null);
+                  }} 
+                  prefilledData={prefilledClientData}
+                />
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
       </div>
 
       {/* Tabs principales */}
@@ -782,11 +786,11 @@ function LeadCard({
       onDragEnd={!isMobile ? handleDragEnd : undefined}
       onClick={onViewDetails}
     >
-      <CardContent className={isMobile ? "p-2.5 space-y-2" : "p-3 space-y-2"}>
+      <CardContent className={isMobile ? "p-3 space-y-2.5" : "p-3 space-y-2"}>
         {/* Badges: tipo cliente + vendedor asignado */}
         <div className="flex items-center gap-1.5 flex-wrap">
           {lead.clientType && (
-            <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+            <div className={`inline-flex items-center gap-1 ${isMobile ? 'px-2.5 py-1' : 'px-2 py-0.5'} rounded-full text-[10px] font-medium ${
               lead.clientType === 'recurrente' 
                 ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' 
                 : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
@@ -795,7 +799,7 @@ function LeadCard({
               {lead.clientType === 'recurrente' ? 'Recurrente' : 'Nuevo'}
             </div>
           )}
-          <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+          <div className={`inline-flex items-center gap-1 ${isMobile ? 'px-2.5 py-1' : 'px-2 py-0.5'} rounded-full text-[10px] font-medium ${
             lead.salespersonName 
               ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' 
               : 'bg-gray-100 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400'
