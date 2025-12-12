@@ -782,6 +782,18 @@ function LeadCard({
       onClick={onViewDetails}
     >
       <CardContent className={isMobile ? "p-2.5 space-y-2" : "p-3 space-y-2"}>
+        {/* Badge tipo cliente en esquina superior izquierda */}
+        {lead.clientType && (
+          <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium mb-1 ${
+            lead.clientType === 'recurrente' 
+              ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' 
+              : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+          }`}>
+            <User className="w-2.5 h-2.5" />
+            {lead.clientType === 'recurrente' ? 'Recurrente' : 'Nuevo'}
+          </div>
+        )}
+        
         {/* Header con avatar y nombre completo */}
         <div className="flex items-start justify-between gap-2 min-w-0">
           <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -848,39 +860,6 @@ function LeadCard({
           return null;
         })()}
 
-        {/* Info compacta: teléfono, email, RUT en una línea */}
-        <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-gray-600 dark:text-gray-400 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
-          {lead.clientPhone && (
-            <div className="flex items-center gap-1">
-              <Phone className="w-3 h-3" />
-              <span>{lead.clientPhone}</span>
-            </div>
-          )}
-          {lead.clientEmail && (
-            <div className="flex items-center gap-1 truncate max-w-[140px]">
-              <Mail className="w-3 h-3 flex-shrink-0" />
-              <span className="truncate">{lead.clientEmail}</span>
-            </div>
-          )}
-          {lead.clientCompany && (
-            <div className="flex items-center gap-1">
-              <Building2 className="w-3 h-3" />
-              <span className="truncate max-w-[100px]">{lead.clientCompany}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Tipo de cliente - badge compacto */}
-        {lead.clientType && (
-          <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
-            lead.clientType === 'recurrente' 
-              ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' 
-              : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-          }`}>
-            <User className="w-2.5 h-2.5" />
-            {lead.clientType === 'recurrente' ? 'Recurrente' : 'Nuevo'}
-          </div>
-        )}
 
         {/* Botones de acción compactos */}
         <div className="grid grid-cols-3 gap-1">
