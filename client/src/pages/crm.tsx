@@ -17,7 +17,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2, Settings, Edit, AlertCircle, X, User, Home, Clock, MapPin, Users, Search, Loader2, ChevronUp, ChevronDown, FileText } from "lucide-react";
+import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2, Settings, Edit, AlertCircle, X, User, UserCheck, Home, Clock, MapPin, Users, Search, Loader2, ChevronUp, ChevronDown, FileText } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -783,17 +783,27 @@ function LeadCard({
       onClick={onViewDetails}
     >
       <CardContent className={isMobile ? "p-2.5 space-y-2" : "p-3 space-y-2"}>
-        {/* Badge tipo cliente en esquina superior izquierda */}
-        {lead.clientType && (
-          <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium mb-1 ${
-            lead.clientType === 'recurrente' 
-              ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' 
-              : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+        {/* Badges: tipo cliente + vendedor asignado */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {lead.clientType && (
+            <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+              lead.clientType === 'recurrente' 
+                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' 
+                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+            }`}>
+              <User className="w-2.5 h-2.5" />
+              {lead.clientType === 'recurrente' ? 'Recurrente' : 'Nuevo'}
+            </div>
+          )}
+          <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+            lead.salespersonName 
+              ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' 
+              : 'bg-gray-100 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400'
           }`}>
-            <User className="w-2.5 h-2.5" />
-            {lead.clientType === 'recurrente' ? 'Recurrente' : 'Nuevo'}
+            <UserCheck className="w-2.5 h-2.5" />
+            {lead.salespersonName ? lead.salespersonName.split(' ').slice(0, 2).join(' ') : 'Sin asignar'}
           </div>
-        )}
+        </div>
         
         {/* Header con avatar y nombre completo */}
         <div className="flex items-start justify-between gap-2 min-w-0">
@@ -2055,13 +2065,6 @@ function EditLeadDialog({
   // Determinar qué vendedores mostrar según el rol
   // Para supervisores: mostrar sus vendedores asignados + ellos mismos
   const supervisorVendedores = users.filter((u: any) => u.supervisorId === currentUser?.id && u.role === 'salesperson');
-  console.log('[EditLeadDialog] Debug:', { 
-    isAdmin, 
-    isSupervisor, 
-    currentUserId: currentUser?.id,
-    usersCount: users.length,
-    supervisorVendedores: supervisorVendedores.map((u: any) => ({ id: u.id, name: u.salespersonName, supervisorId: u.supervisorId }))
-  });
   
   const availableSalespeople = isAdmin 
     ? (selectedSupervisorId ? supervisorSalespeople : [])
