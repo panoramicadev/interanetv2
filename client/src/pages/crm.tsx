@@ -1861,7 +1861,7 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
               name="salespersonId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Vendedor Asignado *</FormLabel>
+                  <FormLabel>Vendedor Asignado</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger data-testid="select-salesperson">
@@ -1894,28 +1894,6 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
               <FormControl>
                 <Input {...field} data-testid="input-address" placeholder="Av. Principal 123, Santiago" />
               </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="clientType"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Tipo de Cliente *</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger data-testid="select-client-type">
-                    <SelectValue placeholder="Selecciona tipo de cliente" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="nuevo">Cliente Nuevo</SelectItem>
-                  <SelectItem value="recurrente">Cliente Recurrente</SelectItem>
-                </SelectContent>
-              </Select>
               <FormMessage />
             </FormItem>
           )}
