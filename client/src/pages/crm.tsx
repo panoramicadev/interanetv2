@@ -17,7 +17,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2, Settings, Edit, AlertCircle, X, User, Home, Clock } from "lucide-react";
+import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2, Settings, Edit, AlertCircle, X, User, Home, Clock, MapPin } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -794,43 +794,50 @@ function LeadCard({
 
   return (
     <Card 
-      className={`overflow-hidden rounded-xl hover:shadow-lg transition-all duration-200 bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-900 dark:to-gray-800/50 border border-gray-200/60 dark:border-gray-700/60 ${!isMobile ? 'cursor-move hover:cursor-pointer' : 'cursor-pointer'} ${isDragging ? 'opacity-50 scale-95' : 'hover:border-gray-300 dark:hover:border-gray-600'}`} 
+      className={`overflow-hidden rounded-lg hover:shadow-md transition-all duration-200 bg-white dark:bg-gray-900 border border-gray-200/60 dark:border-gray-700/60 ${!isMobile ? 'cursor-move hover:cursor-pointer' : 'cursor-pointer'} ${isDragging ? 'opacity-50 scale-95' : 'hover:border-gray-300 dark:hover:border-gray-600'}`} 
       data-testid={`card-lead-${lead.id}`}
       draggable={!isMobile}
       onDragStart={!isMobile ? handleDragStart : undefined}
       onDragEnd={!isMobile ? handleDragEnd : undefined}
       onClick={onViewDetails}
     >
-      <CardContent className={isMobile ? "p-3 space-y-2.5" : "p-4 space-y-3"}>
-        {/* Header con avatar y acciones */}
+      <CardContent className={isMobile ? "p-2.5 space-y-2" : "p-3 space-y-2"}>
+        {/* Header con avatar y nombre completo */}
         <div className="flex items-start justify-between gap-2 min-w-0">
-          <div className="flex items-center gap-2.5 flex-1 min-w-0 overflow-hidden">
-            <div className={`rounded-full ${avatarColor} flex items-center justify-center text-white font-bold shadow-lg flex-shrink-0 ring-2 ring-white dark:ring-gray-800 ${isMobile ? 'w-10 h-10 text-xs' : 'w-11 h-11 text-sm'}`}>
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className={`rounded-full ${avatarColor} flex items-center justify-center text-white font-bold shadow-sm flex-shrink-0 ${isMobile ? 'w-8 h-8 text-[10px]' : 'w-9 h-9 text-xs'}`}>
               {initials}
             </div>
-            <div className="flex-1 min-w-0 overflow-hidden">
-              <h4 className={`font-bold text-gray-900 dark:text-gray-100 truncate ${isMobile ? 'text-sm' : 'text-base'}`}>
+            <div className="flex-1 min-w-0">
+              <h4 className={`font-semibold text-gray-900 dark:text-gray-100 leading-tight ${isMobile ? 'text-xs' : 'text-sm'}`}>
                 {lead.clientName}
               </h4>
-              <p className={`text-gray-500 dark:text-gray-400 ${isMobile ? 'text-[11px]' : 'text-xs'}`}>
-                {lead.createdAt ? new Date(lead.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : ''}
-              </p>
+              <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                {(lead as any).clientCity && (
+                  <>
+                    <MapPin className="w-3 h-3 flex-shrink-0" />
+                    <span className={`${isMobile ? 'text-[10px]' : 'text-xs'}`}>{(lead as any).clientCity}</span>
+                    <span className="mx-1">·</span>
+                  </>
+                )}
+                <span className={`${isMobile ? 'text-[10px]' : 'text-xs'}`}>
+                  {lead.createdAt ? new Date(lead.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : ''}
+                </span>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            {isAdmin && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className={`rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors ${isMobile ? 'h-8 w-8' : 'h-9 w-9'}`}
-                onClick={(e) => { e.stopPropagation(); setIsEditDialogOpen(true); }}
-                title="Editar lead"
-                data-testid={`button-edit-${lead.id}`}
-              >
-                <Edit className={isMobile ? 'w-4 h-4' : 'w-4 h-4'} />
-              </Button>
-            )}
-          </div>
+          {isAdmin && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className={`rounded hover:bg-gray-100 dark:hover:bg-gray-700/50 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ${isMobile ? 'h-6 w-6 p-0' : 'h-7 w-7 p-0'}`}
+              onClick={(e) => { e.stopPropagation(); setIsEditDialogOpen(true); }}
+              title="Editar lead"
+              data-testid={`button-edit-${lead.id}`}
+            >
+              <Edit className="w-3.5 h-3.5" />
+            </Button>
+          )}
         </div>
 
         {/* Modal de edición */}
@@ -843,108 +850,95 @@ function LeadCard({
           />
         )}
 
-        {/* Alerta de inactividad */}
+        {/* Alerta de inactividad - compacta */}
         {(() => {
           const daysSinceUpdate = getDaysSinceUpdate(lead);
           const alert = getInactivityAlert(daysSinceUpdate);
           
           if (alert) {
             return (
-              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${alert.bgColor} ${alert.borderColor}`} data-testid={`alert-inactivity-${lead.id}`}>
-                <Clock className={`flex-shrink-0 ${isMobile ? 'w-4 h-4' : 'w-4 h-4'} ${alert.textColor}`} />
-                <span className={`flex-1 font-medium ${isMobile ? 'text-xs' : 'text-sm'} ${alert.textColor}`}>
+              <div className={`flex items-center gap-1.5 px-2 py-1 rounded border ${alert.bgColor} ${alert.borderColor}`} data-testid={`alert-inactivity-${lead.id}`}>
+                <Clock className={`flex-shrink-0 w-3 h-3 ${alert.textColor}`} />
+                <span className={`flex-1 font-medium text-[10px] ${alert.textColor}`}>
                   {alert.message}
                 </span>
-                <AlertCircle className={`flex-shrink-0 ${isMobile ? 'w-4 h-4' : 'w-4 h-4'} ${alert.textColor}`} />
               </div>
             );
           }
           return null;
         })()}
 
-        {/* Información de contacto */}
-        <div className={`space-y-1.5 min-w-0 overflow-hidden ${isMobile ? 'text-xs' : 'text-sm'}`}>
+        {/* Info compacta: teléfono, email, RUT en una línea */}
+        <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-gray-600 dark:text-gray-400 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
           {lead.clientPhone && (
-            <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300 min-w-0">
-              <Phone className={`flex-shrink-0 ${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} />
-              <span className="truncate font-medium">{lead.clientPhone}</span>
+            <div className="flex items-center gap-1">
+              <Phone className="w-3 h-3" />
+              <span>{lead.clientPhone}</span>
             </div>
           )}
           {lead.clientEmail && (
-            <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300 min-w-0">
-              <Mail className={`flex-shrink-0 ${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} />
-              <span className="truncate font-medium">{lead.clientEmail}</span>
+            <div className="flex items-center gap-1 truncate max-w-[140px]">
+              <Mail className="w-3 h-3 flex-shrink-0" />
+              <span className="truncate">{lead.clientEmail}</span>
             </div>
           )}
           {lead.clientCompany && (
-            <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300 min-w-0">
-              <Building2 className={`flex-shrink-0 ${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} />
-              <span className="truncate font-medium">{lead.clientCompany}</span>
+            <div className="flex items-center gap-1">
+              <Building2 className="w-3 h-3" />
+              <span className="truncate max-w-[100px]">{lead.clientCompany}</span>
             </div>
           )}
         </div>
 
-        {/* Tipo de cliente y nombre de obra */}
-        <div className={`flex flex-wrap gap-2 ${isMobile ? 'text-xs' : 'text-sm'}`}>
-          {lead.clientType && (
-            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium ${
-              lead.clientType === 'recurrente' 
-                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800' 
-                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
-            }`}>
-              <User className={`flex-shrink-0 ${isMobile ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />
-              <span className={isMobile ? 'text-[10px]' : 'text-xs'}>
-                {lead.clientType === 'recurrente' ? 'Cliente Recurrente' : 'Cliente Nuevo'}
-              </span>
-            </div>
-          )}
-          {lead.nombreObra && (
-            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800`}>
-              <Home className={`flex-shrink-0 ${isMobile ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />
-              <span className={`truncate ${isMobile ? 'text-[10px] max-w-[120px]' : 'text-xs max-w-[180px]'}`}>
-                {lead.nombreObra}
-              </span>
-            </div>
-          )}
-        </div>
+        {/* Tipo de cliente - badge compacto */}
+        {lead.clientType && (
+          <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+            lead.clientType === 'recurrente' 
+              ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' 
+              : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+          }`}>
+            <User className="w-2.5 h-2.5" />
+            {lead.clientType === 'recurrente' ? 'Recurrente' : 'Nuevo'}
+          </div>
+        )}
 
-        {/* Botones de acción modernos */}
-        <div className={`grid grid-cols-3 ${isMobile ? 'gap-1.5' : 'gap-2'}`}>
+        {/* Botones de acción compactos */}
+        <div className="grid grid-cols-3 gap-1">
           <button
             onClick={(e) => { e.stopPropagation(); handleCall(); }}
             disabled={!lead.clientPhone}
-            className={`flex items-center justify-center rounded-lg bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-700/50 hover:from-blue-100 hover:to-blue-200/50 dark:hover:from-blue-900/30 dark:hover:to-blue-800/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:from-blue-50 disabled:hover:to-blue-100/50 font-semibold text-blue-700 dark:text-blue-300 shadow-sm ${isMobile ? 'gap-1 px-2 py-1.5 text-[10px]' : 'gap-1.5 px-2 py-2 text-xs'}`}
+            className="flex items-center justify-center gap-1 rounded border border-blue-200 dark:border-blue-700/50 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed text-[10px] font-medium py-1"
             data-testid={`button-call-${lead.id}`}
           >
-            <Phone className={isMobile ? "w-3 h-3" : "w-3.5 h-3.5"} />
-            <span className="truncate">Llamar</span>
+            <Phone className="w-3 h-3" />
+            Lla...
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleWhatsApp(); }}
             disabled={!lead.clientPhone}
-            className={`flex items-center justify-center rounded-lg bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-900/20 dark:to-green-800/20 border border-green-200 dark:border-green-700/50 hover:from-green-100 hover:to-green-200/50 dark:hover:from-green-900/30 dark:hover:to-green-800/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:from-green-50 disabled:hover:to-green-100/50 font-semibold text-green-700 dark:text-green-300 shadow-sm ${isMobile ? 'gap-1 px-2 py-1.5 text-[10px]' : 'gap-1.5 px-2 py-2 text-xs'}`}
+            className="flex items-center justify-center gap-1 rounded border border-green-200 dark:border-green-700/50 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30 disabled:opacity-40 disabled:cursor-not-allowed text-[10px] font-medium py-1"
             data-testid={`button-whatsapp-${lead.id}`}
           >
-            <MessageSquare className={isMobile ? "w-3 h-3" : "w-3.5 h-3.5"} />
-            <span className="truncate">WhatsApp</span>
+            <MessageSquare className="w-3 h-3" />
+            Wha...
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleEmail(); }}
             disabled={!lead.clientEmail}
-            className={`flex items-center justify-center rounded-lg bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-900/20 dark:to-purple-800/20 border border-purple-200 dark:border-purple-700/50 hover:from-purple-100 hover:to-purple-200/50 dark:hover:from-purple-900/30 dark:hover:to-purple-800/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:from-purple-50 disabled:hover:to-purple-100/50 font-semibold text-purple-700 dark:text-purple-300 shadow-sm ${isMobile ? 'gap-1 px-2 py-1.5 text-[10px]' : 'gap-1.5 px-2 py-2 text-xs'}`}
+            className="flex items-center justify-center gap-1 rounded border border-purple-200 dark:border-purple-700/50 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 disabled:opacity-40 disabled:cursor-not-allowed text-[10px] font-medium py-1"
             data-testid={`button-email-${lead.id}`}
           >
-            <Mail className={isMobile ? "w-3 h-3" : "w-3.5 h-3.5"} />
-            <span className="truncate">Email</span>
+            <Mail className="w-3 h-3" />
+            Email
           </button>
         </div>
 
-        {/* Selector de etapa y botón de bitácora */}
-        <div className={`flex ${isMobile ? 'gap-1.5' : 'gap-2'} min-w-0 overflow-hidden`}>
+        {/* Selector de etapa y botón de detalles */}
+        <div className="flex gap-1.5 min-w-0">
           <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
             <Select value={lead.stage} onValueChange={(newStage) => onChangeStage(newStage)}>
               <SelectTrigger 
-                className={`w-full font-semibold rounded-lg shadow-sm ${stageBadge.bgColor.startsWith('bg-') ? stageBadge.bgColor : ''} ${stageBadge.textColor} border-0 ${isMobile ? 'h-8 text-[11px]' : 'h-9 text-xs'}`}
+                className={`w-full font-medium rounded shadow-sm h-7 text-[10px] ${stageBadge.bgColor.startsWith('bg-') ? stageBadge.bgColor : ''} ${stageBadge.textColor} border-0`}
                 style={!stageBadge.bgColor.startsWith('bg-') ? { backgroundColor: stageBadge.bgColor } : undefined}
               >
                 <SelectValue />
@@ -970,13 +964,13 @@ function LeadCard({
           <Button 
             variant="outline"
             size="sm" 
-            className={`flex-shrink-0 rounded-lg transition-all font-medium shadow-sm ${isMobile ? 'h-8 px-2 text-xs' : 'h-9 px-3 text-sm'} bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700`}
+            className="flex-shrink-0 rounded h-7 px-2 text-[10px] bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-700"
             onClick={(e) => { e.stopPropagation(); onViewDetails(); }}
-            title="Ver detalles completos del lead"
+            title="Ver detalles"
             data-testid={`button-details-${lead.id}`}
           >
-            <BookOpen className={isMobile ? 'w-4 h-4' : 'w-4 h-4 mr-1.5'} />
-            {!isMobile && <span>Ver Detalles</span>}
+            <BookOpen className="w-3.5 h-3.5 mr-1" />
+            Detalles
           </Button>
         </div>
       </CardContent>

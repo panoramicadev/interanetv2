@@ -5258,6 +5258,7 @@ export const crmLeads = pgTable("crm_leads", {
   clientEmail: varchar("client_email"),
   clientCompany: text("client_company"),
   clientAddress: text("client_address"),
+  clientCity: varchar("client_city"),
   
   // Pipeline stage
   stage: varchar("stage").notNull().default("lead"), // 'lead', 'contacto', 'visita', 'lista_precio', 'campana', 'primera_venta', 'promesa', 'venta'
