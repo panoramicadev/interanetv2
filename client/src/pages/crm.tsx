@@ -2052,10 +2052,16 @@ function EditLeadDialog({
   }, [open, lead, form]);
 
   // Determinar qué vendedores mostrar según el rol
+  // Para supervisores: mostrar sus vendedores asignados + ellos mismos
   const availableSalespeople = isAdmin 
     ? (selectedSupervisorId ? supervisorSalespeople : [])
     : isSupervisor
-      ? users.filter((u: any) => u.supervisorId === currentUser?.id && u.role === 'salesperson')
+      ? [
+          // El supervisor mismo puede asignarse el lead
+          { id: currentUser?.id, salespersonName: currentUser?.salespersonName || currentUser?.fullName || 'Supervisor' },
+          // Más sus vendedores
+          ...users.filter((u: any) => u.supervisorId === currentUser?.id && u.role === 'salesperson')
+        ]
       : users.filter((u: any) => u.role === 'salesperson' || u.role === 'supervisor');
 
   const updateLeadMutation = useMutation({
