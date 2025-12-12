@@ -19778,6 +19778,78 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getSuggestedClientsForSeguimiento(userId: string, role: string, userSegment?: string | null, salespersonName?: string | null): Promise<any[]> {
+    try {
+      // Calculate 12 months ago
+      const twelveMonthsAgo = new Date();
+      twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+      const startDate = twelveMonthsAgo.toISOString().split('T')[0];
+
+      // Build conditions based on role
+      const conditions = [
+        sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`,
+        sql`${factVentas.tido} != 'GDV'`,
+        sql`${factVentas.feemdo} >= ${startDate}::date`
+      ];
+
+      // Role-based filtering
+      if (role === 'salesperson' && salespersonName) {
+        // Salespeople only see clients from their sales (using case-insensitive match)
+        conditions.push(sql`UPPER(${factVentas.nokofu}) = UPPER(${salespersonName})`);
+      } else if (role === 'supervisor') {
+        // Supervisors see clients from their salespeople + their own if applicable
+        const supervisedSalespeople = await db
+          .select({ salespersonName: salespeopleUsers.salespersonName })
+          .from(salespeopleUsers)
+          .where(and(
+            eq(salespeopleUsers.supervisorId, userId),
+            eq(salespeopleUsers.role, 'salesperson'),
+            eq(salespeopleUsers.isActive, true)
+          ));
+        
+        const salespersonNames = supervisedSalespeople.map(sp => sp.salespersonName);
+        if (salespersonName) {
+          salespersonNames.push(salespersonName);
+        }
+        
+        if (salespersonNames.length > 0) {
+          conditions.push(sql`UPPER(${factVentas.nokofu}) IN (${sql.join(salespersonNames.map(n => sql`UPPER(${n})`), sql`, `)})`);
+        }
+      }
+      // Admin sees all
+
+      const whereClause = and(...conditions);
+
+      // Get clients with purchase count, sorted by purchases descending
+      const results = await db
+        .select({
+          clientName: factVentas.nokoen,
+          segment: factVentas.noruen,
+          salespersonName: factVentas.nokofu,
+          purchaseCount: sql<number>`COUNT(DISTINCT ${factVentas.idmaeedo})`,
+          lastPurchaseDate: sql<string>`MAX(${factVentas.feemdo})`,
+          totalAmount: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        })
+        .from(factVentas)
+        .where(whereClause)
+        .groupBy(factVentas.nokoen, factVentas.noruen, factVentas.nokofu)
+        .orderBy(sql`COUNT(DISTINCT ${factVentas.idmaeedo}) DESC`)
+        .limit(100);
+
+      return results.map(r => ({
+        clientName: r.clientName || '',
+        segment: r.segment || '',
+        salespersonName: r.salespersonName || '',
+        purchaseCount: Number(r.purchaseCount) || 0,
+        lastPurchaseDate: r.lastPurchaseDate,
+        totalAmount: Number(r.totalAmount) || 0,
+      }));
+    } catch (error: any) {
+      console.error('Error getting suggested clients for seguimiento:', error.message);
+      return [];
+    }
+  }
+
   // ==================================================================================
   // NOTIFICATIONS operations - Sistema robusto de notificaciones internas
   // ==================================================================================

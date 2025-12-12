@@ -5865,6 +5865,23 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Clientes sugeridos para seguimiento (basado en historial de compras 12 meses)
+  app.get('/api/crm/clientes-sugeridos', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const clientesSugeridos = await storage.getSuggestedClientsForSeguimiento(
+        user.id, 
+        user.role, 
+        user.assignedSegment || null,
+        user.salespersonName || null
+      );
+      res.json(clientesSugeridos);
+    } catch (error) {
+      console.error("Error fetching clientes sugeridos:", error);
+      res.status(500).json({ message: "Failed to fetch clientes sugeridos" });
+    }
+  });
+
   app.post('/api/crm/clientes-recurrentes/notes', requireCommercialAccess, async (req: any, res) => {
     try {
       const user = req.user;
