@@ -2199,16 +2199,16 @@ function EditLeadDialog({
                   <FormLabel>Jefe de Segmento</FormLabel>
                   <Select 
                     onValueChange={(value) => {
-                      setSelectedSupervisorId(value);
+                      setSelectedSupervisorId(value === '__none__' ? '' : value);
                       form.setValue('salespersonId', '');
                     }} 
-                    value={selectedSupervisorId}
+                    value={selectedSupervisorId || '__none__'}
                   >
                     <SelectTrigger data-testid="select-edit-supervisor">
                       <SelectValue placeholder="Selecciona jefe de segmento" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Sin asignar</SelectItem>
+                      <SelectItem value="__none__">Sin asignar</SelectItem>
                       {supervisors.map((sup: any) => (
                         <SelectItem key={sup.id} value={sup.id}>
                           {sup.salespersonName || sup.firstName || sup.email} ({sup.segment || 'Sin segmento'})
@@ -2236,7 +2236,7 @@ function EditLeadDialog({
                       </FormControl>
                       <SelectContent>
                         {isAdmin && !selectedSupervisorId ? (
-                          <SelectItem value="" disabled>Selecciona un jefe de segmento primero</SelectItem>
+                          <SelectItem value="__placeholder__" disabled>Selecciona un jefe de segmento primero</SelectItem>
                         ) : (
                           availableSalespeople.map((user: any) => (
                             <SelectItem key={user.id} value={user.id}>
