@@ -253,8 +253,10 @@ export default function CRMPage() {
     // Segment filter
     const matchesSegment = segmentFilter === 'all' || lead.segment === segmentFilter;
     
-    // Salesperson filter
-    const matchesVendedor = vendedorFilter === 'all' || lead.salespersonName === vendedorFilter;
+    // Salesperson filter - also show leads without assigned salesperson
+    const matchesVendedor = vendedorFilter === 'all' || 
+      lead.salespersonName === vendedorFilter ||
+      (!lead.salespersonId && !lead.salespersonName);
     
     // Client type filter - acepta ambos indicadores (clientType y hasHistoricalSales como fallback)
     const matchesClientType = clientTypeFilter === 'todos' || 
