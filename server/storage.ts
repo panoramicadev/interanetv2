@@ -19544,13 +19544,30 @@ export class DatabaseStorage implements IStorage {
         // Admin ve todos - no se añade condición adicional
       }
 
+      // Obtener los nombres de clientes que ya existen en el CRM (crmLeads)
+      const crmClientNames = await db
+        .selectDistinct({ clientName: crmLeads.clientName })
+        .from(crmLeads);
+      
+      const crmClientNameSet = new Set(crmClientNames.map(c => c.clientName.toLowerCase().trim()));
+      
+      // Solo buscar si hay clientes en el CRM
+      if (crmClientNameSet.size === 0) {
+        return [];
+      }
+
       const results = await db
         .select()
         .from(clientesInactivos)
         .where(and(...conditions))
         .orderBy(desc(clientesInactivos.daysSinceLastPurchase));
 
-      return results;
+      // Filtrar solo los clientes cuyo nombre existe en el CRM
+      const filteredResults = results.filter(client => 
+        crmClientNameSet.has(client.clientName.toLowerCase().trim())
+      );
+
+      return filteredResults;
     } catch (error: any) {
       console.error('Error getting inactive clients:', error.message);
       return [];
