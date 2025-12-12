@@ -722,6 +722,7 @@ function LeadCard({
   const [isDragging, setIsDragging] = useState(false);
   const stageBadge = stageBadgeMap[lead.stage] || { label: lead.stage, bgColor: 'bg-gray-100', textColor: 'text-gray-700' };
   const isAdmin = currentUser?.role === 'admin';
+  const isSupervisor = currentUser?.role === 'supervisor';
   
   // Get initials for avatar
   const initials = lead.clientName
@@ -818,7 +819,7 @@ function LeadCard({
               </div>
             </div>
           </div>
-          {isAdmin && (
+          {(isAdmin || isSupervisor) && (
             <Button 
               variant="ghost" 
               size="sm" 
@@ -833,7 +834,7 @@ function LeadCard({
         </div>
 
         {/* Modal de edición */}
-        {isAdmin && (
+        {(isAdmin || isSupervisor) && (
           <EditLeadDialog
             lead={lead}
             open={isEditDialogOpen}
@@ -2053,6 +2054,15 @@ function EditLeadDialog({
 
   // Determinar qué vendedores mostrar según el rol
   // Para supervisores: mostrar sus vendedores asignados + ellos mismos
+  const supervisorVendedores = users.filter((u: any) => u.supervisorId === currentUser?.id && u.role === 'salesperson');
+  console.log('[EditLeadDialog] Debug:', { 
+    isAdmin, 
+    isSupervisor, 
+    currentUserId: currentUser?.id,
+    usersCount: users.length,
+    supervisorVendedores: supervisorVendedores.map((u: any) => ({ id: u.id, name: u.salespersonName, supervisorId: u.supervisorId }))
+  });
+  
   const availableSalespeople = isAdmin 
     ? (selectedSupervisorId ? supervisorSalespeople : [])
     : isSupervisor
@@ -2060,7 +2070,7 @@ function EditLeadDialog({
           // El supervisor mismo puede asignarse el lead
           { id: currentUser?.id, salespersonName: currentUser?.salespersonName || currentUser?.fullName || 'Supervisor' },
           // Más sus vendedores
-          ...users.filter((u: any) => u.supervisorId === currentUser?.id && u.role === 'salesperson')
+          ...supervisorVendedores
         ]
       : users.filter((u: any) => u.role === 'salesperson' || u.role === 'supervisor');
 
