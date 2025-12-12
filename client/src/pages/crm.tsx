@@ -324,7 +324,7 @@ export default function CRMPage() {
 
       {/* Tabs principales */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'leads' | 'promesas' | 'seguimiento')}>
-        <TabsList className="h-9 sm:h-10">
+        <TabsList className="grid w-full grid-cols-3 h-9 sm:h-10">
           <TabsTrigger value="leads" className="text-xs sm:text-sm" data-testid="tab-leads">Leads</TabsTrigger>
           <TabsTrigger value="seguimiento" className="text-xs sm:text-sm" data-testid="tab-seguimiento">Seguimiento de Clientes</TabsTrigger>
           <TabsTrigger value="promesas" className="text-xs sm:text-sm" data-testid="tab-promesas">Promesas de Compra</TabsTrigger>
