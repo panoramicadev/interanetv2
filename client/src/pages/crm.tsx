@@ -1471,6 +1471,17 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
     queryKey: ['/api/users'],
   });
 
+  const { data: supervisors = [] } = useQuery<any[]>({
+    queryKey: ['/api/users/salespeople/supervisors'],
+  });
+
+  const [selectedSupervisorId, setSelectedSupervisorId] = useState<string>('');
+
+  const { data: supervisorSalespeople = [] } = useQuery<any[]>({
+    queryKey: ['/api/supervisor', selectedSupervisorId, 'salespeople'],
+    enabled: !!selectedSupervisorId,
+  });
+
   // Buscar clientes usando el mismo endpoint que tomador-pedidos
   const { data: clientsData, isLoading: isSearching } = useQuery({
     queryKey: ['/api/clients', { search: debouncedSearchQuery }],
@@ -1512,6 +1523,7 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
   // Create validation schema for the form
   const formSchema = z.object({
     clientName: z.string().min(1, "Nombre del cliente es requerido"),
+    supervisorId: z.string().optional(),
     salespersonId: z.string().optional(),
     stage: z.string().default(defaultStage),
     clientPhone: z.string().optional(),
@@ -1527,6 +1539,8 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
   const { user: currentUser } = useAuth();
   const isSalesperson = currentUser?.role === 'salesperson';
 
+  const isAdmin = currentUser?.role === 'admin';
+
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -1536,6 +1550,7 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
       clientCompany: '',
       clientAddress: '',
       segment: prefilledData?.segment || '',
+      supervisorId: '',
       salespersonId: prefilledData?.salespersonId || (isSalesperson ? currentUser?.id || '' : ''),
       notes: '',
       stage: defaultStage,
@@ -1813,7 +1828,7 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
           />
         </div>
 
-        <div className={`grid grid-cols-1 ${!isSalesperson ? 'sm:grid-cols-2' : ''} gap-4`}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="segment"
@@ -1837,34 +1852,62 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
             )}
           />
           {!isSalesperson && (
-            <FormField
-              control={form.control}
-              name="salespersonId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Vendedor Asignado</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger data-testid="select-salesperson">
-                        <SelectValue placeholder="Selecciona vendedor" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {users
-                        .filter((u: any) => u.role === 'salesperson' || u.role === 'supervisor' || u.role === 'admin')
-                        .map((user: any) => (
-                          <SelectItem key={user.id} value={user.id}>
-                            {user.salespersonName || user.firstName || user.email}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <FormItem>
+              <FormLabel>Jefe de Segmento</FormLabel>
+              <Select 
+                onValueChange={(value) => {
+                  setSelectedSupervisorId(value === '__none__' ? '' : value);
+                  form.setValue('supervisorId', value === '__none__' ? '' : value);
+                  form.setValue('salespersonId', '');
+                }} 
+                value={selectedSupervisorId || '__none__'}
+              >
+                <SelectTrigger data-testid="select-supervisor">
+                  <SelectValue placeholder="Selecciona jefe de segmento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sin asignar</SelectItem>
+                  {supervisors.map((sup: any) => (
+                    <SelectItem key={sup.id} value={sup.id}>
+                      {sup.salespersonName || sup.firstName || sup.email} ({sup.segment || 'Sin segmento'})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormItem>
           )}
         </div>
+
+        {!isSalesperson && (
+          <FormField
+            control={form.control}
+            name="salespersonId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Vendedor Asignado</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger data-testid="select-salesperson">
+                      <SelectValue placeholder={selectedSupervisorId ? "Selecciona vendedor" : "Primero selecciona un jefe"} />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {!selectedSupervisorId ? (
+                      <SelectItem value="__placeholder__" disabled>Selecciona un jefe de segmento primero</SelectItem>
+                    ) : (
+                      supervisorSalespeople.map((user: any) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.salespersonName || user.firstName || user.email}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <FormField
           control={form.control}
@@ -2206,7 +2249,7 @@ function EditLeadDialog({
                 name="salespersonId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Vendedor Asignado *</FormLabel>
+                    <FormLabel>Vendedor Asignado</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger data-testid="select-edit-salesperson">
@@ -2245,27 +2288,6 @@ function EditLeadDialog({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="clientType"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tipo de Cliente *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger data-testid="select-edit-client-type">
-                        <SelectValue placeholder="Selecciona tipo de cliente" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="nuevo">Cliente Nuevo</SelectItem>
-                      <SelectItem value="recurrente">Cliente Recurrente</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             {form.watch('segment')?.toLowerCase().includes('construc') && (
               <FormField
