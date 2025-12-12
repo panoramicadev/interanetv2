@@ -2622,6 +2622,7 @@ function SeguimientoClientesTab() {
   const [newClientName, setNewClientName] = useState('');
   const [newClientCompany, setNewClientCompany] = useState('');
   const [newClientSegment, setNewClientSegment] = useState('');
+  const [suggestionSearch, setSuggestionSearch] = useState('');
 
   const isSalesperson = currentUser?.role === 'salesperson';
   const isAdmin = currentUser?.role === 'admin';
@@ -2629,6 +2630,12 @@ function SeguimientoClientesTab() {
 
   const { data: clientesRecurrentes = [], isLoading } = useQuery<any[]>({
     queryKey: ['/api/crm/clientes-recurrentes'],
+  });
+
+  // Fetch suggested clients from sales history (12 months, sorted by purchases)
+  const { data: clientesSugeridos = [] } = useQuery<any[]>({
+    queryKey: ['/api/crm/clientes-sugeridos'],
+    enabled: isCreateClientOpen,
   });
 
   const addNoteMutation = useMutation({
@@ -2730,81 +2737,132 @@ function SeguimientoClientesTab() {
           <Badge variant="outline" className="text-sm">
             {filteredClients.length} clientes en seguimiento
           </Badge>
-          <Dialog open={isCreateClientOpen} onOpenChange={setIsCreateClientOpen}>
+          <Dialog open={isCreateClientOpen} onOpenChange={(open) => {
+            setIsCreateClientOpen(open);
+            if (!open) {
+              setSuggestionSearch('');
+              setNewClientName('');
+              setNewClientCompany('');
+              setNewClientSegment('');
+            }
+          }}>
             <DialogTrigger asChild>
               <Button size="sm" data-testid="button-add-client-seguimiento">
                 <Plus className="w-4 h-4 mr-1" />
                 Nuevo Cliente
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Agregar Cliente al Seguimiento</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
+                {/* Suggested clients section */}
                 <div className="space-y-2">
-                  <Label htmlFor="clientName">Nombre del Cliente *</Label>
+                  <Label>Clientes Sugeridos (últimos 12 meses)</Label>
                   <Input
-                    id="clientName"
-                    value={newClientName}
-                    onChange={(e) => setNewClientName(e.target.value)}
-                    placeholder="Nombre del cliente"
-                    data-testid="input-new-client-name"
+                    placeholder="Buscar cliente..."
+                    value={suggestionSearch}
+                    onChange={(e) => setSuggestionSearch(e.target.value)}
+                    data-testid="input-suggestion-search"
                   />
+                  <div className="max-h-48 overflow-y-auto border rounded-md">
+                    {clientesSugeridos
+                      .filter(c => !suggestionSearch || c.clientName?.toLowerCase().includes(suggestionSearch.toLowerCase()))
+                      .slice(0, 20)
+                      .map((client, idx) => (
+                        <div
+                          key={idx}
+                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer border-b last:border-b-0 flex items-center justify-between"
+                          onClick={() => {
+                            setNewClientName(client.clientName);
+                            setNewClientSegment(client.segment || '');
+                            setSuggestionSearch('');
+                          }}
+                          data-testid={`suggestion-${idx}`}
+                        >
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">{client.clientName}</p>
+                            <p className="text-xs text-gray-500">
+                              {client.segment} • {client.salespersonName}
+                            </p>
+                          </div>
+                          <Badge variant="secondary" className="text-xs">
+                            {client.purchaseCount} compras
+                          </Badge>
+                        </div>
+                      ))}
+                    {clientesSugeridos.length === 0 && (
+                      <p className="p-3 text-sm text-gray-500 text-center">Sin sugerencias disponibles</p>
+                    )}
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="clientCompany">Empresa</Label>
-                  <Input
-                    id="clientCompany"
-                    value={newClientCompany}
-                    onChange={(e) => setNewClientCompany(e.target.value)}
-                    placeholder="Nombre de la empresa"
-                    data-testid="input-new-client-company"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="segment">Segmento</Label>
-                  <Select value={newClientSegment} onValueChange={setNewClientSegment}>
-                    <SelectTrigger data-testid="select-new-client-segment">
-                      <SelectValue placeholder="Seleccionar segmento" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Retail">Retail</SelectItem>
-                      <SelectItem value="Industrial">Industrial</SelectItem>
-                      <SelectItem value="Construcción">Construcción</SelectItem>
-                      <SelectItem value="Automotriz">Automotriz</SelectItem>
-                      <SelectItem value="Otro">Otro</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button variant="outline" onClick={() => setIsCreateClientOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      if (!newClientName.trim()) {
-                        toast({
-                          title: "Error",
-                          description: "El nombre del cliente es requerido",
-                          variant: "destructive",
+
+                <div className="border-t pt-4 space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="clientName">Nombre del Cliente *</Label>
+                    <Input
+                      id="clientName"
+                      value={newClientName}
+                      onChange={(e) => setNewClientName(e.target.value)}
+                      placeholder="Nombre del cliente"
+                      data-testid="input-new-client-name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="clientCompany">Empresa</Label>
+                    <Input
+                      id="clientCompany"
+                      value={newClientCompany}
+                      onChange={(e) => setNewClientCompany(e.target.value)}
+                      placeholder="Nombre de la empresa"
+                      data-testid="input-new-client-company"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="segment">Segmento</Label>
+                    <Select value={newClientSegment} onValueChange={setNewClientSegment}>
+                      <SelectTrigger data-testid="select-new-client-segment">
+                        <SelectValue placeholder="Seleccionar segmento" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Retail">Retail</SelectItem>
+                        <SelectItem value="Industrial">Industrial</SelectItem>
+                        <SelectItem value="Construcción">Construcción</SelectItem>
+                        <SelectItem value="Automotriz">Automotriz</SelectItem>
+                        <SelectItem value="Otro">Otro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button variant="outline" onClick={() => setIsCreateClientOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        if (!newClientName.trim()) {
+                          toast({
+                            title: "Error",
+                            description: "El nombre del cliente es requerido",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+                        createClientMutation.mutate({
+                          clientName: newClientName,
+                          clientCompany: newClientCompany,
+                          segment: newClientSegment,
                         });
-                        return;
-                      }
-                      createClientMutation.mutate({
-                        clientName: newClientName,
-                        clientCompany: newClientCompany,
-                        segment: newClientSegment,
-                      });
-                    }}
-                    disabled={createClientMutation.isPending}
-                    data-testid="button-submit-new-client"
-                  >
-                    {createClientMutation.isPending ? (
-                      <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                    ) : null}
-                    Agregar
-                  </Button>
+                      }}
+                      disabled={createClientMutation.isPending}
+                      data-testid="button-submit-new-client"
+                    >
+                      {createClientMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                      ) : null}
+                      Agregar
+                    </Button>
+                  </div>
                 </div>
               </div>
             </DialogContent>
