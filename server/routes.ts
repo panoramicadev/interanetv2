@@ -5905,6 +5905,29 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Delete client from seguimiento (admin/supervisor only)
+  app.delete('/api/crm/clientes-recurrentes/:id', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { id } = req.params;
+
+      if (!id) {
+        return res.status(400).json({ message: "Client ID is required" });
+      }
+
+      // Check authorization - only admin or supervisor
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Only supervisors and admins can delete clients from seguimiento" });
+      }
+
+      await storage.deleteLead(id);
+      res.json({ message: "Client removed from seguimiento successfully" });
+    } catch (error) {
+      console.error("Error deleting cliente recurrente:", error);
+      res.status(500).json({ message: "Failed to delete client" });
+    }
+  });
+
   // Combined endpoint to create CRM lead from inactive client (from salesperson dashboard)
   app.post('/api/crm/inactive-clients/:id/create-lead', requireCommercialAccess, async (req: any, res) => {
     try {
