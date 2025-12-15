@@ -49,7 +49,7 @@ import { executeNVVETL, nvvEtlProgressEmitter, nvvSqlServerBreaker, getNVVProgre
 import * as NotifyHelper from "./notifications-helper";
 import { format } from "date-fns";
 import { wrapEmailContent } from "./email-templates";
-import { getAuthUrl, handleCallback, getValidAccessToken, disconnectGmail, isOAuthConfigured } from "./gmail-oauth";
+import { getAuthUrl, handleCallback, getValidAccessToken, disconnectGmail, isOAuthConfigured, validateStateToken } from "./gmail-oauth";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
@@ -9015,7 +9015,7 @@ export function registerRoutes(app: Express): Server {
         });
       }
       
-      const authUrl = getAuthUrl();
+      const { url: authUrl, state } = getAuthUrl();
       res.json({ authUrl });
     } catch (error: any) {
       console.error('❌ Error generando URL OAuth:', error);
@@ -9028,7 +9028,7 @@ export function registerRoutes(app: Express): Server {
 
   app.get('/api/oauth/google/callback', asyncHandler(async (req: any, res: any) => {
     try {
-      const { code, error } = req.query;
+      const { code, error, state } = req.query;
       
       if (error) {
         return res.redirect('/admin?tab=correos&oauth=error&message=' + encodeURIComponent(error));
@@ -9036,6 +9036,12 @@ export function registerRoutes(app: Express): Server {
       
       if (!code) {
         return res.redirect('/admin?tab=correos&oauth=error&message=No+se+recibió+código+de+autorización');
+      }
+      
+      // Validate state token for CSRF protection
+      if (!state || !validateStateToken(state as string)) {
+        console.error('❌ OAuth callback: Invalid or missing state token');
+        return res.redirect('/admin?tab=correos&oauth=error&message=Token+de+seguridad+inválido.+Intenta+nuevamente.');
       }
       
       const result = await handleCallback(code as string);
