@@ -555,6 +555,59 @@ export default function GastosEmpresarialesDashboard() {
         </Card>
       </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5" />
+            Últimos 10 Gastos Registrados
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {gastosRecientes.length > 0 ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Descripción</TableHead>
+                    <TableHead>Categoría</TableHead>
+                    <TableHead>Proveedor</TableHead>
+                    <TableHead className="text-right">Monto</TableHead>
+                    <TableHead className="text-center">Estado</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {gastosRecientes.map((gasto) => (
+                    <TableRow key={gasto.id} data-testid={`row-gasto-${gasto.id}`}>
+                      <TableCell className="whitespace-nowrap">
+                        {formatFullDate(gasto.createdAt as any)}
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate">
+                        {gasto.descripcion}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{gasto.categoria}</Badge>
+                      </TableCell>
+                      <TableCell>{gasto.proveedor || '-'}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(parseFloat(gasto.monto as any))}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {getEstadoBadge(gasto.estado)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-32 text-gray-500">
+              No hay gastos registrados
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
@@ -638,59 +691,6 @@ export default function GastosEmpresarialesDashboard() {
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5" />
-            Últimos 10 Gastos Registrados
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {gastosRecientes.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Fecha</TableHead>
-                    <TableHead>Descripción</TableHead>
-                    <TableHead>Categoría</TableHead>
-                    <TableHead>Proveedor</TableHead>
-                    <TableHead className="text-right">Monto</TableHead>
-                    <TableHead className="text-center">Estado</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {gastosRecientes.map((gasto) => (
-                    <TableRow key={gasto.id} data-testid={`row-gasto-${gasto.id}`}>
-                      <TableCell className="whitespace-nowrap">
-                        {formatFullDate(gasto.createdAt as any)}
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate">
-                        {gasto.descripcion}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{gasto.categoria}</Badge>
-                      </TableCell>
-                      <TableCell>{gasto.proveedor || '-'}</TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(parseFloat(gasto.monto as any))}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {getEstadoBadge(gasto.estado)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-32 text-gray-500">
-              No hay gastos registrados
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
