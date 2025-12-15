@@ -35,7 +35,9 @@ import {
   insertProveedorMantencionSchema,
   insertPresupuestoMantencionSchema,
   insertGastoMaterialMantencionSchema,
-  insertPlanPreventivoSchema
+  insertPlanPreventivoSchema,
+  // Email notification settings
+  emailNotificationSettings
 } from "../shared/schema";
 import { eq, and, isNotNull, ne, sql, desc, or, sum, countDistinct } from "drizzle-orm";
 import { emailService } from "./services/email";
@@ -8781,6 +8783,78 @@ export function registerRoutes(app: Express): Server {
         message: 'Failed to get region diagnostics',
         error: error.message
       });
+    }
+  }));
+
+  // ==============================================
+  // EMAIL NOTIFICATION SETTINGS ENDPOINTS
+  // ==============================================
+
+  // Get all email notification settings
+  app.get('/api/admin/email-notification-settings', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const settings = await db.select().from(emailNotificationSettings).orderBy(emailNotificationSettings.displayName);
+      res.json(settings);
+    } catch (error: any) {
+      console.error('❌ Error al obtener configuraciones de notificación:', error);
+      res.status(500).json({ message: 'Error al obtener configuraciones', error: error.message });
+    }
+  }));
+
+  // Get SMTP status
+  app.get('/api/admin/smtp-status', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    res.json({
+      configured: !!(process.env.SMTP_HOST && process.env.SMTP_USER),
+      host: process.env.SMTP_HOST || 'No configurado'
+    });
+  }));
+
+  // Initialize default notification settings
+  app.post('/api/admin/email-notification-settings/initialize', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const defaultSettings = [
+        { notificationType: 'pedido_nuevo', displayName: 'Pedido Nuevo', description: 'Notificar cuando se crea un nuevo pedido de cliente', enabled: false },
+        { notificationType: 'reclamo_nuevo', displayName: 'Reclamo Nuevo', description: 'Notificar cuando se registra un nuevo reclamo', enabled: false },
+        { notificationType: 'cotizacion_convertida', displayName: 'Cotización Convertida', description: 'Notificar cuando una cotización se convierte en pedido', enabled: false },
+        { notificationType: 'stock_bajo', displayName: 'Stock Bajo', description: 'Alertar cuando el inventario está bajo el mínimo', enabled: false },
+        { notificationType: 'tarea_asignada', displayName: 'Tarea Asignada', description: 'Notificar cuando se asigna una tarea a un usuario', enabled: false },
+        { notificationType: 'alerta_inactividad', displayName: 'Alerta de Inactividad', description: 'Notificar sobre clientes sin compras recientes', enabled: false },
+        { notificationType: 'visita_tecnica', displayName: 'Visita Técnica Programada', description: 'Notificar sobre nuevas visitas técnicas', enabled: false },
+        { notificationType: 'mantencion_preventiva', displayName: 'Mantención Preventiva', description: 'Alertar sobre mantenciones programadas', enabled: false },
+      ];
+
+      for (const setting of defaultSettings) {
+        await db.insert(emailNotificationSettings)
+          .values(setting)
+          .onConflictDoNothing();
+      }
+
+      res.json({ success: true, message: 'Configuraciones inicializadas correctamente' });
+    } catch (error: any) {
+      console.error('❌ Error al inicializar configuraciones:', error);
+      res.status(500).json({ message: 'Error al inicializar configuraciones', error: error.message });
+    }
+  }));
+
+  // Update email notification setting
+  app.patch('/api/admin/email-notification-settings/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const { enabled, recipients, ccRecipients } = req.body;
+
+      const updateData: any = { updatedAt: new Date() };
+      if (typeof enabled === 'boolean') updateData.enabled = enabled;
+      if (recipients !== undefined) updateData.recipients = recipients;
+      if (ccRecipients !== undefined) updateData.ccRecipients = ccRecipients;
+
+      await db.update(emailNotificationSettings)
+        .set(updateData)
+        .where(eq(emailNotificationSettings.id, id));
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('❌ Error al actualizar configuración:', error);
+      res.status(500).json({ message: 'Error al actualizar configuración', error: error.message });
     }
   }));
 
