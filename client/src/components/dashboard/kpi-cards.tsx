@@ -409,11 +409,21 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     let comparisonText = "";
     
     if (filterType === "month" && selectedPeriod.match(/^\d{4}-\d{2}$/)) {
-      // Month comparison: "vs Oct 2024"
+      // Month comparison: "vs Oct 2024" or "vs Oct 2024 al 15/12" for current month
       const [year, month] = selectedPeriod.split('-').map(Number);
       const previousYear = year - 1;
       const monthName = format(new Date(year, month - 1, 1), 'MMM');
-      comparisonText = `vs ${monthName} ${previousYear}`;
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
+      
+      // If it's the current month, add "al DD/MM" to indicate partial comparison
+      if (year === currentYear && month === currentMonth) {
+        const dayOfMonth = now.getDate();
+        comparisonText = `vs ${monthName} ${previousYear} al ${dayOfMonth}/${String(month).padStart(2, '0')}`;
+      } else {
+        comparisonText = `vs ${monthName} ${previousYear}`;
+      }
     } else if (filterType === "day" && selectedPeriod.match(/^\d{4}-\d{2}-\d{2}$/)) {
       // Day comparison: "vs 28 Oct 2024"
       const [year, month, day] = selectedPeriod.split('-').map(Number);
