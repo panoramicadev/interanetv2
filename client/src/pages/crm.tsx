@@ -761,18 +761,8 @@ function LeadCard({
       onClick={onViewDetails}
     >
       <CardContent className={isMobile ? "p-3 space-y-2.5" : "p-3 space-y-2"}>
-        {/* Badges: tipo cliente + vendedor asignado */}
+        {/* Badges: vendedor asignado + segmento */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          {lead.clientType && (
-            <div className={`inline-flex items-center gap-1 ${isMobile ? 'px-2.5 py-1' : 'px-2 py-0.5'} rounded-full text-[10px] font-medium ${
-              lead.clientType === 'recurrente' 
-                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' 
-                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-            }`}>
-              <User className="w-2.5 h-2.5" />
-              {lead.clientType === 'recurrente' ? 'Recurrente' : 'Nuevo'}
-            </div>
-          )}
           <div className={`inline-flex items-center gap-1 ${isMobile ? 'px-2.5 py-1' : 'px-2 py-0.5'} rounded-full text-[10px] font-medium ${
             lead.salespersonName 
               ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' 
