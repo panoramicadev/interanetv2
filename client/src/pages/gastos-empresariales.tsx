@@ -193,7 +193,7 @@ export default function GastosEmpresariales() {
     }).format(num);
   };
 
-  const canApproveReject = user?.role === 'admin' || user?.role === 'supervisor';
+  const canApproveReject = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'recursos_humanos';
   const canDelete = (gasto: GastoEmpresarial) => {
     return gasto.userId === user?.id && gasto.estado === 'pendiente' || user?.role === 'admin';
   };
@@ -317,7 +317,38 @@ export default function GastosEmpresariales() {
                       </TableCell>
                       <TableCell>{getEstadoBadge(gasto.estado)}</TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end gap-1">
+                          {canApproveReject && gasto.estado === 'pendiente' && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedGasto(gasto);
+                                  setShowApprovalDialog(true);
+                                }}
+                                title="Aprobar"
+                                data-testid={`button-approve-${gasto.id}`}
+                              >
+                                <Check className="h-4 w-4 text-green-600" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedGasto(gasto);
+                                  setComentarioRechazo("");
+                                  setShowRejectionDialog(true);
+                                }}
+                                title="Rechazar"
+                                data-testid={`button-reject-${gasto.id}`}
+                              >
+                                <X className="h-4 w-4 text-red-600" />
+                              </Button>
+                            </>
+                          )}
                           {canDelete(gasto) && (
                             <Button
                               size="sm"
