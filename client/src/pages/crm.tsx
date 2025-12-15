@@ -337,32 +337,6 @@ export default function CRMPage() {
 
         {/* Tab de Leads */}
         <TabsContent value="leads" className="space-y-2 sm:space-y-4">
-          {/* Inactive Clients Alert */}
-          {activeInactiveClients.length > 0 && (
-            <Alert className="bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800">
-              <AlertCircle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-              <AlertDescription className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-orange-800 dark:text-orange-200">
-                    Clientes que requieren atención: <strong>{activeInactiveClients.length}</strong>
-                  </span>
-                  <Badge variant="secondary" className="bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200">
-                    {activeInactiveClients.length}
-                  </Badge>
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="h-8 text-xs"
-                  onClick={() => setIsInactiveClientsDialogOpen(true)}
-                  data-testid="button-view-inactive-clients"
-                >
-                  Ver Detalles
-                </Button>
-              </AlertDescription>
-            </Alert>
-          )}
-
           {/* Barra de búsqueda y filtros */}
           <div className="flex flex-col gap-2 sm:gap-3">
             {/* Fila de filtros: en móvil horizontal, en desktop también horizontal */}
