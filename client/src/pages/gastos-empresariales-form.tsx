@@ -3,7 +3,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -43,12 +44,26 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+// Función para formatear nombres: Inicial mayúscula, resto minúscula
+const formatName = (name: string | null | undefined): string => {
+  if (!name) return '';
+  return name
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
 export default function GastosEmpresarialesForm() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isExtractingOCR, setIsExtractingOCR] = useState(false);
+
+  // Determinar si el usuario puede seleccionar otros colaboradores
+  const canSelectOthers = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'recursos_humanos';
 
   // Fetch salespeople
   const { data: salespeople = [], isLoading: isLoadingSalespeople } = useQuery<any[]>({
@@ -72,6 +87,13 @@ export default function GastosEmpresarialesForm() {
       fechaEmision: "",
     },
   });
+
+  // Establecer automáticamente el userId del usuario actual si no puede seleccionar otros
+  useEffect(() => {
+    if (user?.id && !canSelectOthers) {
+      form.setValue('userId', user.id);
+    }
+  }, [user?.id, canSelectOthers, form]);
 
   const createMutation = useMutation({
     mutationFn: async (data: FormValues) => {
@@ -309,17 +331,21 @@ export default function GastosEmpresarialesForm() {
               <div className="space-y-4">
                 <h3 className="font-semibold text-lg">Información Básica</h3>
                 
-                {/* Vendedor Selector */}
+                {/* Colaborador Selector */}
                 <FormField
                   control={form.control}
                   name="userId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Vendedor *</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <FormLabel>Colaborador *</FormLabel>
+                      <Select 
+                        onValueChange={field.onChange} 
+                        value={field.value}
+                        disabled={!canSelectOthers}
+                      >
                         <FormControl>
                           <SelectTrigger data-testid="select-vendedor-gasto">
-                            <SelectValue placeholder="Seleccionar vendedor" />
+                            <SelectValue placeholder="Seleccionar colaborador" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -328,12 +354,15 @@ export default function GastosEmpresarialesForm() {
                           ) : (
                             salespeople.map((salesperson: any) => (
                               <SelectItem key={salesperson.id} value={salesperson.id}>
-                                {salesperson.salespersonName || salesperson.email || salesperson.username}
+                                {formatName(salesperson.salespersonName || salesperson.email || salesperson.username)}
                               </SelectItem>
                             ))
                           )}
                         </SelectContent>
                       </Select>
+                      {!canSelectOthers && (
+                        <p className="text-xs text-gray-500 mt-1">Solo puedes registrar gastos a tu nombre</p>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
