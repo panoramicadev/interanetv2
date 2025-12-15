@@ -1983,7 +1983,7 @@ function EditLeadDialog({
   const formSchema = z.object({
     clientName: z.string().min(1, "Nombre del cliente es requerido"),
     supervisorId: z.string().optional(),
-    salespersonId: z.string().min(1, "Vendedor es requerido"),
+    salespersonId: z.string().optional(),
     clientPhone: z.string().optional(),
     clientEmail: z.string().email("Email inválido").optional().or(z.literal("")),
     clientCompany: z.string().optional(),
