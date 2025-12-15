@@ -19202,13 +19202,14 @@ export class DatabaseStorage implements IStorage {
       .from(crmLeads)
       .where(whereClause);
 
-    // KPIs
+    // KPIs - Consider both 'venta' and 'cerrado' as successful closures
+    const closedStages = ['venta', 'cerrado'];
     const totalLeads = allLeads.length;
-    const closedLeads = allLeads.filter(l => l.stage === 'venta').length;
+    const closedLeads = allLeads.filter(l => closedStages.includes(l.stage || '')).length;
     const conversionRate = totalLeads > 0 ? Math.round((closedLeads / totalLeads) * 100) : 0;
     
     // Average days to close (for closed leads)
-    const closedLeadsWithDates = allLeads.filter(l => l.stage === 'venta' && l.createdAt && l.updatedAt);
+    const closedLeadsWithDates = allLeads.filter(l => closedStages.includes(l.stage || '') && l.createdAt && l.updatedAt);
     let avgDaysToClose = 0;
     if (closedLeadsWithDates.length > 0) {
       const totalDays = closedLeadsWithDates.reduce((sum, lead) => {
@@ -19236,7 +19237,7 @@ export class DatabaseStorage implements IStorage {
       }
       const entry = salespersonMap.get(name)!;
       entry.total++;
-      if (lead.stage === 'venta') {
+      if (closedStages.includes(lead.stage || '')) {
         entry.closures++;
       }
     });
@@ -19259,7 +19260,7 @@ export class DatabaseStorage implements IStorage {
       }).length;
       
       const closures = allLeads.filter(l => {
-        if (!l.updatedAt || l.stage !== 'venta') return false;
+        if (!l.updatedAt || !closedStages.includes(l.stage || '')) return false;
         const updated = new Date(l.updatedAt);
         return updated >= monthDate && updated <= monthEnd;
       }).length;
@@ -19276,7 +19277,7 @@ export class DatabaseStorage implements IStorage {
       { bucket: '+60 días', count: 0 },
     ];
     
-    allLeads.filter(l => l.stage !== 'venta').forEach(lead => {
+    allLeads.filter(l => !closedStages.includes(l.stage || '') && l.stage !== 'perdido').forEach(lead => {
       if (!lead.createdAt) return;
       const days = Math.ceil((now.getTime() - new Date(lead.createdAt).getTime()) / (1000 * 60 * 60 * 24));
       if (days <= 7) agingBuckets[0].count++;
