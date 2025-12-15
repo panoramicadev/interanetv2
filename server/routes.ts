@@ -5740,10 +5740,13 @@ export function registerRoutes(app: Express): Server {
   // CRM Stages Management
   // ==================================================================================
 
-  // Get all stages
+  // Get all stages (use includeAll=true to get all stages including inactive for dropdown)
   app.get('/api/crm/stages', requireCommercialAccess, async (req: any, res) => {
     try {
-      const stages = await storage.getAllStages();
+      const includeAll = req.query.includeAll === 'true';
+      const stages = includeAll 
+        ? await storage.getAllStagesIncludingInactive()
+        : await storage.getAllStages();
       res.json(stages);
     } catch (error) {
       console.error("Error fetching stages:", error);

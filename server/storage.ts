@@ -19320,6 +19320,14 @@ export class DatabaseStorage implements IStorage {
     return results;
   }
 
+  async getAllStagesIncludingInactive(): Promise<CrmStage[]> {
+    const results = await db
+      .select()
+      .from(crmStages)
+      .orderBy(asc(crmStages.order));
+    return results;
+  }
+
   async getStageById(id: string): Promise<CrmStage | undefined> {
     const [result] = await db
       .select()
