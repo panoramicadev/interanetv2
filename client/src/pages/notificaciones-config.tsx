@@ -40,6 +40,8 @@ interface OAuthStatus {
   connected: boolean;
   oauthAvailable: boolean;
   email: string | null;
+  tokenValid?: boolean;
+  expiresAt?: string | null;
 }
 
 export default function NotificacionesConfigPage() {
@@ -254,11 +256,24 @@ export default function NotificacionesConfigPage() {
           <CardContent className="space-y-4">
             {oauthStatus?.connected ? (
               <div className="space-y-4">
-                <Alert className="bg-green-50 dark:bg-green-900/20 border-green-200">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <Alert className={oauthStatus.tokenValid !== false 
+                  ? "bg-green-50 dark:bg-green-900/20 border-green-200" 
+                  : "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200"
+                }>
+                  {oauthStatus.tokenValid !== false ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  ) : (
+                    <Clock className="h-4 w-4 text-yellow-600" />
+                  )}
                   <AlertDescription className="ml-2">
-                    <span className="text-green-800 dark:text-green-200">
+                    <span className={oauthStatus.tokenValid !== false 
+                      ? "text-green-800 dark:text-green-200" 
+                      : "text-yellow-800 dark:text-yellow-200"
+                    }>
                       Gmail vinculado: <strong>{oauthStatus.email}</strong>
+                      {oauthStatus.tokenValid === false && (
+                        <span className="block text-sm mt-1">Token expirado - haz clic en Probar para renovar</span>
+                      )}
                     </span>
                   </AlertDescription>
                 </Alert>
