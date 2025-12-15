@@ -49,6 +49,11 @@ export function SeguimientoClientesTab() {
     enabled: isCreateClientOpen && (currentUser?.role === 'admin' || currentUser?.role === 'supervisor'),
   });
 
+  const { data: segmentosDisponiables = [] } = useQuery<string[]>({
+    queryKey: ['/api/goals/data/segments'],
+    enabled: isCreateClientOpen,
+  });
+
   const addNoteMutation = useMutation({
     mutationFn: async ({ clientId, note }: { clientId: string; note: string }) => {
       return apiRequest('/api/crm/clientes-recurrentes/notes', {
@@ -153,7 +158,6 @@ export function SeguimientoClientesTab() {
             if (!open) {
               setSuggestionSearch('');
               setNewClientName('');
-              setNewClientCompany('');
               setNewClientSegment('');
               setNewClientSupervisor('');
               setNewClientSalesperson('');
@@ -224,27 +228,17 @@ export function SeguimientoClientesTab() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="clientCompany">Empresa</Label>
-                    <Input
-                      id="clientCompany"
-                      value={newClientCompany}
-                      onChange={(e) => setNewClientCompany(e.target.value)}
-                      placeholder="Nombre de la empresa"
-                      data-testid="input-new-client-company"
-                    />
-                  </div>
-                  <div className="space-y-2">
                     <Label htmlFor="segment">Segmento</Label>
                     <Select value={newClientSegment} onValueChange={setNewClientSegment}>
                       <SelectTrigger data-testid="select-new-client-segment">
                         <SelectValue placeholder="Seleccionar segmento" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Retail">Retail</SelectItem>
-                        <SelectItem value="Industrial">Industrial</SelectItem>
-                        <SelectItem value="Construcción">Construcción</SelectItem>
-                        <SelectItem value="Automotriz">Automotriz</SelectItem>
-                        <SelectItem value="Otro">Otro</SelectItem>
+                        {segmentosDisponiables.map((segment) => (
+                          <SelectItem key={segment} value={segment}>
+                            {segment}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -310,7 +304,7 @@ export function SeguimientoClientesTab() {
                         }
                         createClientMutation.mutate({
                           clientName: newClientName,
-                          clientCompany: newClientCompany,
+                          clientCompany: '',
                           segment: newClientSegment,
                           supervisorId: newClientSupervisor,
                           salespersonId: newClientSalesperson,
