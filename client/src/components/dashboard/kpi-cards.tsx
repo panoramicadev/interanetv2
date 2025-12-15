@@ -562,6 +562,12 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   // Renderizar tarjeta personalizada para Ventas Totales
   const renderSalesCard = (kpi: any) => {
     const salesTotal = Number(metrics?.totalSales || 0);
+    const previousSales = Number(metrics?.previousMonthSales || 0);
+    
+    // Calcular diferencia en monto
+    const salesDifference = salesTotal - previousSales;
+    const salesDifferenceFormatted = formatCurrency(Math.abs(salesDifference));
+    const salesDifferenceSign = salesDifference >= 0 ? '+' : '-';
     
     // Usar valores globales de NVV y GDV (sin filtros de fecha)
     const nvvTotal = Number(nvvGlobalMetrics?.totalAmount || 0);
@@ -583,17 +589,23 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               {kpi.value}
             </p>
             <div className="flex flex-col gap-0.5">
-              <div className="flex items-baseline gap-2 flex-wrap">
-                {/* Mostrar el monto del cambio si existe */}
-                {kpi.comparison && (
-                  <span className={`text-xs sm:text-sm font-semibold ${kpi.comparison.color}`}>
-                    {kpi.comparison.text}
-                  </span>
-                )}
-                {/* Siempre mostrar el porcentaje si hay datos */}
+              <div className="flex items-baseline gap-1.5 flex-wrap">
+                {/* Mostrar porcentaje */}
                 {kpi.change.percentage !== "Sin datos previos" && (
                   <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
-                    {kpi.comparison ? `(${kpi.change.percentage})` : kpi.change.percentage}
+                    {kpi.change.percentage}
+                  </span>
+                )}
+                {/* Mostrar diferencia en monto si hay datos previos */}
+                {previousSales > 0 && (
+                  <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
+                    {salesDifferenceSign}{salesDifferenceFormatted}
+                  </span>
+                )}
+                {/* Mostrar texto de comparación */}
+                {kpi.change.comparisonText && (
+                  <span className="text-[10px] text-gray-500">
+                    {kpi.change.comparisonText}
                   </span>
                 )}
                 {/* Mostrar "Sin datos previos" si no hay comparación */}
@@ -603,12 +615,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                   </span>
                 )}
               </div>
-              {/* Texto de comparación debajo */}
-              {kpi.change.comparisonText && (
-                <span className="text-[9px] sm:text-[10px] text-gray-500">
-                  {kpi.change.comparisonText}
-                </span>
-              )}
             </div>
             {/* Información adicional: NVV + GDV Pendiente y Total Combinado - Solo mostrar en mes actual */}
             {isCurrentMonth() && (
