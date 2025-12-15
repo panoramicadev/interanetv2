@@ -123,7 +123,7 @@ export default function NotificacionesConfigPage() {
   const connectGmailMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest('/api/oauth/google/authorize', { method: 'GET' });
-      return response;
+      return await response.json();
     },
     onSuccess: (data: any) => {
       if (data.authUrl) {
@@ -137,7 +137,8 @@ export default function NotificacionesConfigPage() {
 
   const disconnectGmailMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('/api/oauth/google/disconnect', { method: 'POST' });
+      const response = await apiRequest('/api/oauth/google/disconnect', { method: 'POST' });
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/oauth/google/status'] });
