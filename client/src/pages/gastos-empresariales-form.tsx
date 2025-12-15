@@ -338,30 +338,37 @@ export default function GastosEmpresarialesForm() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Colaborador *</FormLabel>
-                      <Select 
-                        onValueChange={field.onChange} 
-                        value={field.value}
-                        disabled={!canSelectOthers}
-                      >
-                        <FormControl>
-                          <SelectTrigger data-testid="select-vendedor-gasto">
-                            <SelectValue placeholder="Seleccionar colaborador" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {isLoadingSalespeople ? (
-                            <SelectItem value="loading" disabled>Cargando...</SelectItem>
-                          ) : (
-                            salespeople.map((salesperson: any) => (
-                              <SelectItem key={salesperson.id} value={salesperson.id}>
-                                {formatName(salesperson.salespersonName || salesperson.email || salesperson.username)}
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                      {!canSelectOthers && (
-                        <p className="text-xs text-gray-500 mt-1">Solo puedes registrar gastos a tu nombre</p>
+                      {!canSelectOthers ? (
+                        // Usuario regular: mostrar su nombre directamente
+                        <div className="flex flex-col gap-1">
+                          <div className="flex h-10 w-full items-center rounded-md border border-input bg-gray-100 px-3 py-2 text-sm">
+                            {formatName(user?.salespersonName || user?.email || user?.username || 'Usuario')}
+                          </div>
+                          <p className="text-xs text-gray-500">Solo puedes registrar gastos a tu nombre</p>
+                        </div>
+                      ) : (
+                        // Admin/Supervisor/Recursos Humanos: selector completo
+                        <Select 
+                          onValueChange={field.onChange} 
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="select-vendedor-gasto">
+                              <SelectValue placeholder="Seleccionar colaborador" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {isLoadingSalespeople ? (
+                              <SelectItem value="loading" disabled>Cargando...</SelectItem>
+                            ) : (
+                              salespeople.map((salesperson: any) => (
+                                <SelectItem key={salesperson.id} value={salesperson.id}>
+                                  {formatName(salesperson.salespersonName || salesperson.email || salesperson.username)}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
                       )}
                       <FormMessage />
                     </FormItem>
