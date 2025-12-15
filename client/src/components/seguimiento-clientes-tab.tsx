@@ -24,6 +24,8 @@ export function SeguimientoClientesTab() {
   const [newClientName, setNewClientName] = useState('');
   const [newClientCompany, setNewClientCompany] = useState('');
   const [newClientSegment, setNewClientSegment] = useState('');
+  const [newClientSupervisor, setNewClientSupervisor] = useState('');
+  const [newClientSalesperson, setNewClientSalesperson] = useState('');
   const [suggestionSearch, setSuggestionSearch] = useState('');
 
   const isSalesperson = currentUser?.role === 'salesperson';
@@ -35,6 +37,16 @@ export function SeguimientoClientesTab() {
   const { data: clientesSugeridos = [] } = useQuery<any[]>({
     queryKey: ['/api/crm/clientes-sugeridos'],
     enabled: isCreateClientOpen,
+  });
+
+  const { data: supervisores = [] } = useQuery<Array<{ id: string; salespersonName: string }>>({
+    queryKey: ['/api/users/salespeople/supervisors'],
+    enabled: isCreateClientOpen && (currentUser?.role === 'admin' || currentUser?.role === 'supervisor'),
+  });
+
+  const { data: vendedores = [] } = useQuery<Array<{ id: string; salespersonName: string }>>({
+    queryKey: ['/api/users/salespeople'],
+    enabled: isCreateClientOpen && (currentUser?.role === 'admin' || currentUser?.role === 'supervisor'),
   });
 
   const addNoteMutation = useMutation({
@@ -63,7 +75,7 @@ export function SeguimientoClientesTab() {
   });
 
   const createClientMutation = useMutation({
-    mutationFn: async (data: { clientName: string; clientCompany: string; segment: string }) => {
+    mutationFn: async (data: { clientName: string; clientCompany: string; segment: string; supervisorId: string; salespersonId: string }) => {
       return apiRequest('/api/crm/leads', {
         method: 'POST',
         data: {
@@ -73,9 +85,9 @@ export function SeguimientoClientesTab() {
           clientType: 'recurrente',
           stage: 'leads',
           priority: 'media',
-          salespersonId: currentUser?.id,
-          salespersonName: currentUser?.salespersonName || currentUser?.fullName,
-          supervisorId: currentUser?.supervisorId || currentUser?.id,
+          salespersonId: data.salespersonId,
+          salespersonName: vendedores.find(v => v.id === data.salespersonId)?.salespersonName || '',
+          supervisorId: data.supervisorId,
         }
       });
     },
@@ -143,6 +155,8 @@ export function SeguimientoClientesTab() {
               setNewClientName('');
               setNewClientCompany('');
               setNewClientSegment('');
+              setNewClientSupervisor('');
+              setNewClientSalesperson('');
             }
           }}>
             <DialogTrigger asChild>
@@ -232,6 +246,36 @@ export function SeguimientoClientesTab() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="supervisor">Supervisor *</Label>
+                    <Select value={newClientSupervisor} onValueChange={setNewClientSupervisor}>
+                      <SelectTrigger data-testid="select-new-client-supervisor">
+                        <SelectValue placeholder="Seleccionar supervisor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {supervisores.map(supervisor => (
+                          <SelectItem key={supervisor.id} value={supervisor.id}>
+                            {supervisor.salespersonName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="salesperson">Vendedor *</Label>
+                    <Select value={newClientSalesperson} onValueChange={setNewClientSalesperson}>
+                      <SelectTrigger data-testid="select-new-client-salesperson">
+                        <SelectValue placeholder="Seleccionar vendedor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {vendedores.map(vendedor => (
+                          <SelectItem key={vendedor.id} value={vendedor.id}>
+                            {vendedor.salespersonName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="flex justify-end gap-2 pt-4">
                     <Button variant="outline" onClick={() => setIsCreateClientOpen(false)}>
                       Cancelar
@@ -246,10 +290,28 @@ export function SeguimientoClientesTab() {
                           });
                           return;
                         }
+                        if (!newClientSupervisor) {
+                          toast({
+                            title: "Error",
+                            description: "Debe seleccionar un supervisor",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+                        if (!newClientSalesperson) {
+                          toast({
+                            title: "Error",
+                            description: "Debe seleccionar un vendedor",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
                         createClientMutation.mutate({
                           clientName: newClientName,
                           clientCompany: newClientCompany,
                           segment: newClientSegment,
+                          supervisorId: newClientSupervisor,
+                          salespersonId: newClientSalesperson,
                         });
                       }}
                       disabled={createClientMutation.isPending}
