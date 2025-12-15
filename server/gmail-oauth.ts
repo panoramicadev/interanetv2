@@ -1,4 +1,5 @@
-import { google } from 'google-auth-library';
+import { OAuth2Client } from 'google-auth-library';
+import { google } from 'googleapis';
 import { db } from './db';
 import { smtpConfig } from '../shared/schema';
 import { eq } from 'drizzle-orm';
@@ -22,7 +23,7 @@ function getOAuth2Client() {
       ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}/api/oauth/google/callback`
       : 'http://localhost:5000/api/oauth/google/callback';
   
-  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+  return new OAuth2Client(clientId, clientSecret, redirectUri);
 }
 
 export function getAuthUrl(): string {
