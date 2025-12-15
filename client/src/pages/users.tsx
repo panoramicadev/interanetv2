@@ -382,6 +382,7 @@ export default function UsersPage() {
                             <SelectItem value="planificacion">Planificación</SelectItem>
                             <SelectItem value="bodega_materias_primas">Bodega Materias Primas</SelectItem>
                             <SelectItem value="prevencion_riesgos">Prevención de Riesgos</SelectItem>
+                            <SelectItem value="recursos_humanos">Recursos Humanos</SelectItem>
                             <SelectItem value="client">Cliente</SelectItem>
                             <SelectItem value="reception">Recepción</SelectItem>
                           </SelectContent>
@@ -762,6 +763,7 @@ export default function UsersPage() {
                         <SelectItem value="planificacion">Planificación</SelectItem>
                         <SelectItem value="bodega_materias_primas">Bodega Materias Primas</SelectItem>
                         <SelectItem value="prevencion_riesgos">Prevención de Riesgos</SelectItem>
+                        <SelectItem value="recursos_humanos">Recursos Humanos</SelectItem>
                         <SelectItem value="client">Cliente</SelectItem>
                         <SelectItem value="reception">Recepción</SelectItem>
                       </SelectContent>
@@ -997,6 +999,7 @@ export default function UsersPage() {
                              user.role === 'planificacion' ? 'Planificación' :
                              user.role === 'bodega_materias_primas' ? 'Bodega Materias Primas' :
                              user.role === 'prevencion_riesgos' ? 'Prevención de Riesgos' :
+                             user.role === 'recursos_humanos' ? 'Recursos Humanos' :
                              user.role === 'client' ? 'Cliente' : 
                              user.role === 'reception' ? 'Recepción' : 'Vendedor'}
                           </Badge>
