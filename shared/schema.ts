@@ -3237,6 +3237,12 @@ export const smtpConfig = pgTable("smtp_config", {
   email: varchar("email").notNull().default(""),
   password: varchar("password").notNull().default(""),
   fromName: varchar("from_name").default("Panoramica"),
+  // OAuth fields for Gmail
+  authMethod: varchar("auth_method").default("password"), // 'password' or 'oauth'
+  oauthAccessToken: text("oauth_access_token"),
+  oauthRefreshToken: text("oauth_refresh_token"),
+  oauthTokenExpiry: timestamp("oauth_token_expiry"),
+  oauthEmail: varchar("oauth_email"), // Email from OAuth
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
