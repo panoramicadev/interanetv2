@@ -137,8 +137,7 @@ function Router() {
                   return <MantencionesPage />;
                 case 'recursos_humanos':
                   // Recursos humanos va directamente al dashboard de rendición de gastos
-                  window.location.replace('/gastos-empresariales/dashboard');
-                  return null;
+                  return <GastosEmpresarialesDashboard />;
                 case 'produccion':
                 case 'planificacion':
                 case 'bodega_materias_primas':
