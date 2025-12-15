@@ -26,14 +26,51 @@ function getOAuth2Client() {
   return new OAuth2Client(clientId, clientSecret, redirectUri);
 }
 
-export function getAuthUrl(): string {
+import crypto from 'crypto';
+
+// Store state tokens for CSRF protection (in production, use session storage)
+const stateTokens = new Map<string, { timestamp: number }>();
+
+// Clean up expired state tokens (5 minutes expiry)
+function cleanupStateTokens() {
+  const now = Date.now();
+  for (const [token, data] of stateTokens.entries()) {
+    if (now - data.timestamp > 5 * 60 * 1000) {
+      stateTokens.delete(token);
+    }
+  }
+}
+
+export function getAuthUrl(): { url: string; state: string } {
   const oauth2Client = getOAuth2Client();
   
-  return oauth2Client.generateAuthUrl({
+  // Generate cryptographically random state token for CSRF protection
+  const state = crypto.randomBytes(32).toString('hex');
+  
+  // Store state token with timestamp
+  cleanupStateTokens();
+  stateTokens.set(state, { timestamp: Date.now() });
+  
+  const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
     prompt: 'consent',
+    state: state,
   });
+  
+  return { url, state };
+}
+
+export function validateStateToken(state: string): boolean {
+  cleanupStateTokens();
+  
+  if (!state || !stateTokens.has(state)) {
+    return false;
+  }
+  
+  // Remove the token after validation (one-time use)
+  stateTokens.delete(state);
+  return true;
 }
 
 export async function handleCallback(code: string): Promise<{ email: string; success: boolean }> {
