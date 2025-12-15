@@ -189,6 +189,8 @@ export function SeguimientoClientesTab() {
                           onClick={() => {
                             setNewClientName(client.clientName);
                             setNewClientSegment(client.segment || '');
+                            setNewClientSalesperson(client.salespersonId || '');
+                            setNewClientSupervisor(client.supervisorId || '');
                             setSuggestionSearch('');
                           }}
                           data-testid={`suggestion-${idx}`}
