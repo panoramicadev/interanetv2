@@ -199,3 +199,54 @@ export async function disconnectGmail(): Promise<void> {
 export function isOAuthConfigured(): boolean {
   return !!(process.env.GOOGLE_OAUTH_CLIENT_ID && process.env.GOOGLE_OAUTH_CLIENT_SECRET);
 }
+
+export async function sendEmailWithOAuth(options: {
+  to: string;
+  subject: string;
+  html: string;
+  from?: string;
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const tokenData = await getValidAccessToken();
+  
+  if (!tokenData) {
+    return { success: false, error: 'Gmail OAuth no está conectado o el token expiró' };
+  }
+  
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials({ access_token: tokenData.accessToken });
+  
+  const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+  
+  // Build the email
+  const fromAddress = options.from || tokenData.email;
+  const emailLines = [
+    `From: ${fromAddress}`,
+    `To: ${options.to}`,
+    `Subject: =?UTF-8?B?${Buffer.from(options.subject).toString('base64')}?=`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/html; charset=UTF-8',
+    '',
+    options.html,
+  ];
+  
+  const email = emailLines.join('\r\n');
+  const encodedEmail = Buffer.from(email)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  
+  try {
+    const response = await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: {
+        raw: encodedEmail,
+      },
+    });
+    
+    return { success: true, messageId: response.data.id || undefined };
+  } catch (error: any) {
+    console.error('Error sending email via Gmail OAuth:', error);
+    return { success: false, error: error.message || 'Error al enviar correo' };
+  }
+}
