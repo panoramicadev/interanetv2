@@ -49,6 +49,7 @@ import { executeNVVETL, nvvEtlProgressEmitter, nvvSqlServerBreaker, getNVVProgre
 import * as NotifyHelper from "./notifications-helper";
 import { format } from "date-fns";
 import { wrapEmailContent } from "./email-templates";
+import { getAuthUrl, handleCallback, getValidAccessToken, disconnectGmail, isOAuthConfigured } from "./gmail-oauth";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
@@ -9000,6 +9001,90 @@ export function registerRoutes(app: Express): Server {
       res.status(400).json({ 
         success: false, 
         message: `Error de conexión: ${error.message}` 
+      });
+    }
+  }));
+
+  // Google OAuth routes for Gmail
+  app.get('/api/oauth/google/authorize', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      if (!isOAuthConfigured()) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Google OAuth no está configurado en el servidor' 
+        });
+      }
+      
+      const authUrl = getAuthUrl();
+      res.json({ authUrl });
+    } catch (error: any) {
+      console.error('❌ Error generando URL OAuth:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: `Error: ${error.message}` 
+      });
+    }
+  }));
+
+  app.get('/api/oauth/google/callback', asyncHandler(async (req: any, res: any) => {
+    try {
+      const { code, error } = req.query;
+      
+      if (error) {
+        return res.redirect('/admin?tab=correos&oauth=error&message=' + encodeURIComponent(error));
+      }
+      
+      if (!code) {
+        return res.redirect('/admin?tab=correos&oauth=error&message=No+se+recibió+código+de+autorización');
+      }
+      
+      const result = await handleCallback(code as string);
+      
+      res.redirect('/admin?tab=correos&oauth=success&email=' + encodeURIComponent(result.email));
+    } catch (error: any) {
+      console.error('❌ Error en callback OAuth:', error);
+      res.redirect('/admin?tab=correos&oauth=error&message=' + encodeURIComponent(error.message));
+    }
+  }));
+
+  app.get('/api/oauth/google/status', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const configs = await db.select().from(smtpConfig).where(eq(smtpConfig.id, 'default'));
+      const config = configs[0];
+      
+      const oauthConfigured = isOAuthConfigured();
+      
+      if (!config || config.authMethod !== 'oauth' || !config.oauthRefreshToken) {
+        return res.json({ 
+          connected: false,
+          oauthAvailable: oauthConfigured,
+          email: null 
+        });
+      }
+      
+      res.json({ 
+        connected: true,
+        oauthAvailable: oauthConfigured,
+        email: config.oauthEmail || config.email 
+      });
+    } catch (error: any) {
+      console.error('❌ Error obteniendo estado OAuth:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: `Error: ${error.message}` 
+      });
+    }
+  }));
+
+  app.post('/api/oauth/google/disconnect', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      await disconnectGmail();
+      res.json({ success: true, message: 'Gmail desvinculado correctamente' });
+    } catch (error: any) {
+      console.error('❌ Error desvinculando Gmail:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: `Error: ${error.message}` 
       });
     }
   }));
