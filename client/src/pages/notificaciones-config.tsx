@@ -6,13 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Mail, Save, Plus, AlertCircle, CheckCircle2, History, ExternalLink, Clock, Send, XCircle, TestTube, Settings, Eye, EyeOff } from "lucide-react";
+import { Loader2, Mail, Save, Plus, AlertCircle, CheckCircle2, History, ExternalLink, Clock, Send, XCircle, TestTube, Settings, Eye, EyeOff, Link, Unlink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { SiGoogle } from "react-icons/si";
 
 interface EmailNotificationSetting {
   id: string;
@@ -44,6 +45,12 @@ interface SmtpConfigData {
   hasPassword: boolean;
 }
 
+interface OAuthStatus {
+  connected: boolean;
+  oauthAvailable: boolean;
+  email: string | null;
+}
+
 export default function NotificacionesConfigPage() {
   const { toast } = useToast();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -70,6 +77,10 @@ export default function NotificacionesConfigPage() {
 
   const { data: smtpConfigData } = useQuery<SmtpConfigData>({
     queryKey: ['/api/admin/smtp-config'],
+  });
+
+  const { data: oauthStatus, refetch: refetchOAuthStatus } = useQuery<OAuthStatus>({
+    queryKey: ['/api/oauth/google/status'],
   });
 
   const { data: emailLogs = [], isLoading: isLoadingLogs } = useQuery<EmailLog[]>({
@@ -159,6 +170,61 @@ export default function NotificacionesConfigPage() {
     },
   });
 
+  const connectGmailMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('/api/oauth/google/authorize', { method: 'GET' });
+      return response;
+    },
+    onSuccess: (data: any) => {
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      }
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const disconnectGmailMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('/api/oauth/google/disconnect', { method: 'POST' });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/oauth/google/status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/smtp-status'] });
+      toast({ title: "Gmail desvinculado", description: "Se ha desconectado tu cuenta de Gmail" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Check for OAuth callback results in URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const oauth = urlParams.get('oauth');
+    const email = urlParams.get('email');
+    const message = urlParams.get('message');
+    
+    if (oauth === 'success' && email) {
+      toast({ 
+        title: "Gmail vinculado exitosamente", 
+        description: `Conectado con: ${email}` 
+      });
+      refetchOAuthStatus();
+      refetchSmtpStatus();
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (oauth === 'error') {
+      toast({ 
+        title: "Error al vincular Gmail", 
+        description: message || "Ocurrió un error durante la autenticación",
+        variant: "destructive"
+      });
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   const handleEdit = (setting: EmailNotificationSetting) => {
     setEditingId(setting.id);
     setEditValues({
@@ -233,15 +299,93 @@ export default function NotificacionesConfigPage() {
         </p>
       </div>
 
-      {/* Section 1: SMTP Configuration Form */}
+      {/* Section 0: Google OAuth Connection */}
+      {oauthStatus?.oauthAvailable && (
+        <Card className="border-2 border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-gray-900">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <SiGoogle className="w-5 h-5 text-[#4285F4]" />
+              Vincular con Google
+            </CardTitle>
+            <CardDescription>
+              Conecta tu cuenta de Gmail para enviar correos de forma segura usando OAuth
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {oauthStatus?.connected ? (
+              <div className="space-y-4">
+                <Alert className="bg-green-50 dark:bg-green-900/20 border-green-200">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="ml-2">
+                    <span className="text-green-800 dark:text-green-200">
+                      Gmail vinculado: <strong>{oauthStatus.email}</strong>
+                    </span>
+                  </AlertDescription>
+                </Alert>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => disconnectGmailMutation.mutate()}
+                    disabled={disconnectGmailMutation.isPending}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    data-testid="button-disconnect-gmail"
+                  >
+                    {disconnectGmailMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    <Unlink className="w-4 h-4 mr-2" />
+                    Desvincular Gmail
+                  </Button>
+                  <Button
+                    onClick={() => testConnectionMutation.mutate(testEmail)}
+                    disabled={testConnectionMutation.isPending}
+                    variant="outline"
+                    data-testid="button-test-oauth"
+                  >
+                    {testConnectionMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    <TestTube className="w-4 h-4 mr-2" />
+                    Probar Conexión
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <h4 className="font-semibold text-blue-800 dark:text-blue-200 mb-2">
+                    ¿Por qué usar Google OAuth?
+                  </h4>
+                  <ul className="list-disc list-inside space-y-1 text-sm text-blue-700 dark:text-blue-300">
+                    <li>Más seguro: no necesitas guardar contraseñas</li>
+                    <li>Fácil: solo un clic para conectar</li>
+                    <li>Automático: los tokens se renuevan automáticamente</li>
+                  </ul>
+                </div>
+                <Button
+                  onClick={() => connectGmailMutation.mutate()}
+                  disabled={connectGmailMutation.isPending}
+                  className="bg-[#4285F4] hover:bg-[#3367D6] text-white"
+                  data-testid="button-connect-gmail"
+                >
+                  {connectGmailMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  <SiGoogle className="w-4 h-4 mr-2" />
+                  Vincular con Gmail
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Section 1: SMTP Configuration Form (Alternative) */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings className="w-5 h-5" />
-            Configuración de Gmail (App Password)
+            {oauthStatus?.oauthAvailable ? 'Configuración Alternativa (App Password)' : 'Configuración de Gmail (App Password)'}
           </CardTitle>
           <CardDescription>
-            Ingresa los datos de tu cuenta de Gmail con App Password para enviar correos
+            {oauthStatus?.connected 
+              ? 'Opcionalmente puedes configurar App Password como respaldo'
+              : 'Ingresa los datos de tu cuenta de Gmail con App Password para enviar correos'
+            }
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
