@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Mail, Save, Plus, AlertCircle, CheckCircle2, History, ExternalLink, Clock, Send, XCircle, TestTube, Settings, Eye, EyeOff, Link, Unlink } from "lucide-react";
+import { Loader2, Mail, Save, Plus, CheckCircle2, History, Clock, Send, XCircle, TestTube, Unlink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -36,15 +36,6 @@ interface EmailLog {
   createdAt: string;
 }
 
-interface SmtpConfigData {
-  host: string;
-  port: number;
-  email: string;
-  password: string;
-  fromName: string;
-  hasPassword: boolean;
-}
-
 interface OAuthStatus {
   connected: boolean;
   oauthAvailable: boolean;
@@ -56,27 +47,9 @@ export default function NotificacionesConfigPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{ recipients: string; ccRecipients: string }>({ recipients: '', ccRecipients: '' });
   const [testEmail, setTestEmail] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  
-  const [smtpForm, setSmtpForm] = useState<SmtpConfigData>({
-    host: 'smtp.gmail.com',
-    port: 587,
-    email: '',
-    password: '',
-    fromName: 'Panoramica',
-    hasPassword: false
-  });
 
   const { data: settings = [], isLoading } = useQuery<EmailNotificationSetting[]>({
     queryKey: ['/api/admin/email-notification-settings'],
-  });
-
-  const { data: smtpStatus, refetch: refetchSmtpStatus } = useQuery<{ configured: boolean; host: string; user: string }>({
-    queryKey: ['/api/admin/smtp-status'],
-  });
-
-  const { data: smtpConfigData } = useQuery<SmtpConfigData>({
-    queryKey: ['/api/admin/smtp-config'],
   });
 
   const { data: oauthStatus, refetch: refetchOAuthStatus } = useQuery<OAuthStatus>({
@@ -85,29 +58,6 @@ export default function NotificacionesConfigPage() {
 
   const { data: emailLogs = [], isLoading: isLoadingLogs } = useQuery<EmailLog[]>({
     queryKey: ['/api/admin/email-logs'],
-  });
-
-  useEffect(() => {
-    if (smtpConfigData) {
-      setSmtpForm(smtpConfigData);
-    }
-  }, [smtpConfigData]);
-
-  const saveSmtpConfigMutation = useMutation({
-    mutationFn: async (data: Partial<SmtpConfigData>) => {
-      return apiRequest('/api/admin/smtp-config', {
-        method: 'POST',
-        data,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/smtp-status'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/smtp-config'] });
-      toast({ title: "Configuración guardada", description: "Los datos de SMTP se guardaron correctamente" });
-    },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    },
   });
 
   const initializeSettingsMutation = useMutation({
@@ -212,7 +162,6 @@ export default function NotificacionesConfigPage() {
         description: `Conectado con: ${email}` 
       });
       refetchOAuthStatus();
-      refetchSmtpStatus();
       // Clean up URL
       window.history.replaceState({}, '', window.location.pathname);
     } else if (oauth === 'error') {
@@ -240,16 +189,6 @@ export default function NotificacionesConfigPage() {
         recipients: editValues.recipients,
         ccRecipients: editValues.ccRecipients,
       },
-    });
-  };
-
-  const handleSaveSmtpConfig = () => {
-    saveSmtpConfigMutation.mutate({
-      host: smtpForm.host,
-      port: smtpForm.port,
-      email: smtpForm.email,
-      password: smtpForm.password,
-      fromName: smtpForm.fromName,
     });
   };
 
@@ -322,29 +261,50 @@ export default function NotificacionesConfigPage() {
                     </span>
                   </AlertDescription>
                 </Alert>
-                <div className="flex gap-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => disconnectGmailMutation.mutate()}
-                    disabled={disconnectGmailMutation.isPending}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    data-testid="button-disconnect-gmail"
-                  >
-                    {disconnectGmailMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    <Unlink className="w-4 h-4 mr-2" />
-                    Desvincular Gmail
-                  </Button>
-                  <Button
-                    onClick={() => testConnectionMutation.mutate(testEmail)}
-                    disabled={testConnectionMutation.isPending}
-                    variant="outline"
-                    data-testid="button-test-oauth"
-                  >
-                    {testConnectionMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    <TestTube className="w-4 h-4 mr-2" />
+                
+                <Separator />
+                
+                <div>
+                  <h4 className="font-semibold mb-3 flex items-center gap-2">
+                    <TestTube className="w-4 h-4" />
                     Probar Conexión
-                  </Button>
+                  </h4>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex-1">
+                      <Input
+                        type="email"
+                        placeholder="Email para recibir prueba (opcional)"
+                        value={testEmail}
+                        onChange={(e) => setTestEmail(e.target.value)}
+                        data-testid="input-test-email"
+                      />
+                    </div>
+                    <Button
+                      onClick={() => testConnectionMutation.mutate(testEmail)}
+                      disabled={testConnectionMutation.isPending}
+                      variant="outline"
+                      data-testid="button-test-oauth"
+                    >
+                      {testConnectionMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      <TestTube className="w-4 h-4 mr-2" />
+                      Probar
+                    </Button>
+                  </div>
                 </div>
+
+                <Separator />
+
+                <Button
+                  variant="outline"
+                  onClick={() => disconnectGmailMutation.mutate()}
+                  disabled={disconnectGmailMutation.isPending}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  data-testid="button-disconnect-gmail"
+                >
+                  {disconnectGmailMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  <Unlink className="w-4 h-4 mr-2" />
+                  Desvincular Gmail
+                </Button>
               </div>
             ) : (
               <div className="space-y-4">
@@ -374,186 +334,7 @@ export default function NotificacionesConfigPage() {
         </Card>
       )}
 
-      {/* Section 1: SMTP Configuration Form (Alternative) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="w-5 h-5" />
-            {oauthStatus?.oauthAvailable ? 'Configuración Alternativa (App Password)' : 'Configuración de Gmail (App Password)'}
-          </CardTitle>
-          <CardDescription>
-            {oauthStatus?.connected 
-              ? 'Opcionalmente puedes configurar App Password como respaldo'
-              : 'Ingresa los datos de tu cuenta de Gmail con App Password para enviar correos'
-            }
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* SMTP Status */}
-          <Alert className={smtpStatus?.configured ? "bg-green-50 dark:bg-green-900/20 border-green-200" : "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200"}>
-            {smtpStatus?.configured ? (
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-            ) : (
-              <AlertCircle className="h-4 w-4 text-yellow-600" />
-            )}
-            <AlertDescription className="ml-2">
-              {smtpStatus?.configured ? (
-                <span className="text-green-800 dark:text-green-200">
-                  Gmail configurado: <strong>{smtpStatus.user}</strong>
-                </span>
-              ) : (
-                <span className="text-yellow-800 dark:text-yellow-200">
-                  Gmail no configurado. Completa los campos abajo.
-                </span>
-              )}
-            </AlertDescription>
-          </Alert>
-
-          {/* Instructions */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
-            <h4 className="font-semibold text-blue-800 dark:text-blue-200 mb-2">
-              Cómo obtener App Password de Google
-            </h4>
-            <ol className="list-decimal list-inside space-y-1 text-sm text-blue-700 dark:text-blue-300">
-              <li>Ve a tu cuenta de Google → Seguridad</li>
-              <li>Activa la verificación en 2 pasos</li>
-              <li>Busca "Contraseñas de aplicación"</li>
-              <li>Crea una contraseña para "Correo"</li>
-              <li>Copia la contraseña de 16 caracteres</li>
-            </ol>
-            <a
-              href="https://myaccount.google.com/apppasswords"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline font-medium mt-2"
-            >
-              Ir a Google App Passwords
-              <ExternalLink className="w-3 h-3" />
-            </a>
-          </div>
-
-          {/* SMTP Form */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="smtp-host">Servidor SMTP</Label>
-              <Input
-                id="smtp-host"
-                value={smtpForm.host}
-                onChange={(e) => setSmtpForm({ ...smtpForm, host: e.target.value })}
-                placeholder="smtp.gmail.com"
-                data-testid="input-smtp-host"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="smtp-port">Puerto</Label>
-              <Input
-                id="smtp-port"
-                type="number"
-                value={smtpForm.port}
-                onChange={(e) => setSmtpForm({ ...smtpForm, port: parseInt(e.target.value) || 587 })}
-                placeholder="587"
-                data-testid="input-smtp-port"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="smtp-email">Email de Gmail</Label>
-              <Input
-                id="smtp-email"
-                type="email"
-                value={smtpForm.email}
-                onChange={(e) => setSmtpForm({ ...smtpForm, email: e.target.value })}
-                placeholder="tu-email@gmail.com"
-                data-testid="input-smtp-email"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="smtp-password">App Password (16 caracteres)</Label>
-              <div className="relative">
-                <Input
-                  id="smtp-password"
-                  type={showPassword ? "text" : "password"}
-                  value={smtpForm.password}
-                  onChange={(e) => setSmtpForm({ ...smtpForm, password: e.target.value })}
-                  placeholder={smtpForm.hasPassword ? "••••••••••••••••" : "abcd efgh ijkl mnop"}
-                  className="pr-10"
-                  data-testid="input-smtp-password"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="smtp-from">Nombre del remitente</Label>
-              <Input
-                id="smtp-from"
-                value={smtpForm.fromName}
-                onChange={(e) => setSmtpForm({ ...smtpForm, fromName: e.target.value })}
-                placeholder="Panoramica"
-                data-testid="input-smtp-from"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button
-              onClick={handleSaveSmtpConfig}
-              disabled={saveSmtpConfigMutation.isPending || !smtpForm.email}
-              data-testid="button-save-smtp"
-            >
-              {saveSmtpConfigMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              <Save className="w-4 h-4 mr-2" />
-              Guardar Configuración
-            </Button>
-          </div>
-
-          <Separator />
-
-          {/* Test Connection */}
-          <div>
-            <h4 className="font-semibold mb-3 flex items-center gap-2">
-              <TestTube className="w-4 h-4" />
-              Probar Conexión
-            </h4>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1">
-                <Input
-                  type="email"
-                  placeholder="Email para recibir prueba (opcional)"
-                  value={testEmail}
-                  onChange={(e) => setTestEmail(e.target.value)}
-                  data-testid="input-test-email"
-                />
-              </div>
-              <Button
-                onClick={() => testConnectionMutation.mutate(testEmail)}
-                disabled={testConnectionMutation.isPending || !smtpStatus?.configured}
-                variant="outline"
-                data-testid="button-test-connection"
-              >
-                {testConnectionMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                <TestTube className="w-4 h-4 mr-2" />
-                Probar
-              </Button>
-            </div>
-            {!smtpStatus?.configured && (
-              <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
-                Guarda la configuración primero para poder probar.
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Separator />
-
-      {/* Section 2: Notification Types */}
+      {/* Section: Notification Types */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <Send className="w-5 h-5" />
