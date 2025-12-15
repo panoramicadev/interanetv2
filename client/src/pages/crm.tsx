@@ -12,7 +12,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
@@ -97,7 +96,6 @@ function getInactivityAlert(days: number): { show: boolean; level: 'warning' | '
 export default function CRMPage() {
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
-  const [activeTab, setActiveTab] = useState<'leads' | 'promesas'>('leads');
   const [clientTypeFilter] = useState<'nuevos'>('nuevos');
   const [searchQuery, setSearchQuery] = useState('');
   const [segmentFilter, setSegmentFilter] = useState('all');
@@ -328,14 +326,8 @@ export default function CRMPage() {
         )}
       </div>
 
-      {/* Tabs principales */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'leads' | 'promesas')}>
-        <TabsList className="h-9 sm:h-10">
-          <TabsTrigger value="leads" className="text-xs sm:text-sm" data-testid="tab-leads">Leads</TabsTrigger>
-        </TabsList>
-
-        {/* Tab de Leads */}
-        <TabsContent value="leads" className="space-y-2 sm:space-y-4">
+      {/* Contenido de Leads */}
+      <div className="space-y-2 sm:space-y-4">
           {/* Barra de búsqueda y filtros */}
           <div className="flex flex-col gap-2 sm:gap-3">
             {/* Fila de filtros: en móvil horizontal, en desktop también horizontal */}
@@ -561,13 +553,7 @@ export default function CRMPage() {
               })}
             </div>
           )}
-        </TabsContent>
-
-        {/* Tab de Promesas */}
-        <TabsContent value="promesas">
-          <PromesasCompraPage />
-        </TabsContent>
-      </Tabs>
+      </div>
 
       {/* Diálogo de Administración de Etapas */}
       <StageManagementDialog 
