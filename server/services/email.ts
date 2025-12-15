@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
+import { wrapEmailContent } from '../email-templates';
 
 interface EmailOptions {
   to: string;
@@ -79,96 +80,49 @@ class EmailService {
     recipientEmail: string = 'contacto@pinturaspanoramica.cl'
   ): Promise<boolean> {
     const subject = `Nueva Cotización Convertida a Pedido - ${quoteNumber}`;
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              line-height: 1.6;
-              color: #333;
-            }
-            .container {
-              max-width: 600px;
-              margin: 0 auto;
-              padding: 20px;
-            }
-            .header {
-              background: linear-gradient(to right, #fd6301, #e55100);
-              color: white;
-              padding: 20px;
-              text-align: center;
-              border-radius: 8px 8px 0 0;
-            }
-            .content {
-              background-color: #f8fafc;
-              padding: 20px;
-              border: 1px solid #e2e8f0;
-              border-top: none;
-              border-radius: 0 0 8px 8px;
-            }
-            .info-row {
-              margin: 10px 0;
-              padding: 10px;
-              background-color: white;
-              border-radius: 4px;
-            }
-            .label {
-              font-weight: bold;
-              color: #fd6301;
-            }
-            .footer {
-              margin-top: 20px;
-              padding-top: 20px;
-              border-top: 1px solid #e2e8f0;
-              font-size: 12px;
-              color: #6b7280;
-              text-align: center;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1 style="margin: 0;">Pinturas Panorámica</h1>
-              <p style="margin: 5px 0 0 0;">Nueva Cotización Convertida a Pedido</p>
-            </div>
-            <div class="content">
-              <p>Se ha convertido una cotización a pedido con los siguientes detalles:</p>
-              
-              <div class="info-row">
-                <span class="label">N° Cotización:</span> ${quoteNumber}
-              </div>
-              
-              <div class="info-row">
-                <span class="label">Cliente:</span> ${clientName}
-              </div>
-              
-              <div class="info-row">
-                <span class="label">Fecha:</span> ${new Date().toLocaleDateString('es-CL', {
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </div>
-              
-              <p style="margin-top: 20px;">
-                Adjunto encontrará el documento PDF de la cotización.
-              </p>
-              
-              <div class="footer">
-                <p><strong>Pinturas Panorámica</strong></p>
-                <p>Este es un correo automático del sistema de gestión de ventas.</p>
-              </div>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
+    const html = wrapEmailContent(`
+      <h2 style="color: #1a1f2e; margin: 0 0 20px 0; font-family: Arial, sans-serif;">
+        Nueva Cotización Convertida a Pedido
+      </h2>
+      <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+        Se ha convertido una cotización a pedido con los siguientes detalles:
+      </p>
+      
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom: 20px;">
+        <tr>
+          <td style="padding: 12px; background-color: #f8f9fa; border-radius: 4px; margin-bottom: 8px;">
+            <span style="font-weight: bold; color: #fd6301;">N° Cotización:</span>
+            <span style="color: #333; margin-left: 8px;">${quoteNumber}</span>
+          </td>
+        </tr>
+        <tr><td style="height: 8px;"></td></tr>
+        <tr>
+          <td style="padding: 12px; background-color: #f8f9fa; border-radius: 4px;">
+            <span style="font-weight: bold; color: #fd6301;">Cliente:</span>
+            <span style="color: #333; margin-left: 8px;">${clientName}</span>
+          </td>
+        </tr>
+        <tr><td style="height: 8px;"></td></tr>
+        <tr>
+          <td style="padding: 12px; background-color: #f8f9fa; border-radius: 4px;">
+            <span style="font-weight: bold; color: #fd6301;">Fecha:</span>
+            <span style="color: #333; margin-left: 8px;">${new Date().toLocaleDateString('es-CL', {
+              day: '2-digit',
+              month: 'long',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })}</span>
+          </td>
+        </tr>
+      </table>
+      
+      <div style="background-color: #e3f2fd; border-left: 4px solid #2196f3; padding: 15px; border-radius: 4px; margin: 20px 0;">
+        <p style="color: #1565c0; margin: 0; font-size: 14px;">
+          📎 Adjunto encontrará el documento PDF de la cotización.
+        </p>
+      </div>
+    `);
 
     return this.sendEmail({
       to: recipientEmail,
