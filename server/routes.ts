@@ -14728,8 +14728,8 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       
-      if (!['supervisor', 'admin'].includes(user.role)) {
-        return res.status(403).json({ message: 'Solo supervisores y admin pueden aprobar gastos' });
+      if (!['supervisor', 'admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'Solo supervisores, admin o recursos humanos pueden aprobar gastos' });
       }
       
       const gasto = await storage.aprobarGastoEmpresarial(req.params.id, user.id);
@@ -14744,8 +14744,8 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       
-      if (!['supervisor', 'admin'].includes(user.role)) {
-        return res.status(403).json({ message: 'Solo supervisores y admin pueden rechazar gastos' });
+      if (!['supervisor', 'admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'Solo supervisores, admin o recursos humanos pueden rechazar gastos' });
       }
       
       const { comentario } = req.body;
