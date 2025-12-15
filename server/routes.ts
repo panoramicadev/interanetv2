@@ -14589,10 +14589,10 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       const filters: any = {};
       
       // Salesperson can only see their own expenses
+      // recursos_humanos, supervisor and admin can see all and filter by userId
       if (user.role === 'salesperson') {
         filters.userId = user.id;
       } else if (userId) {
-        // Supervisor and admin can filter by userId
         filters.userId = userId;
       }
       

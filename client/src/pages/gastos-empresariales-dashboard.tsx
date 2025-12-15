@@ -133,6 +133,7 @@ export default function GastosEmpresarialesDashboard() {
   const [anio, setAnio] = useState(currentYear.toString());
   const [estadoFilter, setEstadoFilter] = useState("todos");
   const [categoriaFilter, setCategoriaFilter] = useState("todas");
+  const [usuarioFilter, setUsuarioFilter] = useState("todos");
 
   const { data: summary, isLoading: isLoadingSummary } = useQuery<GastosSummary>({
     queryKey: ['/api/gastos-empresariales/analytics/summary', mes, anio],
@@ -183,7 +184,7 @@ export default function GastosEmpresarialesDashboard() {
   });
 
   const { data: gastosRecientes = [] } = useQuery<GastoEmpresarial[]>({
-    queryKey: ['/api/gastos-empresariales', estadoFilter, categoriaFilter],
+    queryKey: ['/api/gastos-empresariales', estadoFilter, categoriaFilter, usuarioFilter],
     queryFn: async () => {
       let url = '/api/gastos-empresariales?limit=10';
       if (estadoFilter !== 'todos') {
@@ -191,6 +192,9 @@ export default function GastosEmpresarialesDashboard() {
       }
       if (categoriaFilter !== 'todas') {
         url += `&categoria=${encodeURIComponent(categoriaFilter)}`;
+      }
+      if (usuarioFilter !== 'todos') {
+        url += `&userId=${usuarioFilter}`;
       }
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Error al cargar gastos recientes');
@@ -470,6 +474,23 @@ export default function GastosEmpresarialesDashboard() {
                   <SelectItem value="todas">Todas</SelectItem>
                   {CATEGORIAS.map(cat => (
                     <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-gray-500" />
+              <Select value={usuarioFilter} onValueChange={setUsuarioFilter}>
+                <SelectTrigger className="w-[180px]" data-testid="select-usuario">
+                  <SelectValue placeholder="Usuario" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos los usuarios</SelectItem>
+                  {porUsuario.map(user => (
+                    <SelectItem key={user.userId} value={user.userId}>
+                      {user.userName}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
