@@ -8825,6 +8825,84 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Test SMTP connection
+  app.post('/api/admin/smtp-test', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { testEmail } = req.body;
+    
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpPort = process.env.SMTP_PORT;
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPassword = process.env.SMTP_PASSWORD;
+
+    if (!smtpHost || !smtpPort || !smtpUser || !smtpPassword) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'SMTP no configurado. Configure las variables de entorno primero.' 
+      });
+    }
+
+    try {
+      const nodemailer = await import('nodemailer');
+      const transporter = nodemailer.default.createTransport({
+        host: smtpHost,
+        port: parseInt(smtpPort),
+        secure: parseInt(smtpPort) === 465,
+        auth: {
+          user: smtpUser,
+          pass: smtpPassword,
+        },
+        tls: {
+          rejectUnauthorized: false,
+        },
+      });
+
+      // Verify connection
+      await transporter.verify();
+      
+      // Send test email if provided
+      if (testEmail) {
+        await transporter.sendMail({
+          from: process.env.SMTP_FROM || smtpUser,
+          to: testEmail,
+          subject: '🧪 Correo de Prueba - Panoramica',
+          html: `
+            <div style="font-family: Arial, sans-serif; padding: 20px;">
+              <h2 style="color: #fd6301;">¡Conexión Exitosa!</h2>
+              <p>Este es un correo de prueba enviado desde el sistema Panoramica.</p>
+              <p>Tu configuración de SMTP está funcionando correctamente.</p>
+              <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
+              <p style="color: #666; font-size: 12px;">
+                Enviado el ${format(new Date(), "dd/MM/yyyy HH:mm")}
+              </p>
+            </div>
+          `,
+        });
+        
+        // Log the test email
+        await db.insert(emailLogs).values({
+          recipient: testEmail,
+          subject: '🧪 Correo de Prueba - Panoramica',
+          notificationType: 'test',
+          status: 'sent',
+          sentAt: new Date(),
+        });
+      }
+
+      res.json({ 
+        success: true, 
+        message: testEmail 
+          ? `Conexión exitosa. Correo de prueba enviado a ${testEmail}` 
+          : 'Conexión SMTP verificada exitosamente'
+      });
+    } catch (error: any) {
+      console.error('❌ Error en prueba SMTP:', error);
+      res.status(400).json({ 
+        success: false, 
+        message: `Error de conexión: ${error.message}` 
+      });
+    }
+  }));
+
   // Initialize default notification settings
   app.post('/api/admin/email-notification-settings/initialize', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
