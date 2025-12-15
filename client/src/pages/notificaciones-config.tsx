@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Mail, Save, Plus, AlertCircle, CheckCircle2, History, ExternalLink, Clock, Send, XCircle } from "lucide-react";
+import { Loader2, Mail, Save, Plus, AlertCircle, CheckCircle2, History, ExternalLink, Clock, Send, XCircle, TestTube, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -35,21 +35,11 @@ interface EmailLog {
   createdAt: string;
 }
 
-const DEFAULT_NOTIFICATION_TYPES = [
-  { type: 'pedido_nuevo', displayName: 'Pedido Nuevo', description: 'Notificar cuando se crea un nuevo pedido de cliente' },
-  { type: 'reclamo_nuevo', displayName: 'Reclamo Nuevo', description: 'Notificar cuando se registra un nuevo reclamo' },
-  { type: 'cotizacion_convertida', displayName: 'Cotización Convertida', description: 'Notificar cuando una cotización se convierte en pedido' },
-  { type: 'stock_bajo', displayName: 'Stock Bajo', description: 'Alertar cuando el inventario está bajo el mínimo' },
-  { type: 'tarea_asignada', displayName: 'Tarea Asignada', description: 'Notificar cuando se asigna una tarea a un usuario' },
-  { type: 'alerta_inactividad', displayName: 'Alerta de Inactividad', description: 'Notificar sobre clientes sin compras recientes' },
-  { type: 'visita_tecnica', displayName: 'Visita Técnica Programada', description: 'Notificar sobre nuevas visitas técnicas' },
-  { type: 'mantencion_preventiva', displayName: 'Mantención Preventiva', description: 'Alertar sobre mantenciones programadas' },
-];
-
 export default function NotificacionesConfigPage() {
   const { toast } = useToast();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{ recipients: string; ccRecipients: string }>({ recipients: '', ccRecipients: '' });
+  const [testEmail, setTestEmail] = useState("");
 
   const { data: settings = [], isLoading } = useQuery<EmailNotificationSetting[]>({
     queryKey: ['/api/admin/email-notification-settings'],
@@ -75,6 +65,22 @@ export default function NotificacionesConfigPage() {
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const testConnectionMutation = useMutation({
+    mutationFn: async (email: string) => {
+      return apiRequest('/api/admin/smtp-test', {
+        method: 'POST',
+        data: { testEmail: email || undefined },
+      });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/email-logs'] });
+      toast({ title: "Éxito", description: data.message });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error de conexión", description: error.message, variant: "destructive" });
     },
   });
 
@@ -175,7 +181,7 @@ export default function NotificacionesConfigPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Mail className="w-5 h-5" />
+            <Settings className="w-5 h-5" />
             Configuración de Gmail (App Password)
           </CardTitle>
           <CardDescription>
@@ -197,16 +203,16 @@ export default function NotificacionesConfigPage() {
                 </span>
               ) : (
                 <span className="text-yellow-800 dark:text-yellow-200">
-                  Gmail no configurado. Configure las variables de entorno SMTP.
+                  Gmail no configurado. Sigue los pasos abajo para configurar.
                 </span>
               )}
             </AlertDescription>
           </Alert>
 
-          {/* Instructions */}
+          {/* Instructions for Google App Password */}
           <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
             <h4 className="font-semibold text-blue-800 dark:text-blue-200 mb-2">
-              Cómo configurar Google App Password
+              Paso 1: Obtener App Password de Google
             </h4>
             <ol className="list-decimal list-inside space-y-2 text-sm text-blue-700 dark:text-blue-300">
               <li>Ve a tu cuenta de Google → Seguridad</li>
@@ -220,7 +226,7 @@ export default function NotificacionesConfigPage() {
                 href="https://myaccount.google.com/apppasswords"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline font-medium"
               >
                 Ir a Google App Passwords
                 <ExternalLink className="w-3 h-3" />
@@ -228,16 +234,84 @@ export default function NotificacionesConfigPage() {
             </div>
           </div>
 
-          {/* Environment Variables */}
+          {/* Instructions for setting secrets */}
           <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border">
-            <h4 className="font-semibold mb-2">Variables de Entorno Requeridas</h4>
-            <div className="font-mono text-sm space-y-1 text-gray-600 dark:text-gray-400">
-              <p><code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">SMTP_HOST</code> = smtp.gmail.com</p>
-              <p><code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">SMTP_PORT</code> = 587</p>
-              <p><code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">SMTP_USER</code> = tu-email@gmail.com</p>
-              <p><code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">SMTP_PASSWORD</code> = tu-app-password-de-16-caracteres</p>
-              <p><code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">SMTP_FROM</code> = "Panoramica" &lt;tu-email@gmail.com&gt;</p>
+            <h4 className="font-semibold mb-2">
+              Paso 2: Configurar Secrets en Replit
+            </h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+              En la pestaña "Secrets" del panel de herramientas de Replit, agrega las siguientes variables:
+            </p>
+            <div className="font-mono text-sm space-y-2 text-gray-600 dark:text-gray-400">
+              <div className="flex items-center gap-2">
+                <code className="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">SMTP_HOST</code>
+                <span className="text-gray-400">=</span>
+                <span>smtp.gmail.com</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <code className="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">SMTP_PORT</code>
+                <span className="text-gray-400">=</span>
+                <span>587</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <code className="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">SMTP_USER</code>
+                <span className="text-gray-400">=</span>
+                <span>tu-email@gmail.com</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <code className="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">SMTP_PASSWORD</code>
+                <span className="text-gray-400">=</span>
+                <span>tu-app-password-de-16-caracteres</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <code className="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">SMTP_FROM</code>
+                <span className="text-gray-400">=</span>
+                <span>"Panoramica" &lt;tu-email@gmail.com&gt;</span>
+              </div>
             </div>
+            <p className="text-xs text-gray-500 mt-3">
+              Después de configurar los secrets, reinicia la aplicación para que tomen efecto.
+            </p>
+          </div>
+
+          {/* Test Connection */}
+          <div className="bg-white dark:bg-gray-900 p-4 rounded-lg border">
+            <h4 className="font-semibold mb-3 flex items-center gap-2">
+              <TestTube className="w-4 h-4" />
+              Paso 3: Probar Conexión
+            </h4>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1">
+                <Label htmlFor="test-email" className="text-sm text-gray-600 dark:text-gray-400 mb-1 block">
+                  Email para prueba (opcional)
+                </Label>
+                <Input
+                  id="test-email"
+                  type="email"
+                  placeholder="tu@email.com"
+                  value={testEmail}
+                  onChange={(e) => setTestEmail(e.target.value)}
+                  className="w-full"
+                  data-testid="input-test-email"
+                />
+              </div>
+              <div className="flex items-end">
+                <Button
+                  onClick={() => testConnectionMutation.mutate(testEmail)}
+                  disabled={testConnectionMutation.isPending || !smtpStatus?.configured}
+                  data-testid="button-test-connection"
+                >
+                  {testConnectionMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  <TestTube className="w-4 h-4 mr-2" />
+                  Probar Conexión
+                </Button>
+              </div>
+            </div>
+            {!smtpStatus?.configured && (
+              <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
+                Configura los secrets primero para poder probar la conexión.
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
