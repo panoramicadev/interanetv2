@@ -8,10 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus, Search, Users, FileText, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Plus, Search, Users, FileText, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 export function SeguimientoClientesTab() {
   const { toast } = useToast();
@@ -27,8 +28,10 @@ export function SeguimientoClientesTab() {
   const [newClientSupervisor, setNewClientSupervisor] = useState('');
   const [newClientSalesperson, setNewClientSalesperson] = useState('');
   const [suggestionSearch, setSuggestionSearch] = useState('');
+  const [deleteConfirmClient, setDeleteConfirmClient] = useState<any | null>(null);
 
   const isSalesperson = currentUser?.role === 'salesperson';
+  const canDelete = currentUser?.role === 'admin' || currentUser?.role === 'supervisor';
 
   const { data: clientesRecurrentes = [], isLoading } = useQuery<any[]>({
     queryKey: ['/api/crm/clientes-recurrentes'],
@@ -111,6 +114,27 @@ export function SeguimientoClientesTab() {
       toast({
         title: "Error",
         description: error.message || "No se pudo agregar el cliente",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteClientMutation = useMutation({
+    mutationFn: async (clientId: string) => {
+      return apiRequest(`DELETE`, `/api/crm/clientes-recurrentes/${clientId}`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/crm/clientes-recurrentes'] });
+      toast({
+        title: "Cliente eliminado",
+        description: "El cliente se removió del seguimiento correctamente",
+      });
+      setDeleteConfirmClient(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo eliminar el cliente",
         variant: "destructive",
       });
     },
@@ -399,6 +423,17 @@ export function SeguimientoClientesTab() {
                     <Plus className="w-4 h-4 mr-1" />
                     Agregar Nota
                   </Button>
+                  {canDelete && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => setDeleteConfirmClient(client)}
+                      data-testid={`button-delete-client-${client.id}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="ghost"
@@ -483,6 +518,32 @@ export function SeguimientoClientesTab() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteConfirmClient} onOpenChange={(open) => !open && setDeleteConfirmClient(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar Cliente del Seguimiento</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas eliminar a <strong>{deleteConfirmClient?.clientName}</strong> del seguimiento? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => {
+                if (deleteConfirmClient?.id) {
+                  deleteClientMutation.mutate(deleteConfirmClient.id);
+                }
+              }}
+              disabled={deleteClientMutation.isPending}
+              data-testid="button-confirm-delete-client"
+            >
+              {deleteClientMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
