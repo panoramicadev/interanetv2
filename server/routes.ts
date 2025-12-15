@@ -5342,6 +5342,34 @@ export function registerRoutes(app: Express): Server {
   // CRM Pipeline endpoints
   // ==================================================================================
 
+  // CRM Dashboard metrics
+  app.get('/api/crm/dashboard', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { segment, salespersonId } = req.query;
+      
+      const filters: any = {};
+      
+      // Role-based filtering
+      if (user.role === 'salesperson') {
+        filters.salespersonId = user.id;
+      } else if (user.role === 'supervisor') {
+        if (user.assignedSegment) {
+          filters.segment = user.assignedSegment;
+        }
+      } else if (user.role === 'admin') {
+        if (segment) filters.segment = segment;
+        if (salespersonId) filters.salespersonId = salespersonId;
+      }
+      
+      const metrics = await storage.getCrmDashboardMetrics(filters);
+      res.json(metrics);
+    } catch (error) {
+      console.error("Error fetching CRM dashboard metrics:", error);
+      res.status(500).json({ message: "Failed to fetch dashboard metrics" });
+    }
+  });
+
   // Get all leads with filters
   app.get('/api/crm/leads', requireCommercialAccess, async (req: any, res) => {
     try {

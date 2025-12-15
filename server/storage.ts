@@ -19175,6 +19175,126 @@ export class DatabaseStorage implements IStorage {
     await db.delete(crmLeads).where(eq(crmLeads.id, id));
   }
 
+  async getCrmDashboardMetrics(filters?: { salespersonId?: string; supervisorId?: string; segment?: string }): Promise<{
+    kpis: { totalLeads: number; closedLeads: number; conversionRate: number; avgDaysToClose: number };
+    stageCounts: { stage: string; count: number }[];
+    closuresBySalesperson: { salespersonName: string; closures: number; totalLeads: number }[];
+    leadsTimeline: { month: string; newLeads: number; closures: number }[];
+    agingBuckets: { bucket: string; count: number }[];
+  }> {
+    const conditions: any[] = [];
+    
+    if (filters?.salespersonId) {
+      conditions.push(eq(crmLeads.salespersonId, filters.salespersonId));
+    }
+    if (filters?.supervisorId) {
+      conditions.push(eq(crmLeads.supervisorId, filters.supervisorId));
+    }
+    if (filters?.segment) {
+      conditions.push(eq(crmLeads.segment, filters.segment));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Get all leads with filters
+    const allLeads = await db
+      .select()
+      .from(crmLeads)
+      .where(whereClause);
+
+    // KPIs
+    const totalLeads = allLeads.length;
+    const closedLeads = allLeads.filter(l => l.stage === 'venta').length;
+    const conversionRate = totalLeads > 0 ? Math.round((closedLeads / totalLeads) * 100) : 0;
+    
+    // Average days to close (for closed leads)
+    const closedLeadsWithDates = allLeads.filter(l => l.stage === 'venta' && l.createdAt && l.updatedAt);
+    let avgDaysToClose = 0;
+    if (closedLeadsWithDates.length > 0) {
+      const totalDays = closedLeadsWithDates.reduce((sum, lead) => {
+        const created = new Date(lead.createdAt!);
+        const updated = new Date(lead.updatedAt!);
+        return sum + Math.ceil((updated.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+      }, 0);
+      avgDaysToClose = Math.round(totalDays / closedLeadsWithDates.length);
+    }
+
+    // Stage counts
+    const stageMap = new Map<string, number>();
+    allLeads.forEach(lead => {
+      const stage = lead.stage || 'lead';
+      stageMap.set(stage, (stageMap.get(stage) || 0) + 1);
+    });
+    const stageCounts = Array.from(stageMap.entries()).map(([stage, count]) => ({ stage, count }));
+
+    // Closures by salesperson
+    const salespersonMap = new Map<string, { name: string; closures: number; total: number }>();
+    allLeads.forEach(lead => {
+      const name = lead.salespersonName || 'Sin asignar';
+      if (!salespersonMap.has(name)) {
+        salespersonMap.set(name, { name, closures: 0, total: 0 });
+      }
+      const entry = salespersonMap.get(name)!;
+      entry.total++;
+      if (lead.stage === 'venta') {
+        entry.closures++;
+      }
+    });
+    const closuresBySalesperson = Array.from(salespersonMap.values())
+      .map(e => ({ salespersonName: e.name, closures: e.closures, totalLeads: e.total }))
+      .sort((a, b) => b.closures - a.closures);
+
+    // Leads timeline (last 6 months)
+    const now = new Date();
+    const leadsTimeline: { month: string; newLeads: number; closures: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+      const monthLabel = monthDate.toLocaleDateString('es-CL', { month: 'short', year: '2-digit' });
+      
+      const newLeads = allLeads.filter(l => {
+        if (!l.createdAt) return false;
+        const created = new Date(l.createdAt);
+        return created >= monthDate && created <= monthEnd;
+      }).length;
+      
+      const closures = allLeads.filter(l => {
+        if (!l.updatedAt || l.stage !== 'venta') return false;
+        const updated = new Date(l.updatedAt);
+        return updated >= monthDate && updated <= monthEnd;
+      }).length;
+      
+      leadsTimeline.push({ month: monthLabel, newLeads, closures });
+    }
+
+    // Aging buckets (days since creation for non-closed leads)
+    const agingBuckets = [
+      { bucket: '0-7 días', count: 0 },
+      { bucket: '8-14 días', count: 0 },
+      { bucket: '15-30 días', count: 0 },
+      { bucket: '31-60 días', count: 0 },
+      { bucket: '+60 días', count: 0 },
+    ];
+    
+    allLeads.filter(l => l.stage !== 'venta').forEach(lead => {
+      if (!lead.createdAt) return;
+      const days = Math.ceil((now.getTime() - new Date(lead.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+      if (days <= 7) agingBuckets[0].count++;
+      else if (days <= 14) agingBuckets[1].count++;
+      else if (days <= 30) agingBuckets[2].count++;
+      else if (days <= 60) agingBuckets[3].count++;
+      else agingBuckets[4].count++;
+    });
+
+    return {
+      kpis: { totalLeads, closedLeads, conversionRate, avgDaysToClose },
+      stageCounts,
+      closuresBySalesperson,
+      leadsTimeline,
+      agingBuckets,
+    };
+  }
+
   async getLeadComments(leadId: string): Promise<CrmComment[]> {
     const results = await db
       .select()
