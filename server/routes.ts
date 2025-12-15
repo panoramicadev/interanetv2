@@ -48,6 +48,7 @@ import { executeGDVETL, gdvEtlProgressEmitter, gdvSqlServerBreaker } from "./etl
 import { executeNVVETL, nvvEtlProgressEmitter, nvvSqlServerBreaker, getNVVProgressHistory } from "./etl-nvv";
 import * as NotifyHelper from "./notifications-helper";
 import { format } from "date-fns";
+import { wrapEmailContent } from "./email-templates";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
@@ -8959,17 +8960,23 @@ export function registerRoutes(app: Express): Server {
           from: fromAddress,
           to: testEmail,
           subject: '🧪 Correo de Prueba - Panoramica',
-          html: `
-            <div style="font-family: Arial, sans-serif; padding: 20px;">
-              <h2 style="color: #fd6301;">¡Conexión Exitosa!</h2>
-              <p>Este es un correo de prueba enviado desde el sistema Panoramica.</p>
-              <p>Tu configuración de SMTP está funcionando correctamente.</p>
-              <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
-              <p style="color: #666; font-size: 12px;">
-                Enviado el ${format(new Date(), "dd/MM/yyyy HH:mm")}
+          html: wrapEmailContent(`
+            <h2 style="color: #1a1f2e; margin: 0 0 20px 0; font-family: Arial, sans-serif;">¡Conexión Exitosa!</h2>
+            <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 15px 0;">
+              Este es un correo de prueba enviado desde el sistema Panoramica.
+            </p>
+            <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+              Tu configuración de SMTP está funcionando correctamente.
+            </p>
+            <div style="background-color: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px; border-radius: 4px; margin: 20px 0;">
+              <p style="color: #2e7d32; margin: 0; font-size: 14px;">
+                ✓ Servidor SMTP conectado correctamente
               </p>
             </div>
-          `,
+            <p style="color: #666; font-size: 12px; margin: 20px 0 0 0;">
+              Enviado el ${format(new Date(), "dd/MM/yyyy HH:mm")}
+            </p>
+          `),
         });
         
         // Log the test email
