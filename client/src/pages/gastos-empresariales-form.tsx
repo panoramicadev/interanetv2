@@ -328,7 +328,7 @@ export default function GastosEmpresarialesForm() {
                           ) : (
                             salespeople.map((salesperson: any) => (
                               <SelectItem key={salesperson.id} value={salesperson.id}>
-                                {salesperson.fullName || salesperson.username}
+                                {salesperson.salespersonName || salesperson.email || salesperson.username}
                               </SelectItem>
                             ))
                           )}
