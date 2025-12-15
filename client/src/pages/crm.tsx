@@ -807,6 +807,11 @@ function LeadCard({
             <UserCheck className="w-2.5 h-2.5" />
             {lead.salespersonName ? lead.salespersonName.split(' ').slice(0, 2).join(' ') : 'Sin asignar'}
           </div>
+          {lead.segment && (
+            <div className={`inline-flex items-center gap-1 ${isMobile ? 'px-2.5 py-1' : 'px-2 py-0.5'} rounded-full text-[10px] font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400`}>
+              {lead.segment}
+            </div>
+          )}
         </div>
         
         {/* Header con avatar y nombre completo */}
