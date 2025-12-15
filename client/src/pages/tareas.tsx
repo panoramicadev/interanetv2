@@ -136,6 +136,11 @@ export default function TareasPage() {
   // Filters collapsed state for mobile
   const [filtersExpanded, setFiltersExpanded] = useState(false);
 
+  // Notes editing state
+  const [editingNoteAssignmentId, setEditingNoteAssignmentId] = useState<string | null>(null);
+  const [editingNoteTaskId, setEditingNoteTaskId] = useState<string | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState("");
+
   // Estados para Promesas de Compra
   const [searchClient, setSearchClient] = useState("");
   const [selectedWeek, setSelectedWeek] = useState(new Date());
@@ -964,12 +969,89 @@ export default function TareasPage() {
                                   )}
                                 </div>
                                 
-                                {assignment.notes && (
-                                  <div className="flex items-start gap-2 text-xs text-gray-600">
-                                    <MessageSquare className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                                    <span data-testid={`text-assignment-notes-${assignment.id}`}>
-                                      {assignment.notes}
-                                    </span>
+                                {editingNoteAssignmentId === assignment.id && editingNoteTaskId === task.id ? (
+                                  <div className="space-y-2">
+                                    <Textarea
+                                      value={editingNoteText}
+                                      onChange={(e) => setEditingNoteText(e.target.value)}
+                                      placeholder="Agregar nota sobre el estado de la tarea..."
+                                      className="text-xs min-h-[60px]"
+                                      data-testid={`textarea-note-${assignment.id}`}
+                                    />
+                                    <div className="flex gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="default"
+                                        onClick={() => {
+                                          updateAssignmentMutation.mutate({
+                                            taskId: task.id,
+                                            assignmentId: assignment.id,
+                                            notes: editingNoteText
+                                          });
+                                          setEditingNoteAssignmentId(null);
+                                          setEditingNoteTaskId(null);
+                                          setEditingNoteText("");
+                                        }}
+                                        disabled={updateAssignmentMutation.isPending}
+                                        data-testid={`button-save-note-${assignment.id}`}
+                                      >
+                                        <Check className="h-3 w-3 mr-1" />
+                                        Guardar
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          setEditingNoteAssignmentId(null);
+                                          setEditingNoteTaskId(null);
+                                          setEditingNoteText("");
+                                        }}
+                                        data-testid={`button-cancel-note-${assignment.id}`}
+                                      >
+                                        Cancelar
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {assignment.notes ? (
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="flex items-start gap-2 text-xs text-gray-600 flex-1">
+                                          <MessageSquare className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                                          <span data-testid={`text-assignment-notes-${assignment.id}`}>
+                                            {assignment.notes}
+                                          </span>
+                                        </div>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-6 px-2"
+                                          onClick={() => {
+                                            setEditingNoteAssignmentId(assignment.id);
+                                            setEditingNoteTaskId(task.id);
+                                            setEditingNoteText(assignment.notes || "");
+                                          }}
+                                          data-testid={`button-edit-note-${assignment.id}`}
+                                        >
+                                          <Edit className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 text-xs w-full"
+                                        onClick={() => {
+                                          setEditingNoteAssignmentId(assignment.id);
+                                          setEditingNoteTaskId(task.id);
+                                          setEditingNoteText("");
+                                        }}
+                                        data-testid={`button-add-note-${assignment.id}`}
+                                      >
+                                        <MessageSquare className="h-3 w-3 mr-1" />
+                                        Agregar nota
+                                      </Button>
+                                    )}
                                   </div>
                                 )}
                               </div>
