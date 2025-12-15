@@ -19717,17 +19717,74 @@ export class DatabaseStorage implements IStorage {
           };
         });
       };
+
+      // Calculate date ranges for purchase metrics
+      const now = new Date();
+      const twelveMonthsAgo = new Date();
+      twelveMonthsAgo.setMonth(now.getMonth() - 12);
+      const startDate12m = twelveMonthsAgo.toISOString().split('T')[0];
       
-      const clientesConNotas = results.map(lead => ({
-        id: lead.id,
-        clientName: lead.clientName,
-        company: lead.clientCompany,
-        segment: lead.segment,
-        salespersonId: lead.salespersonId,
-        salespersonName: lead.salespersonName,
-        lastPurchaseDate: lead.updatedAt,
-        notes: parseNotes(lead.notes)
-      }));
+      // Fetch purchase metrics for all client names in results
+      const clientNames = results.map(r => r.clientName).filter(Boolean);
+      
+      let purchaseMetrics: Record<string, any> = {};
+      
+      if (clientNames.length > 0) {
+        // Get purchase stats from fact_ventas for last 12 months
+        const metricsResults = await db
+          .select({
+            clientName: factVentas.nokoen,
+            purchaseCount: sql<number>`COUNT(DISTINCT ${factVentas.idmaeedo})`,
+            totalAmount: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+            lastPurchaseDate: sql<string>`MAX(${factVentas.feemdo})`,
+            avgTicket: sql<number>`COALESCE(AVG(${factVentas.monto}), 0)`,
+          })
+          .from(factVentas)
+          .where(and(
+            sql`${factVentas.nokoen} IN (${sql.join(clientNames.map(n => sql`${n}`), sql`, `)})`,
+            sql`${factVentas.feemdo} >= ${startDate12m}::date`,
+            sql`${factVentas.tido} != 'GDV'`
+          ))
+          .groupBy(factVentas.nokoen);
+        
+        // Build metrics lookup
+        for (const m of metricsResults) {
+          const lastPurchase = m.lastPurchaseDate ? new Date(m.lastPurchaseDate) : null;
+          const daysSinceLastPurchase = lastPurchase 
+            ? Math.floor((now.getTime() - lastPurchase.getTime()) / (1000 * 60 * 60 * 24))
+            : null;
+          
+          purchaseMetrics[m.clientName || ''] = {
+            purchaseCount: Number(m.purchaseCount) || 0,
+            totalAmount: Number(m.totalAmount) || 0,
+            lastPurchaseDate: m.lastPurchaseDate,
+            daysSinceLastPurchase,
+            avgTicket: Number(m.avgTicket) || 0,
+          };
+        }
+      }
+      
+      const clientesConNotas = results.map(lead => {
+        const metrics = purchaseMetrics[lead.clientName] || {};
+        return {
+          id: lead.id,
+          clientName: lead.clientName,
+          company: lead.clientCompany,
+          segment: lead.segment,
+          salespersonId: lead.salespersonId,
+          salespersonName: lead.salespersonName,
+          lastPurchaseDate: metrics.lastPurchaseDate || lead.updatedAt,
+          notes: parseNotes(lead.notes),
+          // Purchase behavior metrics
+          purchaseCount: metrics.purchaseCount || 0,
+          totalAmount: metrics.totalAmount || 0,
+          daysSinceLastPurchase: metrics.daysSinceLastPurchase,
+          avgTicket: metrics.avgTicket || 0,
+        };
+      });
+      
+      // Sort by purchase count descending (most active first)
+      clientesConNotas.sort((a, b) => (b.purchaseCount || 0) - (a.purchaseCount || 0));
       
       return clientesConNotas;
     } catch (error: any) {

@@ -2882,17 +2882,45 @@ function SeguimientoClientesTab() {
         <div className="grid gap-4">
           {filteredClients.map((client) => (
             <Card key={client.id} className="p-4 hover:shadow-md transition-shadow" data-testid={`card-client-${client.id}`}>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h4 className="font-semibold">{client.clientName}</h4>
                     {client.segment && (
                       <Badge variant="outline" className="text-xs">{client.segment}</Badge>
+                    )}
+                    {client.daysSinceLastPurchase != null && client.daysSinceLastPurchase > 60 && (
+                      <Badge variant="destructive" className="text-xs">
+                        {client.daysSinceLastPurchase} días sin comprar
+                      </Badge>
                     )}
                   </div>
                   {client.company && (
                     <p className="text-sm text-gray-600 dark:text-gray-400">{client.company}</p>
                   )}
+                  
+                  {/* Purchase behavior metrics */}
+                  <div className="flex flex-wrap items-center gap-3 text-xs">
+                    <div className="flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded">
+                      <span className="text-blue-600 dark:text-blue-400 font-semibold">{client.purchaseCount || 0}</span>
+                      <span className="text-blue-500 dark:text-blue-400">compras (12m)</span>
+                    </div>
+                    <div className="flex items-center gap-1 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded">
+                      <span className="text-green-600 dark:text-green-400 font-semibold">
+                        ${Number(client.totalAmount || 0).toLocaleString('es-CL')}
+                      </span>
+                      <span className="text-green-500 dark:text-green-400">total</span>
+                    </div>
+                    {client.avgTicket > 0 && (
+                      <div className="flex items-center gap-1 bg-purple-50 dark:bg-purple-900/20 px-2 py-1 rounded">
+                        <span className="text-purple-600 dark:text-purple-400 font-semibold">
+                          ${Number(client.avgTicket || 0).toLocaleString('es-CL')}
+                        </span>
+                        <span className="text-purple-500 dark:text-purple-400">promedio</span>
+                      </div>
+                    )}
+                  </div>
+                  
                   <div className="flex items-center gap-4 text-xs text-gray-500">
                     {client.lastPurchaseDate && (
                       <span>Última compra: {new Date(client.lastPurchaseDate).toLocaleDateString('es-CL')}</span>
