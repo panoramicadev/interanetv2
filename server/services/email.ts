@@ -1,6 +1,10 @@
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import { wrapEmailContent } from '../email-templates';
+import { getValidAccessToken } from '../gmail-oauth';
+import { db } from '../db';
+import { smtpConfig } from '../../shared/schema';
+import { eq } from 'drizzle-orm';
 
 interface EmailOptions {
   to: string;
@@ -51,9 +55,104 @@ class EmailService {
     }
   }
 
+  private async createOAuthTransporter(): Promise<Transporter | null> {
+    try {
+      const tokenInfo = await getValidAccessToken();
+      
+      if (!tokenInfo) {
+        return null;
+      }
+      
+      return nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          type: 'OAuth2',
+          user: tokenInfo.email,
+          accessToken: tokenInfo.accessToken,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to create OAuth transporter:', error);
+      return null;
+    }
+  }
+
+  private async getDbConfig() {
+    try {
+      const configs = await db.select().from(smtpConfig).where(eq(smtpConfig.id, 'default'));
+      return configs[0] || null;
+    } catch (error) {
+      console.error('Error fetching SMTP config from DB:', error);
+      return null;
+    }
+  }
+
   async sendEmail(options: EmailOptions): Promise<boolean> {
+    // Try OAuth first
+    const config = await this.getDbConfig();
+    
+    if (config?.authMethod === 'oauth') {
+      const oauthTransporter = await this.createOAuthTransporter();
+      
+      if (oauthTransporter) {
+        try {
+          const tokenInfo = await getValidAccessToken();
+          const info = await oauthTransporter.sendMail({
+            from: config.fromName ? `"${config.fromName}" <${tokenInfo?.email}>` : tokenInfo?.email,
+            to: options.to,
+            subject: options.subject,
+            html: options.html,
+            attachments: options.attachments,
+          });
+
+          console.log('Email sent successfully via OAuth:', info.messageId);
+          return true;
+        } catch (error) {
+          console.error('Error sending email via OAuth:', error);
+          throw error;
+        }
+      }
+    }
+    
+    // Fallback to password auth from DB config
+    if (config?.authMethod === 'password' && config.email && config.password) {
+      try {
+        const dbTransporter = nodemailer.createTransport({
+          host: config.host,
+          port: config.port,
+          secure: config.port === 465,
+          auth: {
+            user: config.email,
+            pass: config.password,
+          },
+          tls: {
+            rejectUnauthorized: false,
+          },
+        });
+        
+        const fromAddress = config.fromName 
+          ? `"${config.fromName}" <${config.email}>`
+          : config.email;
+        
+        const info = await dbTransporter.sendMail({
+          from: fromAddress,
+          to: options.to,
+          subject: options.subject,
+          html: options.html,
+          attachments: options.attachments,
+        });
+
+        console.log('Email sent successfully via password auth:', info.messageId);
+        return true;
+      } catch (error) {
+        console.error('Error sending email via password auth:', error);
+        throw error;
+      }
+    }
+    
+    // Fallback to environment variables
     if (!this.transporter) {
-      throw new Error('Email service not configured. Please set SMTP environment variables.');
+      throw new Error('Email service not configured. Please configure SMTP or connect Gmail via OAuth.');
     }
 
     try {
