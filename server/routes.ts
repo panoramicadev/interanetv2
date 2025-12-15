@@ -5014,14 +5014,26 @@ export function registerRoutes(app: Express): Server {
       }
       
       // SECURITY: Use discriminated union validation with assignments
+      // Schema for task creation - payload is optional
       const createTaskWithAssignmentsSchema = z.object({
-        assignments: z.array(insertTaskAssignmentSchema.pick({
-          assigneeType: true,
-          assigneeId: true
-        })).min(1, "At least one assignment is required")
-      }).and(insertTaskSchema);
+        title: z.string().min(1, "Título es requerido"),
+        description: z.string().optional(),
+        type: z.enum(["texto", "formulario", "visita"]).default("texto"),
+        priority: z.enum(["low", "medium", "high"]).default("medium"),
+        dueDate: z.string().refine((date) => {
+          if (!date) return true;
+          const datetimeLocalRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+          const isoDatetimeRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/;
+          return datetimeLocalRegex.test(date) || isoDatetimeRegex.test(date) || !isNaN(Date.parse(date));
+        }, "Fecha debe ser formato válido").optional().or(z.null()),
+        payload: z.any().optional(), // Optional payload - will use defaults if not provided
+        assignments: z.array(z.object({
+          assigneeType: z.enum(["supervisor", "salesperson"]),
+          assigneeId: z.string().min(1, "Destinatario requerido"),
+        })).min(1, "Debe asignar al menos un destinatario"),
+      });
       
-      // Validate request body with discriminated union validation
+      // Validate request body
       const validation = createTaskWithAssignmentsSchema.safeParse(req.body);
       if (!validation.success) {
         return res.status(400).json({ 
