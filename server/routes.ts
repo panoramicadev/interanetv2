@@ -8837,12 +8837,29 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Update email notification setting
+  const updateEmailNotificationSettingSchema = z.object({
+    enabled: z.boolean().optional(),
+    recipients: z.string().nullable().optional(),
+    ccRecipients: z.string().nullable().optional(),
+  }).strict();
+
   app.patch('/api/admin/email-notification-settings/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const { enabled, recipients, ccRecipients } = req.body;
+      
+      const validation = updateEmailNotificationSettingSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: 'Datos inválidos', 
+          errors: validation.error.errors 
+        });
+      }
 
-      const updateData: any = { updatedAt: new Date() };
+      const { enabled, recipients, ccRecipients } = validation.data;
+
+      const updateData: { updatedAt: Date; enabled?: boolean; recipients?: string | null; ccRecipients?: string | null } = { 
+        updatedAt: new Date() 
+      };
       if (typeof enabled === 'boolean') updateData.enabled = enabled;
       if (recipients !== undefined) updateData.recipients = recipients;
       if (ccRecipients !== undefined) updateData.ccRecipients = ccRecipients;
