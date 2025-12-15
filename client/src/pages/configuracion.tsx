@@ -2,12 +2,13 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Target, Database, Key, Upload, Settings } from "lucide-react";
+import { Users, Target, Database, Key, Upload, Settings, Bell } from "lucide-react";
 import UsersPage from "./users";
 import Metas from "./metas";
 import ETLMonitor from "./etl-monitor";
 import ApiKeysPage from "./api-keys";
 import ImportarDatos from "@/components/importar-datos";
+import NotificacionesConfigPage from "./notificaciones-config";
 
 export default function ConfiguracionPage() {
   const [, setLocation] = useLocation();
@@ -61,6 +62,11 @@ export default function ConfiguracionPage() {
               <span className="hidden sm:inline">Importar Datos</span>
               <span className="sm:hidden">Importar</span>
             </TabsTrigger>
+            <TabsTrigger value="notificaciones" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-config-notificaciones">
+              <Bell className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Notificaciones</span>
+              <span className="sm:hidden">Notif.</span>
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -82,6 +88,10 @@ export default function ConfiguracionPage() {
 
         <TabsContent value="importar" className="mt-6">
           <ImportarDatos />
+        </TabsContent>
+
+        <TabsContent value="notificaciones" className="mt-6">
+          <NotificacionesConfigPage />
         </TabsContent>
       </Tabs>
     </div>

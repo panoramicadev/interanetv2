@@ -3199,6 +3199,36 @@ export const notifications = pgTable("notifications", {
   createdByIdx: index("IDX_notifications_created_by").on(table.createdBy),
 }));
 
+// Configuración de notificaciones por email
+export const emailNotificationSettings = pgTable("email_notification_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Tipo de notificación
+  notificationType: varchar("notification_type").notNull().unique(), // 'pedido_nuevo', 'reclamo_nuevo', 'cotizacion_convertida', 'stock_bajo', 'tarea_asignada', 'alerta_inactividad'
+  
+  // Configuración
+  enabled: boolean("enabled").default(true),
+  recipients: text("recipients"), // Lista de emails separados por coma
+  ccRecipients: text("cc_recipients"), // Copia a estos emails
+  
+  // Descripción para el UI
+  displayName: varchar("display_name").notNull(),
+  description: text("description"),
+  
+  // Metadata
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type EmailNotificationSetting = typeof emailNotificationSettings.$inferSelect;
+export type InsertEmailNotificationSetting = typeof emailNotificationSettings.$inferInsert;
+
+export const insertEmailNotificationSettingSchema = createInsertSchema(emailNotificationSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Tabla de seguimiento de lecturas de notificaciones
 export const notificationReads = pgTable("notification_reads", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
