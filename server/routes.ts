@@ -49,7 +49,7 @@ import { executeNVVETL, nvvEtlProgressEmitter, nvvSqlServerBreaker, getNVVProgre
 import * as NotifyHelper from "./notifications-helper";
 import { format } from "date-fns";
 import { wrapEmailContent } from "./email-templates";
-import { getAuthUrl, handleCallback, getValidAccessToken, disconnectGmail, isOAuthConfigured, validateStateToken, sendEmailWithOAuth } from "./gmail-oauth";
+import { getAuthUrl, handleCallback, getValidAccessToken, disconnectGmail, isOAuthConfigured, validateStateToken, sendEmailWithOAuth, testConnection, getConnectionStatus } from "./gmail-oauth";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
@@ -8964,63 +8964,31 @@ export function registerRoutes(app: Express): Server {
 
       // Check if Gmail OAuth is configured
       if (config?.authMethod === 'oauth' && config?.oauthRefreshToken) {
-        // Use Gmail OAuth
-        if (!testEmail) {
-          const tokenData = await getValidAccessToken();
-          if (tokenData) {
-            return res.json({ 
-              success: true, 
-              message: `Gmail OAuth conectado correctamente (${tokenData.email})`
-            });
-          } else {
-            return res.status(400).json({ 
-              success: false, 
-              message: 'Token de Gmail OAuth expirado. Por favor reconecta tu cuenta.'
-            });
-          }
-        }
+        // Use the new testConnection function
+        const result = await testConnection(testEmail || undefined);
         
-        // Send test email via Gmail OAuth
-        const result = await sendEmailWithOAuth({
-          to: testEmail,
-          subject: '🧪 Correo de Prueba - Panoramica',
-          html: wrapEmailContent(`
-            <h2 style="color: #1a1f2e; margin: 0 0 20px 0; font-family: Arial, sans-serif;">¡Conexión Exitosa!</h2>
-            <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 15px 0;">
-              Este es un correo de prueba enviado desde el sistema Panoramica.
-            </p>
-            <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
-              Tu cuenta de Gmail está conectada correctamente vía OAuth.
-            </p>
-            <div style="background-color: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px; border-radius: 4px; margin: 20px 0;">
-              <p style="color: #2e7d32; margin: 0; font-size: 14px;">
-                ✓ Gmail OAuth funcionando correctamente
-              </p>
-            </div>
-            <p style="color: #666; font-size: 12px; margin: 20px 0 0 0;">
-              Enviado el ${format(new Date(), "dd/MM/yyyy HH:mm")}
-            </p>
-          `),
-        });
-        
-        if (result.success) {
+        if (result.success && testEmail) {
           // Log the test email
           await db.insert(emailLogs).values({
             recipient: testEmail,
-            subject: '🧪 Correo de Prueba - Panoramica',
+            subject: 'Prueba de conexión Gmail - Panoramica',
             notificationType: 'test',
             status: 'sent',
             sentAt: new Date(),
           });
-          
+        }
+        
+        if (result.success) {
           return res.json({ 
             success: true, 
-            message: `Correo de prueba enviado a ${testEmail} vía Gmail OAuth`
+            message: result.message,
+            details: result.details
           });
         } else {
           return res.status(400).json({ 
             success: false, 
-            message: `Error al enviar correo: ${result.error}`
+            message: result.message,
+            details: result.details
           });
         }
       }
@@ -9154,24 +9122,8 @@ export function registerRoutes(app: Express): Server {
 
   app.get('/api/oauth/google/status', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
-      const configs = await db.select().from(smtpConfig).where(eq(smtpConfig.id, 'default'));
-      const config = configs[0];
-      
-      const oauthConfigured = isOAuthConfigured();
-      
-      if (!config || config.authMethod !== 'oauth' || !config.oauthRefreshToken) {
-        return res.json({ 
-          connected: false,
-          oauthAvailable: oauthConfigured,
-          email: null 
-        });
-      }
-      
-      res.json({ 
-        connected: true,
-        oauthAvailable: oauthConfigured,
-        email: config.oauthEmail || config.email 
-      });
+      const status = await getConnectionStatus();
+      res.json(status);
     } catch (error: any) {
       console.error('❌ Error obteniendo estado OAuth:', error);
       res.status(500).json({ 
