@@ -3229,6 +3229,36 @@ export const insertEmailNotificationSettingSchema = createInsertSchema(emailNoti
   updatedAt: true,
 });
 
+// Historial de correos enviados
+export const emailLogs = pgTable("email_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Información del correo
+  recipient: text("recipient").notNull(), // Destinatario(s)
+  subject: varchar("subject").notNull(),
+  notificationType: varchar("notification_type"), // Tipo de notificación que generó el correo
+  
+  // Estado del envío
+  status: varchar("status").notNull().default("pending"), // 'pending', 'sent', 'failed'
+  errorMessage: text("error_message"), // Si falló, descripción del error
+  
+  // Metadata
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  statusIdx: index("IDX_email_logs_status").on(table.status),
+  notificationTypeIdx: index("IDX_email_logs_notification_type").on(table.notificationType),
+  createdAtIdx: index("IDX_email_logs_created_at").on(table.createdAt),
+}));
+
+export type EmailLog = typeof emailLogs.$inferSelect;
+export type InsertEmailLog = typeof emailLogs.$inferInsert;
+
+export const insertEmailLogSchema = createInsertSchema(emailLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Tabla de seguimiento de lecturas de notificaciones
 export const notificationReads = pgTable("notification_reads", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Target, Database, Key, Upload, Settings, Bell } from "lucide-react";
+import { Users, Target, Database, Key, Upload, Settings, Mail } from "lucide-react";
 import UsersPage from "./users";
 import Metas from "./metas";
 import ETLMonitor from "./etl-monitor";
@@ -62,10 +62,10 @@ export default function ConfiguracionPage() {
               <span className="hidden sm:inline">Importar Datos</span>
               <span className="sm:hidden">Importar</span>
             </TabsTrigger>
-            <TabsTrigger value="notificaciones" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-config-notificaciones">
-              <Bell className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Notificaciones</span>
-              <span className="sm:hidden">Notif.</span>
+            <TabsTrigger value="correos" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-config-correos">
+              <Mail className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Correos</span>
+              <span className="sm:hidden">Correos</span>
             </TabsTrigger>
           </TabsList>
         </div>
@@ -90,7 +90,7 @@ export default function ConfiguracionPage() {
           <ImportarDatos />
         </TabsContent>
 
-        <TabsContent value="notificaciones" className="mt-6">
+        <TabsContent value="correos" className="mt-6">
           <NotificacionesConfigPage />
         </TabsContent>
       </Tabs>
