@@ -826,14 +826,16 @@ function LeadCard({
           )}
         </div>
 
-        {/* Modal de edición */}
-        {(isAdmin || isSupervisor) && (
-          <EditLeadDialog
-            lead={lead}
-            open={isEditDialogOpen}
-            onOpenChange={setIsEditDialogOpen}
-            onDelete={onDelete}
-          />
+        {/* Modal de edición - rendered outside Card click area */}
+        {(isAdmin || isSupervisor) && isEditDialogOpen && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <EditLeadDialog
+              lead={lead}
+              open={isEditDialogOpen}
+              onOpenChange={setIsEditDialogOpen}
+              onDelete={onDelete}
+            />
+          </div>
         )}
 
         {/* Alerta de inactividad - compacta */}
@@ -2346,6 +2348,7 @@ function EditLeadDialog({
                       type="submit" 
                       disabled={updateLeadMutation.isPending}
                       data-testid="button-submit-edit-lead"
+                      onClick={(e) => e.stopPropagation()}
                     >
                       {updateLeadMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
                     </Button>
