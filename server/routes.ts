@@ -14838,6 +14838,35 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       });
       
       const promesa = await storage.createPromesaCompra(validatedData);
+      
+      // Automáticamente agregar el cliente a seguimiento (CRM Lead) si no existe ya
+      try {
+        const clienteId = validatedData.clienteId;
+        const clienteName = validatedData.clienteNombre || 'Cliente';
+        
+        // Verificar si el cliente ya existe como lead
+        const existingLeads = await storage.getLeads({ salespersonId: vendedorId });
+        const clienteYaEnSeguimiento = existingLeads.some(
+          (lead: any) => lead.clientId === clienteId || lead.clientName === clienteName
+        );
+        
+        if (!clienteYaEnSeguimiento) {
+          // Crear un nuevo lead con etapa "promesa"
+          await storage.createLead({
+            clientId: clienteId,
+            clientName: clienteName,
+            salespersonId: vendedorId,
+            stage: 'promesa',
+            priority: 'medium',
+            notes: `Cliente agregado automáticamente por promesa de compra - Monto: $${validatedData.montoPrometido?.toLocaleString('es-CL') || 0}`,
+          });
+          console.log(`✅ Cliente "${clienteName}" agregado automáticamente a seguimiento`);
+        }
+      } catch (seguimientoError: any) {
+        // No fallar la creación de promesa si falla el seguimiento
+        console.error('Error al agregar cliente a seguimiento:', seguimientoError.message);
+      }
+      
       res.status(201).json(promesa);
     } catch (error: any) {
       if (error.name === 'ZodError') {
