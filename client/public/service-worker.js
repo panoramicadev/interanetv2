@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v2.0.0';
+const CACHE_VERSION = 'v3.0.0';
 const CACHE_NAME = `panoramica-cache-${CACHE_VERSION}`;
 const ASSETS_CACHE = `panoramica-assets-${CACHE_VERSION}`;
 
