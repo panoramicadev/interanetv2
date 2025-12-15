@@ -3229,6 +3229,20 @@ export const insertEmailNotificationSettingSchema = createInsertSchema(emailNoti
   updatedAt: true,
 });
 
+// Configuración SMTP
+export const smtpConfig = pgTable("smtp_config", {
+  id: varchar("id").primaryKey().default("default"),
+  host: varchar("host").notNull().default("smtp.gmail.com"),
+  port: integer("port").notNull().default(587),
+  email: varchar("email").notNull().default(""),
+  password: varchar("password").notNull().default(""),
+  fromName: varchar("from_name").default("Panoramica"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type SmtpConfig = typeof smtpConfig.$inferSelect;
+export type InsertSmtpConfig = typeof smtpConfig.$inferInsert;
+
 // Historial de correos enviados
 export const emailLogs = pgTable("email_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

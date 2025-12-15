@@ -38,7 +38,8 @@ import {
   insertPlanPreventivoSchema,
   // Email notification settings
   emailNotificationSettings,
-  emailLogs
+  emailLogs,
+  smtpConfig
 } from "../shared/schema";
 import { eq, and, isNotNull, ne, sql, desc, or, sum, countDistinct } from "drizzle-orm";
 import { emailService } from "./services/email";
@@ -8802,13 +8803,104 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // Get SMTP status
+  // Get SMTP status (from database)
   app.get('/api/admin/smtp-status', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
-    res.json({
-      configured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD),
-      host: process.env.SMTP_HOST || 'No configurado',
-      user: process.env.SMTP_USER || 'No configurado'
-    });
+    try {
+      const configs = await db.select().from(smtpConfig).where(eq(smtpConfig.id, 'default'));
+      const config = configs[0];
+      
+      if (config && config.email && config.password) {
+        res.json({
+          configured: true,
+          host: config.host,
+          user: config.email,
+          fromName: config.fromName
+        });
+      } else {
+        res.json({
+          configured: false,
+          host: 'No configurado',
+          user: 'No configurado'
+        });
+      }
+    } catch (error: any) {
+      res.json({
+        configured: false,
+        host: 'No configurado',
+        user: 'No configurado'
+      });
+    }
+  }));
+
+  // Get SMTP config (for editing)
+  app.get('/api/admin/smtp-config', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const configs = await db.select().from(smtpConfig).where(eq(smtpConfig.id, 'default'));
+      if (configs.length > 0) {
+        const config = configs[0];
+        res.json({
+          host: config.host,
+          port: config.port,
+          email: config.email,
+          password: config.password ? '••••••••' : '',
+          fromName: config.fromName,
+          hasPassword: !!config.password
+        });
+      } else {
+        res.json({
+          host: 'smtp.gmail.com',
+          port: 587,
+          email: '',
+          password: '',
+          fromName: 'Panoramica',
+          hasPassword: false
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ Error al obtener configuración SMTP:', error);
+      res.status(500).json({ message: 'Error al obtener configuración', error: error.message });
+    }
+  }));
+
+  // Update SMTP config
+  app.post('/api/admin/smtp-config', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { host, port, email, password, fromName } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ message: 'El email es requerido' });
+      }
+      
+      const existingConfigs = await db.select().from(smtpConfig).where(eq(smtpConfig.id, 'default'));
+      
+      if (existingConfigs.length > 0) {
+        const updateData: any = {
+          host: host || 'smtp.gmail.com',
+          port: port || 587,
+          email,
+          fromName: fromName || 'Panoramica',
+          updatedAt: new Date()
+        };
+        if (password && password !== '••••••••') {
+          updateData.password = password;
+        }
+        await db.update(smtpConfig).set(updateData).where(eq(smtpConfig.id, 'default'));
+      } else {
+        await db.insert(smtpConfig).values({
+          id: 'default',
+          host: host || 'smtp.gmail.com',
+          port: port || 587,
+          email,
+          password: password || '',
+          fromName: fromName || 'Panoramica'
+        });
+      }
+      
+      res.json({ success: true, message: 'Configuración guardada correctamente' });
+    } catch (error: any) {
+      console.error('❌ Error al guardar configuración SMTP:', error);
+      res.status(500).json({ message: 'Error al guardar configuración', error: error.message });
+    }
   }));
 
   // Get email logs
@@ -8825,31 +8917,29 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // Test SMTP connection
+  // Test SMTP connection (using database config)
   app.post('/api/admin/smtp-test', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { testEmail } = req.body;
     
-    const smtpHost = process.env.SMTP_HOST;
-    const smtpPort = process.env.SMTP_PORT;
-    const smtpUser = process.env.SMTP_USER;
-    const smtpPassword = process.env.SMTP_PASSWORD;
-
-    if (!smtpHost || !smtpPort || !smtpUser || !smtpPassword) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'SMTP no configurado. Configure las variables de entorno primero.' 
-      });
-    }
-
     try {
+      const configs = await db.select().from(smtpConfig).where(eq(smtpConfig.id, 'default'));
+      const config = configs[0];
+
+      if (!config || !config.email || !config.password) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'SMTP no configurado. Guarda la configuración primero.' 
+        });
+      }
+
       const nodemailer = await import('nodemailer');
       const transporter = nodemailer.default.createTransport({
-        host: smtpHost,
-        port: parseInt(smtpPort),
-        secure: parseInt(smtpPort) === 465,
+        host: config.host,
+        port: config.port,
+        secure: config.port === 465,
         auth: {
-          user: smtpUser,
-          pass: smtpPassword,
+          user: config.email,
+          pass: config.password,
         },
         tls: {
           rejectUnauthorized: false,
@@ -8861,8 +8951,12 @@ export function registerRoutes(app: Express): Server {
       
       // Send test email if provided
       if (testEmail) {
+        const fromAddress = config.fromName 
+          ? `"${config.fromName}" <${config.email}>`
+          : config.email;
+          
         await transporter.sendMail({
-          from: process.env.SMTP_FROM || smtpUser,
+          from: fromAddress,
           to: testEmail,
           subject: '🧪 Correo de Prueba - Panoramica',
           html: `
