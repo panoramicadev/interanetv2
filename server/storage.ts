@@ -10049,7 +10049,7 @@ export class DatabaseStorage implements IStorage {
     if (assigneeUserId) {
       return tasksWithAssignments.filter(task =>
         task.assignments.some(assignment =>
-          assignment.assigneeType === "user" && assignment.assigneeId === assigneeUserId
+          (assignment.assigneeType === "supervisor" || assignment.assigneeType === "salesperson") && assignment.assigneeId === assigneeUserId
         )
       );
     }
@@ -10095,51 +10095,30 @@ export class DatabaseStorage implements IStorage {
             // No need to build additional conditions here as they would be undefined
           }
           // SECURITY FIX: Use safe Drizzle ORM methods instead of string interpolation to prevent SQL injection
-          if (assigneeSegments && assigneeSegments.length > 0) {
-            taskConditions.push(sql`(
-              ${tasks.createdByUserId} = ${userId} OR 
-              EXISTS (
-                SELECT 1 FROM ${taskAssignments} 
-                WHERE ${taskAssignments.taskId} = ${tasks.id} 
-                AND (
-                  (${taskAssignments.assigneeType} = 'user' AND ${taskAssignments.assigneeId} = ${userId}) OR
-                  (${taskAssignments.assigneeType} = 'segment' AND ${taskAssignments.assigneeId} = ANY(ARRAY[${sql.join(assigneeSegments.map(seg => sql`${seg}`), sql`, `)}]))
-                )
+          taskConditions.push(sql`(
+            ${tasks.createdByUserId} = ${userId} OR 
+            EXISTS (
+              SELECT 1 FROM ${taskAssignments} 
+              WHERE ${taskAssignments.taskId} = ${tasks.id} 
+              AND (
+                (${taskAssignments.assigneeType} = 'supervisor' AND ${taskAssignments.assigneeId} = ${userId}) OR
+                (${taskAssignments.assigneeType} = 'salesperson' AND ${taskAssignments.assigneeId} = ${userId})
               )
-            )`);
-          } else {
-            taskConditions.push(sql`(
-              ${tasks.createdByUserId} = ${userId} OR 
-              EXISTS (
-                SELECT 1 FROM ${taskAssignments} 
-                WHERE ${taskAssignments.taskId} = ${tasks.id} 
-                AND ${taskAssignments.assigneeType} = 'user' AND ${taskAssignments.assigneeId} = ${userId}
-              )
-            )`);
-          }
+            )
+          )`);
           break;
         case 'salesperson':
           // SECURITY FIX: Salesperson sees only tasks assigned to them - use safe SQL 
-          if (assigneeSegments && assigneeSegments.length > 0) {
-            taskConditions.push(sql`
-              EXISTS (
-                SELECT 1 FROM ${taskAssignments} 
-                WHERE ${taskAssignments.taskId} = ${tasks.id} 
-                AND (
-                  (${taskAssignments.assigneeType} = 'user' AND ${taskAssignments.assigneeId} = ${userId}) OR
-                  (${taskAssignments.assigneeType} = 'segment' AND ${taskAssignments.assigneeId} = ANY(ARRAY[${sql.join(assigneeSegments.map(seg => sql`${seg}`), sql`, `)}]))
-                )
+          taskConditions.push(sql`
+            EXISTS (
+              SELECT 1 FROM ${taskAssignments} 
+              WHERE ${taskAssignments.taskId} = ${tasks.id} 
+              AND (
+                (${taskAssignments.assigneeType} = 'supervisor' AND ${taskAssignments.assigneeId} = ${userId}) OR
+                (${taskAssignments.assigneeType} = 'salesperson' AND ${taskAssignments.assigneeId} = ${userId})
               )
-            `);
-          } else {
-            taskConditions.push(sql`
-              EXISTS (
-                SELECT 1 FROM ${taskAssignments} 
-                WHERE ${taskAssignments.taskId} = ${tasks.id} 
-                AND ${taskAssignments.assigneeType} = 'user' AND ${taskAssignments.assigneeId} = ${userId}
-              )
-            `);
-          }
+            )
+          `);
           break;
         default:
           throw new Error('Unauthorized: Invalid user role');

@@ -1353,8 +1353,8 @@ export const tasks = pgTable("tasks", {
 export const taskAssignments = pgTable("task_assignments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   taskId: varchar("task_id").notNull(), // FK to tasks.id
-  assigneeType: varchar("assignee_type").notNull(), // "user" | "segment"
-  assigneeId: varchar("assignee_id").notNull(), // userId or segment code
+  assigneeType: varchar("assignee_type").notNull(), // "supervisor" | "salesperson"
+  assigneeId: varchar("assignee_id").notNull(), // userId
   status: varchar("status").default("pending"), // pending, in_progress, completed, declined
   readAt: timestamp("read_at"), // nullable
   completedAt: timestamp("completed_at"), // nullable
