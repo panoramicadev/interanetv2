@@ -43,3 +43,8 @@ integrations = ["javascript_database:1.0.0", "javascript_object_storage:1.0.0", 
 
 [objectStorage]
 defaultBucketID = "replit-objstore-16fb68d0-f553-422b-802a-5af9fe0e5d7f"
+
+[userenv]
+
+[userenv.production]
+GMAIL_OAUTH_REDIRECT_URI = "https://app.pinturaspanoramica.cl/api/oauth/google/callback"

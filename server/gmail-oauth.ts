@@ -17,11 +17,17 @@ function getOAuth2Client() {
     throw new Error('Google OAuth credentials not configured');
   }
   
-  const redirectUri = process.env.REPLIT_DEV_DOMAIN 
-    ? `https://${process.env.REPLIT_DEV_DOMAIN}/api/oauth/google/callback`
-    : process.env.REPLIT_DOMAINS
-      ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}/api/oauth/google/callback`
-      : 'http://localhost:5000/api/oauth/google/callback';
+  // Priority: Custom domain env var > Dev domain > Replit domains > localhost
+  let redirectUri: string;
+  if (process.env.GMAIL_OAUTH_REDIRECT_URI) {
+    redirectUri = process.env.GMAIL_OAUTH_REDIRECT_URI;
+  } else if (process.env.REPLIT_DEV_DOMAIN) {
+    redirectUri = `https://${process.env.REPLIT_DEV_DOMAIN}/api/oauth/google/callback`;
+  } else if (process.env.REPLIT_DOMAINS) {
+    redirectUri = `https://${process.env.REPLIT_DOMAINS.split(',')[0]}/api/oauth/google/callback`;
+  } else {
+    redirectUri = 'http://localhost:5000/api/oauth/google/callback';
+  }
   
   return new OAuth2Client(clientId, clientSecret, redirectUri);
 }
