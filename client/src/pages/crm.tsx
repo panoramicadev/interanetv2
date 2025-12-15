@@ -420,13 +420,23 @@ export default function CRMPage() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Load custom stages from database
+  // Load custom stages from database (active only for kanban columns)
   const { data: stages = [] } = useQuery<CrmStage[]>({
     queryKey: ['/api/crm/stages'],
   });
 
-  // Create dynamic stage badge map from database stages
-  const dynamicStageBadgeMap = stages.reduce((acc, stage) => {
+  // Load ALL stages including inactive for dropdown (allow moving leads to any stage)
+  const { data: allStages = [] } = useQuery<CrmStage[]>({
+    queryKey: ['/api/crm/stages', 'includeAll'],
+    queryFn: async () => {
+      const response = await fetch('/api/crm/stages?includeAll=true', { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch stages');
+      return response.json();
+    },
+  });
+
+  // Create dynamic stage badge map from ALL stages (including inactive) for proper display
+  const dynamicStageBadgeMap = allStages.reduce((acc, stage) => {
     acc[stage.stageKey] = {
       label: stage.name,
       bgColor: stage.color,
@@ -788,6 +798,7 @@ export default function CRMPage() {
                                 isMobile={false}
                                 stageBadgeMap={stageBadgeMap}
                                 stages={stages}
+                                allStages={allStages}
                                 onToggleActivity={(field) => {
                                   const currentValue = field === 'hasCall' ? lead.hasCall : lead.hasWhatsapp;
                                   toggleActivityMutation.mutate({ id: lead.id, field, value: !currentValue });
@@ -850,6 +861,7 @@ export default function CRMPage() {
                           isMobile={true}
                           stageBadgeMap={stageBadgeMap}
                           stages={stages}
+                          allStages={allStages}
                           onToggleActivity={(field) => {
                             const currentValue = field === 'hasCall' ? lead.hasCall : lead.hasWhatsapp;
                             toggleActivityMutation.mutate({ id: lead.id, field, value: !currentValue });
@@ -980,7 +992,8 @@ function LeadCard({
   currentUser,
   isMobile = false,
   stageBadgeMap,
-  stages
+  stages,
+  allStages
 }: { 
   lead: CrmLead; 
   onToggleActivity: (field: 'hasCall' | 'hasWhatsapp') => void;
@@ -991,6 +1004,7 @@ function LeadCard({
   isMobile?: boolean;
   stageBadgeMap: Record<string, { label: string; bgColor: string; textColor: string }>;
   stages: CrmStage[];
+  allStages: CrmStage[];
 }) {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -1185,7 +1199,7 @@ function LeadCard({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {stages.filter(stage => stage.stageKey && stage.stageKey.trim() !== '').map((stage) => {
+                {allStages.filter(stage => stage.stageKey && stage.stageKey.trim() !== '').map((stage) => {
                   const badge = stageBadgeMap[stage.stageKey] || { label: stage.name, bgColor: stage.color, textColor: 'text-gray-700 dark:text-gray-300' };
                   const isHexColor = !badge.bgColor.startsWith('bg-');
                   return (
@@ -1304,7 +1318,7 @@ function ListLeadRow({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {stages.filter(stage => stage.stageKey && stage.stageKey.trim() !== '').map((stage) => {
+                  {allStages.filter(stage => stage.stageKey && stage.stageKey.trim() !== '').map((stage) => {
                     const badge = stageBadgeMap[stage.stageKey] || { label: stage.name, bgColor: stage.color, textColor: 'text-gray-700 dark:text-gray-300' };
                     const isHexColor = !badge.bgColor.startsWith('bg-');
                     return (
