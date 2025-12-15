@@ -74,7 +74,7 @@ const createTaskWithAssignmentsSchema = z.object({
     message: "Formato de fecha inválido. Use el selector de fecha.",
   }).optional().or(z.null()),
   assignments: z.array(z.object({
-    assigneeType: z.enum(["user", "segment"]),
+    assigneeType: z.enum(["supervisor", "salesperson"]),
     assigneeId: z.string().min(1, "Destinatario requerido"),
   })).min(1, "Debe asignar al menos un destinatario"),
 });
@@ -193,9 +193,9 @@ export default function TareasPage() {
     enabled: user?.role === 'admin' || user?.role === 'supervisor',
   });
 
-  // Query for available segments (for assignments)
-  const { data: availableSegments } = useQuery<string[]>({
-    queryKey: ["/api/goals/data/segments"],
+  // Query for available supervisors (for assignments)
+  const { data: availableSupervisors } = useQuery<Array<{ id: string; salespersonName: string; role: string }>>({
+    queryKey: ["/api/users/salespeople/supervisors"],
     enabled: user?.role === 'admin' || user?.role === 'supervisor',
   });
 
@@ -340,8 +340,8 @@ export default function TareasPage() {
     if (viewMode === "my-tasks") {
       // Show tasks assigned to me or that I created
       const isAssignedToMe = task.assignments.some(assignment => 
-        (assignment.assigneeType === "user" && assignment.assigneeId === user.id) ||
-        (assignment.assigneeType === "segment" && assignment.assigneeId === (user as any).assignedSegment)
+        (assignment.assigneeType === "supervisor" && assignment.assigneeId === user.id) ||
+        (assignment.assigneeType === "salesperson" && assignment.assigneeId === user.id)
       );
       const isCreatedByMe = task.createdByUserId === user.id;
       return isAssignedToMe || isCreatedByMe;
@@ -407,22 +407,24 @@ export default function TareasPage() {
   };
 
   const getAssigneeDisplay = (assignment: TaskAssignment) => {
-    if (assignment.assigneeType === "user") {
-      const userInfo = availableUsers?.find(u => u.id === assignment.assigneeId);
+    if (assignment.assigneeType === "supervisor") {
+      const supervisorInfo = availableSupervisors?.find(s => s.id === assignment.assigneeId);
       return (
         <div className="flex items-center gap-2">
           <User className="h-4 w-4" />
-          <span>{userInfo?.salespersonName || assignment.assigneeId}</span>
+          <span>{supervisorInfo?.salespersonName || assignment.assigneeId}</span>
         </div>
       );
-    } else {
+    } else if (assignment.assigneeType === "salesperson") {
+      const salespersonInfo = availableUsers?.find(u => u.id === assignment.assigneeId);
       return (
         <div className="flex items-center gap-2">
-          <Building2 className="h-4 w-4" />
-          <span>{assignment.assigneeId}</span>
+          <User className="h-4 w-4" />
+          <span>{salespersonInfo?.salespersonName || assignment.assigneeId}</span>
         </div>
       );
     }
+    return null;
   };
 
   const handleSubmit = (data: CreateTaskWithAssignmentsInput) => {
@@ -556,37 +558,37 @@ export default function TareasPage() {
                   <div className="space-y-3">
                     <Label className="text-sm font-medium">Asignar a *</Label>
                     
-                    {/* User Assignments */}
-                    {availableUsers && availableUsers.length > 0 && (
+                    {/* Supervisor Assignments */}
+                    {availableSupervisors && availableSupervisors.length > 0 && (
                       <div className="space-y-2">
                         <Label className="text-xs text-gray-600 flex items-center gap-2">
                           <User className="h-3 w-3" />
-                          Usuarios
+                          Supervisores
                         </Label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded p-2">
-                          {availableUsers.map((user) => (
+                          {availableSupervisors.map((supervisor) => (
                             <FormField
-                              key={`user-${user.id}`}
+                              key={`supervisor-${supervisor.id}`}
                               control={form.control}
                               name="assignments"
                               render={({ field }) => (
                                 <FormItem className="flex flex-row items-center space-x-2 space-y-0">
                                   <FormControl>
                                     <Checkbox
-                                      checked={field.value?.some(a => a.assigneeType === "user" && a.assigneeId === user.id)}
+                                      checked={field.value?.some(a => a.assigneeType === "supervisor" && a.assigneeId === supervisor.id)}
                                       onCheckedChange={(checked) => {
                                         const currentAssignments = field.value || [];
                                         if (checked) {
-                                          field.onChange([...currentAssignments, { assigneeType: "user", assigneeId: user.id }]);
+                                          field.onChange([...currentAssignments, { assigneeType: "supervisor", assigneeId: supervisor.id }]);
                                         } else {
-                                          field.onChange(currentAssignments.filter(a => !(a.assigneeType === "user" && a.assigneeId === user.id)));
+                                          field.onChange(currentAssignments.filter(a => !(a.assigneeType === "supervisor" && a.assigneeId === supervisor.id)));
                                         }
                                       }}
-                                      data-testid={`checkbox-user-${user.id}`}
+                                      data-testid={`checkbox-supervisor-${supervisor.id}`}
                                     />
                                   </FormControl>
                                   <FormLabel className="text-xs font-normal truncate">
-                                    {user.salespersonName}
+                                    {supervisor.salespersonName}
                                   </FormLabel>
                                 </FormItem>
                               )}
@@ -596,37 +598,37 @@ export default function TareasPage() {
                       </div>
                     )}
 
-                    {/* Segment Assignments */}
-                    {availableSegments && availableSegments.length > 0 && (
+                    {/* Salesperson Assignments */}
+                    {availableUsers && availableUsers.length > 0 && (
                       <div className="space-y-2">
                         <Label className="text-xs text-gray-600 flex items-center gap-2">
-                          <Building2 className="h-3 w-3" />
-                          Segmentos
+                          <User className="h-3 w-3" />
+                          Vendedores
                         </Label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded p-2">
-                          {availableSegments.map((segment) => (
+                          {availableUsers.map((salesperson) => (
                             <FormField
-                              key={`segment-${segment}`}
+                              key={`salesperson-${salesperson.id}`}
                               control={form.control}
                               name="assignments"
                               render={({ field }) => (
                                 <FormItem className="flex flex-row items-center space-x-2 space-y-0">
                                   <FormControl>
                                     <Checkbox
-                                      checked={field.value?.some(a => a.assigneeType === "segment" && a.assigneeId === segment)}
+                                      checked={field.value?.some(a => a.assigneeType === "salesperson" && a.assigneeId === salesperson.id)}
                                       onCheckedChange={(checked) => {
                                         const currentAssignments = field.value || [];
                                         if (checked) {
-                                          field.onChange([...currentAssignments, { assigneeType: "segment", assigneeId: segment }]);
+                                          field.onChange([...currentAssignments, { assigneeType: "salesperson", assigneeId: salesperson.id }]);
                                         } else {
-                                          field.onChange(currentAssignments.filter(a => !(a.assigneeType === "segment" && a.assigneeId === segment)));
+                                          field.onChange(currentAssignments.filter(a => !(a.assigneeType === "salesperson" && a.assigneeId === salesperson.id)));
                                         }
                                       }}
-                                      data-testid={`checkbox-segment-${segment}`}
+                                      data-testid={`checkbox-salesperson-${salesperson.id}`}
                                     />
                                   </FormControl>
                                   <FormLabel className="text-xs font-normal truncate">
-                                    {segment}
+                                    {salesperson.salespersonName}
                                   </FormLabel>
                                 </FormItem>
                               )}

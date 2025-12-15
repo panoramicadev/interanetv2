@@ -4989,8 +4989,8 @@ export function registerRoutes(app: Express): Server {
       const canAccess = user.role === 'admin' || user.role === 'supervisor' ||
         task.createdByUserId === user.id ||
         task.assignments.some(assignment => 
-          (assignment.assigneeType === "user" && assignment.assigneeId === user.id) ||
-          (assignment.assigneeType === "segment" && assignment.assigneeId === user.assignedSegment)
+          (assignment.assigneeType === "supervisor" && assignment.assigneeId === user.id) ||
+          (assignment.assigneeType === "salesperson" && assignment.assigneeId === user.id)
         );
       
       if (!canAccess) {
