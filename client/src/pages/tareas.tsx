@@ -56,6 +56,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type Task, type TaskAssignment, type InsertTaskAssignment } from "@shared/schema";
 import { z } from "zod";
+import { SeguimientoClientesTab } from "@/components/seguimiento-clientes-tab";
 
 // SECURITY: Frontend schema that excludes createdByUserId to prevent user impersonation
 const createTaskWithAssignmentsSchema = z.object({
@@ -437,11 +438,12 @@ export default function TareasPage() {
         </p>
       </div>
 
-      {/* Tabs para Tareas y Estimación Semanal */}
+      {/* Tabs para Tareas, Estimación Semanal y Seguimiento */}
       <Tabs defaultValue="tareas" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="tareas" data-testid="tab-tareas">Tareas</TabsTrigger>
           <TabsTrigger value="estimacion" data-testid="tab-estimacion">Estimación Semanal</TabsTrigger>
+          <TabsTrigger value="seguimiento" data-testid="tab-seguimiento">Seguimiento</TabsTrigger>
         </TabsList>
 
         <TabsContent value="tareas" className="space-y-6">
@@ -1000,6 +1002,10 @@ export default function TareasPage() {
             setSearchClient={setSearchClient}
             user={user}
           />
+        </TabsContent>
+
+        <TabsContent value="seguimiento" className="space-y-6">
+          <SeguimientoClientesTab />
         </TabsContent>
       </Tabs>
     </div>
