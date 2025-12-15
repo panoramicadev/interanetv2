@@ -4,7 +4,32 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Bar, Pie, Line } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  PointElement,
+  LineElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  PointElement,
+  LineElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend
+);
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -17,7 +42,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2, Settings, Edit, AlertCircle, X, User, UserCheck, Home, Clock, MapPin, Users, Search, Loader2, ChevronUp, ChevronDown, FileText } from "lucide-react";
+import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2, Settings, Edit, AlertCircle, X, User, UserCheck, Home, Clock, MapPin, Users, Search, Loader2, ChevronUp, ChevronDown, FileText, BarChart3, TrendingUp, Target, Timer } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,6 +76,264 @@ const STAGE_BADGE_MAP: Record<string, { label: string; bgColor: string; textColo
   promesa: { label: 'Promesa', bgColor: 'bg-emerald-100 dark:bg-emerald-900/30', textColor: 'text-emerald-700 dark:text-emerald-300' },
   venta: { label: 'Venta', bgColor: 'bg-green-100 dark:bg-green-900/30', textColor: 'text-green-700 dark:text-green-300' },
 };
+
+const STAGE_LABELS: Record<string, string> = {
+  lead: 'Nuevo',
+  contacto: 'Contacto',
+  visita: 'Visita',
+  lista_precio: 'Lista Precio',
+  campana: 'Campaña',
+  primera_venta: 'Primera Venta',
+  promesa: 'Promesa',
+  venta: 'Venta',
+};
+
+interface DashboardMetrics {
+  kpis: { totalLeads: number; closedLeads: number; conversionRate: number; avgDaysToClose: number };
+  stageCounts: { stage: string; count: number }[];
+  closuresBySalesperson: { salespersonName: string; closures: number; totalLeads: number }[];
+  leadsTimeline: { month: string; newLeads: number; closures: number }[];
+  agingBuckets: { bucket: string; count: number }[];
+}
+
+function CrmDashboard() {
+  const { data: metrics, isLoading } = useQuery<DashboardMetrics>({
+    queryKey: ['/api/crm/dashboard'],
+  });
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i} className="h-24">
+            <CardContent className="p-4">
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-2"></div>
+              <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (!metrics) {
+    return (
+      <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+        No hay datos disponibles para el dashboard
+      </div>
+    );
+  }
+
+  const stageChartData = {
+    labels: metrics.stageCounts.map(s => STAGE_LABELS[s.stage] || s.stage),
+    datasets: [{
+      data: metrics.stageCounts.map(s => s.count),
+      backgroundColor: [
+        '#F97316', '#3B82F6', '#F59E0B', '#06B6D4', '#8B5CF6', '#6366F1', '#10B981', '#22C55E'
+      ],
+    }],
+  };
+
+  const closuresChartData = {
+    labels: metrics.closuresBySalesperson.slice(0, 10).map(s => s.salespersonName.split(' ')[0]),
+    datasets: [{
+      label: 'Cierres',
+      data: metrics.closuresBySalesperson.slice(0, 10).map(s => s.closures),
+      backgroundColor: '#22C55E',
+    }, {
+      label: 'Total Leads',
+      data: metrics.closuresBySalesperson.slice(0, 10).map(s => s.totalLeads),
+      backgroundColor: '#3B82F6',
+    }],
+  };
+
+  const timelineChartData = {
+    labels: metrics.leadsTimeline.map(t => t.month),
+    datasets: [{
+      label: 'Nuevos Leads',
+      data: metrics.leadsTimeline.map(t => t.newLeads),
+      borderColor: '#3B82F6',
+      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+      fill: true,
+      tension: 0.3,
+    }, {
+      label: 'Cierres',
+      data: metrics.leadsTimeline.map(t => t.closures),
+      borderColor: '#22C55E',
+      backgroundColor: 'rgba(34, 197, 94, 0.1)',
+      fill: true,
+      tension: 0.3,
+    }],
+  };
+
+  const agingChartData = {
+    labels: metrics.agingBuckets.map(b => b.bucket),
+    datasets: [{
+      label: 'Leads',
+      data: metrics.agingBuckets.map(b => b.count),
+      backgroundColor: ['#22C55E', '#84CC16', '#EAB308', '#F97316', '#EF4444'],
+    }],
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card data-testid="kpi-total-leads">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-blue-500" />
+              <span className="text-sm text-gray-600 dark:text-gray-400">Total Leads</span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">
+              {metrics.kpis.totalLeads}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card data-testid="kpi-closed-leads">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Target className="w-5 h-5 text-green-500" />
+              <span className="text-sm text-gray-600 dark:text-gray-400">Cierres</span>
+            </div>
+            <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
+              {metrics.kpis.closedLeads}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card data-testid="kpi-conversion-rate">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-purple-500" />
+              <span className="text-sm text-gray-600 dark:text-gray-400">Conversión</span>
+            </div>
+            <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
+              {metrics.kpis.conversionRate}%
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card data-testid="kpi-avg-days">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Timer className="w-5 h-5 text-orange-500" />
+              <span className="text-sm text-gray-600 dark:text-gray-400">Días Prom. Cierre</span>
+            </div>
+            <p className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">
+              {metrics.kpis.avgDaysToClose}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Leads por Etapa */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Distribución por Etapa</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <Pie
+                data={stageChartData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      position: 'right',
+                      labels: { boxWidth: 12, font: { size: 11 } }
+                    }
+                  }
+                }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Cierres por Vendedor */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Cierres por Vendedor</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <Bar
+                data={closuresChartData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } }
+                  },
+                  scales: {
+                    x: { ticks: { font: { size: 10 } } },
+                    y: { beginAtZero: true }
+                  }
+                }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Second Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Timeline */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Tendencia Últimos 6 Meses</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <Line
+                data={timelineChartData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } }
+                  },
+                  scales: {
+                    y: { beginAtZero: true }
+                  }
+                }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Aging */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Antigüedad de Leads Abiertos</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <Bar
+                data={agingChartData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  indexAxis: 'y',
+                  plugins: {
+                    legend: { display: false }
+                  },
+                  scales: {
+                    x: { beginAtZero: true }
+                  }
+                }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
 
 // Utility function to calculate days since last update
 function getDaysSinceUpdate(lead: CrmLead): number {
@@ -97,6 +380,7 @@ function getInactivityAlert(days: number): { show: boolean; level: 'warning' | '
 export default function CRMPage() {
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
+  const [activeTab, setActiveTab] = useState<'pipeline' | 'dashboard'>('pipeline');
   const [clientTypeFilter] = useState<'nuevos'>('nuevos');
   const [searchQuery, setSearchQuery] = useState('');
   const [segmentFilter, setSegmentFilter] = useState('all');
@@ -294,40 +578,70 @@ export default function CRMPage() {
             Gestión de clientes y promesas de compra
           </p>
         </div>
-        {canCreateLeads && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="outline" size="sm" className="h-8 text-xs sm:text-sm sm:h-9" data-testid="button-export">
-              <Download className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Export</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Tabs principales */}
+          <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+            <Button
+              variant={activeTab === 'pipeline' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setActiveTab('pipeline')}
+              className="h-7 text-xs"
+              data-testid="tab-pipeline"
+            >
+              Pipeline
             </Button>
-            <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
-              setIsCreateDialogOpen(open);
-              if (!open) setPrefilledClientData(null);
-            }}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="h-8 text-xs sm:text-sm sm:h-9" data-testid="button-create-lead">
-                  <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                  Nuevo Lead
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Crear Nuevo Lead</DialogTitle>
-                </DialogHeader>
-                <CreateLeadForm 
-                  onSuccess={() => {
-                    setIsCreateDialogOpen(false);
-                    setPrefilledClientData(null);
-                  }} 
-                  prefilledData={prefilledClientData}
-                />
-              </DialogContent>
-            </Dialog>
+            <Button
+              variant={activeTab === 'dashboard' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setActiveTab('dashboard')}
+              className="h-7 text-xs"
+              data-testid="tab-dashboard"
+            >
+              <BarChart3 className="w-3 h-3 mr-1" />
+              Dashboard
+            </Button>
           </div>
-        )}
+          {canCreateLeads && activeTab === 'pipeline' && (
+            <>
+              <Button variant="outline" size="sm" className="h-8 text-xs sm:text-sm sm:h-9" data-testid="button-export">
+                <Download className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Export</span>
+              </Button>
+              <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+                setIsCreateDialogOpen(open);
+                if (!open) setPrefilledClientData(null);
+              }}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="h-8 text-xs sm:text-sm sm:h-9" data-testid="button-create-lead">
+                    <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    Nuevo Lead
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Crear Nuevo Lead</DialogTitle>
+                  </DialogHeader>
+                  <CreateLeadForm 
+                    onSuccess={() => {
+                      setIsCreateDialogOpen(false);
+                      setPrefilledClientData(null);
+                    }} 
+                    prefilledData={prefilledClientData}
+                  />
+                </DialogContent>
+              </Dialog>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Contenido de Leads */}
+      {/* Dashboard Tab */}
+      {activeTab === 'dashboard' && (
+        <CrmDashboard />
+      )}
+
+      {/* Pipeline Tab - Contenido de Leads */}
+      {activeTab === 'pipeline' && (
       <div className="space-y-2 sm:space-y-4">
           {/* Barra de búsqueda y filtros */}
           <div className="flex flex-col gap-2 sm:gap-3">
@@ -555,6 +869,7 @@ export default function CRMPage() {
             </div>
           )}
       </div>
+      )}
 
       {/* Diálogo de Administración de Etapas */}
       <StageManagementDialog 
