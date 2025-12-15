@@ -14762,12 +14762,12 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     }
   }));
 
-  // Get gastos by user (supervisor/admin only)
+  // Get gastos by user (supervisor/admin/recursos_humanos only)
   app.get('/api/gastos-empresariales/analytics/por-usuario', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       
-      if (!['supervisor', 'admin'].includes(user.role)) {
+      if (!['supervisor', 'admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
       
