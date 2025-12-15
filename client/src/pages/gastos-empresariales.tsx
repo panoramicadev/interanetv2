@@ -69,6 +69,24 @@ export default function GastosEmpresariales() {
   const [showRejectionDialog, setShowRejectionDialog] = useState(false);
   const [comentarioRechazo, setComentarioRechazo] = useState("");
 
+  // Fetch usuarios/colaboradores para mostrar nombres
+  const { data: usuarios = [] } = useQuery<any[]>({
+    queryKey: ['/api/users/salespeople'],
+  });
+
+  // Función para obtener nombre de colaborador por ID
+  const getColaboradorName = (userId: string): string => {
+    const usuario = usuarios.find((u: any) => u.id === userId);
+    if (!usuario) return 'Desconocido';
+    const name = usuario.salespersonName || usuario.email || usuario.username || 'Desconocido';
+    // Formatear nombre: inicial mayúscula
+    return name
+      .toLowerCase()
+      .split(' ')
+      .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
   // Fetch gastos
   const { data: gastos = [], isLoading } = useQuery<GastoEmpresarial[]>({
     queryKey: ['/api/gastos-empresariales', estadoFilter, categoriaFilter],
@@ -267,6 +285,7 @@ export default function GastosEmpresariales() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="min-w-[100px]">Fecha</TableHead>
+                  <TableHead className="min-w-[150px]">Colaborador</TableHead>
                   <TableHead className="min-w-[200px]">Descripción</TableHead>
                   <TableHead>Categoría</TableHead>
                   <TableHead>Tipo Gasto</TableHead>
@@ -278,13 +297,13 @@ export default function GastosEmpresariales() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                       Cargando gastos...
                     </TableCell>
                   </TableRow>
                 ) : filteredGastos.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                       No se encontraron gastos
                     </TableCell>
                   </TableRow>
@@ -301,6 +320,9 @@ export default function GastosEmpresariales() {
                     >
                       <TableCell className="text-sm">
                         {format(new Date(gasto.createdAt), 'dd/MM/yyyy', { locale: es })}
+                      </TableCell>
+                      <TableCell className="text-sm font-medium">
+                        {getColaboradorName(gasto.userId)}
                       </TableCell>
                       <TableCell>
                         <div>
@@ -445,6 +467,10 @@ export default function GastosEmpresariales() {
               <div className="space-y-4">
                 <h3 className="font-semibold text-sm">Información del Gasto</h3>
                 <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500">Colaborador</p>
+                    <p className="font-bold text-lg">{getColaboradorName(selectedGasto.userId)}</p>
+                  </div>
                   <div>
                     <p className="text-xs text-gray-500">Monto</p>
                     <p className="font-bold text-lg">{formatCurrency(selectedGasto.monto)}</p>
