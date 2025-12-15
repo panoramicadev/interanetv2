@@ -37,7 +37,8 @@ import {
   insertGastoMaterialMantencionSchema,
   insertPlanPreventivoSchema,
   // Email notification settings
-  emailNotificationSettings
+  emailNotificationSettings,
+  emailLogs
 } from "../shared/schema";
 import { eq, and, isNotNull, ne, sql, desc, or, sum, countDistinct } from "drizzle-orm";
 import { emailService } from "./services/email";
@@ -8804,9 +8805,24 @@ export function registerRoutes(app: Express): Server {
   // Get SMTP status
   app.get('/api/admin/smtp-status', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     res.json({
-      configured: !!(process.env.SMTP_HOST && process.env.SMTP_USER),
-      host: process.env.SMTP_HOST || 'No configurado'
+      configured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD),
+      host: process.env.SMTP_HOST || 'No configurado',
+      user: process.env.SMTP_USER || 'No configurado'
     });
+  }));
+
+  // Get email logs
+  app.get('/api/admin/email-logs', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const logs = await db.select()
+        .from(emailLogs)
+        .orderBy(desc(emailLogs.createdAt))
+        .limit(100);
+      res.json(logs);
+    } catch (error: any) {
+      console.error('❌ Error al obtener historial de correos:', error);
+      res.status(500).json({ message: 'Error al obtener historial de correos', error: error.message });
+    }
   }));
 
   // Initialize default notification settings
