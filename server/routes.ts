@@ -49,7 +49,7 @@ import { executeNVVETL, nvvEtlProgressEmitter, nvvSqlServerBreaker, getNVVProgre
 import * as NotifyHelper from "./notifications-helper";
 import { format } from "date-fns";
 import { wrapEmailContent } from "./email-templates";
-import { getAuthUrl, handleCallback, getValidAccessToken, disconnectGmail, isOAuthConfigured, validateStateToken } from "./gmail-oauth";
+import { getAuthUrl, handleCallback, getValidAccessToken, disconnectGmail, isOAuthConfigured, validateStateToken, sendEmailWithOAuth } from "./gmail-oauth";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
@@ -8954,7 +8954,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // Test SMTP connection (using database config)
+  // Test SMTP connection (using database config or Gmail OAuth)
   app.post('/api/admin/smtp-test', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { testEmail } = req.body;
     
@@ -8962,10 +8962,74 @@ export function registerRoutes(app: Express): Server {
       const configs = await db.select().from(smtpConfig).where(eq(smtpConfig.id, 'default'));
       const config = configs[0];
 
+      // Check if Gmail OAuth is configured
+      if (config?.authMethod === 'oauth' && config?.oauthRefreshToken) {
+        // Use Gmail OAuth
+        if (!testEmail) {
+          const tokenData = await getValidAccessToken();
+          if (tokenData) {
+            return res.json({ 
+              success: true, 
+              message: `Gmail OAuth conectado correctamente (${tokenData.email})`
+            });
+          } else {
+            return res.status(400).json({ 
+              success: false, 
+              message: 'Token de Gmail OAuth expirado. Por favor reconecta tu cuenta.'
+            });
+          }
+        }
+        
+        // Send test email via Gmail OAuth
+        const result = await sendEmailWithOAuth({
+          to: testEmail,
+          subject: '🧪 Correo de Prueba - Panoramica',
+          html: wrapEmailContent(`
+            <h2 style="color: #1a1f2e; margin: 0 0 20px 0; font-family: Arial, sans-serif;">¡Conexión Exitosa!</h2>
+            <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 15px 0;">
+              Este es un correo de prueba enviado desde el sistema Panoramica.
+            </p>
+            <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+              Tu cuenta de Gmail está conectada correctamente vía OAuth.
+            </p>
+            <div style="background-color: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px; border-radius: 4px; margin: 20px 0;">
+              <p style="color: #2e7d32; margin: 0; font-size: 14px;">
+                ✓ Gmail OAuth funcionando correctamente
+              </p>
+            </div>
+            <p style="color: #666; font-size: 12px; margin: 20px 0 0 0;">
+              Enviado el ${format(new Date(), "dd/MM/yyyy HH:mm")}
+            </p>
+          `),
+        });
+        
+        if (result.success) {
+          // Log the test email
+          await db.insert(emailLogs).values({
+            recipient: testEmail,
+            subject: '🧪 Correo de Prueba - Panoramica',
+            notificationType: 'test',
+            status: 'sent',
+            sentAt: new Date(),
+          });
+          
+          return res.json({ 
+            success: true, 
+            message: `Correo de prueba enviado a ${testEmail} vía Gmail OAuth`
+          });
+        } else {
+          return res.status(400).json({ 
+            success: false, 
+            message: `Error al enviar correo: ${result.error}`
+          });
+        }
+      }
+
+      // Fallback to traditional SMTP
       if (!config || !config.email || !config.password) {
         return res.status(400).json({ 
           success: false, 
-          message: 'SMTP no configurado. Guarda la configuración primero.' 
+          message: 'SMTP no configurado. Guarda la configuración primero o conecta Gmail OAuth.' 
         });
       }
 
