@@ -436,41 +436,31 @@ export default function TareasPage() {
   return (
     <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4 space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900" data-testid="page-title">
-          Panel de Tareas
-        </h1>
-        <p className="text-gray-600 text-sm md:text-base">
-          Gestiona tareas del equipo y estimaciones semanales
-        </p>
-      </div>
-
-      {/* Tabs para Tareas, Estimación Semanal y Seguimiento */}
-      <Tabs defaultValue="tareas" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="tareas" data-testid="tab-tareas">Tareas</TabsTrigger>
-          <TabsTrigger value="estimacion" data-testid="tab-estimacion">Estimación Semanal</TabsTrigger>
-          <TabsTrigger value="seguimiento" data-testid="tab-seguimiento">Seguimiento</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="tareas" className="space-y-6">
-          {/* Botón Nueva Tarea */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100 p-6 sm:p-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900" data-testid="page-title">
+              Panel de Tareas
+            </h1>
+            <p className="text-gray-600 text-sm md:text-base mt-2">
+              Gestiona tareas del equipo, estimaciones semanales y seguimiento de clientes
+            </p>
+          </div>
           {canCreateTasks && (
-            <div className="flex justify-end">
-              <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-            <DialogTrigger asChild>
-              <Button className="w-full sm:w-auto" data-testid="button-create-task">
-                <Plus className="h-4 w-4 mr-2" />
-                Nueva Tarea
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px] h-screen sm:h-auto sm:max-h-[90vh] flex flex-col p-4 sm:p-6">
-              <DialogHeader className="flex-shrink-0">
-                <DialogTitle>Crear Nueva Tarea</DialogTitle>
-                <DialogDescription>
-                  Completa los detalles para crear una nueva tarea y asignarla a miembros del equipo o segmentos.
-                </DialogDescription>
-              </DialogHeader>
+            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+              <DialogTrigger asChild>
+                <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg" data-testid="button-create-task">
+                  <Plus className="h-5 w-5 mr-2" />
+                  Nueva Tarea
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[600px] h-screen sm:h-auto sm:max-h-[90vh] flex flex-col p-4 sm:p-6">
+                <DialogHeader className="flex-shrink-0">
+                  <DialogTitle className="text-2xl">Crear Nueva Tarea</DialogTitle>
+                  <DialogDescription>
+                    Completa los detalles para crear una nueva tarea y asignarla a miembros del equipo.
+                  </DialogDescription>
+                </DialogHeader>
               
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col min-h-0 flex-1">
@@ -656,6 +646,7 @@ export default function TareasPage() {
                     <Button 
                       type="submit" 
                       disabled={createTaskMutation.isPending}
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600"
                       data-testid="button-submit-task"
                     >
                       {createTaskMutation.isPending ? "Creando..." : "Crear Tarea"}
@@ -663,33 +654,44 @@ export default function TareasPage() {
                   </div>
                 </form>
               </Form>
-            </DialogContent>
-          </Dialog>
-            </div>
-        )}
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
+      </div>
+
+      {/* Tabs para Tareas, Estimación Semanal y Seguimiento */}
+      <Tabs defaultValue="tareas" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3 bg-gray-100">
+          <TabsTrigger value="tareas" data-testid="tab-tareas" className="data-[state=active]:bg-white data-[state=active]:text-blue-600">Tareas</TabsTrigger>
+          <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="data-[state=active]:bg-white data-[state=active]:text-blue-600">Estimación Semanal</TabsTrigger>
+          <TabsTrigger value="seguimiento" data-testid="tab-seguimiento" className="data-[state=active]:bg-white data-[state=active]:text-blue-600">Seguimiento</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="tareas" className="space-y-6">
 
       {/* Filters and View Toggle */}
-      <Card>
+      <Card className="border-0 shadow-sm bg-white">
         <CardContent className="p-0">
           {/* Mobile: Collapsible Filters Header */}
           <div className="lg:hidden">
             <button
               onClick={() => setFiltersExpanded(!filtersExpanded)}
-              className="w-full p-4 flex items-center justify-between hover:bg-muted/50 transition-colors"
+              className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
               data-testid="button-toggle-filters"
             >
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium text-sm">Filtros</span>
-                <Badge variant="outline" className="text-xs">
+              <div className="flex items-center gap-3">
+                <Filter className="h-5 w-5 text-blue-600" />
+                <span className="font-semibold text-sm text-gray-900">Filtros</span>
+                <Badge className="bg-blue-100 text-blue-700 text-xs font-medium">
                   {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
                 </Badge>
               </div>
-              <ChevronDown className={`h-4 w-4 transition-transform ${filtersExpanded ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`h-4 w-4 transition-transform text-gray-600 ${filtersExpanded ? 'rotate-180' : ''}`} />
             </button>
             
             {filtersExpanded && (
-              <div className="p-4 pt-0 space-y-3 border-t">
+              <div className="p-4 pt-0 space-y-3 border-t border-gray-200">
                 {/* View Mode Toggle */}
                 {(user.role === 'admin' || user.role === 'supervisor') && (
                   <div className="space-y-1.5">
@@ -744,15 +746,15 @@ export default function TareasPage() {
           </div>
 
           {/* Desktop: Always Visible Filters */}
-          <div className="hidden lg:block py-4 px-6">
+          <div className="hidden lg:block py-5 px-6">
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-              <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
                 {/* View Mode Toggle */}
                 {(user.role === 'admin' || user.role === 'supervisor') && (
-                  <div className="flex items-center gap-2">
-                    <Label className="text-sm font-medium whitespace-nowrap">Vista:</Label>
+                  <div className="flex items-center gap-3">
+                    <Label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Vista:</Label>
                     <Select value={viewMode} onValueChange={(value: "my-tasks" | "all-tasks") => setViewMode(value)}>
-                      <SelectTrigger className="w-40" data-testid="select-view-mode">
+                      <SelectTrigger className="w-40 border-gray-300" data-testid="select-view-mode">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -764,10 +766,10 @@ export default function TareasPage() {
                 )}
 
                 {/* Status Filter */}
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm font-medium whitespace-nowrap">Estado:</Label>
+                <div className="flex items-center gap-3">
+                  <Label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Estado:</Label>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-36" data-testid="select-status-filter">
+                    <SelectTrigger className="w-36 border-gray-300" data-testid="select-status-filter">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -782,10 +784,10 @@ export default function TareasPage() {
                 </div>
 
                 {/* Priority Filter */}
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm font-medium whitespace-nowrap">Prioridad:</Label>
+                <div className="flex items-center gap-3">
+                  <Label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Prioridad:</Label>
                   <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                    <SelectTrigger className="w-32" data-testid="select-priority-filter">
+                    <SelectTrigger className="w-32 border-gray-300" data-testid="select-priority-filter">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -798,7 +800,7 @@ export default function TareasPage() {
                 </div>
               </div>
 
-              <Badge variant="outline" className="text-xs">
+              <Badge className="bg-blue-100 text-blue-700 text-xs font-medium px-3 py-1">
                 {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
               </Badge>
             </div>
@@ -809,21 +811,24 @@ export default function TareasPage() {
       {/* Tasks List */}
       <div className="space-y-4">
         {tasksQuery.isLoading ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Cargando tareas...</p>
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-10 w-10 border-3 border-blue-200 border-t-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 font-medium">Cargando tareas...</p>
           </div>
         ) : filteredTasks.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <CheckSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No hay tareas</h3>
-              <p className="text-gray-600 mb-4">
+          <Card className="border-0 shadow-sm">
+            <CardContent className="py-16 text-center">
+              <div className="bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <CheckSquare className="h-8 w-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No hay tareas</h3>
+              <p className="text-gray-600 mb-6">
                 {viewMode === "my-tasks" ? "No tienes tareas asignadas." : "No se encontraron tareas."}
               </p>
               {canCreateTasks && (
                 <Button 
                   onClick={() => setShowCreateDialog(true)}
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600"
                   data-testid="button-create-first-task"
                 >
                   <Plus className="h-4 w-4 mr-2" />
@@ -834,12 +839,12 @@ export default function TareasPage() {
           </Card>
         ) : (
           filteredTasks.map((task) => (
-            <Card key={task.id} className="overflow-hidden">
-              <CardHeader className="pb-3">
+            <Card key={task.id} className="overflow-hidden border-0 shadow-sm hover:shadow-md transition-shadow">
+              <CardHeader className="pb-4 bg-white border-b border-gray-100">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div className="space-y-2 flex-1 min-w-0">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <h3 className="text-lg font-semibold truncate" data-testid={`text-task-title-${task.id}`}>
+                  <div className="space-y-2 flex-1 min-w-0 w-full">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-lg font-bold text-gray-900 truncate" data-testid={`text-task-title-${task.id}`}>
                         {task.title}
                       </h3>
                       {getPriorityBadge(task.priority ?? 'medium')}
@@ -852,17 +857,17 @@ export default function TareasPage() {
                       </p>
                     )}
                     
-                    <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
+                    <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500 pt-2">
                       {task.dueDate && (
-                        <div className="flex items-center gap-1">
-                          <CalendarIcon className="h-3 w-3" />
+                        <div className="flex items-center gap-1.5">
+                          <CalendarIcon className="h-4 w-4 text-blue-600" />
                           <span data-testid={`text-task-due-date-${task.id}`}>
                             {format(new Date(task.dueDate), "dd MMM yyyy HH:mm", { locale: es })}
                           </span>
                         </div>
                       )}
-                      <div className="flex items-center gap-1">
-                        <Users className="h-3 w-3" />
+                      <div className="flex items-center gap-1.5">
+                        <Users className="h-4 w-4 text-blue-600" />
                         <span data-testid={`text-task-assignment-count-${task.id}`}>
                           {task.assignments.length} asignación{task.assignments.length !== 1 ? 'es' : ''}
                         </span>
@@ -870,7 +875,7 @@ export default function TareasPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
                     {/* Action buttons for user's assignment - shown before toggle */}
                     {(() => {
                       const myAssignment = task.assignments.find(a => 
@@ -893,7 +898,8 @@ export default function TareasPage() {
                           {!myAssignment.readAt && myAssignment.status === "pending" && (
                             <Button
                               size="sm"
-                              variant="default"
+                              variant="outline"
+                              className="border-blue-300 text-blue-700 hover:bg-blue-50"
                               onClick={() => markAsReadMutation.mutate({
                                 taskId: task.id,
                                 assignmentId: myAssignment.id
@@ -910,7 +916,7 @@ export default function TareasPage() {
                           {myAssignment.readAt && (myAssignment.status === "pending" || myAssignment.status === "in_progress") && (
                             <Button
                               size="sm"
-                              variant="default"
+                              className="bg-green-600 hover:bg-green-700"
                               onClick={() => updateAssignmentMutation.mutate({
                                 taskId: task.id,
                                 assignmentId: myAssignment.id,
@@ -930,18 +936,18 @@ export default function TareasPage() {
                     <Collapsible>
                       <CollapsibleTrigger 
                         onClick={() => toggleTaskExpanded(task.id)}
-                        className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                        className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-blue-600 transition-colors ml-auto"
                         data-testid={`button-toggle-task-${task.id}`}
                       >
                         {expandedTasks.has(task.id) ? (
                           <>
                             <ChevronDown className="h-4 w-4" />
-                            Ocultar detalles
+                            <span className="hidden sm:inline">Ocultar</span>
                           </>
                         ) : (
                           <>
                             <ChevronRight className="h-4 w-4" />
-                            Ver detalles
+                            <span className="hidden sm:inline">Ver</span>
                           </>
                         )}
                       </CollapsibleTrigger>
@@ -952,13 +958,13 @@ export default function TareasPage() {
 
               <Collapsible open={expandedTasks.has(task.id)}>
                 <CollapsibleContent>
-                  <CardContent className="pt-0">
-                    <div className="border-t pt-4">
-                      <h4 className="text-sm font-medium mb-3 text-gray-900">Asignaciones:</h4>
+                  <CardContent className="pt-4 bg-gray-50">
+                    <div className="pt-0">
+                      <h4 className="text-sm font-bold mb-3 text-gray-900 uppercase tracking-wide">Asignaciones</h4>
                       <div className="space-y-3">
                         {task.assignments.map((assignment) => {
                           return (
-                            <div key={assignment.id} className="bg-gray-50 rounded-lg p-3">
+                            <div key={assignment.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:border-blue-200 transition-colors">
                               <div className="space-y-2">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   {getAssigneeDisplay(assignment)}
