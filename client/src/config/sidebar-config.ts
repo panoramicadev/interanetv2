@@ -867,4 +867,17 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: AlertTriangle,
     },
   ],
+
+  recursos_humanos: [
+    {
+      href: "/gastos-empresariales",
+      label: "Gestión de Gastos",
+      icon: Banknote,
+    },
+    {
+      href: "/gastos-empresariales/dashboard",
+      label: "Dashboard Gastos",
+      icon: LayoutDashboard,
+    },
+  ],
 };
