@@ -978,18 +978,32 @@ export default function TareasPage() {
                                 </div>
                                 
                                 {editingNoteAssignmentId === assignment.id && editingNoteTaskId === task.id ? (
-                                  <div className="space-y-2">
+                                  <div className="space-y-3 mt-3 bg-blue-50 rounded-lg p-3 border border-blue-200">
                                     <Textarea
                                       value={editingNoteText}
                                       onChange={(e) => setEditingNoteText(e.target.value)}
-                                      placeholder="Agregar nota sobre el estado de la tarea..."
-                                      className="text-xs min-h-[60px]"
+                                      placeholder="Escribe una nota sobre el estado de la tarea..."
+                                      className="text-sm min-h-[80px] bg-white border-blue-300"
                                       data-testid={`textarea-note-${assignment.id}`}
+                                      autoFocus
                                     />
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 justify-end">
                                       <Button
                                         size="sm"
-                                        variant="default"
+                                        variant="outline"
+                                        className="border-gray-300"
+                                        onClick={() => {
+                                          setEditingNoteAssignmentId(null);
+                                          setEditingNoteTaskId(null);
+                                          setEditingNoteText("");
+                                        }}
+                                        data-testid={`button-cancel-note-${assignment.id}`}
+                                      >
+                                        Cancelar
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        className="bg-green-600 hover:bg-green-700"
                                         onClick={() => {
                                           updateAssignmentMutation.mutate({
                                             taskId: task.id,
@@ -1003,37 +1017,25 @@ export default function TareasPage() {
                                         disabled={updateAssignmentMutation.isPending}
                                         data-testid={`button-save-note-${assignment.id}`}
                                       >
-                                        <Check className="h-3 w-3 mr-1" />
-                                        Guardar
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => {
-                                          setEditingNoteAssignmentId(null);
-                                          setEditingNoteTaskId(null);
-                                          setEditingNoteText("");
-                                        }}
-                                        data-testid={`button-cancel-note-${assignment.id}`}
-                                      >
-                                        Cancelar
+                                        <Check className="h-4 w-4 mr-1" />
+                                        {updateAssignmentMutation.isPending ? "Guardando..." : "Guardar"}
                                       </Button>
                                     </div>
                                   </div>
                                 ) : (
-                                  <div className="space-y-2">
+                                  <div className="mt-3">
                                     {assignment.notes ? (
-                                      <div className="flex items-start justify-between gap-2">
-                                        <div className="flex items-start gap-2 text-xs text-gray-600 flex-1">
-                                          <MessageSquare className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                                          <span data-testid={`text-assignment-notes-${assignment.id}`}>
+                                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-start justify-between gap-2">
+                                        <div className="flex items-start gap-2 flex-1 min-w-0">
+                                          <MessageSquare className="h-4 w-4 mt-0.5 flex-shrink-0 text-yellow-600" />
+                                          <span className="text-sm text-gray-700 break-words" data-testid={`text-assignment-notes-${assignment.id}`}>
                                             {assignment.notes}
                                           </span>
                                         </div>
                                         <Button
                                           size="sm"
                                           variant="ghost"
-                                          className="h-6 px-2"
+                                          className="h-7 px-2 hover:bg-yellow-100 flex-shrink-0"
                                           onClick={() => {
                                             setEditingNoteAssignmentId(assignment.id);
                                             setEditingNoteTaskId(task.id);
@@ -1041,14 +1043,13 @@ export default function TareasPage() {
                                           }}
                                           data-testid={`button-edit-note-${assignment.id}`}
                                         >
-                                          <Edit className="h-3 w-3" />
+                                          <Edit className="h-4 w-4 text-yellow-600" />
                                         </Button>
                                       </div>
                                     ) : (
                                       <Button
                                         size="sm"
-                                        variant="outline"
-                                        className="h-7 text-xs w-full"
+                                        className="w-full h-9 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium"
                                         onClick={() => {
                                           setEditingNoteAssignmentId(assignment.id);
                                           setEditingNoteTaskId(task.id);
@@ -1056,8 +1057,8 @@ export default function TareasPage() {
                                         }}
                                         data-testid={`button-add-note-${assignment.id}`}
                                       >
-                                        <MessageSquare className="h-3 w-3 mr-1" />
-                                        Agregar nota
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Agregar Nota
                                       </Button>
                                     )}
                                   </div>
