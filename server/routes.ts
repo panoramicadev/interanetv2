@@ -4649,6 +4649,181 @@ export function registerRoutes(app: Express): Server {
     res.json({ message: newGroupId ? 'Variación reasignada correctamente' : 'Variación desagrupada correctamente' });
   }));
 
+  // ===================== Shopify-Style Products API Routes =====================
+
+  // Get all Shopify products with variants
+  app.get('/api/shopify/products', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { search, category, status, productType, limit, offset } = req.query;
+    
+    const products = await storage.getShopifyProducts({
+      search,
+      category,
+      status: status as 'draft' | 'active' | 'archived' | undefined,
+      productType,
+      limit: limit ? parseInt(limit) : undefined,
+      offset: offset ? parseInt(offset) : undefined,
+    });
+    
+    res.json(products);
+  }));
+
+  // Get single Shopify product with variants
+  app.get('/api/shopify/products/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const product = await storage.getShopifyProduct(id);
+    
+    if (!product) {
+      return res.status(404).json({ message: 'Producto no encontrado' });
+    }
+    
+    res.json(product);
+  }));
+
+  // Get Shopify product by handle (URL slug)
+  app.get('/api/shopify/products/handle/:handle', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { handle } = req.params;
+    const product = await storage.getShopifyProductByHandle(handle);
+    
+    if (!product) {
+      return res.status(404).json({ message: 'Producto no encontrado' });
+    }
+    
+    res.json(product);
+  }));
+
+  // Create new Shopify product
+  app.post('/api/shopify/products', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { insertShopifyProductSchema } = await import('@shared/schema');
+    
+    try {
+      const validated = insertShopifyProductSchema.parse(req.body);
+      const product = await storage.createShopifyProduct(validated);
+      res.status(201).json(product);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      throw error;
+    }
+  }));
+
+  // Update Shopify product
+  app.patch('/api/shopify/products/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const { updateShopifyProductSchema } = await import('@shared/schema');
+    
+    try {
+      const validated = updateShopifyProductSchema.parse(req.body);
+      const updated = await storage.updateShopifyProduct(id, validated);
+      res.json(updated);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      throw error;
+    }
+  }));
+
+  // Delete Shopify product
+  app.delete('/api/shopify/products/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    await storage.deleteShopifyProduct(id);
+    res.json({ message: 'Producto eliminado correctamente' });
+  }));
+
+  // Update Shopify product options
+  app.put('/api/shopify/products/:id/options', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const { options } = req.body;
+    
+    if (!Array.isArray(options)) {
+      return res.status(400).json({ message: 'options debe ser un array' });
+    }
+    
+    const updatedOptions = await storage.updateShopifyProductOptions(id, options);
+    res.json(updatedOptions);
+  }));
+
+  // Create Shopify product variant
+  app.post('/api/shopify/products/:productId/variants', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { productId } = req.params;
+    const { insertShopifyProductVariantSchema } = await import('@shared/schema');
+    
+    try {
+      const validated = insertShopifyProductVariantSchema.parse({ ...req.body, productId });
+      const variant = await storage.createShopifyProductVariant(validated);
+      res.status(201).json(variant);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      throw error;
+    }
+  }));
+
+  // Update Shopify product variant
+  app.patch('/api/shopify/variants/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const { updateShopifyProductVariantSchema } = await import('@shared/schema');
+    
+    try {
+      const validated = updateShopifyProductVariantSchema.parse(req.body);
+      const updated = await storage.updateShopifyProductVariant(id, validated);
+      res.json(updated);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      throw error;
+    }
+  }));
+
+  // Delete Shopify product variant
+  app.delete('/api/shopify/variants/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    await storage.deleteShopifyProductVariant(id);
+    res.json({ message: 'Variante eliminada correctamente' });
+  }));
+
+  // Get variant by SKU
+  app.get('/api/shopify/variants/sku/:sku', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { sku } = req.params;
+    const variant = await storage.getShopifyVariantBySku(sku);
+    
+    if (!variant) {
+      return res.status(404).json({ message: 'Variante no encontrada' });
+    }
+    
+    res.json(variant);
+  }));
+
+  // Import products from CSV (Shopify-style)
+  app.post('/api/shopify/products/import', requireAdminOrSupervisor, upload.single('file'), asyncHandler(async (req: any, res: any) => {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No se proporcionó archivo CSV' });
+    }
+    
+    const Papa = require('papaparse');
+    const csvContent = req.file.buffer.toString('utf-8');
+    const parsed = Papa.parse(csvContent, { header: true, skipEmptyLines: true });
+    
+    if (parsed.errors.length > 0) {
+      return res.status(400).json({ 
+        message: 'Error al parsear CSV', 
+        errors: parsed.errors.slice(0, 5) 
+      });
+    }
+    
+    const result = await storage.importShopifyProductsFromCsv(parsed.data);
+    
+    res.json({
+      message: `Importación completada: ${result.productsCreated} productos, ${result.variantsCreated} variantes`,
+      ...result
+    });
+  }));
+
+  // ===================== End Shopify-Style Products API Routes =====================
+
   // ===================== End eCommerce Admin API Routes =====================
 
   // ⚠️ DEPRECATED - Preview CSV endpoint (legacy backup system)
