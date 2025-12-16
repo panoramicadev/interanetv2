@@ -149,44 +149,45 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
     <div className="space-y-4">
       {/* Header con búsqueda expandible */}
       {!isSearchExpanded ? (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-              <UserCheck className="h-5 w-5 text-blue-600" />
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900">Vendedores</h2>
+            <h2 className="text-base sm:text-xl font-bold text-gray-900 truncate">Vendedores</h2>
             
             {/* Botón de lupa para expandir búsqueda */}
             <button
               onClick={() => setIsSearchExpanded(true)}
-              className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors flex-shrink-0"
               data-testid="button-expand-search-salespeople"
               title="Buscar vendedor"
             >
-              <Search className="h-4 w-4 text-gray-600" />
+              <Search className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-600" />
             </button>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             <Button
               variant="outline"
               size="sm"
               onClick={exportToCSV}
               disabled={isLoading || !salespeopleWithPercentage || salespeopleWithPercentage.length === 0}
+              className="text-[10px] sm:text-xs px-1.5 sm:px-3 py-1"
               data-testid="button-export-salespeople-csv"
             >
-              <Download className="h-4 w-4 mr-1" />
-              <span className="hidden sm:inline">Exportar CSV</span>
-              <span className="sm:hidden">CSV</span>
+              <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4 sm:mr-1" />
+              <span className="hidden sm:inline">CSV</span>
             </Button>
             <Link href="/mis-vendedores">
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-xs px-3 py-1"
+                className="text-[10px] sm:text-xs px-1.5 sm:px-3 py-1"
                 data-testid="button-view-all-salespeople"
               >
-                Ver todos
+                <span className="hidden sm:inline">Ver todos</span>
+                <span className="sm:hidden">Ver</span>
               </Button>
             </Link>
           </div>
