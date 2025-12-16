@@ -156,27 +156,28 @@ export default function ListaPrecios() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
-            <DollarSign className="h-8 w-8 text-primary" />
+          <h1 className="text-xl sm:text-3xl font-bold text-foreground flex items-center gap-2">
+            <DollarSign className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
             Lista de Precios
           </h1>
-          <p className="text-muted-foreground mt-2">
+          <p className="text-muted-foreground text-sm sm:text-base mt-1 sm:mt-2">
             Gestión y consulta de precios comerciales
           </p>
         </div>
         
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex items-center gap-2" disabled>
-            <Download className="h-4 w-4" />
-            Exportar
+        <div className="flex gap-2 self-start sm:self-auto">
+          <Button variant="outline" size="sm" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm" disabled>
+            <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Exportar</span>
           </Button>
           <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="flex items-center gap-2" data-testid="button-import-csv">
-                <Upload className="h-4 w-4" />
-                Importar CSV
+              <Button size="sm" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm" data-testid="button-import-csv">
+                <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Importar CSV</span>
+                <span className="sm:hidden">Importar</span>
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-lg">
@@ -439,14 +440,15 @@ export default function ListaPrecios() {
 
               {/* Pagination */}
               {data.totalCount > itemsPerPage && (
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
                     Mostrando {page * itemsPerPage + 1}-{Math.min((page + 1) * itemsPerPage, data.totalCount)} de {data.totalCount}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 justify-center sm:justify-end">
                     <Button
                       variant="outline"
                       size="sm"
+                      className="text-xs sm:text-sm"
                       onClick={() => setPage(page - 1)}
                       disabled={page === 0}
                       data-testid="button-prev-page"
@@ -456,6 +458,7 @@ export default function ListaPrecios() {
                     <Button
                       variant="outline"
                       size="sm"
+                      className="text-xs sm:text-sm"
                       onClick={() => setPage(page + 1)}
                       disabled={!data.hasMore}
                       data-testid="button-next-page"
