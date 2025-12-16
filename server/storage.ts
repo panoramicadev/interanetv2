@@ -8372,29 +8372,43 @@ export class DatabaseStorage implements IStorage {
     let productsCreated = 0;
     let variantsCreated = 0;
 
-    // Group products by variant_parentSku
+    // Group products by variant_parentSku maintaining order of first appearance
     const productGroups = new Map<string, any[]>();
+    const groupOrder: string[] = []; // Track order of first appearance
     
     for (const row of csvData) {
       const parentSku = row.variant_parentSku || row.productId;
       if (!productGroups.has(parentSku)) {
         productGroups.set(parentSku, []);
+        groupOrder.push(parentSku); // Record order of first appearance
       }
       productGroups.get(parentSku)!.push(row);
     }
 
-    // Process each product group
-    for (const [parentSku, variants] of productGroups) {
+    // Process each product group in order of first appearance
+    for (let groupIndex = 0; groupIndex < groupOrder.length; groupIndex++) {
+      const parentSku = groupOrder[groupIndex];
+      const variants = productGroups.get(parentSku)!;
+      
+      // Sort variants by variant_index to maintain correct order
+      variants.sort((a, b) => {
+        const indexA = parseInt(a.variant_index || '0', 10);
+        const indexB = parseInt(b.variant_index || '0', 10);
+        return indexA - indexB;
+      });
+      
       try {
-        // Find the parent product (where productId === variant_parentSku)
-        const parentRow = variants.find(v => v.productId === parentSku) || variants[0];
+        // Find the parent product (variant_index = 0 or where productId === variant_parentSku)
+        const parentRow = variants.find(v => v.variant_index === '0' || v.variant_index === 0) 
+                        || variants.find(v => v.productId === parentSku) 
+                        || variants[0];
         
         // Extract product title from variant_genericDisplayName or name
         const title = parentRow.variant_genericDisplayName || 
                      parentRow.name?.replace(/\s+(BLANCO|NEGRO|GRIS|ROJO|VERDE|AZUL|CAFE|INCOLORA?|BASE OSCURA|BASE INCOLORA)\s*/gi, '').trim() ||
                      parentRow.name;
 
-        // Create the product
+        // Create the product with sortOrder based on order of appearance in CSV
         const handle = this.generateHandle(title);
         const [product] = await db
           .insert(shopifyProducts)
@@ -8407,7 +8421,7 @@ export class DatabaseStorage implements IStorage {
             status: 'active',
             category: parentRow.tags?.split(',')[0]?.trim() || null,
             handle,
-            sortOrder: productsCreated,
+            sortOrder: groupIndex, // Use order of appearance in CSV
           })
           .onConflictDoNothing()
           .returning();
@@ -8456,10 +8470,11 @@ export class DatabaseStorage implements IStorage {
           await this.updateShopifyProductOptions(product.id, options);
         }
 
-        // Create variants
+        // Create variants using variant_index from CSV for position
         for (let i = 0; i < variants.length; i++) {
           const variantRow = variants[i];
-          await this.createVariantFromCsvRow(product.id, variantRow, variants, i);
+          const variantPosition = parseInt(variantRow.variant_index || String(i), 10);
+          await this.createVariantFromCsvRow(product.id, variantRow, variants, variantPosition);
           variantsCreated++;
         }
       } catch (error: any) {
