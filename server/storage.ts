@@ -8508,6 +8508,59 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getShopifyProductsForPublicCatalog(): Promise<any[]> {
+    const products = await db
+      .select()
+      .from(shopifyProducts)
+      .where(eq(shopifyProducts.status, 'active'))
+      .orderBy(shopifyProducts.sortOrder, shopifyProducts.title);
+
+    const result: any[] = [];
+    
+    for (const product of products) {
+      const options = await db
+        .select()
+        .from(shopifyProductOptions)
+        .where(eq(shopifyProductOptions.productId, product.id))
+        .orderBy(shopifyProductOptions.position);
+
+      const variants = await db
+        .select()
+        .from(shopifyProductVariants)
+        .where(and(
+          eq(shopifyProductVariants.productId, product.id),
+          eq(shopifyProductVariants.available, true)
+        ))
+        .orderBy(shopifyProductVariants.position);
+
+      if (variants.length > 0) {
+        result.push({
+          id: product.id,
+          title: product.title,
+          description: product.description,
+          vendor: product.vendor,
+          category: product.category,
+          featuredImageUrl: product.featuredImageUrl,
+          handle: product.handle,
+          options,
+          variants: variants.map(v => ({
+            id: v.id,
+            sku: v.sku,
+            price: parseFloat(v.price),
+            option1: v.option1,
+            option2: v.option2,
+            option3: v.option3,
+            imageUrl: v.imageUrl,
+            packagingUnitName: v.packagingUnitName,
+            inventoryQuantity: v.inventoryQuantity,
+          })),
+        });
+      }
+    }
+
+    return result;
+  }
+
   async getProductStock(sku: string): Promise<ProductStock[]> {
     return await db.select().from(productStock).where(eq(productStock.productSku, sku));
   }

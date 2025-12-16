@@ -4822,6 +4822,17 @@ export function registerRoutes(app: Express): Server {
     });
   }));
 
+  // Public endpoint for Shopify products (no auth required)
+  app.get('/api/public/shopify/products', async (req: any, res: any) => {
+    try {
+      const products = await storage.getShopifyProductsForPublicCatalog();
+      res.json(products);
+    } catch (error) {
+      console.error('Error fetching public Shopify products:', error);
+      res.status(500).json({ message: 'Error al cargar productos' });
+    }
+  });
+
   // ===================== End Shopify-Style Products API Routes =====================
 
   // ===================== End eCommerce Admin API Routes =====================
