@@ -16,6 +16,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers, Users, Phone, Mail, Link as LinkIcon, Check, X, Loader2, User } from "lucide-react";
 import ProductGroupsAdmin from "@/components/product-groups-admin";
 import { useAuth } from "@/hooks/useAuth";
+import { Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -1005,6 +1006,13 @@ export default function EcommerceAdmin() {
         </div>
         
         <div className="flex items-center gap-2">
+          <Link href="/shopify-products">
+            <Button variant="outline" className="flex items-center gap-2" data-testid="button-shopify-products">
+              <Layers className="h-4 w-4" />
+              Productos con Variantes
+            </Button>
+          </Link>
+          
           <Button
             variant="outline"
             className="flex items-center gap-2"
