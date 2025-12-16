@@ -96,21 +96,21 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
     <div className="space-y-4">
       {/* Header con búsqueda expandible */}
       {!isSearchExpanded ? (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-              <ShoppingBag className="h-5 w-5 text-blue-600" />
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <ShoppingBag className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900">Top Productos</h2>
+            <h2 className="text-base sm:text-xl font-bold text-gray-900 truncate">Top Productos</h2>
             
             {/* Botón de lupa para expandir búsqueda */}
             <button
               onClick={() => setIsSearchExpanded(true)}
-              className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors flex-shrink-0"
               data-testid="button-expand-search"
               title="Buscar producto"
             >
-              <Search className="h-4 w-4 text-gray-600" />
+              <Search className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-600" />
             </button>
           </div>
           
@@ -118,10 +118,11 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
             <Button
               variant="default"
               size="sm"
-              className="text-xs px-4 py-2 bg-blue-600 hover:bg-blue-700"
+              className="text-[10px] sm:text-xs px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-600 hover:bg-blue-700 flex-shrink-0"
               data-testid="button-view-all-products"
             >
-              Análisis completo
+              <span className="hidden sm:inline">Análisis completo</span>
+              <span className="sm:hidden">Análisis</span>
             </Button>
           </Link>
         </div>
