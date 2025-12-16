@@ -1010,6 +1010,16 @@ export interface IStorage {
     errors: string[];
   }>;
   
+  // Import ecommerce products from new catalog CSV format
+  importEcommerceProductsFromCatalogCsv(csvData: any[]): Promise<{
+    productsCreated: number;
+    productsUpdated: number;
+    errors: string[];
+  }>;
+  
+  // Clear all ecommerce products
+  clearAllEcommerceProducts(): Promise<{ deletedCount: number }>;
+  
   // eCommerce Orders operations
   createEcommerceOrder(order: any): Promise<any>;
   getEcommerceOrders(filters?: {
@@ -8561,6 +8571,138 @@ export class DatabaseStorage implements IStorage {
       console.error(`Error creating variant ${row.productId}:`, error);
       return null;
     }
+  }
+
+  async importEcommerceProductsFromCatalogCsv(csvData: any[]): Promise<{
+    productsCreated: number;
+    productsUpdated: number;
+    errors: string[];
+  }> {
+    let productsCreated = 0;
+    let productsUpdated = 0;
+    const errors: string[] = [];
+
+    console.log(`[CATALOG IMPORT] Starting import of ${csvData.length} products`);
+
+    for (const row of csvData) {
+      try {
+        const productId = row.productId?.trim();
+        if (!productId) {
+          errors.push('Row missing productId');
+          continue;
+        }
+
+        const productName = row.name?.trim() || productId;
+        const price = parseFloat(row.pricePerUnit) || 0;
+        const category = row.tags?.trim() || null;
+        const description = row.description?.trim() || null;
+        const unitName = row.packaging_unitName?.trim() || row.formats_0_displayName?.trim() || null;
+        const variantParentSku = row.variant_parentSku?.trim() || null;
+        const variantGenericDisplayName = row.variant_genericDisplayName?.trim() || null;
+        const variantIndex = parseInt(row.variant_index) || 0;
+        const color = row.variant_features_0_value?.trim() || null;
+
+        // Check if priceList entry exists
+        const existingPriceList = await db
+          .select()
+          .from(priceList)
+          .where(eq(priceList.codigo, productId))
+          .limit(1);
+
+        let priceListId: string;
+
+        if (existingPriceList.length > 0) {
+          // Update existing priceList entry
+          priceListId = existingPriceList[0].id;
+          await db
+            .update(priceList)
+            .set({
+              producto: productName,
+              unidad: unitName,
+              lista: price.toString(),
+              canalDigital: price.toString(),
+              updatedAt: new Date(),
+            })
+            .where(eq(priceList.id, priceListId));
+        } else {
+          // Create new priceList entry
+          const [newPriceList] = await db
+            .insert(priceList)
+            .values({
+              codigo: productId,
+              producto: productName,
+              unidad: unitName,
+              lista: price.toString(),
+              canalDigital: price.toString(),
+            })
+            .returning();
+          priceListId = newPriceList.id;
+        }
+
+        // Check if ecommerceProducts entry exists
+        const existingEcomProduct = await db
+          .select()
+          .from(ecommerceProducts)
+          .where(eq(ecommerceProducts.priceListId, priceListId))
+          .limit(1);
+
+        if (existingEcomProduct.length > 0) {
+          // Update existing ecommerceProducts entry
+          await db
+            .update(ecommerceProducts)
+            .set({
+              categoria: category,
+              descripcion: description,
+              activo: row.isDisabled !== 'TRUE' && row.isDisabled !== true,
+              precioEcommerce: price.toString(),
+              variantParentSku: variantParentSku,
+              variantGenericDisplayName: variantGenericDisplayName,
+              variantIndex: variantIndex,
+              color: color,
+              updatedAt: new Date(),
+            })
+            .where(eq(ecommerceProducts.id, existingEcomProduct[0].id));
+          productsUpdated++;
+        } else {
+          // Create new ecommerceProducts entry
+          await db
+            .insert(ecommerceProducts)
+            .values({
+              priceListId: priceListId,
+              categoria: category,
+              descripcion: description,
+              activo: row.isDisabled !== 'TRUE' && row.isDisabled !== true,
+              precioEcommerce: price.toString(),
+              variantParentSku: variantParentSku,
+              variantGenericDisplayName: variantGenericDisplayName,
+              variantIndex: variantIndex,
+              color: color,
+            });
+          productsCreated++;
+        }
+      } catch (error: any) {
+        const errMsg = `Error processing ${row.productId}: ${error.message}`;
+        console.error(`[CATALOG IMPORT] ${errMsg}`);
+        errors.push(errMsg);
+      }
+    }
+
+    console.log(`[CATALOG IMPORT] Completed: ${productsCreated} created, ${productsUpdated} updated, ${errors.length} errors`);
+    return { productsCreated, productsUpdated, errors };
+  }
+
+  async clearAllEcommerceProducts(): Promise<{ deletedCount: number }> {
+    console.log('[CATALOG CLEAR] Clearing all ecommerce products and priceList entries');
+    
+    // First delete all ecommerceProducts
+    const ecomDeleted = await db.delete(ecommerceProducts).returning();
+    
+    // Then delete all priceList entries
+    const priceDeleted = await db.delete(priceList).returning();
+    
+    console.log(`[CATALOG CLEAR] Deleted ${ecomDeleted.length} ecommerce entries and ${priceDeleted.length} priceList entries`);
+    
+    return { deletedCount: ecomDeleted.length + priceDeleted.length };
   }
 
   async getShopifyProductsForPublicCatalog(): Promise<any[]> {
