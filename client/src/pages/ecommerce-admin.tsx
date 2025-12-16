@@ -134,6 +134,10 @@ export default function EcommerceAdmin() {
   // Estado para grupos expandidos en la vista de productos
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   
+  // Estado para importación de productos CSV
+  const [csvImporting, setCsvImporting] = useState(false);
+  const [csvImportProgress, setCsvImportProgress] = useState<{ status: string; count: number }>({ status: '', count: 0 });
+  
   const { toast } = useToast();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
@@ -230,6 +234,61 @@ export default function EcommerceAdmin() {
         variant: 'destructive',
         title: 'Error',
         description: error.message || 'No se pudo actualizar el catálogo',
+      });
+    },
+  });
+
+  // Mutación para importar productos desde CSV de catálogo
+  const importCatalogMutation = useMutation({
+    mutationFn: async (csvData: any[]) => {
+      const response = await apiRequest('/api/ecommerce/admin/productos/import-catalog', {
+        method: 'POST',
+        data: { data: csvData }
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setCsvImporting(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/productos'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/categorias'] });
+      toast({
+        title: 'Importación completada',
+        description: `${data.productsCreated} productos creados, ${data.productsUpdated} actualizados`,
+      });
+    },
+    onError: (error: any) => {
+      setCsvImporting(false);
+      toast({
+        variant: 'destructive',
+        title: 'Error en importación',
+        description: error.message || 'No se pudieron importar los productos',
+      });
+    },
+  });
+
+  // Mutación para limpiar todos los productos
+  const clearProductsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('/api/ecommerce/admin/productos/clear-all', {
+        method: 'DELETE'
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/productos'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/categorias'] });
+      toast({
+        title: 'Productos eliminados',
+        description: `Se eliminaron ${data.deletedCount} registros`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message || 'No se pudieron eliminar los productos',
       });
     },
   });
@@ -918,6 +977,59 @@ export default function EcommerceAdmin() {
     e.preventDefault();
   };
 
+  // Función para manejar importación de CSV de catálogo
+  const handleCsvImport = async (file: File) => {
+    if (!file.name.endsWith('.csv')) {
+      toast({
+        title: 'Archivo inválido',
+        description: 'Por favor selecciona un archivo CSV',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setCsvImporting(true);
+    setCsvImportProgress({ status: 'Leyendo archivo...', count: 0 });
+
+    try {
+      const text = await file.text();
+      const Papa = await import('papaparse');
+      
+      Papa.default.parse(text, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          if (results.data && results.data.length > 0) {
+            setCsvImportProgress({ status: 'Importando productos...', count: results.data.length });
+            importCatalogMutation.mutate(results.data as any[]);
+          } else {
+            setCsvImporting(false);
+            toast({
+              title: 'CSV vacío',
+              description: 'El archivo no contiene datos para importar',
+              variant: 'destructive',
+            });
+          }
+        },
+        error: (error: any) => {
+          setCsvImporting(false);
+          toast({
+            title: 'Error al leer CSV',
+            description: error.message,
+            variant: 'destructive',
+          });
+        }
+      });
+    } catch (error: any) {
+      setCsvImporting(false);
+      toast({
+        title: 'Error',
+        description: error.message || 'No se pudo leer el archivo',
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -1023,6 +1135,66 @@ export default function EcommerceAdmin() {
           </Card>
         </div>
       )}
+
+      {/* Importador de Productos CSV */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Upload className="h-5 w-5 text-primary" />
+            Importar Productos desde CSV
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Sube un archivo CSV con los productos del catálogo. Se crearán o actualizarán los productos automáticamente.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {csvImporting ? (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-blue-800">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="font-medium">{csvImportProgress.status}</span>
+                  {csvImportProgress.count > 0 && (
+                    <span className="text-sm">({csvImportProgress.count} productos)</span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1">
+                  <Input
+                    type="file"
+                    accept=".csv"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleCsvImport(file);
+                    }}
+                    data-testid="input-csv-import"
+                    className="cursor-pointer"
+                  />
+                </div>
+                {productos.length > 0 && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      if (confirm('¿Estás seguro de eliminar TODOS los productos? Esta acción no se puede deshacer.')) {
+                        clearProductsMutation.mutate();
+                      }
+                    }}
+                    disabled={clearProductsMutation.isPending}
+                    data-testid="button-clear-products"
+                  >
+                    {clearProductsMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : null}
+                    Limpiar Productos
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Importador de Imágenes */}
       <Card>

@@ -4507,6 +4507,42 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Import products from catalog CSV
+  app.post('/api/ecommerce/admin/productos/import-catalog', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { data } = req.body;
+    
+    if (!Array.isArray(data) || data.length === 0) {
+      return res.status(400).json({ message: 'Se requiere una lista de productos para importar' });
+    }
+    
+    try {
+      const result = await storage.importEcommerceProductsFromCatalogCsv(data);
+      res.json({
+        success: true,
+        productsCreated: result.productsCreated,
+        productsUpdated: result.productsUpdated,
+        errors: result.errors
+      });
+    } catch (error: any) {
+      console.error('Error importing catalog products:', error);
+      throw error;
+    }
+  }));
+
+  // Clear all ecommerce products
+  app.delete('/api/ecommerce/admin/productos/clear-all', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const result = await storage.clearAllEcommerceProducts();
+      res.json({
+        success: true,
+        deletedCount: result.deletedCount
+      });
+    } catch (error: any) {
+      console.error('Error clearing products:', error);
+      throw error;
+    }
+  }));
+
   // Bulk assign products to a group
   app.post('/api/ecommerce/admin/productos/bulk-assign', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { productIds, groupId } = req.body;
