@@ -61,6 +61,9 @@ type ProductFormat = {
   unidad: string;
   precio: number;
   imagenUrl: string | null;
+  minUnit: number;
+  stepSize: number;
+  formatUnit: string | null;
 };
 
 type ProductColor = {
@@ -95,6 +98,8 @@ type CartItem = {
   precio: number;
   imagenUrl: string | null;
   quantity: number;
+  minUnit: number;
+  stepSize: number;
 };
 
 const quoteFormSchema = z.object({
@@ -245,12 +250,14 @@ export default function CatalogoPublico() {
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
+        // Increment by stepSize
         return prev.map(item =>
           item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
+            ? { ...item, quantity: item.quantity + (product.stepSize || 1) }
             : item
         );
       }
+      // Start with minUnit as initial quantity
       return [...prev, { 
         id: product.id,
         codigo: product.codigo,
@@ -258,7 +265,9 @@ export default function CatalogoPublico() {
         unidad: product.unidad,
         precio: product.precio,
         imagenUrl: product.imagenUrl,
-        quantity: 1 
+        quantity: product.minUnit || 1,
+        minUnit: product.minUnit || 1,
+        stepSize: product.stepSize || 1
       }];
     });
     
@@ -272,12 +281,32 @@ export default function CatalogoPublico() {
     setCart(prev => prev.filter(item => item.id !== productId));
   };
 
-  const updateQuantity = (productId: string, quantity: number | string) => {
-    const numQuantity = typeof quantity === 'string' ? parseInt(quantity, 10) : quantity;
-    if (isNaN(numQuantity) || numQuantity <= 0) {
-      removeFromCart(productId);
+  const updateQuantity = (productId: string, quantity: number | string, direction?: 'up' | 'down') => {
+    const cartItem = cart.find(item => item.id === productId);
+    if (!cartItem) return;
+    
+    const step = cartItem.stepSize || 1;
+    const min = cartItem.minUnit || 1;
+    
+    let numQuantity: number;
+    if (typeof quantity === 'string') {
+      numQuantity = parseInt(quantity, 10);
+    } else if (direction === 'up') {
+      numQuantity = cartItem.quantity + step;
+    } else if (direction === 'down') {
+      numQuantity = cartItem.quantity - step;
+    } else {
+      numQuantity = quantity;
+    }
+    
+    // Validate minimum
+    if (isNaN(numQuantity) || numQuantity < min) {
+      if (direction === 'down') {
+        removeFromCart(productId);
+      }
       return;
     }
+    
     setCart(prev =>
       prev.map(item =>
         item.id === productId ? { ...item, quantity: numQuantity } : item
@@ -842,17 +871,24 @@ export default function CatalogoPublico() {
                             variant="outline"
                             size="icon"
                             className="h-9 w-9"
-                            onClick={() => updateQuantity(selectedProduct.id, cartItem.quantity - 1)}
+                            onClick={() => updateQuantity(selectedProduct.id, 0, 'down')}
                             data-testid={`button-decrease-${selectedProduct.id}`}
                           >
                             <Minus className="h-4 w-4" />
                           </Button>
-                          <span className="font-semibold text-lg">{cartItem.quantity}</span>
+                          <div className="text-center">
+                            <span className="font-semibold text-lg">{cartItem.quantity}</span>
+                            {cartItem.stepSize > 1 && (
+                              <span className="block text-xs text-muted-foreground">
+                                (salto: {cartItem.stepSize})
+                              </span>
+                            )}
+                          </div>
                           <Button
                             variant="outline"
                             size="icon"
                             className="h-9 w-9"
-                            onClick={() => updateQuantity(selectedProduct.id, cartItem.quantity + 1)}
+                            onClick={() => updateQuantity(selectedProduct.id, 0, 'up')}
                             data-testid={`button-increase-${selectedProduct.id}`}
                           >
                             <Plus className="h-4 w-4" />
