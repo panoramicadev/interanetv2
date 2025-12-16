@@ -882,11 +882,11 @@ export default function ProyeccionManualPage() {
       {selectedYears.length > 0 && (
         <Card>
           <CardHeader>
-            <div className="flex justify-between items-start">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
               <div>
-                <CardTitle>Ventas por Cliente y Año</CardTitle>
-                <CardDescription>
-                  Histórico de ventas y proyecciones mensuales. Expande cada cliente para ver el desglose por mes. El total anual se calcula automáticamente sumando los 12 meses.
+                <CardTitle className="text-base sm:text-lg">Ventas por Cliente y Año</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
+                  Histórico de ventas y proyecciones mensuales. Expande cada cliente para ver el desglose por mes.
                 </CardDescription>
               </div>
               <TooltipProvider>
@@ -896,10 +896,13 @@ export default function ProyeccionManualPage() {
                       <Button 
                         onClick={() => setShowAddClientDialog(true)}
                         disabled={isReadOnly || selectedSalesperson === 'all'}
+                        size="sm"
+                        className="text-xs sm:text-sm"
                         data-testid="button-add-future-client"
                       >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Agregar Cliente Futuro
+                        <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                        <span className="hidden sm:inline">Agregar Cliente Futuro</span>
+                        <span className="sm:hidden">Agregar Cliente</span>
                       </Button>
                     </div>
                   </TooltipTrigger>
