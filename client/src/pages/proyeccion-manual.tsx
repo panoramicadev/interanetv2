@@ -943,24 +943,25 @@ export default function ProyeccionManualPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="sticky left-0 bg-background z-10">Cliente</TableHead>
-                    <TableHead>Segmento</TableHead>
+                    <TableHead className="min-w-[120px] sm:min-w-[180px]">Cliente</TableHead>
+                    <TableHead className="min-w-[80px] sm:min-w-[100px]">Segmento</TableHead>
                     {showMonthlyView ? (
                       allPeriods.map(period => (
-                        <TableHead key={`${period.year}-${period.month}`} className="text-right min-w-[130px]">
+                        <TableHead key={`${period.year}-${period.month}`} className="text-right min-w-[90px] sm:min-w-[130px]">
                           {period.label}
                           {futureYear === period.year && (
-                            <Badge variant="outline" className="ml-1 text-xs">Futuro</Badge>
+                            <Badge variant="outline" className="ml-1 text-xs hidden sm:inline-flex">Futuro</Badge>
                           )}
                         </TableHead>
                       ))
                     ) : (
                       allYears.map(year => (
-                        <TableHead key={year} className="text-right min-w-[150px]">
+                        <TableHead key={year} className="text-right min-w-[100px] sm:min-w-[150px]">
                           {year}
                           {futureYear === year && (
-                            <Badge variant="outline" className="ml-2">
-                              Futuro ({manualProjections.filter(p => p.year === year).length} proyecciones)
+                            <Badge variant="outline" className="ml-1 sm:ml-2 text-xs">
+                              <span className="hidden sm:inline">Futuro ({manualProjections.filter(p => p.year === year).length} proyecciones)</span>
+                              <span className="sm:hidden">F</span>
                             </Badge>
                           )}
                         </TableHead>
@@ -993,11 +994,11 @@ export default function ProyeccionManualPage() {
                         return (
                           <>
                             <TableRow key={client.clientCode} className="cursor-pointer hover:bg-muted/50">
-                              <TableCell className="sticky left-0 bg-background z-10">
-                                <div className="flex items-center gap-2">
+                              <TableCell>
+                                <div className="flex items-center gap-1 sm:gap-2">
                                   <button
                                     onClick={() => toggleRowExpansion(client.clientCode)}
-                                    className="hover:bg-accent rounded p-1"
+                                    className="hover:bg-accent rounded p-1 flex-shrink-0"
                                     data-testid={`button-expand-${client.clientCode}`}
                                   >
                                     {isExpanded ? (
@@ -1006,7 +1007,7 @@ export default function ProyeccionManualPage() {
                                       <ChevronRight className="w-4 h-4" />
                                     )}
                                   </button>
-                                  <span className="font-medium">{client.clientName}</span>
+                                  <span className="font-medium text-sm sm:text-base">{client.clientName}</span>
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -1252,7 +1253,7 @@ export default function ProyeccionManualPage() {
                                   
                                   return (
                                     <TableRow key={`${client.clientCode}-month-${monthNum}`} className="bg-muted/30">
-                                      <TableCell className="sticky left-0 bg-muted/30 z-10 pl-12 text-sm text-muted-foreground">
+                                      <TableCell className="pl-8 sm:pl-12 text-sm text-muted-foreground">
                                         {monthLabel}
                                       </TableCell>
                                       <TableCell></TableCell>
@@ -1374,7 +1375,7 @@ export default function ProyeccionManualPage() {
                       })}
                       {/* Total Row */}
                       <TableRow className="bg-accent font-bold">
-                        <TableCell className="sticky left-0 bg-accent z-10">TOTAL</TableCell>
+                        <TableCell className="font-bold">TOTAL</TableCell>
                         <TableCell></TableCell>
                         {showMonthlyView ? (
                           allPeriods.map(period => (
