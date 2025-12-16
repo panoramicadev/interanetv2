@@ -905,6 +905,14 @@ export interface IStorage {
     activo: boolean;
     imagenUrl?: string;
     stock?: number;
+    groupId?: string | null;
+    variantLabel?: string | null;
+    isMainVariant?: boolean;
+    productFamily?: string | null;
+    color?: string | null;
+    variantParentSku?: string | null;
+    variantGenericDisplayName?: string | null;
+    variantIndex?: number;
   }>>;
   getEcommerceAdminCategories(): Promise<Array<{
     id: string;
@@ -7407,6 +7415,9 @@ export class DatabaseStorage implements IStorage {
     isMainVariant?: boolean;
     productFamily?: string | null;
     color?: string | null;
+    variantParentSku?: string | null;
+    variantGenericDisplayName?: string | null;
+    variantIndex?: number;
   }>> {
     // Use direct imports instead of dynamic imports
     const { priceList, ecommerceProducts } = await import('@shared/schema');
@@ -7432,6 +7443,9 @@ export class DatabaseStorage implements IStorage {
         isMainVariant: ecommerceProducts.isMainVariant,
         productFamily: ecommerceProducts.productFamily,
         color: ecommerceProducts.color,
+        variantParentSku: ecommerceProducts.variantParentSku,
+        variantGenericDisplayName: ecommerceProducts.variantGenericDisplayName,
+        variantIndex: ecommerceProducts.variantIndex,
       })
       .from(priceList)
       .leftJoin(ecommerceProducts, eq(priceList.id, ecommerceProducts.priceListId));
@@ -7505,6 +7519,9 @@ export class DatabaseStorage implements IStorage {
       isMainVariant: row.isMainVariant ?? false,
       productFamily: row.productFamily || null,
       color: row.color || null,
+      variantParentSku: row.variantParentSku || null,
+      variantGenericDisplayName: row.variantGenericDisplayName || null,
+      variantIndex: row.variantIndex ?? 0,
     }));
   }
 

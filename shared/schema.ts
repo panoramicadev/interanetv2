@@ -1929,6 +1929,9 @@ export const ecommerceProducts = pgTable("ecommerce_products", {
   orden: integer("orden").default(0), // Orden de visualización
   productFamily: varchar("product_family"), // Familia de producto sin color (ej: "ANTICORROSIVO ESTRUCTURAL")
   color: varchar("color"), // Color del producto (ej: "BLANCO", "GRIS")
+  variantParentSku: varchar("variant_parent_sku"), // SKU padre del CSV (variant_parentSku) para agrupar variantes
+  variantGenericDisplayName: varchar("variant_generic_display_name"), // Nombre genérico del grupo (variant_genericDisplayName)
+  variantIndex: integer("variant_index").default(0), // Índice de la variante (variant_index del CSV)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
