@@ -340,18 +340,19 @@ export default function GDVPage() {
         <TabsContent value="history" className="space-y-6" data-testid="content-history">
           <Card data-testid="card-sync-history">
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <History className="w-5 h-5" />
+              <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <span className="flex items-center gap-2 text-sm sm:text-base">
+                  <History className="w-4 h-4 sm:w-5 sm:h-5" />
                   Historial de Sincronizaciones
                 </span>
                 <Button 
                   variant="outline" 
                   size="sm" 
                   onClick={() => refetchHistory()}
+                  className="text-xs self-start sm:self-auto"
                   data-testid="button-refresh-history"
                 >
-                  <RefreshCw className="w-4 h-4 mr-2" />
+                  <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                   Actualizar
                 </Button>
               </CardTitle>
