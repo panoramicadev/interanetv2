@@ -1943,6 +1943,7 @@ export const ecommerceProducts = pgTable("ecommerce_products", {
 // Shopify Products - Producto principal (agrupa variantes)
 export const shopifyProducts = pgTable("shopify_products", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  parentSku: varchar("parent_sku").unique(), // SKU padre del CSV (variant_parentSku) - usado para agrupar variantes
   title: varchar("title").notNull(), // Nombre del producto (ej: "Esmalte al Agua Copper")
   description: text("description"), // Descripción detallada
   vendor: varchar("vendor").default("Pinturas Panoramica"), // Marca/Proveedor

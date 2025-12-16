@@ -8271,6 +8271,18 @@ export class DatabaseStorage implements IStorage {
     return this.getShopifyProduct(product.id);
   }
 
+  async getShopifyProductByParentSku(parentSku: string): Promise<ShopifyProductWithVariants | null> {
+    const [product] = await db
+      .select()
+      .from(shopifyProducts)
+      .where(eq(shopifyProducts.parentSku, parentSku))
+      .limit(1);
+
+    if (!product) return null;
+
+    return this.getShopifyProduct(product.id);
+  }
+
   async updateShopifyProduct(id: string, updates: UpdateShopifyProductInput): Promise<ShopifyProduct> {
     const [updated] = await db
       .update(shopifyProducts)
@@ -8398,7 +8410,21 @@ export class DatabaseStorage implements IStorage {
       });
       
       try {
-        // Find the parent product (variant_index = 0 or where productId === variant_parentSku)
+        // Check if product already exists by parentSku (the correct way to identify products)
+        const existingProduct = await this.getShopifyProductByParentSku(parentSku);
+        
+        if (existingProduct) {
+          // Product exists, add/update variants
+          for (let i = 0; i < variants.length; i++) {
+            const variantRow = variants[i];
+            const variantPosition = parseInt(variantRow.variant_index || String(i), 10);
+            await this.createVariantFromCsvRow(existingProduct.id, variantRow, variants, variantPosition);
+            variantsCreated++;
+          }
+          continue;
+        }
+        
+        // Find the parent product row (variant_index = 0 or where productId === variant_parentSku)
         const parentRow = variants.find(v => v.variant_index === '0' || v.variant_index === 0) 
                         || variants.find(v => v.productId === parentSku) 
                         || variants[0];
@@ -8408,11 +8434,13 @@ export class DatabaseStorage implements IStorage {
                      parentRow.name?.replace(/\s+(BLANCO|NEGRO|GRIS|ROJO|VERDE|AZUL|CAFE|INCOLORA?|BASE OSCURA|BASE INCOLORA)\s*/gi, '').trim() ||
                      parentRow.name;
 
-        // Create the product with sortOrder based on order of appearance in CSV
-        const handle = this.generateHandle(title);
+        // Generate handle from parentSku (not from name) to ensure uniqueness
+        const handle = this.generateHandle(parentSku);
+        
         const [product] = await db
           .insert(shopifyProducts)
           .values({
+            parentSku, // Store the parentSku for future lookups
             title,
             description: parentRow.description || '',
             vendor: parentRow.brand || 'Pinturas Panoramica',
@@ -8427,15 +8455,7 @@ export class DatabaseStorage implements IStorage {
           .returning();
 
         if (!product) {
-          // Product already exists, try to get it by handle
-          const existing = await this.getShopifyProductByHandle(handle);
-          if (existing) {
-            // Add variants to existing product
-            for (const variantRow of variants) {
-              await this.createVariantFromCsvRow(existing.id, variantRow, variants);
-              variantsCreated++;
-            }
-          }
+          errors.push(`Failed to create product for SKU ${parentSku}`);
           continue;
         }
 
