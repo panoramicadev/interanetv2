@@ -176,47 +176,49 @@ export default function Marketing() {
 
       {/* Tabs */}
       <Tabs defaultValue="solicitudes" className="w-full">
-        <TabsList className={`grid w-full h-auto ${user.role === 'salesperson' ? 'grid-cols-2' : 'grid-cols-7'}`}>
-          <TabsTrigger value="solicitudes" data-testid="tab-solicitudes" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
-            <FileText className="h-4 w-4" />
-            <span>Solicitudes</span>
-          </TabsTrigger>
-          <TabsTrigger value="inventario" data-testid="tab-inventario" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
-            <Package className="h-4 w-4" />
-            <span>Inventario</span>
-          </TabsTrigger>
-          {(user.role === 'admin' || user.role === 'supervisor') && (
-            <TabsTrigger value="tareas" data-testid="tab-tareas" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
-              <ClipboardList className="h-4 w-4" />
-              <span>Tareas</span>
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <TabsList className={`inline-flex w-max sm:w-full h-auto gap-1 ${user.role === 'salesperson' ? 'sm:grid sm:grid-cols-2' : 'sm:grid sm:grid-cols-7'}`}>
+            <TabsTrigger value="solicitudes" data-testid="tab-solicitudes" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
+              <FileText className="h-4 w-4" />
+              <span>Solicitudes</span>
             </TabsTrigger>
-          )}
-          {(user.role === 'admin' || user.role === 'supervisor') && (
-            <TabsTrigger value="calendario" data-testid="tab-calendario" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
-              <Calendar className="h-4 w-4" />
-              <span>Calendario</span>
+            <TabsTrigger value="inventario" data-testid="tab-inventario" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
+              <Package className="h-4 w-4" />
+              <span>Inventario</span>
             </TabsTrigger>
-          )}
-          {(user.role === 'admin' || user.role === 'supervisor') && (
-            <TabsTrigger value="competencia" data-testid="tab-competencia" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
-              <Target className="h-4 w-4" />
-              <span>Competencia</span>
-            </TabsTrigger>
-          )}
-          {(user.role === 'admin' || user.role === 'supervisor') && (
-            <TabsTrigger value="presupuesto" data-testid="tab-presupuesto" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
-              <DollarSign className="h-4 w-4" />
-              <span>Presupuesto</span>
-            </TabsTrigger>
-          )}
-          {(user.role === 'admin' || user.role === 'supervisor') && (
-            <TabsTrigger value="seo" data-testid="tab-seo" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
-              <TrendingUp className="h-4 w-4" />
-              <span className="hidden sm:inline">Posicionamiento</span>
-              <span className="sm:hidden">SEO</span>
-            </TabsTrigger>
-          )}
-        </TabsList>
+            {(user.role === 'admin' || user.role === 'supervisor') && (
+              <TabsTrigger value="tareas" data-testid="tab-tareas" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
+                <ClipboardList className="h-4 w-4" />
+                <span>Tareas</span>
+              </TabsTrigger>
+            )}
+            {(user.role === 'admin' || user.role === 'supervisor') && (
+              <TabsTrigger value="calendario" data-testid="tab-calendario" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
+                <Calendar className="h-4 w-4" />
+                <span>Calendario</span>
+              </TabsTrigger>
+            )}
+            {(user.role === 'admin' || user.role === 'supervisor') && (
+              <TabsTrigger value="competencia" data-testid="tab-competencia" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
+                <Target className="h-4 w-4" />
+                <span>Competencia</span>
+              </TabsTrigger>
+            )}
+            {(user.role === 'admin' || user.role === 'supervisor') && (
+              <TabsTrigger value="presupuesto" data-testid="tab-presupuesto" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
+                <DollarSign className="h-4 w-4" />
+                <span>Presupuesto</span>
+              </TabsTrigger>
+            )}
+            {(user.role === 'admin' || user.role === 'supervisor') && (
+              <TabsTrigger value="seo" data-testid="tab-seo" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
+                <TrendingUp className="h-4 w-4" />
+                <span className="hidden sm:inline">Posicionamiento</span>
+                <span className="sm:hidden">SEO</span>
+              </TabsTrigger>
+            )}
+          </TabsList>
+        </div>
 
         {/* Tab: Solicitudes */}
         <TabsContent value="solicitudes" className="space-y-6">
