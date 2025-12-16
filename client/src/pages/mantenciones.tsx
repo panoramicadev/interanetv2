@@ -1672,31 +1672,33 @@ export default function MantencionesPage() {
           </div>
 
           <Tabs defaultValue="todos" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-6">
-              <TabsTrigger value="todos" data-testid="tab-todos">
-                Todos ({filterByEstado().length})
-              </TabsTrigger>
-              <TabsTrigger value="registrado" data-testid="tab-registrado">
-                <Clock className="h-4 w-4 mr-2" />
-                Registrado ({filterByEstado('registrado').length})
-              </TabsTrigger>
-              <TabsTrigger value="programada" data-testid="tab-programada">
-                <Calendar className="h-4 w-4 mr-2" />
-                Programada ({filterByEstado('programada').length})
-              </TabsTrigger>
-              <TabsTrigger value="en_reparacion" data-testid="tab-en-reparacion">
-                <Wrench className="h-4 w-4 mr-2" />
-                En Reparación ({filterByEstado('en_reparacion').length})
-              </TabsTrigger>
-              <TabsTrigger value="pausada" data-testid="tab-pausada">
-                <PauseCircle className="h-4 w-4 mr-2" />
-                Pausada ({filterByEstado('pausada').length})
-              </TabsTrigger>
-              <TabsTrigger value="resuelto" data-testid="tab-resuelto">
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Resuelto ({filterByEstado('resuelto').length})
-              </TabsTrigger>
-            </TabsList>
+            <div className="overflow-x-auto -mx-6 px-6">
+              <TabsList className="inline-flex w-max sm:w-full sm:grid sm:grid-cols-6 h-auto gap-1">
+                <TabsTrigger value="todos" data-testid="tab-todos" className="px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+                  Todos ({filterByEstado().length})
+                </TabsTrigger>
+                <TabsTrigger value="registrado" data-testid="tab-registrado" className="px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+                  <Clock className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                  Registrado ({filterByEstado('registrado').length})
+                </TabsTrigger>
+                <TabsTrigger value="programada" data-testid="tab-programada" className="px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+                  <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                  Programada ({filterByEstado('programada').length})
+                </TabsTrigger>
+                <TabsTrigger value="en_reparacion" data-testid="tab-en-reparacion" className="px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+                  <Wrench className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                  En Reparación ({filterByEstado('en_reparacion').length})
+                </TabsTrigger>
+                <TabsTrigger value="pausada" data-testid="tab-pausada" className="px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+                  <PauseCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                  Pausada ({filterByEstado('pausada').length})
+                </TabsTrigger>
+                <TabsTrigger value="resuelto" data-testid="tab-resuelto" className="px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+                  <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                  Resuelto ({filterByEstado('resuelto').length})
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             <TabsContent value="todos">
               {renderMantencionesCards(filterByEstado())}
@@ -1735,12 +1737,14 @@ export default function MantencionesPage() {
           {selectedMantencion && (
             <>
             <Tabs defaultValue="info" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="info">Información</TabsTrigger>
-                <TabsTrigger value="gastos">Gastos</TabsTrigger>
-                <TabsTrigger value="seguimiento">Fotos</TabsTrigger>
-                <TabsTrigger value="historial">Historial</TabsTrigger>
-              </TabsList>
+              <div className="overflow-x-auto -mx-2 px-2">
+                <TabsList className="inline-flex w-max sm:w-full sm:grid sm:grid-cols-4 h-auto gap-1">
+                  <TabsTrigger value="info" className="px-3 py-2 text-xs sm:text-sm whitespace-nowrap">Información</TabsTrigger>
+                  <TabsTrigger value="gastos" className="px-3 py-2 text-xs sm:text-sm whitespace-nowrap">Gastos</TabsTrigger>
+                  <TabsTrigger value="seguimiento" className="px-3 py-2 text-xs sm:text-sm whitespace-nowrap">Fotos</TabsTrigger>
+                  <TabsTrigger value="historial" className="px-3 py-2 text-xs sm:text-sm whitespace-nowrap">Historial</TabsTrigger>
+                </TabsList>
+              </div>
 
               {/* Tab 1: Información General */}
               <TabsContent value="info">
