@@ -943,13 +943,6 @@ export default function EcommerceAdmin() {
         </div>
         
         <div className="flex items-center gap-2">
-          <Link href="/shopify-products">
-            <Button variant="outline" className="flex items-center gap-2" data-testid="button-shopify-products">
-              <Layers className="h-4 w-4" />
-              Productos con Variantes
-            </Button>
-          </Link>
-          
           <Button
             variant="outline"
             className="flex items-center gap-2"
