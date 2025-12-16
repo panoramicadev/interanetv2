@@ -3892,24 +3892,41 @@ export function registerRoutes(app: Express): Server {
 
       // Get client's loyalty status based on their purchase history
       let loyaltyTier = null;
+      let nextTier = null;
+      let amountToNextTier = 0;
+      let totalSalesLast90Days = 0;
       try {
         const loyaltyStatus = await storage.getClientLoyaltyStatus(client.nokoen);
-        if (loyaltyStatus?.currentTier) {
-          loyaltyTier = {
-            code: loyaltyStatus.currentTier.codigo,
-            name: loyaltyStatus.currentTier.nombre
-          };
+        if (loyaltyStatus) {
+          if (loyaltyStatus.currentTier) {
+            loyaltyTier = {
+              code: loyaltyStatus.currentTier.codigo,
+              name: loyaltyStatus.currentTier.nombre
+            };
+          }
+          if (loyaltyStatus.nextTier) {
+            nextTier = {
+              code: loyaltyStatus.nextTier.codigo,
+              name: loyaltyStatus.nextTier.nombre,
+              minAmount: Number(loyaltyStatus.nextTier.montoMinimo)
+            };
+          }
+          amountToNextTier = loyaltyStatus.amountToNextTier;
+          totalSalesLast90Days = loyaltyStatus.totalSalesLast90Days;
         }
       } catch (e) {
         console.error('Error fetching loyalty status:', e);
       }
 
-      // Return client info with loyalty tier
+      // Return client info with loyalty tier and progress to next tier
       res.json({
         found: true,
         clientName: client.nokoen,
         clientCode: client.koen,
-        loyaltyTier
+        loyaltyTier,
+        nextTier,
+        amountToNextTier,
+        totalSalesLast90Days
       });
     } catch (error) {
       console.error('Error searching client by RUT:', error);

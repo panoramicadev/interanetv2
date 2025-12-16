@@ -132,6 +132,13 @@ export default function CatalogoPublico() {
     code: string;
     name: string;
   } | null>(null);
+  const [clientNextTier, setClientNextTier] = useState<{
+    code: string;
+    name: string;
+    minAmount: number;
+  } | null>(null);
+  const [clientAmountToNextTier, setClientAmountToNextTier] = useState<number>(0);
+  const [clientTotalSales, setClientTotalSales] = useState<number>(0);
   const [tempRut, setTempRut] = useState('');
   const [isSearchingClient, setIsSearchingClient] = useState(false);
   const [rutError, setRutError] = useState('');
@@ -358,6 +365,9 @@ export default function CatalogoPublico() {
       if (response.ok && result.found) {
         setClientBusinessName(result.clientName);
         setClientLoyaltyTier(result.loyaltyTier || null);
+        setClientNextTier(result.nextTier || null);
+        setClientAmountToNextTier(result.amountToNextTier || 0);
+        setClientTotalSales(result.totalSalesLast90Days || 0);
         setIsClientDialogOpen(false);
         setTempRut('');
       } else {
@@ -373,7 +383,19 @@ export default function CatalogoPublico() {
   const handleClearClient = () => {
     setClientBusinessName('');
     setClientLoyaltyTier(null);
+    setClientNextTier(null);
+    setClientAmountToNextTier(0);
+    setClientTotalSales(0);
     setRutError('');
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
   };
 
   const getTierBadgeColor = (tierCode: string) => {
@@ -523,9 +545,43 @@ export default function CatalogoPublico() {
               </div>
               
               {clientBusinessName ? (
-                <p className="text-sm text-amber-300 mt-1" data-testid="attended-by">
-                  Atendido por {salesperson.salespersonName}
-                </p>
+                <div>
+                  <p className="text-sm text-amber-300 mt-1" data-testid="attended-by">
+                    Atendido por {salesperson.salespersonName}
+                  </p>
+                  {/* Progress to Next Tier */}
+                  {clientNextTier && clientAmountToNextTier > 0 && (
+                    <div className="mt-2 bg-white/10 rounded-lg p-2 backdrop-blur-sm" data-testid="next-tier-progress">
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="text-slate-300">
+                          Te faltan <span className="font-bold text-amber-300">{formatCurrency(clientAmountToNextTier)}</span> para ser
+                        </span>
+                        <span className={`font-bold px-2 py-0.5 rounded-full text-xs ${getTierBadgeColor(clientNextTier.code)}`}>
+                          {clientNextTier.name}
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-500"
+                          style={{ 
+                            width: `${Math.min(100, Math.max(5, (clientTotalSales / clientNextTier.minAmount) * 100))}%` 
+                          }}
+                        />
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Compras últimos 90 días: {formatCurrency(clientTotalSales)}
+                      </p>
+                    </div>
+                  )}
+                  {!clientNextTier && clientLoyaltyTier && (
+                    <div className="mt-2 bg-gradient-to-r from-amber-500/20 to-amber-400/20 rounded-lg p-2 backdrop-blur-sm" data-testid="max-tier-message">
+                      <p className="text-xs text-amber-200 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        ¡Felicitaciones! Ya eres parte de nuestra categoría máxima
+                      </p>
+                    </div>
+                  )}
+                </div>
               ) : salesperson.bio && (
                 <p className="hidden md:block text-sm text-slate-300 mt-1 line-clamp-2" data-testid="salesperson-bio">
                   {salesperson.bio}
