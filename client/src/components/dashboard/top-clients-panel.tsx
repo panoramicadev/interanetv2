@@ -194,38 +194,41 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
                 <Link
                   key={client.clientName}
                   href={`/client/${encodeURIComponent(client.clientName)}`}
-                  className="block hover:bg-gray-50/50 rounded-lg transition-colors py-3"
+                  className="block hover:bg-gray-50/50 rounded-lg transition-colors py-3 px-1 sm:px-0"
                 >
                   <div 
-                    className="flex items-center gap-3 w-full"
+                    className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full"
                     data-testid={`client-${index}`}
                   >
-                    {/* Nombre del cliente completo */}
+                    {/* Nombre del cliente - mobile: full width */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-700 font-medium">
+                      <p className="text-xs sm:text-sm text-gray-700 font-medium line-clamp-2 sm:truncate">
                         {client.clientName}
                       </p>
                     </div>
                     
-                    {/* Porcentaje */}
-                    <span className="text-xs text-gray-600 w-10 text-right flex-shrink-0">
-                      {client.percentage.toFixed(1)}%
-                    </span>
-                    
-                    {/* Barra de progreso delgada y corta */}
-                    <div className="w-20 sm:w-32 flex-shrink-0">
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-blue-500 rounded-full transition-all duration-500 ease-out"
-                          style={{ width: `${client.percentage}%` }}
-                        ></div>
+                    {/* Barra, porcentaje y monto - mobile: row below name */}
+                    <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                      {/* Porcentaje */}
+                      <span className="text-xs text-gray-600 w-10 text-right flex-shrink-0">
+                        {client.percentage.toFixed(1)}%
+                      </span>
+                      
+                      {/* Barra de progreso */}
+                      <div className="flex-1 sm:flex-none sm:w-32">
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-blue-500 rounded-full transition-all duration-500 ease-out"
+                            style={{ width: `${client.percentage}%` }}
+                          ></div>
+                        </div>
                       </div>
+                      
+                      {/* Monto */}
+                      <span className="text-xs sm:text-sm font-semibold text-gray-900 w-20 sm:w-28 text-right flex-shrink-0">
+                        {formatCurrency(client.totalSales)}
+                      </span>
                     </div>
-                    
-                    {/* Monto */}
-                    <span className="text-sm font-semibold text-gray-900 w-28 text-right flex-shrink-0">
-                      {formatCurrency(client.totalSales)}
-                    </span>
                   </div>
                 </Link>
               ))}
@@ -250,32 +253,34 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
             {!debouncedSearchTerm && clientsWithPercentage.length > 0 && (
               <div className="border-t-2 border-gray-300 pt-3 mt-4">
                 <div 
-                  className="flex items-center gap-3 w-full bg-blue-50 rounded-lg py-3 px-2"
+                  className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full bg-blue-50 rounded-lg py-3 px-2"
                   data-testid="clients-total"
                 >
                   {/* Nombre TOTAL */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-blue-900 font-bold">
+                    <p className="text-xs sm:text-sm text-blue-900 font-bold">
                       TOTAL ({clientsWithPercentage.length} clientes)
                     </p>
                   </div>
                   
-                  {/* Porcentaje */}
-                  <span className="text-xs text-blue-700 font-semibold w-10 text-right flex-shrink-0">
-                    100.0%
-                  </span>
-                  
-                  {/* Barra completa */}
-                  <div className="w-20 sm:w-32 flex-shrink-0">
-                    <div className="h-2 bg-blue-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-600 rounded-full w-full"></div>
+                  <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                    {/* Porcentaje */}
+                    <span className="text-xs text-blue-700 font-semibold w-10 text-right flex-shrink-0">
+                      100.0%
+                    </span>
+                    
+                    {/* Barra completa */}
+                    <div className="flex-1 sm:flex-none sm:w-32">
+                      <div className="h-2 bg-blue-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-600 rounded-full w-full"></div>
+                      </div>
                     </div>
+                    
+                    {/* Monto total */}
+                    <span className="text-xs sm:text-sm font-bold text-blue-900 w-20 sm:w-28 text-right flex-shrink-0">
+                      {formatCurrency(periodTotal)}
+                    </span>
                   </div>
-                  
-                  {/* Monto total */}
-                  <span className="text-sm font-bold text-blue-900 w-28 text-right flex-shrink-0">
-                    {formatCurrency(periodTotal)}
-                  </span>
                 </div>
               </div>
             )}

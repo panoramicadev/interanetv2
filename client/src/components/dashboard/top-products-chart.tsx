@@ -203,36 +203,39 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
                   className="border rounded-lg overflow-hidden bg-green-50/30 dark:bg-green-900/10"
                 >
                   <AccordionTrigger 
-                    className="px-4 py-3 hover:bg-green-50/50 dark:hover:bg-green-900/20 hover:no-underline"
+                    className="px-3 sm:px-4 py-3 hover:bg-green-50/50 dark:hover:bg-green-900/20 hover:no-underline"
                     data-testid={`accordion-trigger-product-${index}`}
                   >
-                    <div className="flex items-center gap-3 w-full pr-4">
-                      {/* Nombre del producto completo */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full pr-4">
+                      {/* Nombre del producto - mobile: full width, desktop: flex */}
                       <div className="flex-1 min-w-0 text-left">
-                        <p className="text-sm text-gray-700 dark:text-gray-300 font-medium truncate">
+                        <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 font-medium line-clamp-2 sm:truncate">
                           {product.productName}
                         </p>
                       </div>
                       
-                      {/* Porcentaje */}
-                      <span className="text-xs text-gray-600 dark:text-gray-400 w-10 text-right flex-shrink-0">
-                        {product.percentage.toFixed(1)}%
-                      </span>
-                      
-                      {/* Barra de progreso delgada y corta */}
-                      <div className="w-20 sm:w-32 flex-shrink-0">
-                        <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-green-500 dark:bg-green-600 rounded-full transition-all duration-500 ease-out"
-                            style={{ width: `${product.percentage}%` }}
-                          ></div>
+                      {/* Barra, porcentaje y monto - mobile: row below name */}
+                      <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                        {/* Porcentaje */}
+                        <span className="text-xs text-gray-600 dark:text-gray-400 w-10 text-right flex-shrink-0">
+                          {product.percentage.toFixed(1)}%
+                        </span>
+                        
+                        {/* Barra de progreso */}
+                        <div className="flex-1 sm:flex-none sm:w-32">
+                          <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-green-500 dark:bg-green-600 rounded-full transition-all duration-500 ease-out"
+                              style={{ width: `${product.percentage}%` }}
+                            ></div>
+                          </div>
                         </div>
+                        
+                        {/* Monto */}
+                        <span className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100 w-20 sm:w-28 text-right flex-shrink-0">
+                          {formatCurrency(product.totalSales)}
+                        </span>
                       </div>
-                      
-                      {/* Monto */}
-                      <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 w-28 text-right flex-shrink-0">
-                        {formatCurrency(product.totalSales)}
-                      </span>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-4 pb-4 pt-2 bg-white dark:bg-gray-800">
