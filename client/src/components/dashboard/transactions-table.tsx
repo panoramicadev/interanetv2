@@ -324,7 +324,7 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
                               </div>
                             </TableCell>
                             <TableCell className="text-sm text-gray-500">
-                              ID: {transaction.id.slice(0, 8)}...
+                              ID: {transaction.id ? transaction.id.slice(0, 8) : 'N/A'}...
                             </TableCell>
                             <TableCell className="text-sm text-gray-500">
                               {transaction.caprad2 || 'Sin código'}
