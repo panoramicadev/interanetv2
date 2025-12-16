@@ -121,6 +121,8 @@ export default function CatalogoPublico() {
   const [isQuoteDialogOpen, setIsQuoteDialogOpen] = useState(false);
   const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState<string>('');
+  const [filterFormat, setFilterFormat] = useState<string>('');
   const [selectedColors, setSelectedColors] = useState<Record<string, string>>({});
   const [selectedFormats, setSelectedFormats] = useState<Record<string, string>>({});
   const [flyingProduct, setFlyingProduct] = useState<{ 
@@ -206,15 +208,57 @@ export default function CatalogoPublico() {
     },
   });
 
+  // Extract unique categories and formats for filters
+  const uniqueCategories = useMemo(() => {
+    if (!data?.products) return [];
+    const categories = new Set<string>();
+    data.products.forEach(family => {
+      if (family.categoria) categories.add(family.categoria);
+    });
+    return Array.from(categories).sort();
+  }, [data?.products]);
+
+  const uniqueFormats = useMemo(() => {
+    if (!data?.products) return [];
+    const formats = new Set<string>();
+    data.products.forEach(family => {
+      family.colors.forEach(color => {
+        color.formats.forEach(format => {
+          if (format.formatUnit) formats.add(format.formatUnit);
+          else if (format.unidad) formats.add(format.unidad);
+        });
+      });
+    });
+    return Array.from(formats).sort();
+  }, [data?.products]);
+
   const filteredFamilies = useMemo(() => {
     if (!data?.products) return [];
     
-    if (!searchTerm) return data.products;
-    
-    return data.products.filter(family => 
-      family.family.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [data?.products, searchTerm]);
+    return data.products.filter(family => {
+      // Search filter
+      if (searchTerm && !family.family.toLowerCase().includes(searchTerm.toLowerCase())) {
+        return false;
+      }
+      
+      // Category filter (skip if empty or 'all')
+      if (filterCategory && filterCategory !== 'all' && family.categoria !== filterCategory) {
+        return false;
+      }
+      
+      // Format filter - check if any variant has the selected format (skip if empty or 'all')
+      if (filterFormat && filterFormat !== 'all') {
+        const hasFormat = family.colors.some(color => 
+          color.formats.some(format => 
+            format.formatUnit === filterFormat || format.unidad === filterFormat
+          )
+        );
+        if (!hasFormat) return false;
+      }
+      
+      return true;
+    });
+  }, [data?.products, searchTerm, filterCategory, filterFormat]);
 
   const getSelectedProduct = useCallback((family: ProductFamily): ProductFormat | null => {
     const selectedColor = selectedColors[family.family];
@@ -724,9 +768,9 @@ export default function CatalogoPublico() {
         .hide-scrollbar::-webkit-scrollbar { display: none; }
       `}</style>
 
-      {/* Search */}
+      {/* Search and Filters */}
       <div className="sticky top-0 z-40 bg-white border-b shadow-sm">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto px-4 py-4 space-y-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -737,7 +781,47 @@ export default function CatalogoPublico() {
               data-testid="input-search"
             />
           </div>
-          <p className="text-sm text-muted-foreground mt-2">
+          
+          {/* Filters */}
+          <div className="flex flex-wrap gap-2">
+            <Select value={filterCategory} onValueChange={setFilterCategory}>
+              <SelectTrigger className="w-[160px] h-9" data-testid="select-category-filter">
+                <SelectValue placeholder="Categoría" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las categorías</SelectItem>
+                {uniqueCategories.map(cat => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Select value={filterFormat} onValueChange={setFilterFormat}>
+              <SelectTrigger className="w-[140px] h-9" data-testid="select-format-filter">
+                <SelectValue placeholder="Tamaño" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los tamaños</SelectItem>
+                {uniqueFormats.map(fmt => (
+                  <SelectItem key={fmt} value={fmt}>{fmt}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            {(filterCategory || filterFormat) && (
+              <Button 
+                variant="ghost" 
+                size="sm"
+                className="h-9"
+                onClick={() => { setFilterCategory(''); setFilterFormat(''); }}
+              >
+                <X className="h-4 w-4 mr-1" />
+                Limpiar
+              </Button>
+            )}
+          </div>
+          
+          <p className="text-sm text-muted-foreground">
             {filteredFamilies.length} producto{filteredFamilies.length !== 1 ? 's' : ''} disponible{filteredFamilies.length !== 1 ? 's' : ''}
           </p>
         </div>
