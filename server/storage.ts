@@ -8512,9 +8512,12 @@ export class DatabaseStorage implements IStorage {
     position: number = 0
   ): Promise<ShopifyProductVariant | null> {
     try {
-      // Extract color from name
-      const colorMatch = row.name?.match(/(BLANCO|NEGRO|GRIS|ROJO|VERDE|AZUL|CAFE|INCOLORA?|BASE OSCURA|BASE INCOLORA)/i);
-      const color = colorMatch ? colorMatch[1].toUpperCase() : null;
+      // Use variant_features_0_value for color/option1 (from CSV), fallback to regex extraction from name
+      let color = row.variant_features_0_value || null;
+      if (!color) {
+        const colorMatch = row.name?.match(/(BLANCO|NEGRO|GRIS|ROJO|VERDE|AZUL|CAFE|INCOLORA?|BASE OSCURA|BASE INCOLORA)/i);
+        color = colorMatch ? colorMatch[1].toUpperCase() : null;
+      }
 
       const [variant] = await db
         .insert(shopifyProductVariants)
