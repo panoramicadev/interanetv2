@@ -1932,6 +1932,9 @@ export const ecommerceProducts = pgTable("ecommerce_products", {
   variantParentSku: varchar("variant_parent_sku"), // SKU padre del CSV (variant_parentSku) para agrupar variantes
   variantGenericDisplayName: varchar("variant_generic_display_name"), // Nombre genérico del grupo (variant_genericDisplayName)
   variantIndex: integer("variant_index").default(0), // Índice de la variante (variant_index del CSV)
+  minUnit: integer("min_unit").default(1), // Cantidad mínima de pedido (constraints_minUnit del CSV)
+  stepSize: integer("step_size").default(1), // Tamaño de salto de cantidad (constraints_stepSize del CSV)
+  formatUnit: varchar("format_unit"), // Unidad de formato (packaging_unitName del CSV)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({

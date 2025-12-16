@@ -8606,6 +8606,9 @@ export class DatabaseStorage implements IStorage {
         const variantGenericDisplayName = row.variant_genericDisplayName?.trim() || null;
         const variantIndex = parseInt(row.variant_index) || 0;
         const color = row.variant_features_0_value?.trim() || null;
+        const minUnit = parseInt(row.constraints_minUnit) || 1;
+        const stepSize = parseInt(row.constraints_stepSize) || 1;
+        const formatUnit = row.packaging_unitName?.trim() || null;
 
         // Check if priceList entry exists
         const existingPriceList = await db
@@ -8664,6 +8667,9 @@ export class DatabaseStorage implements IStorage {
               variantGenericDisplayName: variantGenericDisplayName,
               variantIndex: variantIndex,
               color: color,
+              minUnit: minUnit,
+              stepSize: stepSize,
+              formatUnit: formatUnit,
               updatedAt: new Date(),
             })
             .where(eq(ecommerceProducts.id, existingEcomProduct[0].id));
@@ -8682,6 +8688,9 @@ export class DatabaseStorage implements IStorage {
               variantGenericDisplayName: variantGenericDisplayName,
               variantIndex: variantIndex,
               color: color,
+              minUnit: minUnit,
+              stepSize: stepSize,
+              formatUnit: formatUnit,
             });
           productsCreated++;
         }
@@ -14328,6 +14337,9 @@ export class DatabaseStorage implements IStorage {
         activo: ecommerceProducts.activo,
         productFamily: ecommerceProducts.productFamily,
         color: ecommerceProducts.color,
+        minUnit: ecommerceProducts.minUnit,
+        stepSize: ecommerceProducts.stepSize,
+        formatUnit: ecommerceProducts.formatUnit,
       })
       .from(priceList)
       .innerJoin(ecommerceProducts, eq(priceList.id, ecommerceProducts.priceListId))
@@ -14345,6 +14357,9 @@ export class DatabaseStorage implements IStorage {
       imagenUrl: p.imagenUrl,
       productFamily: p.productFamily,
       color: p.color,
+      minUnit: p.minUnit ?? 1,
+      stepSize: p.stepSize ?? 1,
+      formatUnit: p.formatUnit,
     }));
   }
 
@@ -14362,6 +14377,9 @@ export class DatabaseStorage implements IStorage {
           unidad: string;
           precio: number;
           imagenUrl: string | null;
+          minUnit: number;
+          stepSize: number;
+          formatUnit: string | null;
         }>;
       }>;
       imagenUrl: string | null;
@@ -14398,6 +14416,9 @@ export class DatabaseStorage implements IStorage {
         unidad: product.unidad,
         precio: product.precio,
         imagenUrl: product.imagenUrl,
+        minUnit: product.minUnit,
+        stepSize: product.stepSize,
+        formatUnit: product.formatUnit,
       });
       
       // Update family image if current product has one
