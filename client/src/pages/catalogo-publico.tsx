@@ -545,43 +545,9 @@ export default function CatalogoPublico() {
               </div>
               
               {clientBusinessName ? (
-                <div>
-                  <p className="text-sm text-amber-300 mt-1" data-testid="attended-by">
-                    Atendido por {salesperson.salespersonName}
-                  </p>
-                  {/* Progress to Next Tier */}
-                  {clientNextTier && clientAmountToNextTier > 0 && (
-                    <div className="mt-2 bg-white/10 rounded-lg p-2 backdrop-blur-sm" data-testid="next-tier-progress">
-                      <div className="flex items-center justify-between text-xs mb-1">
-                        <span className="text-slate-300">
-                          Te faltan <span className="font-bold text-amber-300">{formatCurrency(clientAmountToNextTier)}</span> para ser
-                        </span>
-                        <span className={`font-bold px-2 py-0.5 rounded-full text-xs ${getTierBadgeColor(clientNextTier.code)}`}>
-                          {clientNextTier.name}
-                        </span>
-                      </div>
-                      <div className="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
-                        <div 
-                          className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-500"
-                          style={{ 
-                            width: `${Math.min(100, Math.max(5, (clientTotalSales / clientNextTier.minAmount) * 100))}%` 
-                          }}
-                        />
-                      </div>
-                      <p className="text-xs text-slate-400 mt-1">
-                        Compras últimos 90 días: {formatCurrency(clientTotalSales)}
-                      </p>
-                    </div>
-                  )}
-                  {!clientNextTier && clientLoyaltyTier && (
-                    <div className="mt-2 bg-gradient-to-r from-amber-500/20 to-amber-400/20 rounded-lg p-2 backdrop-blur-sm" data-testid="max-tier-message">
-                      <p className="text-xs text-amber-200 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" />
-                        ¡Felicitaciones! Ya eres parte de nuestra categoría máxima
-                      </p>
-                    </div>
-                  )}
-                </div>
+                <p className="text-sm text-amber-300 mt-1" data-testid="attended-by">
+                  Atendido por {salesperson.salespersonName}
+                </p>
               ) : salesperson.bio && (
                 <p className="hidden md:block text-sm text-slate-300 mt-1 line-clamp-2" data-testid="salesperson-bio">
                   {salesperson.bio}
@@ -647,6 +613,47 @@ export default function CatalogoPublico() {
           </div>
         </div>
       </header>
+
+      {/* Progress to Next Tier - Top Bar */}
+      {clientBusinessName && clientNextTier && clientAmountToNextTier > 0 && (
+        <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-amber-500/30" data-testid="next-tier-progress">
+          <div className="container mx-auto px-4 py-2">
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-slate-300">
+                    Te faltan <span className="font-bold text-amber-400">{formatCurrency(clientAmountToNextTier)}</span> para alcanzar
+                  </span>
+                  <span className={`font-bold px-2 py-0.5 rounded-full text-xs ${getTierBadgeColor(clientNextTier.code)}`}>
+                    {clientNextTier.name}
+                  </span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-2.5 overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-500"
+                    style={{ 
+                      width: `${Math.min(100, Math.max(5, (clientTotalSales / clientNextTier.minAmount) * 100))}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Compras últimos 90 días: {formatCurrency(clientTotalSales)}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Max Tier Message */}
+      {clientBusinessName && !clientNextTier && clientLoyaltyTier && (
+        <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white" data-testid="max-tier-message">
+          <div className="container mx-auto px-4 py-2 flex items-center justify-center gap-2">
+            <CheckCircle2 className="w-4 h-4" />
+            <span className="text-sm font-medium">¡Felicitaciones! Ya eres parte de nuestra categoría máxima</span>
+          </div>
+        </div>
+      )}
 
       {/* Flying Product Animation */}
       {flyingProduct && cartButtonRef.current && (
