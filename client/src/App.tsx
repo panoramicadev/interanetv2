@@ -45,6 +45,7 @@ import ClientDetail from "@/pages/client-detail";
 import ProductDetail from "@/pages/product-detail";
 import TomadorPedidos from "@/pages/tomador-pedidos";
 import EcommerceAdmin from "@/pages/ecommerce-admin";
+import ShopifyProducts from "@/pages/shopify-products";
 import Carrito from "@/pages/carrito";
 import QuotesPage from "@/pages/quotes";
 import OrdersPage from "@/pages/orders";
@@ -174,6 +175,7 @@ function Router() {
             <Route path="/productos" component={Products} />
             <Route path="/lista-precios" component={ListaPrecios} />
             <Route path="/ecommerce" component={EcommerceAdmin} />
+            <Route path="/shopify-products" component={ShopifyProducts} />
             <Route path="/clientes" component={Clients} />
             <Route path="/ordenes" component={OrdenesPage} />
             <Route path="/pedidos" component={() => {
