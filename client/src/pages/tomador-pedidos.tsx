@@ -3787,13 +3787,13 @@ export default function TomadorPedidos() {
                                   <Input
                                     type="number"
                                     min="1"
-                                    max="999"
+                                    max="99999"
                                     value={productQuantities[product.codigo] || 1}
                                     onChange={(e) => {
                                       const value = parseInt(e.target.value) || 1;
                                       setProductQuantities(prev => ({
                                         ...prev,
-                                        [product.codigo]: Math.min(999, Math.max(1, value))
+                                        [product.codigo]: Math.min(99999, Math.max(1, value))
                                       }));
                                     }}
                                     onFocus={(e) => {
@@ -3819,7 +3819,7 @@ export default function TomadorPedidos() {
                                       const qty = (productQuantities[product.codigo] || 1) + 1;
                                       setProductQuantities(prev => ({
                                         ...prev,
-                                        [product.codigo]: Math.min(999, qty)
+                                        [product.codigo]: Math.min(99999, qty)
                                       }));
                                     }}
                                     className="h-8 w-8 p-0"
@@ -3994,11 +3994,11 @@ export default function TomadorPedidos() {
                                   <Input
                                     type="number"
                                     min="1"
-                                    max="999"
+                                    max="99999"
                                     value={item.quantity}
                                     onChange={(e) => {
                                       const value = parseInt(e.target.value) || 1;
-                                      updateCartItemQuantity(item.id, Math.min(999, Math.max(1, value)));
+                                      updateCartItemQuantity(item.id, Math.min(99999, Math.max(1, value)));
                                     }}
                                     onFocus={(e) => {
                                       e.target.select();
@@ -4531,11 +4531,11 @@ export default function TomadorPedidos() {
                           <Input
                             type="number"
                             min="1"
-                            max="999"
+                            max="99999"
                             value={item.quantity}
                             onChange={(e) => {
                               const value = parseInt(e.target.value) || 1;
-                              updateCartItemQuantity(item.id, Math.min(999, Math.max(1, value)));
+                              updateCartItemQuantity(item.id, Math.min(99999, Math.max(1, value)));
                             }}
                             onFocus={(e) => {
                               e.target.select();

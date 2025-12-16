@@ -2398,7 +2398,7 @@ export const CART_CONFIG = {
   CURRENCY: 'CLP',
   CURRENCY_SYMBOL: '$',
   MAX_ITEMS: 50, // Maximum number of different items in cart
-  MAX_QUANTITY_PER_ITEM: 999,
+  MAX_QUANTITY_PER_ITEM: 99999,
   
   // Quantity rules by unit type
   QUANTITY_RULES: {
