@@ -181,3 +181,54 @@ WHERE id = 'salesperson-uuid';
 - `server/storage.ts` - Functions: getPublicSalespersonBySlug(), getPublicCatalogProducts(), createPublicQuoteRequest()
 - `server/routes.ts` - Public catalog API endpoints
 - `shared/schema.ts` - publicQuoteRequestSchema validation
+
+## Shopify-Style Product Management (December 2025)
+
+### Overview
+The ecommerce system now supports Shopify-style product management with hierarchical product → options → variants structure, enabling complex products with multiple attributes (color, size, format, etc.).
+
+### Database Schema (3 tables)
+- **shopify_products**: Parent products with title, description, vendor, category, status
+- **shopify_product_options**: Product attribute definitions (e.g., "Color", "Formato")
+- **shopify_product_variants**: Individual purchasable SKUs with option values and pricing
+
+### Key Fields
+**shopify_products**:
+- `handle` - URL-friendly slug (unique)
+- `status` - 'active', 'draft', or 'archived'
+- `sortOrder` - Display order in catalog
+
+**shopify_product_variants**:
+- `sku` - Unique product identifier
+- `option1/option2/option3` - Option values (e.g., "BLANCO", "1 GL")
+- `price` - Unit price as string (decimal precision)
+- `packagingUnitName` - Display unit (e.g., "1/4 GL")
+- `available` - Boolean for stock availability
+
+### CSV Import Structure
+Import uses `variant_parentSku` field to group variants under parent products:
+- Rows where `variant_parentSku == productId` are treated as parent products
+- Rows where `variant_parentSku != productId` are variants of that parent
+
+### API Endpoints
+**Admin (requires authentication)**:
+- `GET /api/shopify/products` - List all products with options and variants
+- `POST /api/shopify/products` - Create new product
+- `PUT /api/shopify/products/:id` - Update product
+- `DELETE /api/shopify/products/:id` - Delete product (cascades to options/variants)
+- `POST /api/shopify/products/:id/variants` - Add variant to product
+- `PUT /api/shopify/variants/:id` - Update variant
+- `DELETE /api/shopify/variants/:id` - Delete variant
+- `POST /api/shopify/products/import` - Bulk import from CSV
+
+**Public (no authentication)**:
+- `GET /api/public/shopify/products` - Get active products for catalog display
+
+### Active Files
+- `client/src/pages/shopify-products.tsx` - Admin UI for product management
+- `server/storage.ts` - Functions: createShopifyProduct(), getShopifyProducts(), getShopifyProductsForPublicCatalog(), importShopifyProductsFromCsv()
+- `server/routes.ts` - All Shopify product endpoints
+- `shared/schema.ts` - Schema definitions for shopify_products, shopify_product_options, shopify_product_variants
+
+### Legacy System Note
+The legacy `ecommerceProducts` table remains active for backward compatibility. Shopify products are separate and accessed via `/shopify-products` admin page. Consider migrating fully to Shopify-style products in future iterations.
