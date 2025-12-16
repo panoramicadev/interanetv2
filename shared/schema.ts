@@ -1936,6 +1936,178 @@ export const ecommerceProducts = pgTable("ecommerce_products", {
   uniquePriceListProduct: unique("unique_price_list_product").on(table.priceListId),
 }));
 
+// ================================
+// SHOPIFY-STYLE PRODUCT VARIANTS
+// ================================
+
+// Shopify Products - Producto principal (agrupa variantes)
+export const shopifyProducts = pgTable("shopify_products", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: varchar("title").notNull(), // Nombre del producto (ej: "Esmalte al Agua Copper")
+  description: text("description"), // Descripción detallada
+  vendor: varchar("vendor").default("Pinturas Panoramica"), // Marca/Proveedor
+  productType: varchar("product_type"), // Tipo de producto (ej: "Esmalte", "Pasta", "Textura")
+  tags: text("tags").array(), // Tags para búsqueda/filtrado
+  status: varchar("status").default("draft"), // draft, active, archived
+  category: varchar("category"), // Categoría para navegación
+  
+  // SEO
+  seoTitle: varchar("seo_title"),
+  seoDescription: text("seo_description"),
+  handle: varchar("handle").unique(), // URL slug (ej: "esmalte-agua-copper")
+  
+  // Images (JSON array of image objects)
+  images: jsonb("images").default(sql`'[]'::jsonb`).$type<{
+    id: string;
+    url: string;
+    alt: string;
+    position: number;
+  }[]>(),
+  
+  // Ordering
+  sortOrder: integer("sort_order").default(0),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Shopify Product Options - Opciones del producto (Color, Formato, Tamaño)
+export const shopifyProductOptions = pgTable("shopify_product_options", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  productId: varchar("product_id").notNull().references(() => shopifyProducts.id, { onDelete: "cascade" }),
+  name: varchar("name").notNull(), // Nombre de la opción (ej: "Color", "Formato")
+  position: integer("position").default(1), // Orden de la opción (1, 2, 3)
+  values: text("values").array().notNull(), // Valores posibles (ej: ["Blanco", "Negro", "Gris"])
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Shopify Product Variants - Variantes individuales del producto
+export const shopifyProductVariants = pgTable("shopify_product_variants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  productId: varchar("product_id").notNull().references(() => shopifyProducts.id, { onDelete: "cascade" }),
+  
+  // Identificación
+  sku: varchar("sku").notNull().unique(), // Código único (ej: "PCA960CAFEMO2")
+  barcode: varchar("barcode"), // Código de barras opcional
+  
+  // Opciones de la variante (máximo 3 opciones como Shopify)
+  option1: varchar("option1"), // Valor de opción 1 (ej: "Blanco")
+  option2: varchar("option2"), // Valor de opción 2 (ej: "Galón")
+  option3: varchar("option3"), // Valor de opción 3
+  
+  // Precios
+  price: numeric("price", { precision: 15, scale: 2 }).notNull(), // Precio de venta
+  compareAtPrice: numeric("compare_at_price", { precision: 15, scale: 2 }), // Precio tachado (antes)
+  costPrice: numeric("cost_price", { precision: 15, scale: 2 }), // Costo para reportes
+  
+  // Inventario
+  inventoryQuantity: integer("inventory_quantity").default(0),
+  inventoryPolicy: varchar("inventory_policy").default("deny"), // deny, continue
+  
+  // Peso y dimensiones para envío
+  weight: numeric("weight", { precision: 10, scale: 2 }),
+  weightUnit: varchar("weight_unit").default("kg"),
+  
+  // Imagen específica de la variante
+  imageUrl: varchar("image_url"),
+  
+  // Packaging info from CSV
+  packagingUnit: varchar("packaging_unit"), // GL, BD4, 1/4, etc.
+  packagingUnitName: varchar("packaging_unit_name"), // "Galón", "Balde 4 Galones", etc.
+  amountPerPackage: integer("amount_per_package"),
+  
+  // Estado
+  available: boolean("available").default(true),
+  position: integer("position").default(1), // Orden de la variante
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  productVariantIndex: index("shopify_product_variant_idx").on(table.productId),
+  skuIndex: index("shopify_variant_sku_idx").on(table.sku),
+}));
+
+// Schemas for Shopify Products
+export const insertShopifyProductSchema = createInsertSchema(shopifyProducts, {
+  title: z.string().min(1, "Título del producto es requerido"),
+  description: z.string().optional(),
+  vendor: z.string().optional(),
+  productType: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  status: z.enum(["draft", "active", "archived"]).optional(),
+  category: z.string().optional(),
+  seoTitle: z.string().optional(),
+  seoDescription: z.string().optional(),
+  handle: z.string().optional(),
+  sortOrder: z.number().optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateShopifyProductSchema = insertShopifyProductSchema.partial();
+
+// Schemas for Shopify Product Options
+export const insertShopifyProductOptionSchema = createInsertSchema(shopifyProductOptions, {
+  productId: z.string().min(1, "ID de producto es requerido"),
+  name: z.string().min(1, "Nombre de opción es requerido"),
+  position: z.number().optional(),
+  values: z.array(z.string()).min(1, "Debe tener al menos un valor"),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Schemas for Shopify Product Variants
+export const insertShopifyProductVariantSchema = createInsertSchema(shopifyProductVariants, {
+  productId: z.string().min(1, "ID de producto es requerido"),
+  sku: z.string().min(1, "SKU es requerido"),
+  barcode: z.string().optional(),
+  option1: z.string().optional(),
+  option2: z.string().optional(),
+  option3: z.string().optional(),
+  price: z.number().min(0, "Precio debe ser positivo"),
+  compareAtPrice: z.number().optional(),
+  costPrice: z.number().optional(),
+  inventoryQuantity: z.number().optional(),
+  inventoryPolicy: z.enum(["deny", "continue"]).optional(),
+  weight: z.number().optional(),
+  weightUnit: z.string().optional(),
+  imageUrl: z.string().url("URL de imagen inválida").optional().or(z.literal("")),
+  packagingUnit: z.string().optional(),
+  packagingUnitName: z.string().optional(),
+  amountPerPackage: z.number().optional(),
+  available: z.boolean().optional(),
+  position: z.number().optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateShopifyProductVariantSchema = insertShopifyProductVariantSchema.partial();
+
+// Types for Shopify-style products
+export type ShopifyProduct = typeof shopifyProducts.$inferSelect;
+export type InsertShopifyProduct = typeof shopifyProducts.$inferInsert;
+export type ShopifyProductOption = typeof shopifyProductOptions.$inferSelect;
+export type InsertShopifyProductOption = typeof shopifyProductOptions.$inferInsert;
+export type ShopifyProductVariant = typeof shopifyProductVariants.$inferSelect;
+export type InsertShopifyProductVariant = typeof shopifyProductVariants.$inferInsert;
+
+export type InsertShopifyProductInput = z.infer<typeof insertShopifyProductSchema>;
+export type UpdateShopifyProductInput = z.infer<typeof updateShopifyProductSchema>;
+export type InsertShopifyProductOptionInput = z.infer<typeof insertShopifyProductOptionSchema>;
+export type InsertShopifyProductVariantInput = z.infer<typeof insertShopifyProductVariantSchema>;
+export type UpdateShopifyProductVariantInput = z.infer<typeof updateShopifyProductVariantSchema>;
+
+// Extended type with variants included
+export interface ShopifyProductWithVariants extends ShopifyProduct {
+  options: ShopifyProductOption[];
+  variants: ShopifyProductVariant[];
+}
+
 // Schemas for eCommerce Categories
 export const insertEcommerceCategorySchema = createInsertSchema(ecommerceCategories, {
   nombre: z.string().min(1, "Nombre de categoría es requerido"),

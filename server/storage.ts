@@ -83,6 +83,21 @@ import {
   type CrmComment,
   type InsertCrmComment,
   type CrmStage,
+  // Shopify-style products
+  shopifyProducts,
+  shopifyProductOptions,
+  shopifyProductVariants,
+  type ShopifyProduct,
+  type InsertShopifyProduct,
+  type ShopifyProductOption,
+  type InsertShopifyProductOption,
+  type ShopifyProductVariant,
+  type InsertShopifyProductVariant,
+  type ShopifyProductWithVariants,
+  type InsertShopifyProductInput,
+  type UpdateShopifyProductInput,
+  type InsertShopifyProductVariantInput,
+  type UpdateShopifyProductVariantInput,
   type InsertCrmStage,
   type ClienteInactivo,
   type InsertClienteInactivo,
@@ -954,6 +969,38 @@ export interface IStorage {
   deleteProductGroup(id: string): Promise<void>;
   assignProductToGroup(productId: string, groupId: string, variantLabel?: string, isMainVariant?: boolean): Promise<void>;
   removeProductFromGroup(productId: string): Promise<void>;
+  
+  // Shopify-style Product operations
+  createShopifyProduct(product: InsertShopifyProductInput): Promise<ShopifyProduct>;
+  getShopifyProducts(filters?: {
+    search?: string;
+    category?: string;
+    status?: 'draft' | 'active' | 'archived';
+    productType?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ShopifyProductWithVariants[]>;
+  getShopifyProduct(id: string): Promise<ShopifyProductWithVariants | null>;
+  getShopifyProductByHandle(handle: string): Promise<ShopifyProductWithVariants | null>;
+  updateShopifyProduct(id: string, updates: UpdateShopifyProductInput): Promise<ShopifyProduct>;
+  deleteShopifyProduct(id: string): Promise<void>;
+  
+  // Shopify Product Options
+  createShopifyProductOption(option: InsertShopifyProductOption): Promise<ShopifyProductOption>;
+  updateShopifyProductOptions(productId: string, options: Array<{ name: string; values: string[] }>): Promise<ShopifyProductOption[]>;
+  
+  // Shopify Product Variants
+  createShopifyProductVariant(variant: InsertShopifyProductVariantInput): Promise<ShopifyProductVariant>;
+  updateShopifyProductVariant(id: string, updates: UpdateShopifyProductVariantInput): Promise<ShopifyProductVariant>;
+  deleteShopifyProductVariant(id: string): Promise<void>;
+  getShopifyVariantBySku(sku: string): Promise<ShopifyProductVariant | null>;
+  
+  // Import from CSV
+  importShopifyProductsFromCsv(csvData: any[]): Promise<{
+    productsCreated: number;
+    variantsCreated: number;
+    errors: string[];
+  }>;
   
   // eCommerce Orders operations
   createEcommerceOrder(order: any): Promise<any>;
@@ -8097,6 +8144,368 @@ export class DatabaseStorage implements IStorage {
         updatedAt: new Date(),
       })
       .where(eq(ecommerceProducts.id, productId));
+  }
+
+  // ================================
+  // SHOPIFY-STYLE PRODUCT OPERATIONS
+  // ================================
+
+  async createShopifyProduct(product: InsertShopifyProductInput): Promise<ShopifyProduct> {
+    const handle = product.handle || this.generateHandle(product.title);
+    const [newProduct] = await db
+      .insert(shopifyProducts)
+      .values({
+        ...product,
+        handle,
+      })
+      .returning();
+    return newProduct;
+  }
+
+  private generateHandle(title: string): string {
+    return title
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
+  async getShopifyProducts(filters?: {
+    search?: string;
+    category?: string;
+    status?: 'draft' | 'active' | 'archived';
+    productType?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ShopifyProductWithVariants[]> {
+    const conditions = [];
+
+    if (filters?.search) {
+      conditions.push(
+        or(
+          ilike(shopifyProducts.title, `%${filters.search}%`),
+          ilike(shopifyProducts.description, `%${filters.search}%`)
+        )
+      );
+    }
+    if (filters?.category) {
+      conditions.push(eq(shopifyProducts.category, filters.category));
+    }
+    if (filters?.status) {
+      conditions.push(eq(shopifyProducts.status, filters.status));
+    }
+    if (filters?.productType) {
+      conditions.push(eq(shopifyProducts.productType, filters.productType));
+    }
+
+    let query = db.select().from(shopifyProducts);
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+
+    const products = await query
+      .orderBy(shopifyProducts.sortOrder, shopifyProducts.title)
+      .limit(filters?.limit || 100)
+      .offset(filters?.offset || 0);
+
+    // Fetch options and variants for each product
+    const result: ShopifyProductWithVariants[] = [];
+    for (const product of products) {
+      const options = await db
+        .select()
+        .from(shopifyProductOptions)
+        .where(eq(shopifyProductOptions.productId, product.id))
+        .orderBy(shopifyProductOptions.position);
+
+      const variants = await db
+        .select()
+        .from(shopifyProductVariants)
+        .where(eq(shopifyProductVariants.productId, product.id))
+        .orderBy(shopifyProductVariants.position);
+
+      result.push({
+        ...product,
+        options,
+        variants,
+      });
+    }
+
+    return result;
+  }
+
+  async getShopifyProduct(id: string): Promise<ShopifyProductWithVariants | null> {
+    const [product] = await db
+      .select()
+      .from(shopifyProducts)
+      .where(eq(shopifyProducts.id, id))
+      .limit(1);
+
+    if (!product) return null;
+
+    const options = await db
+      .select()
+      .from(shopifyProductOptions)
+      .where(eq(shopifyProductOptions.productId, id))
+      .orderBy(shopifyProductOptions.position);
+
+    const variants = await db
+      .select()
+      .from(shopifyProductVariants)
+      .where(eq(shopifyProductVariants.productId, id))
+      .orderBy(shopifyProductVariants.position);
+
+    return { ...product, options, variants };
+  }
+
+  async getShopifyProductByHandle(handle: string): Promise<ShopifyProductWithVariants | null> {
+    const [product] = await db
+      .select()
+      .from(shopifyProducts)
+      .where(eq(shopifyProducts.handle, handle))
+      .limit(1);
+
+    if (!product) return null;
+
+    return this.getShopifyProduct(product.id);
+  }
+
+  async updateShopifyProduct(id: string, updates: UpdateShopifyProductInput): Promise<ShopifyProduct> {
+    const [updated] = await db
+      .update(shopifyProducts)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(shopifyProducts.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteShopifyProduct(id: string): Promise<void> {
+    // Cascade delete will handle options and variants
+    await db.delete(shopifyProducts).where(eq(shopifyProducts.id, id));
+  }
+
+  async createShopifyProductOption(option: InsertShopifyProductOption): Promise<ShopifyProductOption> {
+    const [newOption] = await db
+      .insert(shopifyProductOptions)
+      .values(option)
+      .returning();
+    return newOption;
+  }
+
+  async updateShopifyProductOptions(
+    productId: string,
+    options: Array<{ name: string; values: string[] }>
+  ): Promise<ShopifyProductOption[]> {
+    // Delete existing options
+    await db.delete(shopifyProductOptions).where(eq(shopifyProductOptions.productId, productId));
+
+    // Insert new options
+    const newOptions: ShopifyProductOption[] = [];
+    for (let i = 0; i < options.length; i++) {
+      const [option] = await db
+        .insert(shopifyProductOptions)
+        .values({
+          productId,
+          name: options[i].name,
+          values: options[i].values,
+          position: i + 1,
+        })
+        .returning();
+      newOptions.push(option);
+    }
+
+    return newOptions;
+  }
+
+  async createShopifyProductVariant(variant: InsertShopifyProductVariantInput): Promise<ShopifyProductVariant> {
+    const [newVariant] = await db
+      .insert(shopifyProductVariants)
+      .values({
+        ...variant,
+        price: String(variant.price),
+        compareAtPrice: variant.compareAtPrice ? String(variant.compareAtPrice) : null,
+        costPrice: variant.costPrice ? String(variant.costPrice) : null,
+        weight: variant.weight ? String(variant.weight) : null,
+      })
+      .returning();
+    return newVariant;
+  }
+
+  async updateShopifyProductVariant(id: string, updates: UpdateShopifyProductVariantInput): Promise<ShopifyProductVariant> {
+    const updateData: any = { ...updates, updatedAt: new Date() };
+    if (updates.price !== undefined) updateData.price = String(updates.price);
+    if (updates.compareAtPrice !== undefined) updateData.compareAtPrice = String(updates.compareAtPrice);
+    if (updates.costPrice !== undefined) updateData.costPrice = String(updates.costPrice);
+    if (updates.weight !== undefined) updateData.weight = String(updates.weight);
+
+    const [updated] = await db
+      .update(shopifyProductVariants)
+      .set(updateData)
+      .where(eq(shopifyProductVariants.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteShopifyProductVariant(id: string): Promise<void> {
+    await db.delete(shopifyProductVariants).where(eq(shopifyProductVariants.id, id));
+  }
+
+  async getShopifyVariantBySku(sku: string): Promise<ShopifyProductVariant | null> {
+    const [variant] = await db
+      .select()
+      .from(shopifyProductVariants)
+      .where(eq(shopifyProductVariants.sku, sku))
+      .limit(1);
+    return variant || null;
+  }
+
+  async importShopifyProductsFromCsv(csvData: any[]): Promise<{
+    productsCreated: number;
+    variantsCreated: number;
+    errors: string[];
+  }> {
+    const errors: string[] = [];
+    let productsCreated = 0;
+    let variantsCreated = 0;
+
+    // Group products by variant_parentSku
+    const productGroups = new Map<string, any[]>();
+    
+    for (const row of csvData) {
+      const parentSku = row.variant_parentSku || row.productId;
+      if (!productGroups.has(parentSku)) {
+        productGroups.set(parentSku, []);
+      }
+      productGroups.get(parentSku)!.push(row);
+    }
+
+    // Process each product group
+    for (const [parentSku, variants] of productGroups) {
+      try {
+        // Find the parent product (where productId === variant_parentSku)
+        const parentRow = variants.find(v => v.productId === parentSku) || variants[0];
+        
+        // Extract product title from variant_genericDisplayName or name
+        const title = parentRow.variant_genericDisplayName || 
+                     parentRow.name?.replace(/\s+(BLANCO|NEGRO|GRIS|ROJO|VERDE|AZUL|CAFE|INCOLORA?|BASE OSCURA|BASE INCOLORA)\s*/gi, '').trim() ||
+                     parentRow.name;
+
+        // Create the product
+        const handle = this.generateHandle(title);
+        const [product] = await db
+          .insert(shopifyProducts)
+          .values({
+            title,
+            description: parentRow.description || '',
+            vendor: parentRow.brand || 'Pinturas Panoramica',
+            productType: parentRow.group_name || parentRow.tags?.split(',')[0]?.trim() || null,
+            tags: parentRow.tags?.split(',').map((t: string) => t.trim()) || [],
+            status: 'active',
+            category: parentRow.tags?.split(',')[0]?.trim() || null,
+            handle,
+            sortOrder: productsCreated,
+          })
+          .onConflictDoNothing()
+          .returning();
+
+        if (!product) {
+          // Product already exists, try to get it by handle
+          const existing = await this.getShopifyProductByHandle(handle);
+          if (existing) {
+            // Add variants to existing product
+            for (const variantRow of variants) {
+              await this.createVariantFromCsvRow(existing.id, variantRow, variants);
+              variantsCreated++;
+            }
+          }
+          continue;
+        }
+
+        productsCreated++;
+
+        // Determine options from variants
+        const colors = new Set<string>();
+        const formats = new Set<string>();
+
+        for (const v of variants) {
+          // Extract color from name
+          const colorMatch = v.name?.match(/(BLANCO|NEGRO|GRIS|ROJO|VERDE|AZUL|CAFE|INCOLORA?|BASE OSCURA|BASE INCOLORA)/i);
+          if (colorMatch) {
+            colors.add(colorMatch[1].toUpperCase());
+          }
+          // Extract format from packaging
+          if (v.packaging_unitName) {
+            formats.add(v.packaging_unitName);
+          }
+        }
+
+        // Create options
+        const options: Array<{ name: string; values: string[] }> = [];
+        if (colors.size > 0) {
+          options.push({ name: 'Color', values: Array.from(colors) });
+        }
+        if (formats.size > 0) {
+          options.push({ name: 'Formato', values: Array.from(formats) });
+        }
+
+        if (options.length > 0) {
+          await this.updateShopifyProductOptions(product.id, options);
+        }
+
+        // Create variants
+        for (let i = 0; i < variants.length; i++) {
+          const variantRow = variants[i];
+          await this.createVariantFromCsvRow(product.id, variantRow, variants, i);
+          variantsCreated++;
+        }
+      } catch (error: any) {
+        errors.push(`Error processing ${parentSku}: ${error.message}`);
+      }
+    }
+
+    return { productsCreated, variantsCreated, errors };
+  }
+
+  private async createVariantFromCsvRow(
+    productId: string,
+    row: any,
+    allVariants: any[],
+    position: number = 0
+  ): Promise<ShopifyProductVariant | null> {
+    try {
+      // Extract color from name
+      const colorMatch = row.name?.match(/(BLANCO|NEGRO|GRIS|ROJO|VERDE|AZUL|CAFE|INCOLORA?|BASE OSCURA|BASE INCOLORA)/i);
+      const color = colorMatch ? colorMatch[1].toUpperCase() : null;
+
+      const [variant] = await db
+        .insert(shopifyProductVariants)
+        .values({
+          productId,
+          sku: row.productId,
+          price: String(row.pricePerUnit || 0),
+          option1: color,
+          option2: row.packaging_unitName || null,
+          option3: null,
+          weight: row.dimensions_weight ? String(row.dimensions_weight) : null,
+          weightUnit: row.dimensions_weightUnit || 'kg',
+          packagingUnit: row.packaging_unit || null,
+          packagingUnitName: row.packaging_unitName || null,
+          amountPerPackage: row.packaging_amountPerPackage ? parseInt(row.packaging_amountPerPackage) : null,
+          available: row.isDisabled !== 'TRUE' && row.isDisabled !== true,
+          position: position + 1,
+        })
+        .onConflictDoNothing()
+        .returning();
+
+      return variant || null;
+    } catch (error) {
+      console.error(`Error creating variant ${row.productId}:`, error);
+      return null;
+    }
   }
 
   async getProductStock(sku: string): Promise<ProductStock[]> {
