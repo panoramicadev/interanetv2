@@ -7508,8 +7508,13 @@ export class DatabaseStorage implements IStorage {
 
     // Execute query with safety limit to prevent memory issues on large datasets
     // Current dataset: ~270 products, but this protects against future growth
+    // Order by: variantParentSku (groups variants together), then variantIndex (order within group)
     const results = await baseQuery
-      .orderBy(priceList.producto)
+      .orderBy(
+        sql`COALESCE(${ecommerceProducts.variantParentSku}, ${priceList.codigo})`,
+        sql`COALESCE(${ecommerceProducts.variantIndex}, 0)`,
+        priceList.producto
+      )
       .limit(1000);
 
     return results.map(row => ({
