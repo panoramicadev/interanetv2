@@ -269,39 +269,42 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
                   className="border rounded-lg overflow-hidden bg-blue-50/30 dark:bg-blue-900/10"
                 >
                   <AccordionTrigger 
-                    className="px-4 py-3 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 hover:no-underline"
+                    className="px-3 sm:px-4 py-3 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 hover:no-underline"
                     data-testid={`accordion-trigger-salesperson-${index}`}
                   >
-                    <div className="flex items-center gap-3 w-full pr-4">
-                      {/* Nombre del vendedor */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full pr-4">
+                      {/* Nombre del vendedor - mobile: full width */}
                       <div className="min-w-0 flex-1 text-left">
-                        <p className="text-sm text-gray-700 dark:text-gray-300 font-medium truncate">
+                        <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 font-medium line-clamp-2 sm:truncate">
                           {sp.salesperson}
                         </p>
                       </div>
                       
-                      {/* Porcentaje */}
-                      <div className="w-12 flex-shrink-0 text-right">
-                        <span className="text-xs text-gray-600 dark:text-gray-400">
-                          {sp.percentage.toFixed(1)}%
-                        </span>
-                      </div>
-                      
-                      {/* Barra de progreso */}
-                      <div className="w-24 sm:w-32 flex-shrink-0">
-                        <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-blue-500 dark:bg-blue-600 rounded-full transition-all duration-500 ease-out"
-                            style={{ width: `${Math.min(sp.percentage, 100)}%` }}
-                          ></div>
+                      {/* Barra, porcentaje y monto - mobile: row below name */}
+                      <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                        {/* Porcentaje */}
+                        <div className="w-10 sm:w-12 flex-shrink-0 text-right">
+                          <span className="text-xs text-gray-600 dark:text-gray-400">
+                            {sp.percentage.toFixed(1)}%
+                          </span>
                         </div>
-                      </div>
-                      
-                      {/* Monto */}
-                      <div className="w-24 flex-shrink-0 text-right">
-                        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                          {formatCurrency(sp.totalSales)}
-                        </span>
+                        
+                        {/* Barra de progreso */}
+                        <div className="flex-1 sm:flex-none sm:w-32">
+                          <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-blue-500 dark:bg-blue-600 rounded-full transition-all duration-500 ease-out"
+                              style={{ width: `${Math.min(sp.percentage, 100)}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                        
+                        {/* Monto */}
+                        <div className="w-20 sm:w-24 flex-shrink-0 text-right">
+                          <span className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100">
+                            {formatCurrency(sp.totalSales)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </AccordionTrigger>
@@ -337,31 +340,33 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
             {!debouncedSearchTerm && salespeopleWithPercentage && salespeopleWithPercentage.length > 0 && (
               <div className="border-t-2 border-gray-300 pt-3 mt-4">
                 <div 
-                  className="flex items-center py-3 bg-green-50 rounded-lg px-3"
+                  className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 py-3 bg-green-50 rounded-lg px-3"
                   data-testid="salespeople-total"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm text-green-900 font-bold">
+                    <p className="text-xs sm:text-sm text-green-900 font-bold">
                       TOTAL ({salespeopleWithPercentage.length} vendedores)
                     </p>
                   </div>
                   
-                  <div className="w-12 flex-shrink-0 text-right">
-                    <span className="text-xs text-green-700 font-semibold">
-                      100.0%
-                    </span>
-                  </div>
-                  
-                  <div className="w-24 sm:w-32 flex-shrink-0">
-                    <div className="h-2 bg-green-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-green-600 rounded-full w-full"></div>
+                  <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                    <div className="w-10 sm:w-12 flex-shrink-0 text-right">
+                      <span className="text-xs text-green-700 font-semibold">
+                        100.0%
+                      </span>
                     </div>
-                  </div>
-                  
-                  <div className="w-24 flex-shrink-0 text-right">
-                    <span className="text-sm font-bold text-green-900">
-                      {formatCurrency(periodTotal)}
-                    </span>
+                    
+                    <div className="flex-1 sm:flex-none sm:w-32">
+                      <div className="h-2 bg-green-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-green-600 rounded-full w-full"></div>
+                      </div>
+                    </div>
+                    
+                    <div className="w-20 sm:w-24 flex-shrink-0 text-right">
+                      <span className="text-xs sm:text-sm font-bold text-green-900">
+                        {formatCurrency(periodTotal)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
