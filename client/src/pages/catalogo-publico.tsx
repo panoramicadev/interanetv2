@@ -789,25 +789,25 @@ export default function CatalogoPublico() {
 
       {/* Search and Filters */}
       <div className="sticky top-0 z-40 bg-white border-b shadow-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <div className="container mx-auto px-2 sm:px-4 py-2 sm:py-3">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar productos..."
+                placeholder="Buscar..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 h-9"
+                className="pl-8 h-8 text-sm"
                 data-testid="input-search"
               />
             </div>
             
             <Select value={filterCategory} onValueChange={setFilterCategory}>
-              <SelectTrigger className="w-[160px] h-9" data-testid="select-category-filter">
+              <SelectTrigger className="w-[100px] sm:w-[140px] h-8 text-xs sm:text-sm" data-testid="select-category-filter">
                 <SelectValue placeholder="Categoría" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas las categorías</SelectItem>
+                <SelectItem value="all">Todas</SelectItem>
                 {uniqueCategories.map(cat => (
                   <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                 ))}
@@ -815,11 +815,11 @@ export default function CatalogoPublico() {
             </Select>
             
             <Select value={filterFormat} onValueChange={setFilterFormat}>
-              <SelectTrigger className="w-[140px] h-9" data-testid="select-format-filter">
+              <SelectTrigger className="w-[90px] sm:w-[120px] h-8 text-xs sm:text-sm" data-testid="select-format-filter">
                 <SelectValue placeholder="Tamaño" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los tamaños</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 {uniqueFormats.map(fmt => (
                   <SelectItem key={fmt} value={fmt}>{fmt}</SelectItem>
                 ))}
@@ -829,31 +829,30 @@ export default function CatalogoPublico() {
             {(filterCategory || filterFormat) && (
               <Button 
                 variant="ghost" 
-                size="sm"
-                className="h-9"
+                size="icon"
+                className="h-8 w-8 shrink-0"
                 onClick={() => { setFilterCategory(''); setFilterFormat(''); }}
               >
-                <X className="h-4 w-4 mr-1" />
-                Limpiar
+                <X className="h-4 w-4" />
               </Button>
             )}
           </div>
           
-          <p className="text-sm text-muted-foreground">
-            {filteredFamilies.length} producto{filteredFamilies.length !== 1 ? 's' : ''} disponible{filteredFamilies.length !== 1 ? 's' : ''}
+          <p className="text-xs text-muted-foreground mt-1">
+            {filteredFamilies.length} producto{filteredFamilies.length !== 1 ? 's' : ''}
           </p>
         </div>
       </div>
 
       {/* Products Grid - Grouped View */}
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-2 sm:px-4 py-3 sm:py-6">
         {filteredFamilies.length === 0 ? (
           <div className="text-center py-12">
             <Package className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
             <p className="text-muted-foreground">No se encontraron productos</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4">
             {filteredFamilies.map(family => {
               const selectedColor = selectedColors[family.family];
               const selectedFormat = selectedFormats[family.family];
@@ -878,41 +877,41 @@ export default function CatalogoPublico() {
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <Package className="h-16 w-16 text-muted-foreground/30" />
+                        <Package className="h-12 w-12 sm:h-16 sm:w-16 text-muted-foreground/30" />
                       </div>
                     )}
                     
                     {family.categoria && (
-                      <Badge variant="secondary" className="absolute top-2 left-2 text-xs">
+                      <Badge variant="secondary" className="absolute top-1 left-1 sm:top-2 sm:left-2 text-[10px] sm:text-xs px-1.5 py-0.5">
                         {family.categoria}
                       </Badge>
                     )}
                     
                     {family.colors.length > 1 && (
-                      <Badge variant="outline" className="absolute top-2 right-2 text-xs bg-white/90">
+                      <Badge variant="outline" className="absolute top-1 right-1 sm:top-2 sm:right-2 text-[10px] sm:text-xs bg-white/90 px-1.5 py-0.5">
                         {family.colors.length} colores
                       </Badge>
                     )}
                   </div>
                   
-                  <CardContent className="p-4 space-y-3">
+                  <CardContent className="p-2 sm:p-4 space-y-2 sm:space-y-3">
                     {/* Family Name */}
-                    <h3 className="font-semibold text-base line-clamp-2" title={family.family}>
+                    <h3 className="font-semibold text-xs sm:text-base line-clamp-2 leading-tight" title={family.family}>
                       {family.family}
                     </h3>
                     
                     {/* Color Selector */}
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Palette className="h-3 w-3" />
+                    <div className="space-y-0.5 sm:space-y-1">
+                      <label className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1">
+                        <Palette className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                         Color
                       </label>
                       <Select
                         value={selectedColor || ''}
                         onValueChange={(value) => handleColorChange(family.family, value)}
                       >
-                        <SelectTrigger className="h-9" data-testid={`select-color-${family.family}`}>
-                          <SelectValue placeholder="Seleccionar color" />
+                        <SelectTrigger className="h-7 sm:h-9 text-xs sm:text-sm" data-testid={`select-color-${family.family}`}>
+                          <SelectValue placeholder="Seleccionar" />
                         </SelectTrigger>
                         <SelectContent>
                           {family.colors.map(colorOption => (
@@ -925,9 +924,9 @@ export default function CatalogoPublico() {
                     </div>
                     
                     {/* Format Selector */}
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Layers className="h-3 w-3" />
+                    <div className="space-y-0.5 sm:space-y-1">
+                      <label className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1">
+                        <Layers className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                         Formato
                       </label>
                       <Select
@@ -935,8 +934,8 @@ export default function CatalogoPublico() {
                         onValueChange={(value) => handleFormatChange(family.family, value)}
                         disabled={!selectedColor}
                       >
-                        <SelectTrigger className="h-9" data-testid={`select-format-${family.family}`}>
-                          <SelectValue placeholder={selectedColor ? "Seleccionar formato" : "Primero selecciona color"} />
+                        <SelectTrigger className="h-7 sm:h-9 text-xs sm:text-sm" data-testid={`select-format-${family.family}`}>
+                          <SelectValue placeholder={selectedColor ? "Seleccionar" : "Primero color"} />
                         </SelectTrigger>
                         <SelectContent>
                           {availableFormats.map(format => (
@@ -950,16 +949,16 @@ export default function CatalogoPublico() {
                     
                     {/* Price Display */}
                     {selectedProduct && (
-                      <div className="flex items-center justify-between pt-2 border-t">
+                      <div className="flex items-center justify-between pt-1.5 sm:pt-2 border-t">
                         <div>
-                          <span className="text-lg font-bold text-primary">
+                          <span className="text-sm sm:text-lg font-bold text-primary">
                             ${selectedProduct.precio.toLocaleString('es-CL')}
                           </span>
-                          <span className="text-xs text-muted-foreground ml-1">
+                          <span className="text-[10px] sm:text-xs text-muted-foreground ml-0.5 sm:ml-1">
                             /{selectedProduct.unidad}
                           </span>
                         </div>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-[9px] sm:text-xs text-muted-foreground hidden sm:inline">
                           SKU: {selectedProduct.codigo}
                         </span>
                       </div>
@@ -972,16 +971,16 @@ export default function CatalogoPublico() {
                           <Button
                             variant="outline"
                             size="icon"
-                            className="h-9 w-9"
+                            className="h-7 w-7 sm:h-9 sm:w-9"
                             onClick={() => updateQuantity(selectedProduct.id, 0, 'down')}
                             data-testid={`button-decrease-${selectedProduct.id}`}
                           >
-                            <Minus className="h-4 w-4" />
+                            <Minus className="h-3 w-3 sm:h-4 sm:w-4" />
                           </Button>
                           <div className="text-center">
-                            <span className="font-semibold text-lg">{cartItem.quantity}</span>
+                            <span className="font-semibold text-sm sm:text-lg">{cartItem.quantity}</span>
                             {cartItem.stepSize > 1 && (
-                              <span className="block text-xs text-muted-foreground">
+                              <span className="block text-[9px] sm:text-xs text-muted-foreground">
                                 (salto: {cartItem.stepSize})
                               </span>
                             )}
@@ -989,28 +988,30 @@ export default function CatalogoPublico() {
                           <Button
                             variant="outline"
                             size="icon"
-                            className="h-9 w-9"
+                            className="h-7 w-7 sm:h-9 sm:w-9"
                             onClick={() => updateQuantity(selectedProduct.id, 0, 'up')}
                             data-testid={`button-increase-${selectedProduct.id}`}
                           >
-                            <Plus className="h-4 w-4" />
+                            <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
                           </Button>
                         </div>
                       ) : (
                         <Button
-                          className="w-full"
+                          className="w-full h-8 sm:h-10 text-xs sm:text-sm"
                           onClick={(e) => addToCart(family, selectedProduct, e)}
                           data-testid={`button-add-${family.family}`}
                         >
-                          <Plus className="h-4 w-4 mr-2" />
-                          Agregar al carrito
+                          <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                          <span className="hidden sm:inline">Agregar al carrito</span>
+                          <span className="sm:hidden">Agregar</span>
                         </Button>
                       )
                     )}
                     
                     {!selectedProduct && (
-                      <Button className="w-full" disabled>
-                        Selecciona color y formato
+                      <Button className="w-full h-8 sm:h-10 text-xs sm:text-sm" disabled>
+                        <span className="hidden sm:inline">Selecciona color y formato</span>
+                        <span className="sm:hidden">Seleccionar</span>
                       </Button>
                     )}
                   </CardContent>
