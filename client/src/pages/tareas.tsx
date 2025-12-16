@@ -662,11 +662,13 @@ export default function TareasPage() {
 
       {/* Tabs para Tareas, Estimación Semanal y Seguimiento */}
       <Tabs defaultValue="tareas" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 bg-gray-100">
-          <TabsTrigger value="tareas" data-testid="tab-tareas" className="data-[state=active]:bg-white data-[state=active]:text-blue-600">Tareas</TabsTrigger>
-          <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="data-[state=active]:bg-white data-[state=active]:text-blue-600">Estimación Semanal</TabsTrigger>
-          <TabsTrigger value="seguimiento" data-testid="tab-seguimiento" className="data-[state=active]:bg-white data-[state=active]:text-blue-600">Seguimiento</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+          <TabsList className="inline-flex w-max sm:w-full sm:grid sm:grid-cols-3 h-auto gap-1 bg-gray-100">
+            <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">Tareas</TabsTrigger>
+            <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">Estimación Semanal</TabsTrigger>
+            <TabsTrigger value="seguimiento" data-testid="tab-seguimiento" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">Seguimiento</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="tareas" className="space-y-6">
 
