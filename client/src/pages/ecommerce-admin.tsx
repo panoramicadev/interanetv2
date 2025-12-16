@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers, Users, Phone, Mail, Link as LinkIcon, Check, X, Loader2, User } from "lucide-react";
+import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers, Users, Phone, Mail, Link as LinkIcon, Check, X, Loader2, User, ChevronDown, ChevronRight } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
 import { useForm } from "react-hook-form";
@@ -34,18 +34,28 @@ interface ProductoEcommerce {
   codigo: string;
   producto: string;
   unidad?: string;
-  precio: number; // Precio para ecommerce (canalDigital o lista)
-  precioOriginal?: number; // Precio de lista original
+  precio: number;
+  precioOriginal?: number;
   categoria?: string;
   descripcion?: string;
-  activo: boolean; // Si está activo en la tienda
+  activo: boolean;
   imagenUrl?: string;
   stock?: number;
-  groupId?: string | null; // ID del grupo de producto
-  variantLabel?: string | null; // Etiqueta de la variante (ej: "Blanco", "Gris")
-  isMainVariant?: boolean; // Si es la variante principal del grupo
-  productFamily?: string | null; // Familia del producto (ej: "ANTICORROSIVO ESTRUCTURAL")
-  color?: string | null; // Color del producto (ej: "BLANCO", "GRIS")
+  groupId?: string | null;
+  variantLabel?: string | null;
+  isMainVariant?: boolean;
+  productFamily?: string | null;
+  color?: string | null;
+  variantParentSku?: string | null;
+  variantGenericDisplayName?: string | null;
+  variantIndex?: number;
+}
+
+interface ProductGroup {
+  parentSku: string;
+  displayName: string;
+  products: ProductoEcommerce[];
+  mainProduct: ProductoEcommerce;
 }
 
 interface CategoriaEcommerce {
@@ -121,6 +131,8 @@ export default function EcommerceAdmin() {
   const [selectedCatalogUser, setSelectedCatalogUser] = useState<SalespersonUser | null>(null);
   const [isCatalogDialogOpen, setIsCatalogDialogOpen] = useState(false);
   
+  // Estado para grupos expandidos en la vista de productos
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   
   const { toast } = useToast();
   const { user } = useAuth();
@@ -545,6 +557,57 @@ export default function EcommerceAdmin() {
     
     return true;
   });
+
+  // Agrupar productos por variantParentSku
+  const groupedProducts = useMemo(() => {
+    const groups: Map<string, ProductGroup> = new Map();
+    const standalone: ProductoEcommerce[] = [];
+
+    for (const product of filteredProducts) {
+      const parentSku = product.variantParentSku;
+      
+      if (parentSku) {
+        if (!groups.has(parentSku)) {
+          groups.set(parentSku, {
+            parentSku,
+            displayName: product.variantGenericDisplayName || product.producto,
+            products: [],
+            mainProduct: product,
+          });
+        }
+        const group = groups.get(parentSku)!;
+        group.products.push(product);
+        
+        // El producto con variantIndex 0 es el principal
+        if ((product.variantIndex ?? 0) === 0) {
+          group.mainProduct = product;
+          group.displayName = product.variantGenericDisplayName || product.producto;
+        }
+      } else {
+        standalone.push(product);
+      }
+    }
+
+    // Ordenar variantes por variantIndex dentro de cada grupo
+    groups.forEach(group => {
+      group.products.sort((a, b) => (a.variantIndex ?? 0) - (b.variantIndex ?? 0));
+    });
+
+    return { groups: Array.from(groups.values()), standalone };
+  }, [filteredProducts]);
+
+  // Toggle grupo expandido
+  const toggleGroupExpand = (parentSku: string) => {
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(parentSku)) {
+        newSet.delete(parentSku);
+      } else {
+        newSet.add(parentSku);
+      }
+      return newSet;
+    });
+  };
 
   // Funciones auxiliares
   const handleEditProduct = (product: ProductoEcommerce) => {
@@ -1193,15 +1256,23 @@ export default function EcommerceAdmin() {
         </Select>
       </div>
 
-      {/* Tabla de productos */}
+      {/* Tabla de productos agrupados */}
       <Card>
         <CardHeader>
-          <CardTitle>Productos ({filteredProducts.length})</CardTitle>
+          <CardTitle>
+            Productos ({filteredProducts.length})
+            {groupedProducts.groups.length > 0 && (
+              <span className="text-sm font-normal text-muted-foreground ml-2">
+                · {groupedProducts.groups.length} grupos
+              </span>
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10"></TableHead>
                 <TableHead className="w-20">Imagen</TableHead>
                 <TableHead>Código</TableHead>
                 <TableHead>Producto</TableHead>
@@ -1212,8 +1283,157 @@ export default function EcommerceAdmin() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredProducts.map((product) => (
+              {/* Productos agrupados */}
+              {groupedProducts.groups.map((group) => {
+                const isExpanded = expandedGroups.has(group.parentSku);
+                const mainProduct = group.mainProduct;
+                const activeCount = group.products.filter(p => p.activo).length;
+                
+                return (
+                  <React.Fragment key={group.parentSku}>
+                    {/* Fila del grupo padre */}
+                    <TableRow 
+                      className="bg-muted/50 cursor-pointer hover:bg-muted"
+                      onClick={() => toggleGroupExpand(group.parentSku)}
+                      data-testid={`group-row-${group.parentSku}`}
+                    >
+                      <TableCell className="p-2">
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </TableCell>
+                      <TableCell>
+                        {mainProduct.imagenUrl ? (
+                          <img 
+                            src={mainProduct.imagenUrl} 
+                            alt={group.displayName}
+                            className="w-12 h-12 object-cover rounded border"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 bg-gray-100 rounded border border-gray-200 flex items-center justify-center">
+                            <Layers className="h-5 w-5 text-gray-400" />
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        <div className="flex items-center gap-2">
+                          {group.parentSku}
+                          <Badge variant="outline" className="text-xs">
+                            {group.products.length} variantes
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium">{group.displayName}</div>
+                      </TableCell>
+                      <TableCell>
+                        {mainProduct.categoria ? (
+                          <Badge variant="secondary">{mainProduct.categoria}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">Sin categoría</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-medium text-muted-foreground">
+                        Desde {formatPrice(Math.min(...group.products.map(p => p.precio)))}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={activeCount === group.products.length ? "default" : "secondary"} 
+                               className={activeCount === group.products.length ? "bg-green-100 text-green-800" : ""}>
+                          {activeCount}/{group.products.length} activos
+                        </Badge>
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditProduct(mainProduct)}
+                          data-testid={`button-edit-group-${group.parentSku}`}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                    
+                    {/* Filas de variantes (solo si está expandido) */}
+                    {isExpanded && group.products.map((product) => (
+                      <TableRow key={product.id} className="bg-background border-l-4 border-l-primary/20">
+                        <TableCell></TableCell>
+                        <TableCell>
+                          {product.imagenUrl ? (
+                            <img 
+                              src={product.imagenUrl} 
+                              alt={product.producto}
+                              className="w-10 h-10 object-cover rounded border"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 bg-gray-100 rounded border border-gray-200 flex items-center justify-center">
+                              <span className="text-[6px] text-gray-400">N/A</span>
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm text-muted-foreground">
+                          {product.codigo}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {product.color && (
+                              <Badge variant="outline" className="text-xs">{product.color}</Badge>
+                            )}
+                            <span className="text-sm">{product.producto}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {product.categoria ? (
+                            <Badge variant="secondary" className="text-xs">{product.categoria}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {formatPrice(product.precio)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={product.activo}
+                              onCheckedChange={() => toggleProductMutation.mutate(product.id)}
+                              data-testid={`switch-product-${product.id}`}
+                            />
+                            {product.activo ? (
+                              <Badge variant="default" className="bg-green-100 text-green-800 text-xs">
+                                Activo
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">
+                                Inactivo
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditProduct(product)}
+                            data-testid={`button-edit-${product.id}`}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </React.Fragment>
+                );
+              })}
+              
+              {/* Productos sin grupo (standalone) */}
+              {groupedProducts.standalone.map((product) => (
                 <TableRow key={product.id}>
+                  <TableCell></TableCell>
                   <TableCell>
                     {product.imagenUrl ? (
                       <img 
