@@ -56,29 +56,6 @@ interface CategoriaEcommerce {
   productoCount: number;
 }
 
-interface ProductGroup {
-  id: string;
-  nombre: string;
-  descripcion?: string;
-  imagenPrincipal?: string;
-  categoria?: string;
-  activo: boolean;
-  orden: number;
-  variantCount?: number;
-  mainVariant?: any;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface ProductVariant {
-  id: string;
-  priceListId: string;
-  groupId?: string;
-  variantLabel?: string;
-  isMainVariant: boolean;
-  activo: boolean;
-  priceListProduct?: any;
-}
 
 interface SalespersonUser {
   id: string;
@@ -122,9 +99,6 @@ export default function EcommerceAdmin() {
   const [productPrecio, setProductPrecio] = useState("");
   const [productActivo, setProductActivo] = useState(false);
   const [uploadingProductImage, setUploadingProductImage] = useState(false);
-  const [productGroupId, setProductGroupId] = useState<string>("");
-  const [productVariantLabel, setProductVariantLabel] = useState("");
-  const [productIsMainVariant, setProductIsMainVariant] = useState(false);
   const [productFamily, setProductFamily] = useState("");
   const [productColor, setProductColor] = useState("");
   
@@ -147,10 +121,6 @@ export default function EcommerceAdmin() {
   const [selectedCatalogUser, setSelectedCatalogUser] = useState<SalespersonUser | null>(null);
   const [isCatalogDialogOpen, setIsCatalogDialogOpen] = useState(false);
   
-  // Estados para selección masiva de productos
-  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
-  const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
-  const [bulkTargetGroupId, setBulkTargetGroupId] = useState<string>("");
   
   const { toast } = useToast();
   const { user } = useAuth();
@@ -201,14 +171,6 @@ export default function EcommerceAdmin() {
     refetchOnMount: true
   });
 
-  // Query para obtener grupos de productos
-  const { data: grupos = [] } = useQuery<ProductGroup[]>({
-    queryKey: ['/api/ecommerce/admin/grupos'],
-    queryFn: async () => {
-      const response = await apiRequest('/api/ecommerce/admin/grupos');
-      return response.json();
-    }
-  });
 
   // Obtener familias y colores únicos de los productos existentes
   const uniqueFamilies = React.useMemo(() => {
@@ -220,78 +182,6 @@ export default function EcommerceAdmin() {
     const colors = new Set(productos.map(p => p.color).filter(Boolean) as string[]);
     return Array.from(colors).sort();
   }, [productos]);
-
-  // Mutación para asignar múltiples productos a un grupo
-  const bulkAssignMutation = useMutation({
-    mutationFn: async ({ productIds, groupId }: { productIds: string[]; groupId: string }) => {
-      const response = await apiRequest('/api/ecommerce/admin/productos/bulk-assign', {
-        method: 'POST',
-        data: { productIds, groupId }
-      });
-      return response.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/grupos'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/productos'] });
-      setSelectedProducts(new Set());
-      setShowBulkAssignModal(false);
-      setBulkTargetGroupId("");
-      toast({
-        title: "Productos asignados",
-        description: `Se asignaron ${data.count || selectedProducts.size} productos al grupo`
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "No se pudieron asignar los productos",
-        variant: "destructive"
-      });
-    }
-  });
-
-  // Toggle selección de producto
-  const toggleProductSelection = (productId: string) => {
-    setSelectedProducts(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(productId)) {
-        newSet.delete(productId);
-      } else {
-        newSet.add(productId);
-      }
-      return newSet;
-    });
-  };
-
-  // Seleccionar/deseleccionar todos los productos filtrados
-  const toggleSelectAll = () => {
-    const allSelected = filteredProducts.every(p => selectedProducts.has(p.id));
-    setSelectedProducts(prev => {
-      const newSet = new Set(prev);
-      if (allSelected) {
-        filteredProducts.forEach(p => newSet.delete(p.id));
-      } else {
-        filteredProducts.forEach(p => newSet.add(p.id));
-      }
-      return newSet;
-    });
-  };
-
-  // Ejecutar asignación masiva
-  const handleBulkAssign = () => {
-    if (selectedProducts.size === 0 || !bulkTargetGroupId) {
-      toast({
-        title: "Selección incompleta",
-        description: "Selecciona productos y un grupo destino",
-        variant: "destructive"
-      });
-      return;
-    }
-    bulkAssignMutation.mutate({
-      productIds: Array.from(selectedProducts),
-      groupId: bulkTargetGroupId
-    });
-  };
 
   // Query para obtener vendedores (solo admin)
   const { data: salespeople = [], isLoading: isLoadingSalespeople } = useQuery<SalespersonUser[]>({
@@ -664,9 +554,6 @@ export default function EcommerceAdmin() {
     setProductImagen(product.imagenUrl || "");
     setProductPrecio(product.precio.toString());
     setProductActivo(product.activo);
-    setProductGroupId(product.groupId || "");
-    setProductVariantLabel(product.variantLabel || "");
-    setProductIsMainVariant(product.isMainVariant || false);
     setProductFamily(product.productFamily || "");
     setProductColor(product.color || "");
     setShowProductDialog(true);
@@ -675,7 +562,6 @@ export default function EcommerceAdmin() {
   const handleSaveProduct = () => {
     if (!editingProduct) return;
     
-    // Solo enviar datos de variante si hay un grupo seleccionado
     const updates: any = {
       categoria: productCategoria,
       descripcion: productDescripcion,
@@ -685,17 +571,6 @@ export default function EcommerceAdmin() {
       productFamily: productFamily.trim() || null,
       color: productColor.trim() || null,
     };
-
-    if (productGroupId) {
-      updates.groupId = productGroupId;
-      updates.variantLabel = productVariantLabel || null;
-      updates.isMainVariant = productIsMainVariant;
-    } else {
-      // Si no hay grupo, limpiar campos de variante
-      updates.groupId = null;
-      updates.variantLabel = null;
-      updates.isMainVariant = false;
-    }
     
     updateProductMutation.mutate({
       id: editingProduct.id,
@@ -1320,38 +1195,13 @@ export default function EcommerceAdmin() {
 
       {/* Tabla de productos */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div className="flex items-center gap-4">
-            <CardTitle>Productos ({filteredProducts.length})</CardTitle>
-            {selectedProducts.size > 0 && (
-              <Badge variant="secondary">
-                {selectedProducts.size} seleccionados
-              </Badge>
-            )}
-          </div>
-          {selectedProducts.size > 0 && (
-            <Button 
-              onClick={() => setShowBulkAssignModal(true)}
-              data-testid="button-assign-to-group"
-            >
-              <Layers className="h-4 w-4 mr-2" />
-              Asignar a Grupo
-            </Button>
-          )}
+        <CardHeader>
+          <CardTitle>Productos ({filteredProducts.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12">
-                  <input
-                    type="checkbox"
-                    checked={filteredProducts.length > 0 && filteredProducts.every(p => selectedProducts.has(p.id))}
-                    onChange={toggleSelectAll}
-                    className="h-4 w-4"
-                    data-testid="checkbox-select-all"
-                  />
-                </TableHead>
                 <TableHead className="w-20">Imagen</TableHead>
                 <TableHead>Código</TableHead>
                 <TableHead>Producto</TableHead>
@@ -1363,25 +1213,7 @@ export default function EcommerceAdmin() {
             </TableHeader>
             <TableBody>
               {filteredProducts.map((product) => (
-                <TableRow 
-                  key={product.id}
-                  className={selectedProducts.has(product.id) ? 'bg-primary/5' : ''}
-                >
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={selectedProducts.has(product.id)}
-                        onChange={() => toggleProductSelection(product.id)}
-                        className="h-4 w-4"
-                        data-testid={`checkbox-product-${product.id}`}
-                      />
-                      <span 
-                        className={`w-2 h-2 rounded-full flex-shrink-0 ${product.groupId ? 'bg-green-500' : 'bg-gray-400'}`}
-                        title={product.groupId ? 'Agrupado' : 'Sin agrupar'}
-                      />
-                    </div>
-                  </TableCell>
+                <TableRow key={product.id}>
                   <TableCell>
                     {product.imagenUrl ? (
                       <img 
@@ -1630,73 +1462,6 @@ export default function EcommerceAdmin() {
                 </div>
               </div>
               
-              <div className="border-t pt-4">
-                <h3 className="font-medium mb-3">Agrupación de variantes (opcional)</h3>
-                
-                <div className="space-y-3">
-                  <div>
-                    <Label htmlFor="grupo">Grupo de producto</Label>
-                    <Select value={productGroupId || undefined} onValueChange={setProductGroupId}>
-                      <SelectTrigger data-testid="select-product-group">
-                        <SelectValue placeholder="Sin grupo (producto individual)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {grupos.filter(g => g.activo).map((grupo) => (
-                          <SelectItem 
-                            key={grupo.id} 
-                            value={grupo.id}
-                            data-testid={`select-item-group-${grupo.id}`}
-                          >
-                            {grupo.nombre}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {productGroupId && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="mt-1 h-8 px-2 text-xs"
-                        onClick={() => setProductGroupId("")}
-                        data-testid="button-clear-group"
-                      >
-                        Quitar del grupo
-                      </Button>
-                    )}
-                  </div>
-                  
-                  {productGroupId && (
-                    <>
-                      <div>
-                        <Label htmlFor="variantLabel">Etiqueta de variante</Label>
-                        <Input
-                          id="variantLabel"
-                          value={productVariantLabel}
-                          onChange={(e) => setProductVariantLabel(e.target.value)}
-                          placeholder="Ej: Blanco, Gris, Negro, 1L, 4L..."
-                          data-testid="input-variant-label"
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Nombre que verán los clientes para diferenciar esta variante
-                        </p>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="isMainVariant"
-                          checked={productIsMainVariant}
-                          onChange={(e) => setProductIsMainVariant(e.target.checked)}
-                          className="h-4 w-4"
-                          data-testid="checkbox-main-variant"
-                        />
-                        <Label htmlFor="isMainVariant">Variante principal del grupo</Label>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
               
               <div className="flex items-center space-x-2">
                 <Switch
@@ -2031,63 +1796,6 @@ export default function EcommerceAdmin() {
         )}
       </Tabs>
 
-      {/* Modal para asignar productos a grupo */}
-      <Dialog open={showBulkAssignModal} onOpenChange={setShowBulkAssignModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Asignar Productos a Grupo</DialogTitle>
-            <DialogDescription>
-              {selectedProducts.size} producto(s) seleccionado(s)
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="bulk-group-select">Selecciona el grupo destino</Label>
-              <Select value={bulkTargetGroupId} onValueChange={setBulkTargetGroupId}>
-                <SelectTrigger id="bulk-group-select" data-testid="select-bulk-group">
-                  <SelectValue placeholder="Seleccionar grupo..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {grupos.map((grupo) => (
-                    <SelectItem key={grupo.id} value={grupo.id}>
-                      {grupo.nombre} ({grupo.variantCount || 0} variantes)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowBulkAssignModal(false);
-                  setBulkTargetGroupId("");
-                }}
-                data-testid="button-cancel-bulk-assign"
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={handleBulkAssign}
-                disabled={!bulkTargetGroupId || bulkAssignMutation.isPending}
-                data-testid="button-confirm-bulk-assign"
-              >
-                {bulkAssignMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Asignando...
-                  </>
-                ) : (
-                  <>
-                    <Layers className="h-4 w-4 mr-2" />
-                    Asignar
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
