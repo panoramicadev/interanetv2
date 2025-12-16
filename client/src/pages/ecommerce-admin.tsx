@@ -14,7 +14,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers, Users, Phone, Mail, Link as LinkIcon, Check, X, Loader2, User } from "lucide-react";
-import ProductGroupsAdmin from "@/components/product-groups-admin";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
 import { useForm } from "react-hook-form";
@@ -1034,16 +1033,12 @@ export default function EcommerceAdmin() {
         </div>
       </div>
 
-      {/* Tabs para organizar Productos, Grupos y Catálogos */}
+      {/* Tabs para organizar Productos y Catálogos */}
       <Tabs defaultValue="productos" className="w-full">
-        <TabsList className={`grid w-full max-w-lg ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
+        <TabsList className={`grid w-full max-w-lg ${isAdmin ? 'grid-cols-2' : 'grid-cols-1'}`}>
           <TabsTrigger value="productos" data-testid="tab-productos">
             <Package className="h-4 w-4 mr-2" />
             Productos
-          </TabsTrigger>
-          <TabsTrigger value="grupos" data-testid="tab-grupos">
-            <Layers className="h-4 w-4 mr-2" />
-            Grupos
           </TabsTrigger>
           {isAdmin && (
             <TabsTrigger value="catalogos" data-testid="tab-catalogos">
@@ -1778,10 +1773,6 @@ export default function EcommerceAdmin() {
           </div>
         </DialogContent>
       </Dialog>
-        </TabsContent>
-
-        <TabsContent value="grupos" className="mt-6">
-          <ProductGroupsAdmin />
         </TabsContent>
 
         {/* Pestaña de Catálogos Públicos - Solo Admin */}
