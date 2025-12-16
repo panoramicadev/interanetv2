@@ -3923,6 +3923,8 @@ export function registerRoutes(app: Express): Server {
         found: true,
         clientName: client.nokoen,
         clientCode: client.koen,
+        clientEmail: client.emailen || null,
+        clientPhone: client.telen || null,
         loyaltyTier,
         nextTier,
         amountToNextTier,

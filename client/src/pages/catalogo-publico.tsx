@@ -43,6 +43,7 @@ import {
   Send, 
   Search,
   Package,
+  Check,
   CheckCircle2,
   Loader2,
   Building,
@@ -135,6 +136,8 @@ export default function CatalogoPublico() {
   
   const [isClientDialogOpen, setIsClientDialogOpen] = useState(false);
   const [clientBusinessName, setClientBusinessName] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
   const [clientLoyaltyTier, setClientLoyaltyTier] = useState<{
     code: string;
     name: string;
@@ -185,12 +188,24 @@ export default function CatalogoPublico() {
         unitPrice: Number(item.precio),
       }));
       
+      // If client is identified, use their data instead of form data
+      const finalData = clientBusinessName
+        ? {
+            visitorName: clientBusinessName,
+            visitorEmail: clientEmail || quoteData.visitorEmail || '',
+            visitorPhone: clientPhone || quoteData.visitorPhone || '',
+            visitorCompany: clientBusinessName,
+            message: quoteData.message || '',
+            items,
+          }
+        : {
+            ...quoteData,
+            items,
+          };
+      
       return await apiRequest(`/api/public/catalogos/${slug}/cotizacion`, {
         method: 'POST',
-        data: {
-          ...quoteData,
-          items,
-        },
+        data: finalData,
       });
     },
     onSuccess: () => {
@@ -437,6 +452,8 @@ export default function CatalogoPublico() {
       
       if (response.ok && result.found) {
         setClientBusinessName(result.clientName);
+        setClientEmail(result.clientEmail || '');
+        setClientPhone(result.clientPhone || '');
         setClientLoyaltyTier(result.loyaltyTier || null);
         setClientNextTier(result.nextTier || null);
         setClientAmountToNextTier(result.amountToNextTier || 0);
@@ -455,6 +472,8 @@ export default function CatalogoPublico() {
 
   const handleClearClient = () => {
     setClientBusinessName('');
+    setClientEmail('');
+    setClientPhone('');
     setClientLoyaltyTier(null);
     setClientNextTier(null);
     setClientAmountToNextTier(0);
@@ -1064,63 +1083,79 @@ export default function CatalogoPublico() {
           
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmitQuote)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="visitorName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nombre completo *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Tu nombre" {...field} data-testid="input-name" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="visitorEmail"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Correo electrónico *</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="tu@email.com" {...field} data-testid="input-email" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="visitorPhone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Teléfono</FormLabel>
-                      <FormControl>
-                        <Input placeholder="+56 9 1234 5678" {...field} data-testid="input-phone" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="visitorCompany"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Empresa</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Nombre de empresa" {...field} data-testid="input-company" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              {clientBusinessName ? (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-green-700 font-medium">
+                    <Check className="h-4 w-4" />
+                    Cliente identificado
+                  </div>
+                  <div className="text-sm text-gray-700 space-y-1">
+                    <p><span className="font-medium">Nombre:</span> {clientBusinessName}</p>
+                    {clientEmail && <p><span className="font-medium">Correo:</span> {clientEmail}</p>}
+                    {clientPhone && <p><span className="font-medium">Teléfono:</span> {clientPhone}</p>}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="visitorName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nombre completo *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Tu nombre" {...field} data-testid="input-name" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="visitorEmail"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Correo electrónico *</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="tu@email.com" {...field} data-testid="input-email" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="visitorPhone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Teléfono</FormLabel>
+                          <FormControl>
+                            <Input placeholder="+56 9 1234 5678" {...field} data-testid="input-phone" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="visitorCompany"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Empresa</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Nombre de empresa" {...field} data-testid="input-company" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </>
+              )}
               
               <FormField
                 control={form.control}
