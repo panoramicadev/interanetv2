@@ -268,7 +268,7 @@ export default function CmmsMantencionesPlanificadas() {
 
   const onSubmit = (data: MantencionFormValues) => {
     console.log('[MANTENCION-FORM] Datos del formulario:', data);
-    
+
     const cleanedData = {
       ...data,
       equipoId: data.equipoId && data.equipoId.trim() !== '' ? data.equipoId : undefined,
@@ -276,9 +276,9 @@ export default function CmmsMantencionesPlanificadas() {
       notas: data.notas && data.notas.trim() !== '' ? data.notas : undefined,
       descripcion: data.descripcion && data.descripcion.trim() !== '' ? data.descripcion : undefined,
     };
-    
+
     console.log('[MANTENCION-FORM] Datos limpios a enviar:', cleanedData);
-    
+
     if (editingMantencion) {
       console.log('[MANTENCION-FORM] Actualizando mantención ID:', editingMantencion.id);
       updateMutation.mutate({ id: editingMantencion.id, data: cleanedData });
@@ -338,7 +338,7 @@ export default function CmmsMantencionesPlanificadas() {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -349,7 +349,7 @@ export default function CmmsMantencionesPlanificadas() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Mantenciones Planificadas</h1>
+              <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">Mantenciones Planificadas</h1>
               <p className="text-gray-600 mt-1">Proyectos grandes y mantenciones futuras</p>
             </div>
           </div>
