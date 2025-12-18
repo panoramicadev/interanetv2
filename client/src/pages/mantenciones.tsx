@@ -458,12 +458,12 @@ function GastosTab({ mantencionId, canManageGastos }: { mantencionId: string; ca
 
   return (
     <>
-      <ScrollArea className="max-h-[60vh] pr-4">
+      <div className="max-h-[60vh] overflow-y-auto pr-2 sm:pr-4">
         <div className="space-y-4">
           {/* Header con botón para agregar */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold">Gastos de Materiales</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="text-base sm:text-lg font-semibold">Gastos de Materiales</h3>
               <p className="text-sm text-muted-foreground">
                 Total: ${totalGastos.toLocaleString('es-CL')}
               </p>
@@ -472,6 +472,7 @@ function GastosTab({ mantencionId, canManageGastos }: { mantencionId: string; ca
               <Button
                 size="sm"
                 onClick={() => setIsAddGastoDialogOpen(true)}
+                className="w-full sm:w-auto shrink-0"
                 data-testid="button-add-gasto"
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -490,34 +491,35 @@ function GastosTab({ mantencionId, canManageGastos }: { mantencionId: string; ca
               <p>No hay gastos registrados para esta orden de trabajo</p>
             </div>
           ) : (
-            <div className="border rounded-lg overflow-hidden">
-              <table className="w-full">
+            <div className="border rounded-lg">
+              <div className="overflow-x-auto scrollbar-visible pb-2" style={{ WebkitOverflowScrolling: 'touch' }}>
+                <table className="w-full min-w-[400px]">
                 <thead className="bg-muted">
                   <tr>
-                    <th className="text-left p-3 font-medium">Fecha</th>
-                    <th className="text-left p-3 font-medium">Item</th>
-                    <th className="text-right p-3 font-medium">Cantidad</th>
-                    <th className="text-right p-3 font-medium">Costo Unit.</th>
-                    <th className="text-right p-3 font-medium">Total</th>
+                    <th className="text-left p-2 font-medium text-xs whitespace-nowrap">Fecha</th>
+                    <th className="text-left p-2 font-medium text-xs whitespace-nowrap">Item</th>
+                    <th className="text-right p-2 font-medium text-xs whitespace-nowrap">Cant.</th>
+                    <th className="text-right p-2 font-medium text-xs whitespace-nowrap">C.Unit</th>
+                    <th className="text-right p-2 font-medium text-xs whitespace-nowrap">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {gastos.map((gasto) => (
                     <tr key={gasto.id} className="border-t" data-testid={`row-gasto-${gasto.id}`}>
-                      <td className="p-3 text-sm">
-                        {format(new Date(gasto.fecha), 'dd/MM/yyyy', { locale: es })}
+                      <td className="p-2 text-xs whitespace-nowrap">
+                        {format(new Date(gasto.fecha), 'dd/MM/yy', { locale: es })}
                       </td>
-                      <td className="p-3">
-                        <div>
-                          <p className="font-medium">{gasto.item}</p>
+                      <td className="p-2">
+                        <div className="min-w-[80px] max-w-[150px]">
+                          <p className="font-medium text-xs truncate">{gasto.item}</p>
                           {gasto.descripcion && (
-                            <p className="text-sm text-muted-foreground">{gasto.descripcion}</p>
+                            <p className="text-xs text-muted-foreground truncate">{gasto.descripcion}</p>
                           )}
                         </div>
                       </td>
-                      <td className="p-3 text-right">{Number(gasto.cantidad).toLocaleString('es-CL')}</td>
-                      <td className="p-3 text-right">${Number(gasto.costoUnitario).toLocaleString('es-CL')}</td>
-                      <td className="p-3 text-right font-semibold">
+                      <td className="p-2 text-right text-xs whitespace-nowrap">{Number(gasto.cantidad).toLocaleString('es-CL')}</td>
+                      <td className="p-2 text-right text-xs whitespace-nowrap">${Number(gasto.costoUnitario).toLocaleString('es-CL')}</td>
+                      <td className="p-2 text-right font-semibold text-xs whitespace-nowrap">
                         ${Number(gasto.costoTotal).toLocaleString('es-CL')}
                       </td>
                     </tr>
@@ -525,15 +527,16 @@ function GastosTab({ mantencionId, canManageGastos }: { mantencionId: string; ca
                 </tbody>
                 <tfoot className="bg-muted font-semibold">
                   <tr>
-                    <td colSpan={4} className="p-3 text-right">Total General:</td>
-                    <td className="p-3 text-right">${totalGastos.toLocaleString('es-CL')}</td>
+                    <td colSpan={4} className="p-2 text-right text-xs">Total:</td>
+                    <td className="p-2 text-right text-xs whitespace-nowrap">${totalGastos.toLocaleString('es-CL')}</td>
                   </tr>
                 </tfoot>
               </table>
+              </div>
             </div>
           )}
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Dialog para agregar gasto */}
       <Dialog open={isAddGastoDialogOpen} onOpenChange={(open) => {
@@ -1173,8 +1176,8 @@ export default function MantencionesPage() {
           const Icon = estadoInfo?.icon || Clock;
           
           return (
-            <Card key={mantencion.id} className="hover:bg-accent/50 transition-colors">
-              <CardContent className="p-4">
+            <Card key={mantencion.id} className="hover:bg-accent/50 transition-colors overflow-visible">
+              <CardContent className="p-4 overflow-visible">
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -1275,27 +1278,30 @@ export default function MantencionesPage() {
                       Ver Detalle
                     </Button>
 
-                    <DropdownMenu>
+                    {(
+                      canSubmitResolution && 
+                      mantencion.estado !== 'resuelto' && 
+                      mantencion.estado !== 'cerrado'
+                    ) && <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm" data-testid={`button-actions-${mantencion.id}`}>
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        {canSubmitResolution && mantencion.estado !== 'resuelto' && mantencion.estado !== 'cerrado' && (
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setSelectedMantencion(mantencion);
-                              setIsResolutionDialogOpen(true);
-                            }}
-                            data-testid={`menu-resolver-${mantencion.id}`}
-                          >
-                            <CheckCircle2 className="h-4 w-4 mr-2" />
-                            Enviar Resolución
-                          </DropdownMenuItem>
-                        )}
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedMantencion(mantencion);
+                            setIsResolutionDialogOpen(true);
+                          }}
+                          data-testid={`menu-resolver-${mantencion.id}`}
+                        >
+                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                          Enviar Resolución
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    }
                   </div>
                 </div>
               </CardContent>
@@ -1315,14 +1321,14 @@ export default function MantencionesPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Wrench className="h-8 w-8" />
-            Gestión de Mantención
+            <Wrench className="h-8 w-8 shrink-0" />
+            <span>Gestión de Mantención</span>
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
             Sistema de solicitudes de mantención de equipos
           </p>
         </div>
@@ -1333,7 +1339,7 @@ export default function MantencionesPage() {
           }
         }}>
           <SheetTrigger asChild>
-            <Button data-testid="button-nueva-solicitud">
+            <Button className="w-full sm:w-auto shrink-0" data-testid="button-nueva-solicitud">
               <Plus className="h-4 w-4 mr-2" />
               Nueva Solicitud
             </Button>
@@ -1555,7 +1561,7 @@ export default function MantencionesPage() {
                   </div>
                 </div>
               
-              <div className="flex gap-3 mt-6 pt-6 border-t sticky bottom-0 bg-background">
+              <div className="flex gap-3 mt-6 pt-6 border-t">
                 <Button
                   type="button"
                   variant="outline"
@@ -1724,7 +1730,7 @@ export default function MantencionesPage() {
 
       {/* Details Dialog with Tabs */}
       <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] w-[95vw] sm:w-full">
+        <DialogContent className="max-w-5xl max-h-[90vh] w-[95vw] sm:w-full overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Wrench className="h-5 w-5" />
@@ -2186,7 +2192,7 @@ export default function MantencionesPage() {
               </TabsContent>
 
               {/* Tab 2: Gastos de Materiales */}
-              <TabsContent value="gastos">
+              <TabsContent value="gastos" className="overflow-visible">
                 <GastosTab
                   mantencionId={selectedMantencion.id}
                   canManageGastos={canManageMantencion}
