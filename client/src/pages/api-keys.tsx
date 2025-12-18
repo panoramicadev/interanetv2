@@ -164,17 +164,19 @@ export default function ApiKeysPage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">API Keys</h1>
           <p className="text-gray-500 mt-1">
             Gestiona las claves de API para integrar con Make.com, Zapier y otras plataformas
           </p>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)} data-testid="button-create-api-key">
-          <Plus className="mr-2 h-4 w-4" />
-          Nueva API Key
-        </Button>
+        <div className="flex items-center gap-2 mt-4 md:mt-0">
+          <Button onClick={() => setIsCreateDialogOpen(true)} data-testid="button-create-api-key">
+            <Plus className="mr-2 h-4 w-4" />
+            Nueva API Key
+          </Button>
+        </div>
       </div>
 
       <Alert>
@@ -206,80 +208,79 @@ export default function ApiKeysPage() {
       ) : (
         <div className="grid gap-4">
           {apiKeys.map((key) => (
-            <Card key={key.id} data-testid={`api-key-${key.id}`}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <Key className="h-5 w-5 text-gray-500" />
-                    <div>
-                      <CardTitle className="text-lg">{key.name}</CardTitle>
-                      <CardDescription className="font-mono text-xs mt-1">
+            <Card key={key.id} data-testid={`api-key-${key.id}`} className="overflow-hidden">
+              <CardHeader className="pb-3">
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <Key className="h-5 w-5 text-gray-500 shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <CardTitle className="text-lg truncate">{key.name}</CardTitle>
+                      <CardDescription className="font-mono text-xs mt-1 truncate">
                         {key.keyPrefix}
                       </CardDescription>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    {getRoleBadge(key.role)}
-                    <Switch
-                      checked={key.isActive}
-                      onCheckedChange={(checked) => toggleMutation.mutate({ id: key.id, isActive: checked })}
-                      data-testid={`switch-toggle-${key.id}`}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        if (confirm("¿Estás seguro de eliminar esta API key?")) {
-                          deleteMutation.mutate(key.id);
-                        }
-                      }}
-                      data-testid={`button-delete-${key.id}`}
-                    >
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-500">Estado</p>
-                    <p className="font-medium">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      {getRoleBadge(key.role)}
                       {key.isActive ? (
-                        <span className="text-green-600 flex items-center">
+                        <span className="text-green-600 flex items-center text-sm">
                           <Power className="h-3 w-3 mr-1" />
                           Activa
                         </span>
                       ) : (
-                        <span className="text-gray-400 flex items-center">
+                        <span className="text-gray-400 flex items-center text-sm">
                           <PowerOff className="h-3 w-3 mr-1" />
                           Inactiva
                         </span>
                       )}
-                    </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={key.isActive}
+                        onCheckedChange={(checked) => toggleMutation.mutate({ id: key.id, isActive: checked })}
+                        data-testid={`switch-toggle-${key.id}`}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => {
+                          if (confirm("¿Estás seguro de eliminar esta API key?")) {
+                            deleteMutation.mutate(key.id);
+                          }
+                        }}
+                        data-testid={`button-delete-${key.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
                   </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
                   <div>
-                    <p className="text-gray-500">Usos</p>
+                    <p className="text-gray-500 text-xs">Usos</p>
                     <p className="font-medium">{key.usageCount.toLocaleString("es-CL")}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500">Último uso</p>
-                    <p className="font-medium">{formatDate(key.lastUsedAt)}</p>
+                    <p className="text-gray-500 text-xs">Último uso</p>
+                    <p className="font-medium text-sm">{formatDate(key.lastUsedAt)}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500">Creada</p>
-                    <p className="font-medium">{formatDate(key.createdAt)}</p>
+                    <p className="text-gray-500 text-xs">Creada</p>
+                    <p className="font-medium text-sm">{formatDate(key.createdAt)}</p>
                   </div>
+                  {key.expiresAt && (
+                    <div>
+                      <p className="text-gray-500 text-xs">Expira</p>
+                      <p className="font-medium text-sm">{formatDate(key.expiresAt)}</p>
+                    </div>
+                  )}
                 </div>
                 {key.description && (
-                  <p className="text-sm text-gray-600 mt-4">{key.description}</p>
-                )}
-                {key.expiresAt && (
-                  <div className="mt-4">
-                    <Badge variant="outline" className="text-xs">
-                      Expira: {formatDate(key.expiresAt)}
-                    </Badge>
-                  </div>
+                  <p className="text-sm text-gray-600 mt-3 line-clamp-2">{key.description}</p>
                 )}
               </CardContent>
             </Card>
