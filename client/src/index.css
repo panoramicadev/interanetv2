@@ -112,87 +112,111 @@
   .modern-card {
     @apply bg-white border border-gray-200/60 shadow-sm hover:shadow-lg transition-all duration-200 rounded-2xl;
   }
-  
+
   .glass-card {
     @apply bg-white border border-gray-200/60 shadow-sm rounded-2xl;
   }
-  
+
   /* Clean Backgrounds */
   .gradient-bg {
     @apply bg-background;
   }
-  
+
   .gradient-bg-alt {
     @apply bg-muted;
   }
-  
+
   /* Professional Buttons */
   .btn-gradient {
     @apply bg-primary hover:bg-primary/90 text-primary-foreground font-medium px-6 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200;
   }
-  
+
   /* Mobile-first Responsive Sidebar */
   .sidebar-mobile {
     transform: translateX(-100%);
     transition: transform 0.3s ease-in-out;
   }
-  
+
   .sidebar-mobile.open {
     transform: translateX(0);
   }
-  
+
   /* Subtle Hover Effects */
   .hover-scale {
     @apply transition-all duration-200 hover:-translate-y-1 hover:shadow-lg;
   }
-  
+
   .hover-lift {
     @apply transition-all duration-200 hover:-translate-y-1 hover:shadow-lg;
   }
-  
+
   /* Clean Typography */
   .text-gradient {
     @apply text-foreground font-semibold;
   }
-  
+
   /* Loading States */
   .skeleton {
     @apply animate-pulse bg-muted rounded;
   }
-  
+
   /* Custom scrollbar styles */
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar-track {
     background: rgba(71, 85, 105, 0.3);
     border-radius: 3px;
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar-thumb {
     background: rgba(71, 85, 105, 0.6);
     border-radius: 3px;
     transition: background 0.2s ease;
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgba(71, 85, 105, 0.8);
   }
-  
+
   /* For Firefox */
   .custom-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: rgba(71, 85, 105, 0.6) rgba(71, 85, 105, 0.3);
   }
-  
+
   /* Hide scrollbar */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  
+
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Horizontal scrollbar visible */
+  .scrollbar-visible {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.4) hsl(var(--muted) / 0.5);
+  }
+
+  .scrollbar-visible::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .scrollbar-visible::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+    border-radius: 4px;
+  }
+
+  .scrollbar-visible::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.4);
+    border-radius: 4px;
+  }
+
+  .scrollbar-visible::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.6);
   }
 }

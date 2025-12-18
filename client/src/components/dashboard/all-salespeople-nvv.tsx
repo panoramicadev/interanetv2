@@ -56,7 +56,7 @@ export default function AllSalespeopleNVV({
   filterType
 }: AllSalespeopleNVVProps) {
   const [showAll, setShowAll] = useState(false);
-  
+
   const { data: salespeopleData, isLoading } = useQuery<SalespersonGroup[]>({
     queryKey: [`/api/nvv/all-by-salespeople`],
     queryFn: async () => {
@@ -84,11 +84,11 @@ export default function AllSalespeopleNVV({
     const grouped = records.reduce((acc, record) => {
       const normalizedEndo = record.ENDO?.trim().toUpperCase() || '';
       const normalizedNokoen = record.NOKOEN?.trim().toUpperCase() || '';
-      
+
       const uniqueKey = normalizedEndo || normalizedNokoen || 'SIN_CODIGO';
       const displayCode = record.ENDO?.trim() || record.NOKOEN?.trim() || 'Sin código';
       const displayName = record.NOKOEN?.trim() || 'Cliente sin nombre';
-      
+
       if (!acc[uniqueKey]) {
         acc[uniqueKey] = {
           uniqueKey,
@@ -100,12 +100,12 @@ export default function AllSalespeopleNVV({
           records: []
         };
       }
-      
+
       acc[uniqueKey].totalAmount += record.totalPendiente;
       acc[uniqueKey].totalUnits += record.cantidadPendiente;
       acc[uniqueKey].totalOrders += 1;
       acc[uniqueKey].records.push(record);
-      
+
       return acc;
     }, {} as Record<string, ClientGroup>);
 
@@ -188,7 +188,7 @@ export default function AllSalespeopleNVV({
               {formatCurrency(totalPendingAmount)}
             </div>
           </div>
-          
+
           <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 shadow-sm">
             <div className="flex items-center gap-2 text-purple-600 dark:text-purple-500 mb-1">
               <div className="p-1 sm:p-1.5 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
@@ -200,7 +200,7 @@ export default function AllSalespeopleNVV({
               {totalPendingUnits.toLocaleString('es-CL', { maximumFractionDigits: 0 })}
             </div>
           </div>
-          
+
           <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 shadow-sm">
             <div className="flex items-center gap-2 text-blue-600 dark:text-blue-500 mb-1">
               <div className="p-1 sm:p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
@@ -219,7 +219,7 @@ export default function AllSalespeopleNVV({
             <Accordion type="single" collapsible className="space-y-2">
               {(showAll ? salespeopleData : salespeopleData.slice(0, 5)).map((salespersonGroup) => {
               const clientGroups = groupRecordsByClient(salespersonGroup.records);
-              
+
               return (
                 <AccordionItem 
                   key={salespersonGroup.salespersonCode} 
@@ -267,7 +267,7 @@ export default function AllSalespeopleNVV({
                         <User className="h-4 w-4" />
                         <span className="text-sm font-medium">Clientes</span>
                       </div>
-                      
+
                       {/* Nested accordion for clients */}
                       <Accordion type="single" collapsible className="space-y-2">
                         {clientGroups.map((clientGroup) => (
@@ -303,29 +303,29 @@ export default function AllSalespeopleNVV({
                                 </div>
                               </div>
                             </AccordionTrigger>
-                            <AccordionContent className="px-3 pb-3">
-                              <div className="bg-gray-50 dark:bg-gray-800 rounded p-3 mt-2 space-y-2">
+                            <AccordionContent className="px-2 sm:px-3 pb-3 overflow-hidden">
+                              <div className="bg-gray-50 dark:bg-gray-800 rounded p-2 sm:p-3 mt-2 space-y-2 overflow-hidden">
                                 {clientGroup.records.map((record) => (
                                   <div 
                                     key={record.id} 
-                                    className="bg-white dark:bg-slate-900 rounded border dark:border-gray-700 p-3"
+                                    className="bg-white dark:bg-slate-900 rounded border dark:border-gray-700 p-2 sm:p-3 overflow-hidden"
                                     data-testid={`nvv-record-${record.id}`}
                                   >
-                                    <div className="flex items-center justify-between mb-2">
-                                      <div>
-                                        <div className="font-semibold text-sm text-gray-900 dark:text-gray-100">{record.NUDO}</div>
-                                        <div className="text-xs text-gray-500 dark:text-gray-400">{record.TIDO}</div>
+                                    <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">{record.NUDO}</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{record.TIDO}</div>
                                       </div>
-                                      <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700">
+                                      <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700 shrink-0 text-xs">
                                         {formatCurrency(record.totalPendiente)}
                                       </Badge>
                                     </div>
-                                    <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
-                                      <div><span className="font-medium">Producto:</span> {record.NOKOPR}</div>
-                                      <div className="flex justify-between">
-                                        <span><span className="font-medium">Requerido:</span> {record.CAPREX2.toLocaleString('es-CL')}</span>
-                                        <span><span className="font-medium">Confirmado:</span> {record.CAPRCO2.toLocaleString('es-CL')}</span>
-                                        <span><span className="font-medium">Pendiente:</span> {record.cantidadPendiente.toLocaleString('es-CL')}</span>
+                                    <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1 overflow-hidden">
+                                      <div className="line-clamp-2"><span className="font-medium">Producto:</span> {record.NOKOPR}</div>
+                                      <div className="grid grid-cols-2 xs:grid-cols-3 gap-1 sm:gap-2">
+                                        <span className="truncate"><span className="font-medium">Req:</span> {record.CAPREX2.toLocaleString('es-CL')}</span>
+                                        <span className="truncate"><span className="font-medium">Conf:</span> {record.CAPRCO2.toLocaleString('es-CL')}</span>
+                                        <span className="truncate col-span-2 xs:col-span-1 font-semibold text-amber-700 dark:text-amber-300"><span className="font-medium">Pend:</span> {record.cantidadPendiente.toLocaleString('es-CL')}</span>
                                       </div>
                                     </div>
                                   </div>
@@ -341,7 +341,7 @@ export default function AllSalespeopleNVV({
               );
               })}
             </Accordion>
-            
+
             {/* Ver más button */}
             {salespeopleData.length > 5 && (
               <div className="mt-4 text-center">

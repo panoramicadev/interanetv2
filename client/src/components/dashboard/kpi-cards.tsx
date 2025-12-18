@@ -45,12 +45,12 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   // Helper function to resolve comparison periods to actual period strings
   const resolveComparisonPeriod = (comparePeriod: string, currentPeriod: string, filterType: string): string => {
     if (!comparePeriod || comparePeriod === "none") return "";
-    
+
     // If it's already a specific period like "2025-08", "2025", "2025-08-15", or a range, return as is
     if (comparePeriod.match(/^\d{4}-\d{2}$/) || comparePeriod.match(/^\d{4}$/) || comparePeriod.match(/^\d{4}-\d{2}-\d{2}$/) || comparePeriod.includes('_')) {
       return comparePeriod;
     }
-    
+
     // Parse current period to determine comparison period
     switch (comparePeriod) {
       // DAY comparisons
@@ -90,13 +90,13 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
         }
         break;
       }
-      
+
       // MONTH comparisons
       case "previous-month": {
         if (filterType === "month" && currentPeriod.match(/^\d{4}-\d{2}$/)) {
           const [year, month] = currentPeriod.split('-').map(Number);
           const currentDate = new Date();
-          
+
           // Siempre comparar hasta el día actual (del mes actual)
           const dayOfMonth = currentDate.getDate();
           const previousMonthDate = new Date(year, month - 2, 1); // mes anterior
@@ -111,7 +111,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
         if (filterType === "month" && currentPeriod.match(/^\d{4}-\d{2}$/)) {
           const [year, month] = currentPeriod.split('-').map(Number);
           const currentDate = new Date();
-          
+
           // Siempre comparar hasta el día actual (del mes actual) en el año anterior
           const dayOfMonth = currentDate.getDate();
           const fromDate = new Date(year - 1, month - 1, 1);
@@ -121,7 +121,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
         }
         break;
       }
-      
+
       // YEAR comparisons
       case "previous-year": {
         if (filterType === "year" && currentPeriod.match(/^\d{4}$/)) {
@@ -130,7 +130,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
         }
         break;
       }
-      
+
       // RANGE comparisons
       case "previous-30-days": {
         if (filterType === "range" && currentPeriod.includes('_')) {
@@ -214,7 +214,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
         break;
       }
     }
-    
+
     return ""; // Return empty string if no pattern matches to prevent errors
   };
 
@@ -366,16 +366,16 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
     const currentMonthStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
-    
+
     if (filterType === "month" && selectedPeriod.match(/^\d{4}-\d{2}$/)) {
       return selectedPeriod === currentMonthStr;
     }
-    
+
     // For day filter, check if the day is in the current month
     if (filterType === "day" && selectedPeriod.match(/^\d{4}-\d{2}-\d{2}$/)) {
       return selectedPeriod.startsWith(currentMonthStr);
     }
-    
+
     // For year filter or range, don't show NVV/GDV (only current month matters)
     return false;
   };
@@ -383,12 +383,12 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   // Helper function to get period label for comparison
   const getPeriodLabel = (period: string, filterType: string): string => {
     const now = new Date();
-    
+
     if (filterType === "month" && period.match(/^\d{4}-\d{2}$/)) {
       const [year, month] = period.split('-').map(Number);
       const currentYear = now.getFullYear();
       const currentMonth = now.getMonth() + 1;
-      
+
       // If it's the current month, show "Oct 1-9" format
       if (year === currentYear && month === currentMonth) {
         const monthName = format(new Date(year, month - 1, 1), 'MMM');
@@ -399,7 +399,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
         return format(new Date(year, month - 1, 1), 'MMM yyyy');
       }
     }
-    
+
     return period;
   };
 
@@ -407,7 +407,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   const calculateChange = (current: number, previous: number | undefined) => {
     // Generate year-over-year comparison text based on filter type (always show this)
     let comparisonText = "";
-    
+
     if (filterType === "month" && selectedPeriod.match(/^\d{4}-\d{2}$/)) {
       // Month comparison: "vs Oct 2024" or "vs Oct 2024 al 15/12" for current month
       const [year, month] = selectedPeriod.split('-').map(Number);
@@ -416,7 +416,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       const now = new Date();
       const currentYear = now.getFullYear();
       const currentMonth = now.getMonth() + 1;
-      
+
       // If it's the current month, add "al DD/MM" to indicate partial comparison
       if (year === currentYear && month === currentMonth) {
         const dayOfMonth = now.getDate();
@@ -439,7 +439,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       // Default fallback
       comparisonText = "vs año anterior";
     }
-    
+
     // Check if we have previous data
     if (previous === undefined || previous === null || previous === 0) {
       return { 
@@ -448,11 +448,11 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
         color: "text-gray-500" 
       };
     }
-    
+
     const change = ((current - previous) / previous) * 100;
     const sign = change >= 0 ? "+" : "";
     const color = change >= 0 ? "text-green-600" : "text-red-600";
-    
+
     return {
       percentage: `${sign}${change.toFixed(1)}%`,
       comparisonText: comparisonText,
@@ -465,12 +465,12 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     if (!comparePeriod || comparePeriod === "none" || comparison === undefined || comparison === null) {
       return null;
     }
-    
+
     const difference = current - comparison;
     const sign = difference >= 0 ? "+" : "";
     const color = difference >= 0 ? "text-green-600" : "text-red-600";
     const formattedDiff = isCurrency ? formatCurrency(Math.abs(difference)) : formatNumber(Math.abs(difference));
-    
+
     return {
       text: `${sign}${formattedDiff}`,
       color,
@@ -484,7 +484,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   // Calculate year-over-year change for yearly totals (YTD comparison)
   const currentYearTotal = yearlyTotals?.currentYearTotal || 0;
   const previousYearTotal = yearlyTotals?.previousYearTotal || 0;
-  
+
   // Custom calculation for YTD comparison with proper text using API data
   const calculateYearlyChange = (
     current: number, 
@@ -500,11 +500,11 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
         color: "text-gray-500" 
       };
     }
-    
+
     const change = ((current - previous) / previous) * 100;
     const sign = change >= 0 ? "+" : "";
     const color = change >= 0 ? "text-green-600" : "text-red-600";
-    
+
     // Build comparison text from API data
     let comparisonText = "";
     if (isYTD && comparisonDate && comparisonYear) {
@@ -513,14 +513,14 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     } else if (comparisonYear) {
       comparisonText = `vs ${comparisonYear}`;
     }
-    
+
     return {
       percentage: `${sign}${change.toFixed(1)}%`,
       comparisonText,
       color
     };
   };
-  
+
   const yearlyChange = calculateYearlyChange(
     currentYearTotal, 
     previousYearTotal,
@@ -573,21 +573,21 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   const renderSalesCard = (kpi: any) => {
     const salesTotal = Number(metrics?.totalSales || 0);
     const previousSales = Number(metrics?.previousMonthSales || 0);
-    
+
     // Calcular diferencia en monto
     const salesDifference = salesTotal - previousSales;
     const salesDifferenceFormatted = formatCurrency(Math.abs(salesDifference));
     const salesDifferenceSign = salesDifference >= 0 ? '+' : '-';
-    
+
     // Usar valores globales de NVV y GDV (sin filtros de fecha)
     const nvvTotal = Number(nvvGlobalMetrics?.totalAmount || 0);
     const gdvSales = Number(gdvGlobalMetrics?.gdvSales || 0);
     const combinedTotal = salesTotal + nvvTotal + gdvSales;
 
     return (
-      <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
+      <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex-1 mb-2 lg:mb-0">
+          <div className="flex-1 mb-2 lg:mb-0 pr-12 sm:pr-16 lg:pr-0">
             <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2">
               {kpi.title}
             </p>
@@ -628,17 +628,18 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             </div>
             {/* Información adicional: NVV + GDV Pendiente y Total Combinado - Solo mostrar en mes actual */}
             {isCurrentMonth() && (
-              <div className="mt-2 pt-2 border-t border-gray-100">
-                <p className="text-xs text-gray-500 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`NVV: ${formatCurrency(nvvTotal)} + GDV Pendiente: ${formatCurrency(gdvSales)}`}>
-                  NVV: {formatCurrency(nvvTotal)} + GDV Pendiente: {formatCurrency(gdvSales)}
-                </p>
-                <p className="text-xs font-semibold text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`Total Combinado: ${formatCurrency(combinedTotal)}`}>
-                  Total Combinado: {formatCurrency(combinedTotal)}
+              <div className="mt-2 pt-2 border-t border-gray-100 overflow-hidden">
+                <div className="grid grid-cols-2 gap-1 text-xs text-gray-500 mb-1">
+                  <span className="truncate" title={`NVV: ${formatCurrency(nvvTotal)}`}>NVV: {formatCurrency(nvvTotal)}</span>
+                  <span className="truncate" title={`GDV: ${formatCurrency(gdvSales)}`}>GDV: {formatCurrency(gdvSales)}</span>
+                </div>
+                <p className="text-xs font-semibold text-gray-700 truncate" title={`Combinado: ${formatCurrency(combinedTotal)}`}>
+                  Combinado: {formatCurrency(combinedTotal)}
                 </p>
               </div>
             )}
           </div>
-          <div className={`w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center self-end lg:self-auto lg:ml-4 transition-transform hover:scale-105`}>
+          <div className={`absolute top-3 right-3 sm:top-4 sm:right-4 lg:static lg:ml-4 w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center transition-transform hover:scale-105`}>
             <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
           </div>
         </div>
@@ -652,9 +653,9 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     const totalCustomers = metrics?.activeCustomers || 0;
 
     return (
-      <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
+      <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex-1 mb-2 lg:mb-0">
+          <div className="flex-1 mb-2 lg:mb-0 pr-12 sm:pr-16 lg:pr-0">
             <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2">
               {kpi.title}
             </p>
@@ -703,7 +704,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               </p>
             </div>
           </div>
-          <div className={`w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center self-end lg:self-auto lg:ml-4 transition-transform hover:scale-105`}>
+          <div className={`absolute top-3 right-3 sm:top-4 sm:right-4 lg:static lg:ml-4 w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center transition-transform hover:scale-105`}>
             <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
           </div>
         </div>
@@ -715,7 +716,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   const renderYearlyCard = (kpi: any) => {
     const bestYearValue = bestYear?.bestYear || 0;
     const bestYearTotalValue = bestYear?.bestYearTotal || 0;
-    
+
     // Calcular el monto de la diferencia
     const currentTotal = currentYearTotal || 0;
     const previousTotal = previousYearTotal || 0;
@@ -724,9 +725,9 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     const differenceSign = difference >= 0 ? '+' : '-';
 
     return (
-      <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
+      <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex-1 mb-2 lg:mb-0">
+          <div className="flex-1 mb-2 lg:mb-0 pr-12 sm:pr-16 lg:pr-0">
             <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2">
               {kpi.title}
             </p>
@@ -753,16 +754,16 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               )}
             </div>
             {/* Información adicional: Mejor año histórico */}
-            <div className="mt-2 pt-2 border-t border-gray-100">
-              <p className="text-xs text-gray-500 mb-1">
+            <div className="mt-2 pt-2 border-t border-gray-100 overflow-hidden">
+              <p className="text-xs text-gray-500 mb-1 truncate">
                 Mejor año: {bestYearValue}
               </p>
-              <p className="text-xs font-semibold text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={formatCurrency(bestYearTotalValue)}>
+              <p className="text-xs font-semibold text-gray-700 truncate" title={formatCurrency(bestYearTotalValue)}>
                 {formatCurrency(bestYearTotalValue)}
               </p>
             </div>
           </div>
-          <div className={`w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center self-end lg:self-auto lg:ml-4 transition-transform hover:scale-105`}>
+          <div className={`absolute top-3 right-3 sm:top-4 sm:right-4 lg:static lg:ml-4 w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center transition-transform hover:scale-105`}>
             <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
           </div>
         </div>
@@ -781,7 +782,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
         } else if (kpi.title === "Unidades Vendidas") {
           return renderUnitsCard(kpi);
         }
-        
+
         // Fallback para otras tarjetas (no debería llegar aquí)
         return null;
       })}
