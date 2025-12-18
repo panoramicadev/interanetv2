@@ -122,7 +122,7 @@ export default function CMmsGastosMateriales() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 15;
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<GastoFormValues>({
@@ -336,9 +336,9 @@ export default function CMmsGastosMateriales() {
       const response = await fetch('/api/cmms/gastos-materiales/plantilla-excel', {
         credentials: 'include',
       });
-      
+
       if (!response.ok) throw new Error('Error al descargar plantilla');
-      
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -348,7 +348,7 @@ export default function CMmsGastosMateriales() {
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      
+
       toast({
         title: "Plantilla descargada",
         description: "La plantilla Excel se ha descargado exitosamente",
@@ -370,29 +370,29 @@ export default function CMmsGastosMateriales() {
         ...(selectedMonth !== "all" && { mes: selectedMonth }),
         ...(filterArea !== "all" && { area: filterArea }),
       });
-      
+
       const response = await fetch(`/api/cmms/gastos-materiales-export?${params.toString()}`, {
         credentials: 'include',
       });
-      
+
       if (!response.ok) throw new Error('Error al exportar gastos');
-      
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      
+
       const contentDisposition = response.headers.get('Content-Disposition');
       const filename = contentDisposition
         ? contentDisposition.split('filename=')[1].replace(/"/g, '')
         : 'gastos_materiales.xlsx';
-      
+
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      
+
       toast({
         title: "Excel exportado",
         description: `Se han exportado ${totalRecords} registros exitosamente`,
@@ -435,10 +435,10 @@ export default function CMmsGastosMateriales() {
       }
 
       const preview: PreviewData = await response.json();
-      
+
       setPreviewData(preview);
       setPreviewDialogOpen(true);
-      
+
     } catch (error: any) {
       console.error('Error al procesar Excel:', error);
       toast({
@@ -478,7 +478,7 @@ export default function CMmsGastosMateriales() {
       }
 
       const result = await response.json();
-      
+
       toast({
         title: "✅ Importación exitosa",
         description: `${result.gastosCreados} gastos creados correctamente${result.errores && result.errores.length > 0 ? `, ${result.errores.length} filas con errores` : ''}`,
@@ -544,13 +544,14 @@ export default function CMmsGastosMateriales() {
     <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8" data-testid="page-cmms-gastos-materiales">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-4 md:space-y-0 md:flex md:flex-col md:gap-4">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setLocation("/cmms")}
               data-testid="button-back"
+              className="flex-shrink-0"
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -565,33 +566,39 @@ export default function CMmsGastosMateriales() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button 
-              variant="outline" 
-              onClick={handleDescargarPlantilla} 
+            <Button
+              variant="outline"
+              onClick={handleDescargarPlantilla}
               data-testid="button-descargar-plantilla"
+              className="flex-grow"
             >
               <Download className="mr-2 h-4 w-4" />
               Descargar Plantilla
             </Button>
-            <Button 
-              variant="outline" 
-              onClick={handleImportarExcel} 
+            <Button
+              variant="outline"
+              onClick={handleImportarExcel}
               disabled={isImporting}
               data-testid="button-importar-excel"
+              className="flex-grow"
             >
               <Upload className="mr-2 h-4 w-4" />
               {isImporting ? "Importando..." : "Importar Excel"}
             </Button>
-            <Button 
-              variant="default" 
+            <Button
+              variant="default"
               onClick={handleExportar}
               data-testid="button-exportar"
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-green-600 hover:bg-green-700 flex-grow"
             >
               <Download className="mr-2 h-4 w-4" />
               Exportar a Excel
             </Button>
-            <Button onClick={handleOpenDialog} data-testid="button-create">
+            <Button
+              onClick={handleOpenDialog}
+              data-testid="button-create"
+              className="flex-grow"
+            >
               <Plus className="mr-2 h-4 w-4" />
               Nuevo Gasto
             </Button>
@@ -760,34 +767,38 @@ export default function CMmsGastosMateriales() {
 
             {/* Paginación */}
             {totalRecords > 0 && (
-              <div className="flex items-center justify-between mt-4">
-                <p className="text-sm text-muted-foreground">
-                  Mostrando {((currentPage - 1) * PAGE_SIZE) + 1} - {Math.min(currentPage * PAGE_SIZE, totalRecords)} de {totalRecords} registros
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    data-testid="button-prev-page"
-                  >
-                    <ChevronLeft className="h-4 w-4 mr-1" />
-                    Anterior
-                  </Button>
-                  <div className="flex items-center gap-2 px-3 text-sm">
-                    Página {currentPage} de {totalPages}
+              <div className="mt-4 overflow-hidden">
+                <div className="flex flex-wrap justify-center sm:justify-between items-center">
+                  <p className="text-sm text-muted-foreground truncate mb-2">
+                    Mostrando {((currentPage - 1) * PAGE_SIZE) + 1} - {Math.min(currentPage * PAGE_SIZE, totalRecords)} de {totalRecords} registros
+                  </p>
+                  <div className="flex flex-col sm:flex-row items-center gap-2 px-3 text-sm">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      data-testid="button-prev-page"
+                      className="flex-shrink-0"
+                    >
+                      <ChevronLeft className="h-4 w-4 mr-1" />
+                      Anterior
+                    </Button>
+                    <span className="whitespace-nowrap">
+                      Página {currentPage} de {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage >= totalPages}
+                      data-testid="button-next-page"
+                      className="flex-shrink-0"
+                    >
+                      Siguiente
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage >= totalPages}
-                    data-testid="button-next-page"
-                  >
-                    Siguiente
-                    <ChevronRight className="h-4 w-4 ml-1" />
-                  </Button>
                 </div>
               </div>
             )}
@@ -1011,7 +1022,7 @@ export default function CMmsGastosMateriales() {
                 Revisa los datos antes de confirmar la importación
               </DialogDescription>
             </DialogHeader>
-            
+
             {previewData && (
               <div className="flex-1 flex flex-col gap-4 overflow-hidden">
                 {/* Resumen */}

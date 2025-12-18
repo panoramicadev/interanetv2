@@ -104,7 +104,7 @@ export default function CMMSEquipos() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
-  
+
   const [searchTerm, setSearchTerm] = useState("");
   const [filterArea, setFilterArea] = useState<string>("all");
   const [filterCriticidad, setFilterCriticidad] = useState<string>("all");
@@ -125,7 +125,7 @@ export default function CMMSEquipos() {
       if (filterArea !== 'all') params.append('area', filterArea);
       if (filterCriticidad !== 'all') params.append('criticidad', filterCriticidad);
       if (filterEstado !== 'all') params.append('estadoActual', filterEstado);
-      
+
       const url = `/api/cmms/equipos${params.toString() ? `?${params.toString()}` : ''}`;
       const res = await fetch(url, { credentials: 'include' });
       if (!res.ok) throw new Error('Error al cargar equipos');
@@ -207,12 +207,12 @@ export default function CMMSEquipos() {
     onError: (error: any) => {
       console.error("Error creating equipo:", error);
       let description = error.message;
-      
+
       // If there are validation errors, show them
       if (error.errors && Array.isArray(error.errors)) {
         description = error.errors.map((e: any) => `${e.path?.join('.')}: ${e.message}`).join(', ');
       }
-      
+
       toast({ 
         title: creatingComponentFor ? "Error al crear componente" : "Error al crear equipo", 
         description,
@@ -348,14 +348,14 @@ export default function CMMSEquipos() {
   // Toggle expand/collapse for equipment
   const toggleExpand = async (equipoId: string) => {
     const newExpanded = new Set(expandedEquipos);
-    
+
     if (newExpanded.has(equipoId)) {
       newExpanded.delete(equipoId);
       setExpandedEquipos(newExpanded);
     } else {
       newExpanded.add(equipoId);
       setExpandedEquipos(newExpanded);
-      
+
       // Load components if not already loaded
       if (!componentesMap[equipoId]) {
         try {
@@ -375,7 +375,7 @@ export default function CMMSEquipos() {
 
   // Filter to show only main equipment (without parent)
   const equiposPrincipales = equipos.filter(eq => !eq.equipoPadreId);
-  
+
   // Filter equipos by search term
   const filteredEquipos = equiposPrincipales.filter(equipo => 
     equipo.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -417,7 +417,7 @@ export default function CMMSEquipos() {
   const exportToExcel = async (equipoDetalle?: any, mantenciones?: any[], ordenes?: any[]) => {
     try {
       console.log('🔍 exportToExcel llamada con:', { equipoDetalle, mantenciones, ordenes });
-      
+
       const wb = XLSX.utils.book_new();
       const today = new Date().toISOString().split('T')[0];
 
@@ -425,7 +425,7 @@ export default function CMMSEquipos() {
       // Exportar equipo específico con historial
       const mantencionesData = mantenciones || [];
       const ordenesData = ordenes || [];
-      
+
       const equipoData = [{
         Código: equipoDetalle.codigo || '',
         Nombre: equipoDetalle.nombre,
@@ -439,7 +439,7 @@ export default function CMMSEquipos() {
         'Número Serie': equipoDetalle.numeroSerie || '',
         'Fecha Instalación': equipoDetalle.fechaInstalacion ? new Date(equipoDetalle.fechaInstalacion).toLocaleDateString('es-CL') : '',
       }];
-      
+
       const wsEquipo = XLSX.utils.json_to_sheet(equipoData);
       XLSX.utils.book_append_sheet(wb, wsEquipo, 'Datos del Equipo');
 
@@ -475,7 +475,7 @@ export default function CMMSEquipos() {
       try {
         console.log('🚀 INICIO EXPORTACIÓN');
         toast({ title: "Generando Excel...", description: "Esto puede tomar unos segundos" });
-        
+
         // Obtener TODOS los equipos sin filtros, y todas las mantenciones y órdenes de trabajo
         console.log('📡 FETCH INICIADO');
         const [todosEquipos, todasMantenciones, todasOrdenes] = await Promise.all([
@@ -631,7 +631,7 @@ export default function CMMSEquipos() {
     <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8" data-testid="page-cmms-equipos">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
@@ -763,7 +763,7 @@ export default function CMMSEquipos() {
                     filteredEquipos.map((equipo) => {
                       const isExpanded = expandedEquipos.has(equipo.id);
                       const componentes = componentesMap[equipo.id] || [];
-                      
+
                       return (
                         <>
                           {/* Equipo Principal */}
@@ -832,7 +832,7 @@ export default function CMMSEquipos() {
                               </div>
                             </TableCell>
                           </TableRow>
-                          
+
                           {/* Componentes (si está expandido) */}
                           {isExpanded && componentes.length > 0 && (
                             componentes.map((componente) => (
@@ -895,7 +895,7 @@ export default function CMMSEquipos() {
                               </TableRow>
                             ))
                           )}
-                          
+
                           {/* Botón para agregar componente */}
                           {isExpanded && canAccessCMMSFull(user?.role) && (
                             <TableRow className="bg-muted/10">
