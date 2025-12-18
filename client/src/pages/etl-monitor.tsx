@@ -287,7 +287,7 @@ export default function ETLMonitor() {
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2" data-testid="text-page-title">
             <Database className="h-8 w-8" />
@@ -297,7 +297,7 @@ export default function ETLMonitor() {
             Monitoreo y control de procesos de extracción, transformación y carga de datos
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mt-4 md:mt-0">
           <Button
             variant="outline"
             size="sm"
@@ -646,7 +646,7 @@ function ETLStatusSection({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="space-y-4">  
             <div className="flex items-center gap-3">
               {isRunning ? (
                 <>
@@ -690,7 +690,7 @@ function ETLStatusSection({
                 </>
               )}
             </div>
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex flex-wrap gap-2">
               <Button
                 onClick={() => setShowConfigDialog(true)}
                 disabled={isRunning}
@@ -702,7 +702,6 @@ function ETLStatusSection({
                 Configurar
               </Button>
               
-              {/* Diagnostics Button - Admin only */}
               {user?.role === 'admin' && (
                 <>
                   <Button
@@ -749,7 +748,6 @@ function ETLStatusSection({
                 </>
               )}
               
-              {/* Emergency Cancel Button - Always visible when ETL is running */}
               {isRunning && (
                 <Button
                   onClick={handleCancel}
@@ -773,7 +771,6 @@ function ETLStatusSection({
                 </Button>
               )}
               
-              {/* Execute Button - Only when NOT running */}
               {!isRunning && (
                 <Button
                   onClick={handleExecute}
@@ -961,7 +958,7 @@ function ETLStatusSection({
 
       {/* Configuration Dialog */}
       <Dialog open={showConfigDialog} onOpenChange={setShowConfigDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Configurar ETL</DialogTitle>
             <DialogDescription>
