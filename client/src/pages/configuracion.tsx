@@ -2,13 +2,14 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Target, Database, Key, Upload, Settings, Mail } from "lucide-react";
+import { Users, Target, Database, Key, Upload, Settings, Mail, MessageCircle } from "lucide-react";
 import UsersPage from "./users";
 import Metas from "./metas";
 import ETLMonitor from "./etl-monitor";
 import ApiKeysPage from "./api-keys";
 import ImportarDatos from "@/components/importar-datos";
 import NotificacionesConfigPage from "./notificaciones-config";
+import WhatsAppConfigPage from "./whatsapp-config";
 
 export default function ConfiguracionPage() {
   const [, setLocation] = useLocation();
@@ -67,6 +68,11 @@ export default function ConfiguracionPage() {
               <span className="hidden sm:inline">Correos</span>
               <span className="sm:hidden">Correos</span>
             </TabsTrigger>
+            <TabsTrigger value="whatsapp" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-config-whatsapp">
+              <MessageCircle className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">WhatsApp</span>
+              <span className="sm:hidden">WhatsApp</span>
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -92,6 +98,10 @@ export default function ConfiguracionPage() {
 
         <TabsContent value="correos" className="mt-6">
           <NotificacionesConfigPage />
+        </TabsContent>
+
+        <TabsContent value="whatsapp" className="mt-6">
+          <WhatsAppConfigPage />
         </TabsContent>
       </Tabs>
     </div>

@@ -286,6 +286,8 @@ import {
   type SeoPositionHistory,
   type InsertSeoPositionHistory,
   type InsertProyeccionVentaInput,
+  whatsappConfig,
+  type WhatsAppConfig,
 } from "@shared/schema";
 import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from "@shared/reclamosAreas";
 import { db } from "./db";
@@ -2032,6 +2034,11 @@ export interface IStorage {
     nextTier: LoyaltyTier | null;
     amountToNextTier: number;
   } | null>;
+
+  // WhatsApp Configuration
+  getWhatsAppConfig(): Promise<WhatsAppConfig | undefined>;
+  saveWhatsAppConfig(config: { phoneNumberId: string; businessAccountId: string; accessToken: string; webhookVerifyToken: string }): Promise<void>;
+  updateWhatsAppConnectionStatus(status: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -22860,6 +22867,46 @@ export class DatabaseStorage implements IStorage {
       nextTier,
       amountToNextTier: Math.max(0, amountToNextTier),
     };
+  }
+
+  // WhatsApp Configuration
+  async getWhatsAppConfig(): Promise<WhatsAppConfig | undefined> {
+    const [config] = await db.select().from(whatsappConfig).where(eq(whatsappConfig.id, 'default'));
+    return config;
+  }
+
+  async saveWhatsAppConfig(config: { phoneNumberId: string; businessAccountId: string; accessToken: string; webhookVerifyToken: string }): Promise<void> {
+    const existing = await this.getWhatsAppConfig();
+    
+    if (existing) {
+      await db.update(whatsappConfig)
+        .set({
+          phoneNumberId: config.phoneNumberId,
+          businessAccountId: config.businessAccountId,
+          accessToken: config.accessToken,
+          webhookVerifyToken: config.webhookVerifyToken,
+          updatedAt: new Date(),
+        })
+        .where(eq(whatsappConfig.id, 'default'));
+    } else {
+      await db.insert(whatsappConfig).values({
+        id: 'default',
+        phoneNumberId: config.phoneNumberId,
+        businessAccountId: config.businessAccountId,
+        accessToken: config.accessToken,
+        webhookVerifyToken: config.webhookVerifyToken,
+      });
+    }
+  }
+
+  async updateWhatsAppConnectionStatus(status: string): Promise<void> {
+    await db.update(whatsappConfig)
+      .set({
+        connectionStatus: status,
+        lastConnectionTest: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(whatsappConfig.id, 'default'));
   }
 
 }
