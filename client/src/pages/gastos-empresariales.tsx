@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Search, Download, Check, X, Trash2, Eye, BarChart3, FileText, ExternalLink } from "lucide-react";
+import { Plus, Search, Download, Check, X, Trash2, Eye, BarChart3, FileText, ExternalLink, ZoomIn } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -68,6 +68,8 @@ export default function GastosEmpresariales() {
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [showRejectionDialog, setShowRejectionDialog] = useState(false);
   const [comentarioRechazo, setComentarioRechazo] = useState("");
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{ url: string; description?: string } | null>(null);
 
   // Fetch usuarios/colaboradores para mostrar nombres
   const { data: usuarios = [] } = useQuery<any[]>({
@@ -434,12 +436,35 @@ export default function GastosEmpresariales() {
                 <div className="space-y-2">
                   <h3 className="font-semibold text-sm">Evidencia Adjunta</h3>
                   {selectedGasto.archivoUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                    <div className="border rounded-lg p-2 bg-gray-50">
-                      <img 
-                        src={selectedGasto.archivoUrl} 
-                        alt="Evidencia" 
-                        className="w-full max-h-80 object-contain rounded"
-                      />
+                    <div className="border rounded-lg p-2 bg-gray-50 dark:bg-gray-800">
+                      <div className="relative group">
+                        <img 
+                          src={selectedGasto.archivoUrl} 
+                          alt="Evidencia" 
+                          className="w-full max-h-80 object-contain rounded cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => {
+                            setSelectedImage({ url: selectedGasto.archivoUrl!, description: 'Evidencia del gasto' });
+                            setShowImageModal(true);
+                          }}
+                          data-testid="img-evidencia-gasto"
+                        />
+                        <div className="absolute bottom-2 left-2 right-2 flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="bg-white/90 hover:bg-white dark:bg-gray-800/90 dark:hover:bg-gray-800"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedImage({ url: selectedGasto.archivoUrl!, description: 'Evidencia del gasto' });
+                              setShowImageModal(true);
+                            }}
+                            data-testid="button-zoom-evidencia"
+                          >
+                            <ZoomIn className="h-4 w-4 mr-1" />
+                            Ampliar
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <div className="border rounded-lg p-4 bg-gray-50 flex items-center gap-3">
@@ -671,6 +696,53 @@ export default function GastosEmpresariales() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Image Modal with Zoom and Download */}
+      <Dialog open={showImageModal} onOpenChange={setShowImageModal}>
+        <DialogContent className="max-w-4xl p-0">
+          <DialogHeader className="p-6 pb-2">
+            <DialogTitle>Vista de Imagen</DialogTitle>
+            {selectedImage?.description && (
+              <DialogDescription>{selectedImage.description}</DialogDescription>
+            )}
+          </DialogHeader>
+          {selectedImage && (
+            <div className="px-6 pb-6">
+              <div className="flex justify-center mb-4">
+                <img
+                  src={selectedImage.url}
+                  alt={selectedImage.description || 'Imagen'}
+                  className="max-w-full max-h-[70vh] object-contain rounded"
+                  data-testid="img-modal-zoom"
+                />
+              </div>
+              <div className="flex justify-center gap-2">
+                <a
+                  href={selectedImage.url}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
+                  data-testid="button-download-image"
+                >
+                  <Download className="h-4 w-4" />
+                  Descargar Imagen
+                </a>
+                <a
+                  href={selectedImage.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md text-sm font-medium transition-colors"
+                  data-testid="button-open-new-tab"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Abrir en Nueva Pestaña
+                </a>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </>
