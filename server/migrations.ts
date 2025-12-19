@@ -19,6 +19,17 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`CREATE SCHEMA IF NOT EXISTS gdv`);
     await db.execute(sql`CREATE SCHEMA IF NOT EXISTS nvv`);
     
+    // 1.5. Crear tabla de sesiones (CRÍTICO para autenticación)
+    console.log('  🔐 Verificando tabla de sesiones...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS sessions (
+        sid VARCHAR(255) PRIMARY KEY NOT NULL,
+        sess JSON NOT NULL,
+        expire TIMESTAMP(6) NOT NULL
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON sessions (expire)`);
+    
     // 2. Crear tablas staging de VENTAS con todas las columnas necesarias
     console.log('  📋 Verificando tablas de ventas...');
     await db.execute(sql`
