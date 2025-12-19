@@ -352,30 +352,30 @@ export default function TareasPage() {
   // Helper functions
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "pending": return <Clock className="h-4 w-4 text-blue-500" />;
-      case "in_progress": return <AlertCircle className="h-4 w-4 text-yellow-500" />;
-      case "completed": return <CheckSquare className="h-4 w-4 text-green-500" />;
-      case "blocked": return <AlertCircle className="h-4 w-4 text-red-500" />;
-      case "cancelled": return <AlertCircle className="h-4 w-4 text-gray-500" />;
+      case "pendiente": return <Clock className="h-4 w-4 text-blue-500" />;
+      case "en_progreso": return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+      case "completada": return <CheckSquare className="h-4 w-4 text-green-500" />;
+      case "bloqueada": return <AlertCircle className="h-4 w-4 text-red-500" />;
+      case "cancelada": return <AlertCircle className="h-4 w-4 text-gray-500" />;
       default: return <Clock className="h-4 w-4 text-gray-400" />;
     }
   };
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-      pending: "outline",
-      in_progress: "secondary",
-      completed: "default",
-      blocked: "destructive",
-      cancelled: "outline",
+      pendiente: "outline",
+      en_progreso: "secondary",
+      completada: "default",
+      bloqueada: "destructive",
+      cancelada: "outline",
     };
     
     const labels: Record<string, string> = {
-      pending: "Pendiente",
-      in_progress: "En Progreso", 
-      completed: "Completada",
-      blocked: "Bloqueada",
-      cancelled: "Cancelada",
+      pendiente: "Pendiente",
+      en_progreso: "En Progreso", 
+      completada: "Completada",
+      bloqueada: "Bloqueada",
+      cancelada: "Cancelada",
     };
 
     return (
@@ -454,7 +454,7 @@ export default function TareasPage() {
                   Nueva Tarea
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px] h-screen sm:h-auto sm:max-h-[90vh] flex flex-col p-4 sm:p-6">
+              <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-4 sm:p-6">
                 <DialogHeader className="flex-shrink-0">
                   <DialogTitle className="text-2xl">Crear Nueva Tarea</DialogTitle>
                   <DialogDescription>
@@ -719,11 +719,11 @@ export default function TareasPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="pending">Pendientes</SelectItem>
-                      <SelectItem value="in_progress">En Progreso</SelectItem>
-                      <SelectItem value="completed">Completadas</SelectItem>
-                      <SelectItem value="blocked">Bloqueadas</SelectItem>
-                      <SelectItem value="cancelled">Canceladas</SelectItem>
+                      <SelectItem value="pendiente">Pendientes</SelectItem>
+                      <SelectItem value="en_progreso">En Progreso</SelectItem>
+                      <SelectItem value="completada">Completadas</SelectItem>
+                      <SelectItem value="bloqueada">Bloqueadas</SelectItem>
+                      <SelectItem value="cancelada">Canceladas</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -776,11 +776,11 @@ export default function TareasPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="pending">Pendientes</SelectItem>
-                      <SelectItem value="in_progress">En Progreso</SelectItem>
-                      <SelectItem value="completed">Completadas</SelectItem>
-                      <SelectItem value="blocked">Bloqueadas</SelectItem>
-                      <SelectItem value="cancelled">Canceladas</SelectItem>
+                      <SelectItem value="pendiente">Pendientes</SelectItem>
+                      <SelectItem value="en_progreso">En Progreso</SelectItem>
+                      <SelectItem value="completada">Completadas</SelectItem>
+                      <SelectItem value="bloqueada">Bloqueadas</SelectItem>
+                      <SelectItem value="cancelada">Canceladas</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -850,7 +850,7 @@ export default function TareasPage() {
                         {task.title}
                       </h3>
                       {getPriorityBadge(task.priority ?? 'medium')}
-                      {getStatusBadge(task.status ?? 'pending')}
+                      {getStatusBadge(task.status ?? 'pendiente')}
                     </div>
                     
                     {task.description && (
@@ -885,7 +885,7 @@ export default function TareasPage() {
                         (a.assigneeType === "segment" && a.assigneeId === (user as any).assignedSegment)
                       );
                       
-                      if (!myAssignment || myAssignment.status === "completed") return null;
+                      if (!myAssignment || myAssignment.status === "completada") return null;
                       
                       const canUpdate = 
                         (myAssignment.assigneeType === "user" && myAssignment.assigneeId === user.id) ||
@@ -897,7 +897,7 @@ export default function TareasPage() {
                       return (
                         <>
                           {/* Acusar Recibo button */}
-                          {!myAssignment.readAt && myAssignment.status === "pending" && (
+                          {!myAssignment.readAt && myAssignment.status === "pendiente" && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -915,14 +915,14 @@ export default function TareasPage() {
                           )}
                           
                           {/* Complete button */}
-                          {myAssignment.readAt && (myAssignment.status === "pending" || myAssignment.status === "in_progress") && (
+                          {myAssignment.readAt && (myAssignment.status === "pendiente" || myAssignment.status === "en_progreso") && (
                             <Button
                               size="sm"
                               className="bg-green-600 hover:bg-green-700"
                               onClick={() => updateAssignmentMutation.mutate({
                                 taskId: task.id,
                                 assignmentId: myAssignment.id,
-                                status: "completed"
+                                status: "completada"
                               })}
                               disabled={updateAssignmentMutation.isPending}
                               data-testid={`button-complete-assignment-${myAssignment.id}`}
@@ -970,7 +970,7 @@ export default function TareasPage() {
                               <div className="space-y-2">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   {getAssigneeDisplay(assignment)}
-                                  {getStatusBadge(assignment.status ?? 'pending')}
+                                  {getStatusBadge(assignment.status ?? 'pendiente')}
                                   {assignment.readAt && (
                                     <Badge variant="outline" className="flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border-blue-200">
                                       <Eye className="h-3 w-3" />
