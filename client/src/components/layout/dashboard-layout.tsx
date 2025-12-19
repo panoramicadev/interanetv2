@@ -129,7 +129,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               />
             </div>
           </div>
-        
+
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto overscroll-contain custom-scrollbar">
             {sidebarItems.map((item, index) => {
@@ -138,7 +138,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               const itemKey = item.disabled ? `disabled-${index}` : item.href;
               const isExpanded = expandedItems.has(item.href);
               const hasChildren = item.children && item.children.length > 0;
-              
+
               if (item.disabled) {
                 return (
                   <div key={itemKey}>
@@ -159,7 +159,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   </div>
                 );
               }
-              
+
               return (
                 <div key={item.href}>
                   {hasChildren ? (
@@ -183,14 +183,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                           }`} 
                         />
                       </Button>
-                      
+
                       {/* Submenu items */}
                       {isExpanded && (
                         <div className="ml-6 mt-1 space-y-1">
                           {item.children?.map((child) => {
                             const ChildIcon = child.icon;
-                            const isChildActive = location === child.href || location.includes(child.href);
-                            
+                            const isChildActive = location === child.href || (child.href !== '/mantenciones' && location.startsWith(child.href + '/'));
+
                             return (
                               <Link key={child.href} href={child.href}>
                                 <Button
@@ -259,14 +259,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       </Button>
                     </Link>
                   )}
-                  
+
                   {item.separator && (
                     <div className="border-b border-slate-700/50 my-2" />
                   )}
                 </div>
               );
             })}
-            
+
             {/* Importar Datos - Solo Admin */}
             {user?.role === 'admin' && (
               <Button
@@ -283,7 +283,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </Button>
             )}
           </nav>
-          
+
           {/* Footer */}
           <div className="p-4 lg:p-6 border-t border-slate-700/50">
             <div className="flex items-center space-x-2 lg:space-x-3 mb-3 lg:mb-4">
@@ -300,7 +300,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <p className="text-xs text-slate-400">{getRoleTitle(user?.role)}</p>
               </div>
             </div>
-            
+
             <div className="space-y-1">
               <Button 
                 variant="ghost" 
@@ -315,7 +315,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <RefreshCw className="w-3 h-3 lg:w-4 lg:h-4 mr-2 lg:mr-3" />
                 Actualizar a última versión
               </Button>
-              
+
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -333,7 +333,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
         </div>
       </div>
-      
+
       {/* Main Content */}
       <div className="lg:ml-64 transition-all duration-300">
         {children}
@@ -346,7 +346,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           onOpenChange={setShowImportModal}
         />
       )}
-      
+
       {/* Changelog Dialog */}
       <ChangelogDialog 
         open={showChangelogDialog} 
