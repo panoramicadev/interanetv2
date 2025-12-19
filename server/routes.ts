@@ -18037,6 +18037,71 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     }
   }));
 
+  // Send test WhatsApp message
+  app.post('/api/whatsapp/send-test', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { phoneNumber } = req.body;
+      
+      if (!phoneNumber) {
+        return res.json({
+          success: false,
+          message: 'Número de teléfono requerido'
+        });
+      }
+
+      const config = await storage.getWhatsAppConfig();
+      
+      if (!config || !config.phoneNumberId || !config.accessToken) {
+        return res.json({
+          success: false,
+          message: 'Configuración de WhatsApp no encontrada o incompleta'
+        });
+      }
+
+      // Format phone number (remove spaces, dashes, and leading +)
+      const formattedPhone = phoneNumber.replace(/[\s\-\+]/g, '');
+
+      // Send test message via WhatsApp Business API
+      const response = await fetch(
+        `https://graph.facebook.com/v18.0/${config.phoneNumberId}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${config.accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            to: formattedPhone,
+            type: 'text',
+            text: {
+              body: '¡Hola! Este es un mensaje de prueba desde Panoramica. Si recibiste este mensaje, la integración de WhatsApp está funcionando correctamente.'
+            }
+          })
+        }
+      );
+
+      const data = await response.json();
+      
+      if (response.ok && data.messages?.[0]?.id) {
+        res.json({
+          success: true,
+          message: `Mensaje enviado exitosamente a ${formattedPhone}`
+        });
+      } else {
+        res.json({
+          success: false,
+          message: data.error?.message || 'Error al enviar el mensaje'
+        });
+      }
+    } catch (error: any) {
+      res.json({
+        success: false,
+        message: error.message || 'Error al enviar mensaje de prueba'
+      });
+    }
+  }));
+
   const httpServer = createServer(app);
   return httpServer;
 }
