@@ -17890,6 +17890,153 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     res.json(summary);
   }));
 
+  // ==================================================================================
+  // WHATSAPP CONFIGURATION ENDPOINTS
+  // ==================================================================================
+
+  // WhatsApp Webhook Verification (required by Meta)
+  app.get('/api/whatsapp/webhook', asyncHandler(async (req: any, res: any) => {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+
+    if (mode && token) {
+      const config = await storage.getWhatsAppConfig();
+      
+      if (mode === 'subscribe' && token === config?.webhookVerifyToken) {
+        console.log('✅ WhatsApp webhook verified');
+        return res.status(200).send(challenge);
+      } else {
+        console.log('❌ WhatsApp webhook verification failed');
+        return res.sendStatus(403);
+      }
+    }
+    res.sendStatus(400);
+  }));
+
+  // WhatsApp Webhook for incoming messages
+  app.post('/api/whatsapp/webhook', asyncHandler(async (req: any, res: any) => {
+    const body = req.body;
+    
+    if (body.object === 'whatsapp_business_account') {
+      // Process incoming messages or status updates
+      body.entry?.forEach((entry: any) => {
+        entry.changes?.forEach((change: any) => {
+          if (change.field === 'messages') {
+            const messages = change.value?.messages;
+            if (messages) {
+              messages.forEach((message: any) => {
+                console.log('📱 WhatsApp message received:', {
+                  from: message.from,
+                  type: message.type,
+                  timestamp: message.timestamp
+                });
+              });
+            }
+          }
+        });
+      });
+      
+      return res.sendStatus(200);
+    }
+    res.sendStatus(404);
+  }));
+
+  // Get WhatsApp configuration
+  app.get('/api/whatsapp/config', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const config = await storage.getWhatsAppConfig();
+      if (!config) {
+        return res.json({
+          phoneNumberId: '',
+          businessAccountId: '',
+          accessToken: '',
+          webhookVerifyToken: '',
+          isConfigured: false,
+          lastConnectionTest: null,
+          connectionStatus: 'unknown'
+        });
+      }
+      res.json({
+        phoneNumberId: config.phoneNumberId || '',
+        businessAccountId: config.businessAccountId || '',
+        accessToken: '••••••••', // Never send the actual token
+        webhookVerifyToken: config.webhookVerifyToken || '',
+        isConfigured: !!(config.phoneNumberId && config.accessToken),
+        lastConnectionTest: config.lastConnectionTest,
+        connectionStatus: config.connectionStatus || 'unknown'
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener configuración de WhatsApp', error: error.message });
+    }
+  }));
+
+  // Save WhatsApp configuration
+  app.post('/api/whatsapp/config', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { phoneNumberId, businessAccountId, accessToken, webhookVerifyToken } = req.body;
+      
+      await storage.saveWhatsAppConfig({
+        phoneNumberId,
+        businessAccountId,
+        accessToken,
+        webhookVerifyToken
+      });
+      
+      res.json({ success: true, message: 'Configuración guardada correctamente' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al guardar configuración de WhatsApp', error: error.message });
+    }
+  }));
+
+  // Test WhatsApp connection
+  app.post('/api/whatsapp/test-connection', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const config = await storage.getWhatsAppConfig();
+      
+      if (!config || !config.phoneNumberId || !config.accessToken) {
+        return res.json({
+          success: false,
+          message: 'Configuración de WhatsApp no encontrada o incompleta'
+        });
+      }
+
+      // Test connection to WhatsApp Business API
+      const response = await fetch(
+        `https://graph.facebook.com/v18.0/${config.phoneNumberId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${config.accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      const data = await response.json();
+      
+      if (response.ok && data.id) {
+        // Update connection status
+        await storage.updateWhatsAppConnectionStatus('connected');
+        res.json({
+          success: true,
+          message: `Conexión exitosa. Número verificado: ${data.display_phone_number || data.id}`
+        });
+      } else {
+        await storage.updateWhatsAppConnectionStatus('error');
+        res.json({
+          success: false,
+          message: data.error?.message || 'Error al conectar con la API de WhatsApp'
+        });
+      }
+    } catch (error: any) {
+      await storage.updateWhatsAppConnectionStatus('error');
+      res.json({
+        success: false,
+        message: error.message || 'Error de conexión con WhatsApp'
+      });
+    }
+  }));
+
   const httpServer = createServer(app);
   return httpServer;
 }

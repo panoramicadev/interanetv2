@@ -3458,6 +3458,22 @@ export const insertEmailLogSchema = createInsertSchema(emailLogs).omit({
   createdAt: true,
 });
 
+// Configuración WhatsApp Business API
+export const whatsappConfig = pgTable("whatsapp_config", {
+  id: varchar("id").primaryKey().default("default"),
+  phoneNumberId: varchar("phone_number_id"),
+  businessAccountId: varchar("business_account_id"),
+  accessToken: text("access_token"),
+  webhookVerifyToken: varchar("webhook_verify_token"),
+  connectionStatus: varchar("connection_status").default("unknown"), // 'connected', 'disconnected', 'error', 'unknown'
+  lastConnectionTest: timestamp("last_connection_test"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type WhatsAppConfig = typeof whatsappConfig.$inferSelect;
+export type InsertWhatsAppConfig = typeof whatsappConfig.$inferInsert;
+
 // Tabla de seguimiento de lecturas de notificaciones
 export const notificationReads = pgTable("notification_reads", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
