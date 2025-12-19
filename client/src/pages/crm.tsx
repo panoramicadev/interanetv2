@@ -54,39 +54,8 @@ import type { CrmLead, CrmStage, InsertCrmLeadInput, ClienteInactivo } from "@sh
 import { insertCrmLeadSchema } from "@shared/schema";
 import PromesasCompraPage from "./promesas-compra";
 
-const PIPELINE_STAGES = [
-  { id: 'all', name: 'Todos', color: 'bg-gray-100 dark:bg-gray-800' },
-  { id: 'lead', name: 'Nuevo', color: 'bg-orange-100 dark:bg-orange-900' },
-  { id: 'contacto', name: 'Contacto', color: 'bg-blue-100 dark:bg-blue-900' },
-  { id: 'visita', name: 'Visita', color: 'bg-amber-100 dark:bg-amber-900' },
-  { id: 'lista_precio', name: 'Lista Precio', color: 'bg-cyan-100 dark:bg-cyan-900' },
-  { id: 'campana', name: 'Campaña', color: 'bg-purple-100 dark:bg-purple-900' },
-  { id: 'primera_venta', name: 'Primera Venta', color: 'bg-indigo-100 dark:bg-indigo-900' },
-  { id: 'promesa', name: 'Promesa', color: 'bg-emerald-100 dark:bg-emerald-900' },
-  { id: 'venta', name: 'Venta', color: 'bg-green-100 dark:bg-green-900' },
-] as const;
-
-const STAGE_BADGE_MAP: Record<string, { label: string; bgColor: string; textColor: string }> = {
-  lead: { label: 'Nuevo', bgColor: 'bg-orange-100 dark:bg-orange-900/30', textColor: 'text-orange-700 dark:text-orange-300' },
-  contacto: { label: 'Contacto', bgColor: 'bg-blue-100 dark:bg-blue-900/30', textColor: 'text-blue-700 dark:text-blue-300' },
-  visita: { label: 'Visita', bgColor: 'bg-amber-100 dark:bg-amber-900/30', textColor: 'text-amber-700 dark:text-amber-300' },
-  lista_precio: { label: 'Lista Precio', bgColor: 'bg-cyan-100 dark:bg-cyan-900/30', textColor: 'text-cyan-700 dark:text-cyan-300' },
-  campana: { label: 'Campaña', bgColor: 'bg-purple-100 dark:bg-purple-900/30', textColor: 'text-purple-700 dark:text-purple-300' },
-  primera_venta: { label: 'Primera Venta', bgColor: 'bg-indigo-100 dark:bg-indigo-900/30', textColor: 'text-indigo-700 dark:text-indigo-300' },
-  promesa: { label: 'Promesa', bgColor: 'bg-emerald-100 dark:bg-emerald-900/30', textColor: 'text-emerald-700 dark:text-emerald-300' },
-  venta: { label: 'Venta', bgColor: 'bg-green-100 dark:bg-green-900/30', textColor: 'text-green-700 dark:text-green-300' },
-};
-
-const STAGE_LABELS: Record<string, string> = {
-  lead: 'Nuevo',
-  contacto: 'Contacto',
-  visita: 'Visita',
-  lista_precio: 'Lista Precio',
-  campana: 'Campaña',
-  primera_venta: 'Primera Venta',
-  promesa: 'Promesa',
-  venta: 'Venta',
-};
+// Default fallback for unknown stages - all stages now come from database
+const DEFAULT_STAGE_BADGE = { label: 'Sin etapa', bgColor: 'bg-gray-100 dark:bg-gray-800', textColor: 'text-gray-700 dark:text-gray-300' };
 
 interface DashboardMetrics {
   kpis: { totalLeads: number; closedLeads: number; conversionRate: number; avgDaysToClose: number };
@@ -125,7 +94,7 @@ function CrmDashboard() {
   }
 
   const stageChartData = {
-    labels: metrics.stageCounts.map(s => STAGE_LABELS[s.stage] || s.stage),
+    labels: metrics.stageCounts.map(s => s.stage),
     datasets: [{
       data: metrics.stageCounts.map(s => s.count),
       backgroundColor: [
@@ -445,8 +414,8 @@ export default function CRMPage() {
     return acc;
   }, {} as Record<string, { label: string; bgColor: string; textColor: string }>);
 
-  // Merge with static map as fallback
-  const stageBadgeMap = { ...STAGE_BADGE_MAP, ...dynamicStageBadgeMap };
+  // Use only database stages - no static fallback
+  const stageBadgeMap = dynamicStageBadgeMap;
 
   const { data: leads = [], isLoading } = useQuery<CrmLead[]>({
     queryKey: ['/api/crm/leads'],
@@ -1402,6 +1371,16 @@ function LeadDetailModal({
 }) {
   const [activeTab, setActiveTab] = useState<'info' | 'bitacora' | 'recomendaciones'>('info');
 
+  // Load stages from database
+  const { data: allStages = [] } = useQuery<CrmStage[]>({
+    queryKey: ['/api/crm/stages', 'includeAll'],
+    queryFn: async () => {
+      const response = await fetch('/api/crm/stages?includeAll=true', { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch stages');
+      return response.json();
+    },
+  });
+
   // Reset tab when modal closes
   useEffect(() => {
     if (!open) {
@@ -1417,7 +1396,11 @@ function LeadDetailModal({
 
   if (!lead) return null;
 
-  const stageBadge = STAGE_BADGE_MAP[lead.stage] || { label: lead.stage, bgColor: 'bg-gray-100 dark:bg-gray-800', textColor: 'text-gray-700 dark:text-gray-300' };
+  // Get stage info from database stages
+  const stageInfo = allStages.find(s => s.stageKey === lead.stage);
+  const stageBadge = stageInfo 
+    ? { label: stageInfo.name, bgColor: stageInfo.color, textColor: 'text-gray-700 dark:text-gray-300' }
+    : DEFAULT_STAGE_BADGE;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
