@@ -49,7 +49,7 @@ export default function WhatsAppConfigPage() {
     mutationFn: async (data: typeof formData) => {
       const response = await apiRequest('/api/whatsapp/config', {
         method: 'POST',
-        body: JSON.stringify(data),
+        data: data,
       });
       return response;
     },
