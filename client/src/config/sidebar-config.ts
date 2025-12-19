@@ -26,7 +26,8 @@ import {
   Bell,
   Key,
   Calendar,
-  ExternalLink
+  ExternalLink,
+  HandCoins
 } from "lucide-react";
 
 interface SidebarItem {
@@ -97,6 +98,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/gastos-empresariales",
       label: "Rendición de Gastos",
       icon: Banknote,
+    },
+    {
+      href: "/gestion-fondos",
+      label: "Gestión de Fondos",
+      icon: HandCoins,
       separator: true,
     },
     {
@@ -197,7 +203,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
 
   ],
-  
+
   jefe_planta: [
     {
       href: "/notificaciones",
@@ -301,7 +307,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
 
   ],
-  
+
   mantencion: [
     {
       href: "/notificaciones",
@@ -341,7 +347,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       ],
     },
   ],
-  
+
   supervisor: [
     {
       href: "/notificaciones",
@@ -457,6 +463,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Banknote,
     },
     {
+      href: "/gestion-fondos",
+      label: "Gestión de Fondos",
+      icon: HandCoins,
+    },
+    {
       href: "/inventario",
       label: "Inventario",
       icon: Warehouse,
@@ -491,7 +502,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
 
   ],
-  
+
   salesperson: [
     {
       href: "/notificaciones",
@@ -550,6 +561,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Banknote,
     },
     {
+      href: "/gestion-fondos",
+      label: "Gestión de Fondos",
+      icon: HandCoins,
+    },
+    {
       href: "/catalogo",
       label: "Mi Catálogo",
       icon: ExternalLink,
@@ -580,7 +596,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     // },
 
   ],
-  
+
   client: [
     {
       href: "/",
@@ -622,7 +638,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
 
   ],
-  
+
   tecnico_obra: [
     {
       href: "/visitas-tecnicas",
@@ -878,6 +894,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/gastos-empresariales",
       label: "Gestión de Gastos",
       icon: Banknote,
+    },
+    {
+      href: "/gestion-fondos",
+      label: "Gestión de Fondos",
+      icon: HandCoins,
     },
   ],
 };

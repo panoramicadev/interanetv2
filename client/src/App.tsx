@@ -67,6 +67,7 @@ import Inventario from "@/pages/inventario";
 import GastosEmpresariales from "@/pages/gastos-empresariales";
 import GastosEmpresarialesForm from "@/pages/gastos-empresariales-form";
 import GastosEmpresarialesDashboard from "@/pages/gastos-empresariales-dashboard";
+import GestionFondos from "@/pages/gestion-fondos";
 import Notificaciones from "@/pages/notificaciones";
 import AdminCatalogos from "@/pages/admin-catalogos";
 import Reception from "@/pages/reception";
@@ -101,10 +102,10 @@ function Router() {
       <Route path="/tienda">{() => <Tienda />}</Route>
       <Route path="/shop">{() => <Shop />}</Route>
       <Route path="/carrito">{() => <Carrito />}</Route>
-      
+
       {/* Catálogo público de vendedores */}
       <Route path="/catalogo/:slug">{() => <CatalogoPublico />}</Route>
-      
+
       {!user ? (
         <>
           <Route path="/" component={Login} />
@@ -157,7 +158,7 @@ function Router() {
                   return <Dashboard />;
               }
             }} />
-            
+
             {/* Rutas específicas de admin */}
             <Route path="/facturas" component={FacturasMainPage} />
             <Route path="/nvv" component={FacturasMainPage} />
@@ -278,6 +279,7 @@ function Router() {
             <Route path="/marketing" component={Marketing} />
             <Route path="/inventario" component={Inventario} />
             <Route path="/gastos-empresariales" component={GastosEmpresariales} />
+            <Route path="/gestion-fondos" component={GestionFondos} />
             <Route path="/notificaciones" component={Notificaciones} />
             <Route path="/api-keys" component={ApiKeysPage} />
             <Route path="/gastos-empresariales/nuevo" component={GastosEmpresarialesForm} />
@@ -285,7 +287,7 @@ function Router() {
             <Route path="/etl-monitor" component={ETLMonitor} />
             <Route path="/configuracion" component={ConfiguracionPage} />
             <Route path="/date-selector-demo" component={DateSelectorDemo} />
-            
+
             {/* Rutas de Tintometría */}
             <Route path="/tintometria" component={() => {
               // Redirect to admin by default
@@ -295,7 +297,7 @@ function Router() {
             <Route path="/tintometria/admin" component={TintometriaAdmin} />
             <Route path="/tintometria/calculadora" component={TintometriaCalculadora} />
             <Route path="/tintometria/selector" component={TintometriaSelector} />
-            
+
             <Route path="/segment/:segmentName">
               {(params: any) => <SegmentDetail segmentName={params.segmentName} />}
             </Route>
@@ -308,7 +310,7 @@ function Router() {
             <Route path="/client/:clientName" component={ClientDetail} />
             <Route path="/product/:productName" component={ProductDetail} />
             <Route path="/metricas-productos" component={MetricasProductos} />
-            
+
             {/* Rutas específicas de vendedor */}
             <Route path="/mis-clientes" component={ClientsDashboard} />
             <Route path="/presupuestos" component={() => {
@@ -316,15 +318,15 @@ function Router() {
               window.location.replace('/tomador-pedidos?tab=recientes');
               return null;
             }} />
-            
+
             {/* Rutas específicas de supervisor */}
             <Route path="/mis-vendedores" component={MisVendedoresPage} />
             <Route path="/reportes" component={() => <div className="p-6"><h1 className="text-2xl font-bold">Reportes</h1><p>Página en construcción</p></div>} />
-            
+
             {/* Rutas específicas de cliente */}
             <Route path="/mis-pedidos" component={() => <div className="p-6"><h1 className="text-2xl font-bold">Mis Pedidos</h1><p>Página en construcción</p></div>} />
             <Route path="/solicitar-cotizacion" component={() => <div className="p-6"><h1 className="text-2xl font-bold">Solicitar Cotización</h1><p>Página en construcción</p></div>} />
-            
+
             {/* 404 para rutas no encontradas */}
             <Route component={NotFound} />
           </Switch>
