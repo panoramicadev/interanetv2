@@ -39,6 +39,7 @@ export default function WhatsAppConfigPage() {
     webhookVerifyToken: "",
   });
   const [showToken, setShowToken] = useState(false);
+  const [testPhoneNumber, setTestPhoneNumber] = useState("");
 
   const { data: config, isLoading } = useQuery<WhatsAppConfig>({
     queryKey: ['/api/whatsapp/config'],
@@ -88,6 +89,30 @@ export default function WhatsAppConfigPage() {
       toast({
         title: "Error de conexión",
         description: error.message || "No se pudo conectar con la API de WhatsApp.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const sendTestMessageMutation = useMutation({
+    mutationFn: async (phoneNumber: string) => {
+      const response = await apiRequest('/api/whatsapp/send-test', {
+        method: 'POST',
+        data: { phoneNumber },
+      });
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: data.success ? "Mensaje enviado" : "Error al enviar",
+        description: data.message,
+        variant: data.success ? "default" : "destructive",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo enviar el mensaje de prueba.",
         variant: "destructive",
       });
     },
@@ -174,6 +199,36 @@ export default function WhatsAppConfigPage() {
                 </>
               )}
             </Button>
+
+            {config?.isConfigured && config?.connectionStatus === 'connected' && (
+              <div className="space-y-2 pt-4 border-t">
+                <Label htmlFor="testPhone">Enviar Mensaje de Prueba</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="testPhone"
+                    placeholder="56912345678"
+                    value={testPhoneNumber}
+                    onChange={(e) => setTestPhoneNumber(e.target.value)}
+                    data-testid="input-test-phone"
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => sendTestMessageMutation.mutate(testPhoneNumber)}
+                    disabled={sendTestMessageMutation.isPending || !testPhoneNumber}
+                    data-testid="button-send-test-message"
+                  >
+                    {sendTestMessageMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <MessageCircle className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Ingresa un número con código de país (ej: 56912345678)
+                </p>
+              </div>
+            )}
 
             {!config?.isConfigured && (
               <Alert>
