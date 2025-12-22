@@ -564,7 +564,6 @@ export default function GestionFondos() {
                         <SelectItem value="team2">Equipo de Marketing</SelectItem>
                       </SelectContent>
                     </Select>
-                    <FormDescription>Permite ver el fondo sin editarlo.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

@@ -27,7 +27,8 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Search, Download, Check, X, Trash2, Eye, BarChart3, FileText, ExternalLink, ZoomIn } from "lucide-react";
+import { Plus, Search, Download, Check, X, Trash2, Eye, BarChart3, FileText, ExternalLink } from "lucide-react";
+import { ImageZoomViewer } from "@/components/ui/image-zoom-viewer";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -68,7 +69,6 @@ export default function GastosEmpresariales() {
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [showRejectionDialog, setShowRejectionDialog] = useState(false);
   const [comentarioRechazo, setComentarioRechazo] = useState("");
-  const [isImageZoomed, setIsImageZoomed] = useState(false);
 
   // Fetch usuarios/colaboradores para mostrar nombres
   const { data: usuarios = [] } = useQuery<any[]>({
@@ -435,28 +435,12 @@ export default function GastosEmpresariales() {
                 <div className="space-y-2">
                   <h3 className="font-semibold text-sm">Evidencia Adjunta</h3>
                   {selectedGasto.archivoUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                    <div className="border rounded-lg p-2 bg-gray-50 dark:bg-gray-800">
-                      <div 
-                        className={`relative overflow-hidden rounded transition-all duration-300 ${isImageZoomed ? 'max-h-[70vh]' : 'max-h-80'}`}
-                      >
-                        <img 
-                          src={selectedGasto.archivoUrl} 
-                          alt="Evidencia" 
-                          className={`w-full object-contain rounded transition-transform duration-300 cursor-pointer ${isImageZoomed ? 'scale-100' : ''}`}
-                          onClick={() => setIsImageZoomed(!isImageZoomed)}
-                          data-testid="img-evidencia-gasto"
-                        />
-                      </div>
-                      <div className="flex justify-center gap-2 mt-2">
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => setIsImageZoomed(!isImageZoomed)}
-                          data-testid="button-zoom-evidencia"
-                        >
-                          <ZoomIn className="h-4 w-4 mr-1" />
-                          {isImageZoomed ? 'Reducir' : 'Ampliar'}
-                        </Button>
+                    <div className="border rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
+                      <ImageZoomViewer 
+                        src={selectedGasto.archivoUrl} 
+                        alt="Evidencia del gasto"
+                      />
+                      <div className="flex justify-center mt-3">
                         <a
                           href={selectedGasto.archivoUrl}
                           download
