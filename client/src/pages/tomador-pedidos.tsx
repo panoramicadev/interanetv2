@@ -555,7 +555,7 @@ const QuotePDFDocument = ({ quote, items }: { quote: any; items: any[] }) => {
                     <Text style={pdfStyles.productSku}>SKU: {item.productCode || item.customSku}</Text>
                   )}
                 </View>
-                <Text style={[pdfStyles.cellText, pdfStyles.col2]}>{item.productUnit || 'UN'}</Text>
+                <Text style={[pdfStyles.cellText, pdfStyles.col2]}>{(item.productUnit || 'UN').toUpperCase()}</Text>
                 <Text style={[pdfStyles.cellText, pdfStyles.col3]}>{item.quantity}</Text>
                 <Text style={[pdfStyles.cellText, pdfStyles.col4]}>{formatCurrency(item.unitPrice)}</Text>
                 <Text style={[pdfStyles.cellText, pdfStyles.col5]}>{formatCurrency(item.totalPrice)}</Text>
@@ -3828,7 +3828,7 @@ export default function TomadorPedidos() {
                                       SKU: {product.codigo}
                                     </p>
                                     <p className="text-xs text-muted-foreground mb-1.5">
-                                      Unidad: {product.unidad}
+                                      Unidad: {(product.unidad || 'UN').toUpperCase()}
                                     </p>
                                     {renderStockBadge(product.codigo)}
                                   </div>
@@ -4283,10 +4283,10 @@ export default function TomadorPedidos() {
                             <SelectValue placeholder="Todos los envases" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="all">Todos los envases</SelectItem>
+                            <SelectItem value="all">TODOS LOS ENVASES</SelectItem>
                             {availableUnits.map((unit) => (
                               <SelectItem key={unit} value={unit}>
-                                {unit}
+                                {unit.toUpperCase()}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -4353,7 +4353,7 @@ export default function TomadorPedidos() {
                                       </Link>
                                     </h4>
                                     <p className="text-xs text-muted-foreground">
-                                      Unidad: {product.unidad || "N/A"}
+                                      Unidad: {(product.unidad || "N/A").toUpperCase()}
                                     </p>
                                     {renderStockBadge(product.codigo)}
                                   </div>
