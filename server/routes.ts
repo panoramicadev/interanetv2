@@ -6874,12 +6874,21 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "Not authorized to add items to this quote" });
       }
       
+      // Debug: Log incoming productUnit
+      console.log('[QUOTE-ITEM] Creating item with productUnit:', req.body.productUnit, '| Full body:', JSON.stringify(req.body));
+      
       const itemData = insertQuoteItemSchema.parse({
         ...req.body,
         quoteId
       });
       
+      // Debug: Log parsed itemData
+      console.log('[QUOTE-ITEM] Parsed itemData productUnit:', (itemData as any).productUnit);
+      
       const item = await storage.createQuoteItem(itemData);
+      
+      // Debug: Log saved item
+      console.log('[QUOTE-ITEM] Saved item productUnit:', item.productUnit);
       
       // Recalculate quote totals after adding item
       await storage.recalculateQuoteTotals(quoteId);
