@@ -16,6 +16,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -31,7 +32,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, BarChart3, HandCoins } from "lucide-react";
+import { Plus, Search, BarChart3, HandCoins, Upload } from "lucide-react";
 import { Link } from "wouter";
 
 export default function GestionFondos() {
@@ -163,12 +164,6 @@ export default function GestionFondos() {
             <p className="text-sm text-gray-500 mt-1">Administra solicitudes y asignación de fondos</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
-            <Link href="/gastos-empresariales/dashboard">
-              <Button variant="outline" className="w-full sm:w-auto" data-testid="button-dashboard">
-                <BarChart3 className="h-4 w-4 mr-2" />
-                Dashboard
-              </Button>
-            </Link>
             <Button 
               className="w-full sm:w-auto" 
               data-testid="button-crear-fondo"
@@ -236,6 +231,7 @@ export default function GestionFondos() {
           </TabsContent>
           <TabsContent value="cerrados" className="mt-4">
             {renderTable()}
+
           </TabsContent>
           <TabsContent value="rechazados" className="mt-4">
             {renderTable()}
@@ -245,35 +241,228 @@ export default function GestionFondos() {
 
       {/* Dialog Crear Fondo */}
       <Dialog open={showCrearFondoDialog} onOpenChange={setShowCrearFondoDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl overflow-y-auto max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Crear nuevo Fondo</DialogTitle>
             <DialogDescription>
-              Complete los datos para crear un nuevo fondo
+              Complete los datos para configurar el presupuesto y asignaciones.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-gray-500 text-center">
-              Contenido del formulario por definir
-            </p>
+
+          {/* Inicio del Formulario */}
+          <div className="grid gap-6 py-4">
+
+            {/* 1. Presupuesto (Elemento destacado) */}
+            <div className="space-y-2">
+              <label htmlFor="presupuesto" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Presupuesto del Fondo (CLP)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-gray-500">$</span>
+                <input
+                  id="presupuesto"
+                  type="number"
+                  placeholder="0"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pl-7 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+              </div>
+            </div>
+
+            {/* 2. Detalles del Fondo */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Nombre del Fondo</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Fondos por rendir Diciembre 2025"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">ID de Contabilidad</label>
+                <input
+                  type="text"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                />
+              </div>
+
+              {/* Selects: Centro de Costos & Abonos */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Centro de Costos</label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                  <option value="" disabled selected>Seleccionar...</option>
+                  <option value="Maipú">Maipú</option>
+                  <option value="Concepción">Concepción</option>
+                  <option value="Lautaro">Lautaro</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Abonos Recurrentes</label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                  <option value="no">No</option>
+                  <option value="monthly">Mensual</option>
+                  <option value="weekly">Semanal</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Separador Visual */}
+            <div className="border-t border-gray-200" />
+
+            {/* 3. Personas */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Usuario Responsable</label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                  <option value="" disabled selected>Asignar responsable...</option>
+                  <option value="u1">Juan Pérez</option>
+                  <option value="u2">María González</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Beneficiario</label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                  <option value="" disabled selected>Asignar beneficiario...</option>
+                  <option value="prov1">Proveedor X</option>
+                  <option value="internal">Interno</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Participantes (Opcional - Ancho completo) */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Participantes (Opcional)</label>
+              <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                 <option value="" disabled selected>Agregar participantes...</option>
+                 <option value="team1">Equipo de Desarrollo</option>
+                 <option value="team2">Equipo de Marketing</option>
+              </select>
+              <p className="text-[0.8rem] text-muted-foreground">Permite ver el fondo sin editarlo.</p>
+            </div>
+
+            {/* Separador Visual */}
+            <div className="border-t border-gray-200" />
+
+            {/* 4. Fechas */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Fecha de Inicio</label>
+                <input
+                  type="date"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Fecha de Término</label>
+                <input
+                  type="date"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                />
+              </div>
+            </div>
+
           </div>
+          {/* Fin del Formulario */}
+
+          {/* Footer con Botones */}
+          <DialogFooter className="sm:justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowCrearFondoDialog(false)}>
+              Cerrar
+            </Button>
+            <Button type="submit">
+              Crear Fondo
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Dialog Solicitar Fondo */}
       <Dialog open={showSolicitarFondoDialog} onOpenChange={setShowSolicitarFondoDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-xl"> {/* Aumenté ligeramente a xl para mejor espaciado */}
           <DialogHeader>
             <DialogTitle>Solicitar Fondo</DialogTitle>
             <DialogDescription>
-              Complete los datos para solicitar un fondo
+              Complete los datos y adjunte los respaldos necesarios.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-gray-500 text-center">
-              Contenido del formulario por definir
-            </p>
+
+          <div className="grid gap-6 py-4">
+
+            {/* 1. Monto Solicitado (Destacado) */}
+            <div className="space-y-2">
+              <label htmlFor="monto-solicitud" className="text-sm font-medium leading-none">
+                Monto a solicitar (CLP)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-gray-500">$</span>
+                <input
+                  id="monto-solicitud"
+                  type="number"
+                  placeholder="0"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pl-7 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                />
+              </div>
+            </div>
+
+            {/* 2. Motivo (Textarea para permitir explicación) */}
+            <div className="space-y-2">
+              <label htmlFor="motivo" className="text-sm font-medium">Motivo de la solicitud</label>
+              <textarea
+                id="motivo"
+                placeholder="Ej: Compra de insumos oficina central..."
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              />
+            </div>
+
+            {/* 3. Grid: Centro de Costos y Fecha */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Centro de Costos</label>
+                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                  <option value="" disabled selected>Seleccionar...</option>
+                  <option value="Maipú">Maipú</option>
+                  <option value="Concepción">Concepción</option>
+                  <option value="Lautaro">Lautaro</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Fecha de término</label>
+                <input
+                  type="date"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* 4. Sección de Documentos (Upload UI) */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Documentos de respaldo</label>
+
+              {/* Zona de "Drop" simulada */}
+              <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 hover:bg-gray-50 transition-colors cursor-pointer text-center group">
+                  <input type="file" className="hidden" id="file-upload" multiple />
+                  <label htmlFor="file-upload" className="cursor-pointer w-full h-full flex flex-col items-center justify-center">
+                    <Upload className="h-12 w-12 text-gray-400 mb-3" />
+                    <p className="text-sm text-gray-600 font-medium">
+                      Haz clic para subir o arrastra archivos aquí
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      PDF, PNG, JPG (Máx. 5MB)
+                    </p>
+                  </label>
+              </div>
+            </div>
+
           </div>
+
+          <DialogFooter className="sm:justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowSolicitarFondoDialog(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit">
+              Enviar Solicitud
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
