@@ -555,7 +555,7 @@ const QuotePDFDocument = ({ quote, items }: { quote: any; items: any[] }) => {
                     <Text style={pdfStyles.productSku}>SKU: {item.productCode || item.customSku}</Text>
                   )}
                 </View>
-                <Text style={[pdfStyles.cellText, pdfStyles.col2]}>UN</Text>
+                <Text style={[pdfStyles.cellText, pdfStyles.col2]}>{item.productUnit || 'UN'}</Text>
                 <Text style={[pdfStyles.cellText, pdfStyles.col3]}>{item.quantity}</Text>
                 <Text style={[pdfStyles.cellText, pdfStyles.col4]}>{formatCurrency(item.unitPrice)}</Text>
                 <Text style={[pdfStyles.cellText, pdfStyles.col5]}>{formatCurrency(item.totalPrice)}</Text>
@@ -708,13 +708,14 @@ export default function TomadorPedidos() {
       
       // Convert quote items to cart items with proper types
       const cartItems: CartItem[] = items.map((item: any) => ({
-        id: item.id || nanoid(), // Generate stable unique ID
+        id: item.id || nanoid(),
         type: 'standard' as const,
         productName: item.productName,
         productCode: item.productCode || '',
         quantity: Number(item.quantity),
         unitPrice: Number(item.unitPrice),
         totalPrice: Number(item.totalPrice),
+        productUnit: item.productUnit || item.unit || 'UN',
       }));
       
       setCart(cartItems);
