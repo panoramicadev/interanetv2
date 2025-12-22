@@ -1790,6 +1790,7 @@ export const quoteItems = pgTable("quote_items", {
   // For standard products
   productCode: varchar("product_code"), // From price_list.codigo
   productName: text("product_name").notNull(), // Product name
+  productUnit: varchar("product_unit"), // Unit from price list (e.g., UN, KG, LT)
   // For custom products
   customSku: varchar("custom_sku"), // Custom SKU
   costOfProduction: numeric("cost_of_production", { precision: 15, scale: 2 }), // Custom cost
