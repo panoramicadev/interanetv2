@@ -1304,7 +1304,7 @@ export default function TomadorPedidos() {
 
   // Add product to cart with selected price tier
   const addProductToCart = (product: PriceList, selectedTier: PriceTier = 'lista') => {
-    // Get price based on selected tier
+    // Get price based on selected tier, with fallback to first available non-zero price
     const getTierPrice = (product: PriceList, tier: PriceTier): number => {
       const tierFields = {
         lista: product.lista,
@@ -1314,15 +1314,45 @@ export default function TomadorPedidos() {
         minimo: product.minimo,
         canalDigital: product.canalDigital,
       };
-      return parseFloat(tierFields[tier]?.toString() || product.lista?.toString() || "0");
+      const selectedPrice = parseFloat(tierFields[tier]?.toString() || "0");
+      if (selectedPrice > 0) return selectedPrice;
+      
+      // Fallback: find first available non-zero price
+      for (const key of Object.keys(tierFields) as PriceTier[]) {
+        const price = parseFloat(tierFields[key]?.toString() || "0");
+        if (price > 0) return price;
+      }
+      return 0;
     };
 
-    const price = getTierPrice(product, selectedTier);
+    // Determine best tier to use (first non-zero price tier)
+    const getBestTier = (product: PriceList): PriceTier => {
+      const tierOrder: PriceTier[] = ['lista', 'desc10', 'desc10_5', 'desc10_5_3', 'minimo', 'canalDigital'];
+      const tierFields = {
+        lista: product.lista,
+        desc10: product.desc10,
+        desc10_5: product.desc10_5,
+        desc10_5_3: product.desc10_5_3,
+        minimo: product.minimo,
+        canalDigital: product.canalDigital,
+      };
+      for (const tier of tierOrder) {
+        const price = parseFloat(tierFields[tier]?.toString() || "0");
+        if (price > 0) return tier;
+      }
+      return 'lista';
+    };
+
+    // If selected tier has no price, use best available tier
+    const effectiveTier = parseFloat((product as any)[selectedTier]?.toString() || "0") > 0 
+      ? selectedTier 
+      : getBestTier(product);
+    const price = getTierPrice(product, effectiveTier);
     
     const existingItem = cart.find(item => 
       item.type === "standard" && 
       item.productCode === product.codigo && 
-      item.priceTier === selectedTier
+      item.priceTier === effectiveTier
     );
 
     if (existingItem) {
@@ -1337,6 +1367,8 @@ export default function TomadorPedidos() {
         codigo: product.codigo,
         producto: product.producto,
         unidad: product.unidad,
+        effectiveTier,
+        price,
         fullProduct: JSON.stringify(product)
       });
       const newItem: CartItem = {
@@ -1347,7 +1379,7 @@ export default function TomadorPedidos() {
         quantity: 1,
         unitPrice: price,
         totalPrice: price,
-        priceTier: selectedTier,
+        priceTier: effectiveTier,
         tierPrices: availableTiers,
         productUnit: product.unidad || "UN", // Store actual unit from product data
       };

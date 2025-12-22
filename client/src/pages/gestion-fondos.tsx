@@ -488,9 +488,8 @@ export default function GestionFondos() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="no">No</SelectItem>
-                          <SelectItem value="monthly">Mensual</SelectItem>
-                          <SelectItem value="weekly">Semanal</SelectItem>
+                          <SelectItem value="No">No</SelectItem>
+                          <SelectItem value="Sí">Sí</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -537,8 +536,8 @@ export default function GestionFondos() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="prov1">Proveedor X</SelectItem>
-                          <SelectItem value="internal">Interno</SelectItem>
+                          <SelectItem value="Externo">Externo</SelectItem>
+                          <SelectItem value="Solicitante">Solicitante</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
