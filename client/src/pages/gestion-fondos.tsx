@@ -1,7 +1,14 @@
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Table, 
   TableBody, 
@@ -31,20 +38,162 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, BarChart3, HandCoins, Upload } from "lucide-react";
-import { Link } from "wouter";
+import { Plus, Search, HandCoins, Upload, Loader2 } from "lucide-react";
+
+const crearFondoSchema = z.object({
+  presupuesto: z.string().min(1, "El presupuesto es requerido"),
+  nombre: z.string().min(1, "El nombre del fondo es requerido"),
+  idContabilidad: z.string().optional(),
+  centroCostos: z.string().min(1, "El centro de costos es requerido"),
+  abonosRecurrentes: z.string().default("no"),
+  usuarioResponsable: z.string().min(1, "El usuario responsable es requerido"),
+  beneficiario: z.string().optional(),
+  participantes: z.string().optional(),
+  fechaInicio: z.string().min(1, "La fecha de inicio es requerida"),
+  fechaTermino: z.string().min(1, "La fecha de término es requerida"),
+});
+
+const solicitarFondoSchema = z.object({
+  monto: z.string().min(1, "El monto es requerido"),
+  motivo: z.string().min(1, "El motivo es requerido"),
+  centroCostos: z.string().min(1, "El centro de costos es requerido"),
+  fechaTermino: z.string().min(1, "La fecha de término es requerida"),
+});
+
+type CrearFondoFormData = z.infer<typeof crearFondoSchema>;
+type SolicitarFondoFormData = z.infer<typeof solicitarFondoSchema>;
 
 export default function GestionFondos() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [tipoFilter, setTipoFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState("solicitudes");
   const [showCrearFondoDialog, setShowCrearFondoDialog] = useState(false);
   const [showSolicitarFondoDialog, setShowSolicitarFondoDialog] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
 
   const isLoading = false;
   const fondos: any[] = [];
+
+  const crearFondoForm = useForm<CrearFondoFormData>({
+    resolver: zodResolver(crearFondoSchema),
+    defaultValues: {
+      presupuesto: "",
+      nombre: "",
+      idContabilidad: "",
+      centroCostos: "",
+      abonosRecurrentes: "no",
+      usuarioResponsable: "",
+      beneficiario: "",
+      participantes: "",
+      fechaInicio: "",
+      fechaTermino: "",
+    },
+  });
+
+  const solicitarFondoForm = useForm<SolicitarFondoFormData>({
+    resolver: zodResolver(solicitarFondoSchema),
+    defaultValues: {
+      monto: "",
+      motivo: "",
+      centroCostos: "",
+      fechaTermino: "",
+    },
+  });
+
+  const crearFondoMutation = useMutation({
+    mutationFn: async (data: CrearFondoFormData) => {
+      return apiRequest('/api/fondos', {
+        method: 'POST',
+        data: {
+          ...data,
+          presupuesto: parseFloat(data.presupuesto),
+          tipo: 'fondo',
+          estado: 'abierto',
+          createdBy: user?.id,
+        },
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Fondo creado",
+        description: "El fondo se ha creado exitosamente.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/fondos'] });
+      setShowCrearFondoDialog(false);
+      crearFondoForm.reset();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo crear el fondo.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const solicitarFondoMutation = useMutation({
+    mutationFn: async (data: SolicitarFondoFormData) => {
+      return apiRequest('/api/fondos/solicitar', {
+        method: 'POST',
+        data: {
+          ...data,
+          monto: parseFloat(data.monto),
+          tipo: 'solicitud',
+          estado: 'solicitud',
+          solicitante: user?.fullName || user?.username,
+          solicitanteId: user?.id,
+        },
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Solicitud enviada",
+        description: "Tu solicitud de fondo ha sido enviada para aprobación.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/fondos'] });
+      setShowSolicitarFondoDialog(false);
+      solicitarFondoForm.reset();
+      setUploadedFiles([]);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo enviar la solicitud.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCrearFondo = (data: CrearFondoFormData) => {
+    crearFondoMutation.mutate(data);
+  };
+
+  const handleSolicitarFondo = (data: SolicitarFondoFormData) => {
+    solicitarFondoMutation.mutate(data);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      setUploadedFiles(prev => [...prev, ...files]);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+  };
 
   const getEstadoBadge = (estado: string) => {
     switch (estado) {
@@ -157,7 +306,6 @@ export default function GestionFondos() {
   return (
     <>
       <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Gestión de Fondos</h1>
@@ -184,7 +332,6 @@ export default function GestionFondos() {
           </div>
         </div>
 
-        {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -210,7 +357,6 @@ export default function GestionFondos() {
           </Select>
         </div>
 
-        {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
             <TabsTrigger value="solicitudes" data-testid="tab-solicitudes">Solicitudes</TabsTrigger>
@@ -231,7 +377,6 @@ export default function GestionFondos() {
           </TabsContent>
           <TabsContent value="cerrados" className="mt-4">
             {renderTable()}
-
           </TabsContent>
           <TabsContent value="rechazados" className="mt-4">
             {renderTable()}
@@ -249,136 +394,245 @@ export default function GestionFondos() {
             </DialogDescription>
           </DialogHeader>
 
-          {/* Inicio del Formulario */}
-          <div className="grid gap-6 py-4">
+          <Form {...crearFondoForm}>
+            <form onSubmit={crearFondoForm.handleSubmit(handleCrearFondo)} className="space-y-6">
+              <FormField
+                control={crearFondoForm.control}
+                name="presupuesto"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Presupuesto del Fondo (CLP)</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-gray-500">$</span>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          className="pl-7"
+                          {...field}
+                          data-testid="input-presupuesto"
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            {/* 1. Presupuesto (Elemento destacado) */}
-            <div className="space-y-2">
-              <label htmlFor="presupuesto" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                Presupuesto del Fondo (CLP)
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-gray-500">$</span>
-                <input
-                  id="presupuesto"
-                  type="number"
-                  placeholder="0"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pl-7 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={crearFondoForm.control}
+                  name="nombre"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nombre del Fondo</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Ej: Fondos por rendir Diciembre 2025"
+                          {...field}
+                          data-testid="input-nombre-fondo"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={crearFondoForm.control}
+                  name="idContabilidad"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>ID de Contabilidad</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-id-contabilidad" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={crearFondoForm.control}
+                  name="centroCostos"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Centro de Costos</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-centro-costos-crear">
+                            <SelectValue placeholder="Seleccionar..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Maipú">Maipú</SelectItem>
+                          <SelectItem value="Concepción">Concepción</SelectItem>
+                          <SelectItem value="Lautaro">Lautaro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={crearFondoForm.control}
+                  name="abonosRecurrentes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Abonos Recurrentes</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-abonos">
+                            <SelectValue placeholder="Seleccionar..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="no">No</SelectItem>
+                          <SelectItem value="monthly">Mensual</SelectItem>
+                          <SelectItem value="weekly">Semanal</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
-            </div>
 
-            {/* 2. Detalles del Fondo */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Nombre del Fondo</label>
-                <input
-                  type="text"
-                  placeholder="Ej: Fondos por rendir Diciembre 2025"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              <div className="border-t border-gray-200" />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={crearFondoForm.control}
+                  name="usuarioResponsable"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Usuario Responsable</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-responsable">
+                            <SelectValue placeholder="Asignar responsable..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="u1">Juan Pérez</SelectItem>
+                          <SelectItem value="u2">María González</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={crearFondoForm.control}
+                  name="beneficiario"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Beneficiario</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-beneficiario">
+                            <SelectValue placeholder="Asignar beneficiario..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="prov1">Proveedor X</SelectItem>
+                          <SelectItem value="internal">Interno</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">ID de Contabilidad</label>
-                <input
-                  type="text"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+
+              <FormField
+                control={crearFondoForm.control}
+                name="participantes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Participantes (Opcional)</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-participantes">
+                          <SelectValue placeholder="Agregar participantes..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="team1">Equipo de Desarrollo</SelectItem>
+                        <SelectItem value="team2">Equipo de Marketing</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>Permite ver el fondo sin editarlo.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="border-t border-gray-200" />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={crearFondoForm.control}
+                  name="fechaInicio"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Fecha de Inicio</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} data-testid="input-fecha-inicio" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={crearFondoForm.control}
+                  name="fechaTermino"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Fecha de Término</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} data-testid="input-fecha-termino" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
 
-              {/* Selects: Centro de Costos & Abonos */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Centro de Costos</label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-                  <option value="" disabled selected>Seleccionar...</option>
-                  <option value="Maipú">Maipú</option>
-                  <option value="Concepción">Concepción</option>
-                  <option value="Lautaro">Lautaro</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Abonos Recurrentes</label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-                  <option value="no">No</option>
-                  <option value="monthly">Mensual</option>
-                  <option value="weekly">Semanal</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Separador Visual */}
-            <div className="border-t border-gray-200" />
-
-            {/* 3. Personas */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Usuario Responsable</label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-                  <option value="" disabled selected>Asignar responsable...</option>
-                  <option value="u1">Juan Pérez</option>
-                  <option value="u2">María González</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Beneficiario</label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-                  <option value="" disabled selected>Asignar beneficiario...</option>
-                  <option value="prov1">Proveedor X</option>
-                  <option value="internal">Interno</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Participantes (Opcional - Ancho completo) */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Participantes (Opcional)</label>
-              <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-                 <option value="" disabled selected>Agregar participantes...</option>
-                 <option value="team1">Equipo de Desarrollo</option>
-                 <option value="team2">Equipo de Marketing</option>
-              </select>
-              <p className="text-[0.8rem] text-muted-foreground">Permite ver el fondo sin editarlo.</p>
-            </div>
-
-            {/* Separador Visual */}
-            <div className="border-t border-gray-200" />
-
-            {/* 4. Fechas */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Fecha de Inicio</label>
-                <input
-                  type="date"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Fecha de Término</label>
-                <input
-                  type="date"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                />
-              </div>
-            </div>
-
-          </div>
-          {/* Fin del Formulario */}
-
-          {/* Footer con Botones */}
-          <DialogFooter className="sm:justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowCrearFondoDialog(false)}>
-              Cerrar
-            </Button>
-            <Button type="submit">
-              Crear Fondo
-            </Button>
-          </DialogFooter>
+              <DialogFooter className="sm:justify-end gap-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setShowCrearFondoDialog(false)}
+                >
+                  Cerrar
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={crearFondoMutation.isPending}
+                  data-testid="button-submit-crear-fondo"
+                >
+                  {crearFondoMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Creando...
+                    </>
+                  ) : (
+                    'Crear Fondo'
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
 
       {/* Dialog Solicitar Fondo */}
       <Dialog open={showSolicitarFondoDialog} onOpenChange={setShowSolicitarFondoDialog}>
-        <DialogContent className="max-w-xl"> {/* Aumenté ligeramente a xl para mejor espaciado */}
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Solicitar Fondo</DialogTitle>
             <DialogDescription>
@@ -386,61 +640,100 @@ export default function GestionFondos() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-6 py-4">
-
-            {/* 1. Monto Solicitado (Destacado) */}
-            <div className="space-y-2">
-              <label htmlFor="monto-solicitud" className="text-sm font-medium leading-none">
-                Monto a solicitar (CLP)
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-gray-500">$</span>
-                <input
-                  id="monto-solicitud"
-                  type="number"
-                  placeholder="0"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pl-7 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                />
-              </div>
-            </div>
-
-            {/* 2. Motivo (Textarea para permitir explicación) */}
-            <div className="space-y-2">
-              <label htmlFor="motivo" className="text-sm font-medium">Motivo de la solicitud</label>
-              <textarea
-                id="motivo"
-                placeholder="Ej: Compra de insumos oficina central..."
-                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          <Form {...solicitarFondoForm}>
+            <form onSubmit={solicitarFondoForm.handleSubmit(handleSolicitarFondo)} className="space-y-6">
+              <FormField
+                control={solicitarFondoForm.control}
+                name="monto"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Monto a solicitar (CLP)</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-gray-500">$</span>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          className="pl-7"
+                          {...field}
+                          data-testid="input-monto-solicitud"
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
 
-            {/* 3. Grid: Centro de Costos y Fecha */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Centro de Costos</label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-                  <option value="" disabled selected>Seleccionar...</option>
-                  <option value="Maipú">Maipú</option>
-                  <option value="Concepción">Concepción</option>
-                  <option value="Lautaro">Lautaro</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Fecha de término</label>
-                <input
-                  type="date"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              <FormField
+                control={solicitarFondoForm.control}
+                name="motivo"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Motivo de la solicitud</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Ej: Compra de insumos oficina central..."
+                        className="min-h-[80px]"
+                        {...field}
+                        data-testid="input-motivo"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={solicitarFondoForm.control}
+                  name="centroCostos"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Centro de Costos</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-centro-costos-solicitar">
+                            <SelectValue placeholder="Seleccionar..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Maipú">Maipú</SelectItem>
+                          <SelectItem value="Concepción">Concepción</SelectItem>
+                          <SelectItem value="Lautaro">Lautaro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={solicitarFondoForm.control}
+                  name="fechaTermino"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Fecha de término</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} data-testid="input-fecha-termino-solicitud" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
-            </div>
 
-            {/* 4. Sección de Documentos (Upload UI) */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Documentos de respaldo</label>
-
-              {/* Zona de "Drop" simulada */}
-              <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 hover:bg-gray-50 transition-colors cursor-pointer text-center group">
-                  <input type="file" className="hidden" id="file-upload" multiple />
+              <div className="space-y-2">
+                <FormLabel>Documentos de respaldo</FormLabel>
+                <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 hover:bg-gray-50 transition-colors cursor-pointer text-center group">
+                  <input 
+                    type="file" 
+                    className="hidden" 
+                    id="file-upload" 
+                    multiple 
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    onChange={handleFileChange}
+                  />
                   <label htmlFor="file-upload" className="cursor-pointer w-full h-full flex flex-col items-center justify-center">
                     <Upload className="h-12 w-12 text-gray-400 mb-3" />
                     <p className="text-sm text-gray-600 font-medium">
@@ -450,19 +743,52 @@ export default function GestionFondos() {
                       PDF, PNG, JPG (Máx. 5MB)
                     </p>
                   </label>
+                </div>
+                {uploadedFiles.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {uploadedFiles.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded text-sm">
+                        <span className="truncate">{file.name}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeFile(index)}
+                          className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                        >
+                          ×
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
 
-          </div>
-
-          <DialogFooter className="sm:justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowSolicitarFondoDialog(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit">
-              Enviar Solicitud
-            </Button>
-          </DialogFooter>
+              <DialogFooter className="sm:justify-end gap-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setShowSolicitarFondoDialog(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={solicitarFondoMutation.isPending}
+                  data-testid="button-submit-solicitar-fondo"
+                >
+                  {solicitarFondoMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    'Enviar Solicitud'
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </>
