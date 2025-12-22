@@ -3849,7 +3849,7 @@ export default function TomadorPedidos() {
                                       totalPrice: unitPrice * quantity,
                                       priceTier: selectedTier,
                                       tierPrices: availableTiers,
-                                      productUnit: product.unidad || undefined,
+                                      productUnit: product.unidad || "UN",
                                     };
 
                                     setCart(prev => [...prev, newItem]);
