@@ -2907,6 +2907,13 @@ export default function TomadorPedidos() {
         
         for (const item of cart) {
           try {
+            console.log('[FRONTEND] Cart item before send:', {
+              productName: item.productName,
+              productCode: item.productCode,
+              productUnit: item.productUnit,
+              fullItem: JSON.stringify(item)
+            });
+            
             const itemData = {
               quoteId: quote.id,
               type: item.type,
@@ -2921,6 +2928,8 @@ export default function TomadorPedidos() {
               profitMargin: item.profitMargin?.toString(),
               pricingMode: item.pricingMode,
             };
+
+            console.log('[FRONTEND] itemData being sent:', JSON.stringify(itemData));
 
             const itemResponse = await apiRequest(`/api/quotes/${quote.id}/items`, {
               method: 'POST',
