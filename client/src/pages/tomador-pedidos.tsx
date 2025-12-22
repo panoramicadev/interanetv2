@@ -2168,6 +2168,7 @@ export default function TomadorPedidos() {
         items = cart.map(item => ({
           productName: item.productName,
           productCode: item.customSku || item.productCode || '',
+          productUnit: item.productUnit || 'UN',
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           totalPrice: item.totalPrice
