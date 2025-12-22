@@ -3170,6 +3170,25 @@ export default function TomadorPedidos() {
     return tiers;
   };
 
+  // Get best available price for display (first non-zero price)
+  const getBestDisplayPrice = (product: PriceList): { price: number; tier: PriceTier; label: string } => {
+    const tierOrder: Array<{ key: PriceTier; label: string; field: string | null | undefined }> = [
+      { key: 'lista', label: 'Lista', field: product.lista },
+      { key: 'desc10', label: '10%', field: product.desc10 },
+      { key: 'desc10_5', label: '10%+5%', field: product.desc10_5 },
+      { key: 'desc10_5_3', label: '10%+5%+3%', field: product.desc10_5_3 },
+      { key: 'minimo', label: 'Mínimo', field: product.minimo },
+      { key: 'canalDigital', label: 'Digital', field: product.canalDigital },
+    ];
+    for (const tier of tierOrder) {
+      const price = parseFloat(tier.field?.toString() || '0');
+      if (price > 0) {
+        return { price, tier: tier.key, label: tier.label };
+      }
+    }
+    return { price: 0, tier: 'lista', label: 'Lista' };
+  };
+
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case 'draft': return 'secondary';
@@ -3814,9 +3833,19 @@ export default function TomadorPedidos() {
                                     {renderStockBadge(product.codigo)}
                                   </div>
                                   <div className="text-right ml-2">
-                                    <p className="font-bold text-green-600">
-                                      {formatCurrency(Number(product.lista) || 0)}
-                                    </p>
+                                    {(() => {
+                                      const bestPrice = getBestDisplayPrice(product);
+                                      return (
+                                        <>
+                                          <p className="font-bold text-green-600">
+                                            {formatCurrency(bestPrice.price)}
+                                          </p>
+                                          {bestPrice.tier !== 'lista' && (
+                                            <p className="text-xs text-muted-foreground">({bestPrice.label})</p>
+                                          )}
+                                        </>
+                                      );
+                                    })()}
                                   </div>
                                 </div>
                               </div>
