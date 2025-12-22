@@ -1533,6 +1533,7 @@ export default function TomadorPedidos() {
             type: item.type,
             productName: item.productName,
             productCode: item.productCode,
+            productUnit: item.productUnit || 'UN',
             customSku: item.customSku,
             quantity: item.quantity.toString(),
             unitPrice: item.unitPrice.toString(),
@@ -1549,7 +1550,7 @@ export default function TomadorPedidos() {
 
           if (itemResponse.ok) {
             const savedItem = await itemResponse.json();
-            savedItems.push({ ...savedItem, productUnit: item.productUnit }); // Include unit data
+            savedItems.push(savedItem);
           }
         }
 
@@ -1585,6 +1586,7 @@ export default function TomadorPedidos() {
             type: item.type,
             productName: item.productName,
             productCode: item.productCode,
+            productUnit: item.productUnit || 'UN',
             customSku: item.customSku,
             quantity: item.quantity.toString(),
             unitPrice: item.unitPrice.toString(),
@@ -1601,7 +1603,7 @@ export default function TomadorPedidos() {
 
           if (itemResponse.ok) {
             const savedItem = await itemResponse.json();
-            savedItems.push({ ...savedItem, productUnit: item.productUnit }); // Include unit data
+            savedItems.push(savedItem);
           }
         }
 
