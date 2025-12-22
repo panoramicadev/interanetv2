@@ -821,6 +821,7 @@ export default function TomadorPedidos() {
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           totalPrice: item.unitPrice * item.quantity,
+          productUnit: (item as any).productUnit || 'UN',
         };
       })
     );
@@ -1332,6 +1333,12 @@ export default function TomadorPedidos() {
       });
     } else {
       const availableTiers = getAvailableTiers(product);
+      console.log('[FRONTEND] Adding product to cart:', {
+        codigo: product.codigo,
+        producto: product.producto,
+        unidad: product.unidad,
+        fullProduct: JSON.stringify(product)
+      });
       const newItem: CartItem = {
         id: `item-${Date.now()}-${Math.random()}`,
         type: "standard",
@@ -1344,6 +1351,7 @@ export default function TomadorPedidos() {
         tierPrices: availableTiers,
         productUnit: product.unidad || "UN", // Store actual unit from product data
       };
+      console.log('[FRONTEND] New cart item created with productUnit:', newItem.productUnit);
       
       setCart(prev => [...prev, newItem]);
       if (savedQuoteId) {
