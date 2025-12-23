@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -135,7 +136,10 @@ interface DashboardProps {
 export default function GastosEmpresarialesDashboard({ embedded = false }: DashboardProps) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { user } = useAuth();
   const currentMonth = new Date().getMonth() + 1;
+  
+  const canExport = user?.role && !['Salesperson', 'Vendedor'].includes(user.role);
   const currentYear = new Date().getFullYear();
   
   const [mes, setMes] = useState(currentMonth.toString());
@@ -702,34 +706,36 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
               Análisis y métricas de gastos empresariales
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button 
-              onClick={handleExportPDF}
-              variant="default"
-              disabled={!hasData || isGeneratingPDF}
-              data-testid="button-export-pdf"
-            >
-              {isGeneratingPDF ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <FileText className="h-4 w-4 mr-2" />
-              )}
-              {isGeneratingPDF ? 'Generando...' : 'Exportar PDF'}
-            </Button>
-            <Button 
-              onClick={handleExportCSV}
-              variant="outline"
-              disabled={!hasData}
-              data-testid="button-export-csv"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Exportar CSV
-            </Button>
-          </div>
+          {canExport && (
+            <div className="flex gap-2">
+              <Button 
+                onClick={handleExportPDF}
+                variant="default"
+                disabled={!hasData || isGeneratingPDF}
+                data-testid="button-export-pdf"
+              >
+                {isGeneratingPDF ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <FileText className="h-4 w-4 mr-2" />
+                )}
+                {isGeneratingPDF ? 'Generando...' : 'Exportar PDF'}
+              </Button>
+              <Button 
+                onClick={handleExportCSV}
+                variant="outline"
+                disabled={!hasData}
+                data-testid="button-export-csv"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Exportar CSV
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
-      {embedded && (
+      {embedded && canExport && (
         <div className="flex gap-2 justify-end">
           <Button 
             onClick={handleExportPDF}
