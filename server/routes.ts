@@ -15326,6 +15326,37 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     }
   }));
 
+  // Request fund allocation (any authenticated user can request)
+  app.post('/api/fondos/solicitar', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { monto, motivo, centroCostos, fechaTermino } = req.body;
+      
+      if (!monto || monto <= 0) {
+        return res.status(400).json({ message: 'El monto debe ser mayor a 0' });
+      }
+      
+      // Create fund allocation as a request (estado='solicitud')
+      const allocation = await storage.createFundAllocation({
+        nombre: `Solicitud de ${user.fullName || user.username}`,
+        descripcion: motivo || '',
+        montoInicial: monto.toString(),
+        assignedToId: user.id,
+        assignedById: user.id, // Self-requested
+        estado: 'solicitud',
+        fechaInicio: new Date().toISOString().split('T')[0],
+        fechaTermino: fechaTermino || null,
+        centroCostos: centroCostos || null,
+        motivo: motivo || null,
+      });
+      
+      res.status(201).json(allocation);
+    } catch (error: any) {
+      console.error('Error creating fund request:', error);
+      res.status(500).json({ message: 'Error al crear solicitud de fondo', error: error.message });
+    }
+  }));
+
   // ==================================================================================
   // PROMESAS DE COMPRA ROUTES
   // ==================================================================================

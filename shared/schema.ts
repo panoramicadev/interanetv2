@@ -4580,7 +4580,7 @@ export const insertFundAllocationSchema = createInsertSchema(fundAllocations).om
   assignedById: z.string().min(1, "El usuario asignador es requerido"),
   fechaInicio: z.string().or(z.date()).optional().nullable().transform(val => val ? (typeof val === 'string' ? new Date(val) : val) : null),
   fechaTermino: z.string().or(z.date()).optional().nullable().transform(val => val ? (typeof val === 'string' ? new Date(val) : val) : null),
-  estado: z.enum(["pendiente_aprobacion", "activo", "cerrado", "rechazado"]).default("pendiente_aprobacion"),
+  estado: z.enum(["solicitud", "pendiente_aprobacion", "activo", "cerrado", "rechazado"]).default("pendiente_aprobacion"),
 });
 
 // Schema para aprobar asignación de fondo
