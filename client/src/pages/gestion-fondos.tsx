@@ -352,21 +352,22 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
   };
 
   const getEstadoBadge = (estado: string) => {
+    const baseClasses = "whitespace-nowrap text-xs";
     switch (estado) {
       case 'solicitud':
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Solicitud</Badge>;
+        return <Badge variant="outline" className={`${baseClasses} bg-blue-50 text-blue-700 border-blue-200`}>Solicitud</Badge>;
       case 'pendiente':
       case 'pendiente_aprobacion':
-        return <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">Pendiente Aprobación</Badge>;
+        return <Badge variant="outline" className={`${baseClasses} bg-orange-50 text-orange-700 border-orange-200`}>Pendiente</Badge>;
       case 'activo':
       case 'abierto':
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Activo</Badge>;
+        return <Badge variant="outline" className={`${baseClasses} bg-green-50 text-green-700 border-green-200`}>Activo</Badge>;
       case 'cerrado':
-        return <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">Cerrado</Badge>;
+        return <Badge variant="outline" className={`${baseClasses} bg-gray-50 text-gray-700 border-gray-200`}>Cerrado</Badge>;
       case 'rechazado':
-        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Rechazado</Badge>;
+        return <Badge variant="outline" className={`${baseClasses} bg-red-50 text-red-700 border-red-200`}>Rechazado</Badge>;
       default:
-        return <Badge variant="outline">{estado}</Badge>;
+        return <Badge variant="outline" className={baseClasses}>{estado}</Badge>;
     }
   };
 
@@ -585,10 +586,10 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
-            <TabsTrigger value="asignaciones" data-testid="tab-asignaciones">Asignaciones</TabsTrigger>
-            <TabsTrigger value="activos" data-testid="tab-activos">Activos</TabsTrigger>
-            <TabsTrigger value="cerrados" data-testid="tab-cerrados">Cerrados</TabsTrigger>
+          <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide lg:grid lg:w-auto lg:grid-cols-3">
+            <TabsTrigger value="asignaciones" data-testid="tab-asignaciones" className="flex-shrink-0">Asignaciones</TabsTrigger>
+            <TabsTrigger value="activos" data-testid="tab-activos" className="flex-shrink-0">Activos</TabsTrigger>
+            <TabsTrigger value="cerrados" data-testid="tab-cerrados" className="flex-shrink-0">Cerrados</TabsTrigger>
           </TabsList>
 
           <TabsContent value="asignaciones" className="mt-4">
