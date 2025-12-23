@@ -291,13 +291,18 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
   };
 
   const handleApprove = async () => {
-    if (!selectedAllocation || !approveFile) return;
+    console.log('[handleApprove] Called with:', { selectedAllocation, approveFile });
+    if (!selectedAllocation || !approveFile) {
+      console.log('[handleApprove] Missing data:', { selectedAllocation: !!selectedAllocation, approveFile: !!approveFile });
+      return;
+    }
     
     setIsUploadingApproval(true);
     try {
       const formData = new FormData();
       formData.append('file', approveFile);
       
+      console.log('[handleApprove] Uploading file...');
       const uploadResponse = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
@@ -305,13 +310,19 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
       });
       
       if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        console.error('[handleApprove] Upload failed:', errorText);
         throw new Error('Error al subir el archivo');
       }
       
-      const { url: comprobanteUrl } = await uploadResponse.json();
+      const uploadResult = await uploadResponse.json();
+      console.log('[handleApprove] Upload result:', uploadResult);
+      const comprobanteUrl = uploadResult.url;
       
+      console.log('[handleApprove] Calling approve mutation:', { allocationId: selectedAllocation.id, comprobanteUrl });
       approveMutation.mutate({ allocationId: selectedAllocation.id, comprobanteUrl });
     } catch (error: any) {
+      console.error('[handleApprove] Error:', error);
       toast({
         title: "Error",
         description: error.message || "Error al subir el comprobante",
