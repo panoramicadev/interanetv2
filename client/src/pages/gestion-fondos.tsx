@@ -93,7 +93,6 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
   const { user } = useAuth();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
-  const [tipoFilter, setTipoFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState("asignaciones");
   const [showCrearFondoDialog, setShowCrearFondoDialog] = useState(false);
   const [showSolicitarFondoDialog, setShowSolicitarFondoDialog] = useState(false);
@@ -395,9 +394,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
       fondo.descripcion?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       assigneeName.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesTipo = tipoFilter === "all" || fondo.estado === tipoFilter;
-
-    return matchesSearch && matchesTipo;
+    return matchesSearch;
   });
 
   const renderTable = () => (
@@ -549,18 +546,6 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
               data-testid="input-search"
             />
           </div>
-          <Select value={tipoFilter} onValueChange={setTipoFilter}>
-            <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-tipo">
-              <SelectValue placeholder="Tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los tipos</SelectItem>
-              <SelectItem value="operativo">Operativo</SelectItem>
-              <SelectItem value="viático">Viático</SelectItem>
-              <SelectItem value="proyecto">Proyecto</SelectItem>
-              <SelectItem value="emergencia">Emergencia</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
         {/* Summary Cards */}
@@ -586,7 +571,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap pb-2 lg:pb-0 lg:grid lg:w-auto lg:grid-cols-3">
+          <TabsList className="flex w-full h-auto justify-start overflow-x-auto overflow-y-hidden whitespace-nowrap pb-2 lg:pb-1 lg:grid lg:w-auto lg:grid-cols-3">
             <TabsTrigger value="asignaciones" data-testid="tab-asignaciones" className="flex-shrink-0">Asignaciones</TabsTrigger>
             <TabsTrigger value="activos" data-testid="tab-activos" className="flex-shrink-0">Activos</TabsTrigger>
             <TabsTrigger value="cerrados" data-testid="tab-cerrados" className="flex-shrink-0">Cerrados</TabsTrigger>
