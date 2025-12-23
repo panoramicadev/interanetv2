@@ -403,7 +403,7 @@ export default function GastosEmpresariales() {
 
             {/* Fondos Asignados con barras de progreso */}
             {userFundAllocations.length > 0 && (
-              <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+              <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 w-full">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg flex items-center gap-2 text-blue-800">
                     <Wallet className="h-5 w-5" />
@@ -411,7 +411,7 @@ export default function GastosEmpresariales() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 w-full">
                     {userFundAllocations.map((fund) => {
                       const montoInicial = parseFloat(fund.montoInicial || '0');
                       const montoUsado = fund.montoUsado ? parseFloat(fund.montoUsado) : getFundUsage(fund.id);
