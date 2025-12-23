@@ -49,7 +49,7 @@ import {
 } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Plus, Search, HandCoins, Upload, Loader2 } from "lucide-react";
+import { Plus, Search, HandCoins, Upload, Loader2, Check, X } from "lucide-react";
 
 const crearFondoSchema = z.object({
   presupuesto: z.string().min(1, "El presupuesto es requerido"),
@@ -105,6 +105,11 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [selectedAllocation, setSelectedAllocation] = useState<FundAllocation | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [approveFile, setApproveFile] = useState<File | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [isUploadingApproval, setIsUploadingApproval] = useState(false);
 
   const canManageFunds = user?.role === 'admin' || user?.role === 'recursos_humanos';
 
@@ -234,12 +239,103 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
     },
   });
 
+  const approveMutation = useMutation({
+    mutationFn: async ({ allocationId, comprobanteUrl }: { allocationId: string; comprobanteUrl: string }) => {
+      return apiRequest(`/api/fund-allocations/${allocationId}/approve`, {
+        method: 'POST',
+        data: { comprobanteUrl },
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Fondo aprobado",
+        description: "El fondo ha sido aprobado y está activo.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations/summary/global'] });
+      setShowApproveDialog(false);
+      setApproveFile(null);
+      setSelectedAllocation(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo aprobar el fondo.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async ({ allocationId, motivoRechazo }: { allocationId: string; motivoRechazo: string }) => {
+      return apiRequest(`/api/fund-allocations/${allocationId}/reject`, {
+        method: 'POST',
+        data: { motivoRechazo },
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Fondo rechazado",
+        description: "El fondo ha sido rechazado.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations/summary/global'] });
+      setShowRejectDialog(false);
+      setRejectReason("");
+      setSelectedAllocation(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo rechazar el fondo.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleCrearFondo = (data: CrearFondoFormData) => {
     crearFondoMutation.mutate(data);
   };
 
   const handleSolicitarFondo = (data: SolicitarFondoFormData) => {
     solicitarFondoMutation.mutate(data);
+  };
+
+  const handleApprove = async () => {
+    if (!selectedAllocation || !approveFile) return;
+    
+    setIsUploadingApproval(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', approveFile);
+      
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      
+      if (!uploadResponse.ok) {
+        throw new Error('Error al subir el archivo');
+      }
+      
+      const { url: comprobanteUrl } = await uploadResponse.json();
+      
+      approveMutation.mutate({ allocationId: selectedAllocation.id, comprobanteUrl });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Error al subir el comprobante",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingApproval(false);
+    }
+  };
+
+  const handleReject = () => {
+    if (!selectedAllocation || !rejectReason.trim()) return;
+    rejectMutation.mutate({ allocationId: selectedAllocation.id, motivoRechazo: rejectReason });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -258,7 +354,8 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
       case 'solicitud':
         return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Solicitud</Badge>;
       case 'pendiente':
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pendiente</Badge>;
+      case 'pendiente_aprobacion':
+        return <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">Pendiente Aprobación</Badge>;
       case 'activo':
       case 'abierto':
         return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Activo</Badge>;
@@ -362,6 +459,35 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                   <TableCell>{getEstadoBadge(fondo.estado)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
+                      {canManageFunds && fondo.estado === 'pendiente_aprobacion' && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="bg-green-600 hover:bg-green-700"
+                            data-testid={`button-approve-${fondo.id}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedAllocation(fondo);
+                              setShowApproveDialog(true);
+                            }}
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            data-testid={`button-reject-${fondo.id}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedAllocation(fondo);
+                              setShowRejectDialog(true);
+                            }}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
@@ -785,6 +911,181 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Aprobar Fondo */}
+      <Dialog open={showApproveDialog} onOpenChange={(open) => {
+        setShowApproveDialog(open);
+        if (!open) {
+          setApproveFile(null);
+          setSelectedAllocation(null);
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Aprobar Asignación de Fondo</DialogTitle>
+            <DialogDescription>
+              Suba el comprobante de transferencia para aprobar esta asignación.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedAllocation && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">Asignado a:</span>
+                  <span className="text-sm font-medium">{getAssigneeName(selectedAllocation.assignedToId)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">Monto:</span>
+                  <span className="text-sm font-bold text-green-600">{formatCurrency(selectedAllocation.montoInicial)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">Nombre del Fondo:</span>
+                  <span className="text-sm font-medium">{selectedAllocation.nombre}</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Comprobante de Transferencia</label>
+                <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer text-center">
+                  <input 
+                    type="file" 
+                    className="hidden" 
+                    id="approve-file-upload"
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setApproveFile(e.target.files[0]);
+                      }
+                    }}
+                  />
+                  <label htmlFor="approve-file-upload" className="cursor-pointer w-full h-full flex flex-col items-center justify-center">
+                    <Upload className="h-8 w-8 text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-600">
+                      {approveFile ? approveFile.name : 'Subir comprobante'}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      PDF, PNG, JPG
+                    </p>
+                  </label>
+                </div>
+              </div>
+
+              <DialogFooter className="sm:justify-end gap-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowApproveDialog(false);
+                    setApproveFile(null);
+                    setSelectedAllocation(null);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleApprove}
+                  disabled={!approveFile || isUploadingApproval || approveMutation.isPending}
+                  className="bg-green-600 hover:bg-green-700"
+                  data-testid="button-confirm-approve"
+                >
+                  {isUploadingApproval || approveMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Aprobando...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4 mr-2" />
+                      Aprobar Fondo
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Rechazar Fondo */}
+      <Dialog open={showRejectDialog} onOpenChange={(open) => {
+        setShowRejectDialog(open);
+        if (!open) {
+          setRejectReason("");
+          setSelectedAllocation(null);
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rechazar Asignación de Fondo</DialogTitle>
+            <DialogDescription>
+              Indique el motivo del rechazo para esta asignación.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedAllocation && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">Asignado a:</span>
+                  <span className="text-sm font-medium">{getAssigneeName(selectedAllocation.assignedToId)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">Monto:</span>
+                  <span className="text-sm font-bold">{formatCurrency(selectedAllocation.montoInicial)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">Nombre del Fondo:</span>
+                  <span className="text-sm font-medium">{selectedAllocation.nombre}</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Motivo del Rechazo</label>
+                <Textarea
+                  placeholder="Explique por qué se rechaza esta asignación..."
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  className="min-h-[100px]"
+                  data-testid="input-reject-reason"
+                />
+              </div>
+
+              <DialogFooter className="sm:justify-end gap-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowRejectDialog(false);
+                    setRejectReason("");
+                    setSelectedAllocation(null);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleReject}
+                  disabled={!rejectReason.trim() || rejectMutation.isPending}
+                  variant="destructive"
+                  data-testid="button-confirm-reject"
+                >
+                  {rejectMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Rechazando...
+                    </>
+                  ) : (
+                    <>
+                      <X className="h-4 w-4 mr-2" />
+                      Rechazar Fondo
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </>

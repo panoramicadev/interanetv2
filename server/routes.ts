@@ -15204,6 +15204,50 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     }
   }));
 
+  // Approve fund allocation (Admin/HR only) - requires transfer receipt
+  app.post('/api/fund-allocations/:id/approve', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const { comprobanteUrl } = req.body;
+      
+      if (!comprobanteUrl) {
+        return res.status(400).json({ message: 'El comprobante de transferencia es requerido' });
+      }
+      
+      const approved = await storage.approveFundAllocation(req.params.id, comprobanteUrl, user.id);
+      res.json(approved);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al aprobar asignación', error: error.message });
+    }
+  }));
+
+  // Reject fund allocation (Admin/HR only) - requires reason
+  app.post('/api/fund-allocations/:id/reject', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const { motivoRechazo } = req.body;
+      
+      if (!motivoRechazo) {
+        return res.status(400).json({ message: 'El motivo del rechazo es requerido' });
+      }
+      
+      const rejected = await storage.rejectFundAllocation(req.params.id, motivoRechazo, user.id);
+      res.json(rejected);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al rechazar asignación', error: error.message });
+    }
+  }));
+
   // Add adjustment to fund (Admin/HR only)
   app.post('/api/fund-allocations/:id/adjust', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
