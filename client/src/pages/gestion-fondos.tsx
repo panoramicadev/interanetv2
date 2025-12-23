@@ -48,6 +48,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { Plus, Search, HandCoins, Upload, Loader2 } from "lucide-react";
 
 const crearFondoSchema = z.object({
@@ -395,14 +396,16 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
             </div>
           )}
           <div className={`flex flex-col sm:flex-row gap-2 ${embedded ? 'ml-auto' : ''}`}>
-            <Button 
-              className="w-full sm:w-auto" 
-              data-testid="button-crear-fondo"
-              onClick={() => setShowCrearFondoDialog(true)}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Crear nuevo Fondo
-            </Button>
+            {canManageFunds && (
+              <Button 
+                className="w-full sm:w-auto" 
+                data-testid="button-crear-fondo"
+                onClick={() => setShowCrearFondoDialog(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Asignar Fondo
+              </Button>
+            )}
             <Button 
               variant="secondary"
               className="w-full sm:w-auto" 
@@ -440,28 +443,42 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
           </Select>
         </div>
 
+        {/* Summary Cards */}
+        {summary && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <Card className="p-4">
+              <div className="text-sm text-gray-500">Total Asignado</div>
+              <div className="text-xl font-bold text-blue-600">{formatCurrency(summary.totalAsignado || 0)}</div>
+            </Card>
+            <Card className="p-4">
+              <div className="text-sm text-gray-500">Comprometido</div>
+              <div className="text-xl font-bold text-yellow-600">{formatCurrency(summary.totalComprometido || 0)}</div>
+            </Card>
+            <Card className="p-4">
+              <div className="text-sm text-gray-500">Aprobado</div>
+              <div className="text-xl font-bold text-purple-600">{formatCurrency(summary.totalAprobado || 0)}</div>
+            </Card>
+            <Card className="p-4">
+              <div className="text-sm text-gray-500">Disponible</div>
+              <div className="text-xl font-bold text-green-600">{formatCurrency(summary.saldoDisponible || 0)}</div>
+            </Card>
+          </div>
+        )}
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
-            <TabsTrigger value="solicitudes" data-testid="tab-solicitudes">Solicitudes</TabsTrigger>
-            <TabsTrigger value="pendientes" data-testid="tab-pendientes">Pendientes</TabsTrigger>
-            <TabsTrigger value="abiertos" data-testid="tab-abiertos">Abiertos</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
+            <TabsTrigger value="asignaciones" data-testid="tab-asignaciones">Asignaciones</TabsTrigger>
+            <TabsTrigger value="activos" data-testid="tab-activos">Activos</TabsTrigger>
             <TabsTrigger value="cerrados" data-testid="tab-cerrados">Cerrados</TabsTrigger>
-            <TabsTrigger value="rechazados" data-testid="tab-rechazados">Rechazados</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="solicitudes" className="mt-4">
+          <TabsContent value="asignaciones" className="mt-4">
             {renderTable()}
           </TabsContent>
-          <TabsContent value="pendientes" className="mt-4">
-            {renderTable()}
-          </TabsContent>
-          <TabsContent value="abiertos" className="mt-4">
+          <TabsContent value="activos" className="mt-4">
             {renderTable()}
           </TabsContent>
           <TabsContent value="cerrados" className="mt-4">
-            {renderTable()}
-          </TabsContent>
-          <TabsContent value="rechazados" className="mt-4">
             {renderTable()}
           </TabsContent>
         </Tabs>
