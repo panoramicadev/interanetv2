@@ -448,7 +448,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                   <TableCell>{getEstadoBadge(fondo.estado)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      {canManageFunds && fondo.estado === 'pendiente_aprobacion' && (
+                      {canManageFunds && (fondo.estado === 'pendiente_aprobacion' || fondo.estado === 'solicitud') && (
                         <>
                           <Button
                             size="sm"
