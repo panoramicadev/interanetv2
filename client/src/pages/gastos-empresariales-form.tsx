@@ -40,7 +40,16 @@ const formSchema = z.object({
   rutProveedor: z.string().optional(),
   numeroDocumento: z.string().optional(),
   fechaEmision: z.string().optional(),
+  fundingMode: z.enum(['con_fondo', 'reembolso']).default('reembolso'),
+  fundAllocationId: z.string().optional(),
 });
+
+interface FundAllocation {
+  id: string;
+  nombre: string;
+  saldoDisponible: number;
+  montoInicial: number;
+}
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -85,7 +94,26 @@ export default function GastosEmpresarialesForm() {
       rutProveedor: "",
       numeroDocumento: "",
       fechaEmision: "",
+      fundingMode: "reembolso",
+      fundAllocationId: "",
     },
+  });
+
+  const selectedUserId = form.watch('userId');
+  const fundingMode = form.watch('fundingMode');
+
+  // Fetch user's active fund allocations
+  const { data: userFunds = [] } = useQuery<FundAllocation[]>({
+    queryKey: ['/api/fund-allocations/user', selectedUserId],
+    queryFn: async () => {
+      if (!selectedUserId) return [];
+      const response = await fetch(`/api/fund-allocations/user/${selectedUserId}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: !!selectedUserId,
   });
 
   // Establecer automáticamente el userId del usuario actual si no puede seleccionar otros
@@ -485,6 +513,100 @@ export default function GastosEmpresarialesForm() {
                     )}
                   />
                 </div>
+              </div>
+
+              {/* Origen del Fondo */}
+              <div className="space-y-4 pt-4 border-t">
+                <h3 className="font-semibold text-lg">Origen del Fondo</h3>
+                <p className="text-sm text-gray-500 -mt-2">
+                  Indica si este gasto se carga a un fondo asignado o es para reembolso
+                </p>
+                
+                <FormField
+                  control={form.control}
+                  name="fundingMode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipo de Financiamiento *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-funding-mode">
+                            <SelectValue placeholder="Seleccionar tipo" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="reembolso">
+                            💳 Solicitar Reembolso (sin fondo asignado)
+                          </SelectItem>
+                          <SelectItem value="con_fondo" disabled={userFunds.length === 0}>
+                            💰 Usar Fondo Asignado {userFunds.length === 0 ? '(No hay fondos disponibles)' : ''}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {fundingMode === 'con_fondo' && userFunds.length > 0 && (
+                  <FormField
+                    control={form.control}
+                    name="fundAllocationId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Seleccionar Fondo *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-fund-allocation">
+                              <SelectValue placeholder="Seleccionar fondo" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {userFunds.map((fund) => (
+                              <SelectItem key={fund.id} value={fund.id}>
+                                {fund.nombre} - Disponible: ${fund.saldoDisponible.toLocaleString('es-CL')}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        {field.value && (
+                          <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p className="text-sm text-blue-800">
+                              {(() => {
+                                const selectedFund = userFunds.find(f => f.id === field.value);
+                                if (!selectedFund) return null;
+                                const montoGasto = parseFloat(form.getValues('monto') || '0');
+                                const nuevoSaldo = selectedFund.saldoDisponible - montoGasto;
+                                return (
+                                  <>
+                                    <strong>Saldo disponible:</strong> ${selectedFund.saldoDisponible.toLocaleString('es-CL')}<br/>
+                                    {montoGasto > 0 && (
+                                      <>
+                                        <strong>Saldo después del gasto:</strong> ${Math.max(0, nuevoSaldo).toLocaleString('es-CL')}
+                                        {nuevoSaldo < 0 && (
+                                          <span className="text-red-600 ml-2">(Excede el saldo disponible)</span>
+                                        )}
+                                      </>
+                                    )}
+                                  </>
+                                );
+                              })()}
+                            </p>
+                          </div>
+                        )}
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {fundingMode === 'reembolso' && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-sm text-amber-800">
+                      Este gasto será procesado como solicitud de reembolso. Deberá ser aprobado por un supervisor.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Document Info */}
