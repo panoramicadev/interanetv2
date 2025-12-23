@@ -538,7 +538,7 @@ export default function GastosEmpresarialesForm() {
                               const montoUsado = fund.montoUsado ? parseFloat(String(fund.montoUsado)) : getFundUsage(fund.id);
                               const saldoReal = montoInicial - montoUsado;
                               return (
-                                <SelectItem key={fund.id} value={fund.id}>
+                                <SelectItem key={fund.id} value={fund.id} disabled={saldoReal <= 0}>
                                   {fund.nombre} - Disponible: ${saldoReal.toLocaleString('es-CL')}
                                 </SelectItem>
                               );
