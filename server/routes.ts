@@ -22,7 +22,8 @@ import {
   productosEvaluados, 
   evaluacionesTecnicas, 
   insertClientSchema, 
-  insertGastoEmpresarialSchema, 
+  insertGastoEmpresarialSchema,
+  insertFundAllocationSchema,
   insertPromesaCompraSchema, 
   insertHitoMarketingSchema, 
   nvvPendingSales, 
@@ -15087,6 +15088,197 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       res.json(data);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener datos por día', error: error.message });
+    }
+  }));
+
+  // ==================================================================================
+  // GESTIÓN DE FONDOS ROUTES
+  // ==================================================================================
+
+  // Create fund allocation (Admin/HR only)
+  app.post('/api/fund-allocations', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'Solo Admin o Recursos Humanos pueden asignar fondos' });
+      }
+      
+      const validated = insertFundAllocationSchema.parse({
+        ...req.body,
+        assignedById: user.id,
+      });
+      
+      const allocation = await storage.createFundAllocation(validated);
+      res.status(201).json(allocation);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Error al crear asignación de fondo', error: error.message });
+    }
+  }));
+
+  // Get fund allocations with filters
+  app.get('/api/fund-allocations', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { assignedToId, estado, limit, offset } = req.query;
+      
+      const filters: any = {};
+      
+      // Salesperson can only see their own allocations
+      if (user.role === 'salesperson') {
+        filters.assignedToId = user.id;
+      } else if (assignedToId) {
+        filters.assignedToId = assignedToId;
+      }
+      
+      if (estado) filters.estado = estado;
+      if (limit) filters.limit = parseInt(limit as string);
+      if (offset) filters.offset = parseInt(offset as string);
+      
+      const allocations = await storage.getFundAllocations(filters);
+      
+      // Enrich with balance info
+      const enriched = await Promise.all(
+        allocations.map(async (alloc) => {
+          const balance = await storage.getFundAllocationBalance(alloc.id);
+          return { ...alloc, ...balance };
+        })
+      );
+      
+      res.json(enriched);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener asignaciones', error: error.message });
+    }
+  }));
+
+  // Get single fund allocation with balance
+  app.get('/api/fund-allocations/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const allocation = await storage.getFundAllocationById(req.params.id);
+      
+      if (!allocation) {
+        return res.status(404).json({ message: 'Asignación no encontrada' });
+      }
+      
+      const balance = await storage.getFundAllocationBalance(allocation.id);
+      const movements = await storage.getFundMovements(allocation.id);
+      
+      res.json({ ...allocation, ...balance, movements });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener asignación', error: error.message });
+    }
+  }));
+
+  // Update fund allocation (Admin/HR only)
+  app.patch('/api/fund-allocations/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const updated = await storage.updateFundAllocation(req.params.id, req.body);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar asignación', error: error.message });
+    }
+  }));
+
+  // Close fund allocation (Admin/HR only)
+  app.post('/api/fund-allocations/:id/close', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const closed = await storage.closeFundAllocation(req.params.id);
+      res.json(closed);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al cerrar asignación', error: error.message });
+    }
+  }));
+
+  // Add adjustment to fund (Admin/HR only)
+  app.post('/api/fund-allocations/:id/adjust', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const { monto, descripcion } = req.body;
+      
+      if (!monto || typeof monto !== 'number') {
+        return res.status(400).json({ message: 'Monto requerido' });
+      }
+      
+      const movement = await storage.createFundMovement({
+        allocationId: req.params.id,
+        tipoMovimiento: 'ajuste',
+        monto: monto.toString(),
+        descripcion: descripcion || 'Ajuste manual',
+        creadoPorId: user.id,
+      });
+      
+      res.status(201).json(movement);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear ajuste', error: error.message });
+    }
+  }));
+
+  // Get movements for a fund allocation
+  app.get('/api/fund-allocations/:id/movements', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const movements = await storage.getFundMovements(req.params.id);
+      res.json(movements);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener movimientos', error: error.message });
+    }
+  }));
+
+  // Get user's active fund allocations with balances
+  app.get('/api/fund-allocations/user/:userId', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const targetUserId = req.params.userId;
+      
+      // Salesperson can only see their own
+      if (user.role === 'salesperson' && user.id !== targetUserId) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const allocations = await storage.getUserActiveFundAllocations(targetUserId);
+      res.json(allocations);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener fondos del usuario', error: error.message });
+    }
+  }));
+
+  // Get fund summary (Admin/HR sees all, others see their own)
+  app.get('/api/fund-allocations/summary/global', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { userId } = req.query;
+      
+      let targetUserId: string | undefined;
+      
+      if (user.role === 'salesperson') {
+        targetUserId = user.id;
+      } else if (userId) {
+        targetUserId = userId as string;
+      }
+      
+      const summary = await storage.getFundAllocationSummary(targetUserId);
+      res.json(summary);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener resumen de fondos', error: error.message });
     }
   }));
 
