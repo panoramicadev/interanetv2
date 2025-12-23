@@ -45,8 +45,8 @@ const formSchema = z.object({
 interface FundAllocation {
   id: string;
   nombre: string;
-  montoInicial: number;
-  montoUsado: number;
+  montoInicial: string | number;
+  montoUsado?: string | number;
 }
 
 type FormValues = z.infer<typeof formSchema>;
@@ -111,6 +111,26 @@ export default function GastosEmpresarialesForm() {
     },
     enabled: !!selectedUserId,
   });
+
+  // Fetch user's expenses to calculate fund usage
+  const { data: userExpenses = [] } = useQuery<any[]>({
+    queryKey: ['/api/gastos-empresariales', 'user', selectedUserId],
+    queryFn: async () => {
+      if (!selectedUserId) return [];
+      const response = await fetch(`/api/gastos-empresariales?userId=${selectedUserId}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: !!selectedUserId,
+  });
+
+  const getFundUsage = (fundId: string) => {
+    const fundGastos = userExpenses.filter((g: any) => g.fundAllocationId === fundId && g.estado !== 'rechazado');
+    const totalUsado = fundGastos.reduce((sum: number, g: any) => sum + parseFloat(g.monto || '0'), 0);
+    return totalUsado;
+  };
 
   // Establecer automáticamente el userId del usuario actual si no puede seleccionar otros
   useEffect(() => {
@@ -514,7 +534,9 @@ export default function GastosEmpresarialesForm() {
                           </FormControl>
                           <SelectContent>
                             {userFunds.map((fund) => {
-                              const saldoReal = (fund.montoInicial || 0) - (fund.montoUsado || 0);
+                              const montoInicial = parseFloat(String(fund.montoInicial || 0));
+                              const montoUsado = fund.montoUsado ? parseFloat(String(fund.montoUsado)) : getFundUsage(fund.id);
+                              const saldoReal = montoInicial - montoUsado;
                               return (
                                 <SelectItem key={fund.id} value={fund.id}>
                                   {fund.nombre} - Disponible: ${saldoReal.toLocaleString('es-CL')}
@@ -531,7 +553,9 @@ export default function GastosEmpresarialesForm() {
                                 const selectedFund = userFunds.find(f => f.id === field.value);
                                 if (!selectedFund) return null;
                                 const montoGasto = parseFloat(form.getValues('monto') || '0');
-                                const saldoActual = (selectedFund.montoInicial || 0) - (selectedFund.montoUsado || 0);
+                                const montoInicial = parseFloat(String(selectedFund.montoInicial || 0));
+                                const montoUsado = selectedFund.montoUsado ? parseFloat(String(selectedFund.montoUsado)) : getFundUsage(selectedFund.id);
+                                const saldoActual = montoInicial - montoUsado;
                                 const nuevoSaldo = saldoActual - montoGasto;
                                 return (
                                   <>
