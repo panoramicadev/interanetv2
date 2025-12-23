@@ -54,6 +54,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Link } from "wouter";
 import { Separator } from "@/components/ui/separator";
 import GestionFondosContent from "./gestion-fondos";
+import GastosEmpresarialesDashboard from "./gastos-empresariales-dashboard";
 
 const solicitarFondoSchema = z.object({
   monto: z.string().min(1, "El monto es requerido"),
@@ -316,7 +317,11 @@ export default function GastosEmpresariales() {
 
         {/* Main Tabs */}
         <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
+            <TabsTrigger value="dashboard" data-testid="tab-dashboard" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Dashboard
+            </TabsTrigger>
             <TabsTrigger value="rendicion" data-testid="tab-rendicion" className="flex items-center gap-2">
               <Banknote className="h-4 w-4" />
               Rendición de Gastos
@@ -327,15 +332,13 @@ export default function GastosEmpresariales() {
             </TabsTrigger>
           </TabsList>
 
+          <TabsContent value="dashboard" className="mt-4">
+            <GastosEmpresarialesDashboard embedded={true} />
+          </TabsContent>
+
           <TabsContent value="rendicion" className="mt-4 space-y-4">
             {/* Action buttons for Rendición */}
             <div className="flex gap-2 justify-end flex-wrap">
-              <Link href="/gastos-empresariales/dashboard">
-                <Button variant="outline" className="w-full sm:w-auto" data-testid="button-dashboard">
-                  <BarChart3 className="h-4 w-4 mr-2" />
-                  Dashboard
-                </Button>
-              </Link>
               <Button 
                 variant="secondary"
                 className="w-full sm:w-auto bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200" 

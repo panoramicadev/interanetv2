@@ -128,7 +128,11 @@ const CATEGORY_COLORS = [
   COLORS.danger,
 ];
 
-export default function GastosEmpresarialesDashboard() {
+interface DashboardProps {
+  embedded?: boolean;
+}
+
+export default function GastosEmpresarialesDashboard({ embedded = false }: DashboardProps) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const currentMonth = new Date().getMonth() + 1;
@@ -678,26 +682,55 @@ export default function GastosEmpresarialesDashboard() {
   const hasData = (summary?.count || 0) > 0 || fondosData.length > 0 || gastosRecientes.length > 0;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <Button
-            variant="ghost"
-            onClick={() => setLocation('/gastos-empresariales')}
-            className="mb-2"
-            data-testid="button-back"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Volver
-          </Button>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-            Dashboard de Rendición de Gastos
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Análisis y métricas de gastos empresariales
-          </p>
+    <div className={embedded ? "space-y-6" : "p-4 sm:p-6 lg:p-8 space-y-6"}>
+      {!embedded && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <Button
+              variant="ghost"
+              onClick={() => setLocation('/gastos-empresariales')}
+              className="mb-2"
+              data-testid="button-back"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Volver
+            </Button>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+              Dashboard de Rendición de Gastos
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Análisis y métricas de gastos empresariales
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button 
+              onClick={handleExportPDF}
+              variant="default"
+              disabled={!hasData || isGeneratingPDF}
+              data-testid="button-export-pdf"
+            >
+              {isGeneratingPDF ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <FileText className="h-4 w-4 mr-2" />
+              )}
+              {isGeneratingPDF ? 'Generando...' : 'Exportar PDF'}
+            </Button>
+            <Button 
+              onClick={handleExportCSV}
+              variant="outline"
+              disabled={!hasData}
+              data-testid="button-export-csv"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Exportar CSV
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-2">
+      )}
+
+      {embedded && (
+        <div className="flex gap-2 justify-end">
           <Button 
             onClick={handleExportPDF}
             variant="default"
@@ -721,7 +754,7 @@ export default function GastosEmpresarialesDashboard() {
             Exportar CSV
           </Button>
         </div>
-      </div>
+      )}
 
       <Card>
         <CardHeader className="pb-3">
