@@ -426,7 +426,7 @@ export default function GastosEmpresariales() {
                           data-testid={`fund-card-${fund.id}`}
                         >
                           <div className="flex flex-col gap-3">
-                            <div className="flex items-center justify-between">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                               <div className="flex items-center gap-3">
                                 <h4 className="font-semibold text-base text-gray-900">
                                   {fund.nombre || fund.motivo || 'Fondo sin nombre'}
@@ -444,15 +444,13 @@ export default function GastosEmpresariales() {
                               </p>
                             </div>
                             
-                            <div className="flex items-center gap-6">
-                              <div className="flex-1">
-                                <Progress 
-                                  value={Math.min(porcentajeUsado, 100)} 
-                                  className={`h-3 ${isOverBudget ? '[&>div]:bg-red-500' : '[&>div]:bg-blue-600'}`}
-                                />
-                              </div>
-                              
-                              <div className="flex items-center gap-6 text-sm whitespace-nowrap">
+                            <Progress 
+                              value={Math.min(porcentajeUsado, 100)} 
+                              className={`h-3 w-full ${isOverBudget ? '[&>div]:bg-red-500' : '[&>div]:bg-blue-600'}`}
+                            />
+                            
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                              <div className="flex flex-wrap gap-4">
                                 <span className="text-gray-600">
                                   Usado: <span className={`font-semibold ${isOverBudget ? 'text-red-600' : 'text-gray-900'}`}>
                                     ${montoUsado.toLocaleString('es-CL')}
@@ -463,12 +461,12 @@ export default function GastosEmpresariales() {
                                     ${montoInicial.toLocaleString('es-CL')}
                                   </span>
                                 </span>
-                                <span className="text-gray-600">
-                                  Disponible: <span className={`text-lg font-bold ${saldoDisponible < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                    ${saldoDisponible.toLocaleString('es-CL')}
-                                  </span>
-                                </span>
                               </div>
+                              <span className="text-gray-600">
+                                Disponible: <span className={`text-lg font-bold ${saldoDisponible < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                  ${saldoDisponible.toLocaleString('es-CL')}
+                                </span>
+                              </span>
                             </div>
                           </div>
                         </div>
