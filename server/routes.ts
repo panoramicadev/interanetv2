@@ -14866,6 +14866,15 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         userId: targetUserId,
       });
       
+      // Si es con fondos asignados, aprobar automáticamente
+      const isConFondo = validated.fundingMode === 'con_fondo' && validated.fundAllocationId;
+      if (isConFondo) {
+        validated.estado = 'aprobado';
+        validated.tipoGasto = 'Con Fondos Asignados';
+      } else {
+        validated.tipoGasto = 'Reembolso';
+      }
+      
       const gasto = await storage.createGastoEmpresarial(validated);
       
       // 🔔 Notificación automática: Nuevo gasto creado

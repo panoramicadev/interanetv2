@@ -571,7 +571,13 @@ export default function GastosEmpresariales() {
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">{gasto.categoria}</TableCell>
-                      <TableCell className="text-sm">{gasto.tipoGasto}</TableCell>
+                      <TableCell className="text-sm">
+                                        {gasto.fundingMode === 'con_fondo' ? (
+                                          <span className="text-blue-600 font-medium">Con Fondos Asignados</span>
+                                        ) : (
+                                          <span>Reembolso</span>
+                                        )}
+                                      </TableCell>
                       <TableCell className="text-right font-semibold">
                         {formatCurrency(gasto.monto)}
                       </TableCell>
