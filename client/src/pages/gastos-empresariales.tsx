@@ -45,7 +45,9 @@ import {
 } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Search, Download, Check, X, Trash2, Eye, BarChart3, FileText, ExternalLink, Banknote, HandCoins, Upload, Loader2 } from "lucide-react";
+import { Plus, Search, Download, Check, X, Trash2, Eye, BarChart3, FileText, ExternalLink, Banknote, HandCoins, Upload, Loader2, Wallet } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ImageZoomViewer } from "@/components/ui/image-zoom-viewer";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -83,8 +85,24 @@ interface GastoEmpresarial {
   supervisorId: string | null;
   fechaAprobacion: string | null;
   comentarioRechazo: string | null;
+  fundAllocationId: string | null;
+  fundingMode: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+interface FundAllocation {
+  id: string;
+  nombre: string;
+  montoInicial: string;
+  montoUsado?: string;
+  saldoDisponible?: string;
+  estado: string;
+  centroCostos: string;
+  fechaInicio: string;
+  fechaTermino: string;
+  assignedToId: string;
+  motivo?: string;
 }
 
 export default function GastosEmpresariales() {
@@ -188,6 +206,32 @@ export default function GastosEmpresariales() {
       return response.json();
     }
   });
+
+  // Fetch fondos activos del usuario para mostrar barras de progreso
+  const canViewAllFunds = user?.role === 'admin' || user?.role === 'rrhh';
+  const { data: userFundAllocations = [] } = useQuery<FundAllocation[]>({
+    queryKey: ['/api/fund-allocations', 'active', user?.id, canViewAllFunds],
+    queryFn: async () => {
+      const response = await fetch(`/api/fund-allocations?estado=activo`, {
+        credentials: 'include'
+      });
+      if (!response.ok) return [];
+      const allFunds = await response.json();
+      // Si es admin/rrhh, mostrar todos los fondos activos; si no, solo los del usuario
+      if (canViewAllFunds) {
+        return allFunds.filter((f: FundAllocation) => f.estado === 'activo');
+      }
+      return allFunds.filter((f: FundAllocation) => f.estado === 'activo' && f.assignedToId === user?.id);
+    },
+    enabled: !!user?.id,
+  });
+
+  // Calcular uso de cada fondo basado en gastos asociados
+  const getFundUsage = (fundId: string) => {
+    const fundGastos = gastos.filter(g => g.fundAllocationId === fundId && g.estado !== 'rechazado');
+    const totalUsado = fundGastos.reduce((sum, g) => sum + parseFloat(g.monto || '0'), 0);
+    return totalUsado;
+  };
 
   // Aprobar mutation
   const aprobarMutation = useMutation({
@@ -355,6 +399,84 @@ export default function GastosEmpresariales() {
                 </Button>
               </Link>
             </div>
+
+            {/* Fondos Asignados con barras de progreso */}
+            {userFundAllocations.length > 0 && (
+              <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2 text-blue-800">
+                    <Wallet className="h-5 w-5" />
+                    Fondos Asignados
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {userFundAllocations.map((fund) => {
+                      const montoInicial = parseFloat(fund.montoInicial || '0');
+                      const montoUsado = fund.montoUsado ? parseFloat(fund.montoUsado) : getFundUsage(fund.id);
+                      const saldoDisponible = montoInicial - montoUsado;
+                      const porcentajeUsado = montoInicial > 0 ? (montoUsado / montoInicial) * 100 : 0;
+                      const isOverBudget = porcentajeUsado > 100;
+                      
+                      return (
+                        <div 
+                          key={fund.id} 
+                          className="bg-white rounded-lg p-4 shadow-sm border"
+                          data-testid={`fund-card-${fund.id}`}
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-sm text-gray-900 truncate">
+                                {fund.nombre || fund.motivo || 'Fondo sin nombre'}
+                              </h4>
+                              <p className="text-xs text-gray-500">
+                                {canViewAllFunds && getColaboradorName(fund.assignedToId)}
+                                {canViewAllFunds && ' • '}{fund.centroCostos}
+                              </p>
+                            </div>
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs ${isOverBudget ? 'border-red-300 text-red-700 bg-red-50' : 'border-green-300 text-green-700 bg-green-50'}`}
+                            >
+                              {isOverBudget ? 'Excedido' : 'Activo'}
+                            </Badge>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Progress 
+                              value={Math.min(porcentajeUsado, 100)} 
+                              className={`h-2 ${isOverBudget ? '[&>div]:bg-red-500' : '[&>div]:bg-blue-600'}`}
+                            />
+                            
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-600">
+                                Usado: <span className={`font-semibold ${isOverBudget ? 'text-red-600' : 'text-gray-900'}`}>
+                                  ${montoUsado.toLocaleString('es-CL')}
+                                </span>
+                              </span>
+                              <span className="text-gray-600">
+                                Total: <span className="font-semibold text-gray-900">
+                                  ${montoInicial.toLocaleString('es-CL')}
+                                </span>
+                              </span>
+                            </div>
+                            
+                            <div className="flex justify-between items-center pt-1 border-t border-gray-100">
+                              <span className="text-xs text-gray-500">
+                                Disponible:
+                              </span>
+                              <span className={`text-sm font-bold ${saldoDisponible < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                ${saldoDisponible.toLocaleString('es-CL')}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4">
