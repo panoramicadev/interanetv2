@@ -54,14 +54,9 @@ import { Plus, Search, HandCoins, Upload, Loader2, Check, X } from "lucide-react
 const crearFondoSchema = z.object({
   presupuesto: z.string().min(1, "El presupuesto es requerido"),
   nombre: z.string().min(1, "El nombre del fondo es requerido"),
-  idContabilidad: z.string().optional(),
-  centroCostos: z.string().min(1, "El centro de costos es requerido"),
-  abonosRecurrentes: z.string().default("no"),
-  usuarioResponsable: z.string().min(1, "El usuario responsable es requerido"),
-  beneficiario: z.string().optional(),
-  participantes: z.string().optional(),
-  fechaInicio: z.string().min(1, "La fecha de inicio es requerida"),
-  fechaTermino: z.string().min(1, "La fecha de término es requerida"),
+  usuarioResponsable: z.string().min(1, "Debe seleccionar a quién asignar el fondo"),
+  fechaInicio: z.string().optional(),
+  fechaTermino: z.string().optional(),
 });
 
 const solicitarFondoSchema = z.object({
@@ -152,12 +147,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
     defaultValues: {
       presupuesto: "",
       nombre: "",
-      idContabilidad: "",
-      centroCostos: "",
-      abonosRecurrentes: "no",
       usuarioResponsable: "",
-      beneficiario: "",
-      participantes: "",
       fechaInicio: "",
       fechaTermino: "",
     },
@@ -179,11 +169,10 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
         method: 'POST',
         data: {
           nombre: data.nombre,
-          descripcion: data.idContabilidad ? `ID Contabilidad: ${data.idContabilidad}` : '',
           montoInicial: parseFloat(data.presupuesto),
           assignedToId: data.usuarioResponsable,
           fechaInicio: data.fechaInicio || null,
-          fechaFin: data.fechaTermino || null,
+          fechaTermino: data.fechaTermino || null,
         },
       });
     },
