@@ -32,9 +32,7 @@ const formSchema = z.object({
   archivoUrl: z.string().optional(),
   monto: z.string().min(1, "El monto es requerido"),
   descripcion: z.string().min(1, "La descripción es requerida"),
-  centroCostos: z.string().optional(),
   categoria: z.string().min(1, "La categoría es requerida"),
-  tipoGasto: z.string().min(1, "El tipo de gasto es requerido"),
   tipoDocumento: z.string().optional(),
   proveedor: z.string().optional(),
   rutProveedor: z.string().optional(),
@@ -86,9 +84,7 @@ export default function GastosEmpresarialesForm() {
       archivoUrl: "",
       monto: "",
       descripcion: "",
-      centroCostos: "",
       categoria: "",
-      tipoGasto: "",
       tipoDocumento: "",
       proveedor: "",
       rutProveedor: "",
@@ -467,52 +463,6 @@ export default function GastosEmpresarialesForm() {
                   )}
                 />
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="tipoGasto"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tipo de Gasto *</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-tipo-gasto">
-                              <SelectValue placeholder="Seleccionar tipo" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="Fijo">Fijo</SelectItem>
-                            <SelectItem value="Variable">Variable</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="centroCostos"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Centro de Costos</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-centro-costos">
-                              <SelectValue placeholder="Seleccionar centro" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="Maipú">Maipú</SelectItem>
-                            <SelectItem value="Concepción">Concepción</SelectItem>
-                            <SelectItem value="Lautaro">Lautaro</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
               </div>
 
               {/* Origen del Fondo */}
