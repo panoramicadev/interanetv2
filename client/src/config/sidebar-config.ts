@@ -26,8 +26,7 @@ import {
   Bell,
   Key,
   Calendar,
-  ExternalLink,
-  HandCoins
+  ExternalLink
 } from "lucide-react";
 
 interface SidebarItem {
@@ -98,11 +97,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/gastos-empresariales",
       label: "Rendición de Gastos",
       icon: Banknote,
-    },
-    {
-      href: "/gestion-fondos",
-      label: "Gestión de Fondos",
-      icon: HandCoins,
       separator: true,
     },
     {
@@ -463,11 +457,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Banknote,
     },
     {
-      href: "/gestion-fondos",
-      label: "Gestión de Fondos",
-      icon: HandCoins,
-    },
-    {
       href: "/inventario",
       label: "Inventario",
       icon: Warehouse,
@@ -559,11 +548,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/gastos-empresariales",
       label: "Rendición de Gastos",
       icon: Banknote,
-    },
-    {
-      href: "/gestion-fondos",
-      label: "Gestión de Fondos",
-      icon: HandCoins,
     },
     {
       href: "/catalogo",
@@ -892,13 +876,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/gastos-empresariales",
-      label: "Gestión de Gastos",
+      label: "Rendición de Gastos",
       icon: Banknote,
-    },
-    {
-      href: "/gestion-fondos",
-      label: "Gestión de Fondos",
-      icon: HandCoins,
     },
   ],
 };
