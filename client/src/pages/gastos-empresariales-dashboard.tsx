@@ -33,7 +33,9 @@ import {
   PieChart as PieChartIcon,
   Calendar,
   Users,
-  FolderOpen
+  FolderOpen,
+  FileText,
+  Loader2
 } from "lucide-react";
 import { useLocation } from "wouter";
 import {
@@ -50,7 +52,9 @@ import {
 } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { Bar, Pie, Doughnut, Line } from 'react-chartjs-2';
-import type { GastoEmpresarial } from "@shared/schema";
+import type { GastoEmpresarial, FundAllocation } from "@shared/schema";
+import jsPDF from 'jspdf';
+import { useToast } from "@/hooks/use-toast";
 
 ChartJS.register(
   CategoryScale,
@@ -126,14 +130,22 @@ const CATEGORY_COLORS = [
 
 export default function GastosEmpresarialesDashboard() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
   
   const [mes, setMes] = useState(currentMonth.toString());
   const [anio, setAnio] = useState(currentYear.toString());
-  const [estadoFilter, setEstadoFilter] = useState("todos");
-  const [categoriaFilter, setCategoriaFilter] = useState("todas");
   const [usuarioFilter, setUsuarioFilter] = useState("todos");
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  
+  const getDateRange = (month: string, year: string) => {
+    const m = parseInt(month);
+    const y = parseInt(year);
+    const fechaDesde = new Date(y, m - 1, 1).toISOString().split('T')[0];
+    const fechaHasta = new Date(y, m, 0).toISOString().split('T')[0];
+    return { fechaDesde, fechaHasta };
+  };
 
   const { data: summary, isLoading: isLoadingSummary } = useQuery<GastosSummary>({
     queryKey: ['/api/gastos-empresariales/analytics/summary', mes, anio],
@@ -184,21 +196,37 @@ export default function GastosEmpresarialesDashboard() {
   });
 
   const { data: gastosRecientes = [] } = useQuery<GastoEmpresarial[]>({
-    queryKey: ['/api/gastos-empresariales', estadoFilter, categoriaFilter, usuarioFilter],
+    queryKey: ['/api/gastos-empresariales', mes, anio, usuarioFilter],
     queryFn: async () => {
-      let url = '/api/gastos-empresariales?limit=10';
-      if (estadoFilter !== 'todos') {
-        url += `&estado=${estadoFilter}`;
-      }
-      if (categoriaFilter !== 'todas') {
-        url += `&categoria=${encodeURIComponent(categoriaFilter)}`;
-      }
+      const { fechaDesde, fechaHasta } = getDateRange(mes, anio);
+      let url = `/api/gastos-empresariales?fechaDesde=${fechaDesde}&fechaHasta=${fechaHasta}&limit=500`;
       if (usuarioFilter !== 'todos') {
         url += `&userId=${usuarioFilter}`;
       }
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Error al cargar gastos recientes');
       return response.json();
+    }
+  });
+
+  const { data: fondosData = [] } = useQuery<FundAllocation[]>({
+    queryKey: ['/api/fund-allocations', mes, anio, usuarioFilter],
+    queryFn: async () => {
+      let url = `/api/fund-allocations?limit=500`;
+      if (usuarioFilter !== 'todos') {
+        url += `&assignedToId=${usuarioFilter}`;
+      }
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) throw new Error('Error al cargar fondos');
+      const data = await response.json();
+      const { fechaDesde, fechaHasta } = getDateRange(mes, anio);
+      const startDate = new Date(fechaDesde);
+      const endDate = new Date(fechaHasta);
+      endDate.setHours(23, 59, 59, 999);
+      return data.filter((f: FundAllocation) => {
+        const created = new Date(f.createdAt as any);
+        return created >= startDate && created <= endDate;
+      });
     }
   });
 
@@ -362,6 +390,274 @@ export default function GastosEmpresarialesDashboard() {
     link.click();
   };
 
+  const handleExportPDF = async () => {
+    if (gastosRecientes.length === 0 && fondosData.length === 0) return;
+    
+    setIsGeneratingPDF(true);
+    try {
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 15;
+      let yPos = margin;
+      
+      const monthName = months.find(m => m.value === mes)?.label || mes;
+      
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Reporte de Rendición de Gastos', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 10;
+      
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Período: ${monthName} ${anio}`, pageWidth / 2, yPos, { align: 'center' });
+      yPos += 8;
+      doc.text(`Generado: ${new Date().toLocaleDateString('es-CL')}`, pageWidth / 2, yPos, { align: 'center' });
+      yPos += 15;
+      
+      if (summary) {
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Resumen', margin, yPos);
+        yPos += 8;
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Total Gastos: ${formatCurrency(summary.total)} (${summary.count} registros)`, margin, yPos);
+        yPos += 6;
+        doc.text(`Aprobados: ${formatCurrency(summary.totalAprobado)}`, margin, yPos);
+        yPos += 6;
+        doc.text(`Pendientes: ${formatCurrency(summary.totalPendiente)}`, margin, yPos);
+        yPos += 6;
+        doc.text(`Rechazados: ${formatCurrency(summary.totalRechazado)}`, margin, yPos);
+        yPos += 15;
+      }
+      
+      if (fondosData.length > 0) {
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Abonos / Fondos Asignados', margin, yPos);
+        yPos += 8;
+        
+        const fondoHeaders = ['Fecha', 'Monto', 'Estado', 'Asignado Por'];
+        const colWidths = [35, 35, 35, 75];
+        
+        doc.setFillColor(240, 240, 240);
+        doc.rect(margin, yPos, pageWidth - margin * 2, 8, 'F');
+        
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        let xPos = margin + 2;
+        fondoHeaders.forEach((header, i) => {
+          doc.text(header, xPos, yPos + 5);
+          xPos += colWidths[i];
+        });
+        yPos += 10;
+        
+        doc.setFont('helvetica', 'normal');
+        for (const fondo of fondosData) {
+          if (yPos > pageHeight - 30) {
+            doc.addPage();
+            yPos = margin;
+          }
+          
+          xPos = margin + 2;
+          doc.text(formatFullDate(fondo.createdAt as any), xPos, yPos);
+          xPos += colWidths[0];
+          doc.text(formatCurrency(Number(fondo.amount) || 0), xPos, yPos);
+          xPos += colWidths[1];
+          doc.text(fondo.estado || '-', xPos, yPos);
+          xPos += colWidths[2];
+          const assignedBy = (fondo as any).assignedByName || '-';
+          doc.text(String(assignedBy).substring(0, 40), xPos, yPos);
+          
+          yPos += 7;
+        }
+        yPos += 10;
+      }
+      
+      if (gastosRecientes.length > 0) {
+        if (yPos > pageHeight - 50) {
+          doc.addPage();
+          yPos = margin;
+        }
+        
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Detalle de Gastos', margin, yPos);
+        yPos += 8;
+        
+        const gastoHeaders = ['Fecha', 'Descripción', 'Categoría', 'Monto', 'Estado'];
+        const gastoColWidths = [30, 55, 35, 30, 30];
+        
+        doc.setFillColor(240, 240, 240);
+        doc.rect(margin, yPos, pageWidth - margin * 2, 8, 'F');
+        
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        let xPos = margin + 2;
+        gastoHeaders.forEach((header, i) => {
+          doc.text(header, xPos, yPos + 5);
+          xPos += gastoColWidths[i];
+        });
+        yPos += 10;
+        
+        doc.setFont('helvetica', 'normal');
+        for (const gasto of gastosRecientes) {
+          if (yPos > pageHeight - 30) {
+            doc.addPage();
+            yPos = margin;
+          }
+          
+          xPos = margin + 2;
+          doc.text(formatFullDate(gasto.createdAt as any), xPos, yPos);
+          xPos += gastoColWidths[0];
+          doc.text(String(gasto.descripcion || '-').substring(0, 30), xPos, yPos);
+          xPos += gastoColWidths[1];
+          doc.text(String(gasto.categoria || '-').substring(0, 18), xPos, yPos);
+          xPos += gastoColWidths[2];
+          doc.text(formatCurrency(Number(gasto.monto) || 0), xPos, yPos);
+          xPos += gastoColWidths[3];
+          doc.text(gasto.estado || '-', xPos, yPos);
+          
+          yPos += 7;
+        }
+      }
+      
+      const allImages: { url: string; label: string; type: 'gasto' | 'fondo' }[] = [];
+      
+      for (const fondo of fondosData) {
+        if (fondo.comprobanteUrl) {
+          allImages.push({
+            url: fondo.comprobanteUrl,
+            label: `Comprobante Fondo - ${formatCurrency(Number(fondo.amount) || 0)} - ${formatFullDate(fondo.createdAt as any)}`,
+            type: 'fondo'
+          });
+        }
+      }
+      
+      for (const gasto of gastosRecientes) {
+        if (gasto.comprobanteUrl) {
+          allImages.push({
+            url: gasto.comprobanteUrl,
+            label: `Comprobante Gasto - ${gasto.descripcion || ''} - ${formatCurrency(Number(gasto.monto) || 0)}`,
+            type: 'gasto'
+          });
+        }
+      }
+      
+      let imageErrors = 0;
+      if (allImages.length > 0) {
+        doc.addPage();
+        yPos = margin;
+        
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Comprobantes Adjuntos', pageWidth / 2, yPos, { align: 'center' });
+        yPos += 15;
+        
+        for (const img of allImages) {
+          try {
+            const isPDF = img.url.toLowerCase().endsWith('.pdf');
+            
+            if (isPDF) {
+              doc.setFontSize(10);
+              doc.setFont('helvetica', 'normal');
+              doc.text(img.label, margin, yPos);
+              yPos += 5;
+              doc.setTextColor(0, 0, 255);
+              doc.textWithLink('[Ver PDF adjunto]', margin, yPos, { url: img.url });
+              doc.setTextColor(0, 0, 0);
+              yPos += 15;
+            } else {
+              const response = await fetch(img.url);
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const blob = await response.blob();
+              const base64 = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(blob);
+              });
+              
+              let imgFormat: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
+              if (base64.includes('data:image/png')) {
+                imgFormat = 'PNG';
+              } else if (base64.includes('data:image/webp')) {
+                imgFormat = 'WEBP';
+              }
+              
+              const imgObj = new Image();
+              await new Promise((resolve, reject) => {
+                imgObj.onload = resolve;
+                imgObj.onerror = reject;
+                imgObj.src = base64;
+              });
+              
+              const maxWidth = pageWidth - margin * 2;
+              const maxHeight = 100;
+              let imgWidth = imgObj.width;
+              let imgHeight = imgObj.height;
+              
+              if (imgWidth > maxWidth) {
+                const ratio = maxWidth / imgWidth;
+                imgWidth = maxWidth;
+                imgHeight = imgHeight * ratio;
+              }
+              if (imgHeight > maxHeight) {
+                const ratio = maxHeight / imgHeight;
+                imgHeight = maxHeight;
+                imgWidth = imgWidth * ratio;
+              }
+              
+              if (yPos + imgHeight + 20 > pageHeight) {
+                doc.addPage();
+                yPos = margin;
+              }
+              
+              doc.setFontSize(9);
+              doc.setFont('helvetica', 'normal');
+              doc.text(img.label, margin, yPos);
+              yPos += 5;
+              
+              doc.addImage(base64, imgFormat, margin, yPos, imgWidth, imgHeight);
+              yPos += imgHeight + 15;
+            }
+          } catch (e) {
+            console.error('Error loading image:', img.url, e);
+            imageErrors++;
+            doc.setFontSize(9);
+            doc.text(`${img.label} - [Error al cargar imagen]`, margin, yPos);
+            yPos += 10;
+          }
+        }
+      }
+      
+      doc.save(`reporte_gastos_${anio}_${mes}.pdf`);
+      
+      if (imageErrors > 0) {
+        toast({
+          title: "PDF generado con advertencias",
+          description: `El reporte se descargó, pero ${imageErrors} imagen${imageErrors > 1 ? 'es' : ''} no ${imageErrors > 1 ? 'pudieron' : 'pudo'} cargarse.`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "PDF generado",
+          description: "El reporte ha sido descargado exitosamente.",
+        });
+      }
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast({
+        title: "Error al generar PDF",
+        description: "Hubo un problema al generar el reporte. Por favor, intente nuevamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
   const months = [
     { value: '1', label: 'Enero' },
     { value: '2', label: 'Febrero' },
@@ -379,7 +675,7 @@ export default function GastosEmpresarialesDashboard() {
 
   const years = Array.from({ length: 5 }, (_, i) => (currentYear - i).toString());
 
-  const hasData = (summary?.count || 0) > 0;
+  const hasData = (summary?.count || 0) > 0 || fondosData.length > 0 || gastosRecientes.length > 0;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
@@ -401,15 +697,30 @@ export default function GastosEmpresarialesDashboard() {
             Análisis y métricas de gastos empresariales
           </p>
         </div>
-        <Button 
-          onClick={handleExportCSV}
-          variant="outline"
-          disabled={!hasData}
-          data-testid="button-export-csv"
-        >
-          <Download className="h-4 w-4 mr-2" />
-          Exportar CSV
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={handleExportPDF}
+            variant="default"
+            disabled={!hasData || isGeneratingPDF}
+            data-testid="button-export-pdf"
+          >
+            {isGeneratingPDF ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <FileText className="h-4 w-4 mr-2" />
+            )}
+            {isGeneratingPDF ? 'Generando...' : 'Exportar PDF'}
+          </Button>
+          <Button 
+            onClick={handleExportCSV}
+            variant="outline"
+            disabled={!hasData}
+            data-testid="button-export-csv"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Exportar CSV
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -444,36 +755,6 @@ export default function GastosEmpresarialesDashboard() {
                     <SelectItem key={year} value={year}>
                       {year}
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-gray-500" />
-              <Select value={estadoFilter} onValueChange={setEstadoFilter}>
-                <SelectTrigger className="w-[140px]" data-testid="select-estado">
-                  <SelectValue placeholder="Estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  <SelectItem value="pendiente">Pendiente</SelectItem>
-                  <SelectItem value="aprobado">Aprobado</SelectItem>
-                  <SelectItem value="rechazado">Rechazado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <FolderOpen className="h-4 w-4 text-gray-500" />
-              <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
-                <SelectTrigger className="w-[160px]" data-testid="select-categoria">
-                  <SelectValue placeholder="Categoría" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todas">Todas</SelectItem>
-                  {CATEGORIAS.map(cat => (
-                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -559,7 +840,7 @@ export default function GastosEmpresarialesDashboard() {
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5" />
-            Últimos 10 Gastos Registrados
+            Gastos del Período ({gastosRecientes.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
