@@ -45,8 +45,8 @@ const formSchema = z.object({
 interface FundAllocation {
   id: string;
   nombre: string;
-  saldoDisponible: number;
   montoInicial: number;
+  montoUsado: number;
 }
 
 type FormValues = z.infer<typeof formSchema>;
@@ -513,11 +513,14 @@ export default function GastosEmpresarialesForm() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {userFunds.map((fund) => (
-                              <SelectItem key={fund.id} value={fund.id}>
-                                {fund.nombre} - Disponible: ${fund.saldoDisponible.toLocaleString('es-CL')}
-                              </SelectItem>
-                            ))}
+                            {userFunds.map((fund) => {
+                              const saldoReal = (fund.montoInicial || 0) - (fund.montoUsado || 0);
+                              return (
+                                <SelectItem key={fund.id} value={fund.id}>
+                                  {fund.nombre} - Disponible: ${saldoReal.toLocaleString('es-CL')}
+                                </SelectItem>
+                              );
+                            })}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -528,10 +531,11 @@ export default function GastosEmpresarialesForm() {
                                 const selectedFund = userFunds.find(f => f.id === field.value);
                                 if (!selectedFund) return null;
                                 const montoGasto = parseFloat(form.getValues('monto') || '0');
-                                const nuevoSaldo = selectedFund.saldoDisponible - montoGasto;
+                                const saldoActual = (selectedFund.montoInicial || 0) - (selectedFund.montoUsado || 0);
+                                const nuevoSaldo = saldoActual - montoGasto;
                                 return (
                                   <>
-                                    <strong>Saldo disponible:</strong> ${selectedFund.saldoDisponible.toLocaleString('es-CL')}<br/>
+                                    <strong>Saldo disponible:</strong> ${saldoActual.toLocaleString('es-CL')}<br/>
                                     {montoGasto > 0 && (
                                       <>
                                         <strong>Saldo después del gasto:</strong> ${Math.max(0, nuevoSaldo).toLocaleString('es-CL')}
