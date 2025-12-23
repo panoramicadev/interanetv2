@@ -411,7 +411,7 @@ export default function GastosEmpresariales() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 w-full">
+                  <div className="flex flex-col gap-3 w-full">
                     {userFundAllocations.map((fund) => {
                       const montoInicial = parseFloat(fund.montoInicial || '0');
                       const montoUsado = fund.montoUsado ? parseFloat(fund.montoUsado) : getFundUsage(fund.id);
@@ -422,51 +422,51 @@ export default function GastosEmpresariales() {
                       return (
                         <div 
                           key={fund.id} 
-                          className="bg-white rounded-lg p-4 shadow-sm border"
+                          className="bg-white rounded-lg p-4 shadow-sm border w-full"
                           data-testid={`fund-card-${fund.id}`}
                         >
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex-1">
-                              <h4 className="font-semibold text-sm text-gray-900 truncate">
-                                {fund.nombre || fund.motivo || 'Fondo sin nombre'}
-                              </h4>
-                              <p className="text-xs text-gray-500">
-                                {canViewAllFunds && getColaboradorName(fund.assignedToId)}
-                                {canViewAllFunds && ' • '}{fund.centroCostos}
-                              </p>
-                            </div>
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs ${isOverBudget ? 'border-red-300 text-red-700 bg-red-50' : 'border-green-300 text-green-700 bg-green-50'}`}
-                            >
-                              {isOverBudget ? 'Excedido' : 'Activo'}
-                            </Badge>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Progress 
-                              value={Math.min(porcentajeUsado, 100)} 
-                              className={`h-2 ${isOverBudget ? '[&>div]:bg-red-500' : '[&>div]:bg-blue-600'}`}
-                            />
-                            
-                            <div className="flex justify-between text-xs">
-                              <span className="text-gray-600">
-                                Usado: <span className={`font-semibold ${isOverBudget ? 'text-red-600' : 'text-gray-900'}`}>
-                                  ${montoUsado.toLocaleString('es-CL')}
-                                </span>
-                              </span>
-                              <span className="text-gray-600">
-                                Total: <span className="font-semibold text-gray-900">
-                                  ${montoInicial.toLocaleString('es-CL')}
-                                </span>
-                              </span>
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                            <div className="flex items-start justify-between sm:flex-1">
+                              <div className="flex-1">
+                                <h4 className="font-semibold text-base text-gray-900">
+                                  {fund.nombre || fund.motivo || 'Fondo sin nombre'}
+                                </h4>
+                                <p className="text-sm text-gray-500">
+                                  {canViewAllFunds && getColaboradorName(fund.assignedToId)}
+                                  {canViewAllFunds && ' • '}{fund.centroCostos}
+                                </p>
+                              </div>
+                              <Badge 
+                                variant="outline" 
+                                className={`text-xs ${isOverBudget ? 'border-red-300 text-red-700 bg-red-50' : 'border-green-300 text-green-700 bg-green-50'}`}
+                              >
+                                {isOverBudget ? 'Excedido' : 'Activo'}
+                              </Badge>
                             </div>
                             
-                            <div className="flex justify-between items-center pt-1 border-t border-gray-100">
-                              <span className="text-xs text-gray-500">
-                                Disponible:
-                              </span>
-                              <span className={`text-sm font-bold ${saldoDisponible < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            <div className="flex-1 space-y-2">
+                              <Progress 
+                                value={Math.min(porcentajeUsado, 100)} 
+                                className={`h-3 ${isOverBudget ? '[&>div]:bg-red-500' : '[&>div]:bg-blue-600'}`}
+                              />
+                              
+                              <div className="flex justify-between text-sm">
+                                <span className="text-gray-600">
+                                  Usado: <span className={`font-semibold ${isOverBudget ? 'text-red-600' : 'text-gray-900'}`}>
+                                    ${montoUsado.toLocaleString('es-CL')}
+                                  </span>
+                                </span>
+                                <span className="text-gray-600">
+                                  Total: <span className="font-semibold text-gray-900">
+                                    ${montoInicial.toLocaleString('es-CL')}
+                                  </span>
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-2 sm:min-w-[140px] justify-end">
+                              <span className="text-sm text-gray-500">Disponible:</span>
+                              <span className={`text-lg font-bold ${saldoDisponible < 0 ? 'text-red-600' : 'text-green-600'}`}>
                                 ${saldoDisponible.toLocaleString('es-CL')}
                               </span>
                             </div>
