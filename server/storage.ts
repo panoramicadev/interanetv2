@@ -1789,6 +1789,8 @@ export interface IStorage {
   getFundAllocationById(id: string): Promise<FundAllocation | undefined>;
   updateFundAllocation(id: string, updates: Partial<InsertFundAllocation>): Promise<FundAllocation>;
   closeFundAllocation(id: string): Promise<FundAllocation>;
+  approveFundAllocation(id: string, comprobanteUrl: string, aprobadoPorId: string): Promise<FundAllocation>;
+  rejectFundAllocation(id: string, motivoRechazo: string, rechazadoPorId: string): Promise<FundAllocation>;
   
   createFundMovement(movement: InsertFundMovement): Promise<FundMovement>;
   getFundMovements(allocationId: string): Promise<FundMovement[]>;
@@ -19552,6 +19554,36 @@ export class DatabaseStorage implements IStorage {
       .where(eq(fundAllocations.id, id))
       .returning();
     return closed;
+  }
+
+  async approveFundAllocation(id: string, comprobanteUrl: string, aprobadoPorId: string): Promise<FundAllocation> {
+    const [approved] = await db
+      .update(fundAllocations)
+      .set({ 
+        estado: 'activo', 
+        comprobanteUrl,
+        aprobadoPorId,
+        fechaAprobacion: new Date(),
+        updatedAt: new Date() 
+      })
+      .where(eq(fundAllocations.id, id))
+      .returning();
+    return approved;
+  }
+
+  async rejectFundAllocation(id: string, motivoRechazo: string, rechazadoPorId: string): Promise<FundAllocation> {
+    const [rejected] = await db
+      .update(fundAllocations)
+      .set({ 
+        estado: 'rechazado', 
+        motivoRechazo,
+        aprobadoPorId: rechazadoPorId,
+        fechaAprobacion: new Date(),
+        updatedAt: new Date() 
+      })
+      .where(eq(fundAllocations.id, id))
+      .returning();
+    return rejected;
   }
 
   async createFundMovement(movement: InsertFundMovement): Promise<FundMovement> {

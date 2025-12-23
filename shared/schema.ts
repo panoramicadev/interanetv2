@@ -4530,9 +4530,13 @@ export const fundAllocations = pgTable("fund_allocations", {
   motivo: text("motivo"), // Motivo de la asignación
   montoInicial: numeric("monto_inicial", { precision: 15, scale: 2 }).notNull(), // Monto asignado
   centroCostos: varchar("centro_costos", { length: 255 }),
-  fechaInicio: date("fecha_inicio").notNull(),
-  fechaTermino: date("fecha_termino").notNull(),
-  estado: varchar("estado", { length: 50 }).notNull().default("activo"), // activo, cerrado, cancelado
+  fechaInicio: date("fecha_inicio"),
+  fechaTermino: date("fecha_termino"),
+  estado: varchar("estado", { length: 50 }).notNull().default("pendiente_aprobacion"), // pendiente_aprobacion, activo, cerrado, rechazado
+  comprobanteUrl: varchar("comprobante_url", { length: 500 }), // URL del comprobante de transferencia (para aprobar)
+  motivoRechazo: text("motivo_rechazo"), // Motivo del rechazo (si es rechazado)
+  aprobadoPorId: varchar("aprobado_por_id"), // Usuario que aprobó/rechazó
+  fechaAprobacion: timestamp("fecha_aprobacion"), // Fecha de aprobación/rechazo
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -4567,14 +4571,30 @@ export const insertFundAllocationSchema = createInsertSchema(fundAllocations).om
   id: true,
   createdAt: true,
   updatedAt: true,
+  fechaAprobacion: true,
+  aprobadoPorId: true,
 }).extend({
   montoInicial: z.string().or(z.number()).transform(val => typeof val === 'string' ? parseFloat(val) : val),
   nombre: z.string().min(1, "El nombre del fondo es requerido"),
   assignedToId: z.string().min(1, "El beneficiario es requerido"),
   assignedById: z.string().min(1, "El usuario asignador es requerido"),
-  fechaInicio: z.string().or(z.date()).transform(val => typeof val === 'string' ? new Date(val) : val),
-  fechaTermino: z.string().or(z.date()).transform(val => typeof val === 'string' ? new Date(val) : val),
-  estado: z.enum(["activo", "cerrado", "cancelado"]).default("activo"),
+  fechaInicio: z.string().or(z.date()).optional().nullable().transform(val => val ? (typeof val === 'string' ? new Date(val) : val) : null),
+  fechaTermino: z.string().or(z.date()).optional().nullable().transform(val => val ? (typeof val === 'string' ? new Date(val) : val) : null),
+  estado: z.enum(["pendiente_aprobacion", "activo", "cerrado", "rechazado"]).default("pendiente_aprobacion"),
+});
+
+// Schema para aprobar asignación de fondo
+export const approveFundAllocationSchema = z.object({
+  allocationId: z.string().min(1, "El ID de la asignación es requerido"),
+  comprobanteUrl: z.string().min(1, "El comprobante de transferencia es requerido"),
+  aprobadoPorId: z.string().min(1, "El usuario aprobador es requerido"),
+});
+
+// Schema para rechazar asignación de fondo
+export const rejectFundAllocationSchema = z.object({
+  allocationId: z.string().min(1, "El ID de la asignación es requerido"),
+  motivoRechazo: z.string().min(1, "El motivo del rechazo es requerido"),
+  rechazadoPorId: z.string().min(1, "El usuario que rechaza es requerido"),
 });
 
 export const insertFundMovementSchema = createInsertSchema(fundMovements).omit({
