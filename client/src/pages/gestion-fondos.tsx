@@ -484,13 +484,13 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
         </Tabs>
       </div>
 
-      {/* Dialog Crear Fondo */}
+      {/* Dialog Asignar Fondo */}
       <Dialog open={showCrearFondoDialog} onOpenChange={setShowCrearFondoDialog}>
-        <DialogContent className="max-w-2xl overflow-y-auto max-h-[90vh]">
+        <DialogContent className="max-w-md overflow-y-auto max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle>Crear nuevo Fondo</DialogTitle>
+            <DialogTitle>Asignar Fondo</DialogTitle>
             <DialogDescription>
-              Complete los datos para configurar el presupuesto y asignaciones.
+              Asigna un monto a un vendedor o supervisor.
             </DialogDescription>
           </DialogHeader>
 
@@ -519,156 +519,54 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                 )}
               />
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField
-                  control={crearFondoForm.control}
-                  name="nombre"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nombre del Fondo</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Ej: Fondos por rendir Diciembre 2025"
-                          {...field}
-                          data-testid="input-nombre-fondo"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={crearFondoForm.control}
-                  name="idContabilidad"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>ID de Contabilidad</FormLabel>
-                      <FormControl>
-                        <Input {...field} data-testid="input-id-contabilidad" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={crearFondoForm.control}
-                  name="centroCostos"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Centro de Costos</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-centro-costos-crear">
-                            <SelectValue placeholder="Seleccionar..." />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Maipú">Maipú</SelectItem>
-                          <SelectItem value="Concepción">Concepción</SelectItem>
-                          <SelectItem value="Lautaro">Lautaro</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={crearFondoForm.control}
-                  name="abonosRecurrentes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Abonos Recurrentes</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-abonos">
-                            <SelectValue placeholder="Seleccionar..." />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="No">No</SelectItem>
-                          <SelectItem value="Sí">Sí</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="border-t border-gray-200" />
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField
-                  control={crearFondoForm.control}
-                  name="usuarioResponsable"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Usuario Responsable</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-responsable">
-                            <SelectValue placeholder="Asignar responsable..." />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="u1">Juan Pérez</SelectItem>
-                          <SelectItem value="u2">María González</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={crearFondoForm.control}
-                  name="beneficiario"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Beneficiario</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-beneficiario">
-                            <SelectValue placeholder="Asignar beneficiario..." />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Externo">Externo</SelectItem>
-                          <SelectItem value="Solicitante">Solicitante</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={crearFondoForm.control}
+                name="nombre"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre del Fondo</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Ej: Fondos por rendir Diciembre 2025"
+                        {...field}
+                        data-testid="input-nombre-fondo"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={crearFondoForm.control}
-                name="participantes"
+                name="usuarioResponsable"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Participantes (Opcional)</FormLabel>
+                    <FormLabel>Asignado a:</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
-                        <SelectTrigger data-testid="select-participantes">
-                          <SelectValue placeholder="Agregar participantes..." />
+                        <SelectTrigger data-testid="select-asignado-a">
+                          <SelectValue placeholder="Seleccionar vendedor o supervisor..." />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="team1">Equipo de Desarrollo</SelectItem>
-                        <SelectItem value="team2">Equipo de Marketing</SelectItem>
+                        {salespeople.map((person: any) => {
+                          const displayName = person.salespersonName || person.email || 'Usuario';
+                          const formattedName = displayName.split(' ').map((word: string) => 
+                            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+                          ).join(' ');
+                          return (
+                            <SelectItem key={person.id} value={person.id}>
+                              {formattedName}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
-              <div className="border-t border-gray-200" />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
@@ -706,20 +604,20 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                   variant="outline" 
                   onClick={() => setShowCrearFondoDialog(false)}
                 >
-                  Cerrar
+                  Cancelar
                 </Button>
                 <Button 
                   type="submit" 
                   disabled={crearFondoMutation.isPending}
-                  data-testid="button-submit-crear-fondo"
+                  data-testid="button-submit-asignar-fondo"
                 >
                   {crearFondoMutation.isPending ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Creando...
+                      Asignando...
                     </>
                   ) : (
-                    'Crear Fondo'
+                    'Asignar Fondo'
                   )}
                 </Button>
               </DialogFooter>
