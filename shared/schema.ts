@@ -4649,7 +4649,7 @@ export const insertGastoEmpresarialSchema = createInsertSchema(gastosEmpresarial
   descripcion: z.string().min(1, "La descripción es requerida"),
   userId: z.string().min(1, "El usuario es requerido"),
   categoria: z.string().min(1, "La categoría es requerida"),
-  tipoGasto: z.string().min(1, "El tipo de gasto es requerido"),
+  tipoGasto: z.string().default("Reembolso").optional(),
   estado: z.enum(["pendiente", "aprobado", "rechazado"]).default("pendiente"),
   fechaEmision: z.string().or(z.date()).transform(val => 
     typeof val === 'string' ? new Date(val) : val

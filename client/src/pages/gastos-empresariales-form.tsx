@@ -126,6 +126,7 @@ export default function GastosEmpresarialesForm() {
         data: {
           ...data,
           monto: parseFloat(data.monto),
+          tipoGasto: "Reembolso",
         },
       });
     },
