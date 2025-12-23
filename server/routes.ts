@@ -15208,6 +15208,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/fund-allocations/:id/approve', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
+      console.log('[APPROVE FUND] Request received:', { id: req.params.id, comprobanteUrl: req.body.comprobanteUrl, userId: user.id });
       
       if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
@@ -15220,8 +15221,10 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       }
       
       const approved = await storage.approveFundAllocation(req.params.id, comprobanteUrl, user.id);
+      console.log('[APPROVE FUND] Result:', approved);
       res.json(approved);
     } catch (error: any) {
+      console.error('[APPROVE FUND] Error:', error);
       res.status(500).json({ message: 'Error al aprobar asignación', error: error.message });
     }
   }));
