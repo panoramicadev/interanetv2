@@ -870,11 +870,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
 
   recursos_humanos: [
     {
-      href: "/gastos-empresariales/dashboard",
-      label: "Dashboard Gastos",
-      icon: LayoutDashboard,
-    },
-    {
       href: "/gastos-empresariales",
       label: "Rendición de Gastos",
       icon: Banknote,

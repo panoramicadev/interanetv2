@@ -138,8 +138,9 @@ function Router() {
                   // Roles de mantención van al módulo de mantenciones
                   return <MantencionesPage />;
                 case 'recursos_humanos':
-                  // Recursos humanos va directamente al dashboard de rendición de gastos
-                  return <GastosEmpresarialesDashboard />;
+                  // Recursos humanos va directamente a la gestión de gastos
+                  window.location.replace('/gastos-empresariales');
+                  return null;
                 case 'produccion':
                 case 'planificacion':
                 case 'bodega_materias_primas':
