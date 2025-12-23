@@ -145,8 +145,9 @@ export default function GastosEmpresariales() {
     },
     onSuccess: () => {
       toast({
-        title: "Solicitud enviada",
-        description: "Tu solicitud de fondo ha sido enviada para aprobación.",
+        title: "Solicitud enviada correctamente",
+        description: "Tu solicitud ha sido procesada exitosamente. Verás el fondo asignado en caso de ser aprobada por el administrador del sistema.",
+        duration: 6000,
       });
       queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations'] });
       queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations/summary/global'] });
