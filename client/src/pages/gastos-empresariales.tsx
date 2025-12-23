@@ -383,7 +383,7 @@ export default function GastosEmpresariales() {
 
           <TabsContent value="rendicion" className="mt-4 space-y-4">
             {/* Action buttons for Rendición */}
-            <div className="flex gap-2 justify-end flex-wrap">
+            <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
               <Button 
                 variant="secondary"
                 className="w-full sm:w-auto bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200" 
@@ -393,8 +393,8 @@ export default function GastosEmpresariales() {
                 <HandCoins className="h-4 w-4 mr-2" />
                 Solicitar Fondo
               </Button>
-              <Link href="/gastos-empresariales/nuevo">
-                <Button className="w-full sm:w-auto" data-testid="button-add-gasto">
+              <Link href="/gastos-empresariales/nuevo" className="w-full sm:w-auto">
+                <Button className="w-full" data-testid="button-add-gasto">
                   <Plus className="h-4 w-4 mr-2" />
                   Añadir Gasto
                 </Button>
