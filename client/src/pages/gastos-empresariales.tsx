@@ -425,32 +425,34 @@ export default function GastosEmpresariales() {
                           className="bg-white rounded-lg p-4 shadow-sm border w-full"
                           data-testid={`fund-card-${fund.id}`}
                         >
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                            <div className="flex items-start justify-between sm:flex-1">
-                              <div className="flex-1">
+                          <div className="flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
                                 <h4 className="font-semibold text-base text-gray-900">
                                   {fund.nombre || fund.motivo || 'Fondo sin nombre'}
                                 </h4>
-                                <p className="text-sm text-gray-500">
-                                  {canViewAllFunds && getColaboradorName(fund.assignedToId)}
-                                  {canViewAllFunds && ' • '}{fund.centroCostos}
-                                </p>
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs ${isOverBudget ? 'border-red-300 text-red-700 bg-red-50' : 'border-green-300 text-green-700 bg-green-50'}`}
+                                >
+                                  {isOverBudget ? 'Excedido' : 'Activo'}
+                                </Badge>
                               </div>
-                              <Badge 
-                                variant="outline" 
-                                className={`text-xs ${isOverBudget ? 'border-red-300 text-red-700 bg-red-50' : 'border-green-300 text-green-700 bg-green-50'}`}
-                              >
-                                {isOverBudget ? 'Excedido' : 'Activo'}
-                              </Badge>
+                              <p className="text-sm text-gray-500">
+                                {canViewAllFunds && getColaboradorName(fund.assignedToId)}
+                                {canViewAllFunds && ' • '}{fund.centroCostos}
+                              </p>
                             </div>
                             
-                            <div className="flex-1 space-y-2">
-                              <Progress 
-                                value={Math.min(porcentajeUsado, 100)} 
-                                className={`h-3 ${isOverBudget ? '[&>div]:bg-red-500' : '[&>div]:bg-blue-600'}`}
-                              />
+                            <div className="flex items-center gap-6">
+                              <div className="flex-1">
+                                <Progress 
+                                  value={Math.min(porcentajeUsado, 100)} 
+                                  className={`h-3 ${isOverBudget ? '[&>div]:bg-red-500' : '[&>div]:bg-blue-600'}`}
+                                />
+                              </div>
                               
-                              <div className="flex justify-between text-sm">
+                              <div className="flex items-center gap-6 text-sm whitespace-nowrap">
                                 <span className="text-gray-600">
                                   Usado: <span className={`font-semibold ${isOverBudget ? 'text-red-600' : 'text-gray-900'}`}>
                                     ${montoUsado.toLocaleString('es-CL')}
@@ -461,14 +463,12 @@ export default function GastosEmpresariales() {
                                     ${montoInicial.toLocaleString('es-CL')}
                                   </span>
                                 </span>
+                                <span className="text-gray-600">
+                                  Disponible: <span className={`text-lg font-bold ${saldoDisponible < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                    ${saldoDisponible.toLocaleString('es-CL')}
+                                  </span>
+                                </span>
                               </div>
-                            </div>
-                            
-                            <div className="flex items-center gap-2 sm:min-w-[140px] justify-end">
-                              <span className="text-sm text-gray-500">Disponible:</span>
-                              <span className={`text-lg font-bold ${saldoDisponible < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                ${saldoDisponible.toLocaleString('es-CL')}
-                              </span>
                             </div>
                           </div>
                         </div>
