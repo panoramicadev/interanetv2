@@ -279,7 +279,10 @@ function Router() {
             <Route path="/marketing" component={Marketing} />
             <Route path="/inventario" component={Inventario} />
             <Route path="/gastos-empresariales" component={GastosEmpresariales} />
-            <Route path="/gestion-fondos" component={GestionFondos} />
+            <Route path="/gestion-fondos" component={() => {
+              window.location.replace('/gastos-empresariales');
+              return null;
+            }} />
             <Route path="/notificaciones" component={Notificaciones} />
             <Route path="/api-keys" component={ApiKeysPage} />
             <Route path="/gastos-empresariales/nuevo" component={GastosEmpresarialesForm} />

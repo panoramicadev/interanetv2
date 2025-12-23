@@ -25,9 +25,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Search, Download, Check, X, Trash2, Eye, BarChart3, FileText, ExternalLink } from "lucide-react";
+import { Plus, Search, Download, Check, X, Trash2, Eye, BarChart3, FileText, ExternalLink, Banknote, HandCoins } from "lucide-react";
 import { ImageZoomViewer } from "@/components/ui/image-zoom-viewer";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -35,6 +41,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Link } from "wouter";
 import { Separator } from "@/components/ui/separator";
+import GestionFondosContent from "./gestion-fondos";
 
 interface GastoEmpresarial {
   id: string;
@@ -217,6 +224,8 @@ export default function GastosEmpresariales() {
     return gasto.userId === user?.id && gasto.estado === 'pendiente' || user?.role === 'admin';
   };
 
+  const [activeMainTab, setActiveMainTab] = useState("rendicion");
+
   return (
     <>
       <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
@@ -224,25 +233,41 @@ export default function GastosEmpresariales() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Rendición de Gastos</h1>
-            <p className="text-sm text-gray-500 mt-1">Gestiona y controla la rendición de gastos</p>
-          </div>
-          <div className="flex gap-2">
-            <Link href="/gastos-empresariales/dashboard">
-              <Button variant="outline" className="w-full sm:w-auto" data-testid="button-dashboard">
-                <BarChart3 className="h-4 w-4 mr-2" />
-                Dashboard
-              </Button>
-            </Link>
-            <Link href="/gastos-empresariales/nuevo">
-              <Button className="w-full sm:w-auto" data-testid="button-add-gasto">
-                <Plus className="h-4 w-4 mr-2" />
-                Añadir Gasto
-              </Button>
-            </Link>
+            <p className="text-sm text-gray-500 mt-1">Gestiona y controla la rendición de gastos y fondos</p>
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Main Tabs */}
+        <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 lg:w-auto lg:inline-grid">
+            <TabsTrigger value="rendicion" data-testid="tab-rendicion" className="flex items-center gap-2">
+              <Banknote className="h-4 w-4" />
+              Rendición de Gastos
+            </TabsTrigger>
+            <TabsTrigger value="fondos" data-testid="tab-fondos" className="flex items-center gap-2">
+              <HandCoins className="h-4 w-4" />
+              Gestión de Fondos
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="rendicion" className="mt-4 space-y-4">
+            {/* Action buttons for Rendición */}
+            <div className="flex gap-2 justify-end">
+              <Link href="/gastos-empresariales/dashboard">
+                <Button variant="outline" className="w-full sm:w-auto" data-testid="button-dashboard">
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  Dashboard
+                </Button>
+              </Link>
+              <Link href="/gastos-empresariales/nuevo">
+                <Button className="w-full sm:w-auto" data-testid="button-add-gasto">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Añadir Gasto
+                </Button>
+              </Link>
+            </div>
+
+            {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -408,6 +433,12 @@ export default function GastosEmpresariales() {
             </Table>
           </div>
         </div>
+          </TabsContent>
+
+          <TabsContent value="fondos" className="mt-4">
+            <GestionFondosContent embedded={true} />
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Detail Dialog */}

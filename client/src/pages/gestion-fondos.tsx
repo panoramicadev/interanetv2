@@ -73,7 +73,11 @@ const solicitarFondoSchema = z.object({
 type CrearFondoFormData = z.infer<typeof crearFondoSchema>;
 type SolicitarFondoFormData = z.infer<typeof solicitarFondoSchema>;
 
-export default function GestionFondos() {
+interface GestionFondosProps {
+  embedded?: boolean;
+}
+
+export default function GestionFondos({ embedded = false }: GestionFondosProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
@@ -305,13 +309,15 @@ export default function GestionFondos() {
 
   return (
     <>
-      <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
+      <div className={embedded ? "space-y-4" : "p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6"}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Gestión de Fondos</h1>
-            <p className="text-sm text-gray-500 mt-1">Administra solicitudes y asignación de fondos</p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2">
+          {!embedded && (
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Gestión de Fondos</h1>
+              <p className="text-sm text-gray-500 mt-1">Administra solicitudes y asignación de fondos</p>
+            </div>
+          )}
+          <div className={`flex flex-col sm:flex-row gap-2 ${embedded ? 'ml-auto' : ''}`}>
             <Button 
               className="w-full sm:w-auto" 
               data-testid="button-crear-fondo"
