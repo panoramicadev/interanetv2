@@ -363,15 +363,15 @@ export default function GastosEmpresariales() {
         {/* Main Tabs */}
         <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
           <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap pb-2 lg:pb-0 lg:grid lg:w-auto lg:grid-cols-3">
-            <TabsTrigger value="dashboard" data-testid="tab-dashboard" className="flex items-center gap-2">
+            <TabsTrigger value="dashboard" data-testid="tab-dashboard" className="flex items-center gap-2 flex-shrink-0">
               <BarChart3 className="h-4 w-4" />
               Dashboard
             </TabsTrigger>
-            <TabsTrigger value="rendicion" data-testid="tab-rendicion" className="flex items-center gap-2">
+            <TabsTrigger value="rendicion" data-testid="tab-rendicion" className="flex items-center gap-2 flex-shrink-0">
               <Banknote className="h-4 w-4" />
               Rendición de Gastos
             </TabsTrigger>
-            <TabsTrigger value="fondos" data-testid="tab-fondos" className="flex items-center gap-2">
+            <TabsTrigger value="fondos" data-testid="tab-fondos" className="flex items-center gap-2 flex-shrink-0">
               <HandCoins className="h-4 w-4" />
               Gestión de Fondos
             </TabsTrigger>
@@ -936,7 +936,7 @@ export default function GastosEmpresariales() {
 
       {/* Dialog Solicitar Fondo */}
       <Dialog open={showSolicitarFondoDialog} onOpenChange={setShowSolicitarFondoDialog}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-md overflow-y-auto max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Solicitar Fondo</DialogTitle>
             <DialogDescription>
