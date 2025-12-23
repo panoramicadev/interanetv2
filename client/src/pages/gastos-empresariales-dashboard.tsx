@@ -139,7 +139,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
   const { user } = useAuth();
   const currentMonth = new Date().getMonth() + 1;
   
-  const canExport = user?.role && !['Salesperson', 'Vendedor'].includes(user.role);
+  const canExport = user?.role && !['salesperson', 'Salesperson', 'Vendedor', 'vendedor'].includes(user.role);
   const currentYear = new Date().getFullYear();
   
   const [mes, setMes] = useState(currentMonth.toString());
