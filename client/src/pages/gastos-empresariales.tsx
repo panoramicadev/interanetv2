@@ -129,7 +129,8 @@ export default function GastosEmpresariales() {
         title: "Solicitud enviada",
         description: "Tu solicitud de fondo ha sido enviada para aprobación.",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/fondos'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations/summary/global'] });
       setShowSolicitarFondoDialog(false);
       solicitarFondoForm.reset();
       setUploadedFiles([]);
