@@ -105,6 +105,8 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
   const [approveFile, setApproveFile] = useState<File | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [isUploadingApproval, setIsUploadingApproval] = useState(false);
+  const [showComprobanteModal, setShowComprobanteModal] = useState(false);
+  const [comprobanteUrl, setComprobanteUrl] = useState<string | null>(null);
 
   const canManageFunds = user?.role === 'admin' || user?.role === 'recursos_humanos';
 
@@ -1163,15 +1165,16 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                 {selectedAllocation.comprobanteUrl && (
                   <div className="flex flex-col gap-1">
                     <span className="text-sm text-gray-500">Comprobante de Transferencia:</span>
-                    <a 
-                      href={selectedAllocation.comprobanteUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                    <button 
+                      onClick={() => {
+                        setComprobanteUrl(selectedAllocation.comprobanteUrl);
+                        setShowComprobanteModal(true);
+                      }}
+                      className="text-sm text-blue-600 hover:underline flex items-center gap-1 cursor-pointer"
                     >
                       <Eye className="h-4 w-4" />
                       Ver comprobante
-                    </a>
+                    </button>
                   </div>
                 )}
                 {selectedAllocation.motivoRechazo && (
@@ -1196,6 +1199,47 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Ver Comprobante */}
+      <Dialog open={showComprobanteModal} onOpenChange={setShowComprobanteModal}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>Comprobante de Transferencia</DialogTitle>
+          </DialogHeader>
+          {comprobanteUrl && (
+            <div className="flex flex-col items-center gap-4">
+              {comprobanteUrl.toLowerCase().endsWith('.pdf') ? (
+                <div className="w-full">
+                  <iframe 
+                    src={comprobanteUrl} 
+                    className="w-full h-[70vh] border rounded"
+                    title="Comprobante PDF"
+                  />
+                </div>
+              ) : (
+                <img 
+                  src={comprobanteUrl} 
+                  alt="Comprobante de transferencia" 
+                  className="max-w-full max-h-[70vh] object-contain rounded shadow-lg"
+                />
+              )}
+              <a 
+                href={comprobanteUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-sm text-blue-600 hover:underline"
+              >
+                Abrir en nueva pestaña
+              </a>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowComprobanteModal(false)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
