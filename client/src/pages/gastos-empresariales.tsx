@@ -362,7 +362,7 @@ export default function GastosEmpresariales() {
 
         {/* Main Tabs */}
         <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
-          <TabsList className="flex w-full overflow-x-auto whitespace-nowrap lg:grid lg:w-auto lg:grid-cols-3">
+          <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide lg:grid lg:w-auto lg:grid-cols-3">
             <TabsTrigger value="dashboard" data-testid="tab-dashboard" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               Dashboard
