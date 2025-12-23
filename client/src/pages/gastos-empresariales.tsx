@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +18,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -31,9 +35,17 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Search, Download, Check, X, Trash2, Eye, BarChart3, FileText, ExternalLink, Banknote, HandCoins } from "lucide-react";
+import { Plus, Search, Download, Check, X, Trash2, Eye, BarChart3, FileText, ExternalLink, Banknote, HandCoins, Upload, Loader2 } from "lucide-react";
 import { ImageZoomViewer } from "@/components/ui/image-zoom-viewer";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -42,6 +54,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Link } from "wouter";
 import { Separator } from "@/components/ui/separator";
 import GestionFondosContent from "./gestion-fondos";
+
+const solicitarFondoSchema = z.object({
+  monto: z.string().min(1, "El monto es requerido"),
+  motivo: z.string().min(1, "El motivo es requerido"),
+  centroCostos: z.string().min(1, "El centro de costos es requerido"),
+  fechaTermino: z.string().min(1, "La fecha de término es requerida"),
+});
+
+type SolicitarFondoFormData = z.infer<typeof solicitarFondoSchema>;
 
 interface GastoEmpresarial {
   id: string;
@@ -76,6 +97,61 @@ export default function GastosEmpresariales() {
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [showRejectionDialog, setShowRejectionDialog] = useState(false);
   const [comentarioRechazo, setComentarioRechazo] = useState("");
+  const [showSolicitarFondoDialog, setShowSolicitarFondoDialog] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+
+  const solicitarFondoForm = useForm<SolicitarFondoFormData>({
+    resolver: zodResolver(solicitarFondoSchema),
+    defaultValues: {
+      monto: "",
+      motivo: "",
+      centroCostos: "",
+      fechaTermino: "",
+    },
+  });
+
+  const solicitarFondoMutation = useMutation({
+    mutationFn: async (data: SolicitarFondoFormData) => {
+      return apiRequest('/api/fondos/solicitar', {
+        method: 'POST',
+        data: {
+          ...data,
+          monto: parseFloat(data.monto),
+          tipo: 'solicitud',
+          estado: 'solicitud',
+          solicitante: user?.fullName || user?.username,
+          solicitanteId: user?.id,
+        },
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Solicitud enviada",
+        description: "Tu solicitud de fondo ha sido enviada para aprobación.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/fondos'] });
+      setShowSolicitarFondoDialog(false);
+      solicitarFondoForm.reset();
+      setUploadedFiles([]);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo enviar la solicitud.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSolicitarFondo = (data: SolicitarFondoFormData) => {
+    solicitarFondoMutation.mutate(data);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setUploadedFiles(Array.from(e.target.files));
+    }
+  };
 
   // Fetch usuarios/colaboradores para mostrar nombres
   const { data: usuarios = [] } = useQuery<any[]>({
@@ -252,13 +328,22 @@ export default function GastosEmpresariales() {
 
           <TabsContent value="rendicion" className="mt-4 space-y-4">
             {/* Action buttons for Rendición */}
-            <div className="flex gap-2 justify-end">
+            <div className="flex gap-2 justify-end flex-wrap">
               <Link href="/gastos-empresariales/dashboard">
                 <Button variant="outline" className="w-full sm:w-auto" data-testid="button-dashboard">
                   <BarChart3 className="h-4 w-4 mr-2" />
                   Dashboard
                 </Button>
               </Link>
+              <Button 
+                variant="secondary"
+                className="w-full sm:w-auto bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200" 
+                data-testid="button-solicitar-fondo"
+                onClick={() => setShowSolicitarFondoDialog(true)}
+              >
+                <HandCoins className="h-4 w-4 mr-2" />
+                Solicitar Fondo
+              </Button>
               <Link href="/gastos-empresariales/nuevo">
                 <Button className="w-full sm:w-auto" data-testid="button-add-gasto">
                   <Plus className="h-4 w-4 mr-2" />
@@ -715,6 +800,168 @@ export default function GastosEmpresariales() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Solicitar Fondo */}
+      <Dialog open={showSolicitarFondoDialog} onOpenChange={setShowSolicitarFondoDialog}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Solicitar Fondo</DialogTitle>
+            <DialogDescription>
+              Complete los datos y adjunte los respaldos necesarios.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Form {...solicitarFondoForm}>
+            <form onSubmit={solicitarFondoForm.handleSubmit(handleSolicitarFondo)} className="space-y-6">
+              <FormField
+                control={solicitarFondoForm.control}
+                name="monto"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Monto a solicitar (CLP)</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-gray-500">$</span>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          className="pl-7"
+                          {...field}
+                          data-testid="input-monto-solicitud"
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={solicitarFondoForm.control}
+                name="motivo"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Motivo de la solicitud</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Ej: Compra de insumos oficina central..."
+                        className="min-h-[80px]"
+                        {...field}
+                        data-testid="input-motivo"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={solicitarFondoForm.control}
+                  name="centroCostos"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Centro de Costos</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-centro-costos-solicitar">
+                            <SelectValue placeholder="Seleccionar..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Maipú">Maipú</SelectItem>
+                          <SelectItem value="Concepción">Concepción</SelectItem>
+                          <SelectItem value="Lautaro">Lautaro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={solicitarFondoForm.control}
+                  name="fechaTermino"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Fecha de término</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} data-testid="input-fecha-termino-solicitud" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <FormLabel>Documentos de respaldo (opcional)</FormLabel>
+                <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 hover:bg-gray-50 transition-colors cursor-pointer text-center group">
+                  <input 
+                    type="file" 
+                    className="hidden" 
+                    id="file-upload-solicitud" 
+                    multiple 
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    onChange={handleFileChange}
+                  />
+                  <label htmlFor="file-upload-solicitud" className="cursor-pointer w-full h-full flex flex-col items-center justify-center">
+                    <Upload className="h-12 w-12 text-gray-400 mb-3" />
+                    <p className="text-sm text-gray-600 font-medium">
+                      Haz clic para subir o arrastra archivos aquí
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      PDF, PNG, JPG (Máx. 5MB)
+                    </p>
+                  </label>
+                </div>
+                {uploadedFiles.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {uploadedFiles.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded text-sm">
+                        <span className="truncate">{file.name}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setUploadedFiles(prev => prev.filter((_, i) => i !== index))}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="sm:justify-end gap-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setShowSolicitarFondoDialog(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={solicitarFondoMutation.isPending}
+                  className="bg-amber-600 hover:bg-amber-700"
+                  data-testid="button-submit-solicitar-fondo"
+                >
+                  {solicitarFondoMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    'Enviar Solicitud'
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </>

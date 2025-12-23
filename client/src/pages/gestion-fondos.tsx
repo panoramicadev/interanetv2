@@ -510,27 +510,18 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
               <p className="text-sm text-gray-500 mt-1">Administra solicitudes y asignación de fondos</p>
             </div>
           )}
-          <div className={`flex flex-col sm:flex-row gap-2 ${embedded ? 'ml-auto' : ''}`}>
-            {canManageFunds && (
+          {canManageFunds && (
+            <div className={`${embedded ? 'ml-auto' : ''}`}>
               <Button 
-                className="w-full sm:w-auto" 
+                className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-md" 
                 data-testid="button-crear-fondo"
                 onClick={() => setShowCrearFondoDialog(true)}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Asignar Fondo
               </Button>
-            )}
-            <Button 
-              variant="secondary"
-              className="w-full sm:w-auto" 
-              data-testid="button-solicitar-fondo"
-              onClick={() => setShowSolicitarFondoDialog(true)}
-            >
-              <HandCoins className="h-4 w-4 mr-2" />
-              Solicitar Fondo
-            </Button>
-          </div>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4">
