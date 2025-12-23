@@ -362,7 +362,7 @@ export default function GastosEmpresariales() {
 
         {/* Main Tabs */}
         <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
-          <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide lg:grid lg:w-auto lg:grid-cols-3">
+          <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap pb-2 lg:pb-0 lg:grid lg:w-auto lg:grid-cols-3">
             <TabsTrigger value="dashboard" data-testid="tab-dashboard" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               Dashboard
@@ -426,19 +426,19 @@ export default function GastosEmpresariales() {
                           data-testid={`fund-card-${fund.id}`}
                         >
                           <div className="flex flex-col gap-3">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                              <div className="flex items-center gap-3">
-                                <h4 className="font-semibold text-base text-gray-900">
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <h4 className="font-semibold text-base text-gray-900 truncate" title={fund.nombre || fund.motivo || 'Fondo sin nombre'}>
                                   {fund.nombre || fund.motivo || 'Fondo sin nombre'}
                                 </h4>
                                 <Badge 
                                   variant="outline" 
-                                  className={`text-xs ${isOverBudget ? 'border-red-300 text-red-700 bg-red-50' : 'border-green-300 text-green-700 bg-green-50'}`}
+                                  className={`text-xs flex-shrink-0 ${isOverBudget ? 'border-red-300 text-red-700 bg-red-50' : 'border-green-300 text-green-700 bg-green-50'}`}
                                 >
                                   {isOverBudget ? 'Excedido' : 'Activo'}
                                 </Badge>
                               </div>
-                              <p className="text-sm text-gray-500">
+                              <p className="text-sm text-gray-500 sm:text-right flex-shrink-0">
                                 {canViewAllFunds && getColaboradorName(fund.assignedToId)}
                                 {canViewAllFunds && ' • '}{fund.centroCostos}
                               </p>
@@ -526,7 +526,7 @@ export default function GastosEmpresariales() {
                   <TableHead>Categoría</TableHead>
                   <TableHead>Tipo Gasto</TableHead>
                   <TableHead className="text-right">Monto</TableHead>
-                  <TableHead>Estado</TableHead>
+                  <TableHead className="min-w-[100px]">Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -561,10 +561,10 @@ export default function GastosEmpresariales() {
                         {getColaboradorName(gasto.userId)}
                       </TableCell>
                       <TableCell>
-                        <div>
-                          <p className="font-medium text-sm">{gasto.descripcion}</p>
+                        <div className="max-w-[200px]">
+                          <p className="font-medium text-sm truncate" title={gasto.descripcion}>{gasto.descripcion}</p>
                           {gasto.proveedor && (
-                            <p className="text-xs text-gray-500">{gasto.proveedor}</p>
+                            <p className="text-xs text-gray-500 truncate" title={gasto.proveedor}>{gasto.proveedor}</p>
                           )}
                         </div>
                       </TableCell>
