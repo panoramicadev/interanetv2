@@ -394,6 +394,29 @@ export function registerRoutes(app: Express): Server {
     limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
   });
 
+  // Generic file upload endpoint for authenticated users
+  app.post('/api/upload', requireAuth, upload.single('file'), asyncHandler(async (req: any, res: any) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No se ha subido ningún archivo' });
+      }
+
+      const file = req.file;
+      const timestamp = Date.now();
+      const randomId = nanoid(8);
+      const fileExtension = path.extname(file.originalname);
+      const fileName = `upload-${timestamp}-${randomId}${fileExtension}`;
+
+      const objectStorageService = new ObjectStorageService();
+      const fileUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
+      console.log(`☁️ [UPLOAD] File uploaded: ${fileName} -> ${fileUrl}`);
+      res.json({ url: fileUrl });
+    } catch (error: any) {
+      console.error('Error uploading file:', error);
+      res.status(500).json({ message: 'Error al subir archivo', error: error.message });
+    }
+  }));
+
   // Fast readiness check - responds immediately for Cloud Run health checks
   app.get('/api/ready', (req: any, res: any) => {
     res.status(200).json({ status: 'ready', timestamp: new Date().toISOString() });
