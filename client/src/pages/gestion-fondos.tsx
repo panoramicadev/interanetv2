@@ -77,18 +77,69 @@ interface GestionFondosProps {
   embedded?: boolean;
 }
 
+interface FundAllocation {
+  id: string;
+  nombre: string;
+  descripcion?: string;
+  montoInicial: string;
+  assignedToId: string;
+  assignedById: string;
+  estado: string;
+  fechaInicio?: string;
+  fechaFin?: string;
+  createdAt: string;
+  saldoDisponible?: number;
+  totalComprometido?: number;
+  totalAprobado?: number;
+}
+
 export default function GestionFondos({ embedded = false }: GestionFondosProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [tipoFilter, setTipoFilter] = useState<string>("all");
-  const [activeTab, setActiveTab] = useState("solicitudes");
+  const [activeTab, setActiveTab] = useState("asignaciones");
   const [showCrearFondoDialog, setShowCrearFondoDialog] = useState(false);
   const [showSolicitarFondoDialog, setShowSolicitarFondoDialog] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [selectedAllocation, setSelectedAllocation] = useState<FundAllocation | null>(null);
+  const [showDetailDialog, setShowDetailDialog] = useState(false);
 
-  const isLoading = false;
-  const fondos: any[] = [];
+  const canManageFunds = user?.role === 'admin' || user?.role === 'recursos_humanos';
+
+  // Fetch fund allocations
+  const { data: allocations = [], isLoading: isLoadingAllocations } = useQuery<FundAllocation[]>({
+    queryKey: ['/api/fund-allocations'],
+    queryFn: async () => {
+      const response = await fetch('/api/fund-allocations', { credentials: 'include' });
+      if (!response.ok) return [];
+      return response.json();
+    },
+  });
+
+  // Fetch summary
+  const { data: summary } = useQuery<{
+    totalAsignado: number;
+    totalComprometido: number;
+    totalAprobado: number;
+    saldoDisponible: number;
+    asignacionesActivas: number;
+  }>({
+    queryKey: ['/api/fund-allocations/summary/global'],
+    queryFn: async () => {
+      const response = await fetch('/api/fund-allocations/summary/global', { credentials: 'include' });
+      if (!response.ok) return { totalAsignado: 0, totalComprometido: 0, totalAprobado: 0, saldoDisponible: 0, asignacionesActivas: 0 };
+      return response.json();
+    },
+  });
+
+  // Fetch salespeople for assignment
+  const { data: salespeople = [] } = useQuery<any[]>({
+    queryKey: ['/api/users/salespeople'],
+  });
+
+  const isLoading = isLoadingAllocations;
+  const fondos = allocations;
 
   const crearFondoForm = useForm<CrearFondoFormData>({
     resolver: zodResolver(crearFondoSchema),
@@ -118,30 +169,32 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
 
   const crearFondoMutation = useMutation({
     mutationFn: async (data: CrearFondoFormData) => {
-      return apiRequest('/api/fondos', {
+      return apiRequest('/api/fund-allocations', {
         method: 'POST',
         data: {
-          ...data,
-          presupuesto: parseFloat(data.presupuesto),
-          tipo: 'fondo',
-          estado: 'abierto',
-          createdBy: user?.id,
+          nombre: data.nombre,
+          descripcion: data.idContabilidad ? `ID Contabilidad: ${data.idContabilidad}` : '',
+          montoInicial: parseFloat(data.presupuesto),
+          assignedToId: data.usuarioResponsable,
+          fechaInicio: data.fechaInicio || null,
+          fechaFin: data.fechaTermino || null,
         },
       });
     },
     onSuccess: () => {
       toast({
-        title: "Fondo creado",
-        description: "El fondo se ha creado exitosamente.",
+        title: "Fondo asignado",
+        description: "El fondo se ha asignado exitosamente al colaborador.",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/fondos'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations/summary/global'] });
       setShowCrearFondoDialog(false);
       crearFondoForm.reset();
     },
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "No se pudo crear el fondo.",
+        description: error.message || "No se pudo asignar el fondo.",
         variant: "destructive",
       });
     },
@@ -205,8 +258,9 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
         return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Solicitud</Badge>;
       case 'pendiente':
         return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pendiente</Badge>;
+      case 'activo':
       case 'abierto':
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Abierto</Badge>;
+        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Activo</Badge>;
       case 'cerrado':
         return <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">Cerrado</Badge>;
       case 'rechazado':
@@ -214,6 +268,13 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
       default:
         return <Badge variant="outline">{estado}</Badge>;
     }
+  };
+
+  const getAssigneeName = (userId: string) => {
+    const person = salespeople.find((s: any) => s.id === userId);
+    if (!person) return 'Desconocido';
+    const name = person.salespersonName || person.email || 'Usuario';
+    return name.split(' ').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
   };
 
   const formatCurrency = (amount: string | number) => {
@@ -226,12 +287,14 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
     }).format(num);
   };
 
-  const filteredFondos = fondos.filter(fondo => {
+  const filteredFondos = fondos.filter((fondo: FundAllocation) => {
+    const assigneeName = getAssigneeName(fondo.assignedToId);
     const matchesSearch = searchTerm === "" || 
+      fondo.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       fondo.descripcion?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fondo.solicitante?.toLowerCase().includes(searchTerm.toLowerCase());
+      assigneeName.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesTipo = tipoFilter === "all" || fondo.tipo === tipoFilter;
+    const matchesTipo = tipoFilter === "all" || fondo.estado === tipoFilter;
 
     return matchesSearch && matchesTipo;
   });
@@ -243,10 +306,10 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
           <TableHeader>
             <TableRow>
               <TableHead className="min-w-[100px]">Fecha</TableHead>
-              <TableHead className="min-w-[150px]">Solicitante</TableHead>
-              <TableHead className="min-w-[200px]">Descripción</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead className="text-right">Monto</TableHead>
+              <TableHead className="min-w-[150px]">Asignado a</TableHead>
+              <TableHead className="min-w-[150px]">Nombre del Fondo</TableHead>
+              <TableHead className="text-right">Monto Inicial</TableHead>
+              <TableHead className="text-right">Saldo Disponible</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
@@ -255,36 +318,45 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
             {isLoading ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8 text-gray-500">
-                  Cargando fondos...
+                  Cargando asignaciones...
                 </TableCell>
               </TableRow>
             ) : filteredFondos.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8 text-gray-500">
-                  No se encontraron fondos en esta categoría
+                  No hay asignaciones de fondos registradas
                 </TableCell>
               </TableRow>
             ) : (
-              filteredFondos.map((fondo) => (
+              filteredFondos.map((fondo: FundAllocation) => (
                 <TableRow 
                   key={fondo.id} 
                   data-testid={`row-fondo-${fondo.id}`}
                   className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => {
+                    setSelectedAllocation(fondo);
+                    setShowDetailDialog(true);
+                  }}
                 >
                   <TableCell className="text-sm">
-                    {fondo.fecha}
+                    {fondo.createdAt ? new Date(fondo.createdAt).toLocaleDateString('es-CL') : '-'}
                   </TableCell>
                   <TableCell className="text-sm font-medium">
-                    {fondo.solicitante}
+                    {getAssigneeName(fondo.assignedToId)}
                   </TableCell>
                   <TableCell>
                     <div>
-                      <p className="font-medium text-sm">{fondo.descripcion}</p>
+                      <p className="font-medium text-sm">{fondo.nombre}</p>
+                      {fondo.descripcion && (
+                        <p className="text-xs text-gray-500">{fondo.descripcion}</p>
+                      )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm">{fondo.tipo}</TableCell>
                   <TableCell className="text-right font-semibold">
-                    {formatCurrency(fondo.monto || 0)}
+                    {formatCurrency(fondo.montoInicial || 0)}
+                  </TableCell>
+                  <TableCell className="text-right font-semibold text-green-600">
+                    {formatCurrency(fondo.saldoDisponible || 0)}
                   </TableCell>
                   <TableCell>{getEstadoBadge(fondo.estado)}</TableCell>
                   <TableCell className="text-right">
@@ -293,6 +365,11 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                         size="sm"
                         variant="ghost"
                         data-testid={`button-view-${fondo.id}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedAllocation(fondo);
+                          setShowDetailDialog(true);
+                        }}
                       >
                         Ver
                       </Button>
