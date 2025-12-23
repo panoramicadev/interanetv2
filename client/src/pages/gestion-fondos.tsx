@@ -411,7 +411,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
               <TableHead className="min-w-[150px]">Nombre del Fondo</TableHead>
               <TableHead className="text-right">Monto Inicial</TableHead>
               <TableHead className="text-right">Saldo Disponible</TableHead>
-              <TableHead>Estado</TableHead>
+              <TableHead className="min-w-[100px]">Estado</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -446,10 +446,10 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                     {getAssigneeName(fondo.assignedToId)}
                   </TableCell>
                   <TableCell>
-                    <div>
-                      <p className="font-medium text-sm">{fondo.nombre}</p>
+                    <div className="max-w-[150px] sm:max-w-[250px]">
+                      <p className="font-medium text-sm truncate" title={fondo.nombre}>{fondo.nombre}</p>
                       {fondo.descripcion && (
-                        <p className="text-xs text-gray-500">{fondo.descripcion}</p>
+                        <p className="text-xs text-gray-500 truncate" title={fondo.descripcion}>{fondo.descripcion}</p>
                       )}
                     </div>
                   </TableCell>
@@ -586,7 +586,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap scrollbar-hide lg:grid lg:w-auto lg:grid-cols-3">
+          <TabsList className="flex w-full overflow-x-auto overflow-y-hidden whitespace-nowrap pb-2 lg:pb-0 lg:grid lg:w-auto lg:grid-cols-3">
             <TabsTrigger value="asignaciones" data-testid="tab-asignaciones" className="flex-shrink-0">Asignaciones</TabsTrigger>
             <TabsTrigger value="activos" data-testid="tab-activos" className="flex-shrink-0">Activos</TabsTrigger>
             <TabsTrigger value="cerrados" data-testid="tab-cerrados" className="flex-shrink-0">Cerrados</TabsTrigger>
