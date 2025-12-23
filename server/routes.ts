@@ -15127,9 +15127,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       
       const filters: any = {};
       
-      // Salesperson can only see their own allocations
-      if (user.role === 'salesperson') {
-        filters.assignedToId = user.id;
+      // Non-admin/HR users see: funds assigned TO them + their own solicitudes
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        filters.userScope = user.id; // Will fetch assignedToId=user.id OR (estado='solicitud' AND assignedById=user.id)
       } else if (assignedToId) {
         filters.assignedToId = assignedToId;
       }

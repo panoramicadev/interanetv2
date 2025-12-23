@@ -1783,6 +1783,7 @@ export interface IStorage {
     assignedToId?: string;
     assignedById?: string;
     estado?: string;
+    userScope?: string;
     limit?: number;
     offset?: number;
   }): Promise<FundAllocation[]>;
@@ -19499,20 +19500,34 @@ export class DatabaseStorage implements IStorage {
     assignedToId?: string;
     assignedById?: string;
     estado?: string;
+    userScope?: string; // Shows: assignedTo=user OR (estado='solicitud' AND assignedById=user)
     limit?: number;
     offset?: number;
   }): Promise<FundAllocation[]> {
     const conditions = [];
 
-    if (filters?.assignedToId) {
-      conditions.push(eq(fundAllocations.assignedToId, filters.assignedToId));
+    // userScope: user sees funds assigned TO them + their own solicitudes
+    if (filters?.userScope) {
+      conditions.push(
+        or(
+          eq(fundAllocations.assignedToId, filters.userScope),
+          and(
+            eq(fundAllocations.estado, 'solicitud'),
+            eq(fundAllocations.assignedById, filters.userScope)
+          )
+        )
+      );
+    } else {
+      if (filters?.assignedToId) {
+        conditions.push(eq(fundAllocations.assignedToId, filters.assignedToId));
+      }
+
+      if (filters?.assignedById) {
+        conditions.push(eq(fundAllocations.assignedById, filters.assignedById));
+      }
     }
 
-    if (filters?.assignedById) {
-      conditions.push(eq(fundAllocations.assignedById, filters.assignedById));
-    }
-
-    if (filters?.estado) {
+    if (filters?.estado && !filters?.userScope) {
       conditions.push(eq(fundAllocations.estado, filters.estado));
     }
 
