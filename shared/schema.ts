@@ -4517,6 +4517,74 @@ export const insertTareaMarketingSchema = createInsertSchema(tareasMarketing).om
   anio: z.number().min(2020).max(2100),
 });
 
+// ========================================
+// SISTEMA DE GESTIÓN DE FONDOS
+// ========================================
+
+// Tabla de asignaciones de fondos (Admin/RRHH asigna fondos a vendedores/supervisores)
+export const fundAllocations = pgTable("fund_allocations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  assignedToId: varchar("assigned_to_id").notNull(), // Usuario beneficiario (vendedor/supervisor)
+  assignedById: varchar("assigned_by_id").notNull(), // Usuario que asigna (admin/rrhh)
+  nombre: varchar("nombre", { length: 255 }).notNull(), // Nombre descriptivo del fondo
+  motivo: text("motivo"), // Motivo de la asignación
+  montoInicial: numeric("monto_inicial", { precision: 15, scale: 2 }).notNull(), // Monto asignado
+  centroCostos: varchar("centro_costos", { length: 255 }),
+  fechaInicio: date("fecha_inicio").notNull(),
+  fechaTermino: date("fecha_termino").notNull(),
+  estado: varchar("estado", { length: 50 }).notNull().default("activo"), // activo, cerrado, cancelado
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  assignedToIdx: index("IDX_fund_allocations_assigned_to").on(table.assignedToId),
+  estadoIdx: index("IDX_fund_allocations_estado").on(table.estado),
+}));
+
+// Libro mayor de movimientos de fondos (trazabilidad completa)
+export const fundMovements = pgTable("fund_movements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  allocationId: varchar("allocation_id").notNull(), // FK a fund_allocations
+  tipoMovimiento: varchar("tipo_movimiento", { length: 50 }).notNull(), // asignacion, ajuste, gasto_pendiente, gasto_aprobado, gasto_rechazado, reintegro
+  gastoId: varchar("gasto_id"), // FK a gastos_empresariales (opcional, solo para movimientos de gasto)
+  monto: numeric("monto", { precision: 15, scale: 2 }).notNull(), // Positivo = abono, Negativo = cargo
+  descripcion: text("descripcion"),
+  creadoPorId: varchar("creado_por_id").notNull(), // Usuario que registra el movimiento
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  allocationIdx: index("IDX_fund_movements_allocation").on(table.allocationId),
+  gastoIdx: index("IDX_fund_movements_gasto").on(table.gastoId),
+  tipoIdx: index("IDX_fund_movements_tipo").on(table.tipoMovimiento),
+}));
+
+// Types para fondos
+export type FundAllocation = typeof fundAllocations.$inferSelect;
+export type InsertFundAllocation = typeof fundAllocations.$inferInsert;
+export type FundMovement = typeof fundMovements.$inferSelect;
+export type InsertFundMovement = typeof fundMovements.$inferInsert;
+
+// Schemas de validación para fondos
+export const insertFundAllocationSchema = createInsertSchema(fundAllocations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  montoInicial: z.string().or(z.number()).transform(val => typeof val === 'string' ? parseFloat(val) : val),
+  nombre: z.string().min(1, "El nombre del fondo es requerido"),
+  assignedToId: z.string().min(1, "El beneficiario es requerido"),
+  assignedById: z.string().min(1, "El usuario asignador es requerido"),
+  fechaInicio: z.string().or(z.date()).transform(val => typeof val === 'string' ? new Date(val) : val),
+  fechaTermino: z.string().or(z.date()).transform(val => typeof val === 'string' ? new Date(val) : val),
+  estado: z.enum(["activo", "cerrado", "cancelado"]).default("activo"),
+});
+
+export const insertFundMovementSchema = createInsertSchema(fundMovements).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  monto: z.string().or(z.number()).transform(val => typeof val === 'string' ? parseFloat(val) : val),
+  tipoMovimiento: z.enum(["asignacion", "ajuste", "gasto_pendiente", "gasto_aprobado", "gasto_rechazado", "reintegro"]),
+});
+
 // Tabla de gastos empresariales
 export const gastosEmpresariales = pgTable("gastos_empresariales", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -4536,9 +4604,15 @@ export const gastosEmpresariales = pgTable("gastos_empresariales", {
   supervisorId: varchar("supervisor_id"), // Supervisor que aprueba/rechaza
   fechaAprobacion: timestamp("fecha_aprobacion"),
   comentarioRechazo: text("comentario_rechazo"),
+  // Campos de integración con Gestión de Fondos
+  fundingMode: varchar("funding_mode", { length: 50 }).default("reembolso"), // 'con_fondo' o 'reembolso'
+  fundAllocationId: varchar("fund_allocation_id"), // FK a fund_allocations (solo si fundingMode='con_fondo')
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  fundAllocationIdx: index("IDX_gastos_fund_allocation").on(table.fundAllocationId),
+  fundingModeIdx: index("IDX_gastos_funding_mode").on(table.fundingMode),
+}));
 
 // Types
 export type GastoEmpresarial = typeof gastosEmpresariales.$inferSelect;
@@ -4560,6 +4634,8 @@ export const insertGastoEmpresarialSchema = createInsertSchema(gastosEmpresarial
   fechaEmision: z.string().or(z.date()).transform(val => 
     typeof val === 'string' ? new Date(val) : val
   ).optional(),
+  fundingMode: z.enum(["con_fondo", "reembolso"]).default("reembolso"),
+  fundAllocationId: z.string().optional().nullable(),
 });
 
 // Tabla de promesas de compra semanales

@@ -229,6 +229,13 @@ import {
   gastosEmpresariales,
   type GastoEmpresarial,
   type InsertGastoEmpresarial,
+  // Gestión de Fondos
+  fundAllocations,
+  fundMovements,
+  type FundAllocation,
+  type InsertFundAllocation,
+  type FundMovement,
+  type InsertFundMovement,
   // Promesas de compra
   promesasCompra,
   type PromesaCompra,
@@ -1766,6 +1773,44 @@ export interface IStorage {
     total: number;
     cantidad: number;
   }>>;
+
+  // ==================================================================================
+  // GESTIÓN DE FONDOS operations
+  // ==================================================================================
+  
+  createFundAllocation(allocation: InsertFundAllocation): Promise<FundAllocation>;
+  getFundAllocations(filters?: {
+    assignedToId?: string;
+    assignedById?: string;
+    estado?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<FundAllocation[]>;
+  getFundAllocationById(id: string): Promise<FundAllocation | undefined>;
+  updateFundAllocation(id: string, updates: Partial<InsertFundAllocation>): Promise<FundAllocation>;
+  closeFundAllocation(id: string): Promise<FundAllocation>;
+  
+  createFundMovement(movement: InsertFundMovement): Promise<FundMovement>;
+  getFundMovements(allocationId: string): Promise<FundMovement[]>;
+  
+  getFundAllocationBalance(allocationId: string): Promise<{
+    montoInicial: number;
+    totalComprometido: number;
+    totalAprobado: number;
+    saldoDisponible: number;
+  }>;
+  
+  getUserActiveFundAllocations(userId: string): Promise<Array<FundAllocation & {
+    saldoDisponible: number;
+  }>>;
+  
+  getFundAllocationSummary(userId?: string): Promise<{
+    totalAsignado: number;
+    totalComprometido: number;
+    totalAprobado: number;
+    saldoDisponible: number;
+    asignacionesActivas: number;
+  }>;
 
   // ==================================================================================
   // PROMESAS DE COMPRA operations
@@ -19427,6 +19472,219 @@ export class DatabaseStorage implements IStorage {
       total: parseFloat(r.total as any) || 0,
       cantidad: parseInt(r.cantidad as any) || 0,
     }));
+  }
+
+  // ==================================================================================
+  // GESTIÓN DE FONDOS operations
+  // ==================================================================================
+
+  async createFundAllocation(allocation: InsertFundAllocation): Promise<FundAllocation> {
+    const [newAllocation] = await db.insert(fundAllocations).values(allocation).returning();
+    
+    // Crear movimiento inicial de asignación
+    await db.insert(fundMovements).values({
+      allocationId: newAllocation.id,
+      tipoMovimiento: 'asignacion',
+      monto: allocation.montoInicial.toString(),
+      descripcion: `Asignación inicial de fondo: ${allocation.nombre}`,
+      creadoPorId: allocation.assignedById,
+    });
+    
+    return newAllocation;
+  }
+
+  async getFundAllocations(filters?: {
+    assignedToId?: string;
+    assignedById?: string;
+    estado?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<FundAllocation[]> {
+    const conditions = [];
+
+    if (filters?.assignedToId) {
+      conditions.push(eq(fundAllocations.assignedToId, filters.assignedToId));
+    }
+
+    if (filters?.assignedById) {
+      conditions.push(eq(fundAllocations.assignedById, filters.assignedById));
+    }
+
+    if (filters?.estado) {
+      conditions.push(eq(fundAllocations.estado, filters.estado));
+    }
+
+    let query = db.select().from(fundAllocations).orderBy(desc(fundAllocations.createdAt));
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+
+    if (filters?.limit) {
+      query = query.limit(filters.limit) as any;
+    }
+
+    if (filters?.offset) {
+      query = query.offset(filters.offset) as any;
+    }
+
+    return await query;
+  }
+
+  async getFundAllocationById(id: string): Promise<FundAllocation | undefined> {
+    const [allocation] = await db.select().from(fundAllocations).where(eq(fundAllocations.id, id));
+    return allocation;
+  }
+
+  async updateFundAllocation(id: string, updates: Partial<InsertFundAllocation>): Promise<FundAllocation> {
+    const [updated] = await db
+      .update(fundAllocations)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(fundAllocations.id, id))
+      .returning();
+    return updated;
+  }
+
+  async closeFundAllocation(id: string): Promise<FundAllocation> {
+    const [closed] = await db
+      .update(fundAllocations)
+      .set({ estado: 'cerrado', updatedAt: new Date() })
+      .where(eq(fundAllocations.id, id))
+      .returning();
+    return closed;
+  }
+
+  async createFundMovement(movement: InsertFundMovement): Promise<FundMovement> {
+    const [newMovement] = await db.insert(fundMovements).values(movement).returning();
+    return newMovement;
+  }
+
+  async getFundMovements(allocationId: string): Promise<FundMovement[]> {
+    return await db
+      .select()
+      .from(fundMovements)
+      .where(eq(fundMovements.allocationId, allocationId))
+      .orderBy(desc(fundMovements.createdAt));
+  }
+
+  async getFundAllocationBalance(allocationId: string): Promise<{
+    montoInicial: number;
+    totalComprometido: number;
+    totalAprobado: number;
+    saldoDisponible: number;
+  }> {
+    const allocation = await this.getFundAllocationById(allocationId);
+    if (!allocation) {
+      return { montoInicial: 0, totalComprometido: 0, totalAprobado: 0, saldoDisponible: 0 };
+    }
+
+    const montoInicial = parseFloat(allocation.montoInicial?.toString() || '0');
+
+    // Obtener movimientos y calcular saldos
+    const movements = await db
+      .select({
+        tipoMovimiento: fundMovements.tipoMovimiento,
+        total: sql<number>`SUM(${fundMovements.monto})`,
+      })
+      .from(fundMovements)
+      .where(eq(fundMovements.allocationId, allocationId))
+      .groupBy(fundMovements.tipoMovimiento);
+
+    let totalComprometido = 0;
+    let totalAprobado = 0;
+    let ajustes = 0;
+
+    movements.forEach(m => {
+      const monto = Math.abs(parseFloat(m.total?.toString() || '0'));
+      switch (m.tipoMovimiento) {
+        case 'gasto_pendiente':
+          totalComprometido += monto;
+          break;
+        case 'gasto_aprobado':
+          totalAprobado += monto;
+          break;
+        case 'ajuste':
+          ajustes += parseFloat(m.total?.toString() || '0');
+          break;
+        case 'gasto_rechazado':
+        case 'reintegro':
+          // Estos liberan saldo
+          break;
+      }
+    });
+
+    const saldoDisponible = montoInicial + ajustes - totalComprometido - totalAprobado;
+
+    return {
+      montoInicial,
+      totalComprometido,
+      totalAprobado,
+      saldoDisponible: Math.max(0, saldoDisponible),
+    };
+  }
+
+  async getUserActiveFundAllocations(userId: string): Promise<Array<FundAllocation & { saldoDisponible: number }>> {
+    const allocations = await db
+      .select()
+      .from(fundAllocations)
+      .where(
+        and(
+          eq(fundAllocations.assignedToId, userId),
+          eq(fundAllocations.estado, 'activo')
+        )
+      )
+      .orderBy(desc(fundAllocations.createdAt));
+
+    const result = await Promise.all(
+      allocations.map(async (allocation) => {
+        const balance = await this.getFundAllocationBalance(allocation.id);
+        return {
+          ...allocation,
+          saldoDisponible: balance.saldoDisponible,
+        };
+      })
+    );
+
+    return result;
+  }
+
+  async getFundAllocationSummary(userId?: string): Promise<{
+    totalAsignado: number;
+    totalComprometido: number;
+    totalAprobado: number;
+    saldoDisponible: number;
+    asignacionesActivas: number;
+  }> {
+    const conditions = [eq(fundAllocations.estado, 'activo')];
+    if (userId) {
+      conditions.push(eq(fundAllocations.assignedToId, userId));
+    }
+
+    const allocations = await db
+      .select()
+      .from(fundAllocations)
+      .where(and(...conditions));
+
+    let totalAsignado = 0;
+    let totalComprometido = 0;
+    let totalAprobado = 0;
+    let saldoDisponible = 0;
+
+    for (const allocation of allocations) {
+      const balance = await this.getFundAllocationBalance(allocation.id);
+      totalAsignado += balance.montoInicial;
+      totalComprometido += balance.totalComprometido;
+      totalAprobado += balance.totalAprobado;
+      saldoDisponible += balance.saldoDisponible;
+    }
+
+    return {
+      totalAsignado,
+      totalComprometido,
+      totalAprobado,
+      saldoDisponible,
+      asignacionesActivas: allocations.length,
+    };
   }
 
   // ==================================================================================
