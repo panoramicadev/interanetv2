@@ -49,7 +49,7 @@ import {
 } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Plus, Search, HandCoins, Upload, Loader2, Check, X } from "lucide-react";
+import { Plus, Search, HandCoins, Upload, Loader2, Check, X, Eye } from "lucide-react";
 
 const crearFondoSchema = z.object({
   presupuesto: z.string().min(1, "El presupuesto es requerido"),
@@ -1073,6 +1073,125 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                       Rechazar Fondo
                     </>
                   )}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Ver Detalle del Fondo */}
+      <Dialog open={showDetailDialog} onOpenChange={(open) => {
+        setShowDetailDialog(open);
+        if (!open) {
+          setSelectedAllocation(null);
+        }
+      }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalle del Fondo</DialogTitle>
+            <DialogDescription>
+              Información completa de la asignación de fondo.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedAllocation && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                <div className="flex justify-between items-center border-b pb-2">
+                  <span className="text-sm text-gray-500">Estado:</span>
+                  <span>{getEstadoBadge(selectedAllocation.estado)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">Nombre del Fondo:</span>
+                  <span className="text-sm font-medium">{selectedAllocation.nombre}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">Monto Inicial:</span>
+                  <span className="text-sm font-bold text-green-600">{formatCurrency(selectedAllocation.montoInicial)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">Asignado a:</span>
+                  <span className="text-sm font-medium">{getAssigneeName(selectedAllocation.assignedToId)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">Asignado por:</span>
+                  <span className="text-sm font-medium">{getAssigneeName(selectedAllocation.assignedById)}</span>
+                </div>
+                {selectedAllocation.centroCostos && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-500">Centro de Costos:</span>
+                    <span className="text-sm font-medium">{selectedAllocation.centroCostos}</span>
+                  </div>
+                )}
+                {selectedAllocation.motivo && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm text-gray-500">Motivo:</span>
+                    <span className="text-sm bg-white p-2 rounded border">{selectedAllocation.motivo}</span>
+                  </div>
+                )}
+                {selectedAllocation.fechaInicio && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-500">Fecha de Inicio:</span>
+                    <span className="text-sm font-medium">{new Date(selectedAllocation.fechaInicio).toLocaleDateString('es-CL')}</span>
+                  </div>
+                )}
+                {selectedAllocation.fechaTermino && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-500">Fecha de Término:</span>
+                    <span className="text-sm font-medium">{new Date(selectedAllocation.fechaTermino).toLocaleDateString('es-CL')}</span>
+                  </div>
+                )}
+                {selectedAllocation.createdAt && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-500">Fecha de Creación:</span>
+                    <span className="text-sm font-medium">{new Date(selectedAllocation.createdAt).toLocaleDateString('es-CL')}</span>
+                  </div>
+                )}
+                {selectedAllocation.fechaAprobacion && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-500">Fecha de Aprobación:</span>
+                    <span className="text-sm font-medium">{new Date(selectedAllocation.fechaAprobacion).toLocaleDateString('es-CL')}</span>
+                  </div>
+                )}
+                {selectedAllocation.aprobadoPorId && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-500">Aprobado por:</span>
+                    <span className="text-sm font-medium">{getAssigneeName(selectedAllocation.aprobadoPorId)}</span>
+                  </div>
+                )}
+                {selectedAllocation.comprobanteUrl && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm text-gray-500">Comprobante de Transferencia:</span>
+                    <a 
+                      href={selectedAllocation.comprobanteUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                    >
+                      <Eye className="h-4 w-4" />
+                      Ver comprobante
+                    </a>
+                  </div>
+                )}
+                {selectedAllocation.motivoRechazo && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm text-gray-500 text-red-600">Motivo de Rechazo:</span>
+                    <span className="text-sm bg-red-50 p-2 rounded border border-red-200 text-red-700">{selectedAllocation.motivoRechazo}</span>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="sm:justify-end">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowDetailDialog(false);
+                    setSelectedAllocation(null);
+                  }}
+                >
+                  Cerrar
                 </Button>
               </DialogFooter>
             </div>
