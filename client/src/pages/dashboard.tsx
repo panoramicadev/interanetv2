@@ -30,6 +30,7 @@ import SalespersonPendingNVV from "@/components/dashboard/salesperson-pending-nv
 import SalespersonPendingGDV from "@/components/dashboard/salesperson-pending-gdv";
 import AllSalespeopleNVV from "@/components/dashboard/all-salespeople-nvv";
 import { Button } from "@/components/ui/button";
+import { CardWrapper } from "@/components/dashboard/CardWrapper";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -54,7 +55,7 @@ interface YearMonthSelection {
   display: string;
 }
 
-function CollapsibleNVVSection({ salesperson }: { salesperson: string }) {
+export function CollapsibleNVVSection({ salesperson }: { salesperson: string }) {
   const [isOpen, setIsOpen] = useState(false);
   
   return (
@@ -80,7 +81,7 @@ function CollapsibleNVVSection({ salesperson }: { salesperson: string }) {
   );
 }
 
-function CollapsibleGDVSection({ salesperson }: { salesperson: string }) {
+export function CollapsibleGDVSection({ salesperson }: { salesperson: string }) {
   const [isOpen, setIsOpen] = useState(false);
   
   return (
@@ -1377,12 +1378,12 @@ export default function Dashboard() {
               
               {/* Goals Progress Dashboard - Solo mostrar para meses completos y cuando hay metas configuradas */}
               {filterType === "month" && goalsProgress && goalsProgress.length > 0 && (
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                <CardWrapper>
                   <GoalsProgress 
                     globalFilter={globalFilter}
                     selectedPeriod={selectedPeriod}
                   />
-                </div>
+                </CardWrapper>
               )}
 
               {/* NVV y GDV Pendientes - Solo mostrar cuando hay un vendedor seleccionado Y estamos en el mes actual */}
@@ -1398,17 +1399,17 @@ export default function Dashboard() {
 
               {/* NVV Pendientes - Todos los vendedores (solo en mes actual y cuando NO hay vendedor específico seleccionado) */}
               {globalFilter.type !== "salesperson" && isCurrentMonth() && (
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                <CardWrapper>
                   <AllSalespeopleNVV
                     selectedPeriod={selectedPeriod}
                     filterType={filterType}
                   />
-                </div>
+                </CardWrapper>
               )}
 
               {/* Gastos Pendientes - Solo mostrar cuando hay gastos pendientes */}
               {pendingExpenses.length > 0 && (
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                <CardWrapper>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
                       <div className="bg-amber-500 rounded-full p-2">
@@ -1459,12 +1460,12 @@ export default function Dashboard() {
                       </p>
                     )}
                   </div>
-                </div>
+                </CardWrapper>
               )}
               
               {/* Primary Analytics - Sales Chart Full Width - Solo mostrar para meses y rangos */}
               {filterType !== "day" && (
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                <CardWrapper>
                   <SalesChart 
                     selectedPeriod={selectedPeriod} 
                     filterType={filterType}
@@ -1473,12 +1474,12 @@ export default function Dashboard() {
                     client={selectedClient}
                     comparisonPeriods={convertToComparisonPeriods(comparePeriod, selectedPeriod, filterType)}
                   />
-                </div>
+                </CardWrapper>
               )}
 
               {/* Ventas por Segmento - Full Width Chart - Mostrar arriba, solo en dashboard principal */}
               {globalFilter.type === "all" && (
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                <CardWrapper>
                   <SegmentChart 
                     selectedPeriod={selectedPeriod} 
                     filterType={filterType}
@@ -1487,11 +1488,11 @@ export default function Dashboard() {
                       setSelectedFilter("segment");
                     }}
                   />
-                </div>
+                </CardWrapper>
               )}
 
-              {/* Products Chart - Mostrar productos antes que vendedores/clientes */}
-              <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              {/* Products Chart */}
+              <CardWrapper>
                 <TopProductsChart 
                   selectedPeriod={selectedPeriod} 
                   filterType={filterType}
@@ -1499,10 +1500,10 @@ export default function Dashboard() {
                   salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
                   client={selectedClient}
                 />
-              </div>
+              </CardWrapper>
 
               {/* Sales Team & Client Analytics - Full Width Column */}
-              <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <CardWrapper>
                 <TopSalespeoplePanel 
                   selectedPeriod={selectedPeriod} 
                   filterType={filterType}
@@ -1510,9 +1511,9 @@ export default function Dashboard() {
                   salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
                   client={selectedClient}
                 />
-              </div>
+              </CardWrapper>
 
-              <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <CardWrapper>
                 <TopClientsPanel 
                   selectedPeriod={selectedPeriod} 
                   filterType={filterType}
@@ -1520,10 +1521,10 @@ export default function Dashboard() {
                   salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
                   client={selectedClient}
                 />
-              </div>
+              </CardWrapper>
 
               {/* Packaging Metrics - Full Width */}
-              <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <CardWrapper>
                 <PackagingSalesMetrics 
                   selectedPeriod={selectedPeriod} 
                   filterType={filterType}
@@ -1531,10 +1532,10 @@ export default function Dashboard() {
                   salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
                   client={selectedClient}
                 />
-              </div>
+              </CardWrapper>
 
               {/* Transactions - Full Width - Only in non-comparative mode */}
-              <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <CardWrapper>
                 <TransactionsTable 
                   selectedPeriod={selectedPeriod} 
                   filterType={filterType}
@@ -1542,7 +1543,7 @@ export default function Dashboard() {
                   salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
                   client={selectedClient}
                 />
-              </div>
+              </CardWrapper>
             </>
           )}
         </main>
