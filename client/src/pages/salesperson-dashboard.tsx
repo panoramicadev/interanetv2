@@ -21,6 +21,7 @@ import NotificationsPanel from "@/components/dashboard/notifications-panel";
 import GoalsProgress from "@/components/dashboard/goals-progress";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import { useFilter } from "@/contexts/FilterContext";
+import { CardWrapper } from "@/CardWrapper";
 import { SalespersonClientsPanel, SalespersonProductsPanel } from "@/components/salesperson/engagement-panels";
 import { useSalespersonAccordion } from "@/hooks/useSalespersonAccordion";
 import SalespersonNVV from "@/components/salesperson/salesperson-nvv";
@@ -561,7 +562,7 @@ export default function SalespersonDashboard() {
     totalSales: salespersonData?.totalSales || 0,
     transactions: salespersonData?.transactionCount || 0,
     avgTicket: salespersonData?.averageTicket || 0,
-    topProducts: productsData?.slice(0, 5) || [],
+    topProducts: productsData?.slice(0, 10) || [],
     recentSales: transactionsData || [],
     clientCount: salespersonData?.totalClients || 0,
     daysSinceLastSale: salespersonData?.daysSinceLastSale || 0,
@@ -699,9 +700,9 @@ export default function SalespersonDashboard() {
         </header>
 
         {/* Contenido Principal */}
-        <main className="px-3 md:px-4 lg:px-6 pb-6 space-y-4 md:space-y-6">
+        <main className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 px-3 md:px-4 lg:px-6 pb-6">
         
-        <section className="space-y-6" data-testid="section-goals-and-segments">
+        <section className="space-y-6 lg:col-span-2" data-testid="section-goals-and-segments">
           <GoalsProgress
             globalFilter={{ type: 'salesperson', value: salespersonName }}
             selectedPeriod={selectedPeriod}
@@ -761,7 +762,7 @@ export default function SalespersonDashboard() {
         </section>
 
         {/* Promesas de Compra Semanales */}
-        <Card className="rounded-xl md:rounded-2xl shadow-md border-0 bg-gradient-to-br from-purple-50/80 via-violet-50/60 to-purple-100/40" data-testid="card-promesas-compra">
+        <Card className="rounded-xl md:rounded-2xl shadow-md border-0 bg-gradient-to-br from-purple-50/80 via-violet-50/60 to-purple-100/40 lg:col-span-2" data-testid="card-promesas-compra">
           <CardHeader className="p-3 sm:p-4 md:p-6">
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-2 sm:gap-3">
@@ -920,7 +921,7 @@ export default function SalespersonDashboard() {
 
         {/* NVV Pendientes */}
         {nvvPendingData && nvvPendingData.total > 0 && (
-          <Card className="rounded-xl md:rounded-2xl shadow-md border-0 bg-gradient-to-br from-cyan-50/80 via-sky-50/60 to-blue-100/40" data-testid="card-nvv-pending">
+          <Card className="rounded-xl md:rounded-2xl shadow-md border-0 bg-gradient-to-br from-cyan-50/80 via-sky-50/60 to-blue-100/40 lg:col-span-2" data-testid="card-nvv-pending">
             <CardHeader className="p-3 sm:p-4 md:p-6">
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <div className="flex items-center gap-2 sm:gap-3 flex-1">
@@ -946,7 +947,7 @@ export default function SalespersonDashboard() {
             </CardHeader>
             <CardContent className="p-3 sm:p-4 md:p-6 pt-0">
               <div className="space-y-3">
-                {nvvPendingData.clients.slice(0, 5).map((client: any, idx: number) => (
+                {nvvPendingData.clients.slice(0, 10).map((client: any, idx: number) => (
                   <div 
                     key={idx}
                     className="border border-cyan-200 bg-cyan-50/50 rounded-lg sm:rounded-xl p-3"
@@ -970,9 +971,9 @@ export default function SalespersonDashboard() {
                     </div>
                   </div>
                 ))}
-                {nvvPendingData.clients.length > 5 && (
+                {nvvPendingData.clients.length > 10 && (
                   <p className="text-xs text-center text-gray-600 pt-2">
-                    +{nvvPendingData.clients.length - 5} clientes más
+                    +{nvvPendingData.clients.length - 10} clientes más
                   </p>
                 )}
               </div>
@@ -982,7 +983,7 @@ export default function SalespersonDashboard() {
 
         {/* Notificaciones Inteligentes de Ventas */}
         {smartNotifications && (
-          <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-indigo-50/80 via-purple-50/60 to-pink-100/40" data-testid="card-smart-notifications">
+          <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-indigo-50/80 via-purple-50/60 to-pink-100/40 lg:col-span-2" data-testid="card-smart-notifications">
             <CardHeader className="p-4 sm:p-6">
               <div className="flex items-center gap-3">
                 <div className="bg-indigo-500 rounded-full p-2 sm:p-3">
@@ -1043,7 +1044,7 @@ export default function SalespersonDashboard() {
         )}
 
         {/* KPIs del Vendedor */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 lg:col-span-2">
           <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-emerald-50/80 to-emerald-100/50" data-testid="card-ventas-totales">
             <CardContent className="pt-6 pb-6">
               <div className="flex items-start justify-between">
@@ -1177,17 +1178,17 @@ export default function SalespersonDashboard() {
 
 
         {/* Tendencia de Ventas - Ancho completo */}
-        <div className="modern-card p-5 lg:p-6 hover-lift">
+        <CardWrapper className="lg:col-span-2">
           <SalesChart 
             selectedPeriod={selectedPeriod} 
             filterType={filterType}
             salesperson={user?.salespersonName}
           />
-        </div>
+        </CardWrapper>
 
         {/* Clientes del Vendedor con Acordeones */}
         {salespersonName && (
-          <div className="modern-card p-5 lg:p-6 hover-lift">
+          <CardWrapper>
             <SalespersonClientsPanel 
               salespersonName={salespersonName}
               selectedPeriod={selectedPeriod}
@@ -1195,13 +1196,14 @@ export default function SalespersonDashboard() {
               showSearchToggle={true}
               showLoadMore={true}
               accordionState={accordionState}
+              limit={10}
             />
-          </div>
+          </CardWrapper>
         )}
 
         {/* Productos del Vendedor con Acordeones */}
         {salespersonName && (
-          <div className="modern-card p-5 lg:p-6 hover-lift">
+          <CardWrapper>
             <SalespersonProductsPanel 
               salespersonName={salespersonName}
               selectedPeriod={selectedPeriod}
@@ -1209,24 +1211,25 @@ export default function SalespersonDashboard() {
               showSearchToggle={true}
               showLoadMore={true}
               accordionState={accordionState}
+              limit={10}
             />
-          </div>
+          </CardWrapper>
         )}
 
         {/* Tabla de Transacciones */}
-        <div className="modern-card p-5 lg:p-6 hover-lift">
+        <CardWrapper className="lg:col-span-2">
           <TransactionsTable 
             selectedPeriod={selectedPeriod} 
             filterType={filterType}
             salesperson={user?.salespersonName}
           />
-        </div>
+        </CardWrapper>
 
         {/* Comparativa de Períodos */}
         {salespersonName && (
-          <div className="modern-card p-5 lg:p-6 hover-lift">
+          <CardWrapper className="lg:col-span-2">
             <PeriodComparisonChart salespersonName={salespersonName} />
-          </div>
+          </CardWrapper>
         )}
       </main>
 
