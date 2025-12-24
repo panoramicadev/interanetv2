@@ -63,21 +63,35 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
     enabled: !goalsData, // Only fetch if no external data provided
   });
 
-  // Query for NVV global total (no date filters) - for combined progress bar
-  const { data: nvvGlobalMetrics } = useQuery<NVVMetrics>({
-    queryKey: ['/api/nvv/metrics', 'global-goals'],
+  // Query for NVV metrics with filters - for combined progress bar
+  const { data: nvvMetrics } = useQuery<NVVMetrics>({
+    queryKey: ['/api/nvv/metrics', 'goals-combined', globalFilter],
     queryFn: async () => {
-      const res = await fetch('/api/nvv/metrics', { credentials: 'include' });
+      const params = new URLSearchParams();
+      if (globalFilter.type === 'salesperson' && globalFilter.value) {
+        params.append('salesperson', globalFilter.value);
+      } else if (globalFilter.type === 'segment' && globalFilter.value) {
+        params.append('segment', globalFilter.value);
+      }
+      
+      const res = await fetch(`/api/nvv/metrics?${params.toString()}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
   });
 
-  // Query for GDV global total (no date filters) - for combined progress bar
-  const { data: gdvGlobalMetrics } = useQuery<GDVMetrics>({
-    queryKey: ['/api/sales/gdv-pending', 'global-goals'],
+  // Query for GDV metrics with filters - for combined progress bar
+  const { data: gdvMetrics } = useQuery<GDVMetrics>({
+    queryKey: ['/api/sales/gdv-pending', 'goals-combined', globalFilter],
     queryFn: async () => {
-      const res = await fetch('/api/sales/gdv-pending', { credentials: 'include' });
+      const params = new URLSearchParams();
+      if (globalFilter.type === 'salesperson' && globalFilter.value) {
+        params.append('salesperson', globalFilter.value);
+      } else if (globalFilter.type === 'segment' && globalFilter.value) {
+        params.append('segment', globalFilter.value);
+      }
+
+      const res = await fetch(`/api/sales/gdv-pending?${params.toString()}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
@@ -88,8 +102,8 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
   const isLoading = externalLoading !== undefined ? externalLoading : fetchedLoading;
   
   // Calculate combined total for progress bar (ventas + NVV + GDV)
-  const nvvTotal = Number(nvvGlobalMetrics?.totalAmount || 0);
-  const gdvTotal = Number(gdvGlobalMetrics?.gdvSales || 0);
+  const nvvTotal = Number(nvvMetrics?.totalAmount || 0);
+  const gdvTotal = Number(gdvMetrics?.gdvSales || 0);
 
   // Helper function to check if we're viewing the current month
   const isCurrentMonth = (): boolean => {
@@ -411,6 +425,38 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
                       style={{ width: `${Math.min(goal.percentage ?? 0, 100)}%` }}
                     />
                   </div>
+
+                    {/* Segunda barra de progreso - Total Combinado (más sutil y pequeña) - Solo en mes actual */}
+                    {isCurrentMonth() && (nvvTotal > 0 || gdvTotal > 0) && (() => {
+                      const combinedTotal = goal.currentSales + nvvTotal + gdvTotal;
+                      const combinedPercentage = goal.targetAmount > 0 
+                        ? (combinedTotal / goal.targetAmount) * 100 
+                        : 0;
+                      return (
+                        <div className="space-y-0.5">
+                          <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className={`h-1.5 rounded-full transition-all duration-500 ${
+                                combinedPercentage >= 100 ? 'bg-gradient-to-r from-cyan-300 to-cyan-500' : 
+                                combinedPercentage >= 70 ? 'bg-gradient-to-r from-sky-300 to-sky-500' : 'bg-gradient-to-r from-indigo-300 to-indigo-500'
+                              }`}
+                              style={{ width: `${Math.min(combinedPercentage, 100)}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                              Total Combinado: {formatCurrency(combinedTotal)}
+                            </p>
+                            <p className={`text-[10px] font-medium ${
+                              combinedPercentage >= 100 ? 'text-cyan-600' : 
+                              combinedPercentage >= 70 ? 'text-sky-600' : 'text-indigo-600'
+                            }`}>
+                              {combinedPercentage.toFixed(1)}%
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
                 </div>
               </div>
             );
