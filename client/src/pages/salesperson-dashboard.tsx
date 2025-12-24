@@ -21,7 +21,7 @@ import NotificationsPanel from "@/components/dashboard/notifications-panel";
 import GoalsProgress from "@/components/dashboard/goals-progress";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import { useFilter } from "@/contexts/FilterContext";
-import { CardWrapper } from "@/CardWrapper";
+import { CardWrapper } from "@/components/dashboard/CardWrapper";
 import { SalespersonClientsPanel, SalespersonProductsPanel } from "@/components/salesperson/engagement-panels";
 import { useSalespersonAccordion } from "@/hooks/useSalespersonAccordion";
 import SalespersonNVV from "@/components/salesperson/salesperson-nvv";
