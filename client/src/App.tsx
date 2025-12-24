@@ -122,8 +122,9 @@ function Router() {
                 case 'admin':
                 case 'supervisor':
                 case 'logistica_bodega':
-                case 'salesperson':
                   return <Dashboard />;
+                case 'salesperson':
+                  return <SalespersonDashboard />;
                 case 'tecnico_obra':
                   return <VisitasTecnicasPage />;
                 case 'reception':
