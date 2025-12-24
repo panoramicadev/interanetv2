@@ -742,15 +742,6 @@ export function SalespersonProductsPanel({
                         }
                       }}
                     >
-                      {/* Chevron icon */}
-                      <div className="flex-shrink-0 w-5 h-5 text-gray-400">
-                        {isExpanded ? (
-                          <ChevronUp className="h-5 w-5" />
-                        ) : (
-                          <ChevronDown className="h-5 w-5" />
-                        )}
-                      </div>
-                      
                       {/* Nombre del producto completo */}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-gray-700 font-medium truncate">
@@ -777,6 +768,15 @@ export function SalespersonProductsPanel({
                       <span className="text-sm font-semibold text-gray-900 w-20 sm:w-28 text-right flex-shrink-0">
                         {formatCurrency(product.totalSales)}
                       </span>
+
+                      {/* Chevron icon */}
+                      <div className="flex-shrink-0 ml-1 sm:ml-2">
+                        {isExpanded ? (
+                          <ChevronUp className="h-5 w-5 text-blue-600" />
+                        ) : (
+                          <ChevronDown className="h-5 w-5 text-gray-400" />
+                        )}
+                      </div>
                     </div>
                     
                     {/* Expanded Product Details Section */}
