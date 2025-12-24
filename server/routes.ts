@@ -2494,52 +2494,65 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Salesperson NVV pending sales
+  // Salesperson NVV pending sales - Uses fact_nvv table via storage layer
   app.get("/api/sales/salesperson/:salespersonName/nvv-pending", requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName } = req.params;
       const { period, filterType = "month" } = req.query;
       
-      // Build conditions based on period
-      const conditions = [eq(nvvPendingSales.KOFULIDO, salespersonName)];
+      // Calculate date range based on period
+      let startDate: Date | undefined;
+      let endDate: Date | undefined;
       
       if (period) {
         switch (filterType) {
           case 'month':
             const [year, month] = (period as string).split('-');
-            conditions.push(sql`EXTRACT(YEAR FROM ${nvvPendingSales.FEEMLI}) = ${year}`);
-            conditions.push(sql`EXTRACT(MONTH FROM ${nvvPendingSales.FEEMLI}) = ${month}`);
+            startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+            endDate = new Date(parseInt(year), parseInt(month), 0);
             break;
           case 'year':
-            conditions.push(sql`EXTRACT(YEAR FROM ${nvvPendingSales.FEEMLI}) = ${period}`);
+            startDate = new Date(parseInt(period as string), 0, 1);
+            endDate = new Date(parseInt(period as string), 11, 31);
             break;
         }
       }
       
-      const nvvDataQuery = db
-        .select({
-          clientName: nvvPendingSales.NOKOEN,
-          totalPending: sql<string>`CAST(SUM(CAST(${nvvPendingSales.total_pendiente} AS NUMERIC)) AS TEXT)`,
-          documentCount: sql<string>`CAST(COUNT(DISTINCT ${nvvPendingSales.NUDO}) AS TEXT)`,
-        })
-        .from(nvvPendingSales)
-        .where(and(...conditions))
-        .groupBy(nvvPendingSales.NOKOEN)
-        .orderBy(desc(sql`SUM(CAST(${nvvPendingSales.total_pendiente} AS NUMERIC))`));
+      // Use storage layer which queries fact_nvv (the active NVV table)
+      const nvvRecords = await storage.getNvvBySalesperson({
+        salesperson: salespersonName,
+        startDate,
+        endDate
+      });
       
-      const nvvData = await nvvDataQuery;
+      // Aggregate by client
+      const clientMap = new Map<string, { totalPending: number; documentCount: Set<string> }>();
       
-      const totalNVV = nvvData.reduce((sum, item) => sum + Number(item.totalPending), 0);
-      const totalDocuments = nvvData.reduce((sum, item) => sum + Number(item.documentCount), 0);
+      for (const record of nvvRecords) {
+        const clientName = record.NOKOEN || 'Sin Cliente';
+        if (!clientMap.has(clientName)) {
+          clientMap.set(clientName, { totalPending: 0, documentCount: new Set() });
+        }
+        const client = clientMap.get(clientName)!;
+        client.totalPending += record.totalPendiente || 0;
+        if (record.NUDO) client.documentCount.add(record.NUDO);
+      }
+      
+      const clients = Array.from(clientMap.entries())
+        .map(([clientName, data]) => ({
+          clientName,
+          totalPending: data.totalPending,
+          documentCount: data.documentCount.size
+        }))
+        .sort((a, b) => b.totalPending - a.totalPending);
+      
+      const totalNVV = clients.reduce((sum, item) => sum + item.totalPending, 0);
+      const totalDocuments = clients.reduce((sum, item) => sum + item.documentCount, 0);
       
       res.json({
         total: totalNVV,
         documentCount: totalDocuments,
-        clients: nvvData.map(item => ({
-          clientName: item.clientName,
-          totalPending: Number(item.totalPending),
-          documentCount: Number(item.documentCount),
-        }))
+        clients
       });
     } catch (error) {
       console.error("Error fetching salesperson NVV pending:", error);
