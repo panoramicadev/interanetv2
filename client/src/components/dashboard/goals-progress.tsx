@@ -105,22 +105,6 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
   const nvvTotal = Number(nvvMetrics?.totalAmount || 0);
   const gdvTotal = Number(gdvMetrics?.gdvSales || 0);
 
-  // Helper function to check if a goal's period is the current month
-  const isCurrentMonthGoal = (goalPeriod: string): boolean => {
-    if (!goalPeriod) return false;
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1;
-    const currentMonthStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
-    
-    // goalPeriod format is "YYYY-MM" for months
-    if (goalPeriod.match(/^\d{4}-\d{2}$/)) {
-      return goalPeriod === currentMonthStr;
-    }
-    
-    return false;
-  };
-
   // Normalize function to handle case and accent insensitive comparison
   const normalize = (str: string | null | undefined): string => {
     if (!str) return '';
@@ -327,8 +311,8 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
                       />
                     </div>
                     
-                    {/* Segunda barra de progreso - Total Combinado (más sutil y pequeña) - Solo en mes actual */}
-                    {isCurrentMonthGoal(goal.period) && (nvvTotal > 0 || gdvTotal > 0) && (() => {
+                    {/* Segunda barra de progreso - Total Combinado (Ventas + NVV + GDV) */}
+                    {(nvvTotal > 0 || gdvTotal > 0) && (() => {
                       const combinedTotal = goal.currentSales + nvvTotal + gdvTotal;
                       const combinedPercentage = goal.targetAmount > 0 
                         ? (combinedTotal / goal.targetAmount) * 100 
@@ -426,8 +410,8 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
                     />
                   </div>
 
-                    {/* Segunda barra de progreso - Total Combinado (más sutil y pequeña) - Solo en mes actual */}
-                    {isCurrentMonthGoal(goal.period) && (nvvTotal > 0 || gdvTotal > 0) && (() => {
+                    {/* Segunda barra de progreso - Total Combinado (Ventas + NVV + GDV) */}
+                    {(nvvTotal > 0 || gdvTotal > 0) && (() => {
                       const combinedTotal = goal.currentSales + nvvTotal + gdvTotal;
                       const combinedPercentage = goal.targetAmount > 0 
                         ? (combinedTotal / goal.targetAmount) * 100 
