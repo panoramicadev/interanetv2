@@ -169,7 +169,7 @@ function ClientDetailAccordion({ client, idx, salespersonName, expandedValue, on
   return (
     <AccordionItem value={clientValue} className="border rounded-lg bg-white/60">
       <AccordionTrigger className="px-3 py-2 hover:no-underline">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-2 text-left pr-2">
+        <div className="flex flex-1 min-w-0 flex-col sm:flex-row sm:items-center justify-between gap-x-4 gap-y-2 text-left">
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-gray-900 text-sm truncate">
               {client.clientName}
@@ -178,7 +178,7 @@ function ClientDetailAccordion({ client, idx, salespersonName, expandedValue, on
               {client.daysSinceLastPurchase} días sin comprar
             </p>
           </div>
-          <div className="flex flex-row sm:flex-col justify-between sm:justify-end items-center sm:items-end gap-x-4 sm:gap-0 shrink-0">
+          <div className="flex flex-row sm:flex-col justify-between sm:justify-end items-center sm:items-end shrink-0">
             <p className="text-xs text-gray-600">Última compra</p>
             <p className="font-semibold text-sm text-orange-700">
               {formatCurrency(client.lastPurchaseAmount)}
