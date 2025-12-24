@@ -204,7 +204,7 @@ export default function PeriodComparisonChart({ salespersonName }: Props) {
   return (
     <Card className="w-full" data-testid="card-period-comparison">
       <CardHeader>
-        <div className="flex items-start justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0">
           <div>
             <CardTitle className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-orange-600" />
@@ -214,12 +214,13 @@ export default function PeriodComparisonChart({ salespersonName }: Props) {
               Compara ventas entre diferentes años, meses o días
             </CardDescription>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 w-full sm:w-auto">
             <Button
               variant={chartType === 'bar' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setChartType('bar')}
               data-testid="button-chart-type-bar"
+              className="flex-1 sm:flex-none"
             >
               Barras
             </Button>
@@ -228,6 +229,7 @@ export default function PeriodComparisonChart({ salespersonName }: Props) {
               size="sm"
               onClick={() => setChartType('line')}
               data-testid="button-chart-type-line"
+              className="flex-1 sm:flex-none"
             >
               Líneas
             </Button>

@@ -169,16 +169,16 @@ function ClientDetailAccordion({ client, idx, salespersonName, expandedValue, on
   return (
     <AccordionItem value={clientValue} className="border rounded-lg bg-white/60">
       <AccordionTrigger className="px-3 py-2 hover:no-underline">
-        <div className="flex items-start justify-between w-full pr-2">
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-gray-900 text-sm truncate text-left">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full pr-2 gap-2 sm:gap-0">
+          <div className="flex-1 min-w-0 text-left w-full">
+            <p className="font-semibold text-gray-900 text-sm truncate">
               {client.clientName}
             </p>
-            <p className="text-xs text-gray-600 text-left">
+            <p className="text-xs text-gray-600 truncate">
               {client.daysSinceLastPurchase} días sin comprar
             </p>
           </div>
-          <div className="text-right">
+          <div className="text-left sm:text-right w-full sm:w-auto flex flex-row sm:flex-col justify-between sm:justify-end items-center sm:items-end">
             <p className="text-xs text-gray-600">Última compra</p>
             <p className="font-semibold text-sm text-orange-700">
               {formatCurrency(client.lastPurchaseAmount)}
@@ -700,9 +700,9 @@ export default function SalespersonDashboard() {
         </header>
 
         {/* Contenido Principal */}
-        <main className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 px-3 md:px-4 lg:px-6 pb-6">
+        <main className="space-y-4 md:space-y-6 px-3 md:px-4 lg:px-6 py-4 md:py-6">
         
-        <section className="space-y-6 lg:col-span-2" data-testid="section-goals-and-segments">
+        <section className="space-y-6" data-testid="section-goals-and-segments">
           <GoalsProgress
             globalFilter={{ type: 'salesperson', value: salespersonName }}
             selectedPeriod={selectedPeriod}
@@ -1044,7 +1044,7 @@ export default function SalespersonDashboard() {
         )}
 
         {/* KPIs del Vendedor */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 lg:col-span-2">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-emerald-50/80 to-emerald-100/50" data-testid="card-ventas-totales">
             <CardContent className="pt-6 pb-6">
               <div className="flex items-start justify-between">
@@ -1217,7 +1217,7 @@ export default function SalespersonDashboard() {
         )}
 
         {/* Tabla de Transacciones */}
-        <CardWrapper className="lg:col-span-2">
+        <CardWrapper>
           <TransactionsTable 
             selectedPeriod={selectedPeriod} 
             filterType={filterType}
@@ -1227,7 +1227,7 @@ export default function SalespersonDashboard() {
 
         {/* Comparativa de Períodos */}
         {salespersonName && (
-          <CardWrapper className="lg:col-span-2">
+          <CardWrapper>
             <PeriodComparisonChart salespersonName={salespersonName} />
           </CardWrapper>
         )}

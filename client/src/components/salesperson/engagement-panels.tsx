@@ -297,21 +297,21 @@ export function SalespersonClientsPanel({
                       className="cursor-pointer py-3 px-2"
                       data-testid={`client-${index}`}
                     >
-                      <div className="flex items-center gap-3 w-full">
+                      <div className="flex items-center gap-2 sm:gap-3 w-full">
                         {/* Nombre del cliente completo */}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-gray-700 font-medium">
+                          <p className="text-sm text-gray-700 font-medium truncate">
                             {client.clientName}
                           </p>
                         </div>
                         
                         {/* Porcentaje */}
-                        <span className="text-xs text-gray-600 w-10 text-right flex-shrink-0">
+                        <span className="text-xs text-gray-600 w-8 sm:w-10 text-right flex-shrink-0">
                           {client.percentage.toFixed(1)}%
                         </span>
                         
                         {/* Barra de progreso delgada y corta */}
-                        <div className="w-20 sm:w-32 flex-shrink-0">
+                        <div className="hidden sm:block w-20 sm:w-32 flex-shrink-0">
                           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                             <div 
                               className="h-full bg-blue-500 rounded-full transition-all duration-500 ease-out"
@@ -321,12 +321,12 @@ export function SalespersonClientsPanel({
                         </div>
                         
                         {/* Monto */}
-                        <span className="text-sm font-semibold text-gray-900 w-28 text-right flex-shrink-0">
+                        <span className="text-sm font-semibold text-gray-900 w-20 sm:w-28 text-right flex-shrink-0">
                           {formatCurrency(client.totalSales)}
                         </span>
                         
                         {/* Chevron icon */}
-                        <div className="flex-shrink-0 ml-2">
+                        <div className="flex-shrink-0 ml-1 sm:ml-2">
                           {isExpanded ? (
                             <ChevronUp className="h-5 w-5 text-blue-600" />
                           ) : (
@@ -731,7 +731,7 @@ export function SalespersonProductsPanel({
                     className="rounded-lg transition-colors"
                   >
                     <div 
-                      className="flex items-center gap-3 w-full cursor-pointer hover:bg-gray-50/50 py-3 px-2 rounded-lg"
+                      className="flex items-center gap-2 sm:gap-3 w-full cursor-pointer hover:bg-gray-50/50 py-3 px-2 rounded-lg"
                       data-testid={`product-${index}`}
                       onClick={() => {
                         if (expandedProduct === product.productName) {
@@ -753,18 +753,18 @@ export function SalespersonProductsPanel({
                       
                       {/* Nombre del producto completo */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-gray-700 font-medium">
+                        <p className="text-sm text-gray-700 font-medium truncate">
                           {product.productName}
                         </p>
                       </div>
                       
                       {/* Porcentaje */}
-                      <span className="text-xs text-gray-600 w-10 text-right flex-shrink-0">
+                      <span className="text-xs text-gray-600 w-8 sm:w-10 text-right flex-shrink-0">
                         {product.percentage.toFixed(1)}%
                       </span>
                       
                       {/* Barra de progreso delgada y corta */}
-                      <div className="w-20 sm:w-32 flex-shrink-0">
+                      <div className="hidden sm:block w-20 sm:w-32 flex-shrink-0">
                         <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                           <div 
                             className="h-full bg-green-500 rounded-full transition-all duration-500 ease-out"
@@ -774,7 +774,7 @@ export function SalespersonProductsPanel({
                       </div>
                       
                       {/* Monto */}
-                      <span className="text-sm font-semibold text-gray-900 w-28 text-right flex-shrink-0">
+                      <span className="text-sm font-semibold text-gray-900 w-20 sm:w-28 text-right flex-shrink-0">
                         {formatCurrency(product.totalSales)}
                       </span>
                     </div>
