@@ -385,7 +385,7 @@ function ETLStatusSection({
   const [buttonState, setButtonState] = useState<'idle' | 'clicked' | 'starting' | 'running'>('idle');
 
   // Fetch ETL status
-  const { data: status, isLoading } = useQuery<ETLStatus>({
+  const { data: status, isLoading, refetch } = useQuery<ETLStatus>({
     queryKey: [`/api/etl/status?etlName=${etlName}`],
     refetchInterval: autoRefresh ? 30000 : false, // Auto-refresh every 30 seconds
     retry: 2, // Max 2 retries on failure
@@ -592,8 +592,11 @@ function ETLStatusSection({
     }
   }, [showConfigDialog, status?.config]);
 
-  const handleExecute = () => {
-    if (status?.isRunning || isETLExecuting) {
+  const handleExecute = async () => {
+    // Fetch fresh status before executing
+    const { data: freshStatus } = await refetch();
+
+    if (freshStatus?.isRunning || isETLExecuting) {
       toast({
         title: "⏳ ETL en ejecución",
         description: "Ya hay un proceso ETL en ejecución. Por favor espera a que termine.",
@@ -2801,4 +2804,3 @@ function NVVHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
     </Card>
   );
 }
-
