@@ -738,21 +738,22 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             >
               {kpi.value}
             </p>
-            <div className="flex items-baseline gap-1.5 flex-wrap">
-              <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
-                {kpi.change.percentage}
-              </span>
-              {previousTotal > 0 && (
-                <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
-                  {differenceSign}{differenceFormatted}
-                </span>
-              )}
-              {kpi.change.comparisonText && (
-                <span className="text-[10px] text-gray-500">
-                  {kpi.change.comparisonText}
-                </span>
-              )}
-            </div>
+            {/* Bloque de comparación con año anterior */}
+            {previousTotal > 0 && (
+              <div className="mt-2 space-y-1 text-xs border-t border-gray-100 pt-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">
+                    {yearlyTotals?.comparisonYear || 'Año anterior'} (a la fecha):
+                  </span>
+                  <span className="font-medium text-gray-700">{formatCurrency(previousTotal)}</span>
+                </div>
+                <div className={`flex justify-between items-center font-semibold ${kpi.changeColor}`}>
+                  <span>Diferencia:</span>
+                  <span>{differenceSign}{differenceFormatted} ({kpi.change.percentage})</span>
+                </div>
+              </div>
+            )}
+
             {/* Información adicional: Mejor año histórico */}
             <div className="mt-2 pt-2 border-t border-gray-100 overflow-hidden">
               <p className="text-xs text-gray-500 mb-1 truncate">
