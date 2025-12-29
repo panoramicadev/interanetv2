@@ -1863,7 +1863,7 @@ export function registerRoutes(app: Express): Server {
   // Top products endpoint
   app.get('/api/sales/top-products', requireCommercialAccess, async (req, res) => {
     try {
-      const { limit, period, filterType, salesperson, segment } = req.query;
+      const { limit, period, filterType, salesperson, segment, client } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
       
       const result = await storage.getTopProducts(
@@ -1871,7 +1871,8 @@ export function registerRoutes(app: Express): Server {
         dateRange.startDate,
         dateRange.endDate,
         salesperson as string, // Filtrar por vendedor específico
-        segment as string // Filtrar por segmento específico
+        segment as string, // Filtrar por segmento específico
+        client as string // Filtrar por cliente específico
       );
       res.json(result);
     } catch (error) {
