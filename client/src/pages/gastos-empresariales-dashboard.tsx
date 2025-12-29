@@ -392,11 +392,21 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
     }
   };
 
+  // Función para obtener gastos filtrados (reutilizable)
+  const getFilteredGastos = () => {
+    return gastosRecientes.filter(gasto => {
+      const matchEstado = estadoFilter === 'todos' || gasto.estado === estadoFilter;
+      const matchCategoria = categoriaFilter === 'todos' || gasto.categoria === categoriaFilter;
+      return matchEstado && matchCategoria;
+    });
+  };
+
   const handleExportCSV = () => {
-    if (gastosRecientes.length === 0) return;
+    const gastosParaExportar = getFilteredGastos();
+    if (gastosParaExportar.length === 0) return;
     
     const headers = ['Fecha', 'Descripción', 'Categoría', 'Monto', 'Estado', 'Proveedor'];
-    const rows = gastosRecientes.map(g => [
+    const rows = gastosParaExportar.map(g => [
       formatFullDate(g.createdAt as any),
       g.descripcion,
       g.categoria,
@@ -405,16 +415,22 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
       g.proveedor || '-'
     ]);
     
+    // Agregar info de filtros al nombre del archivo
+    let fileName = `gastos_${anio}_${mes}`;
+    if (estadoFilter !== 'todos') fileName += `_${estadoFilter}`;
+    if (categoriaFilter !== 'todos') fileName += `_${categoriaFilter.replace(/\s+/g, '_')}`;
+    
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `gastos_${anio}_${mes}.csv`;
+    link.download = `${fileName}.csv`;
     link.click();
   };
 
   const handleExportPDF = async () => {
-    if (gastosRecientes.length === 0 && fondosData.length === 0) return;
+    const gastosParaExportar = getFilteredGastos();
+    if (gastosParaExportar.length === 0 && fondosData.length === 0) return;
     
     setIsGeneratingPDF(true);
     try {
@@ -435,6 +451,16 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
       doc.setFont('helvetica', 'normal');
       doc.text(`Período: ${monthName} ${anio}`, pageWidth / 2, yPos, { align: 'center' });
       yPos += 8;
+      
+      // Mostrar filtros aplicados
+      const filtrosAplicados: string[] = [];
+      if (estadoFilter !== 'todos') filtrosAplicados.push(`Estado: ${estadoFilter}`);
+      if (categoriaFilter !== 'todos') filtrosAplicados.push(`Categoría: ${categoriaFilter}`);
+      if (filtrosAplicados.length > 0) {
+        doc.text(`Filtros: ${filtrosAplicados.join(' | ')}`, pageWidth / 2, yPos, { align: 'center' });
+        yPos += 8;
+      }
+      
       doc.text(`Generado: ${new Date().toLocaleDateString('es-CL')}`, pageWidth / 2, yPos, { align: 'center' });
       yPos += 15;
       
@@ -499,7 +525,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         yPos += 10;
       }
       
-      if (gastosRecientes.length > 0) {
+      if (gastosParaExportar.length > 0) {
         if (yPos > pageHeight - 50) {
           doc.addPage();
           yPos = margin;
@@ -507,7 +533,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
-        doc.text('Detalle de Gastos', margin, yPos);
+        doc.text(`Detalle de Gastos (${gastosParaExportar.length} registros)`, margin, yPos);
         yPos += 8;
         
         const gastoHeaders = ['Fecha', 'Descripción', 'Categoría', 'Monto', 'Estado'];
@@ -526,7 +552,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         yPos += 10;
         
         doc.setFont('helvetica', 'normal');
-        for (const gasto of gastosRecientes) {
+        for (const gasto of gastosParaExportar) {
           if (yPos > pageHeight - 30) {
             doc.addPage();
             yPos = margin;
@@ -580,7 +606,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         }
       }
       
-      for (const gasto of gastosRecientes) {
+      for (const gasto of gastosParaExportar) {
         if (gasto.comprobanteUrl) {
           const esConFondo = gasto.fundingMode === 'con_fondo';
           allImages.push({
@@ -813,12 +839,8 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
 
   const years = Array.from({ length: 5 }, (_, i) => (currentYear - i).toString());
 
-  // Filtrar gastos por estado y categoría
-  const filteredGastos = gastosRecientes.filter(gasto => {
-    const matchEstado = estadoFilter === 'todos' || gasto.estado === estadoFilter;
-    const matchCategoria = categoriaFilter === 'todos' || gasto.categoria === categoriaFilter;
-    return matchEstado && matchCategoria;
-  });
+  // Usar la función de filtrado para la vista
+  const filteredGastos = getFilteredGastos();
 
   const hasData = (summary?.count || 0) > 0 || fondosData.length > 0 || gastosRecientes.length > 0;
 
