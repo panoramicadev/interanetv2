@@ -301,7 +301,7 @@ import {
 } from "@shared/schema";
 import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from "@shared/reclamosAreas";
 import { db } from "./db";
-import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, or, isNull, isNotNull, ilike, count, not } from "drizzle-orm";
+import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, or, isNull, isNotNull, ilike, count, not, aliasedTable, getTableColumns } from "drizzle-orm";
 import { getComunaRegion } from "./chile-regions";
 import { comunaRegionService } from "./comunaRegionService";
 import mssql from 'mssql';
@@ -19558,7 +19558,7 @@ export class DatabaseStorage implements IStorage {
     userScope?: string; // Shows: assignedTo=user OR (estado='solicitud' AND assignedById=user)
     limit?: number;
     offset?: number;
-  }): Promise<FundAllocation[]> {
+  }): Promise<(FundAllocation & { assignedByName?: string; assignedToName?: string })[]> {
     const conditions = [];
 
     // userScope: user sees funds assigned TO them + their own solicitudes
@@ -19586,7 +19586,23 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(fundAllocations.estado, filters.estado));
     }
 
-    let query = db.select().from(fundAllocations).orderBy(desc(fundAllocations.createdAt));
+    const assignedByUser = aliasedTable(users, 'assigned_by_user');
+    const assignedToUser = aliasedTable(users, 'assigned_to_user');
+
+    let query = db
+      .select({
+        ...getTableColumns(fundAllocations),
+        assignedByFirstName: assignedByUser.firstName,
+        assignedByLastName: assignedByUser.lastName,
+        assignedByEmail: assignedByUser.email,
+        assignedToFirstName: assignedToUser.firstName,
+        assignedToLastName: assignedToUser.lastName,
+        assignedToEmail: assignedToUser.email,
+      })
+      .from(fundAllocations)
+      .leftJoin(assignedByUser, eq(fundAllocations.assignedById, assignedByUser.id))
+      .leftJoin(assignedToUser, eq(fundAllocations.assignedToId, assignedToUser.id))
+      .orderBy(desc(fundAllocations.createdAt));
 
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as any;
@@ -19600,7 +19616,25 @@ export class DatabaseStorage implements IStorage {
       query = query.offset(filters.offset) as any;
     }
 
-    return await query;
+    const results = await query;
+    
+    return results.map(r => {
+      const assignedByName = r.assignedByFirstName && r.assignedByLastName
+        ? `${r.assignedByFirstName} ${r.assignedByLastName}`
+        : r.assignedByFirstName || r.assignedByLastName || (r.assignedByEmail ? r.assignedByEmail.split('@')[0] : undefined);
+      
+      const assignedToName = r.assignedToFirstName && r.assignedToLastName
+        ? `${r.assignedToFirstName} ${r.assignedToLastName}`
+        : r.assignedToFirstName || r.assignedToLastName || (r.assignedToEmail ? r.assignedToEmail.split('@')[0] : undefined);
+
+      const { assignedByFirstName, assignedByLastName, assignedByEmail, assignedToFirstName, assignedToLastName, assignedToEmail, ...fundData } = r;
+      
+      return {
+        ...fundData,
+        assignedByName,
+        assignedToName,
+      };
+    });
   }
 
   async getFundAllocationById(id: string): Promise<FundAllocation | undefined> {
