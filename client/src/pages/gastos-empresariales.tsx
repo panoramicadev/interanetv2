@@ -119,6 +119,7 @@ export default function GastosEmpresariales() {
   const [comentarioRechazo, setComentarioRechazo] = useState("");
   const [showSolicitarFondoDialog, setShowSolicitarFondoDialog] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [activeMainTab, setActiveMainTab] = useState("rendicion");
 
   const solicitarFondoForm = useForm<SolicitarFondoFormData>({
     resolver: zodResolver(solicitarFondoSchema),
@@ -155,6 +156,8 @@ export default function GastosEmpresariales() {
       setShowSolicitarFondoDialog(false);
       solicitarFondoForm.reset();
       setUploadedFiles([]);
+      // Cambiar a la pestaña de Gestión de Fondos para que el usuario vea que quedó registrada
+      setActiveMainTab('fondos');
     },
     onError: (error: any) => {
       toast({
@@ -347,8 +350,6 @@ export default function GastosEmpresariales() {
   const canDelete = (gasto: GastoEmpresarial) => {
     return gasto.userId === user?.id && gasto.estado === 'pendiente' || user?.role === 'admin';
   };
-
-  const [activeMainTab, setActiveMainTab] = useState("rendicion");
 
   return (
     <>
