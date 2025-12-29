@@ -195,13 +195,13 @@ export default function TareasPage() {
   // Query for available users (for assignments)
   const { data: availableUsers } = useQuery<Array<{ id: string; salespersonName: string; role: string }>>({
     queryKey: ["/api/users/salespeople"],
-    enabled: user?.role === 'admin' || user?.role === 'supervisor',
+    enabled: user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'tecnico_obra',
   });
 
   // Query for available supervisors (for assignments)
   const { data: availableSupervisors } = useQuery<Array<{ id: string; salespersonName: string; role: string }>>({
     queryKey: ["/api/users/salespeople/supervisors"],
-    enabled: user?.role === 'admin' || user?.role === 'supervisor',
+    enabled: user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'tecnico_obra',
   });
 
   // Queries para Promesas de Compra
@@ -475,7 +475,7 @@ export default function TareasPage() {
     createTaskMutation.mutate(data);
   };
 
-  const canCreateTasks = user.role === 'admin' || user.role === 'supervisor';
+  const canCreateTasks = user.role === 'admin' || user.role === 'supervisor' || user.role === 'tecnico_obra';
 
   return (
     <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4 space-y-6">
@@ -816,7 +816,7 @@ export default function TareasPage() {
             {filtersExpanded && (
               <div className="p-4 pt-0 space-y-3 border-t border-gray-200">
                 {/* View Mode Toggle */}
-                {(user.role === 'admin' || user.role === 'supervisor') && (
+                {(user.role === 'admin' || user.role === 'supervisor' || user.role === 'tecnico_obra') && (
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium text-muted-foreground">Vista:</Label>
                     <Select value={viewMode} onValueChange={(value: "my-tasks" | "all-tasks") => setViewMode(value)}>
@@ -888,7 +888,7 @@ export default function TareasPage() {
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
               <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
                 {/* View Mode Toggle */}
-                {(user.role === 'admin' || user.role === 'supervisor') && (
+                {(user.role === 'admin' || user.role === 'supervisor' || user.role === 'tecnico_obra') && (
                   <div className="flex items-center gap-3">
                     <Label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Vista:</Label>
                     <Select value={viewMode} onValueChange={(value: "my-tasks" | "all-tasks") => setViewMode(value)}>
