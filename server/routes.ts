@@ -14723,7 +14723,8 @@ export function registerRoutes(app: Express): Server {
   // GASTOS EMPRESARIALES routes
   // ==================================================================================
 
-  // Upload evidencia file
+  // Upload evidencia file for gastos empresariales
+  // Nomenclatura: gastos/evidencia_{userId}_{YYYYMMDD}_{randomId}.{ext}
   app.post('/api/gastos-empresariales/upload-evidencia', requireAuth, upload.single('file'), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
@@ -14738,18 +14739,90 @@ export function registerRoutes(app: Express): Server {
       }
 
       const file = req.file;
-      const timestamp = Date.now();
-      const randomId = nanoid(8);
-      const fileExtension = path.extname(file.originalname);
-      const fileName = `gasto-evidencia-${timestamp}-${randomId}${fileExtension}`;
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
+      const randomId = nanoid(6);
+      const fileExtension = path.extname(file.originalname).toLowerCase();
+      const userIdShort = user.id.slice(0, 8);
+      
+      // Estructura organizada: gastos/evidencia_{userId}_{fecha}_{randomId}.{ext}
+      const fileName = `gastos/evidencia_${userIdShort}_${dateStr}_${randomId}${fileExtension}`;
 
       // Upload to Object Storage (permanent storage)
       const objectStorageService = new ObjectStorageService();
       const imageUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
-      console.log(`☁️ [EVIDENCIA] Uploaded to Object Storage: ${fileName}`);
-      res.json({ url: imageUrl });
+      console.log(`☁️ [GASTO-EVIDENCIA] Uploaded: ${fileName}`);
+      res.json({ url: imageUrl, fileName });
     } catch (error: any) {
       console.error('Error uploading evidencia:', error);
+      res.status(500).json({ message: 'Error al subir archivo', error: error.message });
+    }
+  }));
+
+  // Upload comprobante de transferencia for fund allocations
+  // Nomenclatura: fondos/comprobante_{fundId}_{YYYYMMDD}_{randomId}.{ext}
+  app.post('/api/fund-allocations/upload-comprobante', requireAuth, upload.single('file'), asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only admin and HR can upload fund transfer receipts
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado para subir comprobante de fondo' });
+      }
+      
+      if (!req.file) {
+        return res.status(400).json({ message: 'No se ha subido ningún archivo' });
+      }
+
+      const file = req.file;
+      const fundId = req.body.fundId || 'sin-id';
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
+      const randomId = nanoid(6);
+      const fileExtension = path.extname(file.originalname).toLowerCase();
+      const fundIdShort = fundId.slice(0, 8);
+      
+      // Estructura organizada: fondos/comprobante_{fundId}_{fecha}_{randomId}.{ext}
+      const fileName = `fondos/comprobante_${fundIdShort}_${dateStr}_${randomId}${fileExtension}`;
+
+      // Upload to Object Storage (permanent storage)
+      const objectStorageService = new ObjectStorageService();
+      const imageUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
+      console.log(`☁️ [FONDO-COMPROBANTE] Uploaded: ${fileName}`);
+      res.json({ url: imageUrl, fileName });
+    } catch (error: any) {
+      console.error('Error uploading comprobante de fondo:', error);
+      res.status(500).json({ message: 'Error al subir archivo', error: error.message });
+    }
+  }));
+
+  // Upload solicitud de fondo evidence (employee requesting funds)
+  // Nomenclatura: fondos/solicitud_{userId}_{YYYYMMDD}_{randomId}.{ext}
+  app.post('/api/fund-allocations/upload-solicitud', requireAuth, upload.single('file'), asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!req.file) {
+        return res.status(400).json({ message: 'No se ha subido ningún archivo' });
+      }
+
+      const file = req.file;
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
+      const randomId = nanoid(6);
+      const fileExtension = path.extname(file.originalname).toLowerCase();
+      const userIdShort = user.id.slice(0, 8);
+      
+      // Estructura organizada: fondos/solicitud_{userId}_{fecha}_{randomId}.{ext}
+      const fileName = `fondos/solicitud_${userIdShort}_${dateStr}_${randomId}${fileExtension}`;
+
+      // Upload to Object Storage (permanent storage)
+      const objectStorageService = new ObjectStorageService();
+      const imageUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
+      console.log(`☁️ [FONDO-SOLICITUD] Uploaded: ${fileName}`);
+      res.json({ url: imageUrl, fileName });
+    } catch (error: any) {
+      console.error('Error uploading solicitud de fondo:', error);
       res.status(500).json({ message: 'Error al subir archivo', error: error.message });
     }
   }));

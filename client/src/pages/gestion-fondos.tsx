@@ -302,9 +302,10 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
     try {
       const formData = new FormData();
       formData.append('file', approveFile);
+      formData.append('fundId', selectedAllocation.id);
       
-      console.log('[handleApprove] Uploading file...');
-      const uploadResponse = await fetch('/api/upload', {
+      console.log('[handleApprove] Uploading file to fondos/comprobante...');
+      const uploadResponse = await fetch('/api/fund-allocations/upload-comprobante', {
         method: 'POST',
         body: formData,
         credentials: 'include',
