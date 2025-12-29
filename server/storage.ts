@@ -10740,6 +10740,11 @@ export class DatabaseStorage implements IStorage {
         case 'salesperson':
           // Salesperson gets only tasks assigned to them directly or via segment
           return this.getTasksForUser(userId, assigneeSegments || []);
+        case 'tecnico_obra':
+          // Tecnico de obra gets tasks they created + tasks assigned to them
+          // For now, we'll proceed without additional filtering at this level
+          // The getTasksWithAssignmentsOptimized function handles tecnico_obra specifically
+          break;
         default:
           // Unknown role - deny access
           throw new Error('Unauthorized: Invalid user role');
@@ -10855,6 +10860,20 @@ export class DatabaseStorage implements IStorage {
               )
             )
           `);
+          break;
+        case 'tecnico_obra':
+          // Tecnico de obra sees: tasks they created OR tasks assigned to them
+          taskConditions.push(sql`(
+            ${tasks.createdByUserId} = ${userId} OR 
+            EXISTS (
+              SELECT 1 FROM ${taskAssignments} 
+              WHERE ${taskAssignments.taskId} = ${tasks.id} 
+              AND (
+                (${taskAssignments.assigneeType} = 'supervisor' AND ${taskAssignments.assigneeId} = ${userId}) OR
+                (${taskAssignments.assigneeType} = 'salesperson' AND ${taskAssignments.assigneeId} = ${userId})
+              )
+            )
+          )`);
           break;
         default:
           throw new Error('Unauthorized: Invalid user role');
