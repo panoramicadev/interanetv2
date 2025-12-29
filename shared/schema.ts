@@ -1382,12 +1382,44 @@ export const tasksRelations = relations(tasks, ({ many, one }) => ({
   }),
 }));
 
-export const taskAssignmentsRelations = relations(taskAssignments, ({ one }) => ({
+export const taskAssignmentsRelations = relations(taskAssignments, ({ one, many }) => ({
   task: one(tasks, {
     fields: [taskAssignments.taskId],
     references: [tasks.id],
   }),
+  comments: many(taskComments),
 }));
+
+// Task Comments - Sistema de comentarios en hilo
+export const taskComments = pgTable("task_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  assignmentId: varchar("assignment_id").notNull(), // FK to task_assignments.id
+  authorId: varchar("author_id").notNull(), // FK to users.id
+  authorName: text("author_name").notNull(), // Cached author name for display
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  assignmentIdIdx: index("IDX_task_comments_assignment_id").on(table.assignmentId),
+  createdAtIdx: index("IDX_task_comments_created_at").on(table.createdAt),
+}));
+
+export type TaskComment = typeof taskComments.$inferSelect;
+export type InsertTaskComment = typeof taskComments.$inferInsert;
+
+export const taskCommentsRelations = relations(taskComments, ({ one }) => ({
+  assignment: one(taskAssignments, {
+    fields: [taskComments.assignmentId],
+    references: [taskAssignments.id],
+  }),
+  author: one(users, {
+    fields: [taskComments.authorId],
+    references: [users.id],
+  }),
+}));
+
+export const insertTaskCommentSchema = createInsertSchema(taskComments, {
+  content: z.string().min(1, "El comentario no puede estar vacío"),
+}).omit({ id: true, createdAt: true });
 
 // Payload schemas for different task types with enhanced validation
 export const textoTaskPayloadSchema = z.object({

@@ -295,6 +295,9 @@ import {
   type InsertProyeccionVentaInput,
   whatsappConfig,
   type WhatsAppConfig,
+  taskComments,
+  type TaskComment,
+  type InsertTaskComment,
 } from "@shared/schema";
 import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from "@shared/reclamosAreas";
 import { db } from "./db";
@@ -1239,6 +1242,11 @@ export interface IStorage {
   updateAssignmentStatus(assignmentId: string, status: string, notes?: string, evidenceImages?: string[]): Promise<TaskAssignment>;
   markAssignmentRead(assignmentId: string): Promise<TaskAssignment>;
   getTasksForUser(userId: string, userSegments: string[]): Promise<Array<Task & { assignments: TaskAssignment[] }>>;
+  
+  // Task comments - sistema de comentarios en hilo
+  getTaskComments(assignmentId: string): Promise<TaskComment[]>;
+  addTaskComment(comment: InsertTaskComment): Promise<TaskComment>;
+  deleteTaskComment(commentId: string, authorId: string): Promise<void>;
   
   // Personal Task Management - SECURITY: All methods filter by assignedToUserId = userId
   createMyTask(task: InsertTaskInput, userId: string): Promise<Task>;
@@ -11019,6 +11027,33 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return updatedAssignment;
+  }
+
+  // Task Comments - Sistema de comentarios en hilo
+  async getTaskComments(assignmentId: string): Promise<TaskComment[]> {
+    const comments = await db
+      .select()
+      .from(taskComments)
+      .where(eq(taskComments.assignmentId, assignmentId))
+      .orderBy(asc(taskComments.createdAt));
+    return comments;
+  }
+
+  async addTaskComment(comment: InsertTaskComment): Promise<TaskComment> {
+    const [newComment] = await db
+      .insert(taskComments)
+      .values(comment)
+      .returning();
+    return newComment;
+  }
+
+  async deleteTaskComment(commentId: string, authorId: string): Promise<void> {
+    await db
+      .delete(taskComments)
+      .where(and(
+        eq(taskComments.id, commentId),
+        eq(taskComments.authorId, authorId)
+      ));
   }
 
   async getTasksForUser(userId: string, userSegments: string[]): Promise<Array<Task & { assignments: TaskAssignment[] }>> {
