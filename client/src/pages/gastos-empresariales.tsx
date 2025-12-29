@@ -627,6 +627,23 @@ export default function GastosEmpresariales() {
                               </Button>
                             </>
                           )}
+                          {/* RRHH puede auditar gastos con fondos asignados ya aprobados */}
+                          {user?.role === 'recursos_humanos' && gasto.fundingMode === 'con_fondo' && gasto.estado === 'aprobado' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedGasto(gasto);
+                                setComentarioRechazo("");
+                                setShowRejectionDialog(true);
+                              }}
+                              title="Auditar/Rechazar"
+                              data-testid={`button-audit-${gasto.id}`}
+                            >
+                              <X className="h-4 w-4 text-orange-600" />
+                            </Button>
+                          )}
                           {canDelete(gasto) && (
                             <Button
                               size="sm"
@@ -863,6 +880,32 @@ export default function GastosEmpresariales() {
                     >
                       <Check className="h-4 w-4 mr-2" />
                       Aprobar
+                    </Button>
+                  </div>
+                </>
+              )}
+
+              {/* RRHH puede auditar gastos con fondos asignados ya aprobados */}
+              {user?.role === 'recursos_humanos' && selectedGasto.fundingMode === 'con_fondo' && selectedGasto.estado === 'aprobado' && (
+                <>
+                  <Separator />
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                    <h3 className="font-semibold text-sm text-orange-800 mb-2">Auditoría RRHH</h3>
+                    <p className="text-xs text-orange-700 mb-3">
+                      Este gasto fue auto-aprobado por tener fondos asignados. Puedes rechazarlo si no procede.
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="text-orange-600 border-orange-300 hover:bg-orange-100"
+                      onClick={() => {
+                        setShowDetailDialog(false);
+                        setComentarioRechazo("");
+                        setShowRejectionDialog(true);
+                      }}
+                      data-testid="button-audit-reject-detail"
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Rechazar Gasto
                     </Button>
                   </div>
                 </>
