@@ -17,6 +17,7 @@ import ComparativeSegmentSalespeopleTable from "@/components/dashboard/comparati
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
 import SegmentPendingNVV from "@/components/dashboard/segment-pending-nvv";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
+import TopClientsPanel from "@/components/dashboard/top-clients-panel";
 
 interface SegmentClient {
   clientName: string;
@@ -1109,148 +1110,13 @@ export default function SegmentDetail({
 
           {/* Data Tables */}
           <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:gap-6">
-            {/* Top Clients Table */}
+            {/* Top Clients - Using dashboard component for consistent styling */}
             <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-              {!isClientSearchExpanded ? (
-                <div className="flex items-center justify-between mb-3 sm:mb-4">
-                  <div className="flex items-center space-x-2 sm:space-x-3">
-                  <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
-                  </div>
-                  <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Clientes del Segmento</h2>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsClientSearchExpanded(true)}
-                  className="h-8 w-8 p-0"
-                  data-testid="button-expand-client-search"
-                >
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <div className="mb-3 sm:mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      type="text"
-                      placeholder="Buscar cliente..."
-                      value={clientSearchTerm}
-                      onChange={(e) => setClientSearchTerm(e.target.value)}
-                      className="pl-9"
-                      autoFocus
-                      data-testid="input-search-client"
-                    />
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleClearClientSearch}
-                    className="h-9 w-9 p-0"
-                    data-testid="button-clear-client-search"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
-            
-            <div className="space-y-2">
-              {currentClientLoading ? (
-                <div className="space-y-3">
-                  {[...Array(5)].map((_, i) => (
-                    <div key={i} className="animate-pulse h-12 bg-gray-200 rounded"></div>
-                  ))}
-                </div>
-              ) : debouncedClientSearch.length > 0 && debouncedClientSearch.length < 2 ? (
-                <p className="text-gray-500 text-center py-8 text-sm">Escribe al menos 2 caracteres para buscar</p>
-              ) : displayClients.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">
-                  {debouncedClientSearch ? 'No se encontraron clientes' : 'No hay clientes en este segmento'}
-                </p>
-              ) : (
-                <>
-                  <Accordion
-                    type="single"
-                    collapsible
-                    value={expandedClient}
-                    onValueChange={setExpandedClient}
-                    className="space-y-2"
-                  >
-                    {displayClients.map((client, index) => (
-                      <AccordionItem
-                        key={client.clientName}
-                        value={client.clientName}
-                        className="border rounded-lg overflow-hidden bg-blue-50/30"
-                      >
-                        <AccordionTrigger
-                          className="px-4 py-3 hover:bg-blue-50/50 hover:no-underline"
-                          data-testid={`accordion-trigger-client-${index}`}
-                        >
-                          <div className="flex items-center gap-3 w-full pr-4">
-                            <div className="flex-1 min-w-0 text-left">
-                              <p className="text-sm font-medium text-gray-900 truncate">
-                                {client.clientName}
-                              </p>
-                            </div>
-                            <div className="w-12 flex-shrink-0 text-right">
-                              <span className="text-xs text-gray-600">
-                                {client.percentage.toFixed(1)}%
-                              </span>
-                            </div>
-                            <div className="w-24 sm:w-32 flex-shrink-0">
-                              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                                  style={{ width: `${Math.min(client.percentage, 100)}%` }}
-                                ></div>
-                              </div>
-                            </div>
-                            <div className="w-28 flex-shrink-0 text-right">
-                              <span className="text-sm font-semibold text-gray-900">
-                                {formatCurrency(client.totalSales)}
-                              </span>
-                            </div>
-                          </div>
-                        </AccordionTrigger>
-                        <AccordionContent className="px-4 pb-4 pt-2 bg-white">
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Transacciones:</span>
-                              <span className="font-medium">{formatNumber(client.transactionCount)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Ticket Promedio:</span>
-                              <span className="font-medium">{formatCurrency(client.averageTicket)}</span>
-                            </div>
-                            {client.salespersonName && (
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">Vendedor:</span>
-                                <span className="font-medium">{client.salespersonName}</span>
-                              </div>
-                            )}
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    ))}
-                  </Accordion>
-                  {!debouncedClientSearch && displayClients.length >= clientLimit && (
-                    <div className="text-center pt-3">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleLoadMoreClients}
-                        data-testid="button-load-more-clients"
-                      >
-                        Ver más
-                      </Button>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+              <TopClientsPanel
+                selectedPeriod={selectedPeriod}
+                filterType={filterType}
+                segment={segmentName}
+              />
             </div>
 
             {/* Top Salespeople Table */}
