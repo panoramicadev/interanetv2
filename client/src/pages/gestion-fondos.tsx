@@ -106,6 +106,8 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
   const [isUploadingApproval, setIsUploadingApproval] = useState(false);
   const [showComprobanteModal, setShowComprobanteModal] = useState(false);
   const [comprobanteUrl, setComprobanteUrl] = useState<string | null>(null);
+  const [crearFondoComprobante, setCrearFondoComprobante] = useState<File | null>(null);
+  const [isUploadingCrearFondo, setIsUploadingCrearFondo] = useState(false);
 
   const canManageFunds = user?.role === 'admin' || user?.role === 'recursos_humanos';
 
@@ -283,8 +285,69 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
     },
   });
 
-  const handleCrearFondo = (data: CrearFondoFormData) => {
-    crearFondoMutation.mutate(data);
+  const handleCrearFondo = async (data: CrearFondoFormData) => {
+    // RRHH debe subir comprobante obligatoriamente
+    if (!crearFondoComprobante) {
+      toast({
+        title: "Comprobante requerido",
+        description: "Debe adjuntar el comprobante de transferencia para asignar el fondo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploadingCrearFondo(true);
+    try {
+      // Primero subir el comprobante
+      const formData = new FormData();
+      formData.append('file', crearFondoComprobante);
+      formData.append('fundId', 'new'); // Indicar que es un fondo nuevo
+      
+      const uploadResponse = await fetch('/api/fund-allocations/upload-comprobante', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      
+      if (!uploadResponse.ok) {
+        throw new Error('Error al subir el comprobante');
+      }
+      
+      const uploadResult = await uploadResponse.json();
+      const comprobanteUrlUploaded = uploadResult.url;
+      
+      // Crear el fondo con estado activo (aprobado) y comprobante
+      await apiRequest('/api/fund-allocations', {
+        method: 'POST',
+        data: {
+          nombre: data.nombre,
+          montoInicial: parseFloat(data.presupuesto),
+          assignedToId: data.usuarioResponsable,
+          fechaInicio: data.fechaInicio || null,
+          fechaTermino: data.fechaTermino || null,
+          estado: 'activo',
+          comprobanteUrl: comprobanteUrlUploaded,
+        },
+      });
+      
+      toast({
+        title: "Fondo asignado y aprobado",
+        description: "El fondo se ha asignado y aprobado exitosamente.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations/summary/global'] });
+      setShowCrearFondoDialog(false);
+      crearFondoForm.reset();
+      setCrearFondoComprobante(null);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo asignar el fondo.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingCrearFondo(false);
+    }
   };
 
   const handleSolicitarFondo = (data: SolicitarFondoFormData) => {
@@ -704,20 +767,66 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                 />
               </div>
 
+              {/* Campo obligatorio de comprobante */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Comprobante de Transferencia <span className="text-red-500">*</span>
+                </label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors">
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setCrearFondoComprobante(file);
+                      }
+                    }}
+                    className="hidden"
+                    id="comprobante-asignacion"
+                    data-testid="input-comprobante-asignacion"
+                  />
+                  <label 
+                    htmlFor="comprobante-asignacion"
+                    className="cursor-pointer flex flex-col items-center gap-2"
+                  >
+                    <Upload className="h-8 w-8 text-gray-400" />
+                    {crearFondoComprobante ? (
+                      <div className="flex items-center gap-2 text-green-600">
+                        <Check className="h-4 w-4" />
+                        <span className="text-sm">{crearFondoComprobante.name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-500">
+                        Click para subir comprobante (imagen o PDF)
+                      </span>
+                    )}
+                  </label>
+                </div>
+                {!crearFondoComprobante && (
+                  <p className="text-xs text-amber-600">
+                    El comprobante es obligatorio para asignar fondos directamente.
+                  </p>
+                )}
+              </div>
+
               <DialogFooter className="sm:justify-end gap-2">
                 <Button 
                   type="button" 
                   variant="outline" 
-                  onClick={() => setShowCrearFondoDialog(false)}
+                  onClick={() => {
+                    setShowCrearFondoDialog(false);
+                    setCrearFondoComprobante(null);
+                  }}
                 >
                   Cancelar
                 </Button>
                 <Button 
                   type="submit" 
-                  disabled={crearFondoMutation.isPending}
+                  disabled={isUploadingCrearFondo || !crearFondoComprobante}
                   data-testid="button-submit-asignar-fondo"
                 >
-                  {crearFondoMutation.isPending ? (
+                  {isUploadingCrearFondo ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Asignando...
