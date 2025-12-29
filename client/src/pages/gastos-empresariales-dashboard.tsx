@@ -432,10 +432,13 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
   const renderChartToImage = (chartData: any, chartType: 'pie' | 'bar' | 'doughnut', width: number, height: number): Promise<string> => {
     return new Promise((resolve) => {
       const canvas = document.createElement('canvas');
-      canvas.width = width * 2;
-      canvas.height = height * 2;
+      const scale = 4;
+      canvas.width = width * scale;
+      canvas.height = height * scale;
       const ctx = canvas.getContext('2d');
       if (!ctx) { resolve(''); return; }
+      
+      ctx.scale(scale, scale);
       
       const chartConfig: any = {
         type: chartType,
@@ -443,23 +446,24 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         options: {
           responsive: false,
           animation: false,
+          devicePixelRatio: scale,
           plugins: {
-            legend: { display: chartType !== 'bar', position: 'right', labels: { font: { size: 10 } } },
+            legend: { display: chartType !== 'bar', position: 'right', labels: { font: { size: 14, weight: 'bold' } } },
             datalabels: { display: false }
           },
           scales: chartType === 'bar' ? {
-            y: { beginAtZero: true, ticks: { font: { size: 10 } } },
-            x: { ticks: { font: { size: 10 } } }
+            y: { beginAtZero: true, ticks: { font: { size: 12 } } },
+            x: { ticks: { font: { size: 12 } } }
           } : undefined
         }
       };
       
       const chart = new ChartJS(ctx, chartConfig);
       setTimeout(() => {
-        const imgData = canvas.toDataURL('image/png');
+        const imgData = canvas.toDataURL('image/png', 1.0);
         chart.destroy();
         resolve(imgData);
-      }, 100);
+      }, 150);
     });
   };
 
@@ -745,14 +749,14 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         doc.text('Comprobantes Adjuntos', pageWidth / 2, yPos, { align: 'center' });
         yPos += 15;
         
-        const infoColumnWidth = 75;
+        const infoColumnWidth = 70;
         const imageColumnStart = margin + infoColumnWidth + 5;
         const imageMaxWidth = pageWidth - imageColumnStart - margin;
         
         for (const img of allImages) {
           try {
             const isPDF = img.url.toLowerCase().endsWith('.pdf');
-            const sectionHeight = 95;
+            const sectionHeight = 110;
             
             if (yPos + sectionHeight > pageHeight - 20) {
               doc.addPage();
@@ -891,7 +895,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
                 imgWidth = imgWidth * ratio;
               }
               
-              doc.addImage(base64, imgFormat, imageColumnStart, imgYPos, imgWidth, imgHeight);
+              doc.addImage(base64, imgFormat, imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
             }
             
             yPos = sectionStartY + sectionHeight + 8;
