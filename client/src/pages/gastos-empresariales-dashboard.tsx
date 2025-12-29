@@ -238,6 +238,19 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
     }
   });
 
+  const { data: allUsers = [], isLoading: isLoadingUsers } = useQuery<any[]>({
+    queryKey: ['/api/users/salespeople'],
+  });
+
+  const getUserName = (userId: string | null | undefined): string => {
+    if (!userId) return 'Sin asignar';
+    const user = allUsers.find((u: any) => u.id === userId);
+    if (user) {
+      return user.fullName || user.username || 'Usuario';
+    }
+    return userId.length > 8 ? userId.substring(0, 8) + '...' : userId;
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
@@ -532,24 +545,54 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         }
       }
       
-      const allImages: { url: string; label: string; type: 'gasto' | 'fondo' }[] = [];
+      interface ImageInfo {
+        url: string;
+        type: 'gasto' | 'fondo';
+        vendedor: string;
+        monto: string;
+        fecha: string;
+        financiamiento: string;
+        descripcion?: string;
+        categoria?: string;
+        tipoDocumento?: string;
+        proveedor?: string;
+        estado?: string;
+        tipoFondo?: string;
+      }
+      
+      const allImages: ImageInfo[] = [];
       
       for (const fondo of fondosData) {
         if (fondo.comprobanteUrl) {
           allImages.push({
             url: fondo.comprobanteUrl,
-            label: `Comprobante Fondo - ${formatCurrency(Number(fondo.amount) || 0)} - ${formatFullDate(fondo.createdAt as any)}`,
-            type: 'fondo'
+            type: 'fondo',
+            vendedor: getUserName(fondo.assignedToId || ''),
+            monto: formatCurrency(Number(fondo.amount) || 0),
+            fecha: formatFullDate(fondo.createdAt as any),
+            financiamiento: 'Fondo Asignado',
+            tipoFondo: fondo.fundType || 'General',
+            estado: fondo.status || '-',
+            descripcion: fondo.description || '-',
           });
         }
       }
       
       for (const gasto of gastosRecientes) {
         if (gasto.comprobanteUrl) {
+          const esConFondo = gasto.fundingMode === 'con_fondo';
           allImages.push({
             url: gasto.comprobanteUrl,
-            label: `Comprobante Gasto - ${gasto.descripcion || ''} - ${formatCurrency(Number(gasto.monto) || 0)}`,
-            type: 'gasto'
+            type: 'gasto',
+            vendedor: getUserName(gasto.userId),
+            monto: formatCurrency(Number(gasto.monto) || 0),
+            fecha: formatFullDate(gasto.createdAt as any),
+            financiamiento: esConFondo ? 'Con Fondo Asignado' : 'Restitución/Reembolso',
+            descripcion: gasto.descripcion || '-',
+            categoria: gasto.categoria || '-',
+            tipoDocumento: gasto.tipoDocumento || '-',
+            proveedor: gasto.proveedor || '-',
+            estado: gasto.estado || '-',
           });
         }
       }
@@ -564,19 +607,114 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         doc.text('Comprobantes Adjuntos', pageWidth / 2, yPos, { align: 'center' });
         yPos += 15;
         
+        const infoColumnWidth = 75;
+        const imageColumnStart = margin + infoColumnWidth + 5;
+        const imageMaxWidth = pageWidth - imageColumnStart - margin;
+        
         for (const img of allImages) {
           try {
             const isPDF = img.url.toLowerCase().endsWith('.pdf');
+            const sectionHeight = 95;
+            
+            if (yPos + sectionHeight > pageHeight - 20) {
+              doc.addPage();
+              yPos = margin;
+            }
+            
+            const sectionStartY = yPos;
+            
+            doc.setDrawColor(200, 200, 200);
+            doc.setFillColor(248, 250, 252);
+            doc.roundedRect(margin, yPos - 3, pageWidth - margin * 2, sectionHeight, 2, 2, 'FD');
+            
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(30, 64, 175);
+            const tipoLabel = img.type === 'fondo' ? 'COMPROBANTE DE FONDO' : 'COMPROBANTE DE GASTO';
+            doc.text(tipoLabel, margin + 5, yPos + 5);
+            doc.setTextColor(0, 0, 0);
+            yPos += 12;
+            
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Vendedor:', margin + 5, yPos);
+            doc.setFont('helvetica', 'normal');
+            doc.text(img.vendedor, margin + 30, yPos);
+            yPos += 7;
+            
+            doc.setFont('helvetica', 'bold');
+            doc.text('Monto:', margin + 5, yPos);
+            doc.setFont('helvetica', 'normal');
+            doc.text(img.monto, margin + 23, yPos);
+            yPos += 7;
+            
+            doc.setFont('helvetica', 'bold');
+            doc.text('Fecha:', margin + 5, yPos);
+            doc.setFont('helvetica', 'normal');
+            doc.text(img.fecha, margin + 22, yPos);
+            yPos += 7;
+            
+            doc.setFont('helvetica', 'bold');
+            doc.text('Tipo:', margin + 5, yPos);
+            doc.setFont('helvetica', 'normal');
+            const financColor = img.financiamiento.includes('Fondo') ? [22, 163, 74] : [234, 88, 12];
+            doc.setTextColor(financColor[0], financColor[1], financColor[2]);
+            doc.text(img.financiamiento, margin + 18, yPos);
+            doc.setTextColor(0, 0, 0);
+            yPos += 7;
+            
+            if (img.type === 'gasto') {
+              doc.setFont('helvetica', 'bold');
+              doc.text('Categoría:', margin + 5, yPos);
+              doc.setFont('helvetica', 'normal');
+              doc.text(img.categoria || '-', margin + 30, yPos);
+              yPos += 7;
+              
+              doc.setFont('helvetica', 'bold');
+              doc.text('Documento:', margin + 5, yPos);
+              doc.setFont('helvetica', 'normal');
+              doc.text(img.tipoDocumento || '-', margin + 33, yPos);
+              yPos += 7;
+              
+              if (img.proveedor && img.proveedor !== '-') {
+                doc.setFont('helvetica', 'bold');
+                doc.text('Proveedor:', margin + 5, yPos);
+                doc.setFont('helvetica', 'normal');
+                doc.text(String(img.proveedor).substring(0, 25), margin + 31, yPos);
+                yPos += 7;
+              }
+            } else {
+              doc.setFont('helvetica', 'bold');
+              doc.text('Tipo Fondo:', margin + 5, yPos);
+              doc.setFont('helvetica', 'normal');
+              doc.text(img.tipoFondo || '-', margin + 33, yPos);
+              yPos += 7;
+              
+              doc.setFont('helvetica', 'bold');
+              doc.text('Estado:', margin + 5, yPos);
+              doc.setFont('helvetica', 'normal');
+              doc.text(img.estado || '-', margin + 24, yPos);
+              yPos += 7;
+            }
+            
+            if (img.descripcion && img.descripcion !== '-') {
+              doc.setFont('helvetica', 'bold');
+              doc.text('Descripción:', margin + 5, yPos);
+              doc.setFont('helvetica', 'normal');
+              const descText = String(img.descripcion).substring(0, 35);
+              doc.text(descText, margin + 33, yPos);
+            }
+            
+            const imgYPos = sectionStartY + 10;
+            const imgMaxHeight = sectionHeight - 20;
             
             if (isPDF) {
-              doc.setFontSize(10);
+              doc.setFontSize(9);
               doc.setFont('helvetica', 'normal');
-              doc.text(img.label, margin, yPos);
-              yPos += 5;
+              doc.text('Documento PDF:', imageColumnStart, imgYPos);
               doc.setTextColor(0, 0, 255);
-              doc.textWithLink('[Ver PDF adjunto]', margin, yPos, { url: img.url });
+              doc.textWithLink('[Ver PDF adjunto]', imageColumnStart, imgYPos + 7, { url: img.url });
               doc.setTextColor(0, 0, 0);
-              yPos += 15;
             } else {
               const response = await fetch(img.url);
               if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -601,41 +739,31 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
                 imgObj.src = base64;
               });
               
-              const maxWidth = pageWidth - margin * 2;
-              const maxHeight = 100;
               let imgWidth = imgObj.width;
               let imgHeight = imgObj.height;
               
-              if (imgWidth > maxWidth) {
-                const ratio = maxWidth / imgWidth;
-                imgWidth = maxWidth;
+              if (imgWidth > imageMaxWidth) {
+                const ratio = imageMaxWidth / imgWidth;
+                imgWidth = imageMaxWidth;
                 imgHeight = imgHeight * ratio;
               }
-              if (imgHeight > maxHeight) {
-                const ratio = maxHeight / imgHeight;
-                imgHeight = maxHeight;
+              if (imgHeight > imgMaxHeight) {
+                const ratio = imgMaxHeight / imgHeight;
+                imgHeight = imgMaxHeight;
                 imgWidth = imgWidth * ratio;
               }
               
-              if (yPos + imgHeight + 20 > pageHeight) {
-                doc.addPage();
-                yPos = margin;
-              }
-              
-              doc.setFontSize(9);
-              doc.setFont('helvetica', 'normal');
-              doc.text(img.label, margin, yPos);
-              yPos += 5;
-              
-              doc.addImage(base64, imgFormat, margin, yPos, imgWidth, imgHeight);
-              yPos += imgHeight + 15;
+              doc.addImage(base64, imgFormat, imageColumnStart, imgYPos, imgWidth, imgHeight);
             }
+            
+            yPos = sectionStartY + sectionHeight + 8;
+            
           } catch (e) {
             console.error('Error loading image:', img.url, e);
             imageErrors++;
             doc.setFontSize(9);
-            doc.text(`${img.label} - [Error al cargar imagen]`, margin, yPos);
-            yPos += 10;
+            doc.text(`Comprobante - ${img.vendedor} - [Error al cargar imagen]`, margin, yPos);
+            yPos += 15;
           }
         }
       }
@@ -711,15 +839,16 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
               <Button 
                 onClick={handleExportPDF}
                 variant="default"
-                disabled={!hasData || isGeneratingPDF}
+                disabled={!hasData || isGeneratingPDF || isLoadingUsers}
+                title={isLoadingUsers ? 'Cargando datos de usuarios...' : undefined}
                 data-testid="button-export-pdf"
               >
-                {isGeneratingPDF ? (
+                {isGeneratingPDF || isLoadingUsers ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <FileText className="h-4 w-4 mr-2" />
                 )}
-                {isGeneratingPDF ? 'Generando...' : 'Exportar PDF'}
+                {isGeneratingPDF ? 'Generando...' : isLoadingUsers ? 'Cargando...' : 'Exportar PDF'}
               </Button>
               <Button 
                 onClick={handleExportCSV}
@@ -740,15 +869,16 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
           <Button 
             onClick={handleExportPDF}
             variant="default"
-            disabled={!hasData || isGeneratingPDF}
+            disabled={!hasData || isGeneratingPDF || isLoadingUsers}
+            title={isLoadingUsers ? 'Cargando datos de usuarios...' : undefined}
             data-testid="button-export-pdf"
           >
-            {isGeneratingPDF ? (
+            {isGeneratingPDF || isLoadingUsers ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
               <FileText className="h-4 w-4 mr-2" />
             )}
-            {isGeneratingPDF ? 'Generando...' : 'Exportar PDF'}
+            {isGeneratingPDF ? 'Generando...' : isLoadingUsers ? 'Cargando...' : 'Exportar PDF'}
           </Button>
           <Button 
             onClick={handleExportCSV}
