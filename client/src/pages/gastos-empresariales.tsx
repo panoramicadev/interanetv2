@@ -45,7 +45,8 @@ import {
 } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Search, Download, Check, X, Trash2, Eye, BarChart3, FileText, ExternalLink, Banknote, HandCoins, Upload, Loader2, Wallet } from "lucide-react";
+import { Plus, Search, Download, Check, X, Trash2, Eye, BarChart3, FileText, ExternalLink, Banknote, HandCoins, Upload, Loader2, Wallet, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ImageZoomViewer } from "@/components/ui/image-zoom-viewer";
@@ -401,80 +402,92 @@ export default function GastosEmpresariales() {
               </Link>
             </div>
 
-            {/* Fondos Asignados con barras de progreso */}
+            {/* Fondos Asignados con barras de progreso - Collapsible */}
             {userFundAllocations.length > 0 && (
-              <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 w-full">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg flex items-center gap-2 text-blue-800">
-                    <Wallet className="h-5 w-5" />
-                    Fondos Asignados
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex flex-col gap-3 w-full">
-                    {userFundAllocations.map((fund) => {
-                      const montoInicial = parseFloat(fund.montoInicial || '0');
-                      const montoUsado = fund.montoUsado ? parseFloat(fund.montoUsado) : getFundUsage(fund.id);
-                      const saldoDisponible = montoInicial - montoUsado;
-                      const porcentajeUsado = montoInicial > 0 ? (montoUsado / montoInicial) * 100 : 0;
-                      const isOverBudget = porcentajeUsado > 100;
-                      
-                      return (
-                        <div 
-                          key={fund.id} 
-                          className="bg-white rounded-lg p-4 shadow-sm border w-full"
-                          data-testid={`fund-card-${fund.id}`}
-                        >
-                          <div className="flex flex-col gap-3">
-                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <h4 className="font-semibold text-base text-gray-900 truncate" title={fund.nombre || fund.motivo || 'Fondo sin nombre'}>
-                                  {fund.nombre || fund.motivo || 'Fondo sin nombre'}
-                                </h4>
-                                <Badge 
-                                  variant="outline" 
-                                  className={`text-xs flex-shrink-0 ${isOverBudget ? 'border-red-300 text-red-700 bg-red-50' : 'border-green-300 text-green-700 bg-green-50'}`}
-                                >
-                                  {isOverBudget ? 'Excedido' : 'Activo'}
-                                </Badge>
-                              </div>
-                              <p className="text-sm text-gray-500 sm:text-right flex-shrink-0">
-                                {canViewAllFunds && getColaboradorName(fund.assignedToId)}
-                                {canViewAllFunds && ' • '}{fund.centroCostos}
-                              </p>
-                            </div>
-                            
-                            <Progress 
-                              value={Math.min(porcentajeUsado, 100)} 
-                              className={`h-3 w-full ${isOverBudget ? '[&>div]:bg-red-500' : '[&>div]:bg-blue-600'}`}
-                            />
-                            
-                            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                              <div className="flex flex-wrap gap-4">
-                                <span className="text-gray-600">
-                                  Usado: <span className={`font-semibold ${isOverBudget ? 'text-red-600' : 'text-gray-900'}`}>
-                                    ${montoUsado.toLocaleString('es-CL')}
-                                  </span>
-                                </span>
-                                <span className="text-gray-600">
-                                  Total: <span className="font-semibold text-gray-900">
-                                    ${montoInicial.toLocaleString('es-CL')}
-                                  </span>
-                                </span>
-                              </div>
-                              <span className="text-gray-600">
-                                Disponible: <span className={`text-lg font-bold ${saldoDisponible < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                  ${saldoDisponible.toLocaleString('es-CL')}
-                                </span>
-                              </span>
-                            </div>
-                          </div>
+              <Collapsible defaultOpen={false} className="w-full">
+                <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 w-full">
+                  <CollapsibleTrigger asChild>
+                    <CardHeader className="pb-3 cursor-pointer hover:bg-blue-100/50 transition-colors rounded-t-lg">
+                      <CardTitle className="text-lg flex items-center justify-between text-blue-800">
+                        <div className="flex items-center gap-2">
+                          <Wallet className="h-5 w-5" />
+                          Fondos Asignados
+                          <Badge variant="secondary" className="ml-2 bg-blue-100 text-blue-700">
+                            {userFundAllocations.length}
+                          </Badge>
                         </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
+                        <ChevronDown className="h-5 w-5 transition-transform duration-200 [&[data-state=open]>svg]:rotate-180" />
+                      </CardTitle>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <CardContent className="space-y-4 pt-0">
+                      <div className="flex flex-col gap-3 w-full">
+                        {userFundAllocations.map((fund) => {
+                          const montoInicial = parseFloat(fund.montoInicial || '0');
+                          const montoUsado = fund.montoUsado ? parseFloat(fund.montoUsado) : getFundUsage(fund.id);
+                          const saldoDisponible = montoInicial - montoUsado;
+                          const porcentajeUsado = montoInicial > 0 ? (montoUsado / montoInicial) * 100 : 0;
+                          const isOverBudget = porcentajeUsado > 100;
+                          
+                          return (
+                            <div 
+                              key={fund.id} 
+                              className="bg-white rounded-lg p-4 shadow-sm border w-full"
+                              data-testid={`fund-card-${fund.id}`}
+                            >
+                              <div className="flex flex-col gap-3">
+                                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <h4 className="font-semibold text-base text-gray-900 truncate" title={fund.nombre || fund.motivo || 'Fondo sin nombre'}>
+                                      {fund.nombre || fund.motivo || 'Fondo sin nombre'}
+                                    </h4>
+                                    <Badge 
+                                      variant="outline" 
+                                      className={`text-xs flex-shrink-0 ${isOverBudget ? 'border-red-300 text-red-700 bg-red-50' : 'border-green-300 text-green-700 bg-green-50'}`}
+                                    >
+                                      {isOverBudget ? 'Excedido' : 'Activo'}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-sm text-gray-500 sm:text-right flex-shrink-0">
+                                    {canViewAllFunds && getColaboradorName(fund.assignedToId)}
+                                    {canViewAllFunds && ' • '}{fund.centroCostos}
+                                  </p>
+                                </div>
+                                
+                                <Progress 
+                                  value={Math.min(porcentajeUsado, 100)} 
+                                  className={`h-3 w-full ${isOverBudget ? '[&>div]:bg-red-500' : '[&>div]:bg-blue-600'}`}
+                                />
+                                
+                                <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                                  <div className="flex flex-wrap gap-4">
+                                    <span className="text-gray-600">
+                                      Usado: <span className={`font-semibold ${isOverBudget ? 'text-red-600' : 'text-gray-900'}`}>
+                                        ${montoUsado.toLocaleString('es-CL')}
+                                      </span>
+                                    </span>
+                                    <span className="text-gray-600">
+                                      Total: <span className="font-semibold text-gray-900">
+                                        ${montoInicial.toLocaleString('es-CL')}
+                                      </span>
+                                    </span>
+                                  </div>
+                                  <span className="text-gray-600">
+                                    Disponible: <span className={`text-lg font-bold ${saldoDisponible < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                      ${saldoDisponible.toLocaleString('es-CL')}
+                                    </span>
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
             )}
 
             {/* Filters */}
