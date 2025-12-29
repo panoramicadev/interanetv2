@@ -666,13 +666,16 @@ export default function TareasPage() {
       </div>
 
       {/* Tabs para Tareas, Estimación Semanal/Mensual y Seguimiento */}
+      {/* Técnico de Obra no tiene acceso a la pestaña de promesas de compra */}
       <Tabs defaultValue="tareas" className="space-y-6">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className="inline-flex w-max sm:w-full sm:grid sm:grid-cols-3 h-auto gap-1 bg-gray-100">
+          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1 bg-gray-100 ${user?.role === 'tecnico_obra' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
             <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">Tareas</TabsTrigger>
-            <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">
-              {esConstruccion ? 'Estimación Mensual' : 'Estimación Semanal'}
-            </TabsTrigger>
+            {user?.role !== 'tecnico_obra' && (
+              <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">
+                {esConstruccion ? 'Estimación Mensual' : 'Estimación Semanal'}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="seguimiento" data-testid="tab-seguimiento" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">Seguimiento</TabsTrigger>
           </TabsList>
         </div>
@@ -1087,23 +1090,26 @@ export default function TareasPage() {
       </div>
         </TabsContent>
 
-        <TabsContent value="estimacion" className="space-y-6">
-          <EstimacionSemanalTab
-            selectedWeek={selectedWeek}
-            promesasCumplimiento={promesasCumplimiento}
-            isLoadingPromesas={isLoadingPromesas}
-            goToPreviousWeek={goToPreviousWeek}
-            goToNextWeek={goToNextWeek}
-            goToCurrentWeek={goToCurrentWeek}
-            createPromesaDialogOpen={createPromesaDialogOpen}
-            setCreatePromesaDialogOpen={setCreatePromesaDialogOpen}
-            clientes={clientes}
-            searchClient={searchClient}
-            setSearchClient={setSearchClient}
-            user={user}
-            esConstruccion={esConstruccion}
-          />
-        </TabsContent>
+        {/* Técnico de Obra no tiene acceso a promesas de compra */}
+        {user?.role !== 'tecnico_obra' && (
+          <TabsContent value="estimacion" className="space-y-6">
+            <EstimacionSemanalTab
+              selectedWeek={selectedWeek}
+              promesasCumplimiento={promesasCumplimiento}
+              isLoadingPromesas={isLoadingPromesas}
+              goToPreviousWeek={goToPreviousWeek}
+              goToNextWeek={goToNextWeek}
+              goToCurrentWeek={goToCurrentWeek}
+              createPromesaDialogOpen={createPromesaDialogOpen}
+              setCreatePromesaDialogOpen={setCreatePromesaDialogOpen}
+              clientes={clientes}
+              searchClient={searchClient}
+              setSearchClient={setSearchClient}
+              user={user}
+              esConstruccion={esConstruccion}
+            />
+          </TabsContent>
+        )}
 
         <TabsContent value="seguimiento" className="space-y-6">
           <SeguimientoClientesTab />
