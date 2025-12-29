@@ -2534,7 +2534,7 @@ function CommentsThread({
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks', taskId, 'assignments', assignmentId, 'comments'] });
+      queryClient.refetchQueries({ queryKey: ['/api/tasks', taskId, 'assignments', assignmentId, 'comments'] });
       onCancelEditing();
       toast({
         title: "Comentario agregado",
@@ -2558,7 +2558,7 @@ function CommentsThread({
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks', taskId, 'assignments', assignmentId, 'comments'] });
+      queryClient.refetchQueries({ queryKey: ['/api/tasks', taskId, 'assignments', assignmentId, 'comments'] });
       toast({
         title: "Comentario eliminado",
         description: "El comentario ha sido eliminado",
