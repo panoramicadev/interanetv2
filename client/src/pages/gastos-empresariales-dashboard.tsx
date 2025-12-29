@@ -145,6 +145,8 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
   const [mes, setMes] = useState(currentMonth.toString());
   const [anio, setAnio] = useState(currentYear.toString());
   const [usuarioFilter, setUsuarioFilter] = useState("todos");
+  const [estadoFilter, setEstadoFilter] = useState("todos");
+  const [categoriaFilter, setCategoriaFilter] = useState("todos");
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   
   const getDateRange = (month: string, year: string) => {
@@ -811,6 +813,13 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
 
   const years = Array.from({ length: 5 }, (_, i) => (currentYear - i).toString());
 
+  // Filtrar gastos por estado y categoría
+  const filteredGastos = gastosRecientes.filter(gasto => {
+    const matchEstado = estadoFilter === 'todos' || gasto.estado === estadoFilter;
+    const matchCategoria = categoriaFilter === 'todos' || gasto.categoria === categoriaFilter;
+    return matchEstado && matchCategoria;
+  });
+
   const hasData = (summary?.count || 0) > 0 || fondosData.length > 0 || gastosRecientes.length > 0;
 
   return (
@@ -945,6 +954,38 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-gray-500" />
+              <Select value={estadoFilter} onValueChange={setEstadoFilter}>
+                <SelectTrigger className="w-[150px]" data-testid="select-estado-dashboard">
+                  <SelectValue placeholder="Estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos los estados</SelectItem>
+                  <SelectItem value="pendiente">Pendiente</SelectItem>
+                  <SelectItem value="aprobado">Aprobado</SelectItem>
+                  <SelectItem value="rechazado">Rechazado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <FolderOpen className="h-4 w-4 text-gray-500" />
+              <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
+                <SelectTrigger className="w-[160px]" data-testid="select-categoria-dashboard">
+                  <SelectValue placeholder="Categoría" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todas las categorías</SelectItem>
+                  {CATEGORIAS.map(cat => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -1009,11 +1050,14 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5" />
-            Gastos del Período ({gastosRecientes.length})
+            Gastos del Período ({filteredGastos.length})
+            {(estadoFilter !== 'todos' || categoriaFilter !== 'todos') && (
+              <Badge variant="secondary" className="ml-2 text-xs">Filtrado</Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {gastosRecientes.length > 0 ? (
+          {filteredGastos.length > 0 ? (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -1027,7 +1071,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {gastosRecientes.map((gasto) => (
+                  {filteredGastos.map((gasto) => (
                     <TableRow key={gasto.id} data-testid={`row-gasto-${gasto.id}`}>
                       <TableCell className="whitespace-nowrap">
                         {formatFullDate(gasto.createdAt as any)}
@@ -1052,7 +1096,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
             </div>
           ) : (
             <div className="flex items-center justify-center h-32 text-gray-500">
-              No hay gastos registrados
+              {gastosRecientes.length > 0 ? 'No hay gastos que coincidan con los filtros' : 'No hay gastos registrados'}
             </div>
           )}
         </CardContent>
