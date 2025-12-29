@@ -15056,9 +15056,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       
       const filters: any = {};
       
-      // Salesperson can only see their own expenses
-      // recursos_humanos, supervisor and admin can see all and filter by userId
-      if (user.role === 'salesperson') {
+      // Salesperson and supervisor can only see their own expenses
+      // recursos_humanos and admin can see all and filter by userId
+      if (user.role === 'salesperson' || user.role === 'supervisor') {
         filters.userId = user.id;
       } else if (userId) {
         filters.userId = userId;
@@ -15188,8 +15188,8 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       
       const filters: any = {};
       
-      // Salesperson can only see their own summary
-      if (user.role === 'salesperson') {
+      // Salesperson and supervisor can only see their own summary
+      if (user.role === 'salesperson' || user.role === 'supervisor') {
         filters.userId = user.id;
       } else if (userId) {
         filters.userId = userId;
@@ -15213,8 +15213,8 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       
       const filters: any = {};
       
-      // Salesperson can only see their own analytics
-      if (user.role === 'salesperson') {
+      // Salesperson and supervisor can only see their own analytics
+      if (user.role === 'salesperson' || user.role === 'supervisor') {
         filters.userId = user.id;
       } else if (userId) {
         filters.userId = userId;
@@ -15230,12 +15230,24 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     }
   }));
 
-  // Get gastos by user (supervisor/admin/recursos_humanos only)
+  // Get gastos by user (admin/recursos_humanos only - supervisors see only their own)
   app.get('/api/gastos-empresariales/analytics/por-usuario', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       
-      if (!['supervisor', 'admin', 'recursos_humanos'].includes(user.role)) {
+      // Supervisors and salespersons can only see their own data
+      if (user.role === 'supervisor' || user.role === 'salesperson') {
+        // Return only the current user's data
+        const { mes, anio } = req.query;
+        const filters: any = { userId: user.id };
+        if (mes) filters.mes = parseInt(mes);
+        if (anio) filters.anio = parseInt(anio);
+        
+        const data = await storage.getGastosEmpresarialesByUser(filters);
+        return res.json(data);
+      }
+      
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
       
@@ -15260,8 +15272,8 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       
       const filters: any = {};
       
-      // Salesperson can only see their own analytics
-      if (user.role === 'salesperson') {
+      // Salesperson and supervisor can only see their own analytics
+      if (user.role === 'salesperson' || user.role === 'supervisor') {
         filters.userId = user.id;
       } else if (userId) {
         filters.userId = userId;
@@ -15482,8 +15494,8 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       const user = req.user;
       const targetUserId = req.params.userId;
       
-      // Salesperson can only see their own
-      if (user.role === 'salesperson' && user.id !== targetUserId) {
+      // Salesperson and supervisor can only see their own
+      if ((user.role === 'salesperson' || user.role === 'supervisor') && user.id !== targetUserId) {
         return res.status(403).json({ message: 'No autorizado' });
       }
       
@@ -15502,7 +15514,8 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       
       let targetUserId: string | undefined;
       
-      if (user.role === 'salesperson') {
+      // Salesperson and supervisor can only see their own fund summary
+      if (user.role === 'salesperson' || user.role === 'supervisor') {
         targetUserId = user.id;
       } else if (userId) {
         targetUserId = userId as string;
