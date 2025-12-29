@@ -2528,10 +2528,11 @@ function CommentsThread({
   // Add comment mutation
   const addCommentMutation = useMutation({
     mutationFn: async (content: string) => {
-      return apiRequest(`/api/tasks/${taskId}/assignments/${assignmentId}/comments`, {
+      const response = await apiRequest(`/api/tasks/${taskId}/assignments/${assignmentId}/comments`, {
         method: 'POST',
-        body: JSON.stringify({ content }),
+        data: { content },
       });
+      return response.json();
     },
     onSuccess: () => {
       queryClient.refetchQueries({ queryKey: ['/api/tasks', taskId, 'assignments', assignmentId, 'comments'] });
