@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks, startOfMonth } from "date-fns";
+import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks, startOfMonth, endOfMonth, addMonths, subMonths, getMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -97,11 +97,16 @@ export default function PromesasCompraPage() {
   const { toast } = useToast();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [searchClient, setSearchClient] = useState("");
-  const [selectedWeek, setSelectedWeek] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [promesaToDelete, setPromesaToDelete] = useState<string | null>(null);
-  const currentWeek = `${getYear(selectedWeek)}-${String(getISOWeek(selectedWeek)).padStart(2, '0')}`;
-  const currentYear = getYear(selectedWeek);
+  
+  const esConstruccion = (user as any)?.assignedSegment?.toLowerCase()?.includes('construcc') || false;
+  
+  const currentWeek = esConstruccion 
+    ? `${getYear(selectedDate)}-${String(getMonth(selectedDate) + 1).padStart(2, '0')}`
+    : `${getYear(selectedDate)}-${String(getISOWeek(selectedDate)).padStart(2, '0')}`;
+  const currentYear = getYear(selectedDate);
   
   // Delete mutation
   const deleteMutation = useMutation({
@@ -177,23 +182,32 @@ export default function PromesasCompraPage() {
     noCumplidas: promesasCumplimiento.filter(p => p.estado === 'no_cumplido').length,
   };
 
-  const goToPreviousWeek = () => {
-    setSelectedWeek(prev => subWeeks(prev, 1));
+  const goToPreviousPeriod = () => {
+    setSelectedDate(prev => esConstruccion ? subMonths(prev, 1) : subWeeks(prev, 1));
   };
 
-  const goToNextWeek = () => {
-    setSelectedWeek(prev => addWeeks(prev, 1));
+  const goToNextPeriod = () => {
+    setSelectedDate(prev => esConstruccion ? addMonths(prev, 1) : addWeeks(prev, 1));
   };
 
-  const goToCurrentWeek = () => {
-    setSelectedWeek(new Date());
+  const goToCurrentPeriod = () => {
+    setSelectedDate(new Date());
+  };
+
+  const getPeriodLabel = () => {
+    if (esConstruccion) {
+      return format(selectedDate, 'MMMM yyyy', { locale: es });
+    }
+    return `Semana ${getWeekOfMonth(selectedDate)} de ${format(selectedDate, 'MMMM yyyy', { locale: es })} (${format(getWeekRangeInMonth(selectedDate).start, 'dd MMM', { locale: es })} - ${format(getWeekRangeInMonth(selectedDate).end, 'dd MMM', { locale: es })})`;
   };
 
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Promesas de Compra Semanales</h1>
+          <h1 className="text-3xl font-bold">
+            {esConstruccion ? 'Promesas de Compra Mensuales' : 'Promesas de Compra Semanales'}
+          </h1>
           <p className="text-muted-foreground mt-1">
             Registra compromisos de compra y compara con ventas reales
           </p>
@@ -204,24 +218,24 @@ export default function PromesasCompraPage() {
         </Button>
       </div>
 
-      {/* Selector de semana */}
+      {/* Selector de período */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Selección de Semana</CardTitle>
+              <CardTitle>{esConstruccion ? 'Selección de Mes' : 'Selección de Semana'}</CardTitle>
               <CardDescription>
-                Semana {getWeekOfMonth(selectedWeek)} de {format(selectedWeek, 'MMMM yyyy', { locale: es })} ({format(getWeekRangeInMonth(selectedWeek).start, 'dd MMM', { locale: es })} - {format(getWeekRangeInMonth(selectedWeek).end, 'dd MMM', { locale: es })})
+                {getPeriodLabel()}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={goToPreviousWeek} data-testid="button-semana-anterior">
+              <Button variant="outline" size="sm" onClick={goToPreviousPeriod} data-testid="button-periodo-anterior">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="sm" onClick={goToCurrentWeek} data-testid="button-semana-actual">
-                Hoy
+              <Button variant="outline" size="sm" onClick={goToCurrentPeriod} data-testid="button-periodo-actual">
+                {esConstruccion ? 'Mes Actual' : 'Hoy'}
               </Button>
-              <Button variant="outline" size="sm" onClick={goToNextWeek} data-testid="button-semana-siguiente">
+              <Button variant="outline" size="sm" onClick={goToNextPeriod} data-testid="button-periodo-siguiente">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -288,7 +302,7 @@ export default function PromesasCompraPage() {
           ) : promesasCumplimiento.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No hay promesas registradas para esta semana</p>
+              <p>No hay promesas registradas para {esConstruccion ? 'este mes' : 'esta semana'}</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -457,10 +471,11 @@ export default function PromesasCompraPage() {
       <CreatePromesaDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
-        selectedWeek={selectedWeek}
+        selectedDate={selectedDate}
         clientes={clientes}
         searchClient={searchClient}
         setSearchClient={setSearchClient}
+        esConstruccion={esConstruccion}
       />
       
       {/* Dialog de confirmación para eliminar */}
@@ -514,17 +529,19 @@ interface CrmLead {
 function CreatePromesaDialog({
   open,
   onOpenChange,
-  selectedWeek,
+  selectedDate,
   clientes,
   searchClient,
   setSearchClient,
+  esConstruccion,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  selectedWeek: Date;
+  selectedDate: Date;
   clientes: Cliente[];
   searchClient: string;
   setSearchClient: (value: string) => void;
+  esConstruccion: boolean;
 }) {
   const { toast } = useToast();
   const [clienteTipo, setClienteTipo] = useState<"activo" | "potencial">("activo");
@@ -624,9 +641,25 @@ function CreatePromesaDialog({
       }
     }
 
-    const { start: weekStart, end: weekEnd } = getWeekRangeInMonth(selectedWeek);
-    const weekNumber = getISOWeek(selectedWeek);
-    const year = getYear(selectedWeek);
+    const year = getYear(selectedDate);
+    
+    let periodStart: Date;
+    let periodEnd: Date;
+    let periodNumber: number;
+    let periodIdentifier: string;
+    
+    if (esConstruccion) {
+      periodStart = startOfMonth(selectedDate);
+      periodEnd = endOfMonth(selectedDate);
+      periodNumber = getMonth(selectedDate) + 1;
+      periodIdentifier = `${year}-${String(periodNumber).padStart(2, '0')}`;
+    } else {
+      const { start, end } = getWeekRangeInMonth(selectedDate);
+      periodStart = start;
+      periodEnd = end;
+      periodNumber = getISOWeek(selectedDate);
+      periodIdentifier = `${year}-${String(periodNumber).padStart(2, '0')}`;
+    }
 
     let clienteId: string;
     let clienteNombre: string;
@@ -647,12 +680,13 @@ function CreatePromesaDialog({
       clienteNombre,
       clienteTipo,
       montoPrometido: parseFloat(montoPrometido),
-      semana: `${year}-${String(weekNumber).padStart(2, '0')}`,
+      semana: periodIdentifier,
       anio: year,
-      numeroSemana: weekNumber,
-      fechaInicio: format(weekStart, 'yyyy-MM-dd'),
-      fechaFin: format(weekEnd, 'yyyy-MM-dd'),
+      numeroSemana: periodNumber,
+      fechaInicio: format(periodStart, 'yyyy-MM-dd'),
+      fechaFin: format(periodEnd, 'yyyy-MM-dd'),
       observaciones: observaciones || null,
+      esMensual: esConstruccion,
     });
   };
 
@@ -662,7 +696,10 @@ function CreatePromesaDialog({
         <DialogHeader>
           <DialogTitle>Nueva Promesa de Compra</DialogTitle>
           <DialogDescription>
-            Registra un compromiso de compra para la semana {getWeekOfMonth(selectedWeek)} de {format(selectedWeek, 'MMMM yyyy', { locale: es })}
+            {esConstruccion 
+              ? `Registra un compromiso de compra para ${format(selectedDate, 'MMMM yyyy', { locale: es })}`
+              : `Registra un compromiso de compra para la semana ${getWeekOfMonth(selectedDate)} de ${format(selectedDate, 'MMMM yyyy', { locale: es })}`
+            }
           </DialogDescription>
         </DialogHeader>
 

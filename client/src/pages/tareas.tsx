@@ -660,12 +660,14 @@ export default function TareasPage() {
         </div>
       </div>
 
-      {/* Tabs para Tareas, Estimación Semanal y Seguimiento */}
+      {/* Tabs para Tareas, Estimación Semanal/Mensual y Seguimiento */}
       <Tabs defaultValue="tareas" className="space-y-6">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
           <TabsList className="inline-flex w-max sm:w-full sm:grid sm:grid-cols-3 h-auto gap-1 bg-gray-100">
             <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">Tareas</TabsTrigger>
-            <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">Estimación Semanal</TabsTrigger>
+            <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">
+              {(user as any)?.assignedSegment?.toLowerCase()?.includes('construcc') ? 'Estimación Mensual' : 'Estimación Semanal'}
+            </TabsTrigger>
             <TabsTrigger value="seguimiento" data-testid="tab-seguimiento" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">Seguimiento</TabsTrigger>
           </TabsList>
         </div>
@@ -1094,6 +1096,7 @@ export default function TareasPage() {
             searchClient={searchClient}
             setSearchClient={setSearchClient}
             user={user}
+            esConstruccion={(user as any)?.assignedSegment?.toLowerCase()?.includes('construcc') || false}
           />
         </TabsContent>
 
@@ -1105,7 +1108,7 @@ export default function TareasPage() {
   );
 }
 
-// Componente de pestaña de Estimación Semanal (Promesas de Compra)
+// Componente de pestaña de Estimación Semanal/Mensual (Promesas de Compra)
 function EstimacionSemanalTab({
   selectedWeek,
   promesasCumplimiento,
@@ -1119,6 +1122,7 @@ function EstimacionSemanalTab({
   searchClient,
   setSearchClient,
   user,
+  esConstruccion,
 }: {
   selectedWeek: Date;
   promesasCumplimiento: PromesaCumplimiento[];
@@ -1132,6 +1136,7 @@ function EstimacionSemanalTab({
   searchClient: string;
   setSearchClient: (value: string) => void;
   user: any;
+  esConstruccion: boolean;
 }) {
   // Estados locales para edición de promesas
   const [editPromesaDialogOpen, setEditPromesaDialogOpen] = useState(false);
@@ -1168,11 +1173,21 @@ function EstimacionSemanalTab({
     return vendedor?.fullName || vendedor?.salespersonName || 'Desconocido';
   };
 
+  const getPeriodLabel = () => {
+    if (esConstruccion) {
+      return format(selectedWeek, 'MMMM yyyy', { locale: es });
+    }
+    const monthStart = new Date(selectedWeek.getFullYear(), selectedWeek.getMonth(), 1);
+    const firstMonday = startOfWeek(monthStart, { weekStartsOn: 1 });
+    const weekNum = Math.floor((selectedWeek.getTime() - firstMonday.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+    return `Semana ${weekNum} de ${format(selectedWeek, 'MMMM', { locale: es })} (${format(startOfWeek(selectedWeek, { weekStartsOn: 1 }), 'dd MMM', { locale: es })} - ${format(endOfWeek(selectedWeek, { weekStartsOn: 1 }), 'dd MMM', { locale: es })})`;
+  };
+
   return (
     <div className="space-y-3 sm:space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold">Estimación Semanal</h2>
+          <h2 className="text-xl sm:text-2xl font-bold">{esConstruccion ? 'Estimación Mensual' : 'Estimación Semanal'}</h2>
           <p className="text-muted-foreground text-sm sm:text-base mt-0.5 sm:mt-1">
             Registra compromisos de compra y compara con ventas reales
           </p>
@@ -1183,28 +1198,24 @@ function EstimacionSemanalTab({
         </Button>
       </div>
 
-      {/* Selector de semana */}
+      {/* Selector de período */}
       <Card>
         <CardHeader className="py-3 sm:py-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
-              <CardTitle className="text-base sm:text-lg">Selección de Semana</CardTitle>
+              <CardTitle className="text-base sm:text-lg">{esConstruccion ? 'Selección de Mes' : 'Selección de Semana'}</CardTitle>
               <CardDescription className="text-xs sm:text-sm mt-0.5">
-                Semana {(() => {
-                  const monthStart = new Date(selectedWeek.getFullYear(), selectedWeek.getMonth(), 1);
-                  const firstMonday = startOfWeek(monthStart, { weekStartsOn: 1 });
-                  return Math.floor((selectedWeek.getTime() - firstMonday.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
-                })()} de {format(selectedWeek, 'MMMM', { locale: es })} ({format(startOfWeek(selectedWeek, { weekStartsOn: 1 }), 'dd MMM', { locale: es })} - {format(endOfWeek(selectedWeek, { weekStartsOn: 1 }), 'dd MMM', { locale: es })})
+                {getPeriodLabel()}
               </CardDescription>
             </div>
             <div className="flex items-center gap-1 sm:gap-2">
-              <Button variant="outline" size="sm" onClick={goToPreviousWeek} data-testid="button-semana-anterior" className="h-8 w-8 p-0 sm:h-9 sm:w-9">
+              <Button variant="outline" size="sm" onClick={goToPreviousWeek} data-testid="button-periodo-anterior" className="h-8 w-8 p-0 sm:h-9 sm:w-9">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="sm" onClick={goToCurrentWeek} data-testid="button-semana-actual" className="h-8 px-2 sm:h-9 sm:px-3 text-xs sm:text-sm">
-                Hoy
+              <Button variant="outline" size="sm" onClick={goToCurrentWeek} data-testid="button-periodo-actual" className="h-8 px-2 sm:h-9 sm:px-3 text-xs sm:text-sm">
+                {esConstruccion ? 'Mes Actual' : 'Hoy'}
               </Button>
-              <Button variant="outline" size="sm" onClick={goToNextWeek} data-testid="button-semana-siguiente" className="h-8 w-8 p-0 sm:h-9 sm:w-9">
+              <Button variant="outline" size="sm" onClick={goToNextWeek} data-testid="button-periodo-siguiente" className="h-8 w-8 p-0 sm:h-9 sm:w-9">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
