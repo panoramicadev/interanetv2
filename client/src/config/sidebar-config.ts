@@ -10,6 +10,7 @@ import {
   Palette,
   ClipboardList,
   ClipboardCheck,
+  CheckSquare,
   DollarSign,
   TrendingUp,
   Receipt,
@@ -633,6 +634,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/reclamos-generales",
       label: "Reclamos",
       icon: AlertTriangle,
+    },
+    {
+      href: "/tareas",
+      label: "Tareas",
+      icon: CheckSquare,
     },
     {
       href: "/clientes",
