@@ -3370,7 +3370,7 @@ export function registerRoutes(app: Express): Server {
 
   app.get('/api/users/salespeople/supervisors', async (req: any, res) => {
     try {
-      // Solo admin puede acceder a esta ruta
+      // Admin, supervisor y tecnico_obra pueden acceder (para asignación de tareas)
       let userId;
       let userRecord;
 
@@ -3382,8 +3382,8 @@ export function registerRoutes(app: Express): Server {
       userId = req.user.id;
       userRecord = req.user;
       
-      if (userRecord?.role !== 'admin' && userRecord?.role !== 'supervisor') {
-        return res.status(403).json({ message: 'Acceso denegado. Solo administradores y supervisores pueden acceder a la gestión de usuarios.' });
+      if (userRecord?.role !== 'admin' && userRecord?.role !== 'supervisor' && userRecord?.role !== 'tecnico_obra') {
+        return res.status(403).json({ message: 'Acceso denegado. Solo administradores, supervisores y técnicos pueden acceder a la gestión de usuarios.' });
       }
 
       const supervisors = await storage.getSupervisors();
