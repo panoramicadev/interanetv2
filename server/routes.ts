@@ -706,11 +706,12 @@ export function registerRoutes(app: Express): Server {
   // Returns GDV where esdo IS NULL or esdo != 'C' (open/pending deliveries)
   app.get('/api/sales/gdv-pending', requireCommercialAccess, async (req, res) => {
     try {
-      const { salesperson, segment } = req.query;
+      const { salesperson, segment, client } = req.query;
       
       const metrics = await storage.getGdvPendingGlobal({
         salesperson: salesperson as string,
         segment: segment as string,
+        client: client as string,
       });
       
       res.json(metrics);
@@ -8736,7 +8737,7 @@ export function registerRoutes(app: Express): Server {
 
   // Get NVV summary metrics
   app.get('/api/nvv/metrics', requireAuth, asyncHandler(async (req: any, res: any) => {
-    const { salesperson, segment, startDate, endDate, period, filterType } = req.query;
+    const { salesperson, segment, client, startDate, endDate, period, filterType } = req.query;
     
     // Use same date range logic as sales metrics
     const dateRange = getDateRange(period as string, filterType as string);
@@ -8744,6 +8745,7 @@ export function registerRoutes(app: Express): Server {
     const options: any = {};
     if (salesperson) options.salesperson = salesperson;
     if (segment) options.segment = segment;
+    if (client) options.client = client;
     
     // Use date range if period/filterType provided, otherwise use startDate/endDate
     if (period && filterType && dateRange.startDate && dateRange.endDate) {
