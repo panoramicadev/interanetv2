@@ -1610,15 +1610,17 @@ export default function Dashboard() {
                 />
               </CardWrapper>
 
-              <CardWrapper>
-                <TopClientsPanel 
-                  selectedPeriod={selectedPeriod} 
-                  filterType={filterType}
-                  segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-                  salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-                  client={selectedClient}
-                />
-              </CardWrapper>
+              {!selectedClient && (
+                <CardWrapper>
+                  <TopClientsPanel 
+                    selectedPeriod={selectedPeriod} 
+                    filterType={filterType}
+                    segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                    salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                    client={selectedClient}
+                  />
+                </CardWrapper>
+              )}
 
               {/* Packaging Metrics - Full Width */}
               <CardWrapper>
