@@ -14797,8 +14797,8 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       
-      // Only salesperson, supervisor and admin can upload evidence
-      if (!['salesperson', 'supervisor', 'admin'].includes(user.role)) {
+      // Only salesperson, supervisor, admin and recursos_humanos can upload evidence
+      if (!['salesperson', 'supervisor', 'admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para subir evidencia' });
       }
       
@@ -14900,7 +14900,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       
-      if (!['salesperson', 'supervisor', 'admin'].includes(user.role)) {
+      if (!['salesperson', 'supervisor', 'admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
       
@@ -15003,8 +15003,8 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       
-      // Only salesperson, supervisor and admin can create expenses
-      if (!['salesperson', 'supervisor', 'admin'].includes(user.role)) {
+      // Only salesperson, supervisor, admin and recursos_humanos can create expenses
+      if (!['salesperson', 'supervisor', 'admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para crear gastos' });
       }
       
