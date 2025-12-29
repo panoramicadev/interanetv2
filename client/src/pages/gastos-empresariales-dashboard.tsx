@@ -931,11 +931,11 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-4">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3 overflow-x-auto pb-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <Calendar className="h-4 w-4 text-gray-500" />
               <Select value={mes} onValueChange={setMes}>
-                <SelectTrigger className="w-[140px]" data-testid="select-mes">
+                <SelectTrigger className="w-[120px]" data-testid="select-mes">
                   <SelectValue placeholder="Mes" />
                 </SelectTrigger>
                 <SelectContent>
@@ -947,7 +947,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
                 </SelectContent>
               </Select>
               <Select value={anio} onValueChange={setAnio}>
-                <SelectTrigger className="w-[100px]" data-testid="select-anio">
+                <SelectTrigger className="w-[85px]" data-testid="select-anio">
                   <SelectValue placeholder="Año" />
                 </SelectTrigger>
                 <SelectContent>
@@ -960,10 +960,10 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
               </Select>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <Users className="h-4 w-4 text-gray-500" />
               <Select value={usuarioFilter} onValueChange={setUsuarioFilter}>
-                <SelectTrigger className="w-[180px]" data-testid="select-usuario">
+                <SelectTrigger className="w-[150px]" data-testid="select-usuario">
                   <SelectValue placeholder="Usuario" />
                 </SelectTrigger>
                 <SelectContent>
@@ -977,14 +977,14 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
               </Select>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <Clock className="h-4 w-4 text-gray-500" />
               <Select value={estadoFilter} onValueChange={setEstadoFilter}>
-                <SelectTrigger className="w-[150px]" data-testid="select-estado-dashboard">
+                <SelectTrigger className="w-[130px]" data-testid="select-estado-dashboard">
                   <SelectValue placeholder="Estado" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="todos">Todos los estados</SelectItem>
+                  <SelectItem value="todos">Todos</SelectItem>
                   <SelectItem value="pendiente">Pendiente</SelectItem>
                   <SelectItem value="aprobado">Aprobado</SelectItem>
                   <SelectItem value="rechazado">Rechazado</SelectItem>
@@ -992,14 +992,14 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
               </Select>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <FolderOpen className="h-4 w-4 text-gray-500" />
               <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
-                <SelectTrigger className="w-[160px]" data-testid="select-categoria-dashboard">
+                <SelectTrigger className="w-[140px]" data-testid="select-categoria-dashboard">
                   <SelectValue placeholder="Categoría" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="todos">Todas las categorías</SelectItem>
+                  <SelectItem value="todos">Todas</SelectItem>
                   {CATEGORIAS.map(cat => (
                     <SelectItem key={cat} value={cat}>
                       {cat}
