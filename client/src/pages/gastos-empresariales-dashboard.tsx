@@ -663,7 +663,11 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         yPos = (doc as any).lastAutoTable.finalY + 10;
       }
       
-      if (gastosParaExportar.length > 0) {
+      const gastosAprobados = gastosParaExportar.filter(g => g.estado === 'aprobado');
+      const gastosRechazados = gastosParaExportar.filter(g => g.estado === 'rechazado');
+      const gastosPendientes = gastosParaExportar.filter(g => g.estado === 'pendiente');
+      
+      if (gastosAprobados.length > 0) {
         if (yPos > pageHeight - 60) {
           doc.addPage();
           yPos = margin;
@@ -671,38 +675,126 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-        doc.text(`Detalle de Gastos (${gastosParaExportar.length} registros)`, margin, yPos);
+        doc.setTextColor(successColor[0], successColor[1], successColor[2]);
+        doc.text(`Gastos Aprobados (${gastosAprobados.length})`, margin, yPos);
         yPos += 2;
         doc.setTextColor(0, 0, 0);
         
         autoTable(doc, {
           startY: yPos,
-          head: [['Fecha', 'Descripción', 'Categoría', 'Proveedor', 'Monto', 'Estado']],
-          body: gastosParaExportar.map(g => [
+          head: [['Fecha', 'Descripción', 'Categoría', 'Proveedor', 'Monto']],
+          body: gastosAprobados.map(g => [
             formatFullDate(g.createdAt as any),
             String(g.descripcion || '-').substring(0, 35),
             g.categoria || '-',
             String(g.proveedor || '-').substring(0, 20),
-            formatCurrency(Number(g.monto) || 0),
-            g.estado || '-'
+            formatCurrency(Number(g.monto) || 0)
           ]),
           theme: 'striped',
           headStyles: { 
-            fillColor: [29, 78, 216], 
+            fillColor: [22, 163, 74],
             textColor: 255, 
             fontStyle: 'bold',
             fontSize: 9
           },
           bodyStyles: { fontSize: 8 },
-          alternateRowStyles: { fillColor: [248, 250, 252] },
+          alternateRowStyles: { fillColor: [240, 253, 244] },
           columnStyles: {
-            0: { cellWidth: 25 },
-            1: { cellWidth: 45 },
-            2: { cellWidth: 28 },
-            3: { cellWidth: 35 },
-            4: { cellWidth: 25, halign: 'right' },
-            5: { cellWidth: 22 }
+            0: { cellWidth: 28 },
+            1: { cellWidth: 55 },
+            2: { cellWidth: 30 },
+            3: { cellWidth: 40 },
+            4: { cellWidth: 27, halign: 'right' }
+          },
+          margin: { left: margin, right: margin }
+        });
+        
+        yPos = (doc as any).lastAutoTable.finalY + 10;
+      }
+      
+      if (gastosRechazados.length > 0) {
+        if (yPos > pageHeight - 60) {
+          doc.addPage();
+          yPos = margin;
+        }
+        
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(dangerColor[0], dangerColor[1], dangerColor[2]);
+        doc.text(`Gastos Rechazados (${gastosRechazados.length})`, margin, yPos);
+        yPos += 2;
+        doc.setTextColor(0, 0, 0);
+        
+        autoTable(doc, {
+          startY: yPos,
+          head: [['Fecha', 'Descripción', 'Categoría', 'Proveedor', 'Monto']],
+          body: gastosRechazados.map(g => [
+            formatFullDate(g.createdAt as any),
+            String(g.descripcion || '-').substring(0, 35),
+            g.categoria || '-',
+            String(g.proveedor || '-').substring(0, 20),
+            formatCurrency(Number(g.monto) || 0)
+          ]),
+          theme: 'striped',
+          headStyles: { 
+            fillColor: [220, 38, 38],
+            textColor: 255, 
+            fontStyle: 'bold',
+            fontSize: 9
+          },
+          bodyStyles: { fontSize: 8 },
+          alternateRowStyles: { fillColor: [254, 242, 242] },
+          columnStyles: {
+            0: { cellWidth: 28 },
+            1: { cellWidth: 55 },
+            2: { cellWidth: 30 },
+            3: { cellWidth: 40 },
+            4: { cellWidth: 27, halign: 'right' }
+          },
+          margin: { left: margin, right: margin }
+        });
+        
+        yPos = (doc as any).lastAutoTable.finalY + 10;
+      }
+      
+      if (gastosPendientes.length > 0) {
+        if (yPos > pageHeight - 60) {
+          doc.addPage();
+          yPos = margin;
+        }
+        
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(warningColor[0], warningColor[1], warningColor[2]);
+        doc.text(`Gastos Pendientes (${gastosPendientes.length})`, margin, yPos);
+        yPos += 2;
+        doc.setTextColor(0, 0, 0);
+        
+        autoTable(doc, {
+          startY: yPos,
+          head: [['Fecha', 'Descripción', 'Categoría', 'Proveedor', 'Monto']],
+          body: gastosPendientes.map(g => [
+            formatFullDate(g.createdAt as any),
+            String(g.descripcion || '-').substring(0, 35),
+            g.categoria || '-',
+            String(g.proveedor || '-').substring(0, 20),
+            formatCurrency(Number(g.monto) || 0)
+          ]),
+          theme: 'striped',
+          headStyles: { 
+            fillColor: [245, 158, 11],
+            textColor: 255, 
+            fontStyle: 'bold',
+            fontSize: 9
+          },
+          bodyStyles: { fontSize: 8 },
+          alternateRowStyles: { fillColor: [255, 251, 235] },
+          columnStyles: {
+            0: { cellWidth: 28 },
+            1: { cellWidth: 55 },
+            2: { cellWidth: 30 },
+            3: { cellWidth: 40 },
+            4: { cellWidth: 27, halign: 'right' }
           },
           margin: { left: margin, right: margin }
         });
