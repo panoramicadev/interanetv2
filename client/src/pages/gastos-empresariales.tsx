@@ -410,7 +410,7 @@ export default function GastosEmpresariales() {
                   <CollapsibleTrigger asChild>
                     <CardHeader className="cursor-pointer hover:bg-blue-100/50 transition-colors rounded-t-lg pt-[5px] pb-[5px]">
                       <CardTitle className="text-lg flex items-center justify-between text-blue-800">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 text-[14px]">
                           <Wallet className="h-5 w-5" />
                           Fondos Asignados
                           <Badge variant="secondary" className="ml-2 bg-blue-100 text-blue-700">
@@ -687,7 +687,6 @@ export default function GastosEmpresariales() {
           </TabsContent>
         </Tabs>
       </div>
-
       {/* Detail Dialog */}
       <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -914,7 +913,6 @@ export default function GastosEmpresariales() {
           )}
         </DialogContent>
       </Dialog>
-
       {/* Approval Dialog */}
       <Dialog open={showApprovalDialog} onOpenChange={setShowApprovalDialog}>
         <DialogContent>
@@ -942,7 +940,6 @@ export default function GastosEmpresariales() {
           </div>
         </DialogContent>
       </Dialog>
-
       {/* Rejection Dialog */}
       <Dialog open={showRejectionDialog} onOpenChange={setShowRejectionDialog}>
         <DialogContent>
@@ -990,7 +987,6 @@ export default function GastosEmpresariales() {
           </div>
         </DialogContent>
       </Dialog>
-
       {/* Dialog Solicitar Fondo */}
       <Dialog open={showSolicitarFondoDialog} onOpenChange={setShowSolicitarFondoDialog}>
         <DialogContent className="max-w-md overflow-y-auto max-h-[90vh]">
