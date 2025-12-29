@@ -1494,8 +1494,8 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* NVV Pendientes - Todos los vendedores (solo en mes actual y cuando NO hay vendedor específico seleccionado) */}
-              {globalFilter.type !== "salesperson" && isCurrentMonth() && (
+              {/* NVV Pendientes - Todos los vendedores (solo en mes actual, cuando NO hay vendedor específico seleccionado, y NO hay cliente seleccionado) */}
+              {globalFilter.type !== "salesperson" && isCurrentMonth() && !selectedClient && (
                 <CardWrapper>
                   <AllSalespeopleNVV
                     selectedPeriod={selectedPeriod}
