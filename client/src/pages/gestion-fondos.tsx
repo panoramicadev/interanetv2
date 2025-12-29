@@ -108,6 +108,8 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
   const [comprobanteUrl, setComprobanteUrl] = useState<string | null>(null);
   const [crearFondoComprobante, setCrearFondoComprobante] = useState<File | null>(null);
   const [isUploadingCrearFondo, setIsUploadingCrearFondo] = useState(false);
+  const [showConfirmAsignacionDialog, setShowConfirmAsignacionDialog] = useState(false);
+  const [pendingAsignacionData, setPendingAsignacionData] = useState<CrearFondoFormData | null>(null);
 
   const canManageFunds = user?.role === 'admin' || user?.role === 'recursos_humanos';
 
@@ -296,7 +298,18 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
       return;
     }
 
+    // Mostrar diálogo de confirmación
+    setPendingAsignacionData(data);
+    setShowConfirmAsignacionDialog(true);
+  };
+
+  const confirmarAsignacionFondo = async () => {
+    if (!pendingAsignacionData || !crearFondoComprobante) return;
+
+    const data = pendingAsignacionData;
     setIsUploadingCrearFondo(true);
+    setShowConfirmAsignacionDialog(false);
+    
     try {
       // Primero subir el comprobante
       const formData = new FormData();
@@ -339,6 +352,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
       setShowCrearFondoDialog(false);
       crearFondoForm.reset();
       setCrearFondoComprobante(null);
+      setPendingAsignacionData(null);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -1334,6 +1348,67 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowComprobanteModal(false)}>
               Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de confirmación de asignación */}
+      <Dialog open={showConfirmAsignacionDialog} onOpenChange={setShowConfirmAsignacionDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <HandCoins className="h-5 w-5" />
+              Confirmar Asignación
+            </DialogTitle>
+            <DialogDescription className="pt-4 text-base">
+              Estás próximo a asignar{' '}
+              <span className="font-bold text-green-600">
+                {pendingAsignacionData ? formatCurrency(parseFloat(pendingAsignacionData.presupuesto)) : '$0'}
+              </span>{' '}
+              a{' '}
+              <span className="font-bold text-blue-600">
+                {pendingAsignacionData ? 
+                  (salespeople.find((p: any) => p.id === pendingAsignacionData.usuarioResponsable)?.salespersonName || 
+                   salespeople.find((p: any) => p.id === pendingAsignacionData.usuarioResponsable)?.email || 
+                   'Usuario')
+                  .split(' ').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ')
+                  : 'Usuario'}
+              </span>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 my-4">
+            <p className="text-sm text-amber-800 font-medium">
+              ¿Deseas confirmar esta operación?
+            </p>
+            <p className="text-xs text-amber-700 mt-2">
+              Recuerda que el fondo se aprobará automáticamente al confirmar.
+            </p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowConfirmAsignacionDialog(false);
+                setPendingAsignacionData(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={confirmarAsignacionFondo}
+              disabled={isUploadingCrearFondo}
+              className="bg-green-600 hover:bg-green-700"
+              data-testid="button-confirmar-asignacion"
+            >
+              {isUploadingCrearFondo ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Procesando...
+                </>
+              ) : (
+                'Sí, Confirmar Asignación'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
