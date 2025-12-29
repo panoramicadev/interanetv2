@@ -143,6 +143,9 @@ export default function TareasPage() {
   const [editingNoteTaskId, setEditingNoteTaskId] = useState<string | null>(null);
   const [editingNoteText, setEditingNoteText] = useState("");
 
+  // Confirmación de completar tarea
+  const [confirmCompleteTask, setConfirmCompleteTask] = useState<{taskId: string, assignmentId: string} | null>(null);
+
   // Estados para Promesas de Compra
   const [searchClient, setSearchClient] = useState("");
   const [selectedWeek, setSelectedWeek] = useState(new Date());
@@ -988,131 +991,131 @@ export default function TareasPage() {
             </CardContent>
           </Card>
         ) : (
-          filteredTasks.map((task) => (
-            <Card key={task.id} className="overflow-hidden border-0 shadow-sm hover:shadow-md transition-shadow">
-              <CardHeader className="pb-4 bg-white border-b border-gray-100">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div className="space-y-2 flex-1 min-w-0 w-full">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-lg font-bold text-gray-900 truncate" data-testid={`text-task-title-${task.id}`}>
+          filteredTasks.map((task) => {
+            const isCompleted = task.status === 'completada';
+            const myAssignment = task.assignments.find(a => 
+              (a.assigneeType === "supervisor" && a.assigneeId === user.id) ||
+              (a.assigneeType === "salesperson" && a.assigneeId === user.id)
+            );
+            const canComplete = myAssignment && myAssignment.status !== "completada" && 
+              (user.role === 'admin' || user.role === 'supervisor' || myAssignment.assigneeId === user.id);
+            
+            return (
+            <Card key={task.id} className={`overflow-hidden border-l-4 shadow-sm hover:shadow-lg transition-all duration-200 ${
+              isCompleted ? 'border-l-green-500 bg-green-50/30' : 
+              task.priority === 'high' ? 'border-l-red-500' : 
+              task.priority === 'low' ? 'border-l-gray-400' : 'border-l-blue-500'
+            }`}>
+              <div className="p-4 sm:p-5">
+                <div className="flex items-start gap-4">
+                  {/* Checkbox To-Do Style */}
+                  <div className="flex-shrink-0 pt-0.5">
+                    {canComplete ? (
+                      <button
+                        onClick={() => setConfirmCompleteTask({taskId: task.id, assignmentId: myAssignment!.id})}
+                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
+                          isCompleted 
+                            ? 'bg-green-500 border-green-500 text-white' 
+                            : 'border-gray-300 hover:border-green-500 hover:bg-green-50'
+                        }`}
+                        data-testid={`checkbox-complete-task-${task.id}`}
+                      >
+                        {isCompleted && <Check className="h-4 w-4" />}
+                      </button>
+                    ) : (
+                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                        isCompleted 
+                          ? 'bg-green-500 border-green-500 text-white' 
+                          : 'border-gray-200 bg-gray-50'
+                      }`}>
+                        {isCompleted && <Check className="h-4 w-4" />}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    {/* Title Row */}
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h3 className={`text-base font-semibold leading-tight ${isCompleted ? 'text-gray-500 line-through' : 'text-gray-900'}`} data-testid={`text-task-title-${task.id}`}>
                         {task.title}
                       </h3>
-                      {getPriorityBadge(task.priority ?? 'medium')}
-                      {getStatusBadge(task.status ?? 'pendiente')}
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {getPriorityBadge(task.priority ?? 'medium')}
+                        {getStatusBadge(task.status ?? 'pendiente')}
+                      </div>
                     </div>
-                    
+
+                    {/* Cliente Badge - Destacado */}
+                    {(task as any).clienteNombre && (
+                      <div className="mb-2">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-medium">
+                          <Building2 className="h-3.5 w-3.5" />
+                          {(task as any).clienteNombre}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Description */}
                     {task.description && (
-                      <p className="text-gray-600 text-sm line-clamp-2" data-testid={`text-task-description-${task.id}`}>
+                      <p className={`text-sm mb-3 line-clamp-2 ${isCompleted ? 'text-gray-400' : 'text-gray-600'}`} data-testid={`text-task-description-${task.id}`}>
                         {task.description}
                       </p>
                     )}
-                    
-                    <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500 pt-2">
+
+                    {/* Meta Info Row */}
+                    <div className="flex flex-wrap items-center gap-3 text-xs">
                       {task.dueDate && (
-                        <div className="flex items-center gap-1.5">
-                          <CalendarIcon className="h-4 w-4 text-blue-600" />
+                        <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${
+                          new Date(task.dueDate) < new Date() && !isCompleted
+                            ? 'bg-red-100 text-red-700' 
+                            : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          <CalendarIcon className="h-3.5 w-3.5" />
                           <span data-testid={`text-task-due-date-${task.id}`}>
-                            {format(new Date(task.dueDate), "dd MMM yyyy HH:mm", { locale: es })}
+                            {format(new Date(task.dueDate), "dd MMM yyyy", { locale: es })}
                           </span>
                         </div>
                       )}
-                      <div className="flex items-center gap-1.5">
-                        <Users className="h-4 w-4 text-blue-600" />
+                      <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-50 text-blue-700">
+                        <Users className="h-3.5 w-3.5" />
                         <span data-testid={`text-task-assignment-count-${task.id}`}>
-                          {task.assignments.length} asignación{task.assignments.length !== 1 ? 'es' : ''}
+                          {task.assignments.length}
                         </span>
                       </div>
-                      {(task as any).clienteNombre && (
-                        <div className="flex items-center gap-1.5">
-                          <Building2 className="h-4 w-4 text-green-600" />
-                          <span className="text-green-700" data-testid={`text-task-cliente-${task.id}`}>
-                            {(task as any).clienteNombre}
-                          </span>
-                        </div>
+                      {myAssignment && !myAssignment.readAt && myAssignment.status === "pendiente" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 px-2 text-xs border-blue-300 text-blue-700 hover:bg-blue-50"
+                          onClick={() => markAsReadMutation.mutate({
+                            taskId: task.id,
+                            assignmentId: myAssignment.id
+                          })}
+                          disabled={markAsReadMutation.isPending}
+                          data-testid={`button-acknowledge-assignment-${myAssignment.id}`}
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          Acusar Recibo
+                        </Button>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    {/* Action buttons for user's assignment - shown before toggle */}
-                    {(() => {
-                      const myAssignment = task.assignments.find(a => 
-                        (a.assigneeType === "user" && a.assigneeId === user.id) ||
-                        (a.assigneeType === "segment" && a.assigneeId === (user as any).assignedSegment)
-                      );
-                      
-                      if (!myAssignment || myAssignment.status === "completada") return null;
-                      
-                      const canUpdate = 
-                        (myAssignment.assigneeType === "user" && myAssignment.assigneeId === user.id) ||
-                        (myAssignment.assigneeType === "segment" && myAssignment.assigneeId === (user as any).assignedSegment) ||
-                        user.role === 'admin' || user.role === 'supervisor';
-                      
-                      if (!canUpdate) return null;
-
-                      return (
-                        <>
-                          {/* Acusar Recibo button */}
-                          {!myAssignment.readAt && myAssignment.status === "pendiente" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="border-blue-300 text-blue-700 hover:bg-blue-50"
-                              onClick={() => markAsReadMutation.mutate({
-                                taskId: task.id,
-                                assignmentId: myAssignment.id
-                              })}
-                              disabled={markAsReadMutation.isPending}
-                              data-testid={`button-acknowledge-assignment-${myAssignment.id}`}
-                            >
-                              <Eye className="h-3 w-3 mr-1" />
-                              Acusar Recibo
-                            </Button>
-                          )}
-                          
-                          {/* Complete button */}
-                          {myAssignment.readAt && (myAssignment.status === "pendiente" || myAssignment.status === "en_progreso") && (
-                            <Button
-                              size="sm"
-                              className="bg-green-600 hover:bg-green-700"
-                              onClick={() => updateAssignmentMutation.mutate({
-                                taskId: task.id,
-                                assignmentId: myAssignment.id,
-                                status: "completada"
-                              })}
-                              disabled={updateAssignmentMutation.isPending}
-                              data-testid={`button-complete-assignment-${myAssignment.id}`}
-                            >
-                              <CheckSquare className="h-3 w-3 mr-1" />
-                              Completar
-                            </Button>
-                          )}
-                        </>
-                      );
-                    })()}
-
-                    <Collapsible>
-                      <CollapsibleTrigger 
-                        onClick={() => toggleTaskExpanded(task.id)}
-                        className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-blue-600 transition-colors ml-auto"
-                        data-testid={`button-toggle-task-${task.id}`}
-                      >
-                        {expandedTasks.has(task.id) ? (
-                          <>
-                            <ChevronDown className="h-4 w-4" />
-                            <span className="hidden sm:inline">Ocultar</span>
-                          </>
-                        ) : (
-                          <>
-                            <ChevronRight className="h-4 w-4" />
-                            <span className="hidden sm:inline">Ver</span>
-                          </>
-                        )}
-                      </CollapsibleTrigger>
-                    </Collapsible>
-                  </div>
+                  {/* Expand Toggle */}
+                  <button
+                    onClick={() => toggleTaskExpanded(task.id)}
+                    className="flex-shrink-0 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                    data-testid={`button-toggle-task-${task.id}`}
+                  >
+                    {expandedTasks.has(task.id) ? (
+                      <ChevronDown className="h-5 w-5 text-gray-500" />
+                    ) : (
+                      <ChevronRight className="h-5 w-5 text-gray-500" />
+                    )}
+                  </button>
                 </div>
-              </CardHeader>
+              </div>
 
               <Collapsible open={expandedTasks.has(task.id)}>
                 <CollapsibleContent>
@@ -1231,9 +1234,44 @@ export default function TareasPage() {
                 </CollapsibleContent>
               </Collapsible>
             </Card>
-          ))
+          );
+          })
         )}
       </div>
+
+      {/* Diálogo de confirmación para completar tarea */}
+      <AlertDialog open={!!confirmCompleteTask} onOpenChange={(open) => !open && setConfirmCompleteTask(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              ¿Deseas marcar esta tarea como completada?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción marcará tu asignación como completada. Asegúrate de haber finalizado todas las actividades relacionadas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-green-600 hover:bg-green-700"
+              onClick={() => {
+                if (confirmCompleteTask) {
+                  updateAssignmentMutation.mutate({
+                    taskId: confirmCompleteTask.taskId,
+                    assignmentId: confirmCompleteTask.assignmentId,
+                    status: "completada"
+                  });
+                  setConfirmCompleteTask(null);
+                }
+              }}
+            >
+              <Check className="h-4 w-4 mr-2" />
+              Sí, completar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
         </TabsContent>
 
         {/* Técnico de Obra no tiene acceso a promesas de compra */}
