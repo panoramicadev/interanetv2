@@ -399,6 +399,29 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
     }
   };
 
+  const horizontalBarOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    indexAxis: 'y' as const,
+    plugins: {
+      legend: { display: false },
+      datalabels: { display: false },
+    },
+    scales: {
+      x: {
+        beginAtZero: true,
+        ticks: {
+          callback: (value: any) => formatCurrency(value),
+        }
+      },
+      y: {
+        ticks: {
+          font: { size: 11 }
+        }
+      }
+    }
+  };
+
   const lineOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -1410,7 +1433,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
           <CardContent>
             <div className="h-[300px]">
               {porUsuario.length > 0 ? (
-                <Bar data={usuarioChartData} options={{...barOptions, indexAxis: 'y' as const}} />
+                <Bar data={usuarioChartData} options={horizontalBarOptions} />
               ) : (
                 <div className="flex items-center justify-center h-full text-gray-500">
                   No hay datos disponibles
