@@ -1504,62 +1504,6 @@ export default function Dashboard() {
                 </CardWrapper>
               )}
 
-              {/* Gastos Pendientes - Solo mostrar cuando hay gastos pendientes y NO estamos en vista por cliente */}
-              {pendingExpenses.length > 0 && selectedFilter !== "client" && (
-                <CardWrapper>
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-amber-500 rounded-full p-2">
-                        <AlertCircle className="h-5 w-5 text-white" />
-                      </div>
-                      <div>
-                        <h2 className="text-lg font-semibold text-gray-900">Gastos Pendientes de Aprobación</h2>
-                        <p className="text-sm text-gray-600">{pendingExpenses.length} {pendingExpenses.length === 1 ? 'gasto pendiente' : 'gastos pendientes'}</p>
-                      </div>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setLocation('/gastos-empresariales')}
-                      data-testid="button-view-all-expenses"
-                    >
-                      Ver todos
-                    </Button>
-                  </div>
-                  <div className="space-y-2">
-                    {pendingExpenses.slice(0, 5).map((expense: any) => (
-                      <div
-                        key={expense.id}
-                        className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer"
-                        onClick={() => setLocation('/gastos-empresariales')}
-                        data-testid={`expense-pending-${expense.id}`}
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="h-4 w-4 text-amber-600" />
-                            <span className="font-medium text-gray-900">
-                              ${parseFloat(expense.monto).toLocaleString('es-CL')}
-                            </span>
-                            <span className="text-sm text-gray-600">- {expense.categoria}</span>
-                          </div>
-                          <p className="text-sm text-gray-600 mt-1">{expense.descripcion}</p>
-                        </div>
-                        <div className="text-right">
-                          <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300">
-                            Pendiente
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                    {pendingExpenses.length > 5 && (
-                      <p className="text-sm text-gray-500 text-center pt-2">
-                        +{pendingExpenses.length - 5} más
-                      </p>
-                    )}
-                  </div>
-                </CardWrapper>
-              )}
-              
               {/* Primary Analytics - Sales Chart Full Width - Solo mostrar para meses y rangos */}
               {filterType !== "day" && (
                 <CardWrapper>
