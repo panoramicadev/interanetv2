@@ -485,7 +485,7 @@ export interface IStorage {
     transactionCount: number;
     percentage: number;
   }>>;
-  getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
+  getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string, segment?: string, client?: string): Promise<Array<{
     period: string;
     sales: number;
   }>>;
@@ -3626,7 +3626,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
+  async getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string, segment?: string, client?: string): Promise<Array<{
     period: string;
     sales: number;
   }>> {
@@ -3646,6 +3646,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (segment) {
       conditions.push(eq(factVentas.noruen, segment));
+    }
+    if (client) {
+      conditions.push(eq(factVentas.nokoen, client));
     }
     
     let query: any;
