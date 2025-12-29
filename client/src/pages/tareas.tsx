@@ -50,7 +50,7 @@ import {
   Check,
   Ban
 } from "lucide-react";
-import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks } from "date-fns";
+import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -1494,6 +1494,7 @@ function EstimacionSemanalTab({
         searchClient={searchClient}
         setSearchClient={setSearchClient}
         user={user}
+        esConstruccion={esConstruccion}
       />
 
       {/* Dialog para editar promesa */}
@@ -1518,6 +1519,7 @@ function CreatePromesaDialog({
   searchClient,
   setSearchClient,
   user,
+  esConstruccion,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1526,6 +1528,7 @@ function CreatePromesaDialog({
   searchClient: string;
   setSearchClient: (value: string) => void;
   user: any;
+  esConstruccion: boolean;
 }) {
   const { toast } = useToast();
   const [clienteTipo, setClienteTipo] = useState<"activo" | "potencial">("activo");
@@ -1641,19 +1644,37 @@ function CreatePromesaDialog({
       }
     }
 
-    let weekStart = startOfWeek(dialogWeek, { weekStartsOn: 1 });
-    let weekEnd = endOfWeek(dialogWeek, { weekStartsOn: 1 });
-    
-    // IMPORTANTE: Si el fin de semana cae en el mes siguiente, cortarlo en el último día del mes actual
-    const currentMonth = dialogWeek.getMonth();
-    const lastDayOfMonth = new Date(dialogWeek.getFullYear(), currentMonth + 1, 0);
-    
-    if (weekEnd.getMonth() !== currentMonth) {
-      weekEnd = lastDayOfMonth;
-    }
-    
-    const weekNumber = getISOWeek(dialogWeek);
     const year = getYear(dialogWeek);
+    
+    let periodStart: Date;
+    let periodEnd: Date;
+    let periodKey: string;
+    let periodNumber: number;
+
+    if (esConstruccion) {
+      // Para Construcción: períodos mensuales
+      periodStart = startOfMonth(dialogWeek);
+      periodEnd = endOfMonth(dialogWeek);
+      const monthIndex = dialogWeek.getMonth() + 1;
+      periodKey = `${year}-${String(monthIndex).padStart(2, '0')}`;
+      periodNumber = monthIndex;
+    } else {
+      // Para otros segmentos: períodos semanales
+      periodStart = startOfWeek(dialogWeek, { weekStartsOn: 1 });
+      periodEnd = endOfWeek(dialogWeek, { weekStartsOn: 1 });
+      
+      // IMPORTANTE: Si el fin de semana cae en el mes siguiente, cortarlo en el último día del mes actual
+      const currentMonth = dialogWeek.getMonth();
+      const lastDayOfMonth = new Date(dialogWeek.getFullYear(), currentMonth + 1, 0);
+      
+      if (periodEnd.getMonth() !== currentMonth) {
+        periodEnd = lastDayOfMonth;
+      }
+      
+      const weekNumber = getISOWeek(dialogWeek);
+      periodKey = `${year}-${String(weekNumber).padStart(2, '0')}`;
+      periodNumber = weekNumber;
+    }
 
     createMutation.mutate({
       vendedorId: selectedSalesperson,
@@ -1661,33 +1682,46 @@ function CreatePromesaDialog({
       clienteNombre: clienteTipo === "potencial" ? manualClienteNombre.trim() : selectedClient!.nokoen,
       clienteTipo: clienteTipo,
       montoPrometido: parseFloat(montoPrometido),
-      semana: `${year}-${String(weekNumber).padStart(2, '0')}`,
+      semana: periodKey,
       anio: year,
-      numeroSemana: weekNumber,
-      fechaInicio: format(weekStart, 'yyyy-MM-dd'),
-      fechaFin: format(weekEnd, 'yyyy-MM-dd'),
+      numeroSemana: periodNumber,
+      fechaInicio: format(periodStart, 'yyyy-MM-dd'),
+      fechaFin: format(periodEnd, 'yyyy-MM-dd'),
       observaciones: observaciones || null,
     });
   };
 
-  const weekNumber = getISOWeek(dialogWeek);
-  const year = getYear(dialogWeek);
-  let weekStart = startOfWeek(dialogWeek, { weekStartsOn: 1 });
-  let weekEnd = endOfWeek(dialogWeek, { weekStartsOn: 1 });
+  // Calcular valores para visualización del período
+  const displayYear = getYear(dialogWeek);
+  const monthName = format(dialogWeek, 'MMMM yyyy', { locale: es });
   
-  // IMPORTANTE: Si el fin de semana cae en el mes siguiente, cortarlo en el último día del mes actual
-  const currentMonth = dialogWeek.getMonth();
-  const lastDayOfMonth = new Date(dialogWeek.getFullYear(), currentMonth + 1, 0);
-  
-  if (weekEnd.getMonth() !== currentMonth) {
-    weekEnd = lastDayOfMonth;
-  }
+  let displayStart: Date;
+  let displayEnd: Date;
+  let displayLabel: string;
 
-  // Calcular semana del mes (1-5)
-  const monthStart = new Date(dialogWeek.getFullYear(), dialogWeek.getMonth(), 1);
-  const firstMonday = startOfWeek(monthStart, { weekStartsOn: 1 });
-  const weekOfMonth = Math.floor((dialogWeek.getTime() - firstMonday.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
-  const monthName = format(dialogWeek, 'MMMM', { locale: es });
+  if (esConstruccion) {
+    // Para Construcción: mostrar mes completo
+    displayStart = startOfMonth(dialogWeek);
+    displayEnd = endOfMonth(dialogWeek);
+    displayLabel = format(dialogWeek, 'MMMM yyyy', { locale: es });
+  } else {
+    // Para otros segmentos: mostrar semana
+    displayStart = startOfWeek(dialogWeek, { weekStartsOn: 1 });
+    displayEnd = endOfWeek(dialogWeek, { weekStartsOn: 1 });
+    
+    const currentMonth = dialogWeek.getMonth();
+    const lastDayOfMonth = new Date(dialogWeek.getFullYear(), currentMonth + 1, 0);
+    
+    if (displayEnd.getMonth() !== currentMonth) {
+      displayEnd = lastDayOfMonth;
+    }
+    
+    // Calcular semana del mes (1-5)
+    const monthStartDate = new Date(dialogWeek.getFullYear(), dialogWeek.getMonth(), 1);
+    const firstMonday = startOfWeek(monthStartDate, { weekStartsOn: 1 });
+    const weekOfMonth = Math.floor((dialogWeek.getTime() - firstMonday.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+    displayLabel = `Semana ${weekOfMonth} de ${format(dialogWeek, 'MMMM', { locale: es })}`;
+  }
 
   // Handler para limpiar campos al cambiar tipo de cliente
   const handleClienteTipoChange = (tipo: "activo" | "potencial") => {
@@ -1712,34 +1746,34 @@ function CreatePromesaDialog({
           {/* Periodo de la Promesa */}
           <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
             <Label className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2 block">
-              Periodo de la Promesa
+              Periodo de la Promesa {esConstruccion ? '(Mensual)' : '(Semanal)'}
             </Label>
             <div className="flex items-center gap-3">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setDialogWeek(prev => subWeeks(prev, 1))}
+                onClick={() => setDialogWeek(prev => esConstruccion ? subMonths(prev, 1) : subWeeks(prev, 1))}
                 className="h-8"
-                data-testid="button-prev-week"
+                data-testid="button-prev-period"
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <div className="flex-1 text-center">
                 <p className="font-semibold text-blue-900 dark:text-blue-100">
-                  Semana {weekOfMonth} de {monthName}
+                  {displayLabel}
                 </p>
                 <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
-                  {format(weekStart, 'dd MMM', { locale: es })} - {format(weekEnd, 'dd MMM', { locale: es })}
+                  {format(displayStart, 'dd MMM', { locale: es })} - {format(displayEnd, 'dd MMM', { locale: es })}
                 </p>
               </div>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setDialogWeek(prev => addWeeks(prev, 1))}
+                onClick={() => setDialogWeek(prev => esConstruccion ? addMonths(prev, 1) : addWeeks(prev, 1))}
                 className="h-8"
-                data-testid="button-next-week"
+                data-testid="button-next-period"
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
