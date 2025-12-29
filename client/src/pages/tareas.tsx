@@ -1092,8 +1092,8 @@ export default function TareasPage() {
                         <span className="text-xs font-medium truncate max-w-[150px]" data-testid={`text-task-assignee-${task.id}`}>
                           {task.assignments.length > 0 
                             ? task.assignments.map(a => {
-                                const assigneeName = salespeople?.find(s => s.id === a.assigneeId)?.fullName || 
-                                                    supervisors?.find(s => s.id === a.assigneeId)?.fullName ||
+                                const assigneeName = availableUsers?.find(s => s.id === a.assigneeId)?.salespersonName || 
+                                                    availableSupervisors?.find(s => s.id === a.assigneeId)?.salespersonName ||
                                                     a.assigneeId;
                                 return assigneeName;
                               }).join(', ')
@@ -1236,8 +1236,8 @@ export default function TareasPage() {
                 setActiveTab("tareas");
               }
             }}
-            salespeople={salespeople}
-            supervisors={supervisors}
+            salespeople={availableUsers}
+            supervisors={availableSupervisors}
           />
         </TabsContent>
 
@@ -2698,8 +2698,8 @@ function CalendarViewTab({
   calendarMonth: Date;
   setCalendarMonth: (date: Date) => void;
   onTaskClick: (taskId: string) => void;
-  salespeople: Array<{ id: string; fullName: string }> | undefined;
-  supervisors: Array<{ id: string; fullName: string }> | undefined;
+  salespeople: Array<{ id: string; salespersonName: string; role: string }> | undefined;
+  supervisors: Array<{ id: string; salespersonName: string; role: string }> | undefined;
 }) {
   const monthStart = startOfMonth(calendarMonth);
   const monthEnd = endOfMonth(calendarMonth);
