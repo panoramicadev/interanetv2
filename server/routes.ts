@@ -1685,14 +1685,15 @@ export function registerRoutes(app: Express): Server {
   // Top salespeople endpoint
   app.get('/api/sales/top-salespeople', requireCommercialAccess, async (req, res) => {
     try {
-      const { limit, period, filterType, segment } = req.query;
+      const { limit, period, filterType, segment, client } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
       
       const result = await storage.getTopSalespeople(
         limit ? parseInt(limit as string) : undefined,
         dateRange.startDate,
         dateRange.endDate,
-        segment as string // Filtrar por segmento específico
+        segment as string, // Filtrar por segmento específico
+        client as string // Filtrar por cliente específico
       );
       res.json(result);
     } catch (error) {
@@ -1704,7 +1705,7 @@ export function registerRoutes(app: Express): Server {
   // Salespeople search endpoint (AJAX autocomplete)
   app.get('/api/salespeople/search', requireCommercialAccess, async (req, res) => {
     try {
-      const { q, period, filterType, segment } = req.query;
+      const { q, period, filterType, segment, client } = req.query;
       
       if (!q || typeof q !== 'string' || q.trim().length < 2) {
         return res.json([]);
@@ -1724,7 +1725,8 @@ export function registerRoutes(app: Express): Server {
         searchTerm,
         startDate,
         endDate,
-        segment as string
+        segment as string,
+        client as string
       );
       
       res.json(results);

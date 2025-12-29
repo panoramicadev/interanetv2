@@ -396,7 +396,7 @@ export interface IStorage {
     totalUnits: number;
     activeCustomers: number;
   }>;
-  getTopSalespeople(limit?: number, startDate?: string, endDate?: string, segment?: string): Promise<{
+  getTopSalespeople(limit?: number, startDate?: string, endDate?: string, segment?: string, client?: string): Promise<{
     items: Array<{
       salesperson: string;
       totalSales: number;
@@ -405,7 +405,7 @@ export interface IStorage {
     periodTotalSales: number;
     totalCount: number;
   }>;
-  searchSalespeople(searchTerm: string, startDate?: string, endDate?: string, segment?: string): Promise<Array<{
+  searchSalespeople(searchTerm: string, startDate?: string, endDate?: string, segment?: string, client?: string): Promise<Array<{
     name: string;
     totalSales: number;
     transactionCount: number;
@@ -2616,7 +2616,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getTopSalespeople(limit = 10, startDate?: string, endDate?: string, segment?: string): Promise<{
+  async getTopSalespeople(limit = 10, startDate?: string, endDate?: string, segment?: string, client?: string): Promise<{
     items: Array<{
       salesperson: string;
       totalSales: number;
@@ -2638,6 +2638,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (segment) {
       conditions.push(sql`${factVentas.noruen} = ${segment}`);
+    }
+    if (client) {
+      conditions.push(eq(factVentas.nokoen, client));
     }
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -2681,7 +2684,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async searchSalespeople(searchTerm: string, startDate?: string, endDate?: string, segment?: string): Promise<Array<{
+  async searchSalespeople(searchTerm: string, startDate?: string, endDate?: string, segment?: string, client?: string): Promise<Array<{
     name: string;
     totalSales: number;
     transactionCount: number;
@@ -2700,6 +2703,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (segment) {
       conditions.push(eq(factVentas.noruen, segment));
+    }
+    if (client) {
+      conditions.push(eq(factVentas.nokoen, client));
     }
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
