@@ -1800,6 +1800,7 @@ export interface IStorage {
   closeFundAllocation(id: string): Promise<FundAllocation>;
   approveFundAllocation(id: string, comprobanteUrl: string, aprobadoPorId: string): Promise<FundAllocation>;
   rejectFundAllocation(id: string, motivoRechazo: string, rechazadoPorId: string): Promise<FundAllocation>;
+  deleteFundAllocation(id: string): Promise<void>;
   
   createFundMovement(movement: InsertFundMovement): Promise<FundMovement>;
   getFundMovements(allocationId: string): Promise<FundMovement[]>;
@@ -19653,6 +19654,11 @@ export class DatabaseStorage implements IStorage {
       .where(eq(fundAllocations.id, id))
       .returning();
     return rejected;
+  }
+
+  async deleteFundAllocation(id: string): Promise<void> {
+    await db.delete(fundMovements).where(eq(fundMovements.allocationId, id));
+    await db.delete(fundAllocations).where(eq(fundAllocations.id, id));
   }
 
   async createFundMovement(movement: InsertFundMovement): Promise<FundMovement> {

@@ -49,7 +49,7 @@ import {
 } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Plus, Search, HandCoins, Upload, Loader2, Check, X, Eye } from "lucide-react";
+import { Plus, Search, HandCoins, Upload, Loader2, Check, X, Eye, Trash2 } from "lucide-react";
 
 const crearFondoSchema = z.object({
   presupuesto: z.string().min(1, "El presupuesto es requerido"),
@@ -282,6 +282,29 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
       toast({
         title: "Error",
         description: error.message || "No se pudo rechazar el fondo.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteFundMutation = useMutation({
+    mutationFn: async (fundId: string) => {
+      return apiRequest(`/api/fund-allocations/${fundId}`, {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Fondo eliminado",
+        description: "El fondo ha sido eliminado exitosamente.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations/summary/global'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo eliminar el fondo.",
         variant: "destructive",
       });
     },
@@ -578,6 +601,22 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                       >
                         Ver
                       </Button>
+                      {user?.role === 'admin' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          data-testid={`button-delete-${fondo.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm('¿Estás seguro de eliminar este fondo? Esta acción no se puede deshacer.')) {
+                              deleteFundMutation.mutate(fondo.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
