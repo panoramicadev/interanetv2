@@ -620,9 +620,9 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
           head: [['Fecha', 'Monto', 'Estado', 'Asignado Por']],
           body: fondosData.map(f => [
             formatFullDate(f.createdAt as any),
-            formatCurrency(Number(f.amount) || 0),
+            formatCurrency(Number(f.montoInicial) || 0),
             f.estado || '-',
-            (f as any).assignedByName || '-'
+            (f as any).assignedByName || getUserName(f.assignedById) || '-'
           ]),
           theme: 'striped',
           headStyles: { 
@@ -710,12 +710,12 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
             url: fondo.comprobanteUrl,
             type: 'fondo',
             vendedor: getUserName(fondo.assignedToId || ''),
-            monto: formatCurrency(Number(fondo.amount) || 0),
+            monto: formatCurrency(Number(fondo.montoInicial) || 0),
             fecha: formatFullDate(fondo.createdAt as any),
             financiamiento: 'Fondo Asignado',
             tipoFondo: fondo.fundType || 'General',
-            estado: fondo.status || '-',
-            descripcion: fondo.description || '-',
+            estado: fondo.estado || '-',
+            descripcion: fondo.descripcion || fondo.motivo || '-',
           });
         }
       }
