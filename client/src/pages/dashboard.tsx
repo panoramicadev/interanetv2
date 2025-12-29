@@ -38,7 +38,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, RefreshCw, Eye, AlertCircle, DollarSign, ChevronDown, ShoppingCart, Truck } from "lucide-react";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Input } from "@/components/ui/input";
+import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, RefreshCw, Eye, AlertCircle, DollarSign, ChevronDown, ShoppingCart, Truck, Search, Check, ChevronsUpDown } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -185,6 +187,10 @@ export default function Dashboard() {
   
   // Filter selector state
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
+  
+  // Client search state
+  const [clientSearchOpen, setClientSearchOpen] = useState(false);
+  const [clientSearchTerm, setClientSearchTerm] = useState("");
   
   // Comparison period state
   const [comparePeriod, setComparePeriod] = useState<string>("none");
@@ -500,6 +506,19 @@ export default function Dashboard() {
       if (!response.ok) throw new Error('Failed to fetch clients');
       return response.json();
     }
+  });
+
+  // Search clients in the entire database
+  const { data: searchedClients, isLoading: isSearchingClients } = useQuery<Array<{ koen: string; nokoen: string }>>({
+    queryKey: ["/api/clients/search", clientSearchTerm],
+    queryFn: async () => {
+      if (!clientSearchTerm || clientSearchTerm.length < 2) return [];
+      const response = await fetch(`/api/clients/search?q=${encodeURIComponent(clientSearchTerm)}`);
+      if (!response.ok) throw new Error('Failed to search clients');
+      return response.json();
+    },
+    enabled: clientSearchTerm.length >= 2,
+    staleTime: 30000,
   });
 
   // Sync local filter state with globalFilter changes
@@ -1190,11 +1209,11 @@ export default function Dashboard() {
                   </Select>
                 </div>
 
-                {/* Segment/Branch/Salesperson/Client selector - shown conditionally */}
-                {(selectedFilter === "segment" || selectedFilter === "branch" || selectedFilter === "salesperson" || selectedFilter === "client") && (
+                {/* Segment/Branch/Salesperson selector - shown conditionally */}
+                {(selectedFilter === "segment" || selectedFilter === "branch" || selectedFilter === "salesperson") && (
                   <div className="flex items-center gap-2" key={`specific-selector-${selectedFilter}`}>
                     <span className="text-sm font-medium text-gray-700">
-                      {selectedFilter === "segment" ? "Segmento:" : selectedFilter === "branch" ? "Sucursal:" : selectedFilter === "salesperson" ? "Vendedor:" : "Cliente:"}
+                      {selectedFilter === "segment" ? "Segmento:" : selectedFilter === "branch" ? "Sucursal:" : "Vendedor:"}
                     </span>
                     <Select 
                       key={selectedFilter}
@@ -1206,13 +1225,11 @@ export default function Dashboard() {
                           setGlobalFilter({ type: "branch", value });
                         } else if (selectedFilter === "salesperson") {
                           setGlobalFilter({ type: "salesperson", value });
-                        } else if (selectedFilter === "client") {
-                          setGlobalFilter({ type: "client", value });
                         }
                       }}
                     >
                       <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
-                        <SelectValue placeholder={selectedFilter === "segment" ? "Selecciona segmento" : selectedFilter === "branch" ? "Selecciona sucursal" : selectedFilter === "salesperson" ? "Selecciona vendedor" : "Selecciona cliente"} />
+                        <SelectValue placeholder={selectedFilter === "segment" ? "Selecciona segmento" : selectedFilter === "branch" ? "Selecciona sucursal" : "Selecciona vendedor"} />
                       </SelectTrigger>
                       <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
                         {selectedFilter === "segment" ? (
@@ -1227,21 +1244,101 @@ export default function Dashboard() {
                               {branch}
                             </SelectItem>
                           ))
-                        ) : selectedFilter === "salesperson" ? (
+                        ) : (
                           salespeople?.map((salesperson) => (
                             <SelectItem key={salesperson} value={salesperson}>
                               {salesperson}
                             </SelectItem>
                           ))
-                        ) : (
-                          clients?.items?.map((client) => (
-                            <SelectItem key={client.clientName} value={client.clientName}>
-                              {client.clientName}
-                            </SelectItem>
-                          ))
                         )}
                       </SelectContent>
                     </Select>
+                  </div>
+                )}
+
+                {/* Client selector with search - separate component */}
+                {selectedFilter === "client" && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-700">Cliente:</span>
+                    <Popover open={clientSearchOpen} onOpenChange={setClientSearchOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={clientSearchOpen}
+                          className="h-9 w-64 justify-between rounded-lg border-gray-200 text-sm font-normal"
+                          data-testid="button-client-search"
+                        >
+                          {globalFilter.type === "client" && globalFilter.value
+                            ? globalFilter.value
+                            : "Buscar cliente..."}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80 p-0" align="start">
+                        <Command shouldFilter={false}>
+                          <CommandInput 
+                            placeholder="Buscar cliente por nombre..." 
+                            value={clientSearchTerm}
+                            onValueChange={setClientSearchTerm}
+                            data-testid="input-client-search"
+                          />
+                          <CommandList>
+                            {clientSearchTerm.length < 2 ? (
+                              <CommandEmpty>Escribe al menos 2 caracteres para buscar...</CommandEmpty>
+                            ) : isSearchingClients ? (
+                              <CommandEmpty>Buscando clientes...</CommandEmpty>
+                            ) : searchedClients && searchedClients.length > 0 ? (
+                              <CommandGroup heading="Resultados de búsqueda">
+                                {searchedClients.map((client) => (
+                                  <CommandItem
+                                    key={client.koen}
+                                    value={client.nokoen}
+                                    onSelect={(value) => {
+                                      setGlobalFilter({ type: "client", value: client.nokoen });
+                                      setClientSearchOpen(false);
+                                      setClientSearchTerm("");
+                                    }}
+                                    data-testid={`client-option-${client.koen}`}
+                                  >
+                                    <Check
+                                      className={`mr-2 h-4 w-4 ${
+                                        globalFilter.value === client.nokoen ? "opacity-100" : "opacity-0"
+                                      }`}
+                                    />
+                                    {client.nokoen}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            ) : (
+                              <CommandEmpty>No se encontraron clientes.</CommandEmpty>
+                            )}
+                            {clients?.items && clients.items.length > 0 && clientSearchTerm.length < 2 && (
+                              <CommandGroup heading="Clientes con más ventas">
+                                {clients.items.slice(0, 10).map((client) => (
+                                  <CommandItem
+                                    key={client.clientName}
+                                    value={client.clientName}
+                                    onSelect={(value) => {
+                                      setGlobalFilter({ type: "client", value: client.clientName });
+                                      setClientSearchOpen(false);
+                                    }}
+                                    data-testid={`top-client-option-${client.clientName}`}
+                                  >
+                                    <Check
+                                      className={`mr-2 h-4 w-4 ${
+                                        globalFilter.value === client.clientName ? "opacity-100" : "opacity-0"
+                                      }`}
+                                    />
+                                    {client.clientName}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            )}
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 )}
 
