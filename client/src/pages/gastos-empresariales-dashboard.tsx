@@ -891,14 +891,15 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         doc.text('Comprobantes Adjuntos', pageWidth / 2, yPos, { align: 'center' });
         yPos += 15;
         
-        const infoColumnWidth = 70;
-        const imageColumnStart = margin + infoColumnWidth + 5;
+        const infoColumnWidth = 75;
+        const gapBetweenColumns = 8;
+        const imageColumnStart = margin + infoColumnWidth + gapBetweenColumns;
         const imageMaxWidth = pageWidth - imageColumnStart - margin;
         
         for (const img of allImages) {
           try {
             const isPDF = img.url.toLowerCase().endsWith('.pdf');
-            const sectionHeight = 110;
+            const sectionHeight = 95;
             
             if (yPos + sectionHeight > pageHeight - 20) {
               doc.addPage();
@@ -907,90 +908,123 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
             
             const sectionStartY = yPos;
             
-            doc.setDrawColor(200, 200, 200);
-            doc.setFillColor(248, 250, 252);
-            doc.roundedRect(margin, yPos - 3, pageWidth - margin * 2, sectionHeight, 2, 2, 'FD');
+            doc.setDrawColor(229, 231, 235);
+            doc.setFillColor(255, 255, 255);
+            doc.roundedRect(margin, yPos - 3, infoColumnWidth, sectionHeight, 3, 3, 'FD');
             
-            doc.setFontSize(11);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(30, 64, 175);
             const tipoLabel = img.type === 'fondo' ? 'COMPROBANTE DE FONDO' : 'COMPROBANTE DE GASTO';
-            doc.text(tipoLabel, margin + 5, yPos + 5);
-            doc.setTextColor(0, 0, 0);
-            yPos += 12;
+            const headerColor = img.type === 'fondo' ? [22, 163, 74] : [59, 130, 246];
+            doc.setFillColor(headerColor[0], headerColor[1], headerColor[2]);
+            doc.roundedRect(margin, yPos - 3, infoColumnWidth, 10, 3, 3, 'F');
+            doc.rect(margin, yPos + 4, infoColumnWidth, 3, 'F');
             
             doc.setFontSize(9);
             doc.setFont('helvetica', 'bold');
-            doc.text('Vendedor:', margin + 5, yPos);
+            doc.setTextColor(255, 255, 255);
+            doc.text(tipoLabel, margin + infoColumnWidth / 2, yPos + 3, { align: 'center' });
+            doc.setTextColor(0, 0, 0);
+            yPos += 14;
+            
+            const labelX = margin + 4;
+            const valueX = margin + 28;
+            const lineHeight = 6.5;
+            
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(100, 116, 139);
+            doc.text('Vendedor', labelX, yPos);
             doc.setFont('helvetica', 'normal');
-            doc.text(img.vendedor, margin + 30, yPos);
-            yPos += 7;
+            doc.setTextColor(15, 23, 42);
+            doc.text(String(img.vendedor).substring(0, 22), valueX, yPos);
+            yPos += lineHeight;
             
             doc.setFont('helvetica', 'bold');
-            doc.text('Monto:', margin + 5, yPos);
-            doc.setFont('helvetica', 'normal');
-            doc.text(img.monto, margin + 23, yPos);
-            yPos += 7;
+            doc.setTextColor(100, 116, 139);
+            doc.text('Monto', labelX, yPos);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(22, 163, 74);
+            doc.text(img.monto, valueX, yPos);
+            yPos += lineHeight;
             
             doc.setFont('helvetica', 'bold');
-            doc.text('Fecha:', margin + 5, yPos);
+            doc.setTextColor(100, 116, 139);
+            doc.text('Fecha', labelX, yPos);
             doc.setFont('helvetica', 'normal');
-            doc.text(img.fecha, margin + 22, yPos);
-            yPos += 7;
+            doc.setTextColor(15, 23, 42);
+            doc.text(img.fecha, valueX, yPos);
+            yPos += lineHeight;
             
             doc.setFont('helvetica', 'bold');
-            doc.text('Tipo:', margin + 5, yPos);
+            doc.setTextColor(100, 116, 139);
+            doc.text('Tipo', labelX, yPos);
             doc.setFont('helvetica', 'normal');
             const financColor = img.financiamiento.includes('Fondo') ? [22, 163, 74] : [234, 88, 12];
             doc.setTextColor(financColor[0], financColor[1], financColor[2]);
-            doc.text(img.financiamiento, margin + 18, yPos);
+            doc.text(img.financiamiento, valueX, yPos);
             doc.setTextColor(0, 0, 0);
-            yPos += 7;
+            yPos += lineHeight;
             
             if (img.type === 'gasto') {
               doc.setFont('helvetica', 'bold');
-              doc.text('Categoría:', margin + 5, yPos);
+              doc.setTextColor(100, 116, 139);
+              doc.text('Categoría', labelX, yPos);
               doc.setFont('helvetica', 'normal');
-              doc.text(img.categoria || '-', margin + 30, yPos);
-              yPos += 7;
+              doc.setTextColor(15, 23, 42);
+              doc.text(String(img.categoria || '-').substring(0, 18), valueX, yPos);
+              yPos += lineHeight;
               
               doc.setFont('helvetica', 'bold');
-              doc.text('Documento:', margin + 5, yPos);
+              doc.setTextColor(100, 116, 139);
+              doc.text('Documento', labelX, yPos);
               doc.setFont('helvetica', 'normal');
-              doc.text(img.tipoDocumento || '-', margin + 33, yPos);
-              yPos += 7;
+              doc.setTextColor(15, 23, 42);
+              doc.text(String(img.tipoDocumento || '-').substring(0, 16), valueX, yPos);
+              yPos += lineHeight;
               
               if (img.proveedor && img.proveedor !== '-') {
                 doc.setFont('helvetica', 'bold');
-                doc.text('Proveedor:', margin + 5, yPos);
+                doc.setTextColor(100, 116, 139);
+                doc.text('Proveedor', labelX, yPos);
                 doc.setFont('helvetica', 'normal');
-                doc.text(String(img.proveedor).substring(0, 25), margin + 31, yPos);
-                yPos += 7;
+                doc.setTextColor(15, 23, 42);
+                doc.text(String(img.proveedor).substring(0, 18), valueX, yPos);
+                yPos += lineHeight;
               }
             } else {
               doc.setFont('helvetica', 'bold');
-              doc.text('Tipo Fondo:', margin + 5, yPos);
+              doc.setTextColor(100, 116, 139);
+              doc.text('Tipo Fondo', labelX, yPos);
               doc.setFont('helvetica', 'normal');
-              doc.text(img.tipoFondo || '-', margin + 33, yPos);
-              yPos += 7;
+              doc.setTextColor(15, 23, 42);
+              doc.text(String(img.tipoFondo || '-').substring(0, 16), valueX, yPos);
+              yPos += lineHeight;
               
               doc.setFont('helvetica', 'bold');
-              doc.text('Estado:', margin + 5, yPos);
+              doc.setTextColor(100, 116, 139);
+              doc.text('Estado', labelX, yPos);
               doc.setFont('helvetica', 'normal');
-              doc.text(img.estado || '-', margin + 24, yPos);
-              yPos += 7;
+              const estadoColor = img.estado === 'activo' ? [22, 163, 74] : [220, 38, 38];
+              doc.setTextColor(estadoColor[0], estadoColor[1], estadoColor[2]);
+              doc.text(String(img.estado || '-').substring(0, 16), valueX, yPos);
+              doc.setTextColor(0, 0, 0);
+              yPos += lineHeight;
             }
             
             if (img.descripcion && img.descripcion !== '-') {
               doc.setFont('helvetica', 'bold');
-              doc.text('Descripción:', margin + 5, yPos);
+              doc.setTextColor(100, 116, 139);
+              doc.text('Nota', labelX, yPos);
               doc.setFont('helvetica', 'normal');
-              const descText = String(img.descripcion).substring(0, 35);
-              doc.text(descText, margin + 33, yPos);
+              doc.setTextColor(15, 23, 42);
+              doc.text(String(img.descripcion).substring(0, 22), valueX, yPos);
             }
             
-            const imgYPos = sectionStartY + 10;
-            const imgMaxHeight = sectionHeight - 20;
+            doc.setDrawColor(229, 231, 235);
+            doc.setFillColor(249, 250, 251);
+            doc.roundedRect(imageColumnStart, sectionStartY - 3, imageMaxWidth, sectionHeight, 3, 3, 'FD');
+            
+            const imgYPos = sectionStartY + 5;
+            const imgMaxHeight = sectionHeight - 16;
             
             if (isPDF) {
               doc.setFontSize(9);
