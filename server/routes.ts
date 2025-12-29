@@ -5549,6 +5549,74 @@ export function registerRoutes(app: Express): Server {
   });
 
   // ==================================================================================
+  // Task Comments - Sistema de comentarios en hilo
+  // ==================================================================================
+
+  // Get comments for an assignment
+  app.get('/api/tasks/:taskId/assignments/:assignmentId/comments', requireAuth, async (req: any, res) => {
+    try {
+      const { assignmentId } = req.params;
+      const comments = await storage.getTaskComments(assignmentId);
+      res.json(comments);
+    } catch (error) {
+      console.error("Error fetching comments:", error);
+      res.status(500).json({ message: "Failed to fetch comments" });
+    }
+  });
+
+  // Add a comment to an assignment
+  app.post('/api/tasks/:taskId/assignments/:assignmentId/comments', requireAuth, async (req: any, res) => {
+    try {
+      const { taskId, assignmentId } = req.params;
+      const user = req.user;
+      const { content } = req.body;
+
+      if (!content || content.trim() === '') {
+        return res.status(400).json({ message: "El comentario no puede estar vacío" });
+      }
+
+      const task = await storage.getTask(taskId);
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+
+      const assignment = task.assignments.find(a => a.id === assignmentId);
+      if (!assignment) {
+        return res.status(404).json({ message: "Assignment not found" });
+      }
+
+      // Determine author name
+      const authorName = user.name || user.fullName || user.email || 'Usuario';
+
+      const comment = await storage.addTaskComment({
+        assignmentId,
+        authorId: user.id,
+        authorName,
+        content: content.trim()
+      });
+
+      res.status(201).json(comment);
+    } catch (error) {
+      console.error("Error adding comment:", error);
+      res.status(500).json({ message: "Failed to add comment" });
+    }
+  });
+
+  // Delete a comment (only author can delete)
+  app.delete('/api/tasks/:taskId/assignments/:assignmentId/comments/:commentId', requireAuth, async (req: any, res) => {
+    try {
+      const { commentId } = req.params;
+      const user = req.user;
+
+      await storage.deleteTaskComment(commentId, user.id);
+      res.json({ message: "Comment deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting comment:", error);
+      res.status(500).json({ message: "Failed to delete comment" });
+    }
+  });
+
+  // ==================================================================================
   // Users endpoint for CRM
   // ==================================================================================
   

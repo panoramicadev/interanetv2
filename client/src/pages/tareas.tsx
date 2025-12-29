@@ -54,7 +54,7 @@ import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks
 import { es } from "date-fns/locale";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type Task, type TaskAssignment, type InsertTaskAssignment } from "@shared/schema";
+import { type Task, type TaskAssignment, type InsertTaskAssignment, type TaskComment } from "@shared/schema";
 import { z } from "zod";
 
 // SECURITY: Frontend schema that excludes createdByUserId to prevent user impersonation
@@ -1138,92 +1138,24 @@ export default function TareasPage() {
                                   )}
                                 </div>
                                 
-                                {editingNoteAssignmentId === assignment.id && editingNoteTaskId === task.id ? (
-                                  <div className="space-y-3 mt-3 bg-blue-50 rounded-lg p-3 border border-blue-200">
-                                    <Textarea
-                                      value={editingNoteText}
-                                      onChange={(e) => setEditingNoteText(e.target.value)}
-                                      placeholder="Escribe una nota sobre el estado de la tarea..."
-                                      className="text-sm min-h-[80px] bg-white border-blue-300"
-                                      data-testid={`textarea-note-${assignment.id}`}
-                                      autoFocus
-                                    />
-                                    <div className="flex gap-2 justify-end">
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="border-gray-300"
-                                        onClick={() => {
-                                          setEditingNoteAssignmentId(null);
-                                          setEditingNoteTaskId(null);
-                                          setEditingNoteText("");
-                                        }}
-                                        data-testid={`button-cancel-note-${assignment.id}`}
-                                      >
-                                        Cancelar
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        className="bg-green-600 hover:bg-green-700"
-                                        onClick={() => {
-                                          updateAssignmentMutation.mutate({
-                                            taskId: task.id,
-                                            assignmentId: assignment.id,
-                                            notes: editingNoteText
-                                          });
-                                          setEditingNoteAssignmentId(null);
-                                          setEditingNoteTaskId(null);
-                                          setEditingNoteText("");
-                                        }}
-                                        disabled={updateAssignmentMutation.isPending}
-                                        data-testid={`button-save-note-${assignment.id}`}
-                                      >
-                                        <Check className="h-4 w-4 mr-1" />
-                                        {updateAssignmentMutation.isPending ? "Guardando..." : "Guardar"}
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="mt-3">
-                                    {assignment.notes ? (
-                                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-start justify-between gap-2">
-                                        <div className="flex items-start gap-2 flex-1 min-w-0">
-                                          <MessageSquare className="h-4 w-4 mt-0.5 flex-shrink-0 text-yellow-600" />
-                                          <span className="text-sm text-gray-700 break-words" data-testid={`text-assignment-notes-${assignment.id}`}>
-                                            {assignment.notes}
-                                          </span>
-                                        </div>
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          className="h-7 px-2 hover:bg-yellow-100 flex-shrink-0"
-                                          onClick={() => {
-                                            setEditingNoteAssignmentId(assignment.id);
-                                            setEditingNoteTaskId(task.id);
-                                            setEditingNoteText(assignment.notes || "");
-                                          }}
-                                          data-testid={`button-edit-note-${assignment.id}`}
-                                        >
-                                          <Edit className="h-4 w-4 text-yellow-600" />
-                                        </Button>
-                                      </div>
-                                    ) : (
-                                      <Button
-                                        size="sm"
-                                        className="w-full h-9 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium"
-                                        onClick={() => {
-                                          setEditingNoteAssignmentId(assignment.id);
-                                          setEditingNoteTaskId(task.id);
-                                          setEditingNoteText("");
-                                        }}
-                                        data-testid={`button-add-note-${assignment.id}`}
-                                      >
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Agregar Nota
-                                      </Button>
-                                    )}
-                                  </div>
-                                )}
+                                {/* Comments Thread Component */}
+                                <CommentsThread
+                                  taskId={task.id}
+                                  assignmentId={assignment.id}
+                                  isEditing={editingNoteAssignmentId === assignment.id && editingNoteTaskId === task.id}
+                                  editingText={editingNoteText}
+                                  setEditingText={setEditingNoteText}
+                                  onStartEditing={() => {
+                                    setEditingNoteAssignmentId(assignment.id);
+                                    setEditingNoteTaskId(task.id);
+                                    setEditingNoteText("");
+                                  }}
+                                  onCancelEditing={() => {
+                                    setEditingNoteAssignmentId(null);
+                                    setEditingNoteTaskId(null);
+                                    setEditingNoteText("");
+                                  }}
+                                />
                               </div>
                             </div>
                           );
@@ -2526,5 +2458,194 @@ function EditPromesaDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ==================================================================================
+// CommentsThread - Componente de comentarios en hilo moderno
+// ==================================================================================
+interface CommentsThreadProps {
+  taskId: string;
+  assignmentId: string;
+  isEditing: boolean;
+  editingText: string;
+  setEditingText: (text: string) => void;
+  onStartEditing: () => void;
+  onCancelEditing: () => void;
+}
+
+function CommentsThread({
+  taskId,
+  assignmentId,
+  isEditing,
+  editingText,
+  setEditingText,
+  onStartEditing,
+  onCancelEditing
+}: CommentsThreadProps) {
+  const { toast } = useToast();
+
+  // Fetch comments for this assignment
+  const { data: comments = [], isLoading } = useQuery<TaskComment[]>({
+    queryKey: ['/api/tasks', taskId, 'assignments', assignmentId, 'comments'],
+  });
+
+  // Add comment mutation
+  const addCommentMutation = useMutation({
+    mutationFn: async (content: string) => {
+      return apiRequest(`/api/tasks/${taskId}/assignments/${assignmentId}/comments`, {
+        method: 'POST',
+        body: JSON.stringify({ content }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks', taskId, 'assignments', assignmentId, 'comments'] });
+      onCancelEditing();
+      toast({
+        title: "Comentario agregado",
+        description: "Tu comentario ha sido publicado",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo agregar el comentario",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Delete comment mutation
+  const deleteCommentMutation = useMutation({
+    mutationFn: async (commentId: string) => {
+      return apiRequest(`/api/tasks/${taskId}/assignments/${assignmentId}/comments/${commentId}`, {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks', taskId, 'assignments', assignmentId, 'comments'] });
+      toast({
+        title: "Comentario eliminado",
+        description: "El comentario ha sido eliminado",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el comentario",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const handleSubmitComment = () => {
+    if (editingText.trim()) {
+      addCommentMutation.mutate(editingText.trim());
+    }
+  };
+
+  return (
+    <div className="mt-3 space-y-3">
+      {/* Comments List */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+        </div>
+      ) : comments.length > 0 ? (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
+            <MessageSquare className="h-3.5 w-3.5" />
+            <span>{comments.length} comentario{comments.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {comments.map((comment) => (
+              <div 
+                key={comment.id} 
+                className="group relative bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-3 border border-blue-100 hover:shadow-sm transition-all"
+                data-testid={`comment-${comment.id}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold">
+                        {comment.authorName?.charAt(0).toUpperCase() || 'U'}
+                      </div>
+                      <span className="text-xs font-semibold text-gray-800 truncate">
+                        {comment.authorName}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {comment.createdAt && format(new Date(comment.createdAt), "dd MMM, HH:mm", { locale: es })}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-700 pl-8 leading-relaxed">
+                      {comment.content}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => deleteCommentMutation.mutate(comment.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all"
+                    data-testid={`button-delete-comment-${comment.id}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Add Comment Form */}
+      {isEditing ? (
+        <div className="bg-white rounded-xl border-2 border-blue-200 p-3 shadow-sm">
+          <Textarea
+            value={editingText}
+            onChange={(e) => setEditingText(e.target.value)}
+            placeholder="Escribe tu comentario..."
+            className="text-sm min-h-[70px] border-0 focus-visible:ring-0 resize-none bg-transparent p-0"
+            data-testid={`textarea-comment-${assignmentId}`}
+            autoFocus
+          />
+          <div className="flex gap-2 justify-end pt-2 border-t border-gray-100">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-3 text-gray-500"
+              onClick={onCancelEditing}
+              data-testid={`button-cancel-comment-${assignmentId}`}
+            >
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 px-4 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-medium rounded-full"
+              onClick={handleSubmitComment}
+              disabled={addCommentMutation.isPending || !editingText.trim()}
+              data-testid={`button-submit-comment-${assignmentId}`}
+            >
+              {addCommentMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Publicar
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={onStartEditing}
+          className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 text-gray-500 hover:text-blue-600 transition-all group"
+          data-testid={`button-add-comment-${assignmentId}`}
+        >
+          <div className="w-6 h-6 rounded-full bg-gray-100 group-hover:bg-blue-100 flex items-center justify-center transition-colors">
+            <Plus className="h-3.5 w-3.5" />
+          </div>
+          <span className="text-sm font-medium">Agregar comentario</span>
+        </button>
+      )}
+    </div>
   );
 }
