@@ -249,7 +249,30 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
     if (!userId) return 'Sin asignar';
     const user = allUsers.find((u: any) => u.id === userId);
     if (user) {
-      return user.fullName || user.username || 'Usuario';
+      if (user.fullName && user.fullName.trim()) {
+        return user.fullName;
+      }
+      if (user.username) {
+        if (user.username.includes('@')) {
+          const namePart = user.username.split('@')[0];
+          const formatted = namePart
+            .replace(/[._]/g, ' ')
+            .split(' ')
+            .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+          return formatted;
+        }
+        return user.username;
+      }
+      return 'Usuario';
+    }
+    if (userId.includes('@')) {
+      const namePart = userId.split('@')[0];
+      return namePart
+        .replace(/[._]/g, ' ')
+        .split(' ')
+        .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
     }
     return userId.length > 8 ? userId.substring(0, 8) + '...' : userId;
   };
