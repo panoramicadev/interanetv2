@@ -200,7 +200,11 @@ export default function TareasPage() {
   });
 
   // Queries para Promesas de Compra
-  const currentWeek = `${getYear(selectedWeek)}-${String(getISOWeek(selectedWeek)).padStart(2, '0')}`;
+  // Para Construcción usar período mensual (YYYY-MM), para otros usar semanal (YYYY-WW)
+  const esConstruccion = (user as any)?.assignedSegment?.toLowerCase()?.includes('construcc') || false;
+  const currentPeriod = esConstruccion 
+    ? `${getYear(selectedWeek)}-${String(selectedWeek.getMonth() + 1).padStart(2, '0')}`
+    : `${getYear(selectedWeek)}-${String(getISOWeek(selectedWeek)).padStart(2, '0')}`;
   const currentYear = getYear(selectedWeek);
 
   const { data: clientes = [] } = useQuery<Cliente[]>({
@@ -216,20 +220,21 @@ export default function TareasPage() {
   });
 
   const { data: promesasCumplimiento = [], isLoading: isLoadingPromesas } = useQuery<PromesaCumplimiento[]>({
-    queryKey: ['/api/promesas-compra/cumplimiento/reporte', currentYear, currentWeek],
+    queryKey: ['/api/promesas-compra/cumplimiento/reporte', currentYear, currentPeriod, esConstruccion],
     queryFn: async () => {
-      const response = await apiRequest(`/api/promesas-compra/cumplimiento/reporte?anio=${currentYear}&semana=${currentWeek}`);
+      const response = await apiRequest(`/api/promesas-compra/cumplimiento/reporte?anio=${currentYear}&semana=${currentPeriod}`);
       return response.json();
     },
     enabled: !!user,
   });
 
+  // Navegación de período: meses para Construcción, semanas para otros
   const goToPreviousWeek = () => {
-    setSelectedWeek(prev => subWeeks(prev, 1));
+    setSelectedWeek(prev => esConstruccion ? subMonths(prev, 1) : subWeeks(prev, 1));
   };
 
   const goToNextWeek = () => {
-    setSelectedWeek(prev => addWeeks(prev, 1));
+    setSelectedWeek(prev => esConstruccion ? addMonths(prev, 1) : addWeeks(prev, 1));
   };
 
   const goToCurrentWeek = () => {
@@ -666,7 +671,7 @@ export default function TareasPage() {
           <TabsList className="inline-flex w-max sm:w-full sm:grid sm:grid-cols-3 h-auto gap-1 bg-gray-100">
             <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">Tareas</TabsTrigger>
             <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">
-              {(user as any)?.assignedSegment?.toLowerCase()?.includes('construcc') ? 'Estimación Mensual' : 'Estimación Semanal'}
+              {esConstruccion ? 'Estimación Mensual' : 'Estimación Semanal'}
             </TabsTrigger>
             <TabsTrigger value="seguimiento" data-testid="tab-seguimiento" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">Seguimiento</TabsTrigger>
           </TabsList>
@@ -1096,7 +1101,7 @@ export default function TareasPage() {
             searchClient={searchClient}
             setSearchClient={setSearchClient}
             user={user}
-            esConstruccion={(user as any)?.assignedSegment?.toLowerCase()?.includes('construcc') || false}
+            esConstruccion={esConstruccion}
           />
         </TabsContent>
 
