@@ -25,7 +25,15 @@ import {
 } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, X, FileText, Loader2 } from "lucide-react";
+import { ArrowLeft, Upload, X, FileText, Loader2, Receipt } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const formSchema = z.object({
   userId: z.string().min(1, "Debe seleccionar un vendedor"),
@@ -68,6 +76,8 @@ export default function GastosEmpresarialesForm() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isExtractingOCR, setIsExtractingOCR] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingFormData, setPendingFormData] = useState<FormValues | null>(null);
 
   // Determinar si el usuario puede seleccionar otros colaboradores
   const canSelectOthers = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'recursos_humanos';
@@ -277,10 +287,43 @@ export default function GastosEmpresarialesForm() {
   };
 
   const onSubmit = (data: FormValues) => {
-    createMutation.mutate(data);
+    // Mostrar diálogo de confirmación en lugar de enviar directamente
+    setPendingFormData(data);
+    setShowConfirmDialog(true);
+  };
+
+  const confirmarGasto = () => {
+    if (!pendingFormData) return;
+    setShowConfirmDialog(false);
+    createMutation.mutate(pendingFormData);
+    setPendingFormData(null);
+  };
+
+  // Formatear moneda
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  // Obtener información del fondo seleccionado
+  const getSelectedFundInfo = () => {
+    if (!pendingFormData) return null;
+    if (pendingFormData.fundingMode === 'reembolso') return null;
+    const fund = userFunds.find(f => f.id === pendingFormData.fundAllocationId);
+    if (!fund) return null;
+    const montoInicial = typeof fund.montoInicial === 'string' ? parseFloat(fund.montoInicial) : fund.montoInicial;
+    const montoUsado = getFundUsage(fund.id);
+    const saldoActual = montoInicial - montoUsado;
+    const nuevoSaldo = saldoActual - parseFloat(pendingFormData.monto || '0');
+    return { fund, saldoActual, nuevoSaldo };
   };
 
   return (
+    <>
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-6">
@@ -717,5 +760,106 @@ export default function GastosEmpresarialesForm() {
           </Form>
         </div>
       </div>
+
+      {/* Diálogo de confirmación de gasto */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <Receipt className="h-5 w-5" />
+              Confirmar Gasto
+            </DialogTitle>
+            <DialogDescription className="pt-4 text-base">
+              Estás a punto de añadir el siguiente gasto:
+            </DialogDescription>
+          </DialogHeader>
+          
+          {pendingFormData && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Monto:</span>
+                  <span className="font-bold text-green-600">
+                    {formatCurrency(parseFloat(pendingFormData.monto || '0'))}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Categoría:</span>
+                  <span className="font-medium">{pendingFormData.categoria}</span>
+                </div>
+                {pendingFormData.descripcion && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Descripción:</span>
+                    <span className="font-medium text-right max-w-[200px] truncate">
+                      {pendingFormData.descripcion}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {pendingFormData.fundingMode === 'con_fondo' && getSelectedFundInfo() ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm font-medium text-blue-800 mb-2">
+                    Con cargo a tus fondos asignados:
+                  </p>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-blue-700">Fondo:</span>
+                      <span className="font-medium">{getSelectedFundInfo()?.fund.nombre}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-blue-700">Saldo actual:</span>
+                      <span className="font-medium">{formatCurrency(getSelectedFundInfo()?.saldoActual || 0)}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-blue-200 pt-1 mt-1">
+                      <span className="text-blue-700 font-medium">Saldo después del gasto:</span>
+                      <span className={`font-bold ${(getSelectedFundInfo()?.nuevoSaldo || 0) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {formatCurrency(getSelectedFundInfo()?.nuevoSaldo || 0)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <p className="text-sm text-amber-800 font-medium">
+                    Solicitud de Reembolso
+                  </p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    Este gasto será procesado como solicitud de reembolso y deberá ser aprobado por un supervisor.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 mt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowConfirmDialog(false);
+                setPendingFormData(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={confirmarGasto}
+              disabled={createMutation.isPending}
+              className="bg-green-600 hover:bg-green-700"
+              data-testid="button-confirmar-gasto"
+            >
+              {createMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                'Sí, Confirmar Gasto'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
