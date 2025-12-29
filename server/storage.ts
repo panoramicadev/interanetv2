@@ -2472,11 +2472,12 @@ export class DatabaseStorage implements IStorage {
   async getGdvPendingGlobal(filters: {
     salesperson?: string;
     segment?: string;
+    client?: string;
   } = {}): Promise<{
     gdvSales: number;
     gdvCount: number;
   }> {
-    const { salesperson, segment } = filters;
+    const { salesperson, segment, client } = filters;
     const conditions = [];
     
     // GDV uses volatile data from fact_gdv (full snapshot like NVV)
@@ -2494,6 +2495,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (segment) {
       conditions.push(eq(factGdv.noruen, segment));
+    }
+    if (client) {
+      conditions.push(eq(factGdv.nokoen, client));
     }
 
     const whereClause = and(...conditions);
@@ -12680,6 +12684,7 @@ export class DatabaseStorage implements IStorage {
     endDate?: Date;
     salesperson?: string;
     segment?: string;
+    client?: string;
   } = {}): Promise<{
     totalAmount: number;
     totalQuantity: number;
@@ -12709,6 +12714,11 @@ export class DatabaseStorage implements IStorage {
       // Use nombre_segmento_cliente for segment filtering
       if (options.segment) {
         conditions.push(sql`nombre_segmento_cliente = ${options.segment}`);
+      }
+
+      // Use nokoen for client filtering
+      if (options.client) {
+        conditions.push(sql`nokoen = ${options.client}`);
       }
 
       const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
