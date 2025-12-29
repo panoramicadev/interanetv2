@@ -1339,6 +1339,8 @@ export const tasks = pgTable("tasks", {
   dueDate: timestamp("due_date"), // nullable, changed to timestamp for datetime support
   createdByUserId: varchar("created_by_user_id").notNull(), // FK to users.id
   assignedToUserId: varchar("assigned_to_user_id"), // FK to users.id (nullable)
+  clienteId: varchar("cliente_id"), // FK opcional a clientes (código koen)
+  clienteNombre: text("cliente_nombre"), // Nombre del cliente asociado (opcional)
   payload: jsonb("payload"), // Type-specific data
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1348,6 +1350,7 @@ export const tasks = pgTable("tasks", {
   statusIdx: index("IDX_tasks_status").on(table.status),
   typeIdx: index("IDX_tasks_type").on(table.type),
   dueDateIdx: index("IDX_tasks_due_date").on(table.dueDate),
+  clienteIdIdx: index("IDX_tasks_cliente_id").on(table.clienteId),
 }));
 
 export const taskAssignments = pgTable("task_assignments", {
@@ -1434,6 +1437,8 @@ const baseTaskSchema = z.object({
     return datetimeLocalRegex.test(date) || isoDatetimeRegex.test(date) || !isNaN(Date.parse(date));
   }, "Fecha debe ser formato válido (YYYY-MM-DDTHH:mm o ISO datetime)").optional().or(z.null()),
   assignedToUserId: z.string().optional().or(z.null()),
+  clienteId: z.string().optional().or(z.null()), // Cliente asociado (opcional)
+  clienteNombre: z.string().optional().or(z.null()), // Nombre del cliente (opcional)
 });
 
 // Discriminated union for strict type-based validation
