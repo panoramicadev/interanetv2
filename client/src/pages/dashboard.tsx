@@ -1504,8 +1504,8 @@ export default function Dashboard() {
                 </CardWrapper>
               )}
 
-              {/* Gastos Pendientes - Solo mostrar cuando hay gastos pendientes */}
-              {pendingExpenses.length > 0 && (
+              {/* Gastos Pendientes - Solo mostrar cuando hay gastos pendientes y NO estamos en vista por cliente */}
+              {pendingExpenses.length > 0 && selectedFilter !== "client" && (
                 <CardWrapper>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
