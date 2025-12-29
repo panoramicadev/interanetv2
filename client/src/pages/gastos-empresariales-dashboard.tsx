@@ -526,7 +526,11 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
       const filtrosAplicados: string[] = [];
       if (estadoFilter !== 'todos') filtrosAplicados.push(`Estado: ${estadoFilter}`);
       if (categoriaFilter !== 'todos') filtrosAplicados.push(`Categoría: ${categoriaFilter}`);
-      if (usuarioFilter !== 'todos') filtrosAplicados.push(`Vendedor: ${getUserName(usuarioFilter)}`);
+      if (usuarioFilter !== 'todos') {
+        const usuarioData = porUsuario.find((u: any) => u.userId === usuarioFilter);
+        const nombreVendedor = usuarioData?.userName || getUserName(usuarioFilter);
+        filtrosAplicados.push(`Vendedor: ${nombreVendedor}`);
+      }
       
       doc.setFontSize(10);
       if (filtrosAplicados.length > 0) {
