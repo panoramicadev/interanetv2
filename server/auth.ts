@@ -243,6 +243,8 @@ export function setupAuth(app: Express) {
       role: user.role,
       salespersonName: user.salespersonName,
       publicSlug: (user as any).publicSlug,
+      assignedSegment: (user as any).assignedSegment,
+      supervisorId: (user as any).supervisorId,
     });
   });
 }
