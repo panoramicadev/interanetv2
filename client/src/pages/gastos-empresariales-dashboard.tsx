@@ -456,6 +456,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
       const filtrosAplicados: string[] = [];
       if (estadoFilter !== 'todos') filtrosAplicados.push(`Estado: ${estadoFilter}`);
       if (categoriaFilter !== 'todos') filtrosAplicados.push(`Categoría: ${categoriaFilter}`);
+      if (usuarioFilter !== 'todos') filtrosAplicados.push(`Vendedor: ${getUserName(usuarioFilter)}`);
       if (filtrosAplicados.length > 0) {
         doc.text(`Filtros: ${filtrosAplicados.join(' | ')}`, pageWidth / 2, yPos, { align: 'center' });
         yPos += 8;
