@@ -315,7 +315,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     },
   });
 
-  // Query for yearly totals
+  // Query for yearly totals (with filters for segment, salesperson, client)
   const { data: yearlyTotals } = useQuery<{
     currentYearTotal: number;
     previousYearTotal: number;
@@ -323,15 +323,33 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     comparisonDate: string;
     isYTD: boolean;
   }>({
-    queryKey: ['/api/sales/yearly-totals'],
+    queryKey: ['/api/sales/yearly-totals', segment, salesperson, client],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (segment) params.append('segment', segment);
+      if (salesperson) params.append('salesperson', salesperson);
+      if (client) params.append('client', client);
+      const res = await fetch(`/api/sales/yearly-totals?${params.toString()}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
   });
 
-  // Query for best year historical
+  // Query for best year historical (with filters for segment, salesperson, client)
   const { data: bestYear } = useQuery<{
     bestYear: number;
     bestYearTotal: number;
   }>({
-    queryKey: ['/api/sales/best-year'],
+    queryKey: ['/api/sales/best-year', segment, salesperson, client],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (segment) params.append('segment', segment);
+      if (salesperson) params.append('salesperson', salesperson);
+      if (client) params.append('client', client);
+      const res = await fetch(`/api/sales/best-year?${params.toString()}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
   });
 
   const formatCurrency = (amount: number) => {
