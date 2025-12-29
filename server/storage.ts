@@ -496,7 +496,7 @@ export interface IStorage {
     years: Array<{ value: string; label: string }>;
   }>;
   
-  getYearlyTotals(year: number): Promise<{
+  getYearlyTotals(year: number, filters?: { segment?: string; salesperson?: string; client?: string }): Promise<{
     currentYearTotal: number;
     previousYearTotal: number;
     comparisonYear: number;
@@ -504,7 +504,7 @@ export interface IStorage {
     isYTD: boolean;
   }>;
   
-  getBestYearHistorical(): Promise<{
+  getBestYearHistorical(filters?: { segment?: string; salesperson?: string; client?: string }): Promise<{
     bestYear: number;
     bestYearTotal: number;
   }>;
@@ -2512,7 +2512,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getYearlyTotals(year: number): Promise<{
+  async getYearlyTotals(year: number, filters?: { segment?: string; salesperson?: string; client?: string }): Promise<{
     currentYearTotal: number;
     previousYearTotal: number;
     comparisonYear: number;
@@ -2556,6 +2556,20 @@ export class DatabaseStorage implements IStorage {
       previousYearEnd = `${previousYear}-12-31`;
     }
 
+    // Build filter conditions
+    const baseConditions = [
+      sql`${factVentas.tido} != 'GDV'`
+    ];
+    if (filters?.segment) {
+      baseConditions.push(eq(factVentas.noruen, filters.segment));
+    }
+    if (filters?.salesperson) {
+      baseConditions.push(eq(factVentas.nokofu, filters.salesperson));
+    }
+    if (filters?.client) {
+      baseConditions.push(eq(factVentas.nokoen, filters.client));
+    }
+
     // Get requested year total (excluding ALL GDV)
     const [requestedYearMetrics] = await db
       .select({
@@ -2566,7 +2580,7 @@ export class DatabaseStorage implements IStorage {
         and(
           sql`${factVentas.feemdo} >= ${requestedYearStart}::date`,
           sql`${factVentas.feemdo} <= ${requestedYearEnd}::date`,
-          sql`${factVentas.tido} != 'GDV'`
+          ...baseConditions
         )
       );
 
@@ -2580,7 +2594,7 @@ export class DatabaseStorage implements IStorage {
         and(
           sql`${factVentas.feemdo} >= ${previousYearStart}::date`,
           sql`${factVentas.feemdo} <= ${previousYearEnd}::date`,
-          sql`${factVentas.tido} != 'GDV'`
+          ...baseConditions
         )
       );
 
@@ -2593,10 +2607,24 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getBestYearHistorical(): Promise<{
+  async getBestYearHistorical(filters?: { segment?: string; salesperson?: string; client?: string }): Promise<{
     bestYear: number;
     bestYearTotal: number;
   }> {
+    // Build filter conditions
+    const conditions = [
+      sql`${factVentas.tido} != 'GDV'`
+    ];
+    if (filters?.segment) {
+      conditions.push(eq(factVentas.noruen, filters.segment));
+    }
+    if (filters?.salesperson) {
+      conditions.push(eq(factVentas.nokofu, filters.salesperson));
+    }
+    if (filters?.client) {
+      conditions.push(eq(factVentas.nokoen, filters.client));
+    }
+
     // Get sales by year (excluding ALL GDV)
     const yearlyTotals = await db
       .select({
@@ -2604,7 +2632,7 @@ export class DatabaseStorage implements IStorage {
         total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
       })
       .from(factVentas)
-      .where(sql`${factVentas.tido} != 'GDV'`)
+      .where(and(...conditions))
       .groupBy(sql`EXTRACT(YEAR FROM ${factVentas.feemdo})`)
       .orderBy(sql`COALESCE(SUM(${factVentas.monto}), 0) DESC`)
       .limit(1);

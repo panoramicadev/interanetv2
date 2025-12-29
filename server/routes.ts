@@ -672,8 +672,13 @@ export function registerRoutes(app: Express): Server {
   // Yearly totals endpoint - returns current and previous year totals
   app.get('/api/sales/yearly-totals', requireCommercialAccess, async (req, res) => {
     try {
+      const { segment, salesperson, client } = req.query;
       const currentYear = new Date().getFullYear();
-      const totals = await storage.getYearlyTotals(currentYear);
+      const totals = await storage.getYearlyTotals(currentYear, {
+        segment: segment as string,
+        salesperson: salesperson as string,
+        client: client as string,
+      });
       res.json(totals);
     } catch (error) {
       console.error("Error fetching yearly totals:", error);
@@ -684,7 +689,12 @@ export function registerRoutes(app: Express): Server {
   // Best year historical endpoint - returns the best year and its total
   app.get('/api/sales/best-year', requireCommercialAccess, async (req, res) => {
     try {
-      const bestYear = await storage.getBestYearHistorical();
+      const { segment, salesperson, client } = req.query;
+      const bestYear = await storage.getBestYearHistorical({
+        segment: segment as string,
+        salesperson: salesperson as string,
+        client: client as string,
+      });
       res.json(bestYear);
     } catch (error) {
       console.error("Error fetching best year:", error);
