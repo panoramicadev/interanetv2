@@ -55,6 +55,7 @@ import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { Bar, Pie, Doughnut, Line } from 'react-chartjs-2';
 import type { GastoEmpresarial, FundAllocation } from "@shared/schema";
 import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { useToast } from "@/hooks/use-toast";
 
 ChartJS.register(
@@ -428,6 +429,40 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
     link.click();
   };
 
+  const renderChartToImage = (chartData: any, chartType: 'pie' | 'bar' | 'doughnut', width: number, height: number): Promise<string> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width * 2;
+      canvas.height = height * 2;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve(''); return; }
+      
+      const chartConfig: any = {
+        type: chartType,
+        data: chartData,
+        options: {
+          responsive: false,
+          animation: false,
+          plugins: {
+            legend: { display: chartType !== 'bar', position: 'right', labels: { font: { size: 10 } } },
+            datalabels: { display: false }
+          },
+          scales: chartType === 'bar' ? {
+            y: { beginAtZero: true, ticks: { font: { size: 10 } } },
+            x: { ticks: { font: { size: 10 } } }
+          } : undefined
+        }
+      };
+      
+      const chart = new ChartJS(ctx, chartConfig);
+      setTimeout(() => {
+        const imgData = canvas.toDataURL('image/png');
+        chart.destroy();
+        resolve(imgData);
+      }, 100);
+    });
+  };
+
   const handleExportPDF = async () => {
     const gastosParaExportar = getFilteredGastos();
     if (gastosParaExportar.length === 0 && fondosData.length === 0) return;
@@ -442,136 +477,210 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
       
       const monthName = months.find(m => m.value === mes)?.label || mes;
       
-      doc.setFontSize(18);
+      const primaryColor: [number, number, number] = [29, 78, 216];
+      const successColor: [number, number, number] = [22, 163, 74];
+      const warningColor: [number, number, number] = [245, 158, 11];
+      const dangerColor: [number, number, number] = [220, 38, 38];
+      const grayLight: [number, number, number] = [248, 250, 252];
+      const grayDark: [number, number, number] = [71, 85, 105];
+      
+      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.rect(0, 0, pageWidth, 45, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(22);
       doc.setFont('helvetica', 'bold');
-      doc.text('Reporte de Rendición de Gastos', pageWidth / 2, yPos, { align: 'center' });
-      yPos += 10;
+      doc.text('Reporte de Rendición de Gastos', pageWidth / 2, 18, { align: 'center' });
       
       doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Período: ${monthName} ${anio}`, pageWidth / 2, yPos, { align: 'center' });
-      yPos += 8;
+      doc.text(`Período: ${monthName} ${anio}`, pageWidth / 2, 28, { align: 'center' });
       
-      // Mostrar filtros aplicados
       const filtrosAplicados: string[] = [];
       if (estadoFilter !== 'todos') filtrosAplicados.push(`Estado: ${estadoFilter}`);
       if (categoriaFilter !== 'todos') filtrosAplicados.push(`Categoría: ${categoriaFilter}`);
       if (usuarioFilter !== 'todos') filtrosAplicados.push(`Vendedor: ${getUserName(usuarioFilter)}`);
+      
+      doc.setFontSize(10);
       if (filtrosAplicados.length > 0) {
-        doc.text(`Filtros: ${filtrosAplicados.join(' | ')}`, pageWidth / 2, yPos, { align: 'center' });
-        yPos += 8;
+        doc.text(`Filtros: ${filtrosAplicados.join(' | ')}`, pageWidth / 2, 36, { align: 'center' });
+      } else {
+        doc.text(`Generado: ${new Date().toLocaleDateString('es-CL')}`, pageWidth / 2, 36, { align: 'center' });
       }
       
-      doc.text(`Generado: ${new Date().toLocaleDateString('es-CL')}`, pageWidth / 2, yPos, { align: 'center' });
-      yPos += 15;
+      yPos = 55;
+      doc.setTextColor(0, 0, 0);
       
       if (summary) {
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Resumen', margin, yPos);
-        yPos += 8;
+        const cardWidth = (pageWidth - margin * 2 - 15) / 4;
+        const cardHeight = 28;
+        const cardY = yPos;
         
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Total Gastos: ${formatCurrency(summary.total)} (${summary.count} registros)`, margin, yPos);
-        yPos += 6;
-        doc.text(`Aprobados: ${formatCurrency(summary.totalAprobado)}`, margin, yPos);
-        yPos += 6;
-        doc.text(`Pendientes: ${formatCurrency(summary.totalPendiente)}`, margin, yPos);
-        yPos += 6;
-        doc.text(`Rechazados: ${formatCurrency(summary.totalRechazado)}`, margin, yPos);
-        yPos += 15;
+        const kpis = [
+          { label: 'Total Gastos', value: formatCurrency(summary.total), subtext: `${summary.count} registros`, color: primaryColor },
+          { label: 'Aprobados', value: formatCurrency(summary.totalAprobado), subtext: '', color: successColor },
+          { label: 'Pendientes', value: formatCurrency(summary.totalPendiente), subtext: '', color: warningColor },
+          { label: 'Rechazados', value: formatCurrency(summary.totalRechazado), subtext: '', color: dangerColor },
+        ];
+        
+        kpis.forEach((kpi, i) => {
+          const cardX = margin + i * (cardWidth + 5);
+          
+          doc.setFillColor(grayLight[0], grayLight[1], grayLight[2]);
+          doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 3, 3, 'F');
+          
+          doc.setFillColor(kpi.color[0], kpi.color[1], kpi.color[2]);
+          doc.rect(cardX, cardY, 3, cardHeight, 'F');
+          
+          doc.setFontSize(8);
+          doc.setTextColor(grayDark[0], grayDark[1], grayDark[2]);
+          doc.setFont('helvetica', 'normal');
+          doc.text(kpi.label.toUpperCase(), cardX + 7, cardY + 8);
+          
+          doc.setFontSize(13);
+          doc.setTextColor(kpi.color[0], kpi.color[1], kpi.color[2]);
+          doc.setFont('helvetica', 'bold');
+          doc.text(kpi.value, cardX + 7, cardY + 18);
+          
+          if (kpi.subtext) {
+            doc.setFontSize(7);
+            doc.setTextColor(grayDark[0], grayDark[1], grayDark[2]);
+            doc.setFont('helvetica', 'normal');
+            doc.text(kpi.subtext, cardX + 7, cardY + 24);
+          }
+        });
+        
+        yPos = cardY + cardHeight + 12;
+      }
+      
+      doc.setTextColor(0, 0, 0);
+      
+      if (porCategoria.length > 0 && summary && summary.count > 0) {
+        const chartWidth = 80;
+        const chartHeight = 55;
+        
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Distribución por Categoría', margin, yPos);
+        doc.text('Distribución por Estado', pageWidth / 2 + 10, yPos);
+        yPos += 5;
+        
+        try {
+          const pieData = {
+            labels: porCategoria.map(c => c.categoria),
+            datasets: [{
+              data: porCategoria.map(c => c.total),
+              backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'],
+              borderWidth: 1
+            }]
+          };
+          const pieImg = await renderChartToImage(pieData, 'doughnut', chartWidth * 3, chartHeight * 3);
+          if (pieImg) {
+            doc.addImage(pieImg, 'PNG', margin, yPos, chartWidth, chartHeight);
+          }
+          
+          const estadosData = {
+            labels: ['Aprobado', 'Pendiente', 'Rechazado'],
+            datasets: [{
+              label: 'Monto',
+              data: [summary.totalAprobado, summary.totalPendiente, summary.totalRechazado],
+              backgroundColor: ['#16A34A', '#F59E0B', '#DC2626']
+            }]
+          };
+          const barImg = await renderChartToImage(estadosData, 'bar', chartWidth * 3, chartHeight * 3);
+          if (barImg) {
+            doc.addImage(barImg, 'PNG', pageWidth / 2 + 10, yPos, chartWidth, chartHeight);
+          }
+        } catch (e) {
+          console.log('Charts could not be rendered:', e);
+        }
+        
+        yPos += chartHeight + 10;
       }
       
       if (fondosData.length > 0) {
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Abonos / Fondos Asignados', margin, yPos);
-        yPos += 8;
-        
-        const fondoHeaders = ['Fecha', 'Monto', 'Estado', 'Asignado Por'];
-        const colWidths = [35, 35, 35, 75];
-        
-        doc.setFillColor(240, 240, 240);
-        doc.rect(margin, yPos, pageWidth - margin * 2, 8, 'F');
-        
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
-        let xPos = margin + 2;
-        fondoHeaders.forEach((header, i) => {
-          doc.text(header, xPos, yPos + 5);
-          xPos += colWidths[i];
-        });
-        yPos += 10;
-        
-        doc.setFont('helvetica', 'normal');
-        for (const fondo of fondosData) {
-          if (yPos > pageHeight - 30) {
-            doc.addPage();
-            yPos = margin;
-          }
-          
-          xPos = margin + 2;
-          doc.text(formatFullDate(fondo.createdAt as any), xPos, yPos);
-          xPos += colWidths[0];
-          doc.text(formatCurrency(Number(fondo.amount) || 0), xPos, yPos);
-          xPos += colWidths[1];
-          doc.text(fondo.estado || '-', xPos, yPos);
-          xPos += colWidths[2];
-          const assignedBy = (fondo as any).assignedByName || '-';
-          doc.text(String(assignedBy).substring(0, 40), xPos, yPos);
-          
-          yPos += 7;
-        }
-        yPos += 10;
-      }
-      
-      if (gastosParaExportar.length > 0) {
-        if (yPos > pageHeight - 50) {
+        if (yPos > pageHeight - 60) {
           doc.addPage();
           yPos = margin;
         }
         
-        doc.setFontSize(14);
+        doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        doc.text(`Detalle de Gastos (${gastosParaExportar.length} registros)`, margin, yPos);
-        yPos += 8;
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.text('Fondos Asignados', margin, yPos);
+        yPos += 2;
+        doc.setTextColor(0, 0, 0);
         
-        const gastoHeaders = ['Fecha', 'Descripción', 'Categoría', 'Monto', 'Estado'];
-        const gastoColWidths = [30, 55, 35, 30, 30];
-        
-        doc.setFillColor(240, 240, 240);
-        doc.rect(margin, yPos, pageWidth - margin * 2, 8, 'F');
-        
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
-        let xPos = margin + 2;
-        gastoHeaders.forEach((header, i) => {
-          doc.text(header, xPos, yPos + 5);
-          xPos += gastoColWidths[i];
+        autoTable(doc, {
+          startY: yPos,
+          head: [['Fecha', 'Monto', 'Estado', 'Asignado Por']],
+          body: fondosData.map(f => [
+            formatFullDate(f.createdAt as any),
+            formatCurrency(Number(f.amount) || 0),
+            f.estado || '-',
+            (f as any).assignedByName || '-'
+          ]),
+          theme: 'striped',
+          headStyles: { 
+            fillColor: [29, 78, 216], 
+            textColor: 255, 
+            fontStyle: 'bold',
+            fontSize: 9
+          },
+          bodyStyles: { fontSize: 8 },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          margin: { left: margin, right: margin },
+          tableWidth: 'auto'
         });
-        yPos += 10;
         
-        doc.setFont('helvetica', 'normal');
-        for (const gasto of gastosParaExportar) {
-          if (yPos > pageHeight - 30) {
-            doc.addPage();
-            yPos = margin;
-          }
-          
-          xPos = margin + 2;
-          doc.text(formatFullDate(gasto.createdAt as any), xPos, yPos);
-          xPos += gastoColWidths[0];
-          doc.text(String(gasto.descripcion || '-').substring(0, 30), xPos, yPos);
-          xPos += gastoColWidths[1];
-          doc.text(String(gasto.categoria || '-').substring(0, 18), xPos, yPos);
-          xPos += gastoColWidths[2];
-          doc.text(formatCurrency(Number(gasto.monto) || 0), xPos, yPos);
-          xPos += gastoColWidths[3];
-          doc.text(gasto.estado || '-', xPos, yPos);
-          
-          yPos += 7;
+        yPos = (doc as any).lastAutoTable.finalY + 10;
+      }
+      
+      if (gastosParaExportar.length > 0) {
+        if (yPos > pageHeight - 60) {
+          doc.addPage();
+          yPos = margin;
         }
+        
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.text(`Detalle de Gastos (${gastosParaExportar.length} registros)`, margin, yPos);
+        yPos += 2;
+        doc.setTextColor(0, 0, 0);
+        
+        autoTable(doc, {
+          startY: yPos,
+          head: [['Fecha', 'Descripción', 'Categoría', 'Proveedor', 'Monto', 'Estado']],
+          body: gastosParaExportar.map(g => [
+            formatFullDate(g.createdAt as any),
+            String(g.descripcion || '-').substring(0, 35),
+            g.categoria || '-',
+            String(g.proveedor || '-').substring(0, 20),
+            formatCurrency(Number(g.monto) || 0),
+            g.estado || '-'
+          ]),
+          theme: 'striped',
+          headStyles: { 
+            fillColor: [29, 78, 216], 
+            textColor: 255, 
+            fontStyle: 'bold',
+            fontSize: 9
+          },
+          bodyStyles: { fontSize: 8 },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          columnStyles: {
+            0: { cellWidth: 25 },
+            1: { cellWidth: 45 },
+            2: { cellWidth: 28 },
+            3: { cellWidth: 35 },
+            4: { cellWidth: 25, halign: 'right' },
+            5: { cellWidth: 22 }
+          },
+          margin: { left: margin, right: margin }
+        });
+        
+        yPos = (doc as any).lastAutoTable.finalY + 10;
       }
       
       interface ImageInfo {
