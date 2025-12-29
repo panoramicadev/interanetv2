@@ -56,7 +56,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type Task, type TaskAssignment, type InsertTaskAssignment } from "@shared/schema";
 import { z } from "zod";
-import { SeguimientoClientesTab } from "@/components/seguimiento-clientes-tab";
 
 // SECURITY: Frontend schema that excludes createdByUserId to prevent user impersonation
 const createTaskWithAssignmentsSchema = z.object({
@@ -73,6 +72,8 @@ const createTaskWithAssignmentsSchema = z.object({
   }, {
     message: "Formato de fecha inválido. Use el selector de fecha.",
   }).optional().or(z.null()),
+  clienteId: z.string().optional().or(z.null()), // Cliente asociado (opcional)
+  clienteNombre: z.string().optional().or(z.null()), // Nombre del cliente (opcional)
   assignments: z.array(z.object({
     assigneeType: z.enum(["supervisor", "salesperson"]),
     assigneeId: z.string().min(1, "Destinatario requerido"),
@@ -130,6 +131,7 @@ export default function TareasPage() {
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [clienteFilter, setClienteFilter] = useState<string>("all");
   
   // Expanded tasks for collapsible assignment details
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
@@ -241,6 +243,23 @@ export default function TareasPage() {
     setSelectedWeek(new Date());
   };
 
+  // Estado para búsqueda de clientes en el formulario de tareas
+  const [searchClienteTask, setSearchClienteTask] = useState("");
+  const [selectedClienteTask, setSelectedClienteTask] = useState<Cliente | null>(null);
+
+  // Query para buscar clientes en el formulario de tareas
+  const { data: clientesTask = [] } = useQuery<Cliente[]>({
+    queryKey: ['/api/clients/search', 'task-form', searchClienteTask],
+    queryFn: async () => {
+      if (!searchClienteTask || searchClienteTask.length < 2) {
+        return [];
+      }
+      const response = await apiRequest(`/api/clients/search?q=${encodeURIComponent(searchClienteTask)}`);
+      return response.json();
+    },
+    enabled: searchClienteTask.length >= 2,
+  });
+
   // Form setup
   const form = useForm<CreateTaskWithAssignmentsInput>({
     resolver: zodResolver(createTaskWithAssignmentsSchema),
@@ -249,6 +268,8 @@ export default function TareasPage() {
       description: "",
       priority: "medium",
       dueDate: "",
+      clienteId: null,
+      clienteNombre: null,
       assignments: [],
     },
   });
@@ -262,6 +283,8 @@ export default function TareasPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"], type: "all" });
       setShowCreateDialog(false);
       form.reset();
+      setSelectedClienteTask(null);
+      setSearchClienteTask("");
       toast({
         title: "Tarea creada",
         description: "La tarea se ha creado exitosamente.",
@@ -342,6 +365,7 @@ export default function TareasPage() {
 
   // Filter tasks based on view mode and user role
   const filteredTasks = tasksQuery.data?.filter((task) => {
+    // View mode filter
     if (viewMode === "my-tasks") {
       // Show tasks assigned to me or that I created
       const isAssignedToMe = task.assignments.some(assignment => 
@@ -349,10 +373,22 @@ export default function TareasPage() {
         (assignment.assigneeType === "salesperson" && assignment.assigneeId === user.id)
       );
       const isCreatedByMe = task.createdByUserId === user.id;
-      return isAssignedToMe || isCreatedByMe;
+      if (!isAssignedToMe && !isCreatedByMe) return false;
     }
-    return true; // Show all tasks for "all-tasks" mode
+    
+    // Cliente filter
+    if (clienteFilter === "with-client" && !(task as any).clienteId) return false;
+    if (clienteFilter === "without-client" && (task as any).clienteId) return false;
+    
+    return true;
   }) || [];
+
+  // Get unique clients from tasks for filter dropdown
+  const clientesEnTareas = [...new Set(
+    (tasksQuery.data || [])
+      .filter((t) => (t as any).clienteNombre)
+      .map((t) => (t as any).clienteNombre)
+  )];
 
   // Helper functions
   const getStatusIcon = (status: string) => {
@@ -549,6 +585,74 @@ export default function TareasPage() {
                     />
                   </div>
 
+                  {/* Cliente asociado (opcional) */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-gray-500" />
+                      Cliente Asociado (Opcional)
+                    </Label>
+                    {selectedClienteTask ? (
+                      <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex-1">
+                          <p className="font-medium text-sm text-gray-800">{selectedClienteTask.nokoen}</p>
+                          <p className="text-xs text-gray-500">Código: {selectedClienteTask.koen}</p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedClienteTask(null);
+                            form.setValue("clienteId", null);
+                            form.setValue("clienteNombre", null);
+                            setSearchClienteTask("");
+                          }}
+                          className="text-red-500 hover:text-red-700"
+                          data-testid="button-remove-cliente"
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          <Input
+                            placeholder="Buscar cliente por nombre o código..."
+                            value={searchClienteTask}
+                            onChange={(e) => setSearchClienteTask(e.target.value)}
+                            className="pl-10"
+                            data-testid="input-search-cliente-task"
+                          />
+                        </div>
+                        {searchClienteTask.length >= 2 && clientesTask.length > 0 && (
+                          <div className="max-h-40 overflow-y-auto border rounded-lg bg-white shadow-sm">
+                            {clientesTask.map((cliente) => (
+                              <button
+                                key={cliente.id}
+                                type="button"
+                                className="w-full px-3 py-2 text-left hover:bg-gray-50 border-b last:border-b-0 transition-colors"
+                                onClick={() => {
+                                  setSelectedClienteTask(cliente);
+                                  form.setValue("clienteId", cliente.koen);
+                                  form.setValue("clienteNombre", cliente.nokoen);
+                                  setSearchClienteTask("");
+                                }}
+                                data-testid={`cliente-option-${cliente.id}`}
+                              >
+                                <p className="font-medium text-sm">{cliente.nokoen}</p>
+                                <p className="text-xs text-gray-500">Código: {cliente.koen}</p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {searchClienteTask.length >= 2 && clientesTask.length === 0 && (
+                          <p className="text-xs text-gray-500 italic">No se encontraron clientes</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                   {/* Assignments Section */}
                   <div className="space-y-3">
                     <Label className="text-sm font-medium">Asignar a *</Label>
@@ -643,7 +747,12 @@ export default function TareasPage() {
                     <Button 
                       type="button" 
                       variant="outline" 
-                      onClick={() => setShowCreateDialog(false)}
+                      onClick={() => {
+                        setShowCreateDialog(false);
+                        form.reset();
+                        setSelectedClienteTask(null);
+                        setSearchClienteTask("");
+                      }}
                       data-testid="button-cancel-task"
                     >
                       Cancelar
@@ -669,14 +778,13 @@ export default function TareasPage() {
       {/* Técnico de Obra no tiene acceso a la pestaña de promesas de compra */}
       <Tabs defaultValue="tareas" className="space-y-6">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1 bg-gray-100 ${user?.role === 'tecnico_obra' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1 bg-gray-100 ${user?.role === 'tecnico_obra' ? 'sm:grid-cols-1' : 'sm:grid-cols-2'}`}>
             <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">Tareas</TabsTrigger>
             {user?.role !== 'tecnico_obra' && (
               <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">
                 {esConstruccion ? 'Estimación Mensual' : 'Estimación Semanal'}
               </TabsTrigger>
             )}
-            <TabsTrigger value="seguimiento" data-testid="tab-seguimiento" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">Seguimiento</TabsTrigger>
           </TabsList>
         </div>
 
@@ -753,6 +861,21 @@ export default function TareasPage() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Cliente Filter */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">Cliente:</Label>
+                  <Select value={clienteFilter} onValueChange={setClienteFilter}>
+                    <SelectTrigger className="h-9 text-sm" data-testid="select-cliente-filter">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="with-client">Con Cliente</SelectItem>
+                      <SelectItem value="without-client">Sin Cliente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             )}
           </div>
@@ -807,6 +930,21 @@ export default function TareasPage() {
                       <SelectItem value="high">Alta</SelectItem>
                       <SelectItem value="medium">Media</SelectItem>
                       <SelectItem value="low">Baja</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Cliente Filter */}
+                <div className="flex items-center gap-3">
+                  <Label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Cliente:</Label>
+                  <Select value={clienteFilter} onValueChange={setClienteFilter}>
+                    <SelectTrigger className="w-36 border-gray-300" data-testid="select-cliente-filter-desktop">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="with-client">Con Cliente</SelectItem>
+                      <SelectItem value="without-client">Sin Cliente</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -884,6 +1022,14 @@ export default function TareasPage() {
                           {task.assignments.length} asignación{task.assignments.length !== 1 ? 'es' : ''}
                         </span>
                       </div>
+                      {(task as any).clienteNombre && (
+                        <div className="flex items-center gap-1.5">
+                          <Building2 className="h-4 w-4 text-green-600" />
+                          <span className="text-green-700" data-testid={`text-task-cliente-${task.id}`}>
+                            {(task as any).clienteNombre}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1111,9 +1257,6 @@ export default function TareasPage() {
           </TabsContent>
         )}
 
-        <TabsContent value="seguimiento" className="space-y-6">
-          <SeguimientoClientesTab />
-        </TabsContent>
       </Tabs>
     </div>
   );
