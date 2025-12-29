@@ -454,7 +454,7 @@ export default function TareasPage() {
           {canCreateTasks && (
             <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
               <DialogTrigger asChild>
-                <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg" data-testid="button-create-task">
+                <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-lg text-white" data-testid="button-create-task">
                   <Plus className="h-5 w-5 mr-2" />
                   Nueva Tarea
                 </Button>
