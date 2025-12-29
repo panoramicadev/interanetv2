@@ -5286,9 +5286,9 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       
-      // Only admin and supervisor can create tasks
-      if (user.role !== 'admin' && user.role !== 'supervisor') {
-        return res.status(403).json({ message: "Only administrators and supervisors can create tasks" });
+      // Admin, supervisor and tecnico_obra can create tasks
+      if (user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'tecnico_obra') {
+        return res.status(403).json({ message: "Only administrators, supervisors and technical staff can create tasks" });
       }
       
       // SECURITY: Use discriminated union validation with assignments
