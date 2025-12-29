@@ -420,7 +420,7 @@ export interface IStorage {
       sales: number;
     }>;
   } | null>;
-  getTopProducts(limit?: number, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<{
+  getTopProducts(limit?: number, startDate?: string, endDate?: string, salesperson?: string, segment?: string, client?: string): Promise<{
     items: Array<{
       productName: string;
       totalSales: number;
@@ -2723,7 +2723,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getTopProducts(limit = 10, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<{
+  async getTopProducts(limit = 10, startDate?: string, endDate?: string, salesperson?: string, segment?: string, client?: string): Promise<{
     items: Array<{
       productName: string;
       totalSales: number;
@@ -2751,6 +2751,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (segment) {
       conditions.push(eq(factVentas.noruen, segment));
+    }
+    if (client) {
+      conditions.push(eq(factVentas.nokoen, client));
     }
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
