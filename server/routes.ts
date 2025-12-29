@@ -15488,6 +15488,28 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     }
   }));
 
+  // Delete fund allocation (Admin only)
+  app.delete('/api/fund-allocations/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'Solo administradores pueden eliminar fondos' });
+      }
+      
+      const allocation = await storage.getFundAllocationById(req.params.id);
+      if (!allocation) {
+        return res.status(404).json({ message: 'Fondo no encontrado' });
+      }
+      
+      await storage.deleteFundAllocation(req.params.id);
+      res.json({ message: 'Fondo eliminado exitosamente' });
+    } catch (error: any) {
+      console.error('Error deleting fund allocation:', error);
+      res.status(500).json({ message: 'Error al eliminar fondo', error: error.message });
+    }
+  }));
+
   // Get user's active fund allocations with balances
   app.get('/api/fund-allocations/user/:userId', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
