@@ -408,7 +408,7 @@ export default function GastosEmpresariales() {
               <Collapsible defaultOpen={false} className="w-full">
                 <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 w-full">
                   <CollapsibleTrigger asChild>
-                    <CardHeader className="pb-3 cursor-pointer hover:bg-blue-100/50 transition-colors rounded-t-lg">
+                    <CardHeader className="cursor-pointer hover:bg-blue-100/50 transition-colors rounded-t-lg pt-[5px] pb-[5px]">
                       <CardTitle className="text-lg flex items-center justify-between text-blue-800">
                         <div className="flex items-center gap-2">
                           <Wallet className="h-5 w-5" />
