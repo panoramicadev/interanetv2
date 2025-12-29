@@ -153,6 +153,9 @@ export default function TareasPage() {
   const [editPromesaDialogOpen, setEditPromesaDialogOpen] = useState(false);
   const [selectedPromesa, setSelectedPromesa] = useState<PromesaCumplimiento | null>(null);
 
+  // Estado para vista Calendario
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
+
   const toggleTaskExpanded = (taskId: string) => {
     const newExpanded = new Set(expandedTasks);
     if (newExpanded.has(taskId)) {
@@ -777,12 +780,16 @@ export default function TareasPage() {
         </div>
       </div>
 
-      {/* Tabs para Tareas, Estimación Semanal/Mensual y Seguimiento */}
+      {/* Tabs para Tareas, Calendario, Estimación Semanal/Mensual */}
       {/* Técnico de Obra no tiene acceso a la pestaña de promesas de compra */}
       <Tabs defaultValue="tareas" className="space-y-6">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1 bg-gray-100 ${user?.role === 'tecnico_obra' ? 'sm:grid-cols-1' : 'sm:grid-cols-2'}`}>
+          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1 bg-gray-100 ${user?.role === 'tecnico_obra' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
             <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">Tareas</TabsTrigger>
+            <TabsTrigger value="calendario" data-testid="tab-calendario" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">
+              <CalendarIcon className="h-4 w-4 mr-1.5 hidden sm:inline" />
+              Calendario
+            </TabsTrigger>
             {user?.role !== 'tecnico_obra' && (
               <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">
                 {esConstruccion ? 'Estimación Mensual' : 'Estimación Semanal'}
@@ -1211,6 +1218,23 @@ export default function TareasPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+        </TabsContent>
+
+        {/* Vista Calendario */}
+        <TabsContent value="calendario" className="space-y-6">
+          <CalendarViewTab
+            tasks={filteredTasks}
+            calendarMonth={calendarMonth}
+            setCalendarMonth={setCalendarMonth}
+            onTaskClick={(taskId) => {
+              const task = filteredTasks.find(t => t.id === taskId);
+              if (task) {
+                setExpandedTasks(new Set([taskId]));
+              }
+            }}
+            salespeople={salespeople}
+            supervisors={supervisors}
+          />
         </TabsContent>
 
         {/* Técnico de Obra no tiene acceso a promesas de compra */}
@@ -2653,6 +2677,224 @@ function CommentsThread({
           <span className="text-sm font-medium">Agregar comentario</span>
         </button>
       )}
+    </div>
+  );
+}
+
+// Componente de Vista Calendario
+function CalendarViewTab({
+  tasks,
+  calendarMonth,
+  setCalendarMonth,
+  onTaskClick,
+  salespeople,
+  supervisors,
+}: {
+  tasks: Array<Task & { assignments: TaskAssignment[] }>;
+  calendarMonth: Date;
+  setCalendarMonth: (date: Date) => void;
+  onTaskClick: (taskId: string) => void;
+  salespeople: Array<{ id: string; fullName: string }> | undefined;
+  supervisors: Array<{ id: string; fullName: string }> | undefined;
+}) {
+  const monthStart = startOfMonth(calendarMonth);
+  const monthEnd = endOfMonth(calendarMonth);
+  
+  const getDaysInMonth = () => {
+    const days: Date[] = [];
+    const firstDayOfWeek = startOfWeek(monthStart, { weekStartsOn: 1 });
+    const lastDayOfWeek = endOfWeek(monthEnd, { weekStartsOn: 1 });
+    
+    let currentDay = firstDayOfWeek;
+    while (currentDay <= lastDayOfWeek) {
+      days.push(currentDay);
+      currentDay = new Date(currentDay.getTime() + 24 * 60 * 60 * 1000);
+    }
+    return days;
+  };
+
+  const getTasksForDay = (day: Date) => {
+    return tasks.filter(task => {
+      if (!task.dueDate) return false;
+      const taskDate = new Date(task.dueDate);
+      return (
+        taskDate.getDate() === day.getDate() &&
+        taskDate.getMonth() === day.getMonth() &&
+        taskDate.getFullYear() === day.getFullYear()
+      );
+    });
+  };
+
+  const getPriorityColor = (priority: string | null) => {
+    switch (priority) {
+      case 'high': return 'bg-red-500';
+      case 'medium': return 'bg-blue-500';
+      case 'low': return 'bg-gray-400';
+      default: return 'bg-blue-500';
+    }
+  };
+
+  const getStatusColor = (status: string | null) => {
+    switch (status) {
+      case 'completada': return 'bg-green-100 border-green-300 text-green-800';
+      case 'en_progreso': return 'bg-yellow-100 border-yellow-300 text-yellow-800';
+      case 'bloqueada': return 'bg-red-100 border-red-300 text-red-800';
+      case 'cancelada': return 'bg-gray-100 border-gray-300 text-gray-500 line-through';
+      default: return 'bg-white border-gray-200 text-gray-800';
+    }
+  };
+
+  const isToday = (day: Date) => {
+    const today = new Date();
+    return (
+      day.getDate() === today.getDate() &&
+      day.getMonth() === today.getMonth() &&
+      day.getFullYear() === today.getFullYear()
+    );
+  };
+
+  const isCurrentMonth = (day: Date) => {
+    return day.getMonth() === calendarMonth.getMonth();
+  };
+
+  const days = getDaysInMonth();
+  const weekDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+
+  return (
+    <div className="space-y-4">
+      {/* Header del Calendario */}
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="py-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5 text-blue-600" />
+              Vista Calendario
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCalendarMonth(subMonths(calendarMonth, 1))}
+                className="h-8 w-8 p-0"
+                data-testid="button-prev-month"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="font-medium text-sm min-w-[140px] text-center">
+                {format(calendarMonth, 'MMMM yyyy', { locale: es })}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCalendarMonth(addMonths(calendarMonth, 1))}
+                className="h-8 w-8 p-0"
+                data-testid="button-next-month"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCalendarMonth(new Date())}
+                className="h-8 px-3 ml-2"
+                data-testid="button-today"
+              >
+                Hoy
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+
+      {/* Grid del Calendario */}
+      <Card className="border-0 shadow-sm overflow-hidden">
+        <CardContent className="p-0">
+          {/* Días de la semana */}
+          <div className="grid grid-cols-7 bg-gray-50 border-b">
+            {weekDays.map((day) => (
+              <div key={day} className="py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {/* Días del mes */}
+          <div className="grid grid-cols-7">
+            {days.map((day, index) => {
+              const dayTasks = getTasksForDay(day);
+              const isInCurrentMonth = isCurrentMonth(day);
+              const isTodayDate = isToday(day);
+              
+              return (
+                <div
+                  key={index}
+                  className={`min-h-[100px] sm:min-h-[120px] border-b border-r p-1 sm:p-2 ${
+                    !isInCurrentMonth ? 'bg-gray-50' : 'bg-white'
+                  } ${isTodayDate ? 'bg-blue-50' : ''}`}
+                >
+                  {/* Número del día */}
+                  <div className={`text-right mb-1 ${!isInCurrentMonth ? 'text-gray-400' : ''}`}>
+                    <span className={`inline-flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 text-xs sm:text-sm font-medium rounded-full ${
+                      isTodayDate ? 'bg-blue-600 text-white' : ''
+                    }`}>
+                      {format(day, 'd')}
+                    </span>
+                  </div>
+
+                  {/* Tareas del día */}
+                  <div className="space-y-1">
+                    {dayTasks.slice(0, 3).map((task) => (
+                      <button
+                        key={task.id}
+                        onClick={() => onTaskClick(task.id)}
+                        className={`w-full text-left px-1.5 py-0.5 sm:px-2 sm:py-1 rounded text-[10px] sm:text-xs font-medium truncate border transition-all hover:shadow-md ${getStatusColor(task.status)}`}
+                        title={task.title}
+                        data-testid={`calendar-task-${task.id}`}
+                      >
+                        <div className="flex items-center gap-1">
+                          <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getPriorityColor(task.priority)}`} />
+                          <span className="truncate">{task.title}</span>
+                        </div>
+                      </button>
+                    ))}
+                    {dayTasks.length > 3 && (
+                      <div className="text-[10px] sm:text-xs text-gray-500 font-medium px-1.5">
+                        +{dayTasks.length - 3} más
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Leyenda */}
+      <Card className="border-0 shadow-sm">
+        <CardContent className="py-3">
+          <div className="flex flex-wrap items-center gap-4 text-xs">
+            <span className="font-medium text-gray-700">Prioridad:</span>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+              <span className="text-gray-600">Alta</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+              <span className="text-gray-600">Media</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-gray-400" />
+              <span className="text-gray-600">Baja</span>
+            </div>
+            <span className="mx-2 text-gray-300">|</span>
+            <span className="font-medium text-gray-700">Estado:</span>
+            <Badge variant="outline" className="bg-green-100 border-green-300 text-green-800 text-[10px]">Completada</Badge>
+            <Badge variant="outline" className="bg-yellow-100 border-yellow-300 text-yellow-800 text-[10px]">En Progreso</Badge>
+            <Badge variant="outline" className="bg-white border-gray-200 text-gray-800 text-[10px]">Pendiente</Badge>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
