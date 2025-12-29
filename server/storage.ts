@@ -383,6 +383,7 @@ export interface IStorage {
     segment?: string;
     limit?: number;
     offset?: number;
+    client?: string;
   }): Promise<SalesTransaction[]>;
   getSalesMetrics(filters?: {
     startDate?: string;
@@ -514,6 +515,7 @@ export interface IStorage {
     endDate?: string;
     salesperson?: string;
     segment?: string;
+    client?: string;
   }): Promise<Array<{
     packagingType: string;
     totalSales: number;
@@ -2332,8 +2334,9 @@ export class DatabaseStorage implements IStorage {
     segment?: string;
     limit?: number;
     offset?: number;
+    client?: string;
   } = {}): Promise<SalesTransaction[]> {
-    const { startDate, endDate, salesperson, segment, limit = 50, offset = 0 } = filters;
+    const { startDate, endDate, salesperson, segment, limit = 50, offset = 0, client } = filters;
     
     const conditions = [
       sql`${factVentas.tido} != 'GDV'`
@@ -2350,6 +2353,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (segment) {
       conditions.push(eq(factVentas.noruen, segment));
+    }
+    if (client) {
+      conditions.push(eq(factVentas.nokoen, client));
     }
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -3758,6 +3764,7 @@ export class DatabaseStorage implements IStorage {
     salesperson?: string;
     segment?: string;
     branch?: string;
+    client?: string;
   }): Promise<Array<{
     packagingType: string;
     totalSales: number;
@@ -3784,6 +3791,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (filters?.branch) {
       conditions.push(eq(factVentas.nosudo, filters.branch));
+    }
+    if (filters?.client) {
+      conditions.push(eq(factVentas.nokoen, filters.client));
     }
 
     // Get totals for percentage calculations

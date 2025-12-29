@@ -1652,7 +1652,7 @@ export function registerRoutes(app: Express): Server {
   // Sales transactions endpoint
   app.get('/api/sales/transactions', requireCommercialAccess, async (req, res) => {
     try {
-      const { startDate, endDate, salesperson, segment, limit, offset, period, filterType } = req.query;
+      const { startDate, endDate, salesperson, segment, limit, offset, period, filterType, client } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
       
       // Enforce role-based access control for salespeople
@@ -1674,6 +1674,7 @@ export function registerRoutes(app: Express): Server {
         segment: segment as string,
         limit: limit ? parseInt(limit as string) : undefined,
         offset: offset ? parseInt(offset as string) : undefined,
+        client: client as string,
       });
       res.json(transactions);
     } catch (error) {
@@ -2026,7 +2027,7 @@ export function registerRoutes(app: Express): Server {
 
   // Packaging metrics endpoint
   app.get('/api/sales/packaging-metrics', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
-    const { period, filterType, salesperson, segment, branch } = req.query;
+    const { period, filterType, salesperson, segment, branch, client } = req.query;
     const dateRange = getDateRange(period as string, filterType as string);
     
     const packagingMetrics = await storage.getPackagingMetrics({
@@ -2035,6 +2036,7 @@ export function registerRoutes(app: Express): Server {
       salesperson: salesperson as string,
       segment: segment as string,
       branch: branch as string,
+      client: client as string,
     });
     
     res.json(packagingMetrics);
