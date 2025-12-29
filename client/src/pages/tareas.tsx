@@ -1078,9 +1078,16 @@ export default function TareasPage() {
                         </div>
                       )}
                       <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-50 text-blue-700">
-                        <Users className="h-3.5 w-3.5" />
-                        <span data-testid={`text-task-assignment-count-${task.id}`}>
-                          {task.assignments.length}
+                        <User className="h-3.5 w-3.5" />
+                        <span className="text-xs font-medium truncate max-w-[150px]" data-testid={`text-task-assignee-${task.id}`}>
+                          {task.assignments.length > 0 
+                            ? task.assignments.map(a => {
+                                const assigneeName = salespeople?.find(s => s.id === a.assigneeId)?.fullName || 
+                                                    supervisors?.find(s => s.id === a.assigneeId)?.fullName ||
+                                                    a.assigneeId;
+                                return assigneeName;
+                              }).join(', ')
+                            : 'Sin asignar'}
                         </span>
                       </div>
                       {myAssignment && !myAssignment.readAt && myAssignment.status === "pendiente" && (
