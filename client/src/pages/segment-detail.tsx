@@ -503,6 +503,42 @@ export default function SegmentDetail({
     retry: 2,
   });
 
+  // Fetch NVV metrics for segment (for combined total in goals)
+  const { data: nvvMetrics } = useQuery<{
+    totalAmount: number;
+    pendingCount: number;
+  }>({
+    queryKey: ['/api/nvv/metrics', 'segment', segmentName],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('segment', segmentName || '');
+      const res = await fetch(`/api/nvv/metrics?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: !!segmentName && filterType === 'month',
+  });
+
+  // Fetch GDV metrics for segment (for combined total in goals)
+  const { data: gdvMetrics } = useQuery<{
+    gdvSales: number;
+    gdvCount: number;
+  }>({
+    queryKey: ['/api/sales/gdv-pending', 'segment', segmentName],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('segment', segmentName || '');
+      const res = await fetch(`/api/sales/gdv-pending?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: !!segmentName && filterType === 'month',
+  });
+
+  // NVV and GDV totals for combined progress
+  const nvvTotal = nvvMetrics?.totalAmount || 0;
+  const gdvTotal = gdvMetrics?.gdvSales || 0;
+
   if (!segmentName) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -1088,14 +1124,48 @@ export default function SegmentDetail({
                     </div>
                     
                     {/* Barra de progreso */}
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
-                      <div
-                        className={`h-3 rounded-full transition-all duration-500 ${
-                          goalData.percentage >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
-                          goalData.percentage >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
-                        }`}
-                        style={{ width: `${Math.min(goalData.percentage, 100)}%` }}
-                      />
+                    <div className="space-y-1">
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                        <div
+                          className={`h-3 rounded-full transition-all duration-500 ${
+                            goalData.percentage >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
+                            goalData.percentage >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
+                          }`}
+                          style={{ width: `${Math.min(goalData.percentage, 100)}%` }}
+                        />
+                      </div>
+                      
+                      {/* Segunda barra de progreso - Total Combinado (Ventas + NVV + GDV) */}
+                      {(nvvTotal > 0 || gdvTotal > 0) && (() => {
+                        const combinedTotal = Number(goalData.currentSales) + nvvTotal + gdvTotal;
+                        const combinedPercentage = Number(goalData.targetAmount) > 0 
+                          ? (combinedTotal / Number(goalData.targetAmount)) * 100 
+                          : 0;
+                        return (
+                          <div className="space-y-0.5">
+                            <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className={`h-1.5 rounded-full transition-all duration-500 ${
+                                  combinedPercentage >= 100 ? 'bg-gradient-to-r from-cyan-300 to-cyan-500' : 
+                                  combinedPercentage >= 70 ? 'bg-gradient-to-r from-sky-300 to-sky-500' : 'bg-gradient-to-r from-indigo-300 to-indigo-500'
+                                }`}
+                                style={{ width: `${Math.min(combinedPercentage, 100)}%` }}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                                Total Combinado: {formatCurrency(combinedTotal)}
+                              </p>
+                              <p className={`text-[10px] font-medium ${
+                                combinedPercentage >= 100 ? 'text-cyan-600' : 
+                                combinedPercentage >= 70 ? 'text-sky-600' : 'text-indigo-600'
+                              }`}>
+                                {combinedPercentage.toFixed(1)}%
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
