@@ -520,4 +520,192 @@ router.patch('/ecommerce/orders/:id', requireApiRole(['read_write', 'admin']), a
   }
 });
 
+// ============================================
+// Dashboard de Ventas (Read) - Datos Agregados
+// ============================================
+
+router.get('/dashboard', async (req: ApiAuthRequest, res) => {
+  try {
+    const { 
+      period, 
+      filterType = 'month',
+      segment,
+      salesperson,
+      client
+    } = req.query;
+
+    const periodStr = period as string || (() => {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    })();
+    const filterTypeStr = filterType as 'month' | 'year' | 'day';
+
+    // Calculate date range based on period and filterType
+    let startDate: string;
+    let endDate: string;
+    const currentYear = periodStr.split('-')[0];
+
+    if (filterTypeStr === 'year') {
+      startDate = `${currentYear}-01-01`;
+      endDate = `${currentYear}-12-31`;
+    } else if (filterTypeStr === 'month') {
+      const [year, month] = periodStr.split('-');
+      startDate = `${year}-${month}-01`;
+      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+      endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+    } else {
+      // day
+      startDate = periodStr;
+      endDate = periodStr;
+    }
+
+    // 1. Ventas Totales del período
+    const salesMetrics = await storage.getSalesMetrics({
+      period: periodStr,
+      filterType: filterTypeStr,
+      segment: segment as string | undefined,
+      salesperson: salesperson as string | undefined,
+      client: client as string | undefined,
+    });
+
+    // 2. Total Acumulado del Año (YTD)
+    const yearMetrics = await storage.getSalesMetrics({
+      period: `${currentYear}-01`,
+      filterType: 'year',
+      segment: segment as string | undefined,
+      salesperson: salesperson as string | undefined,
+      client: client as string | undefined,
+    });
+
+    // 3. Meta Global del período (si es mes)
+    let globalGoal = null;
+    if (filterTypeStr === 'month') {
+      try {
+        const goals = await storage.getGoalsProgress(periodStr);
+        const globalGoalData = goals.find(g => g.type === 'global');
+        if (globalGoalData) {
+          globalGoal = {
+            targetAmount: Number(globalGoalData.targetAmount),
+            currentSales: Number(globalGoalData.currentSales),
+            percentage: globalGoalData.percentage,
+            period: globalGoalData.period,
+          };
+        }
+      } catch (e) {
+        console.error('Error fetching goals:', e);
+      }
+    }
+
+    // 4. Ventas por Segmento (with filters applied)
+    const segmentsData = await storage.getSegmentAnalysis(
+      startDate,
+      endDate,
+      salesperson as string | undefined,
+      segment as string | undefined
+    );
+
+    // 5. Tendencia de Ventas (con filtros aplicados)
+    let salesTrend: Array<{ date: string; sales: number }> = [];
+    try {
+      if (filterTypeStr === 'year') {
+        // Tendencia mensual para el año
+        const trendData = await storage.getSalesChartData(
+          'monthly',
+          startDate,
+          endDate,
+          salesperson as string | undefined,
+          segment as string | undefined,
+          client as string | undefined
+        );
+        salesTrend = trendData.map(t => ({
+          date: t.period,
+          sales: t.sales,
+        }));
+      } else {
+        // Tendencia diaria para el mes
+        const trendData = await storage.getSalesChartData(
+          'daily',
+          startDate,
+          endDate,
+          salesperson as string | undefined,
+          segment as string | undefined,
+          client as string | undefined
+        );
+        salesTrend = trendData.map(t => ({
+          date: t.period,
+          sales: t.sales,
+        }));
+      }
+    } catch (e) {
+      console.error('Error fetching sales trend:', e);
+    }
+
+    // 6. NVV y GDV pendientes (siempre disponible - son datos en vivo del mes actual)
+    let nvvPending = { totalAmount: 0, pendingCount: 0, totalQuantity: 0, confirmedCount: 0 };
+    let gdvPending = { gdvSales: 0, gdvCount: 0 };
+    
+    try {
+      nvvPending = await storage.getNvvSummaryMetrics({
+        segment: segment as string | undefined,
+        salesperson: salesperson as string | undefined,
+        client: client as string | undefined,
+      });
+    } catch (e) {
+      console.error('Error fetching NVV metrics:', e);
+    }
+
+    try {
+      gdvPending = await storage.getGdvPendingGlobal({
+        segment: segment as string | undefined,
+        salesperson: salesperson as string | undefined,
+        client: client as string | undefined,
+      });
+    } catch (e) {
+      console.error('Error fetching GDV metrics:', e);
+    }
+
+    // Respuesta consolidada
+    res.json({
+      period: periodStr,
+      filterType: filterTypeStr,
+      dateRange: {
+        startDate,
+        endDate,
+      },
+      filters: {
+        segment: segment || null,
+        salesperson: salesperson || null,
+        client: client || null,
+      },
+      salesTotal: salesMetrics.totalSales,
+      unitsSold: salesMetrics.totalUnits,
+      transactionCount: salesMetrics.transactionCount,
+      averageTicket: salesMetrics.averageTicket,
+      yearToDateTotal: yearMetrics.totalSales,
+      globalGoal,
+      nvvPending: {
+        totalAmount: nvvPending.totalAmount,
+        count: nvvPending.pendingCount,
+        note: 'NVV son Notas de Venta Vigentes pendientes de facturar (datos en vivo)'
+      },
+      gdvPending: {
+        totalAmount: gdvPending.gdvSales,
+        count: gdvPending.gdvCount,
+        note: 'GDV son Guías de Despacho Vigentes pendientes de facturar (datos en vivo)'
+      },
+      combinedTotal: salesMetrics.totalSales + nvvPending.totalAmount + gdvPending.gdvSales,
+      salesBySegment: segmentsData.map(s => ({
+        segment: s.segment,
+        totalSales: s.totalSales,
+        percentage: s.percentage,
+      })),
+      salesTrend,
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;
