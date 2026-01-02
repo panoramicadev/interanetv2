@@ -45,3 +45,79 @@ Preferred communication style: Simple, everyday language.
 - **Date Handling**: date-fns
 - **PDF Generation**: @react-pdf/renderer
 - **CSV Parsing**: Papa Parse
+
+## External API Integration (January 2026)
+
+### Overview
+The system provides a REST API for external system integration, authenticated via API Keys.
+
+### Authentication
+All external API calls require the `X-API-Key` header:
+```bash
+curl -H "X-API-Key: mk_readonly_xxxxxxxxxxxxxxxxxx" https://your-domain.replit.app/external-api/dashboard
+```
+
+### API Roles
+- `readonly` - Can only read data (GET endpoints)
+- `read_write` - Can read and write data (GET, POST, PATCH, DELETE)
+- `admin` - Full access including API key management
+
+### Dashboard Endpoint (Aggregated Sales Data)
+**Endpoint**: `GET /external-api/dashboard`
+
+**Query Parameters**:
+- `period` - Supports multiple formats (auto-detects filterType if not provided):
+  - `YYYY` for year (e.g., `2025` for full year 2025)
+  - `YYYY-MM` for month (e.g., `2025-06` for June 2025)
+  - `YYYY-MM-DD` for day (e.g., `2025-06-15`)
+- `filterType` - "month", "year", or "day" (optional, auto-detected from period format)
+- `segment` - Filter by segment name (optional)
+- `salesperson` - Filter by salesperson name (optional)
+- `client` - Filter by client code (optional)
+
+**Response Fields**:
+- `period` - The requested period
+- `year` - Target year as integer
+- `filterType` - Applied filter type
+- `dateRange` - Object with startDate and endDate
+- `salesTotal` - Total sales for the period
+- `unitsSold` - Total units sold
+- `transactionCount` - Number of transactions
+- `averageTicket` - Average transaction value
+- `yearTotal` - Full year accumulated sales
+- `globalGoal` - Monthly goal (targetAmount, currentSales, percentage) - only for month filter
+- `nvvPending` - Pending sales notes (totalAmount, count)
+- `gdvPending` - Pending dispatch guides (totalAmount, count)
+- `combinedTotal` - salesTotal + nvvPending + gdvPending
+- `salesBySegment` - Array of segment data (segment, totalSales, percentage)
+- `salesTrend` - For year: 12 months (Ene-Dic) with date, month, sales. For month: daily data
+
+**Examples**:
+```bash
+# Full year 2025 data
+curl -X GET "https://your-domain.replit.app/external-api/dashboard?period=2025" \
+  -H "X-API-Key: mk_readonly_xxxxxxxxxxxxxxxxxx"
+
+# Specific month with segment filter
+curl -X GET "https://your-domain.replit.app/external-api/dashboard?period=2025-06&segment=PINTOR" \
+  -H "X-API-Key: mk_readonly_xxxxxxxxxxxxxxxxxx"
+```
+
+### Other Available Endpoints
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/external-api/ventas` | GET | Sales transactions |
+| `/external-api/clientes` | GET | Client list |
+| `/external-api/usuarios` | GET | User list |
+| `/external-api/crm/leads` | GET/POST | CRM leads |
+| `/external-api/notificaciones` | GET/POST | Notifications |
+| `/external-api/reclamos` | GET/POST | Complaints |
+| `/external-api/mantencion` | GET/POST | Maintenance requests |
+| `/external-api/tareas` | GET/POST/PATCH/DELETE | Tasks |
+| `/external-api/inventario` | GET | Inventory products |
+| `/external-api/ecommerce/orders` | GET/PATCH | E-commerce orders |
+
+### Active Files
+- `server/routes-external.ts` - All external API endpoints
+- `server/middleware/api-auth.ts` - API key validation middleware
+- `shared/schema.ts` - apiKeys table schema

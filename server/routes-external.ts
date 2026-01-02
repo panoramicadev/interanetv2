@@ -534,27 +534,43 @@ router.get('/dashboard', async (req: ApiAuthRequest, res) => {
       client
     } = req.query;
 
+    // Support formats: YYYY (year), YYYY-MM (month), YYYY-MM-DD (day)
     const periodStr = period as string || (() => {
       const now = new Date();
       return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     })();
-    const filterTypeStr = filterType as 'month' | 'year' | 'day';
+    
+    // Auto-detect filterType based on period format if not explicitly set
+    let filterTypeStr = filterType as 'month' | 'year' | 'day';
+    if (!req.query.filterType) {
+      if (/^\d{4}$/.test(periodStr)) {
+        filterTypeStr = 'year';
+      } else if (/^\d{4}-\d{2}$/.test(periodStr)) {
+        filterTypeStr = 'month';
+      } else if (/^\d{4}-\d{2}-\d{2}$/.test(periodStr)) {
+        filterTypeStr = 'day';
+      }
+    }
 
     // Calculate date range based on period and filterType
     let startDate: string;
     let endDate: string;
-    const currentYear = periodStr.split('-')[0];
+    let targetYear: string;
 
     if (filterTypeStr === 'year') {
-      startDate = `${currentYear}-01-01`;
-      endDate = `${currentYear}-12-31`;
+      // Accept both "2025" and "2025-01" formats for year
+      targetYear = periodStr.split('-')[0];
+      startDate = `${targetYear}-01-01`;
+      endDate = `${targetYear}-12-31`;
     } else if (filterTypeStr === 'month') {
       const [year, month] = periodStr.split('-');
+      targetYear = year;
       startDate = `${year}-${month}-01`;
       const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
       endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
     } else {
       // day
+      targetYear = periodStr.split('-')[0];
       startDate = periodStr;
       endDate = periodStr;
     }
@@ -568,9 +584,9 @@ router.get('/dashboard', async (req: ApiAuthRequest, res) => {
       client: client as string | undefined,
     });
 
-    // 2. Total Acumulado del Año (YTD)
+    // 2. Total Acumulado del Año (YTD for target year)
     const yearMetrics = await storage.getSalesMetrics({
-      period: `${currentYear}-01`,
+      period: `${targetYear}-01`,
       filterType: 'year',
       segment: segment as string | undefined,
       salesperson: salesperson as string | undefined,
@@ -605,10 +621,10 @@ router.get('/dashboard', async (req: ApiAuthRequest, res) => {
     );
 
     // 5. Tendencia de Ventas (con filtros aplicados)
-    let salesTrend: Array<{ date: string; sales: number }> = [];
+    let salesTrend: Array<{ date: string; month?: string; sales: number }> = [];
     try {
       if (filterTypeStr === 'year') {
-        // Tendencia mensual para el año
+        // Tendencia mensual para el año - garantiza 12 meses
         const trendData = await storage.getSalesChartData(
           'monthly',
           startDate,
@@ -617,10 +633,21 @@ router.get('/dashboard', async (req: ApiAuthRequest, res) => {
           segment as string | undefined,
           client as string | undefined
         );
-        salesTrend = trendData.map(t => ({
-          date: t.period,
-          sales: t.sales,
-        }));
+        
+        // Create a map of existing data
+        const dataMap = new Map(trendData.map(t => [t.period, t.sales]));
+        
+        // Generate all 12 months for the year
+        const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        salesTrend = monthNames.map((monthName, index) => {
+          const monthNum = String(index + 1).padStart(2, '0');
+          const periodKey = `${targetYear}-${monthNum}`;
+          return {
+            date: periodKey,
+            month: monthName,
+            sales: dataMap.get(periodKey) || 0,
+          };
+        });
       } else {
         // Tendencia diaria para el mes
         const trendData = await storage.getSalesChartData(
@@ -667,6 +694,7 @@ router.get('/dashboard', async (req: ApiAuthRequest, res) => {
     // Respuesta consolidada
     res.json({
       period: periodStr,
+      year: parseInt(targetYear),
       filterType: filterTypeStr,
       dateRange: {
         startDate,
@@ -681,7 +709,7 @@ router.get('/dashboard', async (req: ApiAuthRequest, res) => {
       unitsSold: salesMetrics.totalUnits,
       transactionCount: salesMetrics.transactionCount,
       averageTicket: salesMetrics.averageTicket,
-      yearToDateTotal: yearMetrics.totalSales,
+      yearTotal: yearMetrics.totalSales,
       globalGoal,
       nvvPending: {
         totalAmount: nvvPending.totalAmount,
