@@ -1,7 +1,7 @@
 # Sales Analytics Dashboard
 
 ## Overview
-"PANORAMICA" is a sales analytics dashboard for the Chilean market, providing comprehensive sales insights to enhance strategies and operational efficiency. It features KPI monitoring, trend analysis, sales forecasting, CRM, and e-commerce integration. The project also includes specialized modules for complaints, maintenance (CMMS), and technical visits, aiming to provide a competitive advantage through data-driven decision-making and streamlined operations.
+"PANORAMICA" is a sales analytics dashboard for the Chilean market designed to provide comprehensive sales insights. Its primary purpose is to enhance sales strategies and operational efficiency through KPI monitoring, trend analysis, sales forecasting, and robust CRM and e-commerce integrations. The project also integrates specialized modules for complaints, maintenance (CMMS), and technical visits, aiming to provide a competitive advantage by enabling data-driven decision-making and streamlining various business operations.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -9,24 +9,30 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### UI/UX
-- **Branding**: Panoramica 30th-anniversary logo on login and PDFs.
-- **Responsiveness**: Mobile-responsive design.
-- **Theming**: Custom design tokens and CSS variables.
-- **Professional Documents**: Enhanced PDF layouts with multi-column design and branding.
+- **Branding**: Features a Panoramica 30th-anniversary logo on login and professional PDF documents.
+- **Responsiveness**: Designed for mobile responsiveness across all interfaces.
+- **Theming**: Utilizes custom design tokens and CSS variables for a consistent look.
+- **Professional Documents**: PDFs feature enhanced layouts with multi-column design and branding elements.
 
 ### Technical Implementation
-- **Frontend**: React 18 with TypeScript, Wouter for routing, TanStack Query for state management, Shadcn/ui (Radix UI) for components, Tailwind CSS for styling, Chart.js for data visualization, Vite as build tool, and PWA capabilities.
-- **Backend**: Node.js with Express.js, TypeScript, RESTful API design.
-- **Authentication & Authorization**: Passport.js Local Strategy with bcrypt, HTTP-only cookies, CSRF protection, and a 3-layer role-based access control (RBAC) system (Admin, Supervisor, Salesperson, Técnico de Obra, Client, Jefe_planta, Mantencion, and various departmental roles). Backend RBAC middleware ensures granular access, including full administrative access for `Jefe_planta` and `Mantencion` roles within the maintenance module.
-- **Data Processing**: CSV import, Replit Object Storage for file storage. ETL Data Warehouse for automated incremental runs, UPSERT, data mapping, real-time progress, and reliability features. Sales forecasting uses Holt-Winters method. NVV ETL uses full synchronization for transient data.
-- **Database**: PostgreSQL (Neon serverless) with Drizzle ORM. Schemas include Users, sales transactions, e-commerce, CRM, complaints, maintenance (CMMS), marketing, expenses, and ETL. Drizzle Kit manages schema.
+- **Frontend**: Built with React 18, TypeScript, Wouter for routing, TanStack Query for state management, Shadcn/ui (Radix UI) components, Tailwind CSS for styling, Chart.js for data visualization, and Vite as the build tool, with PWA capabilities.
+- **Backend**: Implemented using Node.js with Express.js and TypeScript, following a RESTful API design.
+- **Authentication & Authorization**: Employs Passport.js Local Strategy with bcrypt, HTTP-only cookies, CSRF protection, and a 3-layer role-based access control (RBAC) system. RBAC middleware ensures granular access for various roles including Admin, Supervisor, Salesperson, and specialized departmental roles.
+- **Data Processing**: Supports CSV import, utilizes Replit Object Storage for file storage, and features an ETL Data Warehouse for automated incremental runs, UPSERT operations, data mapping, and real-time progress monitoring. Sales forecasting is powered by the Holt-Winters method. NVV ETL uses full synchronization for transient data.
+- **Database**: PostgreSQL (Neon serverless) managed with Drizzle ORM. The schema includes users, sales transactions, e-commerce, CRM, complaints, maintenance (CMMS), marketing, expenses, and ETL data. Drizzle Kit is used for schema management.
 - **Key Features**:
-    - **Management**: Client & user management, CRM pipeline, E-commerce, Product grouping, Unified Task management (integrating marketing and general tasks with role-based assignment), Salesperson data management.
-    - **Sales & Finance**: Sales analytics (KPIs, trends, projections), Quote management, Goals progress, Finance module (invoices, sales notes), Promesas de Compra Semanales, Manual Sales Projection.
-    - **Service & Operations**: Technical visits, Complaints management (workflow, photo uploads, state machine, specific area mapping to operative areas), Maintenance management (CMMS: equipment requests, preventive plans supporting equipment-specific and general tasks, work orders, expense tracking, full lifecycle management), Inventory module (real-time stock, alerts), Expense management.
-    - **Internal Systems**: Internal notification system, ETL monitoring modules with change tracking and state change auditing.
-- **Production Deployment**: Replit Autoscale Deployment with automated database migrations, ETL scheduler, preventive maintenance scheduler, and health monitoring. Includes reliability features like circuit breaker, automatic retry, health check endpoint, automated alerting, and data quality validation.
-- **Database Bootstrap System**: On application startup, `bootstrapDatabase()` runs BEFORE migrations to ensure all schemas (ventas, gdv, nvv) and staging tables exist with required columns. This is idempotent and safe to run multiple times, preventing production drift issues.
+    - **Management**: Client and user management, CRM pipeline, E-commerce, Product grouping, Unified Task management, and Salesperson data management.
+    - **Sales & Finance**: Advanced sales analytics (KPIs, trends, projections), Quote management, Goal progress tracking, Finance module (invoices, sales notes), Weekly Purchase Promises, and Manual Sales Projection.
+    - **Service & Operations**: Technical visits, Complaints management (workflow, photo uploads, state machine), Maintenance management (CMMS for equipment requests, preventive plans, work orders, expense tracking), and Inventory module with real-time stock and alerts.
+    - **Internal Systems**: Internal notification system and ETL monitoring modules with change tracking and state change auditing.
+- **Production Deployment**: Leverages Replit Autoscale Deployment, including automated database migrations, ETL and preventive maintenance schedulers, and health monitoring. Incorporates reliability features like circuit breakers, automatic retries, and automated alerting.
+- **Database Bootstrap System**: An idempotent `bootstrapDatabase()` function runs before migrations on application startup to ensure essential schemas and staging tables are present.
+
+### System Design Choices
+- **NVV Module**: Utilizes an automated ETL process from SQL Server for "Notas de Venta Vigentes" with a full synchronization strategy, exclusively considering records where `eslido` is null or empty as pending. It uses `nvv.fact_nvv` as the primary data source.
+- **GDV Module**: Employs an automated ETL process from SQL Server for "Guías de Despacho Vigentes" with a full synchronization strategy, extracting only open dispatch guides and ensuring closed items are automatically removed. It relies on `gdv.fact_gdv` as the primary data source.
+- **Public Salesperson Catalog**: Enables salespeople to have public catalog pages (`/catalogo/:slug`) where visitors can browse products and submit quote requests without authentication.
+- **Shopify-Style Product Management**: The e-commerce system supports a hierarchical product → options → variants structure using `shopify_products`, `shopify_product_options`, and `shopify_product_variants` tables.
 
 ## External Dependencies
 
@@ -39,196 +45,3 @@ Preferred communication style: Simple, everyday language.
 - **Date Handling**: date-fns
 - **PDF Generation**: @react-pdf/renderer
 - **CSV Parsing**: Papa Parse
-
-## NVV Module Architecture (December 2025)
-
-### Current Architecture (ACTIVE)
-The NVV (Notas de Venta Vigentes) system uses automated ETL from SQL Server:
-
-**Data Source**: nvv.fact_nvv table (populated by ETL)
-- ETL runs every 15 minutes automatically
-- Full synchronization strategy (snapshot of current open NVV records)
-- Only records where `eslido IS NULL OR eslido = ''` are considered pending
-- Source tables from SQL Server: MAEEDDO, MAEDDDO, MAEEDO, MAEPR, MAEVEN, TABBO
-
-**Active Files**:
-- `server/etl-nvv.ts` - Main ETL implementation
-- `server/storage.ts` - Functions: getNvvDashboardData(), getNvvPendingSales(), getNvvSummaryMetrics(), getNvvBySalesperson(), getNvvTotalSummary()
-- `server/routes.ts` - Endpoints: GET /api/nvv/pending, /api/nvv/total, /api/nvv/metrics, /api/nvv/dashboard, /api/nvv/etl/*
-
-**Key Fields**:
-- `nombre_vendedor` - Salesperson name from ETL
-- `nombre_segmento_cliente` - Segment name from ETL
-- `kofulido` - Salesperson code
-- `eslido` - Determines if NVV is closed (null/empty = pending)
-- `monto` - Amount (calculated from ppprne * quantity)
-
-### Deprecated Architecture (DO NOT USE)
-The following were used for manual CSV import and are now deprecated:
-
-**Deprecated Table**: `nvv_pending_sales` (shared/schema.ts)
-- Was used for manual CSV uploads
-- Data is stale and not synchronized with source system
-
-**Deprecated Functions** (server/storage.ts):
-- `importNvvFromCsv()` - ⛔ DEPRECATED
-- `clearAllNvvData()` - ⛔ DEPRECATED
-- `deleteNvvBatch()` - ⛔ DEPRECATED
-
-**Deprecated Endpoints** (server/routes.ts):
-- POST /api/nvv/import - ⛔ DEPRECATED
-- DELETE /api/nvv/clear-all - ⛔ DEPRECATED
-- DELETE /api/nvv/batch/:batchId - ⛔ DEPRECATED
-
-**Deprecated Schemas** (shared/schema.ts):
-- `nvvPendingSales` - ⛔ DEPRECATED
-- `insertNvvPendingSalesSchema` - ⛔ DEPRECATED
-- `nvvCsvImportSchema` - ⛔ DEPRECATED
-- `nvvImportResultSchema` - ⛔ DEPRECATED
-
-### Important Notes for Future Development
-1. **Always use nvv.fact_nvv** - Never query nvv_pending_sales
-2. **Use ETL fields directly** - nombre_vendedor, nombre_segmento_cliente come from ETL
-3. **Pending filter** - Always filter by `(eslido IS NULL OR eslido = '')` for pending NVV
-4. **ETL handles cleanup** - Full sync removes closed NVV automatically
-5. **Check deprecation warnings** - Functions log warnings when deprecated code is called
-
-## GDV Module Architecture (December 2025)
-
-### Current Architecture (ACTIVE)
-The GDV (Guías de Despacho Vigentes) system uses automated ETL from SQL Server with **full synchronization** (snapshot):
-
-**Data Source**: gdv.fact_gdv table (populated by ETL)
-- ETL uses full synchronization strategy (DELETE ALL + INSERT ALL)
-- Extracts ONLY open dispatch guides (ESDO IS NULL or empty, ESLIDO IS NULL or empty)
-- When GDV is invoiced/closed in source system, it automatically disappears from fact_gdv
-- Source tables from SQL Server: MAEEDO, MAEDDO, MAEEN, MAEPR, TABFU, TABRU, TABBO
-
-**Synchronization Strategy**:
-- **Type**: Full sync (snapshot) - same as NVV
-- **Behavior**: TRUNCATE fact_gdv → INSERT only open GDV lines
-- **Automatic cleanup**: Closed GDV disappear automatically
-- **No watermark filtering**: Extracts all open GDV regardless of date
-
-**Active Files**:
-- `server/etl-gdv.ts` - Main ETL implementation (full_sync mode)
-- `server/storage.ts` - GDV query functions
-- `server/routes.ts` - GDV endpoints
-
-**Key Fields**:
-- `esdo` - Document status (null/empty = open, 'C' = closed)
-- `eslido` - Line status (null/empty = pending, 'C' = closed) - **PRIMARY FILTER**
-- `kofulido` - Salesperson code (from MAEDDO detail, not header)
-- `vaneli` - Line net amount (used for calculations) - **USE THIS FOR AMOUNTS**
-- `monto` - Pre-calculated line amount (may not be accurate)
-- `cantidadPendiente` - Boolean: has pending quantity AND not closed AND monto >= 1000
-
-**Filtering Logic (same as NVV)**:
-- Pending lines: `(eslido IS NULL OR eslido = '') AND cantidadPendiente = true`
-- Amount calculation: `SUM(vaneli)` - never use `monto` or `vanedo`
-- Count documents: `COUNT(DISTINCT idmaeedo)`
-
-### Important Notes for GDV
-1. **Uses full sync** - TRUNCATE + INSERT, not incremental UPSERT (volatile data like NVV)
-2. **Filter by ESLIDO + cantidadPendiente** - Only lines where `(eslido IS NULL OR eslido = '') AND cantidadPendiente = true`
-3. **Use vaneli for amounts** - Never use `monto` or `vanedo` (header amount) for calculations
-4. **Automatic cleanup** - Closed/invoiced GDV disappear on next sync
-5. **Transient data** - GDV represents pending dispatches, not historical records
-
-## Public Salesperson Catalog (December 2025)
-
-### Overview
-Each salesperson can have a public catalog page where external visitors can browse products and submit quote requests without authentication.
-
-### URL Structure
-- **Public URL**: `/catalogo/:slug` (e.g., `/catalogo/pablo-soto`)
-- **API Endpoints**:
-  - `GET /api/public/catalogos/:slug` - Get salesperson profile and products
-  - `POST /api/public/catalogos/:slug/cotizacion` - Submit quote request
-
-### Database Fields (salespeople_users table)
-- `public_slug` - Unique URL slug (e.g., "pablo-soto")
-- `profile_image_url` - Salesperson photo
-- `public_phone` - Public contact phone
-- `public_email` - Public contact email
-- `bio` - Short biography/description (max 500 chars)
-- `catalog_enabled` - Boolean to enable/disable the public catalog
-
-### Quote Submission Flow
-1. Visitor selects products and quantities from the catalog
-2. Visitor fills contact form (name, email, phone, company, message)
-3. Quote request is saved to `ecommerce_orders` table with:
-   - `status: 'pendiente'`
-   - `client_id: 'VISITANTE_PUBLICO'`
-   - `notes` prefixed with `[CATÁLOGO PÚBLICO]`
-   - `assigned_salesperson_id` set to the catalog owner
-4. Quote appears in "Pedidos de Clientes" section for the salesperson
-
-### Enabling a Salesperson Catalog
-```sql
-UPDATE salespeople_users 
-SET 
-  public_slug = 'nombre-vendedor',
-  catalog_enabled = true,
-  public_email = 'vendedor@empresa.cl',
-  public_phone = '+56 9 1234 5678',
-  bio = 'Descripción del vendedor...'
-WHERE id = 'salesperson-uuid';
-```
-
-### Active Files
-- `client/src/pages/catalogo-publico.tsx` - Public catalog page component
-- `server/storage.ts` - Functions: getPublicSalespersonBySlug(), getPublicCatalogProducts(), createPublicQuoteRequest()
-- `server/routes.ts` - Public catalog API endpoints
-- `shared/schema.ts` - publicQuoteRequestSchema validation
-
-## Shopify-Style Product Management (December 2025)
-
-### Overview
-The ecommerce system now supports Shopify-style product management with hierarchical product → options → variants structure, enabling complex products with multiple attributes (color, size, format, etc.).
-
-### Database Schema (3 tables)
-- **shopify_products**: Parent products with title, description, vendor, category, status
-- **shopify_product_options**: Product attribute definitions (e.g., "Color", "Formato")
-- **shopify_product_variants**: Individual purchasable SKUs with option values and pricing
-
-### Key Fields
-**shopify_products**:
-- `handle` - URL-friendly slug (unique)
-- `status` - 'active', 'draft', or 'archived'
-- `sortOrder` - Display order in catalog
-
-**shopify_product_variants**:
-- `sku` - Unique product identifier
-- `option1/option2/option3` - Option values (e.g., "BLANCO", "1 GL")
-- `price` - Unit price as string (decimal precision)
-- `packagingUnitName` - Display unit (e.g., "1/4 GL")
-- `available` - Boolean for stock availability
-
-### CSV Import Structure
-Import uses `variant_parentSku` field to group variants under parent products:
-- Rows where `variant_parentSku == productId` are treated as parent products
-- Rows where `variant_parentSku != productId` are variants of that parent
-
-### API Endpoints
-**Admin (requires authentication)**:
-- `GET /api/shopify/products` - List all products with options and variants
-- `POST /api/shopify/products` - Create new product
-- `PUT /api/shopify/products/:id` - Update product
-- `DELETE /api/shopify/products/:id` - Delete product (cascades to options/variants)
-- `POST /api/shopify/products/:id/variants` - Add variant to product
-- `PUT /api/shopify/variants/:id` - Update variant
-- `DELETE /api/shopify/variants/:id` - Delete variant
-- `POST /api/shopify/products/import` - Bulk import from CSV
-
-**Public (no authentication)**:
-- `GET /api/public/shopify/products` - Get active products for catalog display
-
-### Active Files
-- `client/src/pages/shopify-products.tsx` - Admin UI for product management
-- `server/storage.ts` - Functions: createShopifyProduct(), getShopifyProducts(), getShopifyProductsForPublicCatalog(), importShopifyProductsFromCsv()
-- `server/routes.ts` - All Shopify product endpoints
-- `shared/schema.ts` - Schema definitions for shopify_products, shopify_product_options, shopify_product_variants
-
-### Legacy System Note
-The legacy `ecommerceProducts` table remains active for backward compatibility. Shopify products are separate and accessed via `/shopify-products` admin page. Consider migrating fully to Shopify-style products in future iterations.
