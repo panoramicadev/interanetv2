@@ -1264,11 +1264,28 @@ export default function Dashboard() {
               </div>
             </div>
             
-            {/* Period Badge below header */}
-            <div className="mt-2">
-              <Badge variant="secondary" className="w-full justify-center px-3 py-2 text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg">
-                {selection.display}
-              </Badge>
+            {/* Active filters badges below header */}
+            <div className="mt-2 flex flex-col gap-1.5">
+              {/* Filter type badge - only show if not "all" */}
+              {globalFilter.value && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="h-2 w-2 rounded-full bg-green-500 flex-shrink-0" />
+                  <span className="text-xs font-medium text-green-800 truncate">
+                    {selectedFilter === "segment" && `Segmento: ${globalFilter.value}`}
+                    {selectedFilter === "branch" && `Sucursal: ${globalFilter.value}`}
+                    {selectedFilter === "salesperson" && `Vendedor: ${globalFilter.value}`}
+                    {selectedFilter === "client" && `Cliente: ${globalFilter.value}`}
+                  </span>
+                </div>
+              )}
+              
+              {/* Period badge */}
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
+                <CalendarIcon className="h-3 w-3 text-blue-600 flex-shrink-0" />
+                <span className="text-xs font-medium text-blue-800">
+                  {selection.display}
+                </span>
+              </div>
             </div>
           </header>
         )}
