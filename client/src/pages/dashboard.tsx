@@ -40,7 +40,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, RefreshCw, Eye, AlertCircle, DollarSign, ChevronDown, ShoppingCart, Truck, Search, Check, ChevronsUpDown } from "lucide-react";
+import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, RefreshCw, Eye, AlertCircle, DollarSign, ChevronDown, ShoppingCart, Truck, Search, Check, ChevronsUpDown, Menu, Database } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -301,6 +301,60 @@ export default function Dashboard() {
     localStorage.getItem('dashboard-last-updated')
   );
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // ETL sync state
+  const [isRunningETL, setIsRunningETL] = useState(false);
+  
+  // Function to run all ETLs
+  const handleRunAllETL = async () => {
+    if (isRunningETL) return;
+    
+    setIsRunningETL(true);
+    toast({
+      title: "Actualizando datos",
+      description: "Ejecutando sincronización de todos los ETL...",
+    });
+    
+    try {
+      // Run all 3 ETLs in parallel
+      const results = await Promise.allSettled([
+        fetch('/api/etl/execute?etlName=ventas_incremental', { method: 'POST', credentials: 'include' }),
+        fetch('/api/etl/execute?etlName=nvv', { method: 'POST', credentials: 'include' }),
+        fetch('/api/etl/execute?etlName=gdv', { method: 'POST', credentials: 'include' }),
+      ]);
+      
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      
+      if (successCount === 3) {
+        toast({
+          title: "Actualización iniciada",
+          description: "Los 3 ETL se están ejecutando en segundo plano. Los datos se actualizarán en unos minutos.",
+        });
+      } else {
+        toast({
+          title: "Actualización parcial",
+          description: `${successCount} de 3 ETL iniciados correctamente.`,
+          variant: "destructive",
+        });
+      }
+      
+      // Refresh dashboard data after a delay
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/nvv'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/gdv'] });
+      }, 5000);
+      
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo iniciar la actualización de datos.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRunningETL(false);
+    }
+  };
   
   // Mobile detection and drawer state
   const isMobile = useIsMobile();
@@ -909,31 +963,45 @@ export default function Dashboard() {
 
   return (
     <div>
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 pt-3 pb-2 sm:py-5 lg:py-6 m-2 sm:m-4 rounded-2xl shadow-sm">
-          {/* Mobile Layout: Filters Button + Summary Chips */}
-          {isMobile ? (
-            <div className="space-y-2">
-              {/* Period and Filters in one line */}
-              <div className="flex items-center justify-between gap-2">
-                {/* Period Display */}
-                <div className="flex-1 min-w-0">
-                  <Badge variant="secondary" className="w-full justify-center px-3 py-2 text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg truncate">
-                    {selection.display}
-                  </Badge>
-                </div>
+        {/* Mobile Header with Logo, Menu and ETL Button */}
+        {isMobile && (
+          <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-3 py-2.5 sticky top-0 z-50 shadow-sm">
+            <div className="flex items-center justify-between">
+              {/* Logo */}
+              <div className="flex items-center gap-2">
+                <img 
+                  src={panoramicaLogo} 
+                  alt="Panoramica" 
+                  className="h-8 w-auto object-contain"
+                />
+              </div>
+              
+              {/* Actions: ETL Button + Filters Menu */}
+              <div className="flex items-center gap-2">
+                {/* ETL Sync Button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRunAllETL}
+                  disabled={isRunningETL}
+                  className="h-9 px-2.5 rounded-lg border-gray-200 dark:border-gray-700"
+                  data-testid="button-mobile-etl-sync"
+                >
+                  <Database className={`h-4 w-4 ${isRunningETL ? 'animate-pulse text-blue-500' : 'text-gray-600 dark:text-gray-400'}`} />
+                  {isRunningETL && <RefreshCw className="h-3 w-3 ml-1 animate-spin text-blue-500" />}
+                </Button>
                 
+                {/* Filters Menu Button */}
                 <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
                   <DrawerTrigger asChild>
                     <Button 
                       variant="outline" 
                       size="sm" 
                       onClick={handleDrawerOpen}
-                      className="flex items-center gap-2 h-9 px-3 text-sm rounded-xl border-gray-200 shadow-sm"
-                      data-testid="button-filters"
+                      className="h-9 px-2.5 rounded-lg border-gray-200 dark:border-gray-700"
+                      data-testid="button-mobile-menu"
                     >
-                      <Settings2 className="h-4 w-4" />
-                      <span>Filtros</span>
+                      <Menu className="h-4 w-4 text-gray-600 dark:text-gray-400" />
                     </Button>
                   </DrawerTrigger>
                   <DrawerContent className="max-h-[85vh]">
@@ -959,7 +1027,6 @@ export default function Dashboard() {
                               value={localSelectedFilter} 
                               onValueChange={(value) => {
                                 setLocalSelectedFilter(value);
-                                // Clear the value when changing filter type to avoid showing wrong data
                                 if (value === "all") {
                                   setLocalGlobalFilter({ type: "all" });
                                 } else if (value === "segment") {
@@ -1010,6 +1077,267 @@ export default function Dashboard() {
                               </SelectContent>
                             </Select>
                           </div>
+                          
+                          {(localSelectedFilter === "segment" || localSelectedFilter === "branch" || localSelectedFilter === "salesperson") && (
+                            <div>
+                              <label className="text-sm font-medium text-gray-700 block mb-2">
+                                {localSelectedFilter === "segment" ? "Segmento específico" : localSelectedFilter === "branch" ? "Sucursal específica" : "Vendedor específico"}
+                              </label>
+                              <Select 
+                                key={localSelectedFilter}
+                                value={(localGlobalFilter.type === localSelectedFilter && localGlobalFilter.value) ? localGlobalFilter.value : ""} 
+                                onValueChange={(value) => {
+                                  if (localSelectedFilter === "segment") {
+                                    setLocalGlobalFilter({ type: "segment", value });
+                                  } else if (localSelectedFilter === "branch") {
+                                    setLocalGlobalFilter({ type: "branch", value });
+                                  } else if (localSelectedFilter === "salesperson") {
+                                    setLocalGlobalFilter({ type: "salesperson", value });
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
+                                  <SelectValue placeholder={
+                                    localSelectedFilter === "segment" ? "Selecciona segmento" : localSelectedFilter === "branch" ? "Selecciona sucursal" : "Selecciona vendedor"
+                                  } />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl border-gray-200 max-h-60 overflow-y-auto">
+                                  {localSelectedFilter === "segment" ? (
+                                    segments?.map((segment) => (
+                                      <SelectItem key={segment} value={segment}>
+                                        {segment}
+                                      </SelectItem>
+                                    ))
+                                  ) : localSelectedFilter === "branch" ? (
+                                    ["CONCEPCION", "SANTIAGO"].map((branch) => (
+                                      <SelectItem key={branch} value={branch}>
+                                        {branch}
+                                      </SelectItem>
+                                    ))
+                                  ) : (
+                                    salespeople?.map((salesperson) => (
+                                      <SelectItem key={salesperson} value={salesperson}>
+                                        {salesperson}
+                                      </SelectItem>
+                                    ))
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                          
+                          {localSelectedFilter === "client" && (
+                            <div>
+                              <label className="text-sm font-medium text-gray-700 block mb-2">
+                                Buscar cliente
+                              </label>
+                              <div className="relative">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <Input
+                                  type="text"
+                                  placeholder="Buscar por nombre..."
+                                  value={clientSearchTerm}
+                                  onChange={(e) => setClientSearchTerm(e.target.value)}
+                                  className="h-11 pl-10 pr-10 w-full rounded-xl border-gray-200"
+                                  data-testid="input-mobile-client-search"
+                                />
+                                {clientSearchTerm && (
+                                  <button
+                                    onClick={() => setClientSearchTerm("")}
+                                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    data-testid="button-clear-mobile-search"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                              
+                              {clientSearchTerm.length >= 2 && (
+                                <div className="mt-2 max-h-48 overflow-y-auto border border-gray-200 rounded-xl bg-white">
+                                  {isSearchingClients ? (
+                                    <div className="p-3 text-center text-sm text-gray-500">
+                                      Buscando...
+                                    </div>
+                                  ) : searchedClients && searchedClients.length > 0 ? (
+                                    <div className="py-1">
+                                      {searchedClients.map((client) => (
+                                        <button
+                                          key={client.koen}
+                                          onClick={() => {
+                                            setLocalGlobalFilter({ type: "client", value: client.nokoen });
+                                            setClientSearchTerm("");
+                                          }}
+                                          className={`w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center justify-between ${
+                                            localGlobalFilter.value === client.nokoen ? 'bg-blue-50' : ''
+                                          }`}
+                                          data-testid={`mobile-client-result-${client.koen}`}
+                                        >
+                                          <span className="text-sm text-gray-900 truncate">{client.nokoen}</span>
+                                          {localGlobalFilter.value === client.nokoen && (
+                                            <Check className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                                          )}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="p-3 text-center text-sm text-gray-500">
+                                      No se encontraron clientes
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {clientSearchTerm.length > 0 && clientSearchTerm.length < 2 && (
+                                <p className="mt-2 text-xs text-gray-500">Escribe al menos 2 caracteres</p>
+                              )}
+                              
+                              {localGlobalFilter.type === "client" && localGlobalFilter.value && (
+                                <div className="mt-3 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                                  <span className="text-sm text-blue-900 truncate flex-1">{localGlobalFilter.value}</span>
+                                  <button
+                                    onClick={() => setLocalGlobalFilter({ type: "client", value: undefined })}
+                                    className="ml-2 text-blue-600 hover:text-blue-800"
+                                    data-testid="button-clear-selected-client"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              )}
+                              
+                              {!localGlobalFilter.value && clients?.items && clients.items.length > 0 && clientSearchTerm.length < 2 && (
+                                <div className="mt-3">
+                                  <p className="text-xs text-gray-500 mb-2">Clientes con más ventas:</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {clients.items.slice(0, 6).map((client: any) => (
+                                      <button
+                                        key={client.clientName}
+                                        onClick={() => setLocalGlobalFilter({ type: "client", value: client.clientName })}
+                                        className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-full text-gray-700 truncate max-w-[150px]"
+                                        data-testid={`mobile-top-client-${client.clientName}`}
+                                      >
+                                        {client.clientName}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <Separator />
+                      
+                      {/* Período Section */}
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
+                          <CalendarIcon className="h-4 w-4" />
+                          <span>Período de tiempo</span>
+                        </div>
+                        
+                        <YearMonthSelector
+                          value={localSelection}
+                          onChange={setLocalSelection}
+                        />
+                      </div>
+                    </div>
+                    
+                    <DrawerFooter className="border-t pt-4 mt-4">
+                      <Button 
+                        onClick={handleApplyFilters}
+                        className="w-full h-12 text-base font-medium rounded-xl"
+                        data-testid="button-apply-filters"
+                      >
+                        Aplicar filtros
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setIsDrawerOpen(false)}
+                        className="w-full h-11 text-base rounded-xl"
+                        data-testid="button-cancel-filters"
+                      >
+                        Cancelar
+                      </Button>
+                    </DrawerFooter>
+                  </DrawerContent>
+                </Drawer>
+              </div>
+            </div>
+            
+            {/* Period Badge below header */}
+            <div className="mt-2">
+              <Badge variant="secondary" className="w-full justify-center px-3 py-2 text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg">
+                {selection.display}
+              </Badge>
+            </div>
+          </header>
+        )}
+        
+        {/* Desktop Header */}
+        {!isMobile && (
+        <header className="bg-white dark:bg-gray-900 border-b border-gray-200/60 dark:border-gray-800 px-3 sm:px-4 lg:px-6 py-5 lg:py-6 m-2 sm:m-4 rounded-2xl shadow-sm">
+          {/* Desktop Layout */}
+          <div className="space-y-4 w-full">
+            {/* All filters in one line */}
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Vista */}
+              <div className="flex items-center gap-2">
+                <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Vista:</span>
+                <Select 
+                  value={selectedFilter} 
+                  onValueChange={(value) => {
+                    setSelectedFilter(value);
+                    if (value === "all") {
+                      setGlobalFilter({ type: "all" });
+                    } else if (value === "segment") {
+                      setGlobalFilter({ type: "segment", value: undefined });
+                    } else if (value === "branch") {
+                      setGlobalFilter({ type: "branch", value: undefined });
+                    } else if (value === "salesperson") {
+                      setGlobalFilter({ type: "salesperson", value: undefined });
+                    } else if (value === "client") {
+                      setGlobalFilter({ type: "client", value: undefined });
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 dark:border-gray-700 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-lg border-gray-200 dark:border-gray-700" sideOffset={4}>
+                    <SelectItem value="all">
+                      <div className="flex items-center space-x-2">
+                        <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
+                        <span>Todo el dashboard</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="segment">
+                      <div className="flex items-center space-x-2">
+                        <Building className="h-3.5 w-3.5 text-green-500" />
+                        <span>Por segmento</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="branch">
+                      <div className="flex items-center space-x-2">
+                        <Building className="h-3.5 w-3.5 text-blue-500" />
+                        <span>Por sucursal</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="salesperson">
+                      <div className="flex items-center space-x-2">
+                        <Users className="h-3.5 w-3.5 text-purple-500" />
+                        <span>Por vendedor</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="client">
+                      <div className="flex items-center space-x-2">
+                        <Users className="h-3.5 w-3.5 text-orange-500" />
+                        <span>Por cliente</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
                           
                           {(localSelectedFilter === "segment" || localSelectedFilter === "branch" || localSelectedFilter === "salesperson") && (
                             <div>
