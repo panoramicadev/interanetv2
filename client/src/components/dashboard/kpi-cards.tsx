@@ -606,11 +606,11 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
           <div className="flex-1 mb-2 lg:mb-0 pr-12 sm:pr-16 lg:pr-0">
-            <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2">
+            <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 sm:mb-2">
               {kpi.title}
             </p>
             <p 
-              className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
+              className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
               data-testid={kpi.testId}
               title={kpi.value}
             >
@@ -618,25 +618,21 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             </p>
             <div className="flex flex-col gap-0.5">
               <div className="flex items-baseline gap-1.5 flex-wrap">
-                {/* Mostrar porcentaje */}
                 {kpi.change.percentage !== "Sin datos previos" && (
                   <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
                     {kpi.change.percentage}
                   </span>
                 )}
-                {/* Mostrar diferencia en monto si hay datos previos */}
                 {previousSales > 0 && (
                   <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
                     {salesDifferenceSign}{salesDifferenceFormatted}
                   </span>
                 )}
-                {/* Mostrar texto de comparación */}
                 {kpi.change.comparisonText && (
-                  <span className="text-[10px] text-gray-500">
+                  <span className="text-[10px] text-gray-500 dark:text-gray-400">
                     {kpi.change.comparisonText}
                   </span>
                 )}
-                {/* Mostrar "Sin datos previos" si no hay comparación */}
                 {kpi.change.percentage === "Sin datos previos" && (
                   <span className="text-xs sm:text-sm font-semibold text-gray-500">
                     Sin datos previos
@@ -644,14 +640,13 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 )}
               </div>
             </div>
-            {/* Información adicional: NVV + GDV Pendiente y Total Combinado - Solo mostrar en mes actual */}
             {isCurrentMonth() && (
-              <div className="mt-2 pt-2 border-t border-gray-100 overflow-hidden">
-                <div className="grid grid-cols-2 gap-1 text-xs text-gray-500 mb-1">
+              <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div className="grid grid-cols-2 gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
                   <span className="truncate" title={`NVV: ${formatCurrency(nvvTotal)}`}>NVV: {formatCurrency(nvvTotal)}</span>
                   <span className="truncate" title={`GDV: ${formatCurrency(gdvSales)}`}>GDV: {formatCurrency(gdvSales)}</span>
                 </div>
-                <p className="text-xs font-semibold text-gray-700 truncate" title={`Combinado: ${formatCurrency(combinedTotal)}`}>
+                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate" title={`Combinado: ${formatCurrency(combinedTotal)}`}>
                   Combinado: {formatCurrency(combinedTotal)}
                 </p>
               </div>
@@ -674,11 +669,11 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
           <div className="flex-1 mb-2 lg:mb-0 pr-12 sm:pr-16 lg:pr-0">
-            <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2">
+            <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 sm:mb-2">
               {kpi.title}
             </p>
             <p 
-              className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
+              className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
               data-testid={kpi.testId}
               title={kpi.value}
             >
@@ -686,38 +681,33 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             </p>
             <div className="flex flex-col gap-0.5">
               <div className="flex items-baseline gap-2 flex-wrap">
-                {/* Mostrar el monto del cambio si existe */}
                 {kpi.comparison && (
                   <span className={`text-xs sm:text-sm font-semibold ${kpi.comparison.color}`}>
                     {kpi.comparison.text}
                   </span>
                 )}
-                {/* Siempre mostrar el porcentaje si hay datos */}
                 {kpi.change.percentage !== "Sin datos previos" && (
                   <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
                     {kpi.comparison ? `(${kpi.change.percentage})` : kpi.change.percentage}
                   </span>
                 )}
-                {/* Mostrar "Sin datos previos" si no hay comparación */}
                 {kpi.change.percentage === "Sin datos previos" && (
                   <span className="text-xs sm:text-sm font-semibold text-gray-500">
                     Sin datos previos
                   </span>
                 )}
               </div>
-              {/* Texto de comparación debajo */}
               {kpi.change.comparisonText && (
-                <span className="text-[9px] sm:text-[10px] text-gray-500">
+                <span className="text-[9px] sm:text-[10px] text-gray-500 dark:text-gray-400">
                   {kpi.change.comparisonText}
                 </span>
               )}
             </div>
-            {/* Subtítulo: Cantidad de órdenes y clientes */}
-            <div className="mt-2 pt-2 border-t border-gray-100">
-              <p className="text-xs text-gray-500 mb-1">
+            <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                 {formatNumber(totalOrders)} {totalOrders === 1 ? 'orden' : 'órdenes'}
               </p>
-              <p className="text-xs font-semibold text-gray-700">
+              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">
                 {formatNumber(totalCustomers)} {totalCustomers === 1 ? 'cliente' : 'clientes'}
               </p>
             </div>
@@ -735,7 +725,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     const bestYearValue = bestYear?.bestYear || 0;
     const bestYearTotalValue = bestYear?.bestYearTotal || 0;
 
-    // Calcular el monto de la diferencia
     const currentTotal = currentYearTotal || 0;
     const previousTotal = previousYearTotal || 0;
     const difference = currentTotal - previousTotal;
@@ -746,24 +735,23 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
           <div className="flex-1 mb-2 lg:mb-0 pr-12 sm:pr-16 lg:pr-0">
-            <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2">
+            <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 sm:mb-2">
               {kpi.title}
             </p>
             <p 
-              className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
+              className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
               data-testid={kpi.testId}
               title={kpi.value}
             >
               {kpi.value}
             </p>
-            {/* Bloque de comparación con año anterior */}
             {previousTotal > 0 && (
-              <div className="mt-2 space-y-1 text-xs border-t border-gray-100 pt-2">
+              <div className="mt-2 space-y-1 text-xs border-t border-gray-100 dark:border-gray-700 pt-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-500">
+                  <span className="text-gray-500 dark:text-gray-400">
                     {yearlyTotals?.comparisonYear || 'Año anterior'} (a la fecha):
                   </span>
-                  <span className="font-medium text-gray-700">{formatCurrency(previousTotal)}</span>
+                  <span className="font-medium text-gray-700 dark:text-gray-300">{formatCurrency(previousTotal)}</span>
                 </div>
                 <div className={`flex justify-between items-center font-semibold ${kpi.changeColor}`}>
                   <span>Diferencia:</span>
@@ -771,13 +759,11 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 </div>
               </div>
             )}
-
-            {/* Información adicional: Mejor año histórico */}
-            <div className="mt-2 pt-2 border-t border-gray-100 overflow-hidden">
-              <p className="text-xs text-gray-500 mb-1 truncate">
+            <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 overflow-hidden">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 truncate">
                 Mejor año: {bestYearValue}
               </p>
-              <p className="text-xs font-semibold text-gray-700 truncate" title={formatCurrency(bestYearTotalValue)}>
+              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate" title={formatCurrency(bestYearTotalValue)}>
                 {formatCurrency(bestYearTotalValue)}
               </p>
             </div>
