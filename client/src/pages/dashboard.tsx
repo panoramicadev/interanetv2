@@ -1011,10 +1011,10 @@ export default function Dashboard() {
                             </Select>
                           </div>
                           
-                          {(localSelectedFilter === "segment" || localSelectedFilter === "branch" || localSelectedFilter === "salesperson" || localSelectedFilter === "client") && (
+                          {(localSelectedFilter === "segment" || localSelectedFilter === "branch" || localSelectedFilter === "salesperson") && (
                             <div>
                               <label className="text-sm font-medium text-gray-700 block mb-2">
-                                {localSelectedFilter === "segment" ? "Segmento específico" : localSelectedFilter === "branch" ? "Sucursal específica" : localSelectedFilter === "salesperson" ? "Vendedor específico" : "Cliente específico"}
+                                {localSelectedFilter === "segment" ? "Segmento específico" : localSelectedFilter === "branch" ? "Sucursal específica" : "Vendedor específico"}
                               </label>
                               <Select 
                                 key={localSelectedFilter}
@@ -1026,14 +1026,12 @@ export default function Dashboard() {
                                     setLocalGlobalFilter({ type: "branch", value });
                                   } else if (localSelectedFilter === "salesperson") {
                                     setLocalGlobalFilter({ type: "salesperson", value });
-                                  } else if (localSelectedFilter === "client") {
-                                    setLocalGlobalFilter({ type: "client", value });
                                   }
                                 }}
                               >
                                 <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
                                   <SelectValue placeholder={
-                                    localSelectedFilter === "segment" ? "Selecciona segmento" : localSelectedFilter === "branch" ? "Selecciona sucursal" : localSelectedFilter === "salesperson" ? "Selecciona vendedor" : "Selecciona cliente"
+                                    localSelectedFilter === "segment" ? "Selecciona segmento" : localSelectedFilter === "branch" ? "Selecciona sucursal" : "Selecciona vendedor"
                                   } />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-gray-200 max-h-60 overflow-y-auto">
@@ -1049,21 +1047,113 @@ export default function Dashboard() {
                                         {branch}
                                       </SelectItem>
                                     ))
-                                  ) : localSelectedFilter === "salesperson" ? (
+                                  ) : (
                                     salespeople?.map((salesperson) => (
                                       <SelectItem key={salesperson} value={salesperson}>
                                         {salesperson}
                                       </SelectItem>
                                     ))
-                                  ) : (
-                                    clients?.items?.map((client: any) => (
-                                      <SelectItem key={client.clientName} value={client.clientName}>
-                                        {client.clientName}
-                                      </SelectItem>
-                                    ))
                                   )}
                                 </SelectContent>
                               </Select>
+                            </div>
+                          )}
+                          
+                          {localSelectedFilter === "client" && (
+                            <div>
+                              <label className="text-sm font-medium text-gray-700 block mb-2">
+                                Buscar cliente
+                              </label>
+                              <div className="relative">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <Input
+                                  type="text"
+                                  placeholder="Buscar por nombre..."
+                                  value={clientSearchTerm}
+                                  onChange={(e) => setClientSearchTerm(e.target.value)}
+                                  className="h-11 pl-10 pr-10 w-full rounded-xl border-gray-200"
+                                  data-testid="input-mobile-client-search"
+                                />
+                                {clientSearchTerm && (
+                                  <button
+                                    onClick={() => setClientSearchTerm("")}
+                                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    data-testid="button-clear-mobile-search"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                              
+                              {clientSearchTerm.length >= 2 && (
+                                <div className="mt-2 max-h-48 overflow-y-auto border border-gray-200 rounded-xl bg-white">
+                                  {isSearchingClients ? (
+                                    <div className="p-3 text-center text-sm text-gray-500">
+                                      Buscando...
+                                    </div>
+                                  ) : searchedClients && searchedClients.length > 0 ? (
+                                    <div className="py-1">
+                                      {searchedClients.map((client) => (
+                                        <button
+                                          key={client.koen}
+                                          onClick={() => {
+                                            setLocalGlobalFilter({ type: "client", value: client.nokoen });
+                                            setClientSearchTerm("");
+                                          }}
+                                          className={`w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center justify-between ${
+                                            localGlobalFilter.value === client.nokoen ? 'bg-blue-50' : ''
+                                          }`}
+                                          data-testid={`mobile-client-result-${client.koen}`}
+                                        >
+                                          <span className="text-sm text-gray-900 truncate">{client.nokoen}</span>
+                                          {localGlobalFilter.value === client.nokoen && (
+                                            <Check className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                                          )}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="p-3 text-center text-sm text-gray-500">
+                                      No se encontraron clientes
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {clientSearchTerm.length > 0 && clientSearchTerm.length < 2 && (
+                                <p className="mt-2 text-xs text-gray-500">Escribe al menos 2 caracteres</p>
+                              )}
+                              
+                              {localGlobalFilter.type === "client" && localGlobalFilter.value && (
+                                <div className="mt-3 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                                  <span className="text-sm text-blue-900 truncate flex-1">{localGlobalFilter.value}</span>
+                                  <button
+                                    onClick={() => setLocalGlobalFilter({ type: "client", value: undefined })}
+                                    className="ml-2 text-blue-600 hover:text-blue-800"
+                                    data-testid="button-clear-selected-client"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              )}
+                              
+                              {!localGlobalFilter.value && clients?.items && clients.items.length > 0 && clientSearchTerm.length < 2 && (
+                                <div className="mt-3">
+                                  <p className="text-xs text-gray-500 mb-2">Clientes con más ventas:</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {clients.items.slice(0, 6).map((client: any) => (
+                                      <button
+                                        key={client.clientName}
+                                        onClick={() => setLocalGlobalFilter({ type: "client", value: client.clientName })}
+                                        className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-full text-gray-700 truncate max-w-[150px]"
+                                        data-testid={`mobile-top-client-${client.clientName}`}
+                                      >
+                                        {client.clientName}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
