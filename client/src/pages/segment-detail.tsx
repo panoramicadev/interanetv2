@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target, Eye, Building, Home, Download, Search, X, UserPlus, RefreshCw, Package } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target, Eye, Building, Home, Download, Search, X, UserPlus, RefreshCw, Package, Menu, Database, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,10 +9,14 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerTrigger, DrawerFooter } from "@/components/ui/drawer";
+import { Separator } from "@/components/ui/separator";
 import { format, parse, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { useFilter } from "@/contexts/FilterContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
+import panoramicaLogo from "@assets/Diseno-sin-titulo-12-1-e1733933035809_1759422274944.webp";
 import ComparativeSegmentSalespeopleTable from "@/components/dashboard/comparative-segment-salespeople-table";
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
 import SegmentPendingNVV from "@/components/dashboard/segment-pending-nvv";
@@ -93,6 +97,24 @@ export default function SegmentDetail({
   
   // Use global filter context
   const { selection, setSelection } = useFilter();
+  
+  // Mobile detection
+  const isMobile = useIsMobile();
+  
+  // Mobile drawer state
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [localSelection, setLocalSelection] = useState(selection);
+  
+  // Sync local selection when drawer opens
+  const handleDrawerOpen = () => {
+    setLocalSelection(selection);
+  };
+  
+  // Apply filters from drawer
+  const handleApplyFilters = () => {
+    setSelection(localSelection);
+    setIsDrawerOpen(false);
+  };
   
   // Local state for view type
   const [selectedView, setSelectedView] = useState<"all" | "segmento" | "vendedor">("segmento");
@@ -767,7 +789,115 @@ export default function SegmentDetail({
   return (
     <div className="min-h-screen">
       <div className="w-full">
-        {/* Header - Same as Dashboard */}
+        {/* Mobile Header with Logo */}
+        {isMobile && (
+          <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-3 py-2.5 sticky top-0 z-50 shadow-sm">
+            <div className="flex items-center justify-between">
+              {/* Logo */}
+              <div className="flex items-center gap-2">
+                <img 
+                  src={panoramicaLogo} 
+                  alt="Panoramica" 
+                  className="h-10 w-auto object-contain"
+                />
+              </div>
+              
+              {/* Actions: Back + Filters Menu */}
+              <div className="flex items-center gap-2">
+                {/* Back Button */}
+                {onBack && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onBack}
+                    className="h-9 px-2.5 rounded-lg border-gray-200 dark:border-gray-700"
+                    data-testid="button-mobile-back"
+                  >
+                    <Home className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                  </Button>
+                )}
+                
+                {/* Filters Menu Button */}
+                <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+                  <DrawerTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleDrawerOpen}
+                      className="h-9 px-2.5 rounded-lg border-gray-200 dark:border-gray-700"
+                      data-testid="button-mobile-menu"
+                    >
+                      <Menu className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                    </Button>
+                  </DrawerTrigger>
+                  <DrawerContent className="max-h-[85vh]">
+                    <DrawerHeader className="text-center border-b pb-4 mb-6">
+                      <DrawerTitle className="text-lg font-semibold">Filtros del Segmento</DrawerTitle>
+                      <DrawerDescription className="text-sm text-gray-600">
+                        Personaliza la vista del segmento {segmentName}
+                      </DrawerDescription>
+                    </DrawerHeader>
+                    
+                    <div className="px-6 space-y-6 overflow-y-auto flex-1">
+                      {/* Período Section */}
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
+                          <CalendarIcon className="h-4 w-4" />
+                          <span>Período de tiempo</span>
+                        </div>
+                        
+                        <YearMonthSelector
+                          value={localSelection}
+                          onChange={setLocalSelection}
+                        />
+                      </div>
+                    </div>
+                    
+                    <DrawerFooter className="border-t pt-4 mt-4">
+                      <Button 
+                        onClick={handleApplyFilters}
+                        className="w-full h-12 text-base font-medium rounded-xl"
+                        data-testid="button-apply-filters"
+                      >
+                        Aplicar filtros
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setIsDrawerOpen(false)}
+                        className="w-full h-11 text-base rounded-xl"
+                        data-testid="button-cancel-filters"
+                      >
+                        Cancelar
+                      </Button>
+                    </DrawerFooter>
+                  </DrawerContent>
+                </Drawer>
+              </div>
+            </div>
+            
+            {/* Active filters badges below header */}
+            <div className="mt-2 flex flex-col gap-1.5">
+              {/* Segment badge */}
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg">
+                <div className="h-2 w-2 rounded-full bg-green-500 flex-shrink-0" />
+                <span className="text-xs font-medium text-green-800 truncate">
+                  Segmento: {segmentName}
+                </span>
+              </div>
+              
+              {/* Period badge */}
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
+                <CalendarIcon className="h-3 w-3 text-blue-600 flex-shrink-0" />
+                <span className="text-xs font-medium text-blue-800">
+                  {selection.display}
+                </span>
+              </div>
+            </div>
+          </header>
+        )}
+        
+        {/* Desktop Header */}
+        {!isMobile && (
         <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 pt-3 pb-2 sm:py-5 lg:py-6 m-2 sm:m-4 rounded-2xl shadow-sm">
           <div className="space-y-4 w-full">
             {/* All filters in one line */}
@@ -983,6 +1113,7 @@ export default function SegmentDetail({
             )}
           </div>
         </header>
+        )}
 
         {/* Main Content */}
         <main className="p-3 sm:p-4 lg:p-6 space-y-4 lg:space-y-6">
