@@ -557,7 +557,7 @@ export function registerRoutes(app: Express): Server {
   // Sales metrics endpoint
   app.get('/api/sales/metrics', requireCommercialAccess, async (req, res) => {
     try {
-      const { startDate, endDate, salesperson, segment, client, supplier, period, filterType } = req.query;
+      const { startDate, endDate, salesperson, segment, client, supplier, period, filterType, product } = req.query;
       
       // Check if this is a comparison period query and resolve it
       let resolvedPeriod = period as string;
@@ -622,6 +622,7 @@ export function registerRoutes(app: Express): Server {
         segment: segment as string,
         client: client as string,
         supplier: supplier as string,
+        product: product as string,
       });
       
       // Get previous year metrics for comparison (same period in previous year - year-over-year)
@@ -632,6 +633,7 @@ export function registerRoutes(app: Express): Server {
         segment: segment as string,
         client: client as string,
         supplier: supplier as string,
+        product: product as string,
       });
       
       console.log(`[DEBUG] Métricas actuales: Ventas=${metrics.totalSales}, Transacciones=${metrics.totalTransactions}`);

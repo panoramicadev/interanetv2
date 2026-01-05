@@ -1816,6 +1816,7 @@ export default function Dashboard() {
                   segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
                   salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
                   client={selectedClient}
+                  product={globalFilter.type === "product" ? globalFilter.value : undefined}
                   comparePeriod={comparePeriod}
                 />
               </div>
