@@ -36,6 +36,7 @@ interface SalesChartProps {
   segment?: string;
   salesperson?: string;
   client?: string;
+  product?: string;
   comparisonPeriods?: Array<{period: string, label: string, filterType: string}>;
 }
 
@@ -50,7 +51,7 @@ const CHART_COLORS = [
   { border: '#06b6d4', bg: 'rgba(6, 182, 212, 0.3)' },    // Cyan
 ];
 
-export default function SalesChart({ selectedPeriod, filterType, segment, salesperson, client, comparisonPeriods }: SalesChartProps) {
+export default function SalesChart({ selectedPeriod, filterType, segment, salesperson, client, product, comparisonPeriods }: SalesChartProps) {
   // Auto-set chart period based on main filter type
   const getDefaultPeriod = (): 'weekly' | 'monthly' | 'daily' => {
     if (filterType === 'year') return 'monthly'; // Year view → show 12 months
@@ -70,7 +71,7 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
   
   // Single period query
   const { data: chartData, isLoading: singleLoading} = useQuery<ChartDataPoint[]>({
-    queryKey: ['/api/sales/chart-data', chartPeriod, selectedPeriod, filterType, segment, salesperson, client],
+    queryKey: ['/api/sales/chart-data', chartPeriod, selectedPeriod, filterType, segment, salesperson, client, product],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append('period', chartPeriod);
@@ -79,6 +80,7 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
       if (segment) params.append('segment', segment);
       if (salesperson) params.append('salesperson', salesperson);
       if (client) params.append('client', client);
+      if (product) params.append('product', product);
       const res = await fetch(`/api/sales/chart-data?${params}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
@@ -88,7 +90,7 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
 
   // Multi-period comparison query
   const { data: comparisonData, isLoading: comparisonLoading } = useQuery({
-    queryKey: ['/api/sales/chart-data-comparison', comparisonPeriods, chartPeriod, segment, salesperson, client],
+    queryKey: ['/api/sales/chart-data-comparison', comparisonPeriods, chartPeriod, segment, salesperson, client, product],
     queryFn: async () => {
       const results = await Promise.all(
         (comparisonPeriods || []).map(async ({ period: p, label, filterType: ft }) => {
@@ -99,6 +101,7 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
           if (segment) params.append('segment', segment);
           if (salesperson) params.append('salesperson', salesperson);
           if (client) params.append('client', client);
+          if (product) params.append('product', product);
           
           const res = await fetch(`/api/sales/chart-data?${params}`, { credentials: "include" });
           if (!res.ok) throw new Error('Failed to fetch');
