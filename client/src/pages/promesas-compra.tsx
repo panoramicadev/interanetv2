@@ -131,13 +131,13 @@ export default function PromesasCompraPage() {
     },
   });
 
-  // Query para obtener clientes - sin límite para encontrar absolutamente todos
+  // Query para obtener clientes de la tabla principal
   const { data: clientsData } = useQuery({
     queryKey: ['/api/clients', { search: searchClient }],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (searchClient) params.set('search', searchClient);
-      params.set('limit', '15000'); // Aumentado para encontrar absolutamente todos los clientes (hay ~13.5k)
+      params.set('limit', '500');
       params.set('offset', '0');
       
       const response = await fetch(`/api/clients?${params}`, { credentials: 'include' });
@@ -154,8 +154,50 @@ export default function PromesasCompraPage() {
     enabled: searchClient.length >= 1,
   });
 
-  // Extract clients array from response
-  const clientes = clientsData?.clients || [];
+  // Query para buscar clientes desde transacciones de ventas (encuentra TODOS incluyendo los que no están en dim_clientes)
+  const { data: salesClientsData } = useQuery({
+    queryKey: ['/api/sales/clients-search', { search: searchClient }],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (searchClient) params.set('search', searchClient);
+      params.set('limit', '500');
+      
+      const response = await fetch(`/api/sales/clients-search?${params}`, { credentials: 'include' });
+      if (!response.ok) {
+        throw new Error('Failed to fetch sales clients');
+      }
+      return response.json() as Promise<{ clients: Cliente[] }>;
+    },
+    enabled: searchClient.length >= 1,
+  });
+
+  // Combinar clientes de ambas fuentes, eliminando duplicados por nombre
+  const clientes = (() => {
+    const mainClients = clientsData?.clients || [];
+    const salesClients = salesClientsData?.clients || [];
+    const seen = new Set<string>();
+    const combined: Cliente[] = [];
+    
+    // Primero agregar clientes de la tabla principal
+    for (const c of mainClients) {
+      const key = c.nokoen?.toLowerCase() || c.koen;
+      if (!seen.has(key)) {
+        seen.add(key);
+        combined.push(c);
+      }
+    }
+    
+    // Luego agregar clientes de ventas que no estén ya
+    for (const c of salesClients) {
+      const key = c.nokoen?.toLowerCase() || c.koen;
+      if (!seen.has(key)) {
+        seen.add(key);
+        combined.push(c);
+      }
+    }
+    
+    return combined;
+  })();
 
   // Query para obtener promesas con cumplimiento
   const { data: promesasCumplimiento = [], isLoading } = useQuery<PromesaCumplimiento[]>({
