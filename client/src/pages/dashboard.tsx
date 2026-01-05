@@ -580,11 +580,11 @@ export default function Dashboard() {
   });
 
   // Search products query
-  const { data: searchedProducts, isLoading: isSearchingProducts } = useQuery<Array<{ sku: string; nombre: string }>>({
+  const { data: searchedProducts, isLoading: isSearchingProducts } = useQuery<Array<{ name: string; totalSales: number; totalUnits: number }>>({
     queryKey: ["/api/products/search", productSearchTerm],
     queryFn: async () => {
       if (!productSearchTerm || productSearchTerm.length < 2) return [];
-      const response = await fetch(`/api/products/search?q=${encodeURIComponent(productSearchTerm)}`);
+      const response = await fetch(`/api/products/search?q=${encodeURIComponent(productSearchTerm)}`, { credentials: "include" });
       if (!response.ok) throw new Error('Failed to search products');
       return response.json();
     },
@@ -1301,23 +1301,20 @@ export default function Dashboard() {
                                     </div>
                                   ) : searchedProducts && searchedProducts.length > 0 ? (
                                     <div className="py-1">
-                                      {searchedProducts.map((product) => (
+                                      {searchedProducts.map((product, idx) => (
                                         <button
-                                          key={product.sku}
+                                          key={`${product.name}-${idx}`}
                                           onClick={() => {
-                                            setLocalGlobalFilter({ type: "product", value: product.nombre });
+                                            setLocalGlobalFilter({ type: "product", value: product.name });
                                             setProductSearchTerm("");
                                           }}
                                           className={`w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center justify-between ${
-                                            localGlobalFilter.value === product.nombre ? 'bg-teal-50' : ''
+                                            localGlobalFilter.value === product.name ? 'bg-teal-50' : ''
                                           }`}
-                                          data-testid={`mobile-product-result-${product.sku}`}
+                                          data-testid={`mobile-product-result-${idx}`}
                                         >
-                                          <div className="flex flex-col">
-                                            <span className="text-sm text-gray-900 truncate">{product.nombre}</span>
-                                            <span className="text-xs text-gray-500">{product.sku}</span>
-                                          </div>
-                                          {localGlobalFilter.value === product.nombre && (
+                                          <span className="text-sm text-gray-900 truncate">{product.name}</span>
+                                          {localGlobalFilter.value === product.name && (
                                             <Check className="h-4 w-4 text-teal-600 flex-shrink-0" />
                                           )}
                                         </button>
@@ -1658,26 +1655,23 @@ export default function Dashboard() {
                               <CommandEmpty>Buscando productos...</CommandEmpty>
                             ) : searchedProducts && searchedProducts.length > 0 ? (
                               <CommandGroup heading="Resultados de búsqueda">
-                                {searchedProducts.map((product) => (
+                                {searchedProducts.map((product, idx) => (
                                   <CommandItem
-                                    key={product.sku}
-                                    value={product.nombre}
+                                    key={`${product.name}-${idx}`}
+                                    value={product.name}
                                     onSelect={() => {
-                                      setGlobalFilter({ type: "product", value: product.nombre });
+                                      setGlobalFilter({ type: "product", value: product.name });
                                       setProductSearchOpen(false);
                                       setProductSearchTerm("");
                                     }}
-                                    data-testid={`product-option-${product.sku}`}
+                                    data-testid={`product-option-${idx}`}
                                   >
                                     <Check
                                       className={`mr-2 h-4 w-4 ${
-                                        globalFilter.value === product.nombre ? "opacity-100" : "opacity-0"
+                                        globalFilter.value === product.name ? "opacity-100" : "opacity-0"
                                       }`}
                                     />
-                                    <div className="flex flex-col">
-                                      <span>{product.nombre}</span>
-                                      <span className="text-xs text-gray-500">{product.sku}</span>
-                                    </div>
+                                    <span>{product.name}</span>
                                   </CommandItem>
                                 ))}
                               </CommandGroup>
