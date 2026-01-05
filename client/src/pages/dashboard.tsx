@@ -40,7 +40,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, RefreshCw, Eye, AlertCircle, DollarSign, ChevronDown, ShoppingCart, Truck, Search, Check, ChevronsUpDown, Menu, Database } from "lucide-react";
+import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, RefreshCw, Eye, AlertCircle, DollarSign, ChevronDown, ShoppingCart, Truck, Search, Check, ChevronsUpDown, Menu, Database, Package } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useIsMobile } from "@/hooks/use-mobile";
