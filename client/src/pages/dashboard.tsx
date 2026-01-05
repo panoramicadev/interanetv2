@@ -1634,9 +1634,11 @@ export default function Dashboard() {
                           className="h-9 w-64 justify-between rounded-lg border-gray-200 text-sm font-normal"
                           data-testid="button-product-search"
                         >
-                          {globalFilter.type === "product" && globalFilter.value
-                            ? globalFilter.value
-                            : "Buscar producto..."}
+                          <span className="truncate max-w-[180px]">
+                            {globalFilter.type === "product" && globalFilter.value
+                              ? globalFilter.value
+                              : "Buscar producto..."}
+                          </span>
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
