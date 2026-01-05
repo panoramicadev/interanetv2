@@ -812,15 +812,15 @@ export default function TareasPage() {
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
           <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1 bg-gray-100 ${user?.role === 'tecnico_obra' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
             <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">Tareas</TabsTrigger>
-            <TabsTrigger value="calendario" data-testid="tab-calendario" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">
-              <CalendarIcon className="h-4 w-4 mr-1.5 hidden sm:inline" />
-              Calendario
-            </TabsTrigger>
             {user?.role !== 'tecnico_obra' && (
               <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">
                 {esConstruccion ? 'Estimación Mensual' : 'Estimación Semanal'}
               </TabsTrigger>
             )}
+            <TabsTrigger value="calendario" data-testid="tab-calendario" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">
+              <CalendarIcon className="h-4 w-4 mr-1.5 hidden sm:inline" />
+              Calendario
+            </TabsTrigger>
           </TabsList>
         </div>
 
