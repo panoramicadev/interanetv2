@@ -1576,7 +1576,15 @@ export default function Dashboard() {
           {/* Comparative Mode Layout */}
           {isComparativeMode ? (
             <>
-              {/* Comparative KPI Cards */}
+              {/* Total Acumulado - arriba de los gráficos */}
+              <ComparativeAccumulatedTotal 
+                periods={comparativePeriods}
+                segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                client={selectedClient}
+              />
+
+              {/* Comparative KPI Cards con gráficos */}
               <div>
                 <ComparativeKPICards 
                   periods={comparativePeriods}
@@ -1585,14 +1593,6 @@ export default function Dashboard() {
                   client={selectedClient}
                 />
               </div>
-
-              {/* Total Acumulado */}
-              <ComparativeAccumulatedTotal 
-                periods={comparativePeriods}
-                segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-                salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-                client={selectedClient}
-              />
 
               {/* Evolución de Ventas por Segmento */}
               {globalFilter.type === "all" && (
