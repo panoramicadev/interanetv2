@@ -48,6 +48,12 @@ interface SegmentProduct {
   percentage: number;
 }
 
+interface SalespersonClient {
+  clientName: string;
+  totalSales: number;
+  transactionCount: number;
+}
+
 interface SegmentDetailProps {
   segmentName?: string;
   embedded?: boolean;
@@ -459,6 +465,23 @@ export default function SegmentDetail({
       }));
     },
     enabled: !!segmentName && debouncedSalespersonSearch.length >= 2,
+  });
+
+  // Clients of expanded salesperson
+  const { data: salespersonClients = [], isLoading: isLoadingSalespersonClients } = useQuery<SalespersonClient[]>({
+    queryKey: ['/api/segments', segmentName, 'top-salespeople', expandedSalesperson, 'clients', selectedPeriod, filterType],
+    queryFn: async () => {
+      if (!expandedSalesperson || !segmentName) return [];
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      params.append('limit', '10');
+      const res = await fetch(`/api/segments/${encodeURIComponent(segmentName)}/top-salespeople/${encodeURIComponent(expandedSalesperson)}/clients?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      const data = await res.json();
+      return data.items || data;
+    },
+    enabled: !!segmentName && !!expandedSalesperson,
   });
 
   // Top products for segment
@@ -1427,7 +1450,7 @@ export default function SegmentDetail({
                           </div>
                         </AccordionTrigger>
                         <AccordionContent className="px-4 pb-4 pt-2 bg-white">
-                          <div className="space-y-2 text-sm">
+                          <div className="space-y-3 text-sm">
                             <div className="flex justify-between">
                               <span className="text-gray-600">Transacciones:</span>
                               <span className="font-medium">{formatNumber(salesperson.transactionCount)}</span>
@@ -1436,6 +1459,34 @@ export default function SegmentDetail({
                               <span className="text-gray-600">Ticket Promedio:</span>
                               <span className="font-medium">{formatCurrency(salesperson.averageTicket)}</span>
                             </div>
+                            
+                            {expandedSalesperson === salesperson.salespersonName && (
+                              <div className="mt-3 pt-3 border-t border-gray-100">
+                                <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Clientes</p>
+                                {isLoadingSalespersonClients ? (
+                                  <div className="space-y-2">
+                                    {[...Array(3)].map((_, i) => (
+                                      <div key={i} className="animate-pulse h-6 bg-gray-100 rounded"></div>
+                                    ))}
+                                  </div>
+                                ) : salespersonClients.length === 0 ? (
+                                  <p className="text-gray-400 text-xs">Sin clientes en este período</p>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {salespersonClients.map((client, idx) => (
+                                      <div 
+                                        key={`${client.clientName}-${idx}`}
+                                        className="flex justify-between items-center py-1.5 px-2 bg-gray-50 rounded"
+                                        data-testid={`salesperson-client-${idx}`}
+                                      >
+                                        <span className="text-gray-700 truncate flex-1">{client.clientName}</span>
+                                        <span className="font-medium text-gray-900 ml-2">{formatCurrency(client.totalSales)}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </AccordionContent>
                       </AccordionItem>
