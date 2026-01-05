@@ -210,9 +210,32 @@ export default function TareasPage() {
     enabled: user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'tecnico_obra',
   });
 
+  // Query para obtener vendedores del supervisor (para detectar segmento CONSTRUCCION)
+  const { data: supervisorSalespeople } = useQuery<Array<{ id: string; salespersonName: string; assignedSegment?: string }>>({
+    queryKey: ['/api/supervisor', user?.id, 'salespeople'],
+    queryFn: async () => {
+      const response = await apiRequest(`/api/supervisor/${user?.id}/salespeople`);
+      return response.json();
+    },
+    enabled: !!user && user?.role === 'supervisor',
+  });
+
   // Queries para Promesas de Compra
   // Para Construcción usar período mensual (YYYY-MM), para otros usar semanal (YYYY-WW)
-  const esConstruccion = (user as any)?.assignedSegment?.toLowerCase()?.includes('construcc') || false;
+  // Supervisor: verificar si alguno de sus vendedores es de CONSTRUCCION
+  const esConstruccion = (() => {
+    // Si el usuario tiene segmento asignado directamente
+    if ((user as any)?.assignedSegment?.toLowerCase()?.includes('construcc')) {
+      return true;
+    }
+    // Si es supervisor, verificar los segmentos de sus vendedores
+    if (user?.role === 'supervisor' && supervisorSalespeople && supervisorSalespeople.length > 0) {
+      return supervisorSalespeople.some(sp => 
+        sp.assignedSegment?.toLowerCase()?.includes('construcc')
+      );
+    }
+    return false;
+  })();
   const currentPeriod = esConstruccion 
     ? `${getYear(selectedWeek)}-${String(selectedWeek.getMonth() + 1).padStart(2, '0')}`
     : `${getYear(selectedWeek)}-${String(getISOWeek(selectedWeek)).padStart(2, '0')}`;

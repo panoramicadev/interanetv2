@@ -828,6 +828,7 @@ export interface IStorage {
     id: string;
     salespersonName: string;
     email: string;
+    assignedSegment?: string | null;
     totalSales: number;
     transactionCount: number;
     lastSale: string;
@@ -6728,6 +6729,7 @@ export class DatabaseStorage implements IStorage {
     id: string;
     salespersonName: string;
     email: string;
+    assignedSegment?: string | null;
     totalSales: number;
     transactionCount: number;
     lastSale: string;
@@ -6807,6 +6809,7 @@ export class DatabaseStorage implements IStorage {
         id: salesperson.id,
         salespersonName: salesperson.salespersonName,
         email: salesperson.email || '',
+        assignedSegment: salesperson.assignedSegment || null,
         totalSales: Number(salesStats?.totalSales || 0),
         transactionCount: Number(salesStats?.transactionCount || 0),
         lastSale: salesStats?.lastSale || '',
