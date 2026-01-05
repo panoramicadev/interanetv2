@@ -3684,7 +3684,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string, segment?: string, client?: string): Promise<Array<{
+  async getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string, segment?: string, client?: string, product?: string): Promise<Array<{
     period: string;
     sales: number;
   }>> {
@@ -3707,6 +3707,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (client) {
       conditions.push(eq(factVentas.nokoen, client));
+    }
+    if (product) {
+      conditions.push(eq(factVentas.nokoprct, product));
     }
     
     let query: any;
