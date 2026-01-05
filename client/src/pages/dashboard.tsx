@@ -192,6 +192,10 @@ export default function Dashboard() {
   const [clientSearchOpen, setClientSearchOpen] = useState(false);
   const [clientSearchTerm, setClientSearchTerm] = useState("");
   
+  // Product search state
+  const [productSearchOpen, setProductSearchOpen] = useState(false);
+  const [productSearchTerm, setProductSearchTerm] = useState("");
+  
   // Comparison period state
   const [comparePeriod, setComparePeriod] = useState<string>("none");
   
@@ -572,6 +576,19 @@ export default function Dashboard() {
       return response.json();
     },
     enabled: clientSearchTerm.length >= 2,
+    staleTime: 30000,
+  });
+
+  // Search products query
+  const { data: searchedProducts, isLoading: isSearchingProducts } = useQuery<Array<{ sku: string; nombre: string }>>({
+    queryKey: ["/api/products/search", productSearchTerm],
+    queryFn: async () => {
+      if (!productSearchTerm || productSearchTerm.length < 2) return [];
+      const response = await fetch(`/api/products/search?q=${encodeURIComponent(productSearchTerm)}`);
+      if (!response.ok) throw new Error('Failed to search products');
+      return response.json();
+    },
+    enabled: productSearchTerm.length >= 2,
     staleTime: 30000,
   });
 
@@ -1037,6 +1054,8 @@ export default function Dashboard() {
                                   setLocalGlobalFilter({ type: "salesperson", value: undefined });
                                 } else if (value === "client") {
                                   setLocalGlobalFilter({ type: "client", value: undefined });
+                                } else if (value === "product") {
+                                  setLocalGlobalFilter({ type: "product", value: undefined });
                                 }
                               }}
                             >
@@ -1072,6 +1091,12 @@ export default function Dashboard() {
                                   <div className="flex items-center space-x-2">
                                     <Users className="h-4 w-4 text-orange-500" />
                                     <span>Por cliente</span>
+                                  </div>
+                                </SelectItem>
+                                <SelectItem value="product">
+                                  <div className="flex items-center space-x-2">
+                                    <Package className="h-4 w-4 text-teal-500" />
+                                    <span>Por producto</span>
                                   </div>
                                 </SelectItem>
                               </SelectContent>
@@ -1232,6 +1257,98 @@ export default function Dashboard() {
                               )}
                             </div>
                           )}
+                          
+                          {localSelectedFilter === "product" && (
+                            <div>
+                              <label className="text-sm font-medium text-gray-700 block mb-2">
+                                Buscar producto
+                              </label>
+                              <div className="relative">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                                <Input
+                                  type="text"
+                                  inputMode="search"
+                                  autoComplete="off"
+                                  autoCorrect="off"
+                                  placeholder="Buscar por nombre o SKU..."
+                                  value={productSearchTerm}
+                                  onChange={(e) => setProductSearchTerm(e.target.value)}
+                                  onFocus={(e) => {
+                                    setTimeout(() => {
+                                      e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    }, 300);
+                                  }}
+                                  className="h-11 pl-10 pr-10 w-full rounded-xl border-gray-200 text-base"
+                                  style={{ fontSize: '16px' }}
+                                  data-testid="input-mobile-product-search"
+                                />
+                                {productSearchTerm && (
+                                  <button
+                                    onClick={() => setProductSearchTerm("")}
+                                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    data-testid="button-clear-mobile-product-search"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                              
+                              {productSearchTerm.length >= 2 && (
+                                <div className="mt-2 max-h-48 overflow-y-auto border border-gray-200 rounded-xl bg-white">
+                                  {isSearchingProducts ? (
+                                    <div className="p-3 text-center text-sm text-gray-500">
+                                      Buscando...
+                                    </div>
+                                  ) : searchedProducts && searchedProducts.length > 0 ? (
+                                    <div className="py-1">
+                                      {searchedProducts.map((product) => (
+                                        <button
+                                          key={product.sku}
+                                          onClick={() => {
+                                            setLocalGlobalFilter({ type: "product", value: product.nombre });
+                                            setProductSearchTerm("");
+                                          }}
+                                          className={`w-full px-4 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center justify-between ${
+                                            localGlobalFilter.value === product.nombre ? 'bg-teal-50' : ''
+                                          }`}
+                                          data-testid={`mobile-product-result-${product.sku}`}
+                                        >
+                                          <div className="flex flex-col">
+                                            <span className="text-sm text-gray-900 truncate">{product.nombre}</span>
+                                            <span className="text-xs text-gray-500">{product.sku}</span>
+                                          </div>
+                                          {localGlobalFilter.value === product.nombre && (
+                                            <Check className="h-4 w-4 text-teal-600 flex-shrink-0" />
+                                          )}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="p-3 text-center text-sm text-gray-500">
+                                      No se encontraron productos
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {productSearchTerm.length > 0 && productSearchTerm.length < 2 && (
+                                <p className="mt-2 text-xs text-gray-500">Escribe al menos 2 caracteres</p>
+                              )}
+                              
+                              {localGlobalFilter.type === "product" && localGlobalFilter.value && (
+                                <div className="mt-3 flex items-center justify-between bg-teal-50 border border-teal-200 rounded-lg px-3 py-2">
+                                  <span className="text-sm text-teal-900 truncate flex-1">{localGlobalFilter.value}</span>
+                                  <button
+                                    onClick={() => setLocalGlobalFilter({ type: "product", value: undefined })}
+                                    className="ml-2 text-teal-600 hover:text-teal-800"
+                                    data-testid="button-clear-selected-product"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                       
@@ -1284,6 +1401,7 @@ export default function Dashboard() {
                     {selectedFilter === "branch" && `Sucursal: ${globalFilter.value}`}
                     {selectedFilter === "salesperson" && `Vendedor: ${globalFilter.value}`}
                     {selectedFilter === "client" && `Cliente: ${globalFilter.value}`}
+                    {selectedFilter === "product" && `Producto: ${globalFilter.value}`}
                   </span>
                 </div>
               )}
@@ -1324,6 +1442,8 @@ export default function Dashboard() {
                       setGlobalFilter({ type: "salesperson", value: undefined });
                     } else if (value === "client") {
                       setGlobalFilter({ type: "client", value: undefined });
+                    } else if (value === "product") {
+                      setGlobalFilter({ type: "product", value: undefined });
                     }
                   }}
                 >
@@ -1359,6 +1479,12 @@ export default function Dashboard() {
                       <div className="flex items-center space-x-2">
                         <Users className="h-3.5 w-3.5 text-orange-500" />
                         <span>Por cliente</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="product">
+                      <div className="flex items-center space-x-2">
+                        <Package className="h-3.5 w-3.5 text-teal-500" />
+                        <span>Por producto</span>
                       </div>
                     </SelectItem>
                   </SelectContent>
@@ -1498,6 +1624,73 @@ export default function Dashboard() {
                   </div>
                 )}
 
+                {/* Product selector with search */}
+                {selectedFilter === "product" && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-700">Producto:</span>
+                    <Popover open={productSearchOpen} onOpenChange={setProductSearchOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={productSearchOpen}
+                          className="h-9 w-64 justify-between rounded-lg border-gray-200 text-sm font-normal"
+                          data-testid="button-product-search"
+                        >
+                          {globalFilter.type === "product" && globalFilter.value
+                            ? globalFilter.value
+                            : "Buscar producto..."}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80 p-0" align="start">
+                        <Command shouldFilter={false}>
+                          <CommandInput 
+                            placeholder="Buscar producto por nombre o SKU..." 
+                            value={productSearchTerm}
+                            onValueChange={setProductSearchTerm}
+                            data-testid="input-product-search"
+                          />
+                          <CommandList>
+                            {productSearchTerm.length < 2 ? (
+                              <CommandEmpty>Escribe al menos 2 caracteres para buscar...</CommandEmpty>
+                            ) : isSearchingProducts ? (
+                              <CommandEmpty>Buscando productos...</CommandEmpty>
+                            ) : searchedProducts && searchedProducts.length > 0 ? (
+                              <CommandGroup heading="Resultados de búsqueda">
+                                {searchedProducts.map((product) => (
+                                  <CommandItem
+                                    key={product.sku}
+                                    value={product.nombre}
+                                    onSelect={() => {
+                                      setGlobalFilter({ type: "product", value: product.nombre });
+                                      setProductSearchOpen(false);
+                                      setProductSearchTerm("");
+                                    }}
+                                    data-testid={`product-option-${product.sku}`}
+                                  >
+                                    <Check
+                                      className={`mr-2 h-4 w-4 ${
+                                        globalFilter.value === product.nombre ? "opacity-100" : "opacity-0"
+                                      }`}
+                                    />
+                                    <div className="flex flex-col">
+                                      <span>{product.nombre}</span>
+                                      <span className="text-xs text-gray-500">{product.sku}</span>
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            ) : (
+                              <CommandEmpty>No se encontraron productos.</CommandEmpty>
+                            )}
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                )}
+
                 {/* Period */}
                 <div className="flex items-center gap-2">
                   <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
@@ -1520,7 +1713,8 @@ export default function Dashboard() {
                       Vista: {selectedFilter === "all" ? "Todo el dashboard" : 
                              selectedFilter === "segment" ? "Por segmento" :
                              selectedFilter === "branch" ? "Por sucursal" : 
-                             selectedFilter === "salesperson" ? "Por vendedor" : "Por cliente"}
+                             selectedFilter === "salesperson" ? "Por vendedor" : 
+                             selectedFilter === "client" ? "Por cliente" : "Por producto"}
                     </div>
                   </div>
                 </div>
@@ -1550,6 +1744,7 @@ export default function Dashboard() {
                         {selectedFilter === "branch" && `Sucursal: ${globalFilter.value}`}
                         {selectedFilter === "salesperson" && `Vendedor: ${globalFilter.value}`}
                         {selectedFilter === "client" && `Cliente: ${globalFilter.value}`}
+                        {selectedFilter === "product" && `Producto: ${globalFilter.value}`}
                       </div>
                     </div>
                   </div>
