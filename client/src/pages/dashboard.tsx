@@ -1132,13 +1132,22 @@ export default function Dashboard() {
                                 Buscar cliente
                               </label>
                               <div className="relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                                 <Input
                                   type="text"
+                                  inputMode="search"
+                                  autoComplete="off"
+                                  autoCorrect="off"
                                   placeholder="Buscar por nombre..."
                                   value={clientSearchTerm}
                                   onChange={(e) => setClientSearchTerm(e.target.value)}
-                                  className="h-11 pl-10 pr-10 w-full rounded-xl border-gray-200"
+                                  onFocus={(e) => {
+                                    setTimeout(() => {
+                                      e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    }, 300);
+                                  }}
+                                  className="h-11 pl-10 pr-10 w-full rounded-xl border-gray-200 text-base"
+                                  style={{ fontSize: '16px' }}
                                   data-testid="input-mobile-client-search"
                                 />
                                 {clientSearchTerm && (
