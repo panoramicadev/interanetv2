@@ -2417,6 +2417,7 @@ export class DatabaseStorage implements IStorage {
     segment?: string;
     client?: string;
     supplier?: string;
+    product?: string;
   } = {}): Promise<{
     totalSales: number;
     totalTransactions: number;
@@ -2426,7 +2427,7 @@ export class DatabaseStorage implements IStorage {
     activeCustomers: number;
     gdvSales: number;
   }> {
-    const { startDate, endDate, salesperson, segment, client, supplier } = filters;
+    const { startDate, endDate, salesperson, segment, client, supplier, product } = filters;
     const conditions = [];
     
     if (startDate) {
@@ -2443,6 +2444,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (client) {
       conditions.push(eq(factVentas.nokoen, client));
+    }
+    if (product) {
+      conditions.push(eq(factVentas.nokoprct, product));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
