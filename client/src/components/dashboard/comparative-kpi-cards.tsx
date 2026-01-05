@@ -1,6 +1,7 @@
 import { useQueries } from "@tanstack/react-query";
-import { DollarSign, Package, Users, TrendingUp, BarChart3 } from "lucide-react";
-import { Bar, Doughnut } from "react-chartjs-2";
+import { DollarSign, Package, TrendingUp, BarChart3 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Bar } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -9,7 +10,6 @@ import {
   Title,
   Tooltip,
   Legend,
-  ArcElement,
 } from "chart.js";
 
 ChartJS.register(
@@ -18,8 +18,7 @@ ChartJS.register(
   BarElement,
   Title,
   Tooltip,
-  Legend,
-  ArcElement
+  Legend
 );
 
 interface SalesMetrics {
@@ -35,6 +34,28 @@ interface ComparativeKPICardsProps {
   salesperson?: string;
   client?: string;
 }
+
+const COLORS = {
+  primary: 'rgba(59, 130, 246, 0.8)',
+  success: 'rgba(16, 185, 129, 0.8)',
+  warning: 'rgba(251, 191, 36, 0.8)',
+  danger: 'rgba(239, 68, 68, 0.8)',
+  purple: 'rgba(139, 92, 246, 0.8)',
+  orange: 'rgba(251, 146, 60, 0.8)',
+  teal: 'rgba(20, 184, 166, 0.8)',
+  pink: 'rgba(236, 72, 153, 0.8)',
+};
+
+const CATEGORY_COLORS = [
+  COLORS.primary,
+  COLORS.success,
+  COLORS.warning,
+  COLORS.purple,
+  COLORS.orange,
+  COLORS.teal,
+  COLORS.pink,
+  COLORS.danger,
+];
 
 export default function ComparativeKPICards({ periods, segment, salesperson, client }: ComparativeKPICardsProps) {
   const metricsQueries = useQueries({
@@ -60,18 +81,6 @@ export default function ComparativeKPICards({ periods, segment, salesperson, cli
   const isLoading = metricsQueries.some(q => q.isLoading);
   const allData = metricsQueries.map(q => q.data);
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="h-8 bg-gray-200 rounded animate-pulse" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="h-64 bg-gray-200 rounded animate-pulse" />
-          <div className="h-64 bg-gray-200 rounded animate-pulse" />
-        </div>
-      </div>
-    );
-  }
-
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
@@ -85,14 +94,30 @@ export default function ComparativeKPICards({ periods, segment, salesperson, cli
     return new Intl.NumberFormat('es-CL').format(value);
   };
 
-  const formatCompact = (value: number) => {
-    if (value >= 1000000) {
-      return `$${(value / 1000000).toFixed(1)}M`;
-    } else if (value >= 1000) {
-      return `$${(value / 1000).toFixed(0)}K`;
-    }
-    return `$${value}`;
-  };
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <Card key={i}>
+              <CardContent className="p-6">
+                <div className="h-20 bg-gray-200 rounded animate-pulse" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[1, 2].map((i) => (
+            <Card key={i}>
+              <CardContent className="p-6">
+                <div className="h-64 bg-gray-200 rounded animate-pulse" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const labels = periods.map(p => p.label);
   const salesData = allData.map(d => d?.totalSales || 0);
@@ -102,106 +127,29 @@ export default function ComparativeKPICards({ periods, segment, salesperson, cli
   const totalUnits = unitsData.reduce((a, b) => a + b, 0);
   const totalTransactions = transactionsData.reduce((a, b) => a + b, 0);
 
-  const barColors = [
-    'rgba(59, 130, 246, 0.8)',
-    'rgba(16, 185, 129, 0.8)',
-    'rgba(249, 115, 22, 0.8)',
-    'rgba(139, 92, 246, 0.8)',
-    'rgba(236, 72, 153, 0.8)',
-    'rgba(234, 179, 8, 0.8)',
-    'rgba(20, 184, 166, 0.8)',
-    'rgba(239, 68, 68, 0.8)',
-    'rgba(99, 102, 241, 0.8)',
-    'rgba(34, 197, 94, 0.8)',
-    'rgba(251, 146, 60, 0.8)',
-    'rgba(168, 85, 247, 0.8)',
-  ];
-
-  const salesBarData = {
-    labels,
-    datasets: [
-      {
-        label: 'Ventas',
-        data: salesData,
-        backgroundColor: barColors.slice(0, periods.length),
-        borderRadius: 8,
-        borderSkipped: false,
-      },
-    ],
-  };
-
-  const salesBarOptions = {
+  const barOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
       legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: (context: any) => formatCurrency(context.raw),
-        },
-      },
+      datalabels: { display: false },
     },
     scales: {
       y: {
         beginAtZero: true,
         ticks: {
-          callback: (value: any) => formatCompact(value),
+          callback: (value: any) => formatCurrency(value),
         },
-        grid: { color: 'rgba(0,0,0,0.05)' },
+        grid: {
+          color: 'rgba(0, 0, 0, 0.05)',
+        }
       },
       x: {
-        grid: { display: false },
-      },
-    },
-  };
-
-  const salesPieData = {
-    labels,
-    datasets: [
-      {
-        data: salesData,
-        backgroundColor: barColors.slice(0, periods.length),
-        borderWidth: 2,
-        borderColor: '#fff',
-      },
-    ],
-  };
-
-  const pieOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'bottom' as const,
-        labels: { 
-          boxWidth: 12, 
-          padding: 8,
-          font: { size: 11 }
-        },
-      },
-      tooltip: {
-        callbacks: {
-          label: (context: any) => {
-            const value = context.raw;
-            const percentage = ((value / totalSales) * 100).toFixed(1);
-            return `${context.label}: ${formatCurrency(value)} (${percentage}%)`;
-          },
-        },
-      },
-    },
-  };
-
-  const unitsBarData = {
-    labels,
-    datasets: [
-      {
-        label: 'Unidades',
-        data: unitsData,
-        backgroundColor: barColors.slice(0, periods.length).map(c => c.replace('0.8', '0.6')),
-        borderRadius: 8,
-        borderSkipped: false,
-      },
-    ],
+        grid: {
+          display: false,
+        }
+      }
+    }
   };
 
   const unitsBarOptions = {
@@ -209,11 +157,7 @@ export default function ComparativeKPICards({ periods, segment, salesperson, cli
     maintainAspectRatio: false,
     plugins: {
       legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: (context: any) => `${formatNumber(context.raw)} unidades`,
-        },
-      },
+      datalabels: { display: false },
     },
     scales: {
       y: {
@@ -221,194 +165,181 @@ export default function ComparativeKPICards({ periods, segment, salesperson, cli
         ticks: {
           callback: (value: any) => formatNumber(value),
         },
-        grid: { color: 'rgba(0,0,0,0.05)' },
+        grid: {
+          color: 'rgba(0, 0, 0, 0.05)',
+        }
       },
       x: {
-        grid: { display: false },
-      },
-    },
+        grid: {
+          display: false,
+        }
+      }
+    }
   };
 
-  const unitsPieData = {
-    labels,
-    datasets: [
-      {
-        data: unitsData,
-        backgroundColor: barColors.slice(0, periods.length).map(c => c.replace('0.8', '0.7')),
-        borderWidth: 2,
-        borderColor: '#fff',
-      },
-    ],
-  };
-
-  const unitsPieOptions = {
+  const transactionsBarOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: {
-        position: 'bottom' as const,
-        labels: { 
-          boxWidth: 12, 
-          padding: 8,
-          font: { size: 11 }
-        },
-      },
-      tooltip: {
-        callbacks: {
-          label: (context: any) => {
-            const value = context.raw;
-            const percentage = ((value / totalUnits) * 100).toFixed(1);
-            return `${context.label}: ${formatNumber(value)} (${percentage}%)`;
-          },
-        },
-      },
+      legend: { display: false },
+      datalabels: { display: false },
     },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: (value: any) => formatNumber(value),
+        },
+        grid: {
+          color: 'rgba(0, 0, 0, 0.05)',
+        }
+      },
+      x: {
+        grid: {
+          display: false,
+        }
+      }
+    }
+  };
+
+  const salesChartData = {
+    labels,
+    datasets: [{
+      label: 'Ventas',
+      data: salesData,
+      backgroundColor: CATEGORY_COLORS.slice(0, periods.length),
+      borderRadius: 6,
+    }]
+  };
+
+  const unitsChartData = {
+    labels,
+    datasets: [{
+      label: 'Unidades',
+      data: unitsData,
+      backgroundColor: CATEGORY_COLORS.slice(0, periods.length).map(c => c.replace('0.8', '0.7')),
+      borderRadius: 6,
+    }]
+  };
+
+  const transactionsChartData = {
+    labels,
+    datasets: [{
+      label: 'Transacciones',
+      data: transactionsData,
+      backgroundColor: CATEGORY_COLORS.slice(0, periods.length).map(c => c.replace('0.8', '0.6')),
+      borderRadius: 6,
+    }]
   };
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-100 rounded-lg">
+      <Card className="bg-blue-50 border-blue-200">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-3">
             <BarChart3 className="h-5 w-5 text-blue-600" />
+            <div>
+              <div className="font-semibold text-blue-900">Modo Comparativo</div>
+              <div className="text-sm text-blue-700">Comparando {periods.length} períodos</div>
+            </div>
           </div>
-          <div>
-            <div className="font-semibold text-blue-900">Modo Comparativo Visual</div>
-            <div className="text-sm text-blue-700">Comparando {periods.length} períodos con gráficos</div>
-          </div>
-        </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-2 text-blue-600 mb-2">
+              <DollarSign className="h-5 w-5" />
+              <span className="text-sm font-medium">Total Ventas</span>
+            </div>
+            <div className="text-2xl font-bold text-gray-900">{formatCurrency(totalSales)}</div>
+            <div className="text-xs text-gray-500 mt-1">{periods.length} períodos combinados</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-2 text-orange-600 mb-2">
+              <Package className="h-5 w-5" />
+              <span className="text-sm font-medium">Total Unidades</span>
+            </div>
+            <div className="text-2xl font-bold text-gray-900">{formatNumber(totalUnits)}</div>
+            <div className="text-xs text-gray-500 mt-1">{periods.length} períodos combinados</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-2 text-green-600 mb-2">
+              <TrendingUp className="h-5 w-5" />
+              <span className="text-sm font-medium">Total Transacciones</span>
+            </div>
+            <div className="text-2xl font-bold text-gray-900">{formatNumber(totalTransactions)}</div>
+            <div className="text-xs text-gray-500 mt-1">{periods.length} períodos combinados</div>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white">
-          <div className="flex items-center gap-2 mb-2">
-            <DollarSign className="h-5 w-5 opacity-80" />
-            <span className="text-sm font-medium opacity-90">Total Ventas</span>
-          </div>
-          <div className="text-2xl font-bold">{formatCurrency(totalSales)}</div>
-          <div className="text-xs opacity-75 mt-1">{periods.length} períodos</div>
-        </div>
-        <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-4 text-white">
-          <div className="flex items-center gap-2 mb-2">
-            <Package className="h-5 w-5 opacity-80" />
-            <span className="text-sm font-medium opacity-90">Total Unidades</span>
-          </div>
-          <div className="text-2xl font-bold">{formatNumber(totalUnits)}</div>
-          <div className="text-xs opacity-75 mt-1">{periods.length} períodos</div>
-        </div>
-        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-4 text-white">
-          <div className="flex items-center gap-2 mb-2">
-            <TrendingUp className="h-5 w-5 opacity-80" />
-            <span className="text-sm font-medium opacity-90">Total Transacciones</span>
-          </div>
-          <div className="text-2xl font-bold">{formatNumber(totalTransactions)}</div>
-          <div className="text-xs opacity-75 mt-1">{periods.length} períodos</div>
-        </div>
-      </div>
-
-      <div className="bg-white border rounded-xl p-4 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <DollarSign className="h-5 w-5 text-blue-600" />
-          <h3 className="font-semibold text-gray-900">Ventas por Período</h3>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="h-64">
-            <Bar data={salesBarData} options={salesBarOptions} />
-          </div>
-          <div className="h-64">
-            <Doughnut data={salesPieData} options={pieOptions} />
-          </div>
-        </div>
-        <div className="mt-4 grid gap-2" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(120px, 1fr))` }}>
-          {periods.map((period, index) => {
-            const metrics = allData[index];
-            if (!metrics) return null;
-            const percentage = totalSales > 0 ? ((metrics.totalSales / totalSales) * 100).toFixed(1) : '0';
-            return (
-              <div 
-                key={period.period} 
-                className="text-center p-2 rounded-lg bg-gray-50"
-                data-testid={`kpi-sales-${period.period}`}
-              >
-                <div className="text-xs text-gray-500">{period.label}</div>
-                <div className="text-sm font-bold text-gray-900">{formatCurrency(metrics.totalSales)}</div>
-                <div className="text-xs text-blue-600">{percentage}%</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="bg-white border rounded-xl p-4 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <Package className="h-5 w-5 text-orange-600" />
-          <h3 className="font-semibold text-gray-900">Unidades Vendidas por Período</h3>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="h-64">
-            <Bar data={unitsBarData} options={unitsBarOptions} />
-          </div>
-          <div className="h-64">
-            <Doughnut data={unitsPieData} options={unitsPieOptions} />
-          </div>
-        </div>
-        <div className="mt-4 grid gap-2" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(120px, 1fr))` }}>
-          {periods.map((period, index) => {
-            const metrics = allData[index];
-            if (!metrics) return null;
-            const percentage = totalUnits > 0 ? ((metrics.totalUnits / totalUnits) * 100).toFixed(1) : '0';
-            return (
-              <div 
-                key={period.period} 
-                className="text-center p-2 rounded-lg bg-gray-50"
-                data-testid={`kpi-units-${period.period}`}
-              >
-                <div className="text-xs text-gray-500">{period.label}</div>
-                <div className="text-sm font-bold text-gray-900">{formatNumber(metrics.totalUnits)}</div>
-                <div className="text-xs text-orange-600">{percentage}%</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="bg-white border rounded-xl p-4 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <Users className="h-5 w-5 text-green-600" />
-          <h3 className="font-semibold text-gray-900">Transacciones por Período</h3>
-        </div>
-        <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(140px, 1fr))` }}>
-          {periods.map((period, index) => {
-            const metrics = allData[index];
-            if (!metrics) return null;
-            const percentage = totalTransactions > 0 ? ((metrics.totalTransactions / totalTransactions) * 100).toFixed(1) : '0';
-            const maxTransactions = Math.max(...transactionsData);
-            const barWidth = maxTransactions > 0 ? (metrics.totalTransactions / maxTransactions) * 100 : 0;
-            
-            return (
-              <div 
-                key={period.period} 
-                className="bg-gray-50 rounded-lg p-3"
-                data-testid={`kpi-customers-${period.period}`}
-              >
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs font-medium text-gray-600">{period.label}</span>
-                  <span className="text-xs text-green-600">{percentage}%</span>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-blue-600" />
+              Ventas por Período
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[280px]">
+              {salesData.some(v => v > 0) ? (
+                <Bar data={salesChartData} options={barOptions} />
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-500">
+                  No hay datos disponibles
                 </div>
-                <div className="text-lg font-bold text-gray-900 mb-2">
-                  {formatNumber(metrics.totalTransactions)}
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Package className="h-5 w-5 text-orange-600" />
+              Unidades por Período
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[280px]">
+              {unitsData.some(v => v > 0) ? (
+                <Bar data={unitsChartData} options={unitsBarOptions} />
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-500">
+                  No hay datos disponibles
                 </div>
-                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full transition-all duration-500"
-                    style={{ width: `${barWidth}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-green-600" />
+            Transacciones por Período
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[280px]">
+            {transactionsData.some(v => v > 0) ? (
+              <Bar data={transactionsChartData} options={transactionsBarOptions} />
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-500">
+                No hay datos disponibles
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
