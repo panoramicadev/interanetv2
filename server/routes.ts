@@ -721,6 +721,39 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Search clients from sales transactions (finds ALL clients including those not in dim_clientes)
+  app.get('/api/sales/clients-search', requireAuth, async (req, res) => {
+    try {
+      const { search, limit = '500' } = req.query;
+      if (!search || (search as string).length < 1) {
+        return res.json({ clients: [] });
+      }
+      
+      // Search unique clients from fact_ventas
+      const searchPattern = `%${search}%`;
+      const results = await db
+        .selectDistinct({
+          nokoen: factVentas.nokoen,
+          koen: factVentas.nokoen, // Use nokoen as ID since koen might be empty
+        })
+        .from(factVentas)
+        .where(sql`${factVentas.nokoen} ILIKE ${searchPattern}`)
+        .limit(parseInt(limit as string));
+      
+      const clients = results.map(r => ({
+        id: r.koen || r.nokoen,
+        koen: r.koen || r.nokoen,
+        nokoen: r.nokoen,
+        rten: '',
+      }));
+      
+      res.json({ clients });
+    } catch (error) {
+      console.error("Error searching clients from sales:", error);
+      res.status(500).json({ message: "Failed to search clients" });
+    }
+  });
+
   // GDV Pending global endpoint - returns all pending GDV (no date filters)
   // Returns GDV where esdo IS NULL or esdo != 'C' (open/pending deliveries)
   app.get('/api/sales/gdv-pending', requireCommercialAccess, async (req, res) => {
