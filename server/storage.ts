@@ -390,12 +390,15 @@ export interface IStorage {
     endDate?: string;
     salesperson?: string;
     segment?: string;
+    client?: string;
   }): Promise<{
     totalSales: number;
     totalTransactions: number;
+    salesTransactionCount: number;
     totalOrders: number;
     totalUnits: number;
     activeCustomers: number;
+    gdvSales: number;
   }>;
   getTopSalespeople(limit?: number, startDate?: string, endDate?: string, segment?: string, client?: string): Promise<{
     items: Array<{
@@ -2416,6 +2419,7 @@ export class DatabaseStorage implements IStorage {
   } = {}): Promise<{
     totalSales: number;
     totalTransactions: number;
+    salesTransactionCount: number;
     totalOrders: number;
     totalUnits: number;
     activeCustomers: number;
@@ -2444,12 +2448,13 @@ export class DatabaseStorage implements IStorage {
 
     // Calculate metrics using fact_ventas
     // totalSales EXCLUDES ALL GDV (Guías de Despacho are not sales, tracked separately)
+    // salesTransactionCount excludes GDV to align with totalSales for averageTicket calculation
     // gdvSales is calculated separately for TIDO = 'GDV' transactions only (excluding cancelled)
-    // Includes GDV where esdo is NULL or not 'C' (open/pending)
     const [metrics] = await db
       .select({
         totalSales: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} != 'GDV' THEN ${factVentas.monto} ELSE 0 END), 0)`,
         totalTransactions: sql<number>`COUNT(*)`,
+        salesTransactionCount: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} != 'GDV' THEN 1 ELSE 0 END), 0)`,
         totalOrders: sql<number>`COUNT(DISTINCT ${factVentas.nudo})`,
         totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'GDV' THEN 0 WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
         activeCustomers: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
@@ -2461,6 +2466,7 @@ export class DatabaseStorage implements IStorage {
     return {
       totalSales: Number(metrics.totalSales),
       totalTransactions: Number(metrics.totalTransactions),
+      salesTransactionCount: Number(metrics.salesTransactionCount),
       totalOrders: Number(metrics.totalOrders),
       totalUnits: Number(metrics.totalUnits),
       activeCustomers: Number(metrics.activeCustomers),

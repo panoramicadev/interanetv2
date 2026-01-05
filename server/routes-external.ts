@@ -575,19 +575,21 @@ router.get('/dashboard', async (req: ApiAuthRequest, res) => {
       endDate = periodStr;
     }
 
-    // 1. Ventas Totales del período
+    // 1. Ventas Totales del período (usando startDate y endDate calculados)
     const salesMetrics = await storage.getSalesMetrics({
-      period: periodStr,
-      filterType: filterTypeStr,
+      startDate,
+      endDate,
       segment: segment as string | undefined,
       salesperson: salesperson as string | undefined,
       client: client as string | undefined,
     });
 
-    // 2. Total Acumulado del Año (YTD for target year)
+    // 2. Total Acumulado del Año (full year for target year)
+    const yearStartDate = `${targetYear}-01-01`;
+    const yearEndDate = `${targetYear}-12-31`;
     const yearMetrics = await storage.getSalesMetrics({
-      period: `${targetYear}-01`,
-      filterType: 'year',
+      startDate: yearStartDate,
+      endDate: yearEndDate,
       segment: segment as string | undefined,
       salesperson: salesperson as string | undefined,
       client: client as string | undefined,
@@ -705,12 +707,31 @@ router.get('/dashboard', async (req: ApiAuthRequest, res) => {
         salesperson: salesperson || null,
         client: client || null,
       },
+      // Métricas del período solicitado (ej: solo diciembre si period=2025-12)
       salesTotal: salesMetrics.totalSales,
       unitsSold: salesMetrics.totalUnits,
-      transactionCount: salesMetrics.transactionCount,
-      averageTicket: salesMetrics.averageTicket,
-      yearTotal: yearMetrics.totalSales,
+      // transactionCount: solo ventas facturadas (excluye GDV), alineado con salesTotal
+      transactionCount: salesMetrics.salesTransactionCount,
+      // transactionCountAll: todas las transacciones incluyendo GDV
+      transactionCountAll: salesMetrics.totalTransactions,
+      activeCustomers: salesMetrics.activeCustomers,
+      // averageTicket: calculado solo sobre ventas facturadas
+      averageTicket: salesMetrics.salesTransactionCount > 0 
+        ? Math.round(salesMetrics.totalSales / salesMetrics.salesTransactionCount) 
+        : 0,
+      // Métricas anuales (contexto del año completo)
+      yearStats: {
+        yearTotal: yearMetrics.totalSales,
+        yearUnitsSold: yearMetrics.totalUnits,
+        // yearTransactions: solo ventas facturadas del año
+        yearTransactions: yearMetrics.salesTransactionCount,
+        // yearTransactionsAll: todas las transacciones del año incluyendo GDV
+        yearTransactionsAll: yearMetrics.totalTransactions,
+        yearActiveCustomers: yearMetrics.activeCustomers,
+        note: `Totales acumulados del año ${targetYear} completo (transactionCount excluye GDV, transactionCountAll incluye GDV)`
+      },
       globalGoal,
+      // Pendientes (datos en vivo, sin filtro de fecha)
       nvvPending: {
         totalAmount: nvvPending.totalAmount,
         count: nvvPending.pendingCount,
@@ -721,7 +742,9 @@ router.get('/dashboard', async (req: ApiAuthRequest, res) => {
         count: gdvPending.gdvCount,
         note: 'GDV son Guías de Despacho Vigentes pendientes de facturar (datos en vivo)'
       },
+      // Combined = salesTotal (ventas facturadas del período) + NVV pendientes + GDV pendientes
       combinedTotal: salesMetrics.totalSales + nvvPending.totalAmount + gdvPending.gdvSales,
+      combinedTotalNote: 'salesTotal (solo ventas facturadas) + nvvPending.totalAmount + gdvPending.totalAmount',
       salesBySegment: segmentsData.map(s => ({
         segment: s.segment,
         totalSales: s.totalSales,
