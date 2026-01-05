@@ -131,13 +131,13 @@ export default function PromesasCompraPage() {
     },
   });
 
-  // Query para obtener clientes (same as tomador-pedidos)
+  // Query para obtener clientes - sin límite para encontrar absolutamente todos
   const { data: clientsData } = useQuery({
     queryKey: ['/api/clients', { search: searchClient }],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (searchClient) params.set('search', searchClient);
-      params.set('limit', '200');
+      params.set('limit', '15000'); // Aumentado para encontrar absolutamente todos los clientes (hay ~13.5k)
       params.set('offset', '0');
       
       const response = await fetch(`/api/clients?${params}`, { credentials: 'include' });
