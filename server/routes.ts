@@ -670,16 +670,35 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Yearly totals endpoint - returns current and previous year totals
+  // When current year has minimal data (early in year), shows previous year as main reference
   app.get('/api/sales/yearly-totals', requireCommercialAccess, async (req, res) => {
     try {
       const { segment, salesperson, client } = req.query;
       const currentYear = new Date().getFullYear();
-      const totals = await storage.getYearlyTotals(currentYear, {
+      const filters = {
         segment: segment as string,
         salesperson: salesperson as string,
         client: client as string,
-      });
-      res.json(totals);
+      };
+      
+      // First get current year totals
+      const currentTotals = await storage.getYearlyTotals(currentYear, filters);
+      
+      // If we're in the first days of a new year and current year has very little data,
+      // return previous year as the main reference for better UX
+      const isEarlyInYear = new Date().getMonth() === 0 && new Date().getDate() <= 15; // First 15 days of January
+      const hasMinimalCurrentData = Math.abs(currentTotals.currentYearTotal) < 1000000; // Less than 1M in sales
+      
+      if (isEarlyInYear && hasMinimalCurrentData) {
+        // Get previous year as main reference
+        const previousYearTotals = await storage.getYearlyTotals(currentYear - 1, filters);
+        res.json({
+          ...previousYearTotals,
+          note: `Mostrando ${currentYear - 1} como referencia principal (${currentYear} recién inicia)`
+        });
+      } else {
+        res.json(currentTotals);
+      }
     } catch (error) {
       console.error("Error fetching yearly totals:", error);
       res.status(500).json({ message: "Failed to fetch yearly totals" });
