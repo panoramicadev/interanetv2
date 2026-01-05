@@ -10904,7 +10904,8 @@ export class DatabaseStorage implements IStorage {
               WHERE ${taskAssignments.taskId} = ${tasks.id} 
               AND (
                 (${taskAssignments.assigneeType} = 'supervisor' AND ${taskAssignments.assigneeId} = ${userId}) OR
-                (${taskAssignments.assigneeType} = 'salesperson' AND ${taskAssignments.assigneeId} = ${userId})
+                (${taskAssignments.assigneeType} = 'salesperson' AND ${taskAssignments.assigneeId} = ${userId}) OR
+                (${taskAssignments.assigneeType} = 'user' AND ${taskAssignments.assigneeId} = ${userId})
               )
             )
           )`);
@@ -10917,7 +10918,8 @@ export class DatabaseStorage implements IStorage {
               WHERE ${taskAssignments.taskId} = ${tasks.id} 
               AND (
                 (${taskAssignments.assigneeType} = 'supervisor' AND ${taskAssignments.assigneeId} = ${userId}) OR
-                (${taskAssignments.assigneeType} = 'salesperson' AND ${taskAssignments.assigneeId} = ${userId})
+                (${taskAssignments.assigneeType} = 'salesperson' AND ${taskAssignments.assigneeId} = ${userId}) OR
+                (${taskAssignments.assigneeType} = 'user' AND ${taskAssignments.assigneeId} = ${userId})
               )
             )
           `);
@@ -10931,7 +10933,8 @@ export class DatabaseStorage implements IStorage {
               WHERE ${taskAssignments.taskId} = ${tasks.id} 
               AND (
                 (${taskAssignments.assigneeType} = 'supervisor' AND ${taskAssignments.assigneeId} = ${userId}) OR
-                (${taskAssignments.assigneeType} = 'salesperson' AND ${taskAssignments.assigneeId} = ${userId})
+                (${taskAssignments.assigneeType} = 'salesperson' AND ${taskAssignments.assigneeId} = ${userId}) OR
+                (${taskAssignments.assigneeType} = 'user' AND ${taskAssignments.assigneeId} = ${userId})
               )
             )
           )`);
