@@ -1,0 +1,162 @@
+PROMPT: Sistema de Integracion con Meta Ads
+OBJETIVO
+Implementar una integracion completa con Meta Ads que permita:
+
+Autenticacion OAuth global (una sola conexion para toda la aplicacion)
+Configuracion de Ad Account ID por proyecto individual
+Visualizacion de metricas de campanas publicitarias
+ARQUITECTURA REQUERIDA
+1. MODELO DE DATOS (Schema)
+// Tabla de integraciones
+export const integrations = pgTable("integrations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").references(() => projects.id, { onDelete: "cascade" }), // Nullable para integraciones globales
+  platform: varchar("platform").notNull(), // "meta_ads"
+  name: varchar("name").notNull(),
+  accountId: varchar("account_id"), // Ad Account ID externo
+  accountName: varchar("account_name"),
+  status: varchar("status").notNull().default("pending"), // pending, active, disconnected, error
+  
+  // OAuth tokens - ALMACENAMIENTO SEGURO
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+  
+  config: jsonb("config").default("{}"), // Configuracion especifica
+  lastSync: timestamp("last_sync", { withTimezone: true }),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+2. VARIABLES DE ENTORNO REQUERIDAS
+META_APP_ID=tu_app_id_de_facebook
+META_APP_SECRET=tu_app_secret_de_facebook
+META_REDIRECT_URI=https://tu-dominio.com/api/oauth/meta/callback (opcional)
+FLUJO OAUTH - PASOS CRITICOS
+PASO 1: Iniciar OAuth (POST /api/oauth/meta/start)
+// 1. Generar sessionId unico
+const sessionId = `meta_oauth_${Date.now()}`;
+// 2. Guardar estado en SESSION (NO en URL) - SEGURIDAD
+req.session.metaOAuth = {
+  sessionId,
+  projectId,
+  integrationId,
+  userId,
+  startedAt: new Date().toISOString(),
+};
+// 3. Construir URL de OAuth
+const scope = 'ads_read,ads_management,business_management,pages_show_list,pages_read_engagement';
+const oauthUrl = `https://www.facebook.com/v18.0/dialog/oauth?` +
+  `client_id=${appId}` +
+  `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+  `&state=${sessionId}` +  // Solo sessionId, NO datos sensibles
+  `&scope=${encodeURIComponent(scope)}`;
+ERRORES COMUNES A EVITAR:
+
+NO pasar tokens en la URL
+NO incluir projectId/integrationId en el state de la URL
+SIEMPRE usar sesiones server-side para mantener estado
+PASO 2: Callback OAuth (GET /api/oauth/meta/callback)
+// 1. Validar state contra session
+const metaOAuth = req.session.metaOAuth;
+if (!metaOAuth || metaOAuth.sessionId !== state) {
+  return res.redirect('/?oauth=error&message=Invalid session');
+}
+// 2. Intercambiar code por token
+const tokenUrl = `https://graph.facebook.com/v18.0/oauth/access_token?` +
+  `client_id=${appId}` +
+  `&client_secret=${appSecret}` +
+  `&code=${code}` +
+  `&redirect_uri=${redirectUri}`;
+// 3. Intercambiar por token de larga duracion (60 dias)
+const longLivedTokenUrl = `https://graph.facebook.com/v18.0/oauth/access_token?` +
+  `grant_type=fb_exchange_token` +
+  `&client_id=${appId}` +
+  `&client_secret=${appSecret}` +
+  `&fb_exchange_token=${access_token}`;
+// 4. Guardar token en SESSION (no en DB todavia)
+metaOAuth.accessToken = longLivedToken;
+metaOAuth.expiresAt = expiresAt.toISOString();
+PASO 3: Seleccion de Business Portfolio
+// Obtener businesses del usuario
+const businessesResponse = await fetch(
+  `https://graph.facebook.com/v18.0/me/businesses?fields=id,name&access_token=${token}`
+);
+// Si hay multiples, mostrar selector HTML
+// Redirigir a /api/oauth/meta/select-business?businessId=X
+PASO 4: Obtener Ad Accounts del Business
+// Obtener ad accounts del business seleccionado
+const adAccountsUrl = `https://graph.facebook.com/v18.0/${businessId}/owned_ad_accounts?` +
+  `fields=id,name,account_status&access_token=${token}`;
+// Si no hay business, obtener directamente:
+const adAccountsUrl = `https://graph.facebook.com/v18.0/me/adaccounts?` +
+  `fields=id,name,account_status&access_token=${token}`;
+PASO 5: Finalizar y Guardar (GET /api/oauth/meta/finalize)
+// 1. Recuperar todo de la session
+const { accessToken, refreshToken, expiresAt, projectId, userId } = metaOAuth;
+// 2. Guardar en base de datos
+await storage.createIntegration({
+  projectId: null, // NULL para integracion global
+  platform: 'meta_ads',
+  name: `Meta Ads - ${accountName}`,
+  accountId: accountId,
+  accountName: accountName,
+  status: 'active',
+  accessToken: accessToken,
+  tokenExpiresAt: new Date(expiresAt),
+  createdBy: userId,
+});
+// 3. Limpiar session
+delete req.session.metaOAuth;
+// 4. Redirigir con exito
+res.redirect('/?oauth=success&platform=meta');
+CONFIGURACION POR PROYECTO
+La integracion OAuth es GLOBAL (projectId = null). Cada proyecto configura su propio Ad Account ID:
+
+// Endpoint para configurar Ad Account en proyecto
+app.put('/api/projects/:id/meta-config', async (req, res) => {
+  const { adAccountId } = req.body;
+  
+  // Guardar en el proyecto o en una tabla de configuracion
+  await storage.updateProject(req.params.id, {
+    metaAdAccountId: adAccountId
+  });
+});
+OBTENER METRICAS DE CAMPANAS
+// Endpoint de metricas
+app.get('/api/projects/:projectId/meta-ads/insights', async (req, res) => {
+  // 1. Obtener integracion global activa
+  const integration = await storage.getIntegrations()
+    .find(i => i.platform === 'meta_ads' && i.status === 'active');
+  
+  // 2. Obtener config del proyecto
+  const project = await storage.getProject(projectId);
+  const adAccountId = project.metaAdAccountId;
+  
+  // 3. Llamar a Graph API
+  const insightsUrl = `https://graph.facebook.com/v18.0/${adAccountId}/insights?` +
+    `fields=impressions,clicks,spend,cpc,ctr,reach` +
+    `&date_preset=last_30d` +
+    `&access_token=${integration.accessToken}`;
+});
+COMPONENTES FRONTEND REQUERIDOS
+IntegrationsPage: Panel de administracion de integraciones globales
+MetaAdsSetupDialog: Modal para iniciar flujo OAuth
+MetaAdsMetrics: Componente para mostrar metricas de campanas
+ProjectMetaConfig: Configuracion de Ad Account por proyecto
+ERRORES COMUNES Y SOLUCIONES
+Error	Causa	Solucion
+"Invalid OAuth session"	State no coincide con session	Usar session server-side, no URL
+Token expira rapidamente	Usando short-lived token	Siempre intercambiar por long-lived
+"No se encontraron cuentas"	Usuario sin ad accounts	Verificar permisos en Business Manager
+403 en Graph API	Token sin permisos	Agregar scopes correctos
+Callback falla en produccion	Redirect URI incorrecto	Verificar HTTPS y dominio exacto
+FLUJO COMPLETO RESUMIDO
+Admin inicia OAuth desde panel de integraciones
+Facebook muestra pantalla de autorizacion
+Callback intercambia code por token long-lived
+Selector muestra Business Portfolios disponibles
+Selector muestra Ad Accounts del business
+Finalizacion guarda token globalmente (projectId = NULL)
+Por proyecto se configura el Ad Account ID especifico
+Metricas usan token global + Ad Account del proyecto
