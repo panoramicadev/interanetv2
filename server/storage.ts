@@ -298,6 +298,9 @@ import {
   taskComments,
   type TaskComment,
   type InsertTaskComment,
+  integrations,
+  type Integration,
+  type InsertIntegration,
 } from "@shared/schema";
 import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from "@shared/reclamosAreas";
 import { db } from "./db";
@@ -21479,6 +21482,78 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return updated || null;
+  }
+
+  // ============================================
+  // Integrations (Meta Ads, Google Ads, etc.)
+  // ============================================
+
+  async getIntegrations(): Promise<Integration[]> {
+    return await db
+      .select()
+      .from(integrations)
+      .orderBy(desc(integrations.createdAt));
+  }
+
+  async getIntegrationById(id: string): Promise<Integration | null> {
+    const [integration] = await db
+      .select()
+      .from(integrations)
+      .where(eq(integrations.id, id));
+    return integration || null;
+  }
+
+  async getActiveIntegration(platform: string): Promise<Integration | null> {
+    const [integration] = await db
+      .select()
+      .from(integrations)
+      .where(and(
+        eq(integrations.platform, platform),
+        eq(integrations.status, 'active')
+      ))
+      .orderBy(desc(integrations.createdAt))
+      .limit(1);
+    return integration || null;
+  }
+
+  async createIntegration(data: Omit<InsertIntegration, 'id' | 'createdAt' | 'updatedAt'>): Promise<Integration> {
+    // First, deactivate any existing integrations for the same platform
+    await db
+      .update(integrations)
+      .set({ status: 'disconnected' })
+      .where(and(
+        eq(integrations.platform, data.platform),
+        eq(integrations.status, 'active')
+      ));
+
+    const [integration] = await db
+      .insert(integrations)
+      .values({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    return integration;
+  }
+
+  async updateIntegration(id: string, data: Partial<InsertIntegration>): Promise<Integration | null> {
+    const [updated] = await db
+      .update(integrations)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(integrations.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  async deleteIntegration(id: string): Promise<boolean> {
+    const result = await db
+      .delete(integrations)
+      .where(eq(integrations.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
   }
 
   // ============================================

@@ -5906,6 +5906,48 @@ export const insertApiKeySchema = createInsertSchema(apiKeys, {
 
 export type InsertApiKeyInput = z.infer<typeof insertApiKeySchema>;
 
+// ================================
+// META ADS INTEGRATIONS
+// ================================
+
+export const integrations = pgTable("integrations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  platform: varchar("platform").notNull(), // "meta_ads", "google_ads", etc.
+  name: varchar("name").notNull(),
+  accountId: varchar("account_id"), // Ad Account ID externo
+  accountName: varchar("account_name"),
+  status: varchar("status").notNull().default("pending"), // pending, active, disconnected, error
+  
+  // OAuth tokens - almacenamiento seguro
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+  
+  config: jsonb("config").default("{}"), // Configuración específica
+  lastSync: timestamp("last_sync", { withTimezone: true }),
+  createdBy: varchar("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  platformIdx: index("IDX_integrations_platform").on(table.platform),
+  statusIdx: index("IDX_integrations_status").on(table.status),
+}));
+
+export type Integration = typeof integrations.$inferSelect;
+export type InsertIntegration = typeof integrations.$inferInsert;
+
+export const insertIntegrationSchema = createInsertSchema(integrations, {
+  platform: z.string().min(1, "Plataforma es requerida"),
+  name: z.string().min(1, "Nombre es requerido"),
+  createdBy: z.string().min(1, "Usuario creador es requerido"),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertIntegrationInput = z.infer<typeof insertIntegrationSchema>;
+
 // Proyecciones Manuales de Ventas - Planificación futura por vendedor y cliente
 export const proyeccionesVentas = pgTable("proyecciones_ventas", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

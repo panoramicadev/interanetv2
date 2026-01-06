@@ -46,7 +46,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3 } from "lucide-react";
+import AdsAnalyticsPage from "./ads-analytics";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import { formatDateForAPI, parseDateFromAPI } from "@/lib/dateUtils";
@@ -177,7 +178,7 @@ export default function Marketing() {
       {/* Tabs */}
       <Tabs defaultValue="solicitudes" className="w-full">
         <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-          <TabsList className={`inline-flex w-max sm:w-full h-auto gap-1 ${user.role === 'salesperson' ? 'sm:grid sm:grid-cols-2' : 'sm:grid sm:grid-cols-7'}`}>
+          <TabsList className={`inline-flex w-max sm:w-full h-auto gap-1 ${user.role === 'salesperson' ? 'sm:grid sm:grid-cols-2' : 'sm:grid sm:grid-cols-8'}`}>
             <TabsTrigger value="solicitudes" data-testid="tab-solicitudes" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
               <FileText className="h-4 w-4" />
               <span>Solicitudes</span>
@@ -215,6 +216,13 @@ export default function Marketing() {
                 <TrendingUp className="h-4 w-4" />
                 <span className="hidden sm:inline">Posicionamiento</span>
                 <span className="sm:hidden">SEO</span>
+              </TabsTrigger>
+            )}
+            {(user.role === 'admin' || user.role === 'supervisor') && (
+              <TabsTrigger value="ads" data-testid="tab-ads" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
+                <BarChart3 className="h-4 w-4" />
+                <span className="hidden sm:inline">Ads Analytics</span>
+                <span className="sm:hidden">Ads</span>
               </TabsTrigger>
             )}
           </TabsList>
@@ -411,6 +419,12 @@ export default function Marketing() {
         {(user.role === 'admin' || user.role === 'supervisor') && (
           <TabsContent value="seo" className="space-y-6">
             <SeoTracking />
+          </TabsContent>
+        )}
+        
+        {(user.role === 'admin' || user.role === 'supervisor') && (
+          <TabsContent value="ads" className="space-y-6">
+            <AdsAnalyticsPage />
           </TabsContent>
         )}
       </Tabs>

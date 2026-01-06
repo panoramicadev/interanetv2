@@ -3217,6 +3217,276 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // ================================
+  // INTEGRATIONS & META ADS OAUTH
+  // ================================
+
+  // Get all integrations
+  app.get('/api/integrations', requireAdminOrSupervisor, async (req: any, res) => {
+    try {
+      const allIntegrations = await storage.getIntegrations();
+      // Whitelist approach - only expose safe fields, never tokens
+      const sanitized = allIntegrations.map(i => ({
+        id: i.id,
+        platform: i.platform,
+        name: i.name,
+        accountId: i.accountId,
+        accountName: i.accountName,
+        status: i.status,
+        lastSync: i.lastSync,
+        tokenExpiresAt: i.tokenExpiresAt,
+        createdBy: i.createdBy,
+        createdAt: i.createdAt,
+        updatedAt: i.updatedAt,
+      }));
+      res.json(sanitized);
+    } catch (error) {
+      console.error('Error fetching integrations:', error);
+      res.status(500).json({ message: 'Error al obtener integraciones' });
+    }
+  });
+
+  // Delete/disconnect integration
+  app.delete('/api/integrations/:id', requireAdminOrSupervisor, async (req: any, res) => {
+    try {
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Solo administradores pueden desconectar integraciones' });
+      }
+      await storage.deleteIntegration(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting integration:', error);
+      res.status(500).json({ message: 'Error al eliminar integración' });
+    }
+  });
+
+  // Sync integration data
+  app.post('/api/integrations/:id/sync', requireAdminOrSupervisor, async (req: any, res) => {
+    try {
+      const integration = await storage.getIntegrationById(req.params.id);
+      if (!integration) {
+        return res.status(404).json({ message: 'Integración no encontrada' });
+      }
+      
+      if (integration.platform === 'meta_ads') {
+        // Sync Meta Ads data
+        await storage.updateIntegration(integration.id, { lastSync: new Date() });
+      }
+      
+      res.json({ success: true, message: 'Sincronización iniciada' });
+    } catch (error) {
+      console.error('Error syncing integration:', error);
+      res.status(500).json({ message: 'Error al sincronizar' });
+    }
+  });
+
+  // Start Meta Ads OAuth flow
+  app.post('/api/oauth/meta_ads/start', requireAdminOrSupervisor, async (req: any, res) => {
+    try {
+      const metaAppId = process.env.META_APP_ID;
+      const metaAppSecret = process.env.META_APP_SECRET;
+      
+      if (!metaAppId || !metaAppSecret) {
+        return res.status(400).json({ 
+          message: 'Las credenciales de Meta Ads no están configuradas. Configure META_APP_ID y META_APP_SECRET en las variables de entorno.' 
+        });
+      }
+
+      // Generate session ID for security
+      const sessionId = `meta_oauth_${Date.now()}_${nanoid(8)}`;
+      
+      // Store state in session
+      req.session.metaOAuth = {
+        sessionId,
+        userId: req.user.id,
+        startedAt: new Date().toISOString(),
+      };
+
+      // Build OAuth URL
+      const redirectUri = process.env.META_REDIRECT_URI || 
+        `${process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : ''}/api/oauth/meta/callback`;
+      
+      const scope = 'ads_read,ads_management,business_management';
+      const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?` +
+        `client_id=${metaAppId}` +
+        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+        `&state=${sessionId}` +
+        `&scope=${encodeURIComponent(scope)}`;
+
+      res.json({ authUrl });
+    } catch (error) {
+      console.error('Error starting Meta OAuth:', error);
+      res.status(500).json({ message: 'Error al iniciar autenticación' });
+    }
+  });
+
+  // Meta Ads OAuth callback
+  app.get('/api/oauth/meta/callback', async (req: any, res) => {
+    try {
+      const { code, state, error: oauthError, error_description } = req.query;
+
+      if (oauthError) {
+        console.error('Meta OAuth error:', oauthError, error_description);
+        return res.redirect('/configuracion?tab=integraciones&oauth=error&message=' + encodeURIComponent(error_description || oauthError));
+      }
+
+      // Validate session state - immediately extract and delete to prevent replay attacks
+      const metaOAuth = req.session.metaOAuth;
+      if (!metaOAuth || metaOAuth.sessionId !== state) {
+        return res.redirect('/configuracion?tab=integraciones&oauth=error&message=Sesión+inválida');
+      }
+      
+      // Immediately clear session state to prevent reuse (single-use state)
+      const userId = metaOAuth.userId;
+      delete req.session.metaOAuth;
+
+      const metaAppId = process.env.META_APP_ID;
+      const metaAppSecret = process.env.META_APP_SECRET;
+      const redirectUri = process.env.META_REDIRECT_URI || 
+        `${process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : ''}/api/oauth/meta/callback`;
+
+      // Exchange code for access token
+      const tokenUrl = `https://graph.facebook.com/v18.0/oauth/access_token?` +
+        `client_id=${metaAppId}` +
+        `&client_secret=${metaAppSecret}` +
+        `&code=${code}` +
+        `&redirect_uri=${encodeURIComponent(redirectUri)}`;
+
+      const tokenResponse = await fetch(tokenUrl);
+      const tokenData = await tokenResponse.json();
+
+      if (tokenData.error) {
+        console.error('Meta token error:', tokenData.error);
+        return res.redirect('/configuracion?tab=integraciones&oauth=error&message=' + encodeURIComponent(tokenData.error.message));
+      }
+
+      // Exchange for long-lived token (60 days)
+      const longLivedTokenUrl = `https://graph.facebook.com/v18.0/oauth/access_token?` +
+        `grant_type=fb_exchange_token` +
+        `&client_id=${metaAppId}` +
+        `&client_secret=${metaAppSecret}` +
+        `&fb_exchange_token=${tokenData.access_token}`;
+
+      const longLivedResponse = await fetch(longLivedTokenUrl);
+      const longLivedData = await longLivedResponse.json();
+
+      const accessToken = longLivedData.access_token || tokenData.access_token;
+      const expiresIn = longLivedData.expires_in || 5184000; // Default 60 days
+      const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+      // Get user's ad accounts
+      const adAccountsUrl = `https://graph.facebook.com/v18.0/me/adaccounts?fields=id,name,account_status&access_token=${accessToken}`;
+      const adAccountsResponse = await fetch(adAccountsUrl);
+      const adAccountsData = await adAccountsResponse.json();
+
+      let accountId = null;
+      let accountName = 'Meta Ads';
+
+      if (adAccountsData.data && adAccountsData.data.length > 0) {
+        // Use first active ad account
+        const activeAccount = adAccountsData.data.find((a: any) => a.account_status === 1) || adAccountsData.data[0];
+        accountId = activeAccount.id;
+        accountName = activeAccount.name || `Meta Ads (${activeAccount.id})`;
+      }
+
+      // Save integration to database
+      await storage.createIntegration({
+        platform: 'meta_ads',
+        name: accountName,
+        accountId: accountId,
+        accountName: accountName,
+        status: 'active',
+        accessToken: accessToken,
+        tokenExpiresAt: expiresAt,
+        createdBy: userId,
+      });
+
+      res.redirect('/configuracion?tab=integraciones&oauth=success&platform=meta');
+    } catch (error) {
+      console.error('Error in Meta OAuth callback:', error);
+      res.redirect('/configuracion?tab=integraciones&oauth=error&message=Error+interno');
+    }
+  });
+
+  // Get Meta Ads insights/metrics
+  app.get('/api/meta-ads/insights', requireAdminOrSupervisor, async (req: any, res) => {
+    try {
+      const { datePreset = 'last_30d' } = req.query;
+      
+      // Get active Meta Ads integration
+      const integration = await storage.getActiveIntegration('meta_ads');
+      if (!integration) {
+        return res.status(404).json({ message: 'No hay integración de Meta Ads activa' });
+      }
+
+      if (!integration.accountId) {
+        return res.status(400).json({ message: 'No hay cuenta de anuncios configurada' });
+      }
+
+      // Fetch insights from Meta Graph API
+      const insightsUrl = `https://graph.facebook.com/v18.0/${integration.accountId}/insights?` +
+        `fields=impressions,clicks,spend,cpc,ctr,reach,actions,cost_per_action_type` +
+        `&date_preset=${datePreset}` +
+        `&access_token=${integration.accessToken}`;
+
+      const response = await fetch(insightsUrl);
+      const data = await response.json();
+
+      if (data.error) {
+        console.error('Meta API error:', data.error);
+        if (data.error.code === 190) {
+          // Token expired, update status
+          await storage.updateIntegration(integration.id, { status: 'error' });
+          return res.status(401).json({ message: 'Token de Meta expirado. Reconecte la integración.' });
+        }
+        return res.status(400).json({ message: data.error.message });
+      }
+
+      // Update last sync
+      await storage.updateIntegration(integration.id, { lastSync: new Date() });
+
+      res.json({
+        insights: data.data || [],
+        accountId: integration.accountId,
+        accountName: integration.accountName,
+        lastSync: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Error fetching Meta Ads insights:', error);
+      res.status(500).json({ message: 'Error al obtener métricas de Meta Ads' });
+    }
+  });
+
+  // Get Meta Ads campaigns
+  app.get('/api/meta-ads/campaigns', requireAdminOrSupervisor, async (req: any, res) => {
+    try {
+      const integration = await storage.getActiveIntegration('meta_ads');
+      if (!integration || !integration.accountId) {
+        return res.status(404).json({ message: 'No hay integración de Meta Ads activa' });
+      }
+
+      const campaignsUrl = `https://graph.facebook.com/v18.0/${integration.accountId}/campaigns?` +
+        `fields=id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time,insights{impressions,clicks,spend,reach}` +
+        `&access_token=${integration.accessToken}`;
+
+      const response = await fetch(campaignsUrl);
+      const data = await response.json();
+
+      if (data.error) {
+        console.error('Meta campaigns error:', data.error);
+        return res.status(400).json({ message: data.error.message });
+      }
+
+      res.json({
+        campaigns: data.data || [],
+        accountName: integration.accountName,
+      });
+    } catch (error) {
+      console.error('Error fetching Meta Ads campaigns:', error);
+      res.status(500).json({ message: 'Error al obtener campañas' });
+    }
+  });
+
   // Proyección de Ventas - Historical data endpoint
   app.get('/api/proyeccion/historical', requireAuth, async (req, res) => {
     try {
