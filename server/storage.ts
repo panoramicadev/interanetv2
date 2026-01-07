@@ -387,6 +387,7 @@ export interface IStorage {
     limit?: number;
     offset?: number;
     client?: string;
+    product?: string;
   }): Promise<SalesTransaction[]>;
   getSalesMetrics(filters?: {
     startDate?: string;
@@ -403,7 +404,7 @@ export interface IStorage {
     activeCustomers: number;
     gdvSales: number;
   }>;
-  getTopSalespeople(limit?: number, startDate?: string, endDate?: string, segment?: string, client?: string): Promise<{
+  getTopSalespeople(limit?: number, startDate?: string, endDate?: string, segment?: string, client?: string, product?: string): Promise<{
     items: Array<{
       salesperson: string;
       totalSales: number;
@@ -412,7 +413,7 @@ export interface IStorage {
     periodTotalSales: number;
     totalCount: number;
   }>;
-  searchSalespeople(searchTerm: string, startDate?: string, endDate?: string, segment?: string, client?: string): Promise<Array<{
+  searchSalespeople(searchTerm: string, startDate?: string, endDate?: string, segment?: string, client?: string, product?: string): Promise<Array<{
     name: string;
     totalSales: number;
     transactionCount: number;
@@ -451,7 +452,7 @@ export interface IStorage {
       sales: number;
     }>;
   } | null>;
-  getTopClients(limit?: number, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<{
+  getTopClients(limit?: number, startDate?: string, endDate?: string, salesperson?: string, segment?: string, product?: string): Promise<{
     items: Array<{
       clientName: string;
       totalSales: number;
@@ -2342,8 +2343,9 @@ export class DatabaseStorage implements IStorage {
     limit?: number;
     offset?: number;
     client?: string;
+    product?: string;
   } = {}): Promise<SalesTransaction[]> {
-    const { startDate, endDate, salesperson, segment, limit = 50, offset = 0, client } = filters;
+    const { startDate, endDate, salesperson, segment, limit = 50, offset = 0, client, product } = filters;
     
     const conditions = [
       sql`${factVentas.tido} != 'GDV'`
@@ -2363,6 +2365,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (client) {
       conditions.push(eq(factVentas.nokoen, client));
+    }
+    if (product) {
+      conditions.push(eq(factVentas.nokoar, product));
     }
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -2668,7 +2673,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getTopSalespeople(limit = 10, startDate?: string, endDate?: string, segment?: string, client?: string): Promise<{
+  async getTopSalespeople(limit = 10, startDate?: string, endDate?: string, segment?: string, client?: string, product?: string): Promise<{
     items: Array<{
       salesperson: string;
       totalSales: number;
@@ -2693,6 +2698,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (client) {
       conditions.push(eq(factVentas.nokoen, client));
+    }
+    if (product) {
+      conditions.push(eq(factVentas.nokoar, product));
     }
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -2736,7 +2744,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async searchSalespeople(searchTerm: string, startDate?: string, endDate?: string, segment?: string, client?: string): Promise<Array<{
+  async searchSalespeople(searchTerm: string, startDate?: string, endDate?: string, segment?: string, client?: string, product?: string): Promise<Array<{
     name: string;
     totalSales: number;
     transactionCount: number;
@@ -2758,6 +2766,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (client) {
       conditions.push(eq(factVentas.nokoen, client));
+    }
+    if (product) {
+      conditions.push(eq(factVentas.nokoar, product));
     }
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -2877,7 +2888,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getTopClients(limit = 10, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<{
+  async getTopClients(limit = 10, startDate?: string, endDate?: string, salesperson?: string, segment?: string, product?: string): Promise<{
     items: Array<{
       clientName: string;
       totalSales: number;
@@ -2902,6 +2913,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (segment) {
       conditions.push(eq(factVentas.noruen, segment));
+    }
+    if (product) {
+      conditions.push(eq(factVentas.nokoar, product));
     }
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
