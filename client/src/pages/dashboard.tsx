@@ -1881,16 +1881,18 @@ export default function Dashboard() {
                 </CardWrapper>
               )}
 
-              {/* Products Chart */}
-              <CardWrapper>
-                <TopProductsChart 
-                  selectedPeriod={selectedPeriod} 
-                  filterType={filterType}
-                  segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-                  salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-                  client={selectedClient}
-                />
-              </CardWrapper>
+              {/* Products Chart - Ocultar cuando hay filtro de producto */}
+              {globalFilter.type !== "product" && (
+                <CardWrapper>
+                  <TopProductsChart 
+                    selectedPeriod={selectedPeriod} 
+                    filterType={filterType}
+                    segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                    salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                    client={selectedClient}
+                  />
+                </CardWrapper>
+              )}
 
               {/* Sales Team & Client Analytics - Full Width Column */}
               <CardWrapper>
