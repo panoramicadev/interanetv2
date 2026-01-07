@@ -243,12 +243,42 @@ interface NotificacionesReclamos {
   resolucionesMasRecientes: { id: string; numeroReclamo: string; clientName: string; resolvedAt: string }[];
 }
 
+interface ProductoEvaluacion {
+  aplicacion?: string;
+  tipoSuperficie?: string;
+  ambiente?: string;
+  condicionesClimaticas?: string;
+  dilucion?: string;
+  observacionesTecnicas?: string;
+  preparacionSuperficie?: string;
+  rendimiento?: string;
+  adherencia?: string;
+  anomalias?: string;
+  accionesRecomendadas?: string;
+  imagenesUrls?: string[];
+}
+
+interface ProductoEvaluado {
+  id: string;
+  productId?: string;
+  sku?: string;
+  name?: string;
+  productoManual?: string;
+  formato?: string;
+  color?: string;
+  lote?: string;
+  porcentajeAvance?: string;
+  evaluacion?: ProductoEvaluacion;
+}
+
 interface VisitaDetalle {
   id: string;
   nombreObra: string;
   direccionObra: string;
   tecnicoId: string;
+  tecnico?: string;
   clienteId?: string;
+  cliente?: string;
   clienteManual?: string;
   recepcionistaNombre?: string;
   recepcionistaCargo?: string;
@@ -265,17 +295,10 @@ interface VisitaDetalle {
   firmaRecepcionistaData?: string;
   fechaFirma?: string;
   createdAt?: string;
-  productos?: Array<{
-    id: string;
-    productoManual?: string;
-    formato?: string;
-    color?: string;
-    lote?: string;
-    porcentajeAvance?: string;
-  }>;
+  productos?: ProductoEvaluado[];
 }
 
-// Componente PDF para la visita técnica
+// Componente PDF para la visita técnica - Incluye TODA la información
 const VisitaPDFDocument = ({ visita }: { visita: VisitaDetalle }) => (
   <Document>
     <Page size="A4" style={pdfStyles.page}>
@@ -295,16 +318,24 @@ const VisitaPDFDocument = ({ visita }: { visita: VisitaDetalle }) => (
         </View>
       </View>
 
-      {/* Información de la Obra */}
+      {/* Información General */}
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>Información de la Obra</Text>
+        <Text style={pdfStyles.sectionTitle}>Información General</Text>
         <View style={pdfStyles.row}>
           <Text style={pdfStyles.label}>Nombre Obra:</Text>
-          <Text style={pdfStyles.value}>{visita.nombreObra}</Text>
+          <Text style={pdfStyles.value}>{visita.nombreObra || '-'}</Text>
         </View>
         <View style={pdfStyles.row}>
           <Text style={pdfStyles.label}>Dirección:</Text>
-          <Text style={pdfStyles.value}>{visita.direccionObra}</Text>
+          <Text style={pdfStyles.value}>{visita.direccionObra || '-'}</Text>
+        </View>
+        <View style={pdfStyles.row}>
+          <Text style={pdfStyles.label}>Cliente:</Text>
+          <Text style={pdfStyles.value}>{visita.cliente || visita.clienteManual || '-'}</Text>
+        </View>
+        <View style={pdfStyles.row}>
+          <Text style={pdfStyles.label}>Técnico:</Text>
+          <Text style={pdfStyles.value}>{visita.tecnico || '-'}</Text>
         </View>
         {visita.recepcionistaNombre && (
           <View style={pdfStyles.row}>
@@ -314,50 +345,137 @@ const VisitaPDFDocument = ({ visita }: { visita: VisitaDetalle }) => (
         )}
       </View>
 
-      {/* Evaluación Técnica */}
+      {/* Evaluación General */}
       <View style={pdfStyles.section}>
-        <Text style={pdfStyles.sectionTitle}>Evaluación Técnica</Text>
-        {visita.aplicacionGeneral && (
-          <View style={pdfStyles.row}>
-            <Text style={pdfStyles.label}>Aplicación:</Text>
-            <Text style={pdfStyles.value}>{visita.aplicacionGeneral === 'correcta' ? 'Correcta' : 'Deficiente'}</Text>
-          </View>
-        )}
-        {visita.tipoSuperficie && (
-          <View style={pdfStyles.row}>
-            <Text style={pdfStyles.label}>Tipo Superficie:</Text>
-            <Text style={pdfStyles.value}>{visita.tipoSuperficie}</Text>
-          </View>
-        )}
-        {visita.ambiente && (
-          <View style={pdfStyles.row}>
-            <Text style={pdfStyles.label}>Ambiente:</Text>
-            <Text style={pdfStyles.value}>{visita.ambiente === 'interior' ? 'Interior' : 'Exterior'}</Text>
-          </View>
-        )}
-        {visita.condicionesClimaticas && (
-          <View style={pdfStyles.row}>
-            <Text style={pdfStyles.label}>Clima:</Text>
-            <Text style={pdfStyles.value}>{visita.condicionesClimaticas}</Text>
-          </View>
-        )}
-        {visita.dilucion && (
-          <View style={pdfStyles.row}>
-            <Text style={pdfStyles.label}>Dilución:</Text>
-            <Text style={pdfStyles.value}>{visita.dilucion}</Text>
-          </View>
-        )}
+        <Text style={pdfStyles.sectionTitle}>Evaluación General</Text>
+        <View style={pdfStyles.row}>
+          <Text style={pdfStyles.label}>Aplicación:</Text>
+          <Text style={pdfStyles.value}>{visita.aplicacionGeneral === 'correcta' ? 'Correcta' : visita.aplicacionGeneral === 'deficiente' ? 'Deficiente' : '-'}</Text>
+        </View>
+        <View style={pdfStyles.row}>
+          <Text style={pdfStyles.label}>Tipo Superficie:</Text>
+          <Text style={pdfStyles.value}>{visita.tipoSuperficie || '-'}</Text>
+        </View>
+        <View style={pdfStyles.row}>
+          <Text style={pdfStyles.label}>Ambiente:</Text>
+          <Text style={pdfStyles.value}>{visita.ambiente === 'interior' ? 'Interior' : visita.ambiente === 'exterior' ? 'Exterior' : '-'}</Text>
+        </View>
+        <View style={pdfStyles.row}>
+          <Text style={pdfStyles.label}>Condiciones Climáticas:</Text>
+          <Text style={pdfStyles.value}>{visita.condicionesClimaticas || '-'}</Text>
+        </View>
+        <View style={pdfStyles.row}>
+          <Text style={pdfStyles.label}>Dilución:</Text>
+          <Text style={pdfStyles.value}>{visita.dilucion || '-'}</Text>
+        </View>
       </View>
 
-      {/* Observaciones */}
+      {/* Productos Evaluados */}
+      {visita.productos && visita.productos.length > 0 && (
+        <View style={pdfStyles.section}>
+          <Text style={pdfStyles.sectionTitle}>Productos Evaluados ({visita.productos.length})</Text>
+          {visita.productos.map((producto, index) => (
+            <View key={producto.id} style={{ marginBottom: 12, paddingBottom: 10, borderBottomWidth: index < (visita.productos?.length || 0) - 1 ? 1 : 0, borderBottomColor: '#e5e7eb' }}>
+              <Text style={{ fontWeight: 'bold', fontSize: 11, marginBottom: 4, color: '#1e40af' }}>
+                {index + 1}. {producto.name || producto.productoManual || 'Producto sin nombre'}
+              </Text>
+              <View style={{ marginLeft: 10 }}>
+                <View style={pdfStyles.row}>
+                  <Text style={pdfStyles.label}>SKU:</Text>
+                  <Text style={pdfStyles.value}>{producto.sku || '-'}</Text>
+                </View>
+                <View style={pdfStyles.row}>
+                  <Text style={pdfStyles.label}>Formato:</Text>
+                  <Text style={pdfStyles.value}>{producto.formato || '-'}</Text>
+                </View>
+                {producto.lote && (
+                  <View style={pdfStyles.row}>
+                    <Text style={pdfStyles.label}>Lote:</Text>
+                    <Text style={pdfStyles.value}>{producto.lote}</Text>
+                  </View>
+                )}
+                {producto.color && (
+                  <View style={pdfStyles.row}>
+                    <Text style={pdfStyles.label}>Color:</Text>
+                    <Text style={pdfStyles.value}>{producto.color}</Text>
+                  </View>
+                )}
+                
+                {/* Evaluación del producto */}
+                {producto.evaluacion && (
+                  <View style={{ marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
+                    <Text style={{ fontWeight: 'bold', fontSize: 9, color: '#4b5563', marginBottom: 4 }}>Evaluación Técnica:</Text>
+                    {producto.evaluacion.aplicacion && (
+                      <View style={pdfStyles.row}>
+                        <Text style={pdfStyles.label}>Aplicación:</Text>
+                        <Text style={pdfStyles.value}>{producto.evaluacion.aplicacion === 'correcta' ? 'Correcta' : 'Deficiente'}</Text>
+                      </View>
+                    )}
+                    {producto.evaluacion.adherencia && (
+                      <View style={pdfStyles.row}>
+                        <Text style={pdfStyles.label}>Adherencia:</Text>
+                        <Text style={pdfStyles.value}>{producto.evaluacion.adherencia}</Text>
+                      </View>
+                    )}
+                    {producto.evaluacion.tipoSuperficie && (
+                      <View style={pdfStyles.row}>
+                        <Text style={pdfStyles.label}>Superficie:</Text>
+                        <Text style={pdfStyles.value}>{producto.evaluacion.tipoSuperficie}</Text>
+                      </View>
+                    )}
+                    {producto.evaluacion.preparacionSuperficie && (
+                      <View style={pdfStyles.row}>
+                        <Text style={pdfStyles.label}>Preparación:</Text>
+                        <Text style={pdfStyles.value}>{producto.evaluacion.preparacionSuperficie}</Text>
+                      </View>
+                    )}
+                    {producto.evaluacion.rendimiento && (
+                      <View style={pdfStyles.row}>
+                        <Text style={pdfStyles.label}>Rendimiento:</Text>
+                        <Text style={pdfStyles.value}>{producto.evaluacion.rendimiento}</Text>
+                      </View>
+                    )}
+                    {producto.evaluacion.dilucion && (
+                      <View style={pdfStyles.row}>
+                        <Text style={pdfStyles.label}>Dilución:</Text>
+                        <Text style={pdfStyles.value}>{producto.evaluacion.dilucion}</Text>
+                      </View>
+                    )}
+                    {producto.evaluacion.anomalias && (
+                      <View style={pdfStyles.row}>
+                        <Text style={pdfStyles.label}>Anomalías:</Text>
+                        <Text style={pdfStyles.value}>{producto.evaluacion.anomalias}</Text>
+                      </View>
+                    )}
+                    {producto.evaluacion.accionesRecomendadas && (
+                      <View style={pdfStyles.row}>
+                        <Text style={pdfStyles.label}>Acciones:</Text>
+                        <Text style={pdfStyles.value}>{producto.evaluacion.accionesRecomendadas}</Text>
+                      </View>
+                    )}
+                    {producto.evaluacion.observacionesTecnicas && (
+                      <View style={{ marginTop: 4 }}>
+                        <Text style={{ fontWeight: 'bold', fontSize: 9, color: '#4b5563' }}>Observaciones:</Text>
+                        <Text style={{ fontSize: 9, marginTop: 2 }}>{producto.evaluacion.observacionesTecnicas}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Observaciones Generales */}
       {(visita.observacionesGenerales || visita.comentarios) && (
         <View style={pdfStyles.section}>
-          <Text style={pdfStyles.sectionTitle}>Observaciones</Text>
+          <Text style={pdfStyles.sectionTitle}>Observaciones Generales</Text>
           {visita.observacionesGenerales && (
-            <Text style={{ marginBottom: 8 }}>{visita.observacionesGenerales}</Text>
+            <Text style={{ marginBottom: 8, fontSize: 10 }}>{visita.observacionesGenerales}</Text>
           )}
           {visita.comentarios && (
-            <Text>{visita.comentarios}</Text>
+            <Text style={{ fontSize: 10 }}>{visita.comentarios}</Text>
           )}
         </View>
       )}
@@ -402,6 +520,39 @@ const VisitaPDFDocument = ({ visita }: { visita: VisitaDetalle }) => (
         Documento generado automáticamente - Pinturas Panorámica © {new Date().getFullYear()}
       </Text>
     </Page>
+
+    {/* Página adicional para imágenes si hay alguna */}
+    {visita.productos && visita.productos.some(p => p.evaluacion?.imagenesUrls && p.evaluacion.imagenesUrls.length > 0) && (
+      <Page size="A4" style={pdfStyles.page}>
+        <View style={pdfStyles.header}>
+          <View>
+            <Text style={pdfStyles.title}>Evidencias Fotográficas</Text>
+            <Text style={pdfStyles.subtitle}>Visita: {visita.nombreObra}</Text>
+          </View>
+        </View>
+
+        {visita.productos.filter(p => p.evaluacion?.imagenesUrls && p.evaluacion.imagenesUrls.length > 0).map((producto) => (
+          <View key={`img-${producto.id}`} style={pdfStyles.section}>
+            <Text style={{ fontWeight: 'bold', fontSize: 11, marginBottom: 8, color: '#1e40af' }}>
+              {producto.name || producto.productoManual || 'Producto'}
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {producto.evaluacion?.imagenesUrls?.map((url, imgIndex) => (
+                <Image 
+                  key={imgIndex} 
+                  src={url} 
+                  style={{ width: 150, height: 150, objectFit: 'cover', marginBottom: 8 }} 
+                />
+              ))}
+            </View>
+          </View>
+        ))}
+
+        <Text style={pdfStyles.footer}>
+          Documento generado automáticamente - Pinturas Panorámica © {new Date().getFullYear()}
+        </Text>
+      </Page>
+    )}
   </Document>
 );
 
