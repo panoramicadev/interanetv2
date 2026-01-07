@@ -713,14 +713,24 @@ export default function VisitasTecnicasPage() {
         
         const evaluations: Record<string, any> = {};
         visita.productos.forEach((p: any) => {
+          const eval_data = p.evaluacion || p;
           evaluations[p.productId || p.id] = {
-            estadoAplicacion: p.estadoAplicacion || 'bueno',
-            adherencia: p.adherencia || 'bueno',
-            acabado: p.acabado || 'bueno',
-            cobertura: p.cobertura || 'bueno',
-            observaciones: p.observaciones || '',
-            tieneReclamo: p.tieneReclamo || false,
-            reclamoDescripcion: p.reclamoDescripcion || '',
+            estadoAplicacion: eval_data.estadoAplicacion || eval_data.aplicacion || 'bueno',
+            adherencia: eval_data.adherencia || 'bueno',
+            acabado: eval_data.acabado || 'bueno',
+            cobertura: eval_data.cobertura || 'bueno',
+            observaciones: eval_data.observaciones || eval_data.observacionesTecnicas || '',
+            tieneReclamo: eval_data.tieneReclamo || false,
+            reclamoDescripcion: eval_data.reclamoDescripcion || '',
+            tipoSuperficie: eval_data.tipoSuperficie || '',
+            ambiente: eval_data.ambiente || '',
+            condicionesClimaticas: eval_data.condicionesClimaticas || '',
+            dilucion: eval_data.dilucion || '',
+            preparacionSuperficie: eval_data.preparacionSuperficie || '',
+            rendimiento: eval_data.rendimiento || '',
+            anomalias: eval_data.anomalias || '',
+            accionesRecomendadas: eval_data.accionesRecomendadas || '',
+            imagenesUrls: eval_data.imagenesUrls || [],
           };
         });
         setProductEvaluations(evaluations);
