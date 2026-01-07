@@ -48,3 +48,5 @@ defaultBucketID = "replit-objstore-16fb68d0-f553-422b-802a-5af9fe0e5d7f"
 
 [userenv.production]
 GMAIL_OAUTH_REDIRECT_URI = "https://app.pinturaspanoramica.cl/api/oauth/google/callback"
+
+[userenv.shared]
