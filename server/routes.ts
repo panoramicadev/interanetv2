@@ -1717,7 +1717,7 @@ export function registerRoutes(app: Express): Server {
   // Sales transactions endpoint
   app.get('/api/sales/transactions', requireCommercialAccess, async (req, res) => {
     try {
-      const { startDate, endDate, salesperson, segment, limit, offset, period, filterType, client } = req.query;
+      const { startDate, endDate, salesperson, segment, limit, offset, period, filterType, client, product } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
       
       // Enforce role-based access control for salespeople
@@ -1740,6 +1740,7 @@ export function registerRoutes(app: Express): Server {
         limit: limit ? parseInt(limit as string) : undefined,
         offset: offset ? parseInt(offset as string) : undefined,
         client: client as string,
+        product: product as string,
       });
       res.json(transactions);
     } catch (error) {
@@ -1751,7 +1752,7 @@ export function registerRoutes(app: Express): Server {
   // Top salespeople endpoint
   app.get('/api/sales/top-salespeople', requireCommercialAccess, async (req, res) => {
     try {
-      const { limit, period, filterType, segment, client } = req.query;
+      const { limit, period, filterType, segment, client, product } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
       
       const result = await storage.getTopSalespeople(
@@ -1759,7 +1760,8 @@ export function registerRoutes(app: Express): Server {
         dateRange.startDate,
         dateRange.endDate,
         segment as string, // Filtrar por segmento específico
-        client as string // Filtrar por cliente específico
+        client as string, // Filtrar por cliente específico
+        product as string // Filtrar por producto específico
       );
       res.json(result);
     } catch (error) {
@@ -1771,7 +1773,7 @@ export function registerRoutes(app: Express): Server {
   // Salespeople search endpoint (AJAX autocomplete)
   app.get('/api/salespeople/search', requireCommercialAccess, async (req, res) => {
     try {
-      const { q, period, filterType, segment, client } = req.query;
+      const { q, period, filterType, segment, client, product } = req.query;
       
       if (!q || typeof q !== 'string' || q.trim().length < 2) {
         return res.json([]);
@@ -1792,7 +1794,8 @@ export function registerRoutes(app: Express): Server {
         startDate,
         endDate,
         segment as string,
-        client as string
+        client as string,
+        product as string
       );
       
       res.json(results);
@@ -2003,7 +2006,7 @@ export function registerRoutes(app: Express): Server {
   // Top clients endpoint
   app.get('/api/sales/top-clients', requireCommercialAccess, async (req, res) => {
     try {
-      const { limit, period, filterType, salesperson, segment } = req.query;
+      const { limit, period, filterType, salesperson, segment, product } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
       
       const result = await storage.getTopClients(
@@ -2011,7 +2014,8 @@ export function registerRoutes(app: Express): Server {
         dateRange.startDate,
         dateRange.endDate,
         salesperson as string, // Filtrar por vendedor específico
-        segment as string // Filtrar por segmento específico
+        segment as string, // Filtrar por segmento específico
+        product as string // Filtrar por producto específico
       );
       res.json(result);
     } catch (error) {

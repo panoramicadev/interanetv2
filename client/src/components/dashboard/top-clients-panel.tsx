@@ -29,9 +29,10 @@ interface TopClientsPanelProps {
   segment?: string;
   salesperson?: string;
   client?: string;
+  product?: string;
 }
 
-export default function TopClientsPanel({ selectedPeriod, filterType, segment, salesperson, client }: TopClientsPanelProps) {
+export default function TopClientsPanel({ selectedPeriod, filterType, segment, salesperson, client, product }: TopClientsPanelProps) {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
@@ -48,13 +49,13 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
   
   // Query for paginated top clients (default view)
   const { data: topClientsResponse, isLoading } = useQuery<TopClientsResponse>({
-    queryKey: [`/api/sales/top-clients?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}${client ? `&client=${encodeURIComponent(client)}` : ''}`],
+    queryKey: [`/api/sales/top-clients?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}${client ? `&client=${encodeURIComponent(client)}` : ''}${product ? `&product=${encodeURIComponent(product)}` : ''}`],
     enabled: !debouncedSearchTerm,
   });
 
   // Query for search results (when typing)
   const { data: searchResults, isLoading: isSearchLoading } = useQuery<SearchClient[]>({
-    queryKey: [`/api/clients/search?q=${encodeURIComponent(debouncedSearchTerm)}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}${client ? `&client=${encodeURIComponent(client)}` : ''}`],
+    queryKey: [`/api/clients/search?q=${encodeURIComponent(debouncedSearchTerm)}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}${client ? `&client=${encodeURIComponent(client)}` : ''}${product ? `&product=${encodeURIComponent(product)}` : ''}`],
     enabled: debouncedSearchTerm.length >= 2,
   });
 

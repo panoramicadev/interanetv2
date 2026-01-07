@@ -27,9 +27,10 @@ interface TransactionsTableProps {
   segment?: string;
   salesperson?: string;
   client?: string;
+  product?: string;
 }
 
-export default function TransactionsTable({ selectedPeriod, filterType, segment, salesperson, client }: TransactionsTableProps) {
+export default function TransactionsTable({ selectedPeriod, filterType, segment, salesperson, client, product }: TransactionsTableProps) {
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedSales, setExpandedSales] = useState<Set<string>>(new Set());
@@ -81,7 +82,7 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
 
 
   const { data: allTransactions, isLoading, isError } = useQuery<Transaction[]>({
-    queryKey: ['/api/sales/transactions', { limit: 100, period: selectedPeriod, filterType, segment, salesperson, client }],
+    queryKey: ['/api/sales/transactions', { limit: 100, period: selectedPeriod, filterType, segment, salesperson, client, product }],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append('limit', '100');
@@ -90,6 +91,7 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
       if (segment) params.append('segment', segment);
       if (salesperson) params.append('salesperson', salesperson);
       if (client) params.append('client', client);
+      if (product) params.append('product', product);
       
       const response = await fetch(`/api/sales/transactions?${params}`, { 
         credentials: 'include',

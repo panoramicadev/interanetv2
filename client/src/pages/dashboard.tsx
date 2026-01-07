@@ -1902,6 +1902,7 @@ export default function Dashboard() {
                   segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
                   salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
                   client={selectedClient}
+                  product={globalFilter.type === "product" ? globalFilter.value : undefined}
                 />
               </CardWrapper>
 
@@ -1913,20 +1914,23 @@ export default function Dashboard() {
                     segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
                     salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
                     client={selectedClient}
+                    product={globalFilter.type === "product" ? globalFilter.value : undefined}
                   />
                 </CardWrapper>
               )}
 
-              {/* Packaging Metrics - Full Width */}
-              <CardWrapper>
-                <PackagingSalesMetrics 
-                  selectedPeriod={selectedPeriod} 
-                  filterType={filterType}
-                  segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-                  salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-                  client={selectedClient}
-                />
-              </CardWrapper>
+              {/* Packaging Metrics - Full Width - Ocultar cuando hay filtro de producto */}
+              {globalFilter.type !== "product" && (
+                <CardWrapper>
+                  <PackagingSalesMetrics 
+                    selectedPeriod={selectedPeriod} 
+                    filterType={filterType}
+                    segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                    salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                    client={selectedClient}
+                  />
+                </CardWrapper>
+              )}
 
               {/* Transactions - Full Width - Only in non-comparative mode */}
               <CardWrapper>
@@ -1936,6 +1940,7 @@ export default function Dashboard() {
                   segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
                   salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
                   client={selectedClient}
+                  product={globalFilter.type === "product" ? globalFilter.value : undefined}
                 />
               </CardWrapper>
             </>
