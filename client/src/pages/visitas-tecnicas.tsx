@@ -3280,14 +3280,20 @@ function EditVisitContent({ visita, onSave, onCancel }: {
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      // Merge editData with existing visita to preserve all data
       await onSave({
+        ...visita,
         ...editData,
-        clienteId: visita.clienteId,
-        obraId: visita.obraId,
       });
     } finally {
       setIsSaving(false);
     }
+  };
+  
+  // Helper to get images from evaluation (handles multiple field names)
+  const getEvaluationImages = (evaluacion: any): string[] => {
+    if (!evaluacion) return [];
+    return evaluacion.imagenesUrls || evaluacion.imagenes || evaluacion.evidencias || [];
   };
 
   return (
@@ -3405,21 +3411,24 @@ function EditVisitContent({ visita, onSave, onCancel }: {
                     )}
                     
                     {/* Imágenes */}
-                    {producto.evaluacion.imagenesUrls && producto.evaluacion.imagenesUrls.length > 0 && (
-                      <div className="mt-2">
-                        <p className="font-medium mb-1">Fotos ({producto.evaluacion.imagenesUrls.length}):</p>
-                        <div className="flex gap-2 flex-wrap">
-                          {producto.evaluacion.imagenesUrls.map((url: string, imgIdx: number) => (
-                            <img 
-                              key={imgIdx} 
-                              src={url} 
-                              alt={`Foto ${imgIdx + 1}`}
-                              className="w-16 h-16 object-cover rounded border"
-                            />
-                          ))}
+                    {(() => {
+                      const images = getEvaluationImages(producto.evaluacion);
+                      return images.length > 0 ? (
+                        <div className="mt-2">
+                          <p className="font-medium mb-1">Fotos ({images.length}):</p>
+                          <div className="flex gap-2 flex-wrap">
+                            {images.map((url: string, imgIdx: number) => (
+                              <img 
+                                key={imgIdx} 
+                                src={url} 
+                                alt={`Foto ${imgIdx + 1}`}
+                                className="w-16 h-16 object-cover rounded border"
+                              />
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      ) : null;
+                    })()}
                   </div>
                 )}
               </div>
