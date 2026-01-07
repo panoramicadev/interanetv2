@@ -724,13 +724,16 @@ export default function VisitasTecnicasPage() {
             reclamoDescripcion: eval_data.reclamoDescripcion || '',
             tipoSuperficie: eval_data.tipoSuperficie || '',
             ambiente: eval_data.ambiente || '',
-            condicionesClimaticas: eval_data.condicionesClimaticas || '',
+            condicionesClimaticas: eval_data.condicionesClimaticas || eval_data.clima || '',
             dilucion: eval_data.dilucion || '',
             preparacionSuperficie: eval_data.preparacionSuperficie || '',
             rendimiento: eval_data.rendimiento || '',
-            anomalias: eval_data.anomalias || '',
+            anomalias: eval_data.anomalias || eval_data.evidenciaDeficiencia || '',
             accionesRecomendadas: eval_data.accionesRecomendadas || '',
-            imagenesUrls: eval_data.imagenesUrls || [],
+            imagenes: eval_data.imagenesUrls || eval_data.imagenes || [],
+            aplicacion: eval_data.aplicacion || '',
+            clima: eval_data.condicionesClimaticas || eval_data.clima || '',
+            evidenciaDeficiencia: eval_data.anomalias || eval_data.evidenciaDeficiencia || '',
           };
         });
         setProductEvaluations(evaluations);
