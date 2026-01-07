@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -1399,12 +1399,12 @@ export default function TomadorPedidos() {
   };
 
   // Auto-save ref to track pending auto-saves  
-  const autoSaveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
-  const isAutoSavingRef = React.useRef(false);
-  const pendingCartRef = React.useRef<CartItem[] | null>(null);
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isAutoSavingRef = useRef(false);
+  const pendingCartRef = useRef<CartItem[] | null>(null);
   
   // Auto-save function triggered when products are added - accepts cart snapshot
-  const triggerAutoSave = React.useCallback((cartSnapshot: CartItem[]) => {
+  const triggerAutoSave = useCallback((cartSnapshot: CartItem[]) => {
     // Store the latest cart snapshot
     pendingCartRef.current = cartSnapshot;
     
