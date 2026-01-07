@@ -581,6 +581,8 @@ export default function VisitasTecnicasPage() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
   const [editingVisitId, setEditingVisitId] = useState<string | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editVisitData, setEditVisitData] = useState<any>(null);
   
   const canEditVisit = user?.role === 'admin' || user?.role === 'tecnico_obra';
   
@@ -691,56 +693,8 @@ export default function VisitasTecnicasPage() {
       const visita = await response.json();
       
       setEditingVisitId(visitaId);
-      setVisitData({
-        clienteId: visita.clienteId || '',
-        clienteName: visita.cliente || '',
-        obraId: visita.obraId || '',
-        nombreObra: visita.nombreObra || '',
-        direccionObra: visita.direccionObra || '',
-        recepcionistaNombre: visita.recepcionistaNombre || '',
-        recepcionistaCargo: visita.recepcionistaCargo || '',
-        observacionesGenerales: visita.observacionesGenerales || '',
-      });
-      setClientSearchTerm(visita.cliente || '');
-      
-      if (visita.productos && visita.productos.length > 0) {
-        setSelectedProducts(visita.productos.map((p: any) => ({
-          productId: p.productId || p.id,
-          sku: p.sku || p.kopr || '',
-          name: p.name || p.nombreProducto || '',
-          formato: p.formato || 'N/A'
-        })));
-        
-        const evaluations: Record<string, any> = {};
-        visita.productos.forEach((p: any) => {
-          const eval_data = p.evaluacion || p;
-          evaluations[p.productId || p.id] = {
-            estadoAplicacion: eval_data.estadoAplicacion || eval_data.aplicacion || 'bueno',
-            adherencia: eval_data.adherencia || 'bueno',
-            acabado: eval_data.acabado || 'bueno',
-            cobertura: eval_data.cobertura || 'bueno',
-            observaciones: eval_data.observaciones || eval_data.observacionesTecnicas || '',
-            tieneReclamo: eval_data.tieneReclamo || false,
-            reclamoDescripcion: eval_data.reclamoDescripcion || '',
-            tipoSuperficie: eval_data.tipoSuperficie || '',
-            ambiente: eval_data.ambiente || '',
-            condicionesClimaticas: eval_data.condicionesClimaticas || eval_data.clima || '',
-            dilucion: eval_data.dilucion || '',
-            preparacionSuperficie: eval_data.preparacionSuperficie || '',
-            rendimiento: eval_data.rendimiento || '',
-            anomalias: eval_data.anomalias || eval_data.evidenciaDeficiencia || '',
-            accionesRecomendadas: eval_data.accionesRecomendadas || '',
-            imagenes: eval_data.imagenesUrls || eval_data.imagenes || [],
-            aplicacion: eval_data.aplicacion || '',
-            clima: eval_data.condicionesClimaticas || eval_data.clima || '',
-            evidenciaDeficiencia: eval_data.anomalias || eval_data.evidenciaDeficiencia || '',
-          };
-        });
-        setProductEvaluations(evaluations);
-      }
-      
-      setVisitStep('basic');
-      setShowNewVisitModal(true);
+      setEditVisitData(visita);
+      setShowEditModal(true);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -3250,6 +3204,252 @@ export default function VisitasTecnicasPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Edición Dedicado */}
+      <Dialog open={showEditModal} onOpenChange={(open) => {
+        if (!open) {
+          setShowEditModal(false);
+          setEditVisitData(null);
+          setEditingVisitId(null);
+        }
+      }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="w-5 h-5" />
+              Editar Visita Técnica
+            </DialogTitle>
+            <DialogDescription>
+              Modifique los datos necesarios de la visita técnica
+            </DialogDescription>
+          </DialogHeader>
+          
+          {editVisitData && (
+            <EditVisitContent 
+              visita={editVisitData} 
+              onSave={async (updatedData) => {
+                try {
+                  await apiRequest(`/api/visitas-tecnicas/${editingVisitId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(updatedData),
+                  });
+                  toast({
+                    title: "Visita actualizada",
+                    description: "La visita técnica ha sido actualizada correctamente",
+                  });
+                  queryClient.invalidateQueries({ queryKey: ['/api/visitas-tecnicas'] });
+                  setShowEditModal(false);
+                  setEditVisitData(null);
+                  setEditingVisitId(null);
+                } catch (error: any) {
+                  toast({
+                    title: "Error",
+                    description: "No se pudo actualizar la visita",
+                    variant: "destructive",
+                  });
+                }
+              }}
+              onCancel={() => {
+                setShowEditModal(false);
+                setEditVisitData(null);
+                setEditingVisitId(null);
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// Componente para el contenido del modal de edición
+function EditVisitContent({ visita, onSave, onCancel }: { 
+  visita: any; 
+  onSave: (data: any) => Promise<void>; 
+  onCancel: () => void;
+}) {
+  const [isSaving, setIsSaving] = useState(false);
+  const [editData, setEditData] = useState({
+    nombreObra: visita.nombreObra || '',
+    direccionObra: visita.direccionObra || '',
+    recepcionistaNombre: visita.recepcionistaNombre || '',
+    recepcionistaCargo: visita.recepcionistaCargo || '',
+    observacionesGenerales: visita.observacionesGenerales || '',
+  });
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await onSave({
+        ...editData,
+        clienteId: visita.clienteId,
+        obraId: visita.obraId,
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6 py-4">
+      {/* Información General (Solo lectura) */}
+      <div className="space-y-4">
+        <h3 className="font-semibold text-sm flex items-center gap-2 text-muted-foreground">
+          <Building2 className="w-4 h-4" />
+          Información de la Visita
+        </h3>
+        <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
+          <div>
+            <span className="text-xs text-muted-foreground">Cliente</span>
+            <p className="font-medium">{visita.cliente || 'Sin cliente'}</p>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground">Fecha</span>
+            <p className="font-medium">{visita.fecha ? new Date(visita.fecha).toLocaleDateString('es-CL') : 'Sin fecha'}</p>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground">Estado</span>
+            <Badge variant={visita.estado === 'completada' ? 'default' : 'secondary'}>
+              {visita.estado || 'pendiente'}
+            </Badge>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground">Tipo</span>
+            <p className="font-medium">{visita.tipoVisita || 'N/A'}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Campos Editables */}
+      <div className="space-y-4">
+        <h3 className="font-semibold text-sm">Datos de la Obra</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="edit-nombreObra">Nombre de la Obra</Label>
+            <Input
+              id="edit-nombreObra"
+              value={editData.nombreObra}
+              onChange={(e) => setEditData(prev => ({ ...prev, nombreObra: e.target.value }))}
+              data-testid="input-edit-nombre-obra"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-direccionObra">Dirección</Label>
+            <Input
+              id="edit-direccionObra"
+              value={editData.direccionObra}
+              onChange={(e) => setEditData(prev => ({ ...prev, direccionObra: e.target.value }))}
+              data-testid="input-edit-direccion-obra"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Recepcionista */}
+      <div className="space-y-4">
+        <h3 className="font-semibold text-sm">Datos del Recepcionista</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="edit-recepcionistaNombre">Nombre</Label>
+            <Input
+              id="edit-recepcionistaNombre"
+              value={editData.recepcionistaNombre}
+              onChange={(e) => setEditData(prev => ({ ...prev, recepcionistaNombre: e.target.value }))}
+              data-testid="input-edit-recepcionista-nombre"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-recepcionistaCargo">Cargo</Label>
+            <Input
+              id="edit-recepcionistaCargo"
+              value={editData.recepcionistaCargo}
+              onChange={(e) => setEditData(prev => ({ ...prev, recepcionistaCargo: e.target.value }))}
+              data-testid="input-edit-recepcionista-cargo"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Productos Evaluados (Solo lectura) */}
+      {visita.productos && visita.productos.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="font-semibold text-sm flex items-center gap-2">
+            <Package className="w-4 h-4" />
+            Productos Evaluados ({visita.productos.length})
+          </h3>
+          <div className="space-y-3 max-h-60 overflow-y-auto">
+            {visita.productos.map((producto: any, idx: number) => (
+              <div key={producto.id || idx} className="p-3 border rounded-lg bg-background">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      {producto.sku && <Badge variant="outline" className="font-mono text-xs">{producto.sku}</Badge>}
+                      <Badge variant="secondary" className="text-xs">{producto.formato || 'N/A'}</Badge>
+                      {producto.isCustomProduct && <Badge variant="default" className="text-xs">Personalizado</Badge>}
+                    </div>
+                    <p className="font-medium text-sm">{producto.name || 'Producto sin nombre'}</p>
+                  </div>
+                </div>
+                
+                {/* Evaluación */}
+                {producto.evaluacion && (
+                  <div className="mt-2 pt-2 border-t text-xs text-muted-foreground space-y-1">
+                    {producto.evaluacion.aplicacion && (
+                      <p><span className="font-medium">Aplicación:</span> {producto.evaluacion.aplicacion}</p>
+                    )}
+                    {producto.evaluacion.condicionesClimaticas && (
+                      <p><span className="font-medium">Clima:</span> {producto.evaluacion.condicionesClimaticas}</p>
+                    )}
+                    {producto.evaluacion.observacionesTecnicas && (
+                      <p><span className="font-medium">Observaciones:</span> {producto.evaluacion.observacionesTecnicas}</p>
+                    )}
+                    
+                    {/* Imágenes */}
+                    {producto.evaluacion.imagenesUrls && producto.evaluacion.imagenesUrls.length > 0 && (
+                      <div className="mt-2">
+                        <p className="font-medium mb-1">Fotos ({producto.evaluacion.imagenesUrls.length}):</p>
+                        <div className="flex gap-2 flex-wrap">
+                          {producto.evaluacion.imagenesUrls.map((url: string, imgIdx: number) => (
+                            <img 
+                              key={imgIdx} 
+                              src={url} 
+                              alt={`Foto ${imgIdx + 1}`}
+                              className="w-16 h-16 object-cover rounded border"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Observaciones Generales */}
+      <div className="space-y-2">
+        <Label htmlFor="edit-observaciones">Observaciones Generales</Label>
+        <Textarea
+          id="edit-observaciones"
+          value={editData.observacionesGenerales}
+          onChange={(e) => setEditData(prev => ({ ...prev, observacionesGenerales: e.target.value }))}
+          rows={4}
+          data-testid="input-edit-observaciones"
+        />
+      </div>
+
+      {/* Botones */}
+      <div className="flex justify-end gap-3 pt-4 border-t">
+        <Button variant="outline" onClick={onCancel} data-testid="button-cancel-edit">
+          Cancelar
+        </Button>
+        <Button onClick={handleSave} disabled={isSaving} data-testid="button-save-edit">
+          {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+          Guardar Cambios
+        </Button>
+      </div>
     </div>
   );
 }
