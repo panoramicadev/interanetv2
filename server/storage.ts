@@ -13820,6 +13820,18 @@ export class DatabaseStorage implements IStorage {
       
       if (!visita) return null;
 
+      // Get client name if clienteId exists
+      let clienteNombre = visita.clienteManual || '';
+      if (visita.clienteId) {
+        const [cliente] = await db
+          .select({ nokoen: clients.nokoen })
+          .from(clients)
+          .where(eq(clients.id, visita.clienteId));
+        if (cliente) {
+          clienteNombre = cliente.nokoen || '';
+        }
+      }
+
       // Get productos evaluados for this visit
       const productosEval = await db
         .select()
@@ -13847,6 +13859,7 @@ export class DatabaseStorage implements IStorage {
 
       return {
         ...visita,
+        cliente: clienteNombre,
         productos: productosConEvaluacion
       };
     } catch (error) {
