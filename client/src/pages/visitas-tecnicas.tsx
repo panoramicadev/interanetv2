@@ -1772,7 +1772,7 @@ export default function VisitasTecnicasPage() {
 
         {/* Tabs principales */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="dashboard" data-testid="tab-dashboard">
               <BarChart3 className="w-4 h-4 mr-2" />
               Dashboard
@@ -1784,10 +1784,6 @@ export default function VisitasTecnicasPage() {
             <TabsTrigger value="obras" data-testid="tab-obras">
               <Building2 className="w-4 h-4 mr-2" />
               Obras
-            </TabsTrigger>
-            <TabsTrigger value="reportes" data-testid="tab-reportes">
-              <BarChart3 className="w-4 h-4 mr-2" />
-              Reportes
             </TabsTrigger>
           </TabsList>
 
