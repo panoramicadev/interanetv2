@@ -13838,7 +13838,7 @@ export class DatabaseStorage implements IStorage {
         .from(productosEvaluados)
         .where(eq(productosEvaluados.visitaId, id));
 
-      // For each producto, get its evaluacion tecnica
+      // For each producto, get its evaluacion tecnica and product info from catalog
       const productosConEvaluacion = await Promise.all(
         productosEval.map(async (prod) => {
           const [evaluacion] = await db
@@ -13846,12 +13846,34 @@ export class DatabaseStorage implements IStorage {
             .from(evaluacionesTecnicas)
             .where(eq(evaluacionesTecnicas.productoEvaluadoId, prod.id));
 
+          // Si no tiene productoId (es personalizado), generar un ID custom
+          const isCustom = !prod.productoId;
+          const productIdForFrontend = isCustom 
+            ? `custom-${prod.id}` 
+            : prod.productoId;
+
+          // Get SKU and name from products table if it's a catalog product
+          let sku = '';
+          let name = prod.productoManual || '';
+          
+          if (prod.productoId) {
+            const [catalogProduct] = await db
+              .select({ kopr: products.kopr, name: products.name })
+              .from(products)
+              .where(eq(products.id, prod.productoId));
+            if (catalogProduct) {
+              sku = catalogProduct.kopr || '';
+              name = catalogProduct.name || '';
+            }
+          }
+
           return {
             id: prod.id,
-            productId: prod.productoId,
-            sku: prod.sku,
-            name: prod.nombre,
+            productId: productIdForFrontend,
+            sku,
+            name,
             formato: prod.formato,
+            isCustomProduct: isCustom,
             evaluacion: evaluacion || {}
           };
         })
