@@ -429,6 +429,9 @@ export default function VisitasTecnicasPage() {
   const [showNewVisitModal, setShowNewVisitModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
+  const [editingVisitId, setEditingVisitId] = useState<string | null>(null);
+  
+  const canEditVisit = user?.role === 'admin' || user?.role === 'tecnico_obra';
   
   // Estados para modal de firma
   const [showSignatureModal, setShowSignatureModal] = useState(false);
@@ -511,6 +514,7 @@ export default function VisitasTecnicasPage() {
   }, [showClientDropdownObras]);
 
   const handleNewVisit = () => {
+    setEditingVisitId(null);
     setShowNewVisitModal(true);
     setVisitStep('basic');
     setVisitData({
@@ -529,12 +533,65 @@ export default function VisitasTecnicasPage() {
     setShowClientDropdown(false);
     setProductEvaluations({});
   };
+
+  const handleEditVisit = async (visitaId: string) => {
+    try {
+      const response = await apiRequest(`/api/visitas-tecnicas/${visitaId}`);
+      const visita = await response.json();
+      
+      setEditingVisitId(visitaId);
+      setVisitData({
+        clienteId: visita.clienteId || '',
+        clienteName: visita.cliente || '',
+        obraId: visita.obraId || '',
+        nombreObra: visita.nombreObra || '',
+        direccionObra: visita.direccionObra || '',
+        recepcionistaNombre: visita.recepcionistaNombre || '',
+        recepcionistaCargo: visita.recepcionistaCargo || '',
+        observacionesGenerales: visita.observacionesGenerales || '',
+      });
+      setClientSearchTerm(visita.cliente || '');
+      
+      if (visita.productos && visita.productos.length > 0) {
+        setSelectedProducts(visita.productos.map((p: any) => ({
+          productId: p.productId || p.id,
+          sku: p.sku || p.kopr || '',
+          name: p.name || p.nombreProducto || '',
+          formato: p.formato || 'N/A'
+        })));
+        
+        const evaluations: Record<string, any> = {};
+        visita.productos.forEach((p: any) => {
+          evaluations[p.productId || p.id] = {
+            estadoAplicacion: p.estadoAplicacion || 'bueno',
+            adherencia: p.adherencia || 'bueno',
+            acabado: p.acabado || 'bueno',
+            cobertura: p.cobertura || 'bueno',
+            observaciones: p.observaciones || '',
+            tieneReclamo: p.tieneReclamo || false,
+            reclamoDescripcion: p.reclamoDescripcion || '',
+          };
+        });
+        setProductEvaluations(evaluations);
+      }
+      
+      setVisitStep('basic');
+      setShowNewVisitModal(true);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "No se pudo cargar la visita para editar",
+        variant: "destructive",
+      });
+    }
+  };
   
   const handleCloseModal = () => {
     setShowNewVisitModal(false);
     setVisitStep('basic');
     setClientSearchTerm("");
     setShowClientDropdown(false);
+    setEditingVisitId(null);
   };
   
   // Helper para actualizar los datos de evaluación de un producto
@@ -618,6 +675,12 @@ export default function VisitasTecnicasPage() {
 
   const createVisitMutation = useMutation({
     mutationFn: async (data: any) => {
+      if (editingVisitId) {
+        return await apiRequest(`/api/visitas-tecnicas/${editingVisitId}`, {
+          method: 'PUT',
+          data: data,
+        });
+      }
       return await apiRequest('/api/visitas-tecnicas', {
         method: 'POST',
         data: data,
@@ -626,7 +689,18 @@ export default function VisitasTecnicasPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/visitas-tecnicas/listado'] });
       queryClient.invalidateQueries({ queryKey: ['/api/visitas-tecnicas/estadisticas'] });
+      toast({
+        title: editingVisitId ? "Visita actualizada" : "Visita creada",
+        description: editingVisitId ? "La visita técnica ha sido actualizada correctamente" : "La visita técnica ha sido creada correctamente",
+      });
       handleCloseModal();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo guardar la visita",
+        variant: "destructive",
+      });
     },
   });
 
@@ -1444,6 +1518,18 @@ export default function VisitasTecnicasPage() {
                       <PenLine className="w-4 h-4 mr-2" />
                       Firmar
                     </Button>
+                    {canEditVisit && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full"
+                        onClick={() => handleEditVisit(visita.id)}
+                        data-testid={`button-editar-${visita.id}`}
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Editar
+                      </Button>
+                    )}
                     <Button 
                       variant="outline" 
                       size="sm" 
