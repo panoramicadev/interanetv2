@@ -811,7 +811,9 @@ export default function VisitasTecnicasPage() {
         formato: product.ud02pr || 'N/A'
       }]);
     } else {
-      setSelectedProducts(prev => prev.filter(p => p.productId !== product.id));
+      setSelectedProducts(prev => prev.filter(p => 
+        p.productId !== product.id && p.sku !== product.kopr
+      ));
     }
   };
 
@@ -2366,7 +2368,9 @@ export default function VisitasTecnicasPage() {
                       </div>
                     ) : (
                       filteredProducts.map((product) => {
-                        const isSelected = selectedProducts.some(p => p.productId === product.id);
+                        const isSelected = selectedProducts.some(p => 
+                          p.productId === product.id || p.sku === product.kopr
+                        );
                         return (
                           <div
                             key={product.id}
