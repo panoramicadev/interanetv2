@@ -97,17 +97,20 @@ export default function IntegracionesPage() {
   const handleConnect = async (platformId: string) => {
     setConnectingPlatform(platformId);
     try {
-      const response = await apiRequest("POST", `/api/oauth/${platformId}/start`);
+      const response = await apiRequest(`/api/oauth/${platformId}/start`, { method: "POST" });
       const data = await response.json();
       if (data.authUrl) {
         window.location.href = data.authUrl;
       } else {
         throw new Error("No auth URL received");
       }
-    } catch (error) {
+    } catch (error: any) {
+      const errorMessage = error?.message || "No se pudo iniciar la conexión";
       toast({
-        title: "Error",
-        description: "No se pudo iniciar la conexión. Verifica que las credenciales de la plataforma estén configuradas.",
+        title: "Error de conexión",
+        description: errorMessage.includes("credenciales") 
+          ? "Las credenciales de Meta Ads no están configuradas. Contacta al administrador para configurar META_APP_ID y META_APP_SECRET."
+          : errorMessage,
         variant: "destructive",
       });
       setConnectingPlatform(null);
