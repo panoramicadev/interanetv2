@@ -1385,16 +1385,55 @@ export default function TomadorPedidos() {
       };
       console.log('[FRONTEND] New cart item created with productUnit:', newItem.productUnit);
       
-      setCart(prev => [...prev, newItem]);
-      if (savedQuoteId) {
-        setHasUnsavedChanges(true);
-      }
+      setCart(prev => {
+        const newCart = [...prev, newItem];
+        // Trigger auto-save with new cart snapshot
+        triggerAutoSave(newCart);
+        return newCart;
+      });
       toast({
         title: "Producto agregado",
         description: `${product.producto} agregado al presupuesto`,
       });
     }
   };
+
+  // Auto-save ref to track pending auto-saves  
+  const autoSaveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const isAutoSavingRef = React.useRef(false);
+  const pendingCartRef = React.useRef<CartItem[] | null>(null);
+  
+  // Auto-save function triggered when products are added - accepts cart snapshot
+  const triggerAutoSave = React.useCallback((cartSnapshot: CartItem[]) => {
+    // Store the latest cart snapshot
+    pendingCartRef.current = cartSnapshot;
+    
+    // Clear any pending auto-save
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+    
+    // Debounce auto-save to prevent too many calls
+    autoSaveTimeoutRef.current = setTimeout(async () => {
+      // Only auto-save if we have a client name and items
+      if (!quoteForm.clientName.trim() || !pendingCartRef.current || pendingCartRef.current.length === 0) return;
+      
+      // Guard against concurrent saves
+      if (isAutoSavingRef.current || isSavingQuote) return;
+      
+      isAutoSavingRef.current = true;
+      
+      try {
+        // Use DOM to trigger save button (ensures latest state sync)
+        const saveBtn = document.querySelector('[data-testid="modal-button-save-quote"]') as HTMLButtonElement;
+        if (saveBtn && !saveBtn.disabled) {
+          saveBtn.click();
+        }
+      } finally {
+        isAutoSavingRef.current = false;
+      }
+    }, 800); // 800ms debounce for auto-save
+  }, [quoteForm.clientName, isSavingQuote]);
 
   // Update cart item quantity
   const updateCartItemQuantity = (itemId: string, newQuantity: number) => {
@@ -4342,15 +4381,8 @@ export default function TomadorPedidos() {
                                     <Badge variant="secondary" className="text-xs w-fit">
                                       {product.codigo}
                                     </Badge>
-                                    <h4 className="font-medium text-sm">
-                                      <Link
-                                        href={`/product/${encodeURIComponent(product.producto || '')}`}
-                                        className="text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer"
-                                        onClick={(e) => e.stopPropagation()}
-                                        data-testid={`link-product-${product.codigo}`}
-                                      >
-                                        {product.producto}
-                                      </Link>
+                                    <h4 className="font-medium text-sm" data-testid={`text-product-${product.codigo}`}>
+                                      {product.producto}
                                     </h4>
                                     <p className="text-xs text-muted-foreground">
                                       Unidad: {(product.unidad || "N/A").toUpperCase()}
