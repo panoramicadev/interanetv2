@@ -1509,6 +1509,102 @@ export default function SegmentDetail({
               </div>
             </div>
 
+            {/* Top Products Section */}
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <div className="flex items-center space-x-2 sm:space-x-3">
+                  <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Package className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+                  </div>
+                  <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Productos del Segmento</h2>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                {isLoadingProducts ? (
+                  <div className="space-y-3">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="animate-pulse h-12 bg-gray-200 rounded"></div>
+                    ))}
+                  </div>
+                ) : products.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">No hay productos en este segmento</p>
+                ) : (
+                  <>
+                    <Accordion
+                      type="single"
+                      collapsible
+                      value={expandedProduct}
+                      onValueChange={setExpandedProduct}
+                      className="space-y-2"
+                    >
+                      {products.map((product, index) => (
+                        <AccordionItem
+                          key={product.productName}
+                          value={product.productName}
+                          className="border rounded-lg overflow-hidden bg-green-50/30"
+                        >
+                          <AccordionTrigger
+                            className="px-4 py-3 hover:bg-green-50/50 hover:no-underline"
+                            data-testid={`accordion-trigger-product-${index}`}
+                          >
+                            <div className="flex items-center gap-3 w-full pr-4">
+                              <div className="flex-1 min-w-0 text-left">
+                                <p className="text-sm font-medium text-gray-900 truncate">
+                                  {product.productName}
+                                </p>
+                              </div>
+                              <div className="w-12 flex-shrink-0 text-right">
+                                <span className="text-xs text-gray-600">
+                                  {product.percentage.toFixed(1)}%
+                                </span>
+                              </div>
+                              <div className="w-24 sm:w-32 flex-shrink-0">
+                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-green-500 rounded-full transition-all duration-500"
+                                    style={{ width: `${Math.min(product.percentage, 100)}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                              <div className="w-28 flex-shrink-0 text-right">
+                                <span className="text-sm font-semibold text-gray-900">
+                                  {formatCurrency(product.totalSales)}
+                                </span>
+                              </div>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className="px-4 pb-4 pt-2 bg-white">
+                            <div className="space-y-2 text-sm">
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Cantidad Vendida:</span>
+                                <span className="font-medium">{formatNumber(product.totalQuantity)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Transacciones:</span>
+                                <span className="font-medium">{formatNumber(product.transactionCount)}</span>
+                              </div>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
+                    {products.length >= productLimit && (
+                      <div className="text-center pt-3">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setProductLimit(prev => prev + 10)}
+                          data-testid="button-load-more-products"
+                        >
+                          Ver más
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Packaging Sales Metrics - Total Facturado x Unidades for this segment */}
