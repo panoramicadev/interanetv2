@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { DollarSign, Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle } from "lucide-react";
+import { DollarSign, Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2 } from "lucide-react";
 import { PriceList } from "@shared/schema";
 
 interface PriceListResponse {
@@ -27,6 +27,8 @@ export default function ListaPrecios() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<any>(null);
+  const [editItem, setEditItem] = useState<PriceList | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -124,6 +126,51 @@ export default function ListaPrecios() {
       });
     },
   });
+
+  // Mutación para actualizar item
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<PriceList> }) => {
+      return apiRequest('PATCH', `/api/price-list/${id}`, data);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Elemento actualizado",
+        description: "El producto se actualizó correctamente.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/price-list'] });
+      setIsEditDialogOpen(false);
+      setEditItem(null);
+    },
+    onError: () => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo actualizar el elemento.",
+      });
+    },
+  });
+
+  const handleEdit = (item: PriceList) => {
+    setEditItem({ ...item });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editItem) return;
+    updateMutation.mutate({
+      id: editItem.id,
+      data: {
+        codigo: editItem.codigo,
+        producto: editItem.producto,
+        unidad: editItem.unidad,
+        color: editItem.color,
+        lista: editItem.lista,
+        desc10: editItem.desc10,
+        desc10_5: editItem.desc10_5,
+        minimo: editItem.minimo,
+      }
+    });
+  };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -416,7 +463,7 @@ export default function ListaPrecios() {
                             variant="ghost" 
                             size="sm"
                             className="h-8 w-8 p-0"
-                            disabled
+                            onClick={() => handleEdit(item)}
                             data-testid={`button-edit-${item.id}`}
                           >
                             <Edit className="h-4 w-4" />
@@ -472,6 +519,138 @@ export default function ListaPrecios() {
           )}
         </CardContent>
       </Card>
+
+      {/* Modal de Edición */}
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsEditDialogOpen(false);
+          setEditItem(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5" />
+              Editar Producto
+            </DialogTitle>
+            <DialogDescription>
+              Modifica los datos del producto en la lista de precios
+            </DialogDescription>
+          </DialogHeader>
+          
+          {editItem && (
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-codigo">Código</Label>
+                  <Input
+                    id="edit-codigo"
+                    value={editItem.codigo || ''}
+                    onChange={(e) => setEditItem({ ...editItem, codigo: e.target.value })}
+                    data-testid="input-edit-codigo"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-unidad">Unidad</Label>
+                  <Input
+                    id="edit-unidad"
+                    value={editItem.unidad || ''}
+                    onChange={(e) => setEditItem({ ...editItem, unidad: e.target.value })}
+                    data-testid="input-edit-unidad"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="edit-producto">Producto</Label>
+                <Input
+                  id="edit-producto"
+                  value={editItem.producto || ''}
+                  onChange={(e) => setEditItem({ ...editItem, producto: e.target.value })}
+                  data-testid="input-edit-producto"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-color">Color</Label>
+                <Input
+                  id="edit-color"
+                  value={editItem.color || ''}
+                  onChange={(e) => setEditItem({ ...editItem, color: e.target.value })}
+                  data-testid="input-edit-color"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-lista">Precio Lista</Label>
+                  <Input
+                    id="edit-lista"
+                    type="number"
+                    value={editItem.lista || ''}
+                    onChange={(e) => setEditItem({ ...editItem, lista: e.target.value ? parseFloat(e.target.value) : null })}
+                    data-testid="input-edit-lista"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-desc10">Desc 10%</Label>
+                  <Input
+                    id="edit-desc10"
+                    type="number"
+                    value={editItem.desc10 || ''}
+                    onChange={(e) => setEditItem({ ...editItem, desc10: e.target.value ? parseFloat(e.target.value) : null })}
+                    data-testid="input-edit-desc10"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-desc10-5">Desc 10+5%</Label>
+                  <Input
+                    id="edit-desc10-5"
+                    type="number"
+                    value={editItem.desc10_5 || ''}
+                    onChange={(e) => setEditItem({ ...editItem, desc10_5: e.target.value ? parseFloat(e.target.value) : null })}
+                    data-testid="input-edit-desc10-5"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-minimo">Precio Mínimo</Label>
+                  <Input
+                    id="edit-minimo"
+                    type="number"
+                    value={editItem.minimo || ''}
+                    onChange={(e) => setEditItem({ ...editItem, minimo: e.target.value ? parseFloat(e.target.value) : null })}
+                    data-testid="input-edit-minimo"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditDialogOpen(false);
+                setEditItem(null);
+              }}
+              data-testid="button-cancel-edit"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveEdit}
+              disabled={updateMutation.isPending}
+              data-testid="button-save-edit"
+            >
+              {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
