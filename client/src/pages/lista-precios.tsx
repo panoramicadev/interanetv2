@@ -168,6 +168,7 @@ export default function ListaPrecios() {
         desc10: editItem.desc10,
         desc10_5: editItem.desc10_5,
         minimo: editItem.minimo,
+        costoProduccion: (editItem as any).costoProduccion,
       }
     });
   };
@@ -427,6 +428,7 @@ export default function ListaPrecios() {
                     <TableHead className="text-right">Desc10+5</TableHead>
                     <TableHead className="text-right">Mínimo</TableHead>
                     <TableHead className="text-right">PPP</TableHead>
+                    <TableHead className="text-right">Costo Prod.</TableHead>
                     <TableHead className="w-24">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -456,6 +458,9 @@ export default function ListaPrecios() {
                       </TableCell>
                       <TableCell className="text-right font-medium text-primary" data-testid={`text-ppp-${item.id}`}>
                         {(item as any).precioPromedioPonderado ? formatCurrency((item as any).precioPromedioPonderado) : '-'}
+                      </TableCell>
+                      <TableCell className="text-right" data-testid={`text-costo-${item.id}`}>
+                        {(item as any).costoProduccion ? formatCurrency((item as any).costoProduccion) : '-'}
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
@@ -625,6 +630,17 @@ export default function ListaPrecios() {
                     data-testid="input-edit-minimo"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-costo">Costo de Producción</Label>
+                <Input
+                  id="edit-costo"
+                  type="number"
+                  value={(editItem as any).costoProduccion || ''}
+                  onChange={(e) => setEditItem({ ...editItem, costoProduccion: e.target.value ? parseFloat(e.target.value) : null } as any)}
+                  data-testid="input-edit-costo"
+                />
               </div>
             </div>
           )}
