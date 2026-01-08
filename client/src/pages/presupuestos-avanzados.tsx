@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Search, Plus, Trash2, ArrowLeft, FileText, Download, Printer } from "lucide-react";
+import { Search, Plus, Trash2, ArrowLeft, FileText, Download, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { PriceList, Client } from "@shared/schema";
+import { Document, Page, Text, View, StyleSheet, pdf, Image } from '@react-pdf/renderer';
 
 type ProductCategory = "base" | "accesorios" | "terminacion";
 
@@ -66,6 +67,179 @@ const INITIAL_ITEM: Omit<AdvancedQuoteItem, "id" | "category"> = {
   unidadesNecesarias: 0,
   valorFinal: 0,
   superficieACubrir: 0,
+};
+
+const pdfStyles = StyleSheet.create({
+  page: { padding: 30, fontSize: 8, fontFamily: 'Helvetica', color: '#333' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15, paddingBottom: 10, borderBottom: '2 solid #fd6301' },
+  logo: { width: 100, height: 40 },
+  headerRight: { alignItems: 'flex-end' },
+  title: { fontSize: 16, fontWeight: 'bold', color: '#fd6301', marginBottom: 4 },
+  subtitle: { fontSize: 9, color: '#666' },
+  section: { marginBottom: 12 },
+  sectionTitle: { fontSize: 10, fontWeight: 'bold', color: '#333', marginBottom: 6, paddingBottom: 3, borderBottom: '1 solid #e5e7eb' },
+  clientGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  clientField: { width: '50%', marginBottom: 4 },
+  fieldLabel: { fontSize: 7, color: '#666' },
+  fieldValue: { fontSize: 8, color: '#333', fontWeight: 'bold' },
+  categoryHeader: { backgroundColor: '#f3f4f6', padding: 6, marginTop: 8, marginBottom: 4 },
+  categoryTitle: { fontSize: 9, fontWeight: 'bold', color: '#374151' },
+  table: { marginTop: 4 },
+  tableHeader: { flexDirection: 'row', backgroundColor: '#f9fafb', borderBottom: '1 solid #d1d5db', paddingVertical: 4, paddingHorizontal: 2 },
+  tableHeaderText: { fontSize: 7, fontWeight: 'bold', color: '#374151' },
+  tableRow: { flexDirection: 'row', borderBottom: '1 solid #e5e7eb', paddingVertical: 4, paddingHorizontal: 2 },
+  col1: { width: '8%' },
+  col2: { width: '22%' },
+  col3: { width: '8%', textAlign: 'center' },
+  col4: { width: '10%', textAlign: 'right' },
+  col5: { width: '10%', textAlign: 'right' },
+  col6: { width: '8%', textAlign: 'right' },
+  col7: { width: '8%', textAlign: 'center' },
+  col8: { width: '8%', textAlign: 'right' },
+  col9: { width: '8%', textAlign: 'right' },
+  col10: { width: '10%', textAlign: 'right' },
+  cellText: { fontSize: 7, color: '#333' },
+  cellTextBold: { fontSize: 7, color: '#333', fontWeight: 'bold' },
+  categoryTotalRow: { flexDirection: 'row', backgroundColor: '#fef3e2', paddingVertical: 4, paddingHorizontal: 2, marginTop: 2 },
+  totalsSection: { marginTop: 15, marginLeft: 'auto', width: 200, paddingTop: 8, borderTop: '1 solid #d1d5db' },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 },
+  totalLabel: { fontSize: 8, color: '#4b5563' },
+  totalValue: { fontSize: 8, fontWeight: 'bold', color: '#111827' },
+  grandTotalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, marginTop: 4, backgroundColor: '#fef3e2', borderRadius: 3, paddingHorizontal: 6 },
+  grandTotalLabel: { fontSize: 10, fontWeight: 'bold', color: '#fd6301' },
+  grandTotalValue: { fontSize: 11, fontWeight: 'bold', color: '#fd6301' },
+  notesSection: { marginTop: 12, padding: 8, backgroundColor: '#f9fafb', borderRadius: 4 },
+  notesTitle: { fontSize: 8, fontWeight: 'bold', marginBottom: 4 },
+  notesText: { fontSize: 7, color: '#4b5563' },
+  footer: { position: 'absolute', bottom: 20, left: 30, right: 30, textAlign: 'center', fontSize: 6, color: '#9ca3af', paddingTop: 6, borderTop: '1 solid #e5e7eb' },
+});
+
+interface PDFProps {
+  projectName: string;
+  projectM2: number;
+  client: QuoteClient;
+  items: AdvancedQuoteItem[];
+  categoryTotals: Record<ProductCategory, { m2: number; amount: number }>;
+  grandTotal: { subtotal: number; iva: number; total: number };
+  notes: string;
+}
+
+const AdvancedQuotePDF = ({ projectName, projectM2, client, items, categoryTotals, grandTotal, notes }: PDFProps) => {
+  const formatCurrency = (value: number) => `$${value.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  const formatDate = () => {
+    const date = new Date();
+    return `${date.getDate()} de ${date.toLocaleDateString('es-CL', { month: 'long' })} de ${date.getFullYear()}`;
+  };
+
+  const itemsByCategory: Record<ProductCategory, AdvancedQuoteItem[]> = { base: [], accesorios: [], terminacion: [] };
+  items.forEach((item) => { itemsByCategory[item.category].push(item); });
+
+  return (
+    <Document>
+      <Page size="A4" style={pdfStyles.page}>
+        <View style={pdfStyles.header}>
+          <Image src="/panoramica-30-logo.webp" style={pdfStyles.logo} />
+          <View style={pdfStyles.headerRight}>
+            <Text style={pdfStyles.title}>PRESUPUESTO DETALLADO</Text>
+            <Text style={pdfStyles.subtitle}>Fecha: {formatDate()}</Text>
+            <Text style={pdfStyles.subtitle}>{projectName || 'Sin nombre de proyecto'}</Text>
+          </View>
+        </View>
+
+        <View style={pdfStyles.section}>
+          <Text style={pdfStyles.sectionTitle}>Información del Cliente</Text>
+          <View style={pdfStyles.clientGrid}>
+            <View style={pdfStyles.clientField}>
+              <Text style={pdfStyles.fieldLabel}>Cliente:</Text>
+              <Text style={pdfStyles.fieldValue}>{client.nombre || 'Sin especificar'}</Text>
+            </View>
+            <View style={pdfStyles.clientField}>
+              <Text style={pdfStyles.fieldLabel}>RUT:</Text>
+              <Text style={pdfStyles.fieldValue}>{client.rut || 'Sin especificar'}</Text>
+            </View>
+            <View style={pdfStyles.clientField}>
+              <Text style={pdfStyles.fieldLabel}>Dirección:</Text>
+              <Text style={pdfStyles.fieldValue}>{client.direccion || 'Sin especificar'}</Text>
+            </View>
+            <View style={pdfStyles.clientField}>
+              <Text style={pdfStyles.fieldLabel}>Superficie Total:</Text>
+              <Text style={pdfStyles.fieldValue}>{projectM2 ? `${projectM2} m²` : 'Sin especificar'}</Text>
+            </View>
+          </View>
+        </View>
+
+        {(['base', 'accesorios', 'terminacion'] as ProductCategory[]).map((category) => {
+          const catItems = itemsByCategory[category];
+          if (catItems.length === 0) return null;
+          return (
+            <View key={category} style={pdfStyles.section} wrap={false}>
+              <View style={pdfStyles.categoryHeader}>
+                <Text style={pdfStyles.categoryTitle}>{CATEGORY_LABELS[category]}</Text>
+              </View>
+              <View style={pdfStyles.table}>
+                <View style={pdfStyles.tableHeader}>
+                  <Text style={[pdfStyles.tableHeaderText, pdfStyles.col1]}>Código</Text>
+                  <Text style={[pdfStyles.tableHeaderText, pdfStyles.col2]}>Producto</Text>
+                  <Text style={[pdfStyles.tableHeaderText, pdfStyles.col3]}>Formato</Text>
+                  <Text style={[pdfStyles.tableHeaderText, pdfStyles.col4]}>V. Desc.</Text>
+                  <Text style={[pdfStyles.tableHeaderText, pdfStyles.col5]}>Cant.</Text>
+                  <Text style={[pdfStyles.tableHeaderText, pdfStyles.col6]}>Consumo</Text>
+                  <Text style={[pdfStyles.tableHeaderText, pdfStyles.col7]}>Rend.</Text>
+                  <Text style={[pdfStyles.tableHeaderText, pdfStyles.col8]}>Costo/U</Text>
+                  <Text style={[pdfStyles.tableHeaderText, pdfStyles.col9]}>Unid.</Text>
+                  <Text style={[pdfStyles.tableHeaderText, pdfStyles.col10]}>Total</Text>
+                </View>
+                {catItems.map((item, idx) => (
+                  <View key={idx} style={pdfStyles.tableRow}>
+                    <Text style={[pdfStyles.cellText, pdfStyles.col1]}>{item.codigo}</Text>
+                    <Text style={[pdfStyles.cellText, pdfStyles.col2]}>{item.producto}</Text>
+                    <Text style={[pdfStyles.cellText, pdfStyles.col3]}>{item.formatoProducto}</Text>
+                    <Text style={[pdfStyles.cellText, pdfStyles.col4]}>{formatCurrency(item.valorConDescuento)}</Text>
+                    <Text style={[pdfStyles.cellText, pdfStyles.col5]}>{item.cantidadPorFormato}</Text>
+                    <Text style={[pdfStyles.cellText, pdfStyles.col6]}>{item.consumoEstimado}</Text>
+                    <Text style={[pdfStyles.cellText, pdfStyles.col7]}>{item.rendimiento.toFixed(2)}</Text>
+                    <Text style={[pdfStyles.cellText, pdfStyles.col8]}>{formatCurrency(item.costoPorUnidad)}</Text>
+                    <Text style={[pdfStyles.cellText, pdfStyles.col9]}>{item.unidadesNecesarias}</Text>
+                    <Text style={[pdfStyles.cellTextBold, pdfStyles.col10]}>{formatCurrency(item.valorFinal)}</Text>
+                  </View>
+                ))}
+                <View style={pdfStyles.categoryTotalRow}>
+                  <Text style={[pdfStyles.cellTextBold, { width: '90%' }]}>Subtotal {CATEGORY_LABELS[category]}</Text>
+                  <Text style={[pdfStyles.cellTextBold, pdfStyles.col10]}>{formatCurrency(categoryTotals[category].amount)}</Text>
+                </View>
+              </View>
+            </View>
+          );
+        })}
+
+        <View style={pdfStyles.totalsSection}>
+          <View style={pdfStyles.totalRow}>
+            <Text style={pdfStyles.totalLabel}>Subtotal Neto:</Text>
+            <Text style={pdfStyles.totalValue}>{formatCurrency(grandTotal.subtotal)}</Text>
+          </View>
+          <View style={pdfStyles.totalRow}>
+            <Text style={pdfStyles.totalLabel}>IVA (19%):</Text>
+            <Text style={pdfStyles.totalValue}>{formatCurrency(grandTotal.iva)}</Text>
+          </View>
+          <View style={pdfStyles.grandTotalRow}>
+            <Text style={pdfStyles.grandTotalLabel}>TOTAL:</Text>
+            <Text style={pdfStyles.grandTotalValue}>{formatCurrency(grandTotal.total)}</Text>
+          </View>
+        </View>
+
+        {notes && (
+          <View style={pdfStyles.notesSection}>
+            <Text style={pdfStyles.notesTitle}>Observaciones:</Text>
+            <Text style={pdfStyles.notesText}>{notes}</Text>
+          </View>
+        )}
+
+        <Text style={pdfStyles.footer}>
+          Pinturas Panoramica - Cotización generada el {new Date().toLocaleDateString('es-CL')}
+        </Text>
+      </Page>
+    </Document>
+  );
 };
 
 export default function PresupuestosAvanzados() {
@@ -286,8 +460,38 @@ export default function PresupuestosAvanzados() {
     }).format(amount);
   };
 
-  const handlePrint = () => {
-    window.print();
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    setIsGeneratingPdf(true);
+    try {
+      const pdfDoc = (
+        <AdvancedQuotePDF
+          projectName={projectName}
+          projectM2={projectM2}
+          client={client}
+          items={items}
+          categoryTotals={categoryTotals}
+          grandTotal={grandTotal}
+          notes={notes}
+        />
+      );
+      const blob = await pdf(pdfDoc).toBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Presupuesto_${projectName || 'detallado'}_${new Date().toLocaleDateString('es-CL').replace(/\//g, '-')}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast({ title: "PDF descargado", description: "El presupuesto se ha descargado correctamente." });
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast({ variant: "destructive", title: "Error", description: "No se pudo generar el PDF." });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   const renderCategoryTable = (category: ProductCategory) => {
@@ -466,9 +670,9 @@ export default function PresupuestosAvanzados() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handlePrint} data-testid="button-print">
-              <Printer className="h-4 w-4 mr-2" />
-              Imprimir
+            <Button variant="outline" onClick={handleDownloadPdf} disabled={isGeneratingPdf} data-testid="button-download-pdf">
+              {isGeneratingPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+              {isGeneratingPdf ? 'Generando...' : 'Descargar PDF'}
             </Button>
           </div>
         </div>
