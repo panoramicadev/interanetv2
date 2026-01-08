@@ -3281,7 +3281,7 @@ export default function TomadorPedidos() {
 
         {/* Create Quote Button - Hidden in mobile when client search is open */}
         {!(isMobile && showClientSearch) && (
-          <div className={`${isMobile ? 'space-y-4' : 'flex justify-end'}`}>
+          <div className={`${isMobile ? 'space-y-3' : 'flex justify-end gap-3'}`}>
             <Button
               onClick={handleCreateQuoteForNewClient}
               className={`bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2 ${
@@ -3293,6 +3293,19 @@ export default function TomadorPedidos() {
               <Calculator className="w-4 h-4" />
               {isMobile ? "Nuevo Presupuesto" : "Crear Presupuesto"}
             </Button>
+            <Link href="/presupuestos-avanzados">
+              <Button
+                variant="outline"
+                className={`border-orange-500 text-orange-600 hover:bg-orange-50 flex items-center justify-center gap-2 ${
+                  isMobile ? 'w-full h-10 text-sm font-medium' : ''
+                }`}
+                size={isMobile ? "sm" : "lg"}
+                data-testid="button-presupuestos-avanzados"
+              >
+                <FileText className="w-4 h-4" />
+                Presupuestos Avanzados
+              </Button>
+            </Link>
           </div>
         )}
 
