@@ -42,7 +42,6 @@ export default function ListaPrecios() {
     costoProduccion: "",
     cantidadProducto: "",
     unidadMedida: "",
-    consumoEstimado: "",
     rendimiento: "",
     costoUnidadMedida: "",
   });
@@ -191,7 +190,6 @@ export default function ListaPrecios() {
         costoProduccion: "",
         cantidadProducto: "",
         unidadMedida: "",
-        consumoEstimado: "",
         rendimiento: "",
         costoUnidadMedida: "",
       });
@@ -218,7 +216,6 @@ export default function ListaPrecios() {
       costoProduccion: newProduct.costoProduccion ? parseFloat(newProduct.costoProduccion) : null,
       cantidadProducto: newProduct.cantidadProducto ? parseFloat(newProduct.cantidadProducto) : null,
       unidadMedida: newProduct.unidadMedida || null,
-      consumoEstimado: newProduct.consumoEstimado ? parseFloat(newProduct.consumoEstimado) : null,
       rendimiento: newProduct.rendimiento ? parseFloat(newProduct.rendimiento) : null,
       costoUnidadMedida: newProduct.costoUnidadMedida ? parseFloat(newProduct.costoUnidadMedida) : null,
     };
@@ -246,7 +243,6 @@ export default function ListaPrecios() {
         costoProduccion: (editItem as any).costoProduccion,
         cantidadProducto: (editItem as any).cantidadProducto,
         unidadMedida: (editItem as any).unidadMedida,
-        consumoEstimado: (editItem as any).consumoEstimado,
         rendimiento: (editItem as any).rendimiento,
         costoUnidadMedida: (editItem as any).costoUnidadMedida,
       }
@@ -278,7 +274,14 @@ export default function ListaPrecios() {
   const formatCurrency = (value: number | string | null) => {
     if (value === null || value === undefined) return '-';
     const num = typeof value === 'string' ? parseFloat(value) : value;
-    return isNaN(num) ? '-' : `$${num.toLocaleString('es-CL')}`;
+    return isNaN(num) ? '-' : `$${num.toLocaleString('es-CL', { maximumFractionDigits: 0 })}`;
+  };
+
+  const formatNumber = (value: number | string | null | undefined): string => {
+    if (value === null || value === undefined || value === '') return '';
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(num)) return '';
+    return Number.isInteger(num) ? num.toString() : num.toString();
   };
 
   return (
@@ -691,7 +694,7 @@ export default function ListaPrecios() {
                     id="edit-lista"
                     type="number"
                     className="w-1/2 text-right"
-                    value={editItem.lista || ''}
+                    value={formatNumber(editItem.lista)}
                     onChange={(e) => setEditItem({ ...editItem, lista: e.target.value ? parseFloat(e.target.value) : null })}
                     data-testid="input-edit-lista"
                   />
@@ -704,7 +707,7 @@ export default function ListaPrecios() {
                     id="edit-desc10"
                     type="number"
                     className="w-1/2 text-right"
-                    value={editItem.desc10 || ''}
+                    value={formatNumber(editItem.desc10)}
                     onChange={(e) => setEditItem({ ...editItem, desc10: e.target.value ? parseFloat(e.target.value) : null })}
                     data-testid="input-edit-desc10"
                   />
@@ -717,7 +720,7 @@ export default function ListaPrecios() {
                     id="edit-desc10-5"
                     type="number"
                     className="w-1/2 text-right"
-                    value={editItem.desc10_5 || ''}
+                    value={formatNumber(editItem.desc10_5)}
                     onChange={(e) => setEditItem({ ...editItem, desc10_5: e.target.value ? parseFloat(e.target.value) : null })}
                     data-testid="input-edit-desc10-5"
                   />
@@ -730,7 +733,7 @@ export default function ListaPrecios() {
                     id="edit-minimo"
                     type="number"
                     className="w-1/2 text-right"
-                    value={editItem.minimo || ''}
+                    value={formatNumber(editItem.minimo)}
                     onChange={(e) => setEditItem({ ...editItem, minimo: e.target.value ? parseFloat(e.target.value) : null })}
                     data-testid="input-edit-minimo"
                   />
@@ -743,7 +746,7 @@ export default function ListaPrecios() {
                     id="edit-costo"
                     type="number"
                     className="w-1/2 text-right"
-                    value={(editItem as any).costoProduccion || ''}
+                    value={formatNumber((editItem as any).costoProduccion)}
                     onChange={(e) => setEditItem({ ...editItem, costoProduccion: e.target.value ? parseFloat(e.target.value) : null } as any)}
                     data-testid="input-edit-costo"
                   />
@@ -757,7 +760,7 @@ export default function ListaPrecios() {
                     type="number"
                     step="0.0001"
                     className="w-1/2 text-right"
-                    value={(editItem as any).cantidadProducto || ''}
+                    value={formatNumber((editItem as any).cantidadProducto)}
                     onChange={(e) => setEditItem({ ...editItem, cantidadProducto: e.target.value ? parseFloat(e.target.value) : null } as any)}
                     data-testid="input-edit-cantidad"
                   />
@@ -776,20 +779,6 @@ export default function ListaPrecios() {
                   />
                 </div>
 
-                {/* Consumo Estimado */}
-                <div className="flex items-center py-2 border-b">
-                  <Label className="text-sm font-medium w-1/2">Consumo Estimado</Label>
-                  <Input
-                    id="edit-consumo"
-                    type="number"
-                    step="0.0001"
-                    className="w-1/2 text-right"
-                    value={(editItem as any).consumoEstimado || ''}
-                    onChange={(e) => setEditItem({ ...editItem, consumoEstimado: e.target.value ? parseFloat(e.target.value) : null } as any)}
-                    data-testid="input-edit-consumo"
-                  />
-                </div>
-
                 {/* Rendimiento */}
                 <div className="flex items-center py-2 border-b">
                   <Label className="text-sm font-medium w-1/2">Rendimiento</Label>
@@ -798,7 +787,7 @@ export default function ListaPrecios() {
                     type="number"
                     step="0.0001"
                     className="w-1/2 text-right"
-                    value={(editItem as any).rendimiento || ''}
+                    value={formatNumber((editItem as any).rendimiento)}
                     onChange={(e) => setEditItem({ ...editItem, rendimiento: e.target.value ? parseFloat(e.target.value) : null } as any)}
                     data-testid="input-edit-rendimiento"
                   />
@@ -811,7 +800,7 @@ export default function ListaPrecios() {
                     id="edit-costo-unidad"
                     type="number"
                     className="w-1/2 text-right"
-                    value={(editItem as any).costoUnidadMedida || ''}
+                    value={formatNumber((editItem as any).costoUnidadMedida)}
                     onChange={(e) => setEditItem({ ...editItem, costoUnidadMedida: e.target.value ? parseFloat(e.target.value) : null } as any)}
                     data-testid="input-edit-costo-unidad"
                   />
@@ -983,19 +972,6 @@ export default function ListaPrecios() {
                 value={newProduct.unidadMedida}
                 onChange={(e) => setNewProduct({ ...newProduct, unidadMedida: e.target.value })}
                 data-testid="input-add-unidad-medida"
-              />
-            </div>
-
-            {/* Consumo Estimado */}
-            <div className="flex items-center py-2 border-b">
-              <Label className="text-sm font-medium w-1/2">Consumo Estimado</Label>
-              <Input
-                type="number"
-                step="0.0001"
-                className="w-1/2 text-right"
-                value={newProduct.consumoEstimado}
-                onChange={(e) => setNewProduct({ ...newProduct, consumoEstimado: e.target.value })}
-                data-testid="input-add-consumo"
               />
             </div>
 
