@@ -25,7 +25,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
-import { Package, Search, AlertCircle, CheckCircle, Loader2, RefreshCcw, Database, Filter } from "lucide-react";
+import { Package, Search, AlertCircle, CheckCircle, Loader2, RefreshCcw, Database, Filter, Plus, DollarSign } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -73,6 +74,17 @@ export default function Inventario() {
   const [selectedBranch, setSelectedBranch] = useState<string>("all");
   const [hideNoStock, setHideNoStock] = useState(false);
   const [hideZZProducts, setHideZZProducts] = useState(false);
+  const [isAddToPriceListOpen, setIsAddToPriceListOpen] = useState(false);
+  const [priceListProduct, setPriceListProduct] = useState({
+    codigo: "",
+    producto: "",
+    unidad: "",
+    color: "",
+    lista: "",
+    desc10: "",
+    desc10_5: "",
+    minimo: "",
+  });
 
   // Reset warehouse filter when branch changes
   useEffect(() => {
@@ -462,6 +474,66 @@ function InventoryTable({
     },
   });
 
+  // Mutación para añadir producto a lista de precios
+  const addToPriceListMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return apiRequest('POST', '/api/price-list', data);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Producto agregado",
+        description: "El producto se añadió correctamente a la lista de precios.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/price-list'] });
+      setIsAddToPriceListOpen(false);
+      setPriceListProduct({
+        codigo: "",
+        producto: "",
+        unidad: "",
+        color: "",
+        lista: "",
+        desc10: "",
+        desc10_5: "",
+        minimo: "",
+      });
+    },
+    onError: () => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo agregar el producto a la lista de precios.",
+      });
+    },
+  });
+
+  const openAddToPriceList = (item: ProductStock) => {
+    setPriceListProduct({
+      codigo: item.productSku || "",
+      producto: item.productName || "",
+      unidad: item.unit1 || item.unit || "",
+      color: "",
+      lista: "",
+      desc10: "",
+      desc10_5: "",
+      minimo: "",
+    });
+    setIsAddToPriceListOpen(true);
+  };
+
+  const handleSaveToPriceList = () => {
+    const data: any = {
+      codigo: priceListProduct.codigo || null,
+      producto: priceListProduct.producto,
+      unidad: priceListProduct.unidad || null,
+      color: priceListProduct.color || null,
+      lista: priceListProduct.lista ? parseFloat(priceListProduct.lista) : null,
+      desc10: priceListProduct.desc10 ? parseFloat(priceListProduct.desc10) : null,
+      desc10_5: priceListProduct.desc10_5 ? parseFloat(priceListProduct.desc10_5) : null,
+      minimo: priceListProduct.minimo ? parseFloat(priceListProduct.minimo) : null,
+    };
+    addToPriceListMutation.mutate(data);
+  };
+
   const getStockBadge = (available: number, reserved: number) => {
     if (available === 0) {
       return <Badge variant="destructive">Sin Stock</Badge>;
@@ -522,6 +594,7 @@ function InventoryTable({
                         <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-24 px-2">Valor</TableHead>
                       </>
                     )}
+                    <TableHead className="text-xs font-semibold text-gray-700 dark:text-gray-300 w-10 px-2"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -572,6 +645,24 @@ function InventoryTable({
                             </TableCell>
                           </>
                         )}
+                        <TableCell className="py-1 px-2">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                onClick={() => openAddToPriceList(item)}
+                                data-testid={`button-add-to-price-list-${item.productSku}`}
+                              >
+                                <DollarSign className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Añadir a Lista de Precios</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -591,6 +682,126 @@ function InventoryTable({
           </div>
         )}
       </CardContent>
+
+      {/* Modal para añadir a lista de precios */}
+      <Dialog open={isAddToPriceListOpen} onOpenChange={setIsAddToPriceListOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-green-600" />
+              Añadir a Lista de Precios
+            </DialogTitle>
+            <DialogDescription>
+              Completa los precios para añadir este producto a la lista de precios
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4 space-y-3">
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Código</Label>
+              <Input
+                className="w-1/2 text-right"
+                value={priceListProduct.codigo}
+                onChange={(e) => setPriceListProduct({ ...priceListProduct, codigo: e.target.value })}
+                data-testid="input-price-codigo"
+              />
+            </div>
+
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Producto</Label>
+              <Input
+                className="w-1/2 text-right"
+                value={priceListProduct.producto}
+                onChange={(e) => setPriceListProduct({ ...priceListProduct, producto: e.target.value })}
+                data-testid="input-price-producto"
+              />
+            </div>
+
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Formato</Label>
+              <Input
+                className="w-1/2 text-right"
+                value={priceListProduct.unidad}
+                onChange={(e) => setPriceListProduct({ ...priceListProduct, unidad: e.target.value })}
+                data-testid="input-price-unidad"
+              />
+            </div>
+
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Color</Label>
+              <Input
+                className="w-1/2 text-right"
+                value={priceListProduct.color}
+                onChange={(e) => setPriceListProduct({ ...priceListProduct, color: e.target.value })}
+                data-testid="input-price-color"
+              />
+            </div>
+
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Precio Lista</Label>
+              <Input
+                type="number"
+                className="w-1/2 text-right"
+                value={priceListProduct.lista}
+                onChange={(e) => setPriceListProduct({ ...priceListProduct, lista: e.target.value })}
+                data-testid="input-price-lista"
+              />
+            </div>
+
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Desc 10%</Label>
+              <Input
+                type="number"
+                className="w-1/2 text-right"
+                value={priceListProduct.desc10}
+                onChange={(e) => setPriceListProduct({ ...priceListProduct, desc10: e.target.value })}
+                data-testid="input-price-desc10"
+              />
+            </div>
+
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Desc 10+5%</Label>
+              <Input
+                type="number"
+                className="w-1/2 text-right"
+                value={priceListProduct.desc10_5}
+                onChange={(e) => setPriceListProduct({ ...priceListProduct, desc10_5: e.target.value })}
+                data-testid="input-price-desc10-5"
+              />
+            </div>
+
+            <div className="flex items-center py-2">
+              <Label className="text-sm font-medium w-1/2">Precio Mínimo</Label>
+              <Input
+                type="number"
+                className="w-1/2 text-right"
+                value={priceListProduct.minimo}
+                onChange={(e) => setPriceListProduct({ ...priceListProduct, minimo: e.target.value })}
+                data-testid="input-price-minimo"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsAddToPriceListOpen(false)}
+              data-testid="button-cancel-price"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveToPriceList}
+              disabled={!priceListProduct.producto || addToPriceListMutation.isPending}
+              className="bg-green-600 hover:bg-green-700"
+              data-testid="button-save-price"
+            >
+              {addToPriceListMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Añadir a Lista
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
