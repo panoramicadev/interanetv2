@@ -1725,6 +1725,11 @@ export const priceList = pgTable("price_list", {
   costoProduccion: numeric("costo_produccion", { precision: 15, scale: 2 }), // Production cost
   porcentajeUtilidad: numeric("porcentaje_utilidad", { precision: 10, scale: 2 }), // Profit percentage
   modoPrecio: varchar("modo_precio"), // Price mode
+  cantidadProducto: numeric("cantidad_producto", { precision: 15, scale: 4 }), // Product quantity
+  unidadMedida: varchar("unidad_medida"), // Unit of measure (m², lt, kg, etc.)
+  consumoEstimado: numeric("consumo_estimado", { precision: 15, scale: 4 }), // Estimated consumption
+  rendimiento: numeric("rendimiento", { precision: 15, scale: 4 }), // Yield/Performance
+  costoUnidadMedida: numeric("costo_unidad_medida", { precision: 15, scale: 2 }), // Cost per unit of measure
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1769,6 +1774,11 @@ export const insertPriceListSchema = createInsertSchema(priceList, {
   costoProduccion: z.any().optional().transform(flexibleTransform),
   porcentajeUtilidad: z.any().optional().transform(flexibleTransform),
   modoPrecio: z.any().optional().transform(flexibleTransform),
+  cantidadProducto: z.any().optional().transform(flexibleTransform),
+  unidadMedida: z.any().optional().transform(flexibleTransform),
+  consumoEstimado: z.any().optional().transform(flexibleTransform),
+  rendimiento: z.any().optional().transform(flexibleTransform),
+  costoUnidadMedida: z.any().optional().transform(flexibleTransform),
 }).omit({
   id: true,
   createdAt: true,
@@ -1790,6 +1800,11 @@ export const csvPriceListRowSchema = z.object({
   costoProduccion: z.string().optional(),
   porcentajeUtilidad: z.string().optional(),
   modoPrecio: z.string().optional(),
+  cantidadProducto: z.string().optional(),
+  unidadMedida: z.string().optional(),
+  consumoEstimado: z.string().optional(),
+  rendimiento: z.string().optional(),
+  costoUnidadMedida: z.string().optional(),
 }).passthrough(); // Allow extra fields that will be ignored
 
 // Types

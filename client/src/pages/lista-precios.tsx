@@ -169,6 +169,11 @@ export default function ListaPrecios() {
         desc10_5: editItem.desc10_5,
         minimo: editItem.minimo,
         costoProduccion: (editItem as any).costoProduccion,
+        cantidadProducto: (editItem as any).cantidadProducto,
+        unidadMedida: (editItem as any).unidadMedida,
+        consumoEstimado: (editItem as any).consumoEstimado,
+        rendimiento: (editItem as any).rendimiento,
+        costoUnidadMedida: (editItem as any).costoUnidadMedida,
       }
     });
   };
@@ -641,6 +646,65 @@ export default function ListaPrecios() {
                   onChange={(e) => setEditItem({ ...editItem, costoProduccion: e.target.value ? parseFloat(e.target.value) : null } as any)}
                   data-testid="input-edit-costo"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-cantidad">Cantidad de Producto</Label>
+                  <Input
+                    id="edit-cantidad"
+                    type="number"
+                    step="0.0001"
+                    value={(editItem as any).cantidadProducto || ''}
+                    onChange={(e) => setEditItem({ ...editItem, cantidadProducto: e.target.value ? parseFloat(e.target.value) : null } as any)}
+                    data-testid="input-edit-cantidad"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-unidad-medida">Unidad de Medida</Label>
+                  <Input
+                    id="edit-unidad-medida"
+                    value={(editItem as any).unidadMedida || ''}
+                    onChange={(e) => setEditItem({ ...editItem, unidadMedida: e.target.value } as any)}
+                    placeholder="m², lt, kg, etc."
+                    data-testid="input-edit-unidad-medida"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-consumo">Consumo Estimado</Label>
+                  <Input
+                    id="edit-consumo"
+                    type="number"
+                    step="0.0001"
+                    value={(editItem as any).consumoEstimado || ''}
+                    onChange={(e) => setEditItem({ ...editItem, consumoEstimado: e.target.value ? parseFloat(e.target.value) : null } as any)}
+                    data-testid="input-edit-consumo"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-rendimiento">Rendimiento</Label>
+                  <Input
+                    id="edit-rendimiento"
+                    type="number"
+                    step="0.0001"
+                    value={(editItem as any).rendimiento || ''}
+                    onChange={(e) => setEditItem({ ...editItem, rendimiento: e.target.value ? parseFloat(e.target.value) : null } as any)}
+                    data-testid="input-edit-rendimiento"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-costo-unidad">Costo/Unidad Medida</Label>
+                  <Input
+                    id="edit-costo-unidad"
+                    type="number"
+                    value={(editItem as any).costoUnidadMedida || ''}
+                    onChange={(e) => setEditItem({ ...editItem, costoUnidadMedida: e.target.value ? parseFloat(e.target.value) : null } as any)}
+                    data-testid="input-edit-costo-unidad"
+                  />
+                </div>
               </div>
             </div>
           )}
