@@ -44,6 +44,7 @@ import SalespersonDetail from "@/pages/salesperson-detail";
 import ClientDetail from "@/pages/client-detail";
 import ProductDetail from "@/pages/product-detail";
 import TomadorPedidos from "@/pages/tomador-pedidos";
+import PresupuestosAvanzados from "@/pages/presupuestos-avanzados";
 import EcommerceAdmin from "@/pages/ecommerce-admin";
 import ShopifyProducts from "@/pages/shopify-products";
 import Carrito from "@/pages/carrito";
@@ -200,6 +201,7 @@ function Router() {
               return <PromesasCompraPage />;
             }} />
             <Route path="/tomador-pedidos" component={TomadorPedidos} />
+            <Route path="/presupuestos-avanzados" component={PresupuestosAvanzados} />
             <Route path="/tareas" component={TareasPage} />
             <Route path="/visitas-tecnicas" component={VisitasTecnicasPage} />
             <Route path="/reclamos-generales" component={ReclamosGeneralesPage} />
