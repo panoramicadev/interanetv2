@@ -97,9 +97,10 @@ export default function PresupuestosAvanzados() {
   });
 
   const filteredProducts = useMemo(() => {
-    if (!productSearch.trim()) return priceList.slice(0, 20);
+    const products = Array.isArray(priceList) ? priceList : [];
+    if (!productSearch.trim()) return products.slice(0, 20);
     const search = productSearch.toLowerCase();
-    return priceList.filter(
+    return products.filter(
       (p) =>
         p.producto?.toLowerCase().includes(search) ||
         p.codigo?.toLowerCase().includes(search)
@@ -107,9 +108,10 @@ export default function PresupuestosAvanzados() {
   }, [priceList, productSearch]);
 
   const filteredClients = useMemo(() => {
-    if (!clientSearch.trim()) return clients.slice(0, 10);
+    const clientList = Array.isArray(clients) ? clients : [];
+    if (!clientSearch.trim()) return clientList.slice(0, 10);
     const search = clientSearch.toLowerCase();
-    return clients.filter(
+    return clientList.filter(
       (c) =>
         c.name?.toLowerCase().includes(search) ||
         c.rut?.toLowerCase().includes(search) ||
