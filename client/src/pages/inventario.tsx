@@ -74,31 +74,6 @@ export default function Inventario() {
   const [selectedBranch, setSelectedBranch] = useState<string>("all");
   const [hideNoStock, setHideNoStock] = useState(false);
   const [hideZZProducts, setHideZZProducts] = useState(false);
-  const [isAddToPriceListOpen, setIsAddToPriceListOpen] = useState(false);
-  const [priceListProduct, setPriceListProduct] = useState({
-    codigo: "",
-    producto: "",
-    unidad: "",
-    color: "",
-    lista: "",
-    desc10: "",
-    desc10_5: "",
-    minimo: "",
-  });
-
-  // Obtener SKUs existentes en la lista de precios
-  const { data: existingPriceListData } = useQuery<{ items: { codigo: string }[] }>({
-    queryKey: ['/api/price-list', { limit: 10000 }],
-    queryFn: async () => {
-      const response = await fetch('/api/price-list?limit=10000', { credentials: 'include' });
-      if (!response.ok) return { items: [] };
-      return response.json();
-    },
-  });
-  
-  const existingSkus = new Set(
-    (existingPriceListData?.items || []).map((item) => item.codigo?.toUpperCase()).filter(Boolean)
-  );
 
   // Reset warehouse filter when branch changes
   useEffect(() => {
@@ -466,6 +441,33 @@ function InventoryTable({
   hideZZProducts: boolean;
   userRole: string;
 }) {
+  const { toast } = useToast();
+  const [isAddToPriceListOpen, setIsAddToPriceListOpen] = useState(false);
+  const [priceListProduct, setPriceListProduct] = useState({
+    codigo: "",
+    producto: "",
+    unidad: "",
+    color: "",
+    lista: "",
+    desc10: "",
+    desc10_5: "",
+    minimo: "",
+  });
+
+  // Obtener SKUs existentes en la lista de precios
+  const { data: existingPriceListData } = useQuery<{ items: { codigo: string }[] }>({
+    queryKey: ['/api/price-list', { limit: 10000 }],
+    queryFn: async () => {
+      const response = await fetch('/api/price-list?limit=10000', { credentials: 'include' });
+      if (!response.ok) return { items: [] };
+      return response.json();
+    },
+  });
+  
+  const existingSkus = new Set(
+    (existingPriceListData?.items || []).map((item) => item.codigo?.toUpperCase()).filter(Boolean)
+  );
+
   const hasAccess = hasInventoryAccess(userRole);
   const endpoint = hasAccess ? '/api/inventory-with-prices' : '/api/inventory';
   
