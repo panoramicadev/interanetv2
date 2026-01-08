@@ -43,7 +43,6 @@ export default function ListaPrecios() {
     cantidadProducto: "",
     unidadMedida: "",
     rendimiento: "",
-    costoUnidadMedida: "",
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -191,7 +190,6 @@ export default function ListaPrecios() {
         cantidadProducto: "",
         unidadMedida: "",
         rendimiento: "",
-        costoUnidadMedida: "",
       });
     },
     onError: () => {
@@ -204,20 +202,24 @@ export default function ListaPrecios() {
   });
 
   const handleCreateProduct = () => {
+    const lista = newProduct.lista ? parseFloat(newProduct.lista) : null;
+    const rendimiento = newProduct.rendimiento ? parseFloat(newProduct.rendimiento) : null;
+    const costoUnidadMedida = lista && rendimiento ? Math.round(lista / rendimiento) : null;
+    
     const data: any = {
       codigo: newProduct.codigo || null,
       producto: newProduct.producto,
       unidad: newProduct.unidad || null,
       color: newProduct.color || null,
-      lista: newProduct.lista ? parseFloat(newProduct.lista) : null,
+      lista,
       desc10: newProduct.desc10 ? parseFloat(newProduct.desc10) : null,
       desc10_5: newProduct.desc10_5 ? parseFloat(newProduct.desc10_5) : null,
       minimo: newProduct.minimo ? parseFloat(newProduct.minimo) : null,
       costoProduccion: newProduct.costoProduccion ? parseFloat(newProduct.costoProduccion) : null,
       cantidadProducto: newProduct.cantidadProducto ? parseFloat(newProduct.cantidadProducto) : null,
       unidadMedida: newProduct.unidadMedida || null,
-      rendimiento: newProduct.rendimiento ? parseFloat(newProduct.rendimiento) : null,
-      costoUnidadMedida: newProduct.costoUnidadMedida ? parseFloat(newProduct.costoUnidadMedida) : null,
+      rendimiento,
+      costoUnidadMedida,
     };
     createMutation.mutate(data);
   };
@@ -229,6 +231,10 @@ export default function ListaPrecios() {
 
   const handleSaveEdit = () => {
     if (!editItem) return;
+    const lista = editItem.lista;
+    const rendimiento = (editItem as any).rendimiento;
+    const costoUnidadMedida = lista && rendimiento ? Math.round(lista / rendimiento) : null;
+    
     updateMutation.mutate({
       id: editItem.id,
       data: {
@@ -244,7 +250,7 @@ export default function ListaPrecios() {
         cantidadProducto: (editItem as any).cantidadProducto,
         unidadMedida: (editItem as any).unidadMedida,
         rendimiento: (editItem as any).rendimiento,
-        costoUnidadMedida: (editItem as any).costoUnidadMedida,
+        costoUnidadMedida,
       }
     });
   };
@@ -793,17 +799,14 @@ export default function ListaPrecios() {
                   />
                 </div>
 
-                {/* Costo por Unidad de Medida */}
+                {/* Costo por Unidad de Medida (calculado automáticamente) */}
                 <div className="flex items-center py-2">
                   <Label className="text-sm font-medium w-1/2">Costo/Unidad Medida</Label>
-                  <Input
-                    id="edit-costo-unidad"
-                    type="number"
-                    className="w-1/2 text-right"
-                    value={formatNumber((editItem as any).costoUnidadMedida)}
-                    onChange={(e) => setEditItem({ ...editItem, costoUnidadMedida: e.target.value ? parseFloat(e.target.value) : null } as any)}
-                    data-testid="input-edit-costo-unidad"
-                  />
+                  <div className="w-1/2 text-right text-sm py-2 px-3 bg-gray-100 dark:bg-gray-800 rounded">
+                    {editItem.lista && (editItem as any).rendimiento 
+                      ? formatNumber(Math.round(editItem.lista / (editItem as any).rendimiento))
+                      : '-'}
+                  </div>
                 </div>
               </div>
             </div>
@@ -988,16 +991,14 @@ export default function ListaPrecios() {
               />
             </div>
 
-            {/* Costo por Unidad de Medida */}
+            {/* Costo por Unidad de Medida (calculado automáticamente) */}
             <div className="flex items-center py-2">
               <Label className="text-sm font-medium w-1/2">Costo/Unidad Medida</Label>
-              <Input
-                type="number"
-                className="w-1/2 text-right"
-                value={newProduct.costoUnidadMedida}
-                onChange={(e) => setNewProduct({ ...newProduct, costoUnidadMedida: e.target.value })}
-                data-testid="input-add-costo-unidad"
-              />
+              <div className="w-1/2 text-right text-sm py-2 px-3 bg-gray-100 dark:bg-gray-800 rounded">
+                {newProduct.lista && newProduct.rendimiento 
+                  ? Math.round(parseFloat(newProduct.lista) / parseFloat(newProduct.rendimiento))
+                  : '-'}
+              </div>
             </div>
           </div>
 
