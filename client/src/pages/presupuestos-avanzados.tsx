@@ -777,19 +777,9 @@ export default function PresupuestosAvanzados() {
               </div>
               <div className="w-24">
                 <Label className="text-sm font-medium">Unidad</Label>
-                <Select value={surfaceUnit} onValueChange={setSurfaceUnit}>
-                  <SelectTrigger className="mt-1" data-testid="select-surface-unit">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="m²">m²</SelectItem>
-                    <SelectItem value="m³">m³</SelectItem>
-                    <SelectItem value="ml">ml</SelectItem>
-                    <SelectItem value="un">un</SelectItem>
-                    <SelectItem value="L">L</SelectItem>
-                    <SelectItem value="kg">kg</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="mt-1 h-10 px-3 flex items-center border rounded-md bg-muted text-sm font-medium">
+                  {surfaceUnit || "m²"}
+                </div>
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
