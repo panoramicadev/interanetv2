@@ -27,7 +27,6 @@ interface AdvancedQuoteItem {
   valorConDescuento: number;
   cantidadPorFormato: number;
   unidadMedida: string;
-  consumoEstimado: number;
   rendimiento: number;
   costoPorUnidad: number;
   unidadesNecesarias: number;
@@ -61,7 +60,6 @@ const INITIAL_ITEM: Omit<AdvancedQuoteItem, "id" | "category"> = {
   valorConDescuento: 0,
   cantidadPorFormato: 0,
   unidadMedida: "m²",
-  consumoEstimado: 0,
   rendimiento: 0,
   costoPorUnidad: 0,
   unidadesNecesarias: 0,
@@ -183,8 +181,7 @@ const AdvancedQuotePDF = ({ projectName, projectM2, client, items, categoryTotal
                   <Text style={[pdfStyles.tableHeaderText, pdfStyles.col3]}>Formato</Text>
                   <Text style={[pdfStyles.tableHeaderText, pdfStyles.col4]}>V. Desc.</Text>
                   <Text style={[pdfStyles.tableHeaderText, pdfStyles.col5]}>Cant.</Text>
-                  <Text style={[pdfStyles.tableHeaderText, pdfStyles.col6]}>Consumo</Text>
-                  <Text style={[pdfStyles.tableHeaderText, pdfStyles.col7]}>Rend.</Text>
+                  <Text style={[pdfStyles.tableHeaderText, pdfStyles.col6]}>Rend.</Text>
                   <Text style={[pdfStyles.tableHeaderText, pdfStyles.col8]}>Costo/U</Text>
                   <Text style={[pdfStyles.tableHeaderText, pdfStyles.col9]}>Unid.</Text>
                   <Text style={[pdfStyles.tableHeaderText, pdfStyles.col10]}>Total</Text>
@@ -196,8 +193,7 @@ const AdvancedQuotePDF = ({ projectName, projectM2, client, items, categoryTotal
                     <Text style={[pdfStyles.cellText, pdfStyles.col3]}>{item.formatoProducto}</Text>
                     <Text style={[pdfStyles.cellText, pdfStyles.col4]}>{formatCurrency(item.valorConDescuento)}</Text>
                     <Text style={[pdfStyles.cellText, pdfStyles.col5]}>{item.cantidadPorFormato}</Text>
-                    <Text style={[pdfStyles.cellText, pdfStyles.col6]}>{item.consumoEstimado}</Text>
-                    <Text style={[pdfStyles.cellText, pdfStyles.col7]}>{item.rendimiento.toFixed(2)}</Text>
+                    <Text style={[pdfStyles.cellText, pdfStyles.col6]}>{item.rendimiento % 1 === 0 ? item.rendimiento : item.rendimiento.toFixed(2)}</Text>
                     <Text style={[pdfStyles.cellText, pdfStyles.col8]}>{formatCurrency(item.costoPorUnidad)}</Text>
                     <Text style={[pdfStyles.cellText, pdfStyles.col9]}>{item.unidadesNecesarias}</Text>
                     <Text style={[pdfStyles.cellTextBold, pdfStyles.col10]}>{formatCurrency(item.valorFinal)}</Text>
@@ -339,16 +335,13 @@ export default function PresupuestosAvanzados() {
 
   const calculateItem = (item: Partial<AdvancedQuoteItem>, m2Total: number): Partial<AdvancedQuoteItem> => {
     const valorConDescuento = item.valorConDescuento || item.valorUnitario || 0;
-    const cantidadPorFormato = item.cantidadPorFormato || 1;
-    const consumoEstimado = item.consumoEstimado || 0;
+    const rendimiento = item.rendimiento || 0;
     
-    let rendimiento = 0;
     let costoPorUnidad = 0;
     let unidadesNecesarias = 0;
     let valorFinal = 0;
 
-    if (cantidadPorFormato > 0 && consumoEstimado > 0) {
-      rendimiento = cantidadPorFormato / consumoEstimado;
+    if (rendimiento > 0) {
       costoPorUnidad = valorConDescuento / rendimiento;
       unidadesNecesarias = Math.ceil(m2Total / rendimiento);
       valorFinal = unidadesNecesarias * valorConDescuento;
@@ -356,7 +349,7 @@ export default function PresupuestosAvanzados() {
 
     return {
       ...item,
-      rendimiento: Math.round(rendimiento * 100) / 100,
+      rendimiento,
       costoPorUnidad: Math.round(costoPorUnidad),
       unidadesNecesarias,
       valorFinal,
@@ -387,7 +380,6 @@ export default function PresupuestosAvanzados() {
       valorConDescuento: parseFloat(product.desc10?.toString() || product.lista?.toString() || "0"),
       cantidadPorFormato: (product as any).cantidadProducto || 0,
       unidadMedida: surfaceUnit,
-      consumoEstimado: (product as any).consumoEstimado || 0,
       rendimiento: (product as any).rendimiento || 0,
       costoPorUnidad: (product as any).costoUnidadMedida || 0,
       unidadesNecesarias: 0,
@@ -514,7 +506,6 @@ export default function PresupuestosAvanzados() {
                 <th className="px-2 py-1 text-right w-20">V. Desc.</th>
                 <th className="px-2 py-1 text-right w-16">Cant.</th>
                 <th className="px-2 py-1 text-center w-12">Unid.</th>
-                <th className="px-2 py-1 text-right w-16">Consumo</th>
                 <th className="px-2 py-1 text-right w-16">Rend.</th>
                 <th className="px-2 py-1 text-right w-20">Costo/U</th>
                 <th className="px-2 py-1 text-right w-16">Unid. Nec.</th>
@@ -598,14 +589,11 @@ export default function PresupuestosAvanzados() {
                     <Input
                       type="number"
                       step="0.01"
-                      value={item.consumoEstimado || ""}
-                      onChange={(e) => updateItem(item.id, { consumoEstimado: parseFloat(e.target.value) || 0 })}
+                      value={item.rendimiento || ""}
+                      onChange={(e) => updateItem(item.id, { rendimiento: parseFloat(e.target.value) || 0 })}
                       className="h-7 text-xs text-right w-full"
-                      data-testid={`input-consumo-${item.id}`}
+                      data-testid={`input-rendimiento-${item.id}`}
                     />
-                  </td>
-                  <td className="px-2 py-1 text-right text-xs">
-                    {item.rendimiento.toFixed(1)}
                   </td>
                   <td className="px-2 py-1 text-right text-xs">
                     {formatCurrency(item.costoPorUnidad)}
@@ -632,7 +620,7 @@ export default function PresupuestosAvanzados() {
             </tbody>
             <tfoot>
               <tr className="bg-gray-100 dark:bg-gray-800 font-semibold">
-                <td colSpan={9} className="px-2 py-1 text-right text-xs">
+                <td colSpan={8} className="px-2 py-1 text-right text-xs">
                   Sub Total {itemsByCategory[category][0]?.unidadMedida || "m²"}
                 </td>
                 <td className="px-2 py-1 text-right text-xs">
