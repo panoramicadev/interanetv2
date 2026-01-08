@@ -783,14 +783,14 @@ export default function PresupuestosAvanzados() {
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Ingresa la superficie o cantidad que necesitas cubrir con este producto.
+              Opcional: ingresa la superficie que necesitas cubrir para calcular automáticamente.
             </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowSurfaceDialog(false)}>
               Cancelar
             </Button>
-            <Button onClick={confirmAddProduct} disabled={surfaceInput <= 0} data-testid="button-confirm-add">
+            <Button onClick={confirmAddProduct} data-testid="button-confirm-add">
               Agregar Producto
             </Button>
           </DialogFooter>
