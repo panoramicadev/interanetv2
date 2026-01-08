@@ -549,16 +549,9 @@ function InventoryTable({
                           <div className="truncate">{item.productSku}</div>
                         </TableCell>
                         <TableCell className="text-xs text-gray-700 dark:text-gray-300 py-1 px-2">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="truncate max-w-[200px] cursor-help">
-                                {item.productName || '-'}
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="max-w-xs">{item.productName || '-'}</p>
-                            </TooltipContent>
-                          </Tooltip>
+                          <div className="whitespace-normal min-w-[180px]">
+                            {item.productName || '-'}
+                          </div>
                         </TableCell>
                         <TableCell className="text-xs text-gray-600 dark:text-gray-400 py-1 px-2">
                           <div className="truncate">{item.warehouseName || item.warehouseCode}</div>
