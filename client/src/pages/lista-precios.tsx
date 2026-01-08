@@ -333,7 +333,7 @@ export default function ListaPrecios() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
-                <Label htmlFor="filter-unidad">Filtrar por tipo de envase</Label>
+                <Label htmlFor="filter-unidad">Filtrar por formato</Label>
                 <Select
                   value={selectedUnidad}
                   onValueChange={(value) => {
@@ -342,10 +342,10 @@ export default function ListaPrecios() {
                   }}
                 >
                   <SelectTrigger data-testid="select-unit-filter">
-                    <SelectValue placeholder="Todos los envases" />
+                    <SelectValue placeholder="Todos los formatos" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos los envases</SelectItem>
+                    <SelectItem value="all">Todos los formatos</SelectItem>
                     {availableUnits.map((unit) => (
                       <SelectItem key={unit} value={unit}>
                         {unit}
@@ -427,7 +427,7 @@ export default function ListaPrecios() {
                   <TableRow>
                     <TableHead>Código</TableHead>
                     <TableHead>Producto</TableHead>
-                    <TableHead>Unidad</TableHead>
+                    <TableHead>Formato</TableHead>
                     <TableHead className="text-right">Lista</TableHead>
                     <TableHead className="text-right">Desc10</TableHead>
                     <TableHead className="text-right">Desc10+5</TableHead>
@@ -561,7 +561,7 @@ export default function ListaPrecios() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-unidad">Unidad</Label>
+                  <Label htmlFor="edit-unidad">Formato</Label>
                   <Input
                     id="edit-unidad"
                     value={editItem.unidad || ''}
