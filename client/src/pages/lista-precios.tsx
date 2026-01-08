@@ -556,7 +556,7 @@ export default function ListaPrecios() {
                   <Label className="text-sm font-medium w-1/2">Producto</Label>
                   <Input
                     id="edit-producto"
-                    className="w-1/2"
+                    className="w-1/2 text-right"
                     value={editItem.producto || ''}
                     onChange={(e) => setEditItem({ ...editItem, producto: e.target.value })}
                     data-testid="input-edit-producto"
@@ -568,7 +568,7 @@ export default function ListaPrecios() {
                   <Label className="text-sm font-medium w-1/2">Código</Label>
                   <Input
                     id="edit-codigo"
-                    className="w-1/2"
+                    className="w-1/2 text-right"
                     value={editItem.codigo || ''}
                     onChange={(e) => setEditItem({ ...editItem, codigo: e.target.value })}
                     data-testid="input-edit-codigo"
@@ -580,7 +580,7 @@ export default function ListaPrecios() {
                   <Label className="text-sm font-medium w-1/2">Formato</Label>
                   <Input
                     id="edit-unidad"
-                    className="w-1/2"
+                    className="w-1/2 text-right"
                     value={editItem.unidad || ''}
                     onChange={(e) => setEditItem({ ...editItem, unidad: e.target.value })}
                     data-testid="input-edit-unidad"
@@ -592,7 +592,7 @@ export default function ListaPrecios() {
                   <Label className="text-sm font-medium w-1/2">Color</Label>
                   <Input
                     id="edit-color"
-                    className="w-1/2"
+                    className="w-1/2 text-right"
                     value={editItem.color || ''}
                     onChange={(e) => setEditItem({ ...editItem, color: e.target.value })}
                     data-testid="input-edit-color"
@@ -683,7 +683,7 @@ export default function ListaPrecios() {
                   <Label className="text-sm font-medium w-1/2">Unidad de Medida</Label>
                   <Input
                     id="edit-unidad-medida"
-                    className="w-1/2"
+                    className="w-1/2 text-right"
                     placeholder="m², lt, kg"
                     value={(editItem as any).unidadMedida || ''}
                     onChange={(e) => setEditItem({ ...editItem, unidadMedida: e.target.value } as any)}
