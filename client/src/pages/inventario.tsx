@@ -86,6 +86,20 @@ export default function Inventario() {
     minimo: "",
   });
 
+  // Obtener SKUs existentes en la lista de precios
+  const { data: existingPriceListData } = useQuery<{ items: { codigo: string }[] }>({
+    queryKey: ['/api/price-list', { limit: 10000 }],
+    queryFn: async () => {
+      const response = await fetch('/api/price-list?limit=10000', { credentials: 'include' });
+      if (!response.ok) return { items: [] };
+      return response.json();
+    },
+  });
+  
+  const existingSkus = new Set(
+    (existingPriceListData?.items || []).map((item) => item.codigo?.toUpperCase()).filter(Boolean)
+  );
+
   // Reset warehouse filter when branch changes
   useEffect(() => {
     setSelectedWarehouse("all");
@@ -646,22 +660,35 @@ function InventoryTable({
                           </>
                         )}
                         <TableCell className="py-1 px-2">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                onClick={() => openAddToPriceList(item)}
-                                data-testid={`button-add-to-price-list-${item.productSku}`}
-                              >
-                                <DollarSign className="h-3.5 w-3.5" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Añadir a Lista de Precios</p>
-                            </TooltipContent>
-                          </Tooltip>
+                          {existingSkus.has(item.productSku?.toUpperCase()) ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-[10px] text-green-600 font-medium cursor-help">
+                                  En lista
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Ya existe en Lista de Precios</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  onClick={() => openAddToPriceList(item)}
+                                  data-testid={`button-add-to-price-list-${item.productSku}`}
+                                >
+                                  <DollarSign className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Añadir a Lista de Precios</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
                         </TableCell>
                       </TableRow>
                     );
