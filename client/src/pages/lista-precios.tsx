@@ -551,49 +551,36 @@ export default function ListaPrecios() {
           {editItem && (
             <div className="py-4 max-h-[60vh] overflow-y-auto">
               <div className="space-y-3">
-                {/* Precio Lista - Primero */}
-                <div className="flex items-center justify-between py-2 border-b">
-                  <Label className="text-sm font-medium w-40">Precio Lista</Label>
-                  <Input
-                    id="edit-lista"
-                    type="number"
-                    className="w-32 text-right"
-                    value={editItem.lista || ''}
-                    onChange={(e) => setEditItem({ ...editItem, lista: e.target.value ? parseFloat(e.target.value) : null })}
-                    data-testid="input-edit-lista"
-                  />
-                </div>
-
-                {/* Código */}
-                <div className="flex items-center justify-between py-2 border-b">
-                  <Label className="text-sm font-medium w-40">Código</Label>
-                  <Input
-                    id="edit-codigo"
-                    className="w-40"
-                    value={editItem.codigo || ''}
-                    onChange={(e) => setEditItem({ ...editItem, codigo: e.target.value })}
-                    data-testid="input-edit-codigo"
-                  />
-                </div>
-
-                {/* Producto */}
-                <div className="flex items-center justify-between py-2 border-b">
-                  <Label className="text-sm font-medium w-40">Producto</Label>
+                {/* Producto - Primero */}
+                <div className="flex items-center py-2 border-b">
+                  <Label className="text-sm font-medium w-1/2">Producto</Label>
                   <Input
                     id="edit-producto"
-                    className="flex-1 ml-4"
+                    className="w-1/2"
                     value={editItem.producto || ''}
                     onChange={(e) => setEditItem({ ...editItem, producto: e.target.value })}
                     data-testid="input-edit-producto"
                   />
                 </div>
 
+                {/* Código */}
+                <div className="flex items-center py-2 border-b">
+                  <Label className="text-sm font-medium w-1/2">Código</Label>
+                  <Input
+                    id="edit-codigo"
+                    className="w-1/2"
+                    value={editItem.codigo || ''}
+                    onChange={(e) => setEditItem({ ...editItem, codigo: e.target.value })}
+                    data-testid="input-edit-codigo"
+                  />
+                </div>
+
                 {/* Formato */}
-                <div className="flex items-center justify-between py-2 border-b">
-                  <Label className="text-sm font-medium w-40">Formato</Label>
+                <div className="flex items-center py-2 border-b">
+                  <Label className="text-sm font-medium w-1/2">Formato</Label>
                   <Input
                     id="edit-unidad"
-                    className="w-32"
+                    className="w-1/2"
                     value={editItem.unidad || ''}
                     onChange={(e) => setEditItem({ ...editItem, unidad: e.target.value })}
                     data-testid="input-edit-unidad"
@@ -601,24 +588,37 @@ export default function ListaPrecios() {
                 </div>
 
                 {/* Color */}
-                <div className="flex items-center justify-between py-2 border-b">
-                  <Label className="text-sm font-medium w-40">Color</Label>
+                <div className="flex items-center py-2 border-b">
+                  <Label className="text-sm font-medium w-1/2">Color</Label>
                   <Input
                     id="edit-color"
-                    className="w-40"
+                    className="w-1/2"
                     value={editItem.color || ''}
                     onChange={(e) => setEditItem({ ...editItem, color: e.target.value })}
                     data-testid="input-edit-color"
                   />
                 </div>
 
+                {/* Precio Lista */}
+                <div className="flex items-center py-2 border-b">
+                  <Label className="text-sm font-medium w-1/2">Precio Lista</Label>
+                  <Input
+                    id="edit-lista"
+                    type="number"
+                    className="w-1/2 text-right"
+                    value={editItem.lista || ''}
+                    onChange={(e) => setEditItem({ ...editItem, lista: e.target.value ? parseFloat(e.target.value) : null })}
+                    data-testid="input-edit-lista"
+                  />
+                </div>
+
                 {/* Desc 10% */}
-                <div className="flex items-center justify-between py-2 border-b">
-                  <Label className="text-sm font-medium w-40">Desc 10%</Label>
+                <div className="flex items-center py-2 border-b">
+                  <Label className="text-sm font-medium w-1/2">Desc 10%</Label>
                   <Input
                     id="edit-desc10"
                     type="number"
-                    className="w-32 text-right"
+                    className="w-1/2 text-right"
                     value={editItem.desc10 || ''}
                     onChange={(e) => setEditItem({ ...editItem, desc10: e.target.value ? parseFloat(e.target.value) : null })}
                     data-testid="input-edit-desc10"
@@ -626,12 +626,12 @@ export default function ListaPrecios() {
                 </div>
 
                 {/* Desc 10+5% */}
-                <div className="flex items-center justify-between py-2 border-b">
-                  <Label className="text-sm font-medium w-40">Desc 10+5%</Label>
+                <div className="flex items-center py-2 border-b">
+                  <Label className="text-sm font-medium w-1/2">Desc 10+5%</Label>
                   <Input
                     id="edit-desc10-5"
                     type="number"
-                    className="w-32 text-right"
+                    className="w-1/2 text-right"
                     value={editItem.desc10_5 || ''}
                     onChange={(e) => setEditItem({ ...editItem, desc10_5: e.target.value ? parseFloat(e.target.value) : null })}
                     data-testid="input-edit-desc10-5"
@@ -639,12 +639,12 @@ export default function ListaPrecios() {
                 </div>
 
                 {/* Precio Mínimo */}
-                <div className="flex items-center justify-between py-2 border-b">
-                  <Label className="text-sm font-medium w-40">Precio Mínimo</Label>
+                <div className="flex items-center py-2 border-b">
+                  <Label className="text-sm font-medium w-1/2">Precio Mínimo</Label>
                   <Input
                     id="edit-minimo"
                     type="number"
-                    className="w-32 text-right"
+                    className="w-1/2 text-right"
                     value={editItem.minimo || ''}
                     onChange={(e) => setEditItem({ ...editItem, minimo: e.target.value ? parseFloat(e.target.value) : null })}
                     data-testid="input-edit-minimo"
@@ -652,12 +652,12 @@ export default function ListaPrecios() {
                 </div>
 
                 {/* Costo de Producción */}
-                <div className="flex items-center justify-between py-2 border-b">
-                  <Label className="text-sm font-medium w-40">Costo de Producción</Label>
+                <div className="flex items-center py-2 border-b">
+                  <Label className="text-sm font-medium w-1/2">Costo de Producción</Label>
                   <Input
                     id="edit-costo"
                     type="number"
-                    className="w-32 text-right"
+                    className="w-1/2 text-right"
                     value={(editItem as any).costoProduccion || ''}
                     onChange={(e) => setEditItem({ ...editItem, costoProduccion: e.target.value ? parseFloat(e.target.value) : null } as any)}
                     data-testid="input-edit-costo"
@@ -665,13 +665,13 @@ export default function ListaPrecios() {
                 </div>
 
                 {/* Cantidad de Producto */}
-                <div className="flex items-center justify-between py-2 border-b">
-                  <Label className="text-sm font-medium w-40">Cantidad de Producto</Label>
+                <div className="flex items-center py-2 border-b">
+                  <Label className="text-sm font-medium w-1/2">Cantidad de Producto</Label>
                   <Input
                     id="edit-cantidad"
                     type="number"
                     step="0.0001"
-                    className="w-32 text-right"
+                    className="w-1/2 text-right"
                     value={(editItem as any).cantidadProducto || ''}
                     onChange={(e) => setEditItem({ ...editItem, cantidadProducto: e.target.value ? parseFloat(e.target.value) : null } as any)}
                     data-testid="input-edit-cantidad"
@@ -679,11 +679,11 @@ export default function ListaPrecios() {
                 </div>
 
                 {/* Unidad de Medida */}
-                <div className="flex items-center justify-between py-2 border-b">
-                  <Label className="text-sm font-medium w-40">Unidad de Medida</Label>
+                <div className="flex items-center py-2 border-b">
+                  <Label className="text-sm font-medium w-1/2">Unidad de Medida</Label>
                   <Input
                     id="edit-unidad-medida"
-                    className="w-32"
+                    className="w-1/2"
                     placeholder="m², lt, kg"
                     value={(editItem as any).unidadMedida || ''}
                     onChange={(e) => setEditItem({ ...editItem, unidadMedida: e.target.value } as any)}
@@ -692,13 +692,13 @@ export default function ListaPrecios() {
                 </div>
 
                 {/* Consumo Estimado */}
-                <div className="flex items-center justify-between py-2 border-b">
-                  <Label className="text-sm font-medium w-40">Consumo Estimado</Label>
+                <div className="flex items-center py-2 border-b">
+                  <Label className="text-sm font-medium w-1/2">Consumo Estimado</Label>
                   <Input
                     id="edit-consumo"
                     type="number"
                     step="0.0001"
-                    className="w-32 text-right"
+                    className="w-1/2 text-right"
                     value={(editItem as any).consumoEstimado || ''}
                     onChange={(e) => setEditItem({ ...editItem, consumoEstimado: e.target.value ? parseFloat(e.target.value) : null } as any)}
                     data-testid="input-edit-consumo"
@@ -706,13 +706,13 @@ export default function ListaPrecios() {
                 </div>
 
                 {/* Rendimiento */}
-                <div className="flex items-center justify-between py-2 border-b">
-                  <Label className="text-sm font-medium w-40">Rendimiento</Label>
+                <div className="flex items-center py-2 border-b">
+                  <Label className="text-sm font-medium w-1/2">Rendimiento</Label>
                   <Input
                     id="edit-rendimiento"
                     type="number"
                     step="0.0001"
-                    className="w-32 text-right"
+                    className="w-1/2 text-right"
                     value={(editItem as any).rendimiento || ''}
                     onChange={(e) => setEditItem({ ...editItem, rendimiento: e.target.value ? parseFloat(e.target.value) : null } as any)}
                     data-testid="input-edit-rendimiento"
@@ -720,12 +720,12 @@ export default function ListaPrecios() {
                 </div>
 
                 {/* Costo por Unidad de Medida */}
-                <div className="flex items-center justify-between py-2">
-                  <Label className="text-sm font-medium w-40">Costo/Unidad Medida</Label>
+                <div className="flex items-center py-2">
+                  <Label className="text-sm font-medium w-1/2">Costo/Unidad Medida</Label>
                   <Input
                     id="edit-costo-unidad"
                     type="number"
-                    className="w-32 text-right"
+                    className="w-1/2 text-right"
                     value={(editItem as any).costoUnidadMedida || ''}
                     onChange={(e) => setEditItem({ ...editItem, costoUnidadMedida: e.target.value ? parseFloat(e.target.value) : null } as any)}
                     data-testid="input-edit-costo-unidad"
