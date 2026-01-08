@@ -29,6 +29,23 @@ export default function ListaPrecios() {
   const [importResult, setImportResult] = useState<any>(null);
   const [editItem, setEditItem] = useState<PriceList | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [newProduct, setNewProduct] = useState({
+    codigo: "",
+    producto: "",
+    unidad: "",
+    color: "",
+    lista: "",
+    desc10: "",
+    desc10_5: "",
+    minimo: "",
+    costoProduccion: "",
+    cantidadProducto: "",
+    unidadMedida: "",
+    consumoEstimado: "",
+    rendimiento: "",
+    costoUnidadMedida: "",
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -150,6 +167,64 @@ export default function ListaPrecios() {
     },
   });
 
+  // Mutación para crear nuevo producto
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return apiRequest('POST', `/api/price-list`, data);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Producto creado",
+        description: "El producto se agregó correctamente a la lista de precios.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/price-list'] });
+      setIsAddDialogOpen(false);
+      setNewProduct({
+        codigo: "",
+        producto: "",
+        unidad: "",
+        color: "",
+        lista: "",
+        desc10: "",
+        desc10_5: "",
+        minimo: "",
+        costoProduccion: "",
+        cantidadProducto: "",
+        unidadMedida: "",
+        consumoEstimado: "",
+        rendimiento: "",
+        costoUnidadMedida: "",
+      });
+    },
+    onError: () => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo crear el producto.",
+      });
+    },
+  });
+
+  const handleCreateProduct = () => {
+    const data: any = {
+      codigo: newProduct.codigo || null,
+      producto: newProduct.producto,
+      unidad: newProduct.unidad || null,
+      color: newProduct.color || null,
+      lista: newProduct.lista ? parseFloat(newProduct.lista) : null,
+      desc10: newProduct.desc10 ? parseFloat(newProduct.desc10) : null,
+      desc10_5: newProduct.desc10_5 ? parseFloat(newProduct.desc10_5) : null,
+      minimo: newProduct.minimo ? parseFloat(newProduct.minimo) : null,
+      costoProduccion: newProduct.costoProduccion ? parseFloat(newProduct.costoProduccion) : null,
+      cantidadProducto: newProduct.cantidadProducto ? parseFloat(newProduct.cantidadProducto) : null,
+      unidadMedida: newProduct.unidadMedida || null,
+      consumoEstimado: newProduct.consumoEstimado ? parseFloat(newProduct.consumoEstimado) : null,
+      rendimiento: newProduct.rendimiento ? parseFloat(newProduct.rendimiento) : null,
+      costoUnidadMedida: newProduct.costoUnidadMedida ? parseFloat(newProduct.costoUnidadMedida) : null,
+    };
+    createMutation.mutate(data);
+  };
+
   const handleEdit = (item: PriceList) => {
     setEditItem({ ...item });
     setIsEditDialogOpen(true);
@@ -221,6 +296,16 @@ export default function ListaPrecios() {
         </div>
         
         <div className="flex gap-2 self-start sm:self-auto">
+          <Button 
+            onClick={() => setIsAddDialogOpen(true)}
+            size="sm" 
+            className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm bg-green-600 hover:bg-green-700" 
+            data-testid="button-add-product"
+          >
+            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Agregar Producto</span>
+            <span className="sm:hidden">Agregar</span>
+          </Button>
           <Button variant="outline" size="sm" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm" disabled>
             <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Exportar</span>
@@ -753,6 +838,208 @@ export default function ListaPrecios() {
             >
               {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para agregar producto */}
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Agregar Nuevo Producto</DialogTitle>
+            <DialogDescription>
+              Completa los campos para agregar un producto a la lista de precios
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4 space-y-3">
+            {/* Producto */}
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Producto *</Label>
+              <Input
+                className="w-1/2 text-right"
+                value={newProduct.producto}
+                onChange={(e) => setNewProduct({ ...newProduct, producto: e.target.value })}
+                placeholder="Nombre del producto"
+                data-testid="input-add-producto"
+              />
+            </div>
+
+            {/* Código */}
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Código</Label>
+              <Input
+                className="w-1/2 text-right"
+                value={newProduct.codigo}
+                onChange={(e) => setNewProduct({ ...newProduct, codigo: e.target.value })}
+                placeholder="Código del producto"
+                data-testid="input-add-codigo"
+              />
+            </div>
+
+            {/* Formato */}
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Formato</Label>
+              <Input
+                className="w-1/2 text-right"
+                value={newProduct.unidad}
+                onChange={(e) => setNewProduct({ ...newProduct, unidad: e.target.value })}
+                placeholder="Ej: Galón, Rollo"
+                data-testid="input-add-unidad"
+              />
+            </div>
+
+            {/* Color */}
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Color</Label>
+              <Input
+                className="w-1/2 text-right"
+                value={newProduct.color}
+                onChange={(e) => setNewProduct({ ...newProduct, color: e.target.value })}
+                data-testid="input-add-color"
+              />
+            </div>
+
+            {/* Precio Lista */}
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Precio Lista</Label>
+              <Input
+                type="number"
+                className="w-1/2 text-right"
+                value={newProduct.lista}
+                onChange={(e) => setNewProduct({ ...newProduct, lista: e.target.value })}
+                data-testid="input-add-lista"
+              />
+            </div>
+
+            {/* Desc 10% */}
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Desc 10%</Label>
+              <Input
+                type="number"
+                className="w-1/2 text-right"
+                value={newProduct.desc10}
+                onChange={(e) => setNewProduct({ ...newProduct, desc10: e.target.value })}
+                data-testid="input-add-desc10"
+              />
+            </div>
+
+            {/* Desc 10+5% */}
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Desc 10+5%</Label>
+              <Input
+                type="number"
+                className="w-1/2 text-right"
+                value={newProduct.desc10_5}
+                onChange={(e) => setNewProduct({ ...newProduct, desc10_5: e.target.value })}
+                data-testid="input-add-desc10-5"
+              />
+            </div>
+
+            {/* Precio Mínimo */}
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Precio Mínimo</Label>
+              <Input
+                type="number"
+                className="w-1/2 text-right"
+                value={newProduct.minimo}
+                onChange={(e) => setNewProduct({ ...newProduct, minimo: e.target.value })}
+                data-testid="input-add-minimo"
+              />
+            </div>
+
+            {/* Costo de Producción */}
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Costo de Producción</Label>
+              <Input
+                type="number"
+                className="w-1/2 text-right"
+                value={newProduct.costoProduccion}
+                onChange={(e) => setNewProduct({ ...newProduct, costoProduccion: e.target.value })}
+                data-testid="input-add-costo"
+              />
+            </div>
+
+            {/* Cantidad de Producto */}
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Cantidad de Producto</Label>
+              <Input
+                type="number"
+                step="0.0001"
+                className="w-1/2 text-right"
+                value={newProduct.cantidadProducto}
+                onChange={(e) => setNewProduct({ ...newProduct, cantidadProducto: e.target.value })}
+                data-testid="input-add-cantidad"
+              />
+            </div>
+
+            {/* Unidad de Medida */}
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Unidad de Medida</Label>
+              <Input
+                className="w-1/2 text-right"
+                placeholder="m², lt, kg"
+                value={newProduct.unidadMedida}
+                onChange={(e) => setNewProduct({ ...newProduct, unidadMedida: e.target.value })}
+                data-testid="input-add-unidad-medida"
+              />
+            </div>
+
+            {/* Consumo Estimado */}
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Consumo Estimado</Label>
+              <Input
+                type="number"
+                step="0.0001"
+                className="w-1/2 text-right"
+                value={newProduct.consumoEstimado}
+                onChange={(e) => setNewProduct({ ...newProduct, consumoEstimado: e.target.value })}
+                data-testid="input-add-consumo"
+              />
+            </div>
+
+            {/* Rendimiento */}
+            <div className="flex items-center py-2 border-b">
+              <Label className="text-sm font-medium w-1/2">Rendimiento</Label>
+              <Input
+                type="number"
+                step="0.0001"
+                className="w-1/2 text-right"
+                value={newProduct.rendimiento}
+                onChange={(e) => setNewProduct({ ...newProduct, rendimiento: e.target.value })}
+                data-testid="input-add-rendimiento"
+              />
+            </div>
+
+            {/* Costo por Unidad de Medida */}
+            <div className="flex items-center py-2">
+              <Label className="text-sm font-medium w-1/2">Costo/Unidad Medida</Label>
+              <Input
+                type="number"
+                className="w-1/2 text-right"
+                value={newProduct.costoUnidadMedida}
+                onChange={(e) => setNewProduct({ ...newProduct, costoUnidadMedida: e.target.value })}
+                data-testid="input-add-costo-unidad"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsAddDialogOpen(false)}
+              data-testid="button-cancel-add"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleCreateProduct}
+              disabled={!newProduct.producto || createMutation.isPending}
+              data-testid="button-save-add"
+            >
+              {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Crear Producto
             </Button>
           </DialogFooter>
         </DialogContent>
