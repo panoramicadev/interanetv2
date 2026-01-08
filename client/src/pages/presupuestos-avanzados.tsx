@@ -32,6 +32,7 @@ interface AdvancedQuoteItem {
   unidadesNecesarias: number;
   valorFinal: number;
   category: ProductCategory;
+  superficieACubrir: number;
 }
 
 interface QuoteClient {
@@ -64,6 +65,7 @@ const INITIAL_ITEM: Omit<AdvancedQuoteItem, "id" | "category"> = {
   costoPorUnidad: 0,
   unidadesNecesarias: 0,
   valorFinal: 0,
+  superficieACubrir: 0,
 };
 
 export default function PresupuestosAvanzados() {
@@ -87,10 +89,21 @@ export default function PresupuestosAvanzados() {
   const [productSearch, setProductSearch] = useState("");
   const [showClientSearch, setShowClientSearch] = useState(false);
   const [clientSearch, setClientSearch] = useState("");
+  const [showSurfaceDialog, setShowSurfaceDialog] = useState(false);
+  const [pendingProduct, setPendingProduct] = useState<PriceList | null>(null);
+  const [surfaceInput, setSurfaceInput] = useState<number>(0);
+  const [surfaceUnit, setSurfaceUnit] = useState<string>("m²");
 
-  const { data: priceList = [] } = useQuery<PriceList[]>({
-    queryKey: ["/api/lista-precios"],
+  const { data: priceListData } = useQuery<{ items: PriceList[] }>({
+    queryKey: ["/api/price-list", { limit: 10000 }],
+    queryFn: async () => {
+      const response = await fetch('/api/price-list?limit=10000', { credentials: 'include' });
+      if (!response.ok) return { items: [] };
+      return response.json();
+    },
   });
+  
+  const priceList = priceListData?.items || [];
 
   const { data: clients = [] } = useQuery<Client[]>({
     queryKey: ["/api/clients"],
@@ -176,7 +189,19 @@ export default function PresupuestosAvanzados() {
     };
   };
 
-  const addProductFromCatalog = (product: PriceList) => {
+  const openSurfaceDialog = (product: PriceList) => {
+    setPendingProduct(product);
+    setSurfaceInput(projectM2 || 0);
+    setSurfaceUnit((product as any).unidadMedida || "m²");
+    setShowSurfaceDialog(true);
+  };
+
+  const confirmAddProduct = () => {
+    if (!pendingProduct) return;
+    
+    const product = pendingProduct;
+    const surfaceToUse = surfaceInput || projectM2;
+    
     const newItem: AdvancedQuoteItem = {
       id: `item-${Date.now()}`,
       productId: product.id,
@@ -187,19 +212,23 @@ export default function PresupuestosAvanzados() {
       valorUnitario: parseFloat(product.lista?.toString() || "0"),
       valorConDescuento: parseFloat(product.desc10?.toString() || product.lista?.toString() || "0"),
       cantidadPorFormato: (product as any).cantidadProducto || 0,
-      unidadMedida: (product as any).unidadMedida || "m²",
+      unidadMedida: surfaceUnit,
       consumoEstimado: (product as any).consumoEstimado || 0,
       rendimiento: (product as any).rendimiento || 0,
       costoPorUnidad: (product as any).costoUnidadMedida || 0,
       unidadesNecesarias: 0,
       valorFinal: 0,
       category: selectedCategory,
+      superficieACubrir: surfaceToUse,
     };
 
-    const calculated = calculateItem(newItem, projectM2);
+    const calculated = calculateItem(newItem, surfaceToUse);
     setItems([...items, { ...newItem, ...calculated } as AdvancedQuoteItem]);
+    setShowSurfaceDialog(false);
     setShowAddProduct(false);
     setProductSearch("");
+    setPendingProduct(null);
+    setSurfaceInput(0);
   };
 
   const addCustomProduct = () => {
@@ -662,7 +691,7 @@ export default function PresupuestosAvanzados() {
                 <div
                   key={product.id}
                   className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted cursor-pointer"
-                  onClick={() => addProductFromCatalog(product)}
+                  onClick={() => openSurfaceDialog(product)}
                   data-testid={`product-item-${product.id}`}
                 >
                   <div>
@@ -722,6 +751,59 @@ export default function PresupuestosAvanzados() {
               ))}
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showSurfaceDialog} onOpenChange={setShowSurfaceDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Superficie a Cubrir</DialogTitle>
+            <DialogDescription>
+              {pendingProduct?.producto}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <Label className="text-sm font-medium">Superficie necesaria</Label>
+                <Input
+                  type="number"
+                  value={surfaceInput}
+                  onChange={(e) => setSurfaceInput(parseFloat(e.target.value) || 0)}
+                  placeholder="Ej: 30"
+                  className="mt-1"
+                  data-testid="input-surface"
+                />
+              </div>
+              <div className="w-24">
+                <Label className="text-sm font-medium">Unidad</Label>
+                <Select value={surfaceUnit} onValueChange={setSurfaceUnit}>
+                  <SelectTrigger className="mt-1" data-testid="select-surface-unit">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="m²">m²</SelectItem>
+                    <SelectItem value="m³">m³</SelectItem>
+                    <SelectItem value="ml">ml</SelectItem>
+                    <SelectItem value="un">un</SelectItem>
+                    <SelectItem value="L">L</SelectItem>
+                    <SelectItem value="kg">kg</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Ingresa la superficie o cantidad que necesitas cubrir con este producto.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSurfaceDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmAddProduct} disabled={surfaceInput <= 0} data-testid="button-confirm-add">
+              Agregar Producto
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
