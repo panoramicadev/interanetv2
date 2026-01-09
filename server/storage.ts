@@ -13852,15 +13852,16 @@ export class DatabaseStorage implements IStorage {
             ? `custom-${prod.id}` 
             : prod.productoId;
 
-          // Get SKU and name from products table if it's a catalog product
+          // Get SKU and name from priceList table if it's a catalog product
           let sku = '';
           let name = prod.productoManual || '';
           
           if (prod.productoId) {
+            // First try priceList (the actual catalog source)
             const [catalogProduct] = await db
-              .select({ kopr: products.kopr, name: products.name })
-              .from(products)
-              .where(eq(products.id, prod.productoId));
+              .select({ kopr: priceList.codigo, name: priceList.producto })
+              .from(priceList)
+              .where(eq(priceList.id, prod.productoId));
             if (catalogProduct) {
               sku = catalogProduct.kopr || '';
               name = catalogProduct.name || prod.productoManual || '';
