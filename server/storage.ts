@@ -13863,15 +13863,18 @@ export class DatabaseStorage implements IStorage {
               .where(eq(products.id, prod.productoId));
             if (catalogProduct) {
               sku = catalogProduct.kopr || '';
-              name = catalogProduct.name || '';
+              name = catalogProduct.name || prod.productoManual || '';
             }
           }
+          
+          console.log(`📦 Producto evaluado: id=${prod.id}, productoId=${prod.productoId}, name="${name}", productoManual="${prod.productoManual}", sku="${sku}"`);
 
           return {
             id: prod.id,
             productId: productIdForFrontend,
             sku,
             name,
+            productoManual: prod.productoManual,
             formato: prod.formato,
             isCustomProduct: isCustom,
             evaluacion: evaluacion || {}
