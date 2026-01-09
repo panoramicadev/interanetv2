@@ -3460,6 +3460,12 @@ function EditVisitContent({ visita, onSave, onCancel }: {
           Fotos de la Visita ({visibleExistingPhotos.length + newPhotos.length})
         </h3>
         
+        {(photosToDelete.length > 0 || newPhotos.length > 0) && (
+          <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-xs text-amber-700 dark:text-amber-300">
+            <strong>Nota:</strong> Los cambios en las fotos se aplicarán solo cuando presiones "Guardar Cambios".
+          </div>
+        )}
+        
         {/* Fotos existentes */}
         {visibleExistingPhotos.length > 0 && (
           <div className="space-y-2">
