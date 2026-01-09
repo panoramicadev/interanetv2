@@ -13892,9 +13892,25 @@ export class DatabaseStorage implements IStorage {
 
   async updateVisitaTecnica(id: string, data: any) {
     try {
+      const validFields = [
+        'obraId', 'nombreObra', 'direccionObra', 'tecnicoId', 'vendedorId',
+        'clienteId', 'clienteManual', 'recepcionistaNombre', 'recepcionistaCargo',
+        'estado', 'aplicacionGeneral', 'tipoSuperficie', 'ambiente',
+        'condicionesClimaticas', 'dilucion', 'observacionesGenerales', 'comentarios',
+        'firmaTecnicoNombre', 'firmaTecnicoData', 'firmaRecepcionistaData', 'fechaFirma'
+      ];
+      
+      const filteredData: any = {};
+      for (const key of validFields) {
+        if (key in data) {
+          filteredData[key] = data[key];
+        }
+      }
+      filteredData.updatedAt = new Date();
+      
       const [visitaActualizada] = await db
         .update(visitasTecnicas)
-        .set({ ...data, updatedAt: new Date() })
+        .set(filteredData)
         .where(eq(visitasTecnicas.id, id))
         .returning();
       return visitaActualizada;

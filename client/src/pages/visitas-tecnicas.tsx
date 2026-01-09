@@ -3231,7 +3231,7 @@ export default function VisitasTecnicasPage() {
                 try {
                   await apiRequest(`/api/visitas-tecnicas/${editingVisitId}`, {
                     method: 'PUT',
-                    body: JSON.stringify(updatedData),
+                    data: updatedData,
                   });
                   toast({
                     title: "Visita actualizada",
