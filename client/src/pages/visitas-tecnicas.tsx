@@ -3268,7 +3268,9 @@ function EditVisitContent({ visita, onSave, onCancel }: {
   onSave: (data: any) => Promise<void>; 
   onCancel: () => void;
 }) {
+  const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [editData, setEditData] = useState({
     nombreObra: visita.nombreObra || '',
     direccionObra: visita.direccionObra || '',
@@ -3276,11 +3278,85 @@ function EditVisitContent({ visita, onSave, onCancel }: {
     recepcionistaCargo: visita.recepcionistaCargo || '',
     observacionesGenerales: visita.observacionesGenerales || '',
   });
+  
+  const [existingPhotos, setExistingPhotos] = useState<any[]>([]);
+  const [newPhotos, setNewPhotos] = useState<File[]>([]);
+  const [photosToDelete, setPhotosToDelete] = useState<string[]>([]);
+  const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  useEffect(() => {
+    if (visita.id) {
+      fetch(`/api/visitas-tecnicas/${visita.id}/evidencias`, { credentials: 'include' })
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            setExistingPhotos(data);
+          }
+        })
+        .catch(err => console.error('Error loading photos:', err));
+    }
+  }, [visita.id]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const validFiles = files.filter(file => {
+      if (!file.type.startsWith('image/')) {
+        toast({ title: "Error", description: `${file.name} no es una imagen válida`, variant: "destructive" });
+        return false;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        toast({ title: "Error", description: `${file.name} es muy grande (máx 10MB)`, variant: "destructive" });
+        return false;
+      }
+      return true;
+    });
+    setNewPhotos(prev => [...prev, ...validFiles]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeNewPhoto = (index: number) => {
+    setNewPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const markPhotoForDeletion = (photoId: string) => {
+    setPhotosToDelete(prev => [...prev, photoId]);
+  };
+
+  const unmarkPhotoForDeletion = (photoId: string) => {
+    setPhotosToDelete(prev => prev.filter(id => id !== photoId));
+  };
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // Merge editData with existing visita to preserve all data
+      for (const photoId of photosToDelete) {
+        try {
+          await apiRequest(`/api/visitas-tecnicas/evidencias/${photoId}`, { method: 'DELETE' });
+        } catch (err) {
+          console.error('Error deleting photo:', err);
+        }
+      }
+      
+      for (const file of newPhotos) {
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('tipo', 'general');
+          const response = await fetch(`/api/visitas-tecnicas/${visita.id}/evidencias`, {
+            method: 'POST',
+            body: formData,
+            credentials: 'include'
+          });
+          if (!response.ok) {
+            throw new Error('Upload failed');
+          }
+        } catch (err) {
+          console.error('Error uploading photo:', err);
+          toast({ title: "Error", description: `No se pudo subir ${file.name}`, variant: "destructive" });
+        }
+      }
+      
       await onSave({
         ...visita,
         ...editData,
@@ -3290,11 +3366,12 @@ function EditVisitContent({ visita, onSave, onCancel }: {
     }
   };
   
-  // Helper to get images from evaluation (handles multiple field names)
   const getEvaluationImages = (evaluacion: any): string[] => {
     if (!evaluacion) return [];
     return evaluacion.imagenesUrls || evaluacion.imagenes || evaluacion.evidencias || [];
   };
+  
+  const visibleExistingPhotos = existingPhotos.filter(p => !photosToDelete.includes(p.id));
 
   return (
     <div className="space-y-6 py-4">
@@ -3375,6 +3452,137 @@ function EditVisitContent({ visita, onSave, onCancel }: {
           </div>
         </div>
       </div>
+
+      {/* Fotos de la Visita */}
+      <div className="space-y-4">
+        <h3 className="font-semibold text-sm flex items-center gap-2">
+          <Camera className="w-4 h-4" />
+          Fotos de la Visita ({visibleExistingPhotos.length + newPhotos.length})
+        </h3>
+        
+        {/* Fotos existentes */}
+        {visibleExistingPhotos.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">Fotos guardadas:</p>
+            <div className="grid grid-cols-4 gap-2">
+              {visibleExistingPhotos.map((photo: any) => (
+                <div key={photo.id} className="relative group">
+                  <img
+                    src={photo.urlArchivo}
+                    alt={photo.nombreArchivo || 'Foto'}
+                    className="w-full h-20 object-cover rounded border cursor-pointer hover:opacity-90"
+                    onClick={() => setPreviewPhoto(photo.urlArchivo)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => markPhotoForDeletion(photo.id)}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Fotos marcadas para eliminar */}
+        {photosToDelete.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs text-red-500">Fotos a eliminar al guardar:</p>
+            <div className="flex gap-2 flex-wrap">
+              {existingPhotos.filter(p => photosToDelete.includes(p.id)).map((photo: any) => (
+                <div key={photo.id} className="relative">
+                  <img
+                    src={photo.urlArchivo}
+                    alt={photo.nombreArchivo || 'Foto'}
+                    className="w-16 h-16 object-cover rounded border opacity-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => unmarkPhotoForDeletion(photo.id)}
+                    className="absolute inset-0 flex items-center justify-center bg-black/30 text-white text-xs"
+                  >
+                    Restaurar
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Fotos nuevas pendientes */}
+        {newPhotos.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs text-green-600">Nuevas fotos a subir:</p>
+            <div className="grid grid-cols-4 gap-2">
+              {newPhotos.map((file, idx) => (
+                <div key={idx} className="relative group">
+                  <img
+                    src={URL.createObjectURL(file)}
+                    alt={file.name}
+                    className="w-full h-20 object-cover rounded border"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeNewPhoto(idx)}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                  <span className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-0.5 truncate">
+                    {file.name}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Input para agregar fotos */}
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            Agregar Fotos
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            JPG, PNG, WebP (máx. 10MB)
+          </span>
+        </div>
+      </div>
+
+      {/* Preview modal */}
+      {previewPhoto && (
+        <div 
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setPreviewPhoto(null)}
+        >
+          <img
+            src={previewPhoto}
+            alt="Vista previa"
+            className="max-w-full max-h-full object-contain rounded"
+          />
+          <button
+            onClick={() => setPreviewPhoto(null)}
+            className="absolute top-4 right-4 text-white bg-black/50 rounded-full p-2"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+      )}
 
       {/* Productos Evaluados (Solo lectura) */}
       {visita.productos && visita.productos.length > 0 && (
