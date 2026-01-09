@@ -229,6 +229,33 @@ export class ObjectStorageService {
     return `/public-objects/${pathAfterBucket}`;
   }
 
+  // Delete an object from storage
+  async deleteObject(objectUrl: string): Promise<boolean> {
+    try {
+      // Handle public-objects URLs
+      if (objectUrl.startsWith('/public-objects/')) {
+        const filePath = objectUrl.replace('/public-objects/', '');
+        const publicPath = this.getPublicObjectSearchPaths()[0];
+        const fullPath = `${publicPath}/${filePath}`;
+        
+        const { bucketName, objectName } = parseObjectPath(fullPath);
+        const bucket = objectStorageClient.bucket(bucketName);
+        const file = bucket.file(objectName);
+        
+        const [exists] = await file.exists();
+        if (exists) {
+          await file.delete();
+          console.log(`🗑️ Objeto eliminado: ${objectName}`);
+          return true;
+        }
+      }
+      return false;
+    } catch (error) {
+      console.error('Error deleting object:', error);
+      return false;
+    }
+  }
+
   // Gets the object entity file from the object path.
   async getObjectEntityFile(objectPath: string): Promise<File> {
     if (!objectPath.startsWith("/objects/")) {
