@@ -1023,6 +1023,18 @@ export default function VisitasTecnicasPage() {
     enabled: !!selectedVisitId && showDetailModal,
   });
 
+  // Query para obtener evidencias/fotos de una visita (para el modal de detalle)
+  const { data: visitaEvidencias = [] } = useQuery<any[]>({
+    queryKey: ['/api/visitas-tecnicas', selectedVisitId, 'evidencias'],
+    queryFn: async () => {
+      if (!selectedVisitId) return [];
+      const response = await fetch(`/api/visitas-tecnicas/${selectedVisitId}/evidencias`, { credentials: 'include' });
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: !!selectedVisitId && showDetailModal,
+  });
+
   // Queries y mutations para obras
   const { data: obrasData = [], isLoading: loadingObras } = useQuery<ObraWithClient[]>({
     queryKey: ['/api/obras', selectedClienteIdObras],
@@ -2766,6 +2778,37 @@ export default function VisitasTecnicasPage() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-sm whitespace-pre-wrap">{visitaDetalle.observacionesGenerales}</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Fotos de la Visita */}
+              {visitaEvidencias && visitaEvidencias.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Camera className="w-5 h-5" />
+                      Fotos de la Visita ({visitaEvidencias.length})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                      {visitaEvidencias.map((evidencia: any) => (
+                        <div key={evidencia.id} className="relative aspect-square group">
+                          <img
+                            src={evidencia.urlArchivo}
+                            alt={evidencia.nombreArchivo || 'Foto'}
+                            className="w-full h-full object-cover rounded-lg border shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => window.open(evidencia.urlArchivo, '_blank')}
+                          />
+                          {evidencia.descripcion && (
+                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1 rounded-b-lg truncate">
+                              {evidencia.descripcion}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </CardContent>
                 </Card>
               )}
