@@ -10241,19 +10241,149 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // Update visita técnica
+  // Update visita técnica - Con validación de seguridad completa
   app.put('/api/visitas-tecnicas/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      const visitaActualizada = await storage.updateVisitaTecnica(id, req.body);
+      const userId = req.user?.id;
+      const userRole = req.user?.role;
       
-      if (!visitaActualizada) {
+      // 1. Verificar que la visita existe
+      const visitaExistente = await storage.getVisitaTecnicaById(id);
+      if (!visitaExistente) {
         return res.status(404).json({
           message: 'Visita técnica no encontrada'
         });
       }
+      
+      // 2. Verificar autorización: solo el técnico asignado, vendedor, admin o supervisor pueden editar
+      const rolesPermitidos = ['admin', 'supervisor', 'gerente'];
+      const esTecnicoAsignado = visitaExistente.tecnicoId === userId;
+      const esVendedorAsignado = visitaExistente.vendedorId === userId;
+      const tieneRolPermitido = rolesPermitidos.includes(userRole);
+      
+      if (!esTecnicoAsignado && !esVendedorAsignado && !tieneRolPermitido) {
+        return res.status(403).json({
+          message: 'No tiene permisos para editar esta visita técnica'
+        });
+      }
+      
+      // 3. Sanitizar campos de texto para prevenir XSS
+      const sanitizeText = (text: any): string | null => {
+        if (text === null || text === undefined) return null;
+        if (typeof text !== 'string') return String(text);
+        return text
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#x27;')
+          .trim();
+      };
+      
+      // 4. Campos permitidos para actualización con sanitización
+      const datosLimpios: any = {};
+      const camposTexto = [
+        'nombreObra', 'direccionObra', 'clienteManual', 'recepcionistaNombre',
+        'recepcionistaCargo', 'tipoSuperficie', 'condicionesClimaticas',
+        'dilucion', 'observacionesGenerales', 'comentarios', 'firmaTecnicoNombre'
+      ];
+      const camposId = ['obraId', 'tecnicoId', 'vendedorId', 'clienteId'];
+      const camposEnum = ['estado', 'aplicacionGeneral', 'ambiente'];
+      const camposBase64 = ['firmaTecnicoData', 'firmaRecepcionistaData'];
+      
+      // Sanitizar campos de texto
+      for (const campo of camposTexto) {
+        if (campo in req.body) {
+          datosLimpios[campo] = sanitizeText(req.body[campo]);
+        }
+      }
+      
+      // Validar campos de ID (solo strings alfanuméricos y guiones)
+      const idRegex = /^[a-zA-Z0-9\-_]+$/;
+      for (const campo of camposId) {
+        if (campo in req.body) {
+          const valor = req.body[campo];
+          if (valor === null || valor === '') {
+            datosLimpios[campo] = null;
+          } else if (typeof valor === 'string' && idRegex.test(valor)) {
+            datosLimpios[campo] = valor;
+          }
+        }
+      }
+      
+      // Validar campos enum
+      const enumsValidos: Record<string, string[]> = {
+        estado: ['borrador', 'completada'],
+        aplicacionGeneral: ['correcta', 'deficiente'],
+        ambiente: ['interior', 'exterior']
+      };
+      for (const campo of camposEnum) {
+        if (campo in req.body) {
+          const valor = req.body[campo];
+          if (valor === null || (enumsValidos[campo] && enumsValidos[campo].includes(valor))) {
+            datosLimpios[campo] = valor;
+          }
+        }
+      }
+      
+      // Validar campos base64 (firmas) - limitar tamaño
+      for (const campo of camposBase64) {
+        if (campo in req.body) {
+          const valor = req.body[campo];
+          if (valor === null || valor === '') {
+            datosLimpios[campo] = null;
+          } else if (typeof valor === 'string' && valor.length < 500000) {
+            // Aceptar firmas base64 de tamaño razonable
+            datosLimpios[campo] = valor;
+          }
+        }
+      }
+      
+      // Parsear fecha si viene
+      if ('fechaFirma' in req.body) {
+        const fecha = req.body.fechaFirma;
+        if (fecha === null) {
+          datosLimpios.fechaFirma = null;
+        } else if (fecha instanceof Date) {
+          datosLimpios.fechaFirma = fecha;
+        } else if (typeof fecha === 'string') {
+          const fechaParsed = new Date(fecha);
+          if (!isNaN(fechaParsed.getTime())) {
+            datosLimpios.fechaFirma = fechaParsed;
+          }
+        }
+      }
+      
+      // 5. Verificar que hay datos para actualizar
+      if (Object.keys(datosLimpios).length === 0) {
+        return res.status(400).json({
+          message: 'No se proporcionaron campos válidos para actualizar'
+        });
+      }
+      
+      const visitaActualizada = await storage.updateVisitaTecnica(id, datosLimpios);
+      
+      if (!visitaActualizada) {
+        return res.status(500).json({
+          message: 'Error al actualizar la visita técnica'
+        });
+      }
+      
+      // 6. Respuesta con datos esenciales (sin firmas base64 completas)
+      const respuesta = {
+        id: visitaActualizada.id,
+        nombreObra: visitaActualizada.nombreObra,
+        direccionObra: visitaActualizada.direccionObra,
+        estado: visitaActualizada.estado,
+        clienteId: visitaActualizada.clienteId,
+        clienteManual: visitaActualizada.clienteManual,
+        tecnicoId: visitaActualizada.tecnicoId,
+        vendedorId: visitaActualizada.vendedorId,
+        updatedAt: visitaActualizada.updatedAt,
+        success: true
+      };
 
-      res.json(visitaActualizada);
+      res.json(respuesta);
     } catch (error: any) {
       console.error('❌ Error al actualizar visita técnica:', error);
       res.status(500).json({
