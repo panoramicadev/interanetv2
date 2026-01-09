@@ -298,8 +298,17 @@ interface VisitaDetalle {
   productos?: ProductoEvaluado[];
 }
 
+// Tipo para evidencias
+interface Evidencia {
+  id: string;
+  urlArchivo: string;
+  nombreArchivo?: string;
+  descripcion?: string;
+  tipoEvidencia?: string;
+}
+
 // Componente PDF para la visita técnica - Incluye TODA la información
-const VisitaPDFDocument = ({ visita }: { visita: VisitaDetalle }) => (
+const VisitaPDFDocument = ({ visita, evidencias = [] }: { visita: VisitaDetalle; evidencias?: Evidencia[] }) => (
   <Document>
     <Page size="A4" style={pdfStyles.page}>
       {/* Header */}
@@ -521,12 +530,47 @@ const VisitaPDFDocument = ({ visita }: { visita: VisitaDetalle }) => (
       </Text>
     </Page>
 
-    {/* Página adicional para imágenes si hay alguna */}
+    {/* Página adicional para fotos generales de la visita */}
+    {evidencias && evidencias.length > 0 && (
+      <Page size="A4" style={pdfStyles.page}>
+        <View style={pdfStyles.header}>
+          <View>
+            <Text style={pdfStyles.title}>Fotos de la Visita</Text>
+            <Text style={pdfStyles.subtitle}>Visita: {visita.nombreObra}</Text>
+          </View>
+        </View>
+
+        <View style={pdfStyles.section}>
+          <Text style={{ fontWeight: 'bold', fontSize: 11, marginBottom: 8, color: '#1e40af' }}>
+            Evidencias Fotográficas ({evidencias.length})
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {evidencias.map((evidencia, imgIndex) => (
+              <View key={evidencia.id} style={{ marginBottom: 8 }}>
+                <Image 
+                  src={evidencia.urlArchivo} 
+                  style={{ width: 150, height: 150, objectFit: 'cover' }} 
+                />
+                {evidencia.descripcion && (
+                  <Text style={{ fontSize: 8, textAlign: 'center', maxWidth: 150 }}>{evidencia.descripcion}</Text>
+                )}
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <Text style={pdfStyles.footer}>
+          Documento generado automáticamente - Pinturas Panorámica © {new Date().getFullYear()}
+        </Text>
+      </Page>
+    )}
+
+    {/* Página adicional para imágenes de productos si hay alguna */}
     {visita.productos && visita.productos.some(p => p.evaluacion?.imagenesUrls && p.evaluacion.imagenesUrls.length > 0) && (
       <Page size="A4" style={pdfStyles.page}>
         <View style={pdfStyles.header}>
           <View>
-            <Text style={pdfStyles.title}>Evidencias Fotográficas</Text>
+            <Text style={pdfStyles.title}>Evidencias de Productos</Text>
             <Text style={pdfStyles.subtitle}>Visita: {visita.nombreObra}</Text>
           </View>
         </View>
@@ -934,12 +978,20 @@ export default function VisitasTecnicasPage() {
         description: "Por favor espere...",
       });
 
-      // Obtener detalles de la visita
-      const response = await apiRequest(`/api/visitas-tecnicas/${visitaId}`);
-      const visita = await response.json();
+      // Obtener detalles de la visita y evidencias en paralelo
+      const [visitaResponse, evidenciasResponse] = await Promise.all([
+        apiRequest(`/api/visitas-tecnicas/${visitaId}`),
+        fetch(`/api/visitas-tecnicas/${visitaId}/evidencias`, { credentials: 'include' })
+      ]);
       
-      // Generar PDF
-      const pdfBlob = await pdf(<VisitaPDFDocument visita={visita} />).toBlob();
+      const visita = await visitaResponse.json();
+      let evidencias: Evidencia[] = [];
+      if (evidenciasResponse.ok) {
+        evidencias = await evidenciasResponse.json();
+      }
+      
+      // Generar PDF con evidencias
+      const pdfBlob = await pdf(<VisitaPDFDocument visita={visita} evidencias={evidencias} />).toBlob();
       const url = URL.createObjectURL(pdfBlob);
       
       // Descargar
