@@ -2879,7 +2879,7 @@ export default function VisitasTecnicasPage() {
                             <div className="space-y-3">
                               <div className="flex items-start justify-between">
                                 <div>
-                                  <h4 className="font-semibold text-base">{producto.name}</h4>
+                                  <h4 className="font-semibold text-base">{producto.name || producto.productoManual || 'Producto sin nombre'}</h4>
                                   <p className="text-sm text-muted-foreground">SKU: {producto.sku}</p>
                                   <p className="text-sm text-muted-foreground">Formato: {producto.formato}</p>
                                 </div>
@@ -3702,7 +3702,7 @@ function EditVisitContent({ visita, onSave, onCancel }: {
                       <Badge variant="secondary" className="text-xs">{producto.formato || 'N/A'}</Badge>
                       {producto.isCustomProduct && <Badge variant="default" className="text-xs">Personalizado</Badge>}
                     </div>
-                    <p className="font-medium text-sm">{producto.name || 'Producto sin nombre'}</p>
+                    <p className="font-medium text-sm">{producto.name || producto.productoManual || 'Producto sin nombre'}</p>
                   </div>
                 </div>
                 
