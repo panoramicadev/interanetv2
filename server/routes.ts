@@ -10510,6 +10510,7 @@ export function registerRoutes(app: Express): Server {
       const fileName = `visitas-tecnicas/${id}/${timestamp}-${randomId}-${sanitizedName}`;
       
       // Subir al Object Storage
+      const objectStorageService = new ObjectStorageService();
       const fileUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
       
       // Crear registro en base de datos
@@ -10572,6 +10573,7 @@ export function registerRoutes(app: Express): Server {
       // Intentar eliminar del Object Storage (no bloquear si falla)
       if (evidencia.urlArchivo) {
         try {
+          const objectStorageService = new ObjectStorageService();
           await objectStorageService.deleteObject(evidencia.urlArchivo);
         } catch (deleteError) {
           console.warn('No se pudo eliminar archivo del storage:', deleteError);
