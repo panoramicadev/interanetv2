@@ -1648,78 +1648,72 @@ export default function VisitasTecnicasPage() {
           </div>
         ) : visitas && visitas.length > 0 ? (
           visitas.map((visita) => (
-            <Card key={visita.id} className="hover:shadow-md transition-shadow" data-testid={`card-visita-${visita.id}`}>
-              <CardContent className="p-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-lg" data-testid={`text-obra-${visita.id}`}>
+            <Card key={visita.id} className="hover:shadow-lg transition-all border-l-4 border-l-primary/20 hover:border-l-primary" data-testid={`card-visita-${visita.id}`}>
+              <CardContent className="p-4">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="font-semibold text-base truncate" data-testid={`text-obra-${visita.id}`}>
                         {visita.nombreObra}
                       </h3>
                       {getEstadoBadge(visita.estado)}
                     </div>
-                    <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-4 h-4" />
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground mb-2">
+                      <span className="inline-flex items-center gap-1 bg-muted/50 px-2 py-1 rounded">
+                        <Calendar className="w-3 h-3" />
                         <span data-testid={`text-fecha-${visita.id}`}>
-                          {new Date(visita.fechaVisita).toLocaleDateString('es-CL', { 
-                            day: '2-digit', 
-                            month: '2-digit', 
-                            year: 'numeric' 
-                          })}
+                          {new Date(visita.fechaVisita).toLocaleDateString('es-CL')}
                         </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <User className="w-4 h-4" />
-                        <span data-testid={`text-tecnico-${visita.id}`}>
+                      </span>
+                      <span className="inline-flex items-center gap-1 bg-muted/50 px-2 py-1 rounded">
+                        <User className="w-3 h-3" />
+                        <span data-testid={`text-tecnico-${visita.id}`} className="truncate max-w-[120px]">
                           {visita.tecnico}
                         </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <User className="w-4 h-4" />
-                        <span data-testid={`text-cliente-${visita.id}`}>
+                      </span>
+                      <span className="inline-flex items-center gap-1 bg-muted/50 px-2 py-1 rounded">
+                        <Building2 className="w-3 h-3" />
+                        <span data-testid={`text-cliente-${visita.id}`} className="truncate max-w-[150px]">
                           {visita.cliente}
                         </span>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-4 text-sm">
-                      <span className="text-blue-600" data-testid={`text-productos-${visita.id}`}>
-                        {visita.productosEvaluados} productos evaluados
                       </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <Badge variant="secondary" className="font-normal" data-testid={`text-productos-${visita.id}`}>
+                        <Package className="w-3 h-3 mr-1" />
+                        {visita.productosEvaluados} productos
+                      </Badge>
                       {visita.reclamosTotal > 0 && (
-                        <span className="text-red-600" data-testid={`text-reclamos-${visita.id}`}>
+                        <Badge variant="destructive" className="font-normal" data-testid={`text-reclamos-${visita.id}`}>
                           {visita.reclamosTotal} reclamos
-                        </span>
+                        </Badge>
                       )}
                     </div>
                   </div>
-                  <div className="w-full sm:w-auto flex flex-col gap-2">
+                  <div className="flex flex-wrap lg:flex-nowrap gap-2">
                     <Button 
                       variant="default" 
                       size="sm" 
-                      className="w-full"
                       onClick={() => handleOpenSignatureModal(visita.id)}
                       data-testid={`button-firmar-${visita.id}`}
                     >
-                      <PenLine className="w-4 h-4 mr-2" />
+                      <PenLine className="w-4 h-4 mr-1" />
                       Firmar
                     </Button>
                     {canEditVisit && (
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        className="w-full"
                         onClick={() => handleEditVisit(visita.id)}
                         data-testid={`button-editar-${visita.id}`}
                       >
-                        <Edit className="w-4 h-4 mr-2" />
+                        <Edit className="w-4 h-4 mr-1" />
                         Editar
                       </Button>
                     )}
                     <Button 
-                      variant="outline" 
+                      variant="ghost" 
                       size="sm" 
-                      className="w-full"
                       onClick={() => {
                         setSelectedVisitId(visita.id);
                         setShowDetailModal(true);
@@ -1729,14 +1723,13 @@ export default function VisitasTecnicasPage() {
                       Ver Detalle
                     </Button>
                     <Button 
-                      variant="outline" 
+                      variant="ghost" 
                       size="sm" 
-                      className="w-full"
                       onClick={() => handleDownloadPDF(visita.id)}
                       data-testid={`button-pdf-${visita.id}`}
                     >
-                      <Download className="w-4 h-4 mr-2" />
-                      Descargar PDF
+                      <Download className="w-4 h-4 mr-1" />
+                      PDF
                     </Button>
                   </div>
                 </div>
