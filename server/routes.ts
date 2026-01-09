@@ -10459,33 +10459,134 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // Upload evidencia para visita técnica
-  app.post('/api/visitas-tecnicas/:id/evidencias', requireAuth, asyncHandler(async (req: any, res: any) => {
+  // GET evidencias de una visita técnica
+  app.get('/api/visitas-tecnicas/:id/evidencias', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const evidenciasResult = await storage.getEvidenciasByVisitaId(id);
+      res.json(evidenciasResult);
+    } catch (error: any) {
+      console.error('❌ Error al obtener evidencias:', error);
+      res.status(500).json({
+        message: 'Error al obtener evidencias',
+        error: error.message
+      });
+    }
+  }));
+
+  // POST subir evidencia/foto a una visita técnica
+  app.post('/api/visitas-tecnicas/:id/evidencias', requireAuth, upload.single('file'), asyncHandler(async (req: any, res: any) => {
     try {
       const { id } = req.params;
       const { tipo, descripcion, productoEvaluadoId, reclamoId } = req.body;
+      const file = req.file;
       
-      // TODO: Implementar upload de archivos con multer
-      // Por ahora solo crear el registro en base de datos
+      if (!file) {
+        return res.status(400).json({
+          message: 'No se proporcionó archivo'
+        });
+      }
       
+      // Validar tipo de archivo
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      if (!allowedTypes.includes(file.mimetype)) {
+        return res.status(400).json({
+          message: 'Tipo de archivo no permitido. Solo se aceptan imágenes (JPEG, PNG, WebP, GIF)'
+        });
+      }
+      
+      // Validar tamaño (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        return res.status(400).json({
+          message: 'El archivo es demasiado grande. Máximo 10MB'
+        });
+      }
+      
+      // Generar nombre único para el archivo
+      const timestamp = Date.now();
+      const randomId = Math.random().toString(36).substring(2, 8);
+      const extension = file.originalname.split('.').pop() || 'jpg';
+      const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_').substring(0, 50);
+      const fileName = `visitas-tecnicas/${id}/${timestamp}-${randomId}-${sanitizedName}`;
+      
+      // Subir al Object Storage
+      const fileUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
+      
+      // Crear registro en base de datos
       const evidenciaData = {
         visitaId: id,
-        tipoEvidencia: tipo,
-        descripcion,
+        tipoEvidencia: tipo || 'general',
+        descripcion: descripcion || null,
         productoEvaluadoId: productoEvaluadoId || null,
         reclamoId: reclamoId || null,
-        nombreArchivo: 'temp-file.jpg', // Temporal
-        urlArchivo: '/temp/evidencia.jpg', // Temporal
-        tipoArchivo: 'image/jpeg',
-        tamanio: 0
+        nombreArchivo: file.originalname,
+        urlArchivo: fileUrl,
+        tipoArchivo: file.mimetype,
+        tamanio: file.size
       };
 
       const evidencia = await storage.createEvidencia(evidenciaData);
+      console.log(`📷 Evidencia subida para visita ${id}: ${fileUrl}`);
       res.status(201).json(evidencia);
     } catch (error: any) {
       console.error('❌ Error al crear evidencia:', error);
       res.status(500).json({
         message: 'Error al crear evidencia',
+        error: error.message
+      });
+    }
+  }));
+
+  // DELETE eliminar evidencia
+  app.delete('/api/visitas-tecnicas/evidencias/:evidenciaId', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { evidenciaId } = req.params;
+      const userId = req.user?.id;
+      const userRole = req.user?.role;
+      
+      // Obtener la evidencia para verificar permisos
+      const evidencia = await storage.getEvidenciaById(evidenciaId);
+      if (!evidencia) {
+        return res.status(404).json({
+          message: 'Evidencia no encontrada'
+        });
+      }
+      
+      // Verificar permisos: admin, supervisor, gerente, o el técnico/vendedor asignado a la visita
+      const rolesPermitidos = ['admin', 'supervisor', 'gerente'];
+      let tienePermiso = rolesPermitidos.includes(userRole);
+      
+      if (!tienePermiso && evidencia.visitaId) {
+        const visita = await storage.getVisitaTecnicaById(evidencia.visitaId);
+        if (visita) {
+          tienePermiso = visita.tecnicoId === userId || visita.vendedorId === userId;
+        }
+      }
+      
+      if (!tienePermiso) {
+        return res.status(403).json({
+          message: 'No tiene permisos para eliminar esta evidencia'
+        });
+      }
+      
+      // Intentar eliminar del Object Storage (no bloquear si falla)
+      if (evidencia.urlArchivo) {
+        try {
+          await objectStorageService.deleteObject(evidencia.urlArchivo);
+        } catch (deleteError) {
+          console.warn('No se pudo eliminar archivo del storage:', deleteError);
+        }
+      }
+      
+      // Eliminar de la base de datos
+      await storage.deleteEvidencia(evidenciaId);
+      console.log(`🗑️ Evidencia eliminada: ${evidenciaId}`);
+      
+      res.json({ success: true, message: 'Evidencia eliminada correctamente' });
+    } catch (error: any) {
+      console.error('❌ Error al eliminar evidencia:', error);
+      res.status(500).json({
+        message: 'Error al eliminar evidencia',
         error: error.message
       });
     }

@@ -14025,6 +14025,44 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getEvidenciasByVisitaId(visitaId: string) {
+    try {
+      const result = await db
+        .select()
+        .from(evidencias)
+        .where(eq(evidencias.visitaId, visitaId))
+        .orderBy(evidencias.createdAt);
+      return result;
+    } catch (error) {
+      console.error('Error getting evidencias by visita:', error);
+      return [];
+    }
+  }
+
+  async getEvidenciaById(id: string) {
+    try {
+      const [evidencia] = await db
+        .select()
+        .from(evidencias)
+        .where(eq(evidencias.id, id))
+        .limit(1);
+      return evidencia || null;
+    } catch (error) {
+      console.error('Error getting evidencia by id:', error);
+      return null;
+    }
+  }
+
+  async deleteEvidencia(id: string) {
+    try {
+      await db.delete(evidencias).where(eq(evidencias.id, id));
+      return true;
+    } catch (error) {
+      console.error('Error deleting evidencia:', error);
+      return false;
+    }
+  }
+
   async createContactoVisita(data: any) {
     try {
       const [contactoCreado] = await db.insert(contactosVisita).values(data).returning();
