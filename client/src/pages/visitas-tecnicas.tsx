@@ -45,7 +45,9 @@ import {
   Package,
   TrendingUp,
   PenLine,
-  Download
+  Download,
+  ChevronUp,
+  ChevronDown
 } from "lucide-react";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -3379,6 +3381,30 @@ function EditVisitContent({ visita, onSave, onCancel }: {
   const [photosToDelete, setPhotosToDelete] = useState<string[]>([]);
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
+  
+  // Estado para productos editables
+  const [editableProducts, setEditableProducts] = useState<any[]>(() => {
+    return (visita.productos || []).map((p: any) => ({
+      ...p,
+      evaluacion: p.evaluacion || {}
+    }));
+  });
+  
+  const updateProductEvaluation = (productId: string, field: string, value: any) => {
+    setEditableProducts(prev => prev.map(p => {
+      if (p.id === productId) {
+        return {
+          ...p,
+          evaluacion: {
+            ...p.evaluacion,
+            [field]: value
+          }
+        };
+      }
+      return p;
+    }));
+  };
   
   useEffect(() => {
     if (visita.id) {
@@ -3449,6 +3475,21 @@ function EditVisitContent({ visita, onSave, onCancel }: {
         } catch (err) {
           console.error('Error uploading photo:', err);
           toast({ title: "Error", description: `No se pudo subir ${file.name}`, variant: "destructive" });
+        }
+      }
+      
+      // Guardar cambios de evaluaciones de productos
+      for (const producto of editableProducts) {
+        if (producto.evaluacion && producto.id) {
+          try {
+            await apiRequest(`/api/visitas-tecnicas/evaluaciones/${producto.id}`, {
+              method: 'PATCH',
+              body: JSON.stringify(producto.evaluacion),
+              headers: { 'Content-Type': 'application/json' }
+            });
+          } catch (err) {
+            console.error('Error updating product evaluation:', err);
+          }
         }
       }
       
@@ -3685,17 +3726,20 @@ function EditVisitContent({ visita, onSave, onCancel }: {
         </div>
       )}
 
-      {/* Productos Evaluados (Solo lectura) */}
-      {visita.productos && visita.productos.length > 0 && (
+      {/* Productos Evaluados (Editables) */}
+      {editableProducts && editableProducts.length > 0 && (
         <div className="space-y-4">
           <h3 className="font-semibold text-sm flex items-center gap-2">
             <Package className="w-4 h-4" />
-            Productos Evaluados ({visita.productos.length})
+            Productos Evaluados ({editableProducts.length})
           </h3>
-          <div className="space-y-3 max-h-60 overflow-y-auto">
-            {visita.productos.map((producto: any, idx: number) => (
+          <div className="space-y-3 max-h-[400px] overflow-y-auto">
+            {editableProducts.map((producto: any, idx: number) => (
               <div key={producto.id || idx} className="p-3 border rounded-lg bg-background">
-                <div className="flex items-start justify-between">
+                <div 
+                  className="flex items-start justify-between cursor-pointer"
+                  onClick={() => setExpandedProductId(expandedProductId === producto.id ? null : producto.id)}
+                >
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       {producto.sku && <Badge variant="outline" className="font-mono text-xs">{producto.sku}</Badge>}
@@ -3704,40 +3748,96 @@ function EditVisitContent({ visita, onSave, onCancel }: {
                     </div>
                     <p className="font-medium text-sm">{producto.name || producto.productoManual || 'Producto sin nombre'}</p>
                   </div>
+                  <Button variant="ghost" size="sm">
+                    {expandedProductId === producto.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </Button>
                 </div>
                 
-                {/* Evaluación */}
-                {producto.evaluacion && (
-                  <div className="mt-2 pt-2 border-t text-xs text-muted-foreground space-y-1">
-                    {producto.evaluacion.aplicacion && (
-                      <p><span className="font-medium">Aplicación:</span> {producto.evaluacion.aplicacion}</p>
-                    )}
-                    {producto.evaluacion.condicionesClimaticas && (
-                      <p><span className="font-medium">Clima:</span> {producto.evaluacion.condicionesClimaticas}</p>
-                    )}
-                    {producto.evaluacion.observacionesTecnicas && (
-                      <p><span className="font-medium">Observaciones:</span> {producto.evaluacion.observacionesTecnicas}</p>
-                    )}
+                {/* Evaluación Editable - Expandible */}
+                {expandedProductId === producto.id && (
+                  <div className="mt-3 pt-3 border-t space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Aplicación</Label>
+                        <Select
+                          value={producto.evaluacion?.aplicacion || ''}
+                          onValueChange={(value) => updateProductEvaluation(producto.id, 'aplicacion', value)}
+                        >
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue placeholder="Seleccionar" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="correcta">Correcta</SelectItem>
+                            <SelectItem value="incorrecta">Incorrecta</SelectItem>
+                            <SelectItem value="parcial">Parcial</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <Label className="text-xs">Clima</Label>
+                        <Select
+                          value={producto.evaluacion?.condicionesClimaticas || ''}
+                          onValueChange={(value) => updateProductEvaluation(producto.id, 'condicionesClimaticas', value)}
+                        >
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue placeholder="Seleccionar" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="soleado">Soleado</SelectItem>
+                            <SelectItem value="nublado">Nublado</SelectItem>
+                            <SelectItem value="lluvioso">Lluvioso</SelectItem>
+                            <SelectItem value="viento">Con viento</SelectItem>
+                            <SelectItem value="humedo">Húmedo</SelectItem>
+                            <SelectItem value="test">Test</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
                     
-                    {/* Imágenes */}
+                    <div className="space-y-1">
+                      <Label className="text-xs">Observaciones Técnicas</Label>
+                      <Textarea
+                        value={producto.evaluacion?.observacionesTecnicas || ''}
+                        onChange={(e) => updateProductEvaluation(producto.id, 'observacionesTecnicas', e.target.value)}
+                        rows={2}
+                        className="text-sm"
+                        placeholder="Ingrese observaciones técnicas..."
+                      />
+                    </div>
+                    
+                    {/* Imágenes existentes */}
                     {(() => {
                       const images = getEvaluationImages(producto.evaluacion);
                       return images.length > 0 ? (
                         <div className="mt-2">
-                          <p className="font-medium mb-1">Fotos ({images.length}):</p>
-                          <div className="flex gap-2 flex-wrap">
+                          <Label className="text-xs">Fotos ({images.length})</Label>
+                          <div className="flex gap-2 flex-wrap mt-1">
                             {images.map((url: string, imgIdx: number) => (
                               <img 
                                 key={imgIdx} 
                                 src={url} 
                                 alt={`Foto ${imgIdx + 1}`}
-                                className="w-16 h-16 object-cover rounded border"
+                                className="w-16 h-16 object-cover rounded border cursor-pointer hover:opacity-80"
+                                onClick={() => setPreviewPhoto(url)}
                               />
                             ))}
                           </div>
                         </div>
                       ) : null;
                     })()}
+                  </div>
+                )}
+                
+                {/* Resumen cuando está colapsado */}
+                {expandedProductId !== producto.id && producto.evaluacion && (
+                  <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
+                    {producto.evaluacion.aplicacion && (
+                      <span className="mr-3">Aplicación: {producto.evaluacion.aplicacion}</span>
+                    )}
+                    {producto.evaluacion.condicionesClimaticas && (
+                      <span>Clima: {producto.evaluacion.condicionesClimaticas}</span>
+                    )}
                   </div>
                 )}
               </div>
