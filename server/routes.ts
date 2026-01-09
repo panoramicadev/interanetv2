@@ -10594,6 +10594,51 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // PATCH actualizar evaluación técnica de un producto
+  app.patch('/api/visitas-tecnicas/evaluaciones/:productoEvaluadoId', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { productoEvaluadoId } = req.params;
+      const evaluacionData = req.body;
+      
+      // Buscar si existe una evaluación para este producto
+      const [existingEval] = await db
+        .select()
+        .from(evaluacionesTecnicas)
+        .where(eq(evaluacionesTecnicas.productoEvaluadoId, productoEvaluadoId));
+      
+      if (existingEval) {
+        // Actualizar evaluación existente
+        const [updated] = await db
+          .update(evaluacionesTecnicas)
+          .set({
+            ...evaluacionData,
+            updatedAt: new Date()
+          })
+          .where(eq(evaluacionesTecnicas.productoEvaluadoId, productoEvaluadoId))
+          .returning();
+        
+        return res.json(updated);
+      } else {
+        // Crear nueva evaluación si no existe
+        const [created] = await db
+          .insert(evaluacionesTecnicas)
+          .values({
+            productoEvaluadoId,
+            ...evaluacionData
+          })
+          .returning();
+        
+        return res.status(201).json(created);
+      }
+    } catch (error: any) {
+      console.error('❌ Error al actualizar evaluación:', error);
+      res.status(500).json({
+        message: 'Error al actualizar evaluación',
+        error: error.message
+      });
+    }
+  }));
+
   // Completar visita técnica (cambiar estado a completada)
   app.post('/api/visitas-tecnicas/:id/completar', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
