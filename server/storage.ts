@@ -232,10 +232,16 @@ import {
   // Gestión de Fondos
   fundAllocations,
   fundMovements,
+  segmentSupervisors,
+  fundApprovalHistory,
   type FundAllocation,
   type InsertFundAllocation,
   type FundMovement,
   type InsertFundMovement,
+  type SegmentSupervisor,
+  type InsertSegmentSupervisor,
+  type FundApprovalHistory,
+  type InsertFundApprovalHistory,
   // Promesas de compra
   promesasCompra,
   type PromesaCompra,
@@ -1833,6 +1839,25 @@ export interface IStorage {
     saldoDisponible: number;
     asignacionesActivas: number;
   }>;
+
+  // Flujo de aprobación multi-nivel para fondos
+  getSegmentSupervisors(segmentCode?: string): Promise<SegmentSupervisor[]>;
+  createSegmentSupervisor(data: InsertSegmentSupervisor): Promise<SegmentSupervisor>;
+  deleteSegmentSupervisor(id: string): Promise<void>;
+  
+  // Obtener fondos pendientes por rol
+  getFundAllocationsPendingSupervisor(supervisorId: string): Promise<FundAllocation[]>;
+  getFundAllocationsPendingRRHH(): Promise<FundAllocation[]>;
+  
+  // Acciones de aprobación multi-nivel
+  supervisorApproveFund(allocationId: string, supervisorId: string, comentario?: string): Promise<FundAllocation>;
+  supervisorRejectFund(allocationId: string, supervisorId: string, comentario: string): Promise<FundAllocation>;
+  rrhhApproveFund(allocationId: string, rrhhId: string, comprobanteUrl: string, comentario?: string): Promise<FundAllocation>;
+  rrhhRejectFund(allocationId: string, rrhhId: string, comentario: string): Promise<FundAllocation>;
+  
+  // Historial de aprobaciones
+  getFundApprovalHistory(allocationId: string): Promise<FundApprovalHistory[]>;
+  createFundApprovalHistory(data: InsertFundApprovalHistory): Promise<FundApprovalHistory>;
 
   // ==================================================================================
   // PROMESAS DE COMPRA operations
@@ -20015,6 +20040,247 @@ export class DatabaseStorage implements IStorage {
       saldoDisponible,
       asignacionesActivas: allocations.length,
     };
+  }
+
+  // ==================================================================================
+  // FLUJO DE APROBACIÓN MULTI-NIVEL PARA FONDOS
+  // ==================================================================================
+
+  async getSegmentSupervisors(segmentCode?: string): Promise<SegmentSupervisor[]> {
+    const conditions = [];
+    if (segmentCode) {
+      conditions.push(eq(segmentSupervisors.segmentCode, segmentCode));
+    }
+    
+    let query = db.select().from(segmentSupervisors);
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    return await query;
+  }
+
+  async createSegmentSupervisor(data: InsertSegmentSupervisor): Promise<SegmentSupervisor> {
+    const [newSupervisor] = await db.insert(segmentSupervisors).values(data).returning();
+    return newSupervisor;
+  }
+
+  async deleteSegmentSupervisor(id: string): Promise<void> {
+    await db.delete(segmentSupervisors).where(eq(segmentSupervisors.id, id));
+  }
+
+  async getFundAllocationsPendingSupervisor(supervisorId: string): Promise<FundAllocation[]> {
+    // Get segments this supervisor manages
+    const supervisorSegments = await db
+      .select({ segmentCode: segmentSupervisors.segmentCode })
+      .from(segmentSupervisors)
+      .where(eq(segmentSupervisors.supervisorUserId, supervisorId));
+    
+    const segmentCodes = supervisorSegments.map(s => s.segmentCode);
+    
+    if (segmentCodes.length === 0) {
+      return [];
+    }
+
+    // Get allocations pending supervisor approval for those segments
+    const allocations = await db
+      .select()
+      .from(fundAllocations)
+      .where(
+        and(
+          eq(fundAllocations.estadoAprobacion, 'pendiente_supervisor'),
+          inArray(fundAllocations.segmentCode, segmentCodes)
+        )
+      )
+      .orderBy(desc(fundAllocations.createdAt));
+    
+    return allocations;
+  }
+
+  async getFundAllocationsPendingRRHH(): Promise<FundAllocation[]> {
+    const allocations = await db
+      .select()
+      .from(fundAllocations)
+      .where(eq(fundAllocations.estadoAprobacion, 'pendiente_rrhh'))
+      .orderBy(desc(fundAllocations.createdAt));
+    
+    return allocations;
+  }
+
+  async supervisorApproveFund(allocationId: string, supervisorId: string, comentario?: string): Promise<FundAllocation> {
+    const allocation = await this.getFundAllocationById(allocationId);
+    if (!allocation) {
+      throw new Error('Asignación de fondo no encontrada');
+    }
+    if (allocation.estadoAprobacion !== 'pendiente_supervisor') {
+      throw new Error('Esta solicitud no está pendiente de aprobación del supervisor');
+    }
+
+    // Create history record
+    await this.createFundApprovalHistory({
+      fundAllocationId: allocationId,
+      paso: 'supervisor',
+      accion: 'aprobado',
+      actorId: supervisorId,
+      comentario: comentario || null,
+      estadoAnterior: 'pendiente_supervisor',
+      estadoNuevo: 'pendiente_rrhh',
+    });
+
+    // Update allocation status to pending RRHH
+    const [updated] = await db
+      .update(fundAllocations)
+      .set({
+        estadoAprobacion: 'pendiente_rrhh',
+        supervisorAprobadorId: supervisorId,
+        fechaAprobacionSupervisor: new Date(),
+        comentarioSupervisor: comentario || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(fundAllocations.id, allocationId))
+      .returning();
+    
+    return updated;
+  }
+
+  async supervisorRejectFund(allocationId: string, supervisorId: string, comentario: string): Promise<FundAllocation> {
+    const allocation = await this.getFundAllocationById(allocationId);
+    if (!allocation) {
+      throw new Error('Asignación de fondo no encontrada');
+    }
+    if (allocation.estadoAprobacion !== 'pendiente_supervisor') {
+      throw new Error('Esta solicitud no está pendiente de aprobación del supervisor');
+    }
+
+    // Create history record
+    await this.createFundApprovalHistory({
+      fundAllocationId: allocationId,
+      paso: 'supervisor',
+      accion: 'rechazado',
+      actorId: supervisorId,
+      comentario: comentario,
+      estadoAnterior: 'pendiente_supervisor',
+      estadoNuevo: 'rechazado',
+    });
+
+    // Update allocation status to rejected
+    const [updated] = await db
+      .update(fundAllocations)
+      .set({
+        estadoAprobacion: 'rechazado',
+        estado: 'rechazado',
+        supervisorAprobadorId: supervisorId,
+        fechaAprobacionSupervisor: new Date(),
+        comentarioSupervisor: comentario,
+        motivoRechazo: comentario,
+        updatedAt: new Date(),
+      })
+      .where(eq(fundAllocations.id, allocationId))
+      .returning();
+    
+    return updated;
+  }
+
+  async rrhhApproveFund(allocationId: string, rrhhId: string, comprobanteUrl: string, comentario?: string): Promise<FundAllocation> {
+    const allocation = await this.getFundAllocationById(allocationId);
+    if (!allocation) {
+      throw new Error('Asignación de fondo no encontrada');
+    }
+    if (allocation.estadoAprobacion !== 'pendiente_rrhh') {
+      throw new Error('Esta solicitud no está pendiente de aprobación de RRHH');
+    }
+
+    // Create history record
+    await this.createFundApprovalHistory({
+      fundAllocationId: allocationId,
+      paso: 'rrhh',
+      accion: 'aprobado',
+      actorId: rrhhId,
+      comentario: comentario || null,
+      estadoAnterior: 'pendiente_rrhh',
+      estadoNuevo: 'aprobado',
+    });
+
+    // Update allocation status to approved and active
+    const [updated] = await db
+      .update(fundAllocations)
+      .set({
+        estadoAprobacion: 'aprobado',
+        estado: 'activo',
+        rrhhAprobadorId: rrhhId,
+        fechaAprobacionRrhh: new Date(),
+        comentarioRrhh: comentario || null,
+        comprobanteUrl: comprobanteUrl,
+        aprobadoPorId: rrhhId,
+        fechaAprobacion: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(fundAllocations.id, allocationId))
+      .returning();
+
+    // Create initial fund movement for the approved allocation
+    await this.createFundMovement({
+      allocationId: allocationId,
+      tipoMovimiento: 'asignacion',
+      monto: updated.montoInicial,
+      descripcion: 'Asignación inicial de fondos (aprobado por RRHH)',
+      creadoPorId: rrhhId,
+    });
+    
+    return updated;
+  }
+
+  async rrhhRejectFund(allocationId: string, rrhhId: string, comentario: string): Promise<FundAllocation> {
+    const allocation = await this.getFundAllocationById(allocationId);
+    if (!allocation) {
+      throw new Error('Asignación de fondo no encontrada');
+    }
+    if (allocation.estadoAprobacion !== 'pendiente_rrhh') {
+      throw new Error('Esta solicitud no está pendiente de aprobación de RRHH');
+    }
+
+    // Create history record
+    await this.createFundApprovalHistory({
+      fundAllocationId: allocationId,
+      paso: 'rrhh',
+      accion: 'rechazado',
+      actorId: rrhhId,
+      comentario: comentario,
+      estadoAnterior: 'pendiente_rrhh',
+      estadoNuevo: 'rechazado',
+    });
+
+    // Update allocation status to rejected
+    const [updated] = await db
+      .update(fundAllocations)
+      .set({
+        estadoAprobacion: 'rechazado',
+        estado: 'rechazado',
+        rrhhAprobadorId: rrhhId,
+        fechaAprobacionRrhh: new Date(),
+        comentarioRrhh: comentario,
+        motivoRechazo: comentario,
+        updatedAt: new Date(),
+      })
+      .where(eq(fundAllocations.id, allocationId))
+      .returning();
+    
+    return updated;
+  }
+
+  async getFundApprovalHistory(allocationId: string): Promise<FundApprovalHistory[]> {
+    const history = await db
+      .select()
+      .from(fundApprovalHistory)
+      .where(eq(fundApprovalHistory.fundAllocationId, allocationId))
+      .orderBy(desc(fundApprovalHistory.createdAt));
+    
+    return history;
+  }
+
+  async createFundApprovalHistory(data: InsertFundApprovalHistory): Promise<FundApprovalHistory> {
+    const [newHistory] = await db.insert(fundApprovalHistory).values(data).returning();
+    return newHistory;
   }
 
   // ==================================================================================

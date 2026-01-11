@@ -16179,13 +16179,25 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/fondos/solicitar', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      const { monto, motivo, centroCostos, fechaTermino } = req.body;
+      const { monto, motivo, centroCostos, fechaTermino, segmentCode } = req.body;
       
       if (!monto || monto <= 0) {
         return res.status(400).json({ message: 'El monto debe ser mayor a 0' });
       }
       
-      // Create fund allocation as a request (estado='solicitud')
+      if (!segmentCode) {
+        return res.status(400).json({ message: 'El segmento es requerido para solicitar fondos' });
+      }
+      
+      // Verify segment has a supervisor assigned
+      const segmentSupervisors = await storage.getSegmentSupervisors(segmentCode);
+      if (segmentSupervisors.length === 0) {
+        return res.status(400).json({ 
+          message: 'El segmento seleccionado no tiene un supervisor asignado. Contacte al administrador.' 
+        });
+      }
+      
+      // Create fund allocation with multi-level approval flow
       const allocation = await storage.createFundAllocation({
         nombre: `Solicitud de ${user.fullName || user.username}`,
         descripcion: motivo || '',
@@ -16193,16 +16205,276 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         assignedToId: user.id,
         assignedById: user.id, // Self-requested
         estado: 'solicitud',
+        estadoAprobacion: 'pendiente_supervisor', // Start with supervisor approval
+        segmentCode: segmentCode,
         fechaInicio: new Date().toISOString().split('T')[0],
         fechaTermino: fechaTermino || null,
         centroCostos: centroCostos || null,
         motivo: motivo || null,
       });
       
+      // Notify assigned supervisors
+      for (const sup of segmentSupervisors) {
+        try {
+          await storage.createNotification({
+            userId: sup.supervisorUserId,
+            type: 'fund_request',
+            title: 'Nueva solicitud de fondos',
+            message: `${user.fullName || user.username} ha solicitado fondos por $${Number(monto).toLocaleString('es-CL')}`,
+            priority: 'high',
+            metadata: { allocationId: allocation.id },
+          });
+        } catch (notifError) {
+          console.error('Error sending notification to supervisor:', notifError);
+        }
+      }
+      
       res.status(201).json(allocation);
     } catch (error: any) {
       console.error('Error creating fund request:', error);
       res.status(500).json({ message: 'Error al crear solicitud de fondo', error: error.message });
+    }
+  }));
+
+  // ==================================================================================
+  // FLUJO DE APROBACIÓN MULTI-NIVEL PARA FONDOS
+  // ==================================================================================
+
+  // Get segment supervisors (Admin/HR only)
+  app.get('/api/segment-supervisors', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!['admin', 'rrhh'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const { segmentCode } = req.query;
+      const supervisors = await storage.getSegmentSupervisors(segmentCode as string | undefined);
+      res.json(supervisors);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener supervisores de segmento', error: error.message });
+    }
+  }));
+
+  // Create segment supervisor assignment (Admin/HR only)
+  app.post('/api/segment-supervisors', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!['admin', 'rrhh'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const { segmentCode, supervisorUserId } = req.body;
+      if (!segmentCode || !supervisorUserId) {
+        return res.status(400).json({ message: 'Se requiere segmentCode y supervisorUserId' });
+      }
+      
+      const supervisor = await storage.createSegmentSupervisor({ segmentCode, supervisorUserId });
+      res.status(201).json(supervisor);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear asignación de supervisor', error: error.message });
+    }
+  }));
+
+  // Delete segment supervisor assignment (Admin/HR only)
+  app.delete('/api/segment-supervisors/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!['admin', 'rrhh'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      await storage.deleteSegmentSupervisor(req.params.id);
+      res.json({ message: 'Asignación eliminada' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar asignación', error: error.message });
+    }
+  }));
+
+  // Get fund allocations pending supervisor approval
+  app.get('/api/fund-allocations/pending/supervisor', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!['supervisor', 'admin'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const allocations = await storage.getFundAllocationsPendingSupervisor(user.id);
+      res.json(allocations);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener solicitudes pendientes', error: error.message });
+    }
+  }));
+
+  // Get fund allocations pending RRHH approval
+  app.get('/api/fund-allocations/pending/rrhh', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!['rrhh', 'admin'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const allocations = await storage.getFundAllocationsPendingRRHH();
+      res.json(allocations);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener solicitudes pendientes RRHH', error: error.message });
+    }
+  }));
+
+  // Supervisor approve fund allocation
+  app.post('/api/fund-allocations/:id/supervisor-approve', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!['supervisor', 'admin'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const { comentario } = req.body;
+      const allocation = await storage.supervisorApproveFund(req.params.id, user.id, comentario);
+      
+      // Send notification to all RRHH and admin users
+      try {
+        // Query users with role 'rrhh' or 'admin' directly
+        const { db } = await import('./db');
+        const { users } = await import('../shared/schema');
+        const { or, eq } = await import('drizzle-orm');
+        
+        const rrhhUsers = await db.select({ id: users.id, role: users.role })
+          .from(users)
+          .where(or(eq(users.role, 'rrhh'), eq(users.role, 'admin')));
+        
+        for (const rrhhUser of rrhhUsers) {
+          await storage.createNotification({
+            userId: rrhhUser.id,
+            type: 'fund_request',
+            title: 'Solicitud de fondo aprobada por supervisor',
+            message: `La solicitud de fondo "${allocation.nombre}" fue aprobada por el supervisor y requiere aprobación de RRHH`,
+            priority: 'high',
+            metadata: { allocationId: allocation.id },
+          });
+        }
+      } catch (notifError) {
+        console.error('Error sending notification:', notifError);
+      }
+      
+      res.json(allocation);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || 'Error al aprobar solicitud' });
+    }
+  }));
+
+  // Supervisor reject fund allocation
+  app.post('/api/fund-allocations/:id/supervisor-reject', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!['supervisor', 'admin'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const { comentario } = req.body;
+      if (!comentario) {
+        return res.status(400).json({ message: 'Se requiere un comentario para rechazar' });
+      }
+      
+      const allocation = await storage.supervisorRejectFund(req.params.id, user.id, comentario);
+      
+      // Send notification to requester
+      try {
+        await storage.createNotification({
+          userId: allocation.assignedToId,
+          type: 'fund_request',
+          title: 'Solicitud de fondo rechazada',
+          message: `Tu solicitud de fondo "${allocation.nombre}" fue rechazada por el supervisor: ${comentario}`,
+          priority: 'high',
+          metadata: { allocationId: allocation.id },
+        });
+      } catch (notifError) {
+        console.error('Error sending notification:', notifError);
+      }
+      
+      res.json(allocation);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || 'Error al rechazar solicitud' });
+    }
+  }));
+
+  // RRHH approve fund allocation
+  app.post('/api/fund-allocations/:id/rrhh-approve', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!['rrhh', 'admin'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const { comprobanteUrl, comentario } = req.body;
+      if (!comprobanteUrl) {
+        return res.status(400).json({ message: 'Se requiere el comprobante de transferencia' });
+      }
+      
+      const allocation = await storage.rrhhApproveFund(req.params.id, user.id, comprobanteUrl, comentario);
+      
+      // Send notification to requester
+      try {
+        await storage.createNotification({
+          userId: allocation.assignedToId,
+          type: 'fund_request',
+          title: 'Solicitud de fondo aprobada',
+          message: `Tu solicitud de fondo "${allocation.nombre}" fue aprobada. Los fondos ya están disponibles.`,
+          priority: 'high',
+          metadata: { allocationId: allocation.id },
+        });
+      } catch (notifError) {
+        console.error('Error sending notification:', notifError);
+      }
+      
+      res.json(allocation);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || 'Error al aprobar solicitud' });
+    }
+  }));
+
+  // RRHH reject fund allocation
+  app.post('/api/fund-allocations/:id/rrhh-reject', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!['rrhh', 'admin'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const { comentario } = req.body;
+      if (!comentario) {
+        return res.status(400).json({ message: 'Se requiere un comentario para rechazar' });
+      }
+      
+      const allocation = await storage.rrhhRejectFund(req.params.id, user.id, comentario);
+      
+      // Send notification to requester
+      try {
+        await storage.createNotification({
+          userId: allocation.assignedToId,
+          type: 'fund_request',
+          title: 'Solicitud de fondo rechazada por RRHH',
+          message: `Tu solicitud de fondo "${allocation.nombre}" fue rechazada por RRHH: ${comentario}`,
+          priority: 'high',
+          metadata: { allocationId: allocation.id },
+        });
+      } catch (notifError) {
+        console.error('Error sending notification:', notifError);
+      }
+      
+      res.json(allocation);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || 'Error al rechazar solicitud' });
+    }
+  }));
+
+  // Get fund allocation approval history
+  app.get('/api/fund-allocations/:id/approval-history', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const history = await storage.getFundApprovalHistory(req.params.id);
+      res.json(history);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener historial de aprobación', error: error.message });
     }
   }));
 
