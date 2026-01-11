@@ -4573,6 +4573,62 @@ export const insertTareaMarketingSchema = createInsertSchema(tareasMarketing).om
 // SISTEMA DE GESTIÓN DE FONDOS
 // ========================================
 
+// Tabla de asignación de supervisores por segmento
+export const segmentSupervisors = pgTable("segment_supervisors", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  segmentCode: varchar("segment_code", { length: 100 }).notNull(), // Código/nombre del segmento (ej: PINTOR, CONSTRUCTOR)
+  supervisorUserId: varchar("supervisor_user_id").notNull(), // FK a users.id
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  segmentIdx: index("IDX_segment_supervisors_segment").on(table.segmentCode),
+  supervisorIdx: index("IDX_segment_supervisors_supervisor").on(table.supervisorUserId),
+  uniqueSegmentSupervisor: unique("UQ_segment_supervisor").on(table.segmentCode, table.supervisorUserId),
+}));
+
+// Types para segment_supervisors
+export type SegmentSupervisor = typeof segmentSupervisors.$inferSelect;
+export type InsertSegmentSupervisor = typeof segmentSupervisors.$inferInsert;
+
+export const insertSegmentSupervisorSchema = createInsertSchema(segmentSupervisors).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  segmentCode: z.string().min(1, "El segmento es requerido"),
+  supervisorUserId: z.string().min(1, "El supervisor es requerido"),
+});
+
+// Historial de aprobaciones de fondos
+export const fundApprovalHistory = pgTable("fund_approval_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fundAllocationId: varchar("fund_allocation_id").notNull(), // FK a fund_allocations
+  paso: varchar("paso", { length: 50 }).notNull(), // 'supervisor' o 'rrhh'
+  accion: varchar("accion", { length: 50 }).notNull(), // 'aprobado' o 'rechazado'
+  actorId: varchar("actor_id").notNull(), // Usuario que realizó la acción
+  comentario: text("comentario"),
+  estadoAnterior: varchar("estado_anterior", { length: 50 }),
+  estadoNuevo: varchar("estado_nuevo", { length: 50 }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  fundAllocationIdx: index("IDX_fund_approval_history_allocation").on(table.fundAllocationId),
+  actorIdx: index("IDX_fund_approval_history_actor").on(table.actorId),
+}));
+
+// Types para fund_approval_history
+export type FundApprovalHistory = typeof fundApprovalHistory.$inferSelect;
+export type InsertFundApprovalHistory = typeof fundApprovalHistory.$inferInsert;
+
+export const insertFundApprovalHistorySchema = createInsertSchema(fundApprovalHistory).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  fundAllocationId: z.string().min(1, "La asignación de fondo es requerida"),
+  paso: z.enum(["supervisor", "rrhh"]),
+  accion: z.enum(["aprobado", "rechazado"]),
+  actorId: z.string().min(1, "El actor es requerido"),
+});
+
 // Tabla de asignaciones de fondos (Admin/RRHH asigna fondos a vendedores/supervisores)
 export const fundAllocations = pgTable("fund_allocations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -4589,11 +4645,22 @@ export const fundAllocations = pgTable("fund_allocations", {
   motivoRechazo: text("motivo_rechazo"), // Motivo del rechazo (si es rechazado)
   aprobadoPorId: varchar("aprobado_por_id"), // Usuario que aprobó/rechazó
   fechaAprobacion: timestamp("fecha_aprobacion"), // Fecha de aprobación/rechazo
+  // Campos para flujo de aprobación multi-nivel
+  segmentCode: varchar("segment_code", { length: 100 }), // Segmento del vendedor
+  estadoAprobacion: varchar("estado_aprobacion", { length: 50 }).default("pendiente_supervisor"), // pendiente_supervisor, pendiente_rrhh, aprobado, rechazado
+  supervisorAprobadorId: varchar("supervisor_aprobador_id"), // Supervisor que aprueba/rechaza
+  fechaAprobacionSupervisor: timestamp("fecha_aprobacion_supervisor"),
+  comentarioSupervisor: text("comentario_supervisor"),
+  rrhhAprobadorId: varchar("rrhh_aprobador_id"), // RRHH que aprueba/rechaza
+  fechaAprobacionRrhh: timestamp("fecha_aprobacion_rrhh"),
+  comentarioRrhh: text("comentario_rrhh"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
   assignedToIdx: index("IDX_fund_allocations_assigned_to").on(table.assignedToId),
   estadoIdx: index("IDX_fund_allocations_estado").on(table.estado),
+  estadoAprobacionIdx: index("IDX_fund_allocations_estado_aprobacion").on(table.estadoAprobacion),
+  segmentIdx: index("IDX_fund_allocations_segment").on(table.segmentCode),
 }));
 
 // Libro mayor de movimientos de fondos (trazabilidad completa)
@@ -4625,6 +4692,10 @@ export const insertFundAllocationSchema = createInsertSchema(fundAllocations).om
   updatedAt: true,
   fechaAprobacion: true,
   aprobadoPorId: true,
+  fechaAprobacionSupervisor: true,
+  supervisorAprobadorId: true,
+  fechaAprobacionRrhh: true,
+  rrhhAprobadorId: true,
 }).extend({
   montoInicial: z.string().or(z.number()).transform(val => typeof val === 'string' ? parseFloat(val) : val),
   nombre: z.string().min(1, "El nombre del fondo es requerido"),
@@ -4632,7 +4703,38 @@ export const insertFundAllocationSchema = createInsertSchema(fundAllocations).om
   assignedById: z.string().min(1, "El usuario asignador es requerido"),
   fechaInicio: z.string().or(z.date()).optional().nullable().transform(val => val ? (typeof val === 'string' ? new Date(val) : val) : null),
   fechaTermino: z.string().or(z.date()).optional().nullable().transform(val => val ? (typeof val === 'string' ? new Date(val) : val) : null),
-  estado: z.enum(["solicitud", "pendiente_aprobacion", "activo", "cerrado", "rechazado"]).default("pendiente_aprobacion"),
+  estado: z.enum(["solicitud", "pendiente_aprobacion", "activo", "cerrado", "rechazado"]).default("solicitud"),
+  segmentCode: z.string().optional().nullable(),
+  estadoAprobacion: z.enum(["pendiente_supervisor", "pendiente_rrhh", "aprobado", "rechazado"]).default("pendiente_supervisor"),
+});
+
+// Schema para aprobación de supervisor
+export const supervisorApproveFundSchema = z.object({
+  allocationId: z.string().min(1, "El ID de la asignación es requerido"),
+  supervisorId: z.string().min(1, "El ID del supervisor es requerido"),
+  comentario: z.string().optional(),
+});
+
+// Schema para rechazo de supervisor
+export const supervisorRejectFundSchema = z.object({
+  allocationId: z.string().min(1, "El ID de la asignación es requerido"),
+  supervisorId: z.string().min(1, "El ID del supervisor es requerido"),
+  comentario: z.string().min(1, "El motivo del rechazo es requerido"),
+});
+
+// Schema para aprobación de RRHH
+export const rrhhApproveFundSchema = z.object({
+  allocationId: z.string().min(1, "El ID de la asignación es requerido"),
+  rrhhId: z.string().min(1, "El ID del usuario RRHH es requerido"),
+  comprobanteUrl: z.string().min(1, "El comprobante de transferencia es requerido"),
+  comentario: z.string().optional(),
+});
+
+// Schema para rechazo de RRHH
+export const rrhhRejectFundSchema = z.object({
+  allocationId: z.string().min(1, "El ID de la asignación es requerido"),
+  rrhhId: z.string().min(1, "El ID del usuario RRHH es requerido"),
+  comentario: z.string().min(1, "El motivo del rechazo es requerido"),
 });
 
 // Schema para aprobar asignación de fondo

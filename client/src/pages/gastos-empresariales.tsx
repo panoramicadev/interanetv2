@@ -64,6 +64,7 @@ const solicitarFondoSchema = z.object({
   motivo: z.string().min(1, "El motivo es requerido"),
   centroCostos: z.string().min(1, "El centro de costos es requerido"),
   fechaTermino: z.string().min(1, "La fecha de término es requerida"),
+  segmentCode: z.string().min(1, "El segmento es requerido"),
 });
 
 type SolicitarFondoFormData = z.infer<typeof solicitarFondoSchema>;
@@ -99,11 +100,19 @@ interface FundAllocation {
   montoUsado?: string;
   saldoDisponible?: string;
   estado: string;
+  estadoAprobacion?: string;
   centroCostos: string;
   fechaInicio: string;
   fechaTermino: string;
   assignedToId: string;
   motivo?: string;
+  segmentCode?: string;
+  supervisorAprobadorId?: string;
+  fechaAprobacionSupervisor?: string;
+  comentarioSupervisor?: string;
+  rrhhAprobadorId?: string;
+  fechaAprobacionRrhh?: string;
+  comentarioRrhh?: string;
 }
 
 export default function GastosEmpresariales() {
@@ -128,7 +137,13 @@ export default function GastosEmpresariales() {
       motivo: "",
       centroCostos: "",
       fechaTermino: "",
+      segmentCode: "",
     },
+  });
+
+  // Fetch segments for the form
+  const { data: segmentos = [] } = useQuery<string[]>({
+    queryKey: ['/api/sales/segments'],
   });
 
   const solicitarFondoMutation = useMutation({
@@ -1036,6 +1051,41 @@ export default function GastosEmpresariales() {
                         data-testid="input-motivo"
                       />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={solicitarFondoForm.control}
+                name="segmentCode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Segmento</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-segmento-solicitar">
+                          <SelectValue placeholder="Seleccionar segmento..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {segmentos.length > 0 ? (
+                          segmentos.map((seg) => (
+                            <SelectItem key={seg} value={seg}>{seg}</SelectItem>
+                          ))
+                        ) : (
+                          <>
+                            <SelectItem value="PINTOR">PINTOR</SelectItem>
+                            <SelectItem value="CONSTRUCTOR">CONSTRUCTOR</SelectItem>
+                            <SelectItem value="RETAIL">RETAIL</SelectItem>
+                            <SelectItem value="INDUSTRIAL">INDUSTRIAL</SelectItem>
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Tu solicitud será aprobada por el supervisor de este segmento
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}

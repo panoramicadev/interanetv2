@@ -33,6 +33,13 @@ Preferred communication style: Simple, everyday language.
 - **GDV Module**: Employs an automated ETL process from SQL Server for "Guías de Despacho Vigentes" with a full synchronization strategy, extracting only open dispatch guides and ensuring closed items are automatically removed. It relies on `gdv.fact_gdv` as the primary data source.
 - **Public Salesperson Catalog**: Enables salespeople to have public catalog pages (`/catalogo/:slug`) where visitors can browse products and submit quote requests without authentication.
 - **Shopify-Style Product Management**: The e-commerce system supports a hierarchical product → options → variants structure using `shopify_products`, `shopify_product_options`, and `shopify_product_variants` tables.
+- **Multi-Level Fund Approval System (January 2026)**: Implements a two-tier approval workflow for fund requests:
+  1. Salespeople request funds specifying a segment
+  2. Supervisors (assigned to specific segments via `segment_supervisors` table) approve/reject first
+  3. RRHH gives final approval with payment voucher upload
+  - States: `pendiente_supervisor` → `pendiente_rrhh` → `aprobado` (or `rechazado`)
+  - Full approval history tracked in `fund_approval_history` table
+  - Automatic notifications sent to supervisors and RRHH users at each step
 
 ## External Dependencies
 
