@@ -339,7 +339,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
   // Supervisor approval/rejection mutations
   const supervisorApproveMutation = useMutation({
     mutationFn: async ({ allocationId, comentario }: { allocationId: string; comentario?: string }) => {
-      return apiRequest(`/api/fondos/aprobar-supervisor/${allocationId}`, {
+      return apiRequest(`/api/fund-allocations/${allocationId}/supervisor-approve`, {
         method: 'POST',
         data: { comentario },
       });
@@ -365,7 +365,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
 
   const supervisorRejectMutation = useMutation({
     mutationFn: async ({ allocationId, comentario }: { allocationId: string; comentario: string }) => {
-      return apiRequest(`/api/fondos/rechazar-supervisor/${allocationId}`, {
+      return apiRequest(`/api/fund-allocations/${allocationId}/supervisor-reject`, {
         method: 'POST',
         data: { comentario },
       });
