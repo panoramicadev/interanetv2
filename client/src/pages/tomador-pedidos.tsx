@@ -3468,18 +3468,33 @@ export default function TomadorPedidos() {
                     <Search className="w-6 h-6" />
                     Buscar Cliente
                   </CardTitle>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setShowClientSearch(false);
-                      setSearchTerm("");
-                      setDebouncedSearchTerm("");
-                    }}
-                    data-testid="button-close-client-search"
-                  >
-                    <X className="w-5 h-5" />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        resetFichaClienteForm();
+                        setShowFichaClienteDialog(true);
+                      }}
+                      className="border-green-400 text-green-700 hover:bg-green-50"
+                      data-testid="button-ficha-cliente-mobile-expanded"
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Ficha Cliente
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setShowClientSearch(false);
+                        setSearchTerm("");
+                        setDebouncedSearchTerm("");
+                      }}
+                      data-testid="button-close-client-search"
+                    >
+                      <X className="w-5 h-5" />
+                    </Button>
+                  </div>
                 </div>
                 <CardDescription className="text-base">
                   Ingresa el nombre del cliente para buscar en la base de datos
