@@ -114,33 +114,49 @@ export async function handleCallback(code: string): Promise<{ email: string; suc
   
   console.log('[Gmail OAuth] Connected email:', email);
   
-  const existingConfig = await db.select().from(smtpConfig).where(eq(smtpConfig.id, CONFIG_ID));
-  const tokenExpiry = tokens.expiry_date ? new Date(tokens.expiry_date) : null;
-  
-  const oauthData = {
-    authMethod: 'oauth' as const,
-    oauthAccessToken: tokens.access_token,
-    oauthRefreshToken: tokens.refresh_token,
-    oauthTokenExpiry: tokenExpiry,
-    oauthEmail: email,
-    email: email,
-    updatedAt: new Date(),
-  };
-  
-  if (existingConfig.length > 0) {
-    await db.update(smtpConfig).set(oauthData).where(eq(smtpConfig.id, CONFIG_ID));
-  } else {
-    await db.insert(smtpConfig).values({
-      id: CONFIG_ID,
-      ...oauthData,
-      host: 'smtp.gmail.com',
-      port: 587,
-      password: '',
-    });
+  try {
+    const existingConfig = await db.select().from(smtpConfig).where(eq(smtpConfig.id, CONFIG_ID));
+    const tokenExpiry = tokens.expiry_date ? new Date(tokens.expiry_date) : null;
+    
+    const oauthData = {
+      authMethod: 'oauth' as const,
+      oauthAccessToken: tokens.access_token,
+      oauthRefreshToken: tokens.refresh_token,
+      oauthTokenExpiry: tokenExpiry,
+      oauthEmail: email,
+      email: email,
+      updatedAt: new Date(),
+    };
+    
+    console.log('[Gmail OAuth] Saving to database. Existing config:', existingConfig.length > 0 ? 'yes' : 'no');
+    
+    if (existingConfig.length > 0) {
+      await db.update(smtpConfig).set(oauthData).where(eq(smtpConfig.id, CONFIG_ID));
+      console.log('[Gmail OAuth] Updated existing config');
+    } else {
+      await db.insert(smtpConfig).values({
+        id: CONFIG_ID,
+        ...oauthData,
+        host: 'smtp.gmail.com',
+        port: 587,
+        password: '',
+      });
+      console.log('[Gmail OAuth] Inserted new config');
+    }
+    
+    // Verify the save
+    const verifyConfig = await db.select().from(smtpConfig).where(eq(smtpConfig.id, CONFIG_ID));
+    if (verifyConfig.length > 0 && verifyConfig[0].authMethod === 'oauth') {
+      console.log('[Gmail OAuth] ✅ Credentials verified in database');
+    } else {
+      console.error('[Gmail OAuth] ⚠️ Credentials not found after save!');
+    }
+    
+    return { email, success: true };
+  } catch (dbError: any) {
+    console.error('[Gmail OAuth] ❌ Database error saving credentials:', dbError.message);
+    throw new Error(`Error guardando credenciales: ${dbError.message}`);
   }
-  
-  console.log('[Gmail OAuth] Credentials saved to database');
-  return { email, success: true };
 }
 
 export async function getValidAccessToken(): Promise<{ accessToken: string; email: string } | null> {
