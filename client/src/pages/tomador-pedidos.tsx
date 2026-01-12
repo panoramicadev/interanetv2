@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/hooks/useAuth";
 //import panoramicaLogoPath from "@assets/Diseño sin título (27)_1757959070748.png"; // Commented due to special chars in filename"
 import QuotesList from "@/components/order-taker/quotes-list";
 import OrdersList from "@/components/order-taker/orders-list";
@@ -630,6 +631,7 @@ const QuotePDFDocument = ({ quote, items }: { quote: any; items: any[] }) => {
 };
 
 export default function TomadorPedidos() {
+  const { user } = useAuth();
   const [location, navigate] = useLocation();
   
   // Tab management with URL sync
@@ -872,9 +874,155 @@ export default function TomadorPedidos() {
   const [isSavingQuote, setIsSavingQuote] = useState(false); // Track if quote is being saved
   const [showCartAnimation, setShowCartAnimation] = useState(false); // Track cart add animation
   
+  // Ficha de Creación de Cliente states
+  const [showFichaClienteDialog, setShowFichaClienteDialog] = useState(false);
+  const [fichaClienteRut, setFichaClienteRut] = useState("");
+  const [fichaClienteExists, setFichaClienteExists] = useState<boolean | null>(null);
+  const [isCheckingRut, setIsCheckingRut] = useState(false);
+  const [fichaClienteData, setFichaClienteData] = useState({
+    canalVenta: "Digital (WhatsApp)",
+    rut: "",
+    nombreRazonSocial: "",
+    giro: "",
+    telefonos: "",
+    correoEmpresa: "",
+    ciudad: "",
+    comuna: "",
+    direccion: "",
+    vendedor: "",
+    montoVentaAprox: "",
+    condicionVenta: "Contado (TRANSFERENCIA BANCARIA)",
+    envioRetiro: "Retiro Bodega Latuaro",
+  });
+  
   const computedCustomUnitPrice = customProduct.pricingMode === 'calculated'
     ? Math.round(customProduct.costOfProduction * (1 + customProduct.profitMargin / 100))
     : customProduct.directPrice;
+
+  // Función para verificar si el RUT existe
+  const handleCheckRut = async () => {
+    if (!fichaClienteRut.trim()) {
+      toast({ title: 'Error', description: 'Ingresa un RUT para verificar', variant: 'destructive' });
+      return;
+    }
+    
+    setIsCheckingRut(true);
+    try {
+      const response = await fetch(`/api/clients/check-rut?rut=${encodeURIComponent(fichaClienteRut.trim())}`, { 
+        credentials: 'include' 
+      });
+      const data = await response.json();
+      
+      setFichaClienteExists(data.exists);
+      if (!data.exists) {
+        setFichaClienteData(prev => ({
+          ...prev,
+          rut: fichaClienteRut.trim(),
+          vendedor: (user as any)?.fullName || (user as any)?.username || '',
+        }));
+      }
+    } catch (error) {
+      toast({ title: 'Error', description: 'No se pudo verificar el RUT', variant: 'destructive' });
+    } finally {
+      setIsCheckingRut(false);
+    }
+  };
+
+  // Función para generar PDF de ficha de cliente
+  const generateFichaClientePDF = async () => {
+    const formatCurrency = (value: string) => {
+      const num = parseFloat(value.replace(/[^0-9.-]/g, ''));
+      if (isNaN(num)) return value;
+      return new Intl.NumberFormat('es-CL').format(num);
+    };
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: Arial, sans-serif; padding: 40px; }
+          .header { text-align: center; margin-bottom: 30px; }
+          .logo { max-width: 150px; margin-bottom: 10px; }
+          h1 { font-size: 24px; margin: 0; color: #333; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          td { padding: 10px; border: 1px solid #333; }
+          td:first-child { font-weight: bold; background-color: #f5f5f5; width: 40%; }
+          .highlight { background-color: #ffff00 !important; font-weight: bold; }
+          .section-title { font-weight: bold; font-size: 18px; margin-top: 30px; margin-bottom: 10px; }
+          .small-text { font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>FORMULARIO PARA CREACION DE CLIENTE</h1>
+        </div>
+        <table>
+          <tr><td>CANAL DE VENTA</td><td>${fichaClienteData.canalVenta}</td></tr>
+          <tr><td>RUT</td><td>${fichaClienteData.rut}</td></tr>
+          <tr><td>NOMBRE/RAZON SOCIAL</td><td>${fichaClienteData.nombreRazonSocial}</td></tr>
+          <tr><td>GIRO</td><td>${fichaClienteData.giro}</td></tr>
+          <tr><td>TELEFONOS</td><td>${fichaClienteData.telefonos}</td></tr>
+          <tr><td>CORREO DE EMPRESA</td><td>${fichaClienteData.correoEmpresa}</td></tr>
+          <tr><td>CIUDAD</td><td>${fichaClienteData.ciudad}</td></tr>
+          <tr><td>COMUNA</td><td>${fichaClienteData.comuna}</td></tr>
+          <tr><td>DIRECCION</td><td>${fichaClienteData.direccion}</td></tr>
+          <tr><td>VENDEDOR</td><td>${fichaClienteData.vendedor}</td></tr>
+          <tr><td>MONTO VENTA APROX.</td><td class="highlight">${formatCurrency(fichaClienteData.montoVentaAprox)}</td></tr>
+          <tr><td>CONDICIÓN DE VENTA (INICIAL)</td><td>${fichaClienteData.condicionVenta}</td></tr>
+          <tr><td>ENVÍO O RETIRO</td><td>${fichaClienteData.envioRetiro}</td></tr>
+        </table>
+        <div class="section-title">DATOS OBLIGATORIOS ADICIONALES</div>
+        <p class="small-text">PARA TODOS LOS CLIENTES, YA QUE TODOS SON FACTURADORES ELECTRONICOS</p>
+      </body>
+      </html>
+    `;
+
+    const element = document.createElement('div');
+    element.innerHTML = htmlContent;
+    document.body.appendChild(element);
+
+    try {
+      const opt = {
+        margin: 10,
+        filename: `Ficha_Cliente_${fichaClienteData.rut.replace(/[^0-9kK]/g, '')}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' }
+      };
+
+      await html2pdf().set(opt).from(element).save();
+      
+      toast({ 
+        title: 'PDF generado', 
+        description: 'La ficha de cliente ha sido descargada' 
+      });
+    } finally {
+      document.body.removeChild(element);
+    }
+  };
+
+  // Función para resetear el formulario de ficha de cliente
+  const resetFichaClienteForm = () => {
+    setFichaClienteRut("");
+    setFichaClienteExists(null);
+    setFichaClienteData({
+      canalVenta: "Digital (WhatsApp)",
+      rut: "",
+      nombreRazonSocial: "",
+      giro: "",
+      telefonos: "",
+      correoEmpresa: "",
+      ciudad: "",
+      comuna: "",
+      direccion: "",
+      vendedor: "",
+      montoVentaAprox: "",
+      condicionVenta: "Contado (TRANSFERENCIA BANCARIA)",
+      envioRetiro: "Retiro Bodega Latuaro",
+    });
+  };
   
   const addCustomProductToCart = () => {
     if (!customProduct.productName.trim() || customProduct.quantity <= 0) {
@@ -3470,27 +3618,57 @@ export default function TomadorPedidos() {
           </CardContent>
         </Card>
           ) : (
-            <Button
-              onClick={() => setShowClientSearch(true)}
-              variant="outline"
-              className="w-full h-14 border-2 border-dashed hover:border-orange-400 hover:bg-orange-50"
-              data-testid="button-open-client-search"
-            >
-              <Search className="w-5 h-5 mr-2" />
-              Buscar Cliente
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => setShowClientSearch(true)}
+                variant="outline"
+                className="flex-1 h-14 border-2 border-dashed hover:border-orange-400 hover:bg-orange-50"
+                data-testid="button-open-client-search"
+              >
+                <Search className="w-5 h-5 mr-2" />
+                Buscar Cliente
+              </Button>
+              <Button
+                onClick={() => {
+                  resetFichaClienteForm();
+                  setShowFichaClienteDialog(true);
+                }}
+                variant="outline"
+                className="h-14 border-2 border-dashed hover:border-green-400 hover:bg-green-50 text-green-700"
+                data-testid="button-ficha-cliente"
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                Ficha Cliente
+              </Button>
+            </div>
           )
         ) : (
           // Desktop: Always show search
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Search className="w-5 h-5" />
-                Buscar Cliente
-              </CardTitle>
-              <CardDescription>
-                Ingresa el nombre del cliente para buscar en la base de datos
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Search className="w-5 h-5" />
+                    Buscar Cliente
+                  </CardTitle>
+                  <CardDescription>
+                    Ingresa el nombre del cliente para buscar en la base de datos
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={() => {
+                    resetFichaClienteForm();
+                    setShowFichaClienteDialog(true);
+                  }}
+                  variant="outline"
+                  className="border-green-400 text-green-700 hover:bg-green-50"
+                  data-testid="button-ficha-cliente-desktop"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Ficha de Creación de Cliente
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="relative">
@@ -5145,6 +5323,259 @@ export default function TomadorPedidos() {
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Ficha de Creación de Cliente Dialog */}
+    <Dialog open={showFichaClienteDialog} onOpenChange={(open) => {
+      setShowFichaClienteDialog(open);
+      if (!open) resetFichaClienteForm();
+    }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="w-5 h-5" />
+            Formulario para Creación de Cliente
+          </DialogTitle>
+          <DialogDescription>
+            Ingresa el RUT del cliente para verificar si existe. Si es nuevo, completa los datos para generar la ficha.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6 py-4">
+          {/* Step 1: RUT Verification */}
+          <div className="space-y-3">
+            <Label className="text-base font-semibold">Paso 1: Verificar RUT</Label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Ej: 12.345.678-9"
+                value={fichaClienteRut}
+                onChange={(e) => {
+                  setFichaClienteRut(e.target.value);
+                  setFichaClienteExists(null);
+                }}
+                className="flex-1"
+                disabled={fichaClienteExists === false}
+                data-testid="input-ficha-rut"
+              />
+              <Button 
+                onClick={handleCheckRut}
+                disabled={isCheckingRut || fichaClienteExists === false}
+                data-testid="button-check-rut"
+              >
+                {isCheckingRut ? 'Verificando...' : 'Verificar'}
+              </Button>
+            </div>
+            
+            {fichaClienteExists === true && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <p className="text-yellow-800 font-medium flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  Cliente Existente
+                </p>
+                <p className="text-sm text-yellow-700 mt-1">
+                  Este RUT ya está registrado en el sistema. No es necesario crear una nueva ficha.
+                </p>
+              </div>
+            )}
+            
+            {fichaClienteExists === false && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <p className="text-green-800 font-medium flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  Cliente Nuevo
+                </p>
+                <p className="text-sm text-green-700 mt-1">
+                  Este RUT no está registrado. Completa los datos para generar la ficha.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Step 2: Form Fields (only if RUT doesn't exist) */}
+          {fichaClienteExists === false && (
+            <div className="space-y-4 border-t pt-4">
+              <Label className="text-base font-semibold">Paso 2: Completar Datos</Label>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Canal de Venta</Label>
+                  <Select
+                    value={fichaClienteData.canalVenta}
+                    onValueChange={(value) => setFichaClienteData(prev => ({ ...prev, canalVenta: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar canal" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Digital (WhatsApp)">Digital (WhatsApp)</SelectItem>
+                      <SelectItem value="Presencial">Presencial</SelectItem>
+                      <SelectItem value="Telefónico">Telefónico</SelectItem>
+                      <SelectItem value="Email">Email</SelectItem>
+                      <SelectItem value="Página Web">Página Web</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>RUT</Label>
+                  <Input value={fichaClienteData.rut} disabled className="bg-gray-50" />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Nombre / Razón Social *</Label>
+                  <Input
+                    value={fichaClienteData.nombreRazonSocial}
+                    onChange={(e) => setFichaClienteData(prev => ({ ...prev, nombreRazonSocial: e.target.value }))}
+                    placeholder="Nombre completo o razón social"
+                    data-testid="input-ficha-nombre"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Giro *</Label>
+                  <Input
+                    value={fichaClienteData.giro}
+                    onChange={(e) => setFichaClienteData(prev => ({ ...prev, giro: e.target.value }))}
+                    placeholder="Ej: Particular, Construcción, etc."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Teléfonos *</Label>
+                  <Input
+                    value={fichaClienteData.telefonos}
+                    onChange={(e) => setFichaClienteData(prev => ({ ...prev, telefonos: e.target.value }))}
+                    placeholder="Ej: 912345678"
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Correo de Empresa *</Label>
+                  <Input
+                    type="email"
+                    value={fichaClienteData.correoEmpresa}
+                    onChange={(e) => setFichaClienteData(prev => ({ ...prev, correoEmpresa: e.target.value }))}
+                    placeholder="correo@empresa.cl"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Ciudad *</Label>
+                  <Input
+                    value={fichaClienteData.ciudad}
+                    onChange={(e) => setFichaClienteData(prev => ({ ...prev, ciudad: e.target.value }))}
+                    placeholder="Ciudad"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Comuna *</Label>
+                  <Input
+                    value={fichaClienteData.comuna}
+                    onChange={(e) => setFichaClienteData(prev => ({ ...prev, comuna: e.target.value }))}
+                    placeholder="Comuna"
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Dirección *</Label>
+                  <Input
+                    value={fichaClienteData.direccion}
+                    onChange={(e) => setFichaClienteData(prev => ({ ...prev, direccion: e.target.value }))}
+                    placeholder="Dirección completa"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Vendedor</Label>
+                  <Input value={fichaClienteData.vendedor} disabled className="bg-gray-50" />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Monto Venta Aprox. *</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-gray-500">$</span>
+                    <Input
+                      type="number"
+                      value={fichaClienteData.montoVentaAprox}
+                      onChange={(e) => setFichaClienteData(prev => ({ ...prev, montoVentaAprox: e.target.value }))}
+                      placeholder="0"
+                      className="pl-7"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Condición de Venta (Inicial)</Label>
+                  <Select
+                    value={fichaClienteData.condicionVenta}
+                    onValueChange={(value) => setFichaClienteData(prev => ({ ...prev, condicionVenta: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar condición" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Contado (TRANSFERENCIA BANCARIA)">Contado (TRANSFERENCIA BANCARIA)</SelectItem>
+                      <SelectItem value="Contado (TARJETA)">Contado (TARJETA)</SelectItem>
+                      <SelectItem value="Crédito 30 días">Crédito 30 días</SelectItem>
+                      <SelectItem value="Crédito 60 días">Crédito 60 días</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Envío o Retiro</Label>
+                  <Select
+                    value={fichaClienteData.envioRetiro}
+                    onValueChange={(value) => setFichaClienteData(prev => ({ ...prev, envioRetiro: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar opción" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Retiro Bodega Latuaro">Retiro Bodega Latuaro</SelectItem>
+                      <SelectItem value="Despacho a domicilio">Despacho a domicilio</SelectItem>
+                      <SelectItem value="Envío por transporte">Envío por transporte</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Generate PDF Button */}
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowFichaClienteDialog(false);
+                    resetFichaClienteForm();
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={generateFichaClientePDF}
+                  className="bg-green-600 hover:bg-green-700"
+                  disabled={
+                    !fichaClienteData.nombreRazonSocial.trim() ||
+                    !fichaClienteData.giro.trim() ||
+                    !fichaClienteData.telefonos.trim() ||
+                    !fichaClienteData.correoEmpresa.trim() ||
+                    !fichaClienteData.ciudad.trim() ||
+                    !fichaClienteData.comuna.trim() ||
+                    !fichaClienteData.direccion.trim() ||
+                    !fichaClienteData.montoVentaAprox.trim()
+                  }
+                  data-testid="button-generate-ficha-pdf"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Generar PDF
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+
     {/* Mobile Bottom Navigation Bar - Hidden per user request */}
     {/* {isMobile && (
       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t-2 border-orange-200 px-4 py-3 z-50">

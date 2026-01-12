@@ -1065,6 +1065,35 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Check if RUT exists in clients database
+  app.get('/api/clients/check-rut', requireAuth, async (req, res) => {
+    try {
+      const { rut } = req.query;
+      
+      if (!rut || typeof rut !== 'string') {
+        return res.status(400).json({ message: 'RUT es requerido' });
+      }
+      
+      // Clean the RUT for comparison (remove dots and dashes)
+      const cleanRut = rut.replace(/\./g, '').replace(/-/g, '').trim().toUpperCase();
+      
+      // Search for client with this RUT
+      const clients = await storage.getClients({ search: cleanRut, limit: 10 });
+      
+      // Check if any client has this exact RUT (cleaned)
+      const exists = clients.some((client: any) => {
+        if (!client.rten) return false;
+        const clientRut = client.rten.replace(/\./g, '').replace(/-/g, '').trim().toUpperCase();
+        return clientRut === cleanRut;
+      });
+      
+      res.json({ exists, rut: rut.trim() });
+    } catch (error) {
+      console.error('Error checking RUT:', error);
+      res.status(500).json({ message: 'Error al verificar RUT' });
+    }
+  });
+
   // Get unique business types for client filtering
   app.get('/api/clients/business-types', requireAuth, async (req, res) => {
     try {
