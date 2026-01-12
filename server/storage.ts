@@ -19879,9 +19879,12 @@ export class DatabaseStorage implements IStorage {
       .update(fundAllocations)
       .set({ 
         estado: 'activo', 
+        estadoAprobacion: 'aprobado',
         comprobanteUrl,
         aprobadoPorId,
+        rrhhAprobadorId: aprobadoPorId,
         fechaAprobacion: new Date(),
+        fechaAprobacionRrhh: new Date(),
         updatedAt: new Date() 
       })
       .where(eq(fundAllocations.id, id))
@@ -19894,6 +19897,7 @@ export class DatabaseStorage implements IStorage {
       .update(fundAllocations)
       .set({ 
         estado: 'rechazado', 
+        estadoAprobacion: 'rechazado',
         motivoRechazo,
         aprobadoPorId: rechazadoPorId,
         fechaAprobacion: new Date(),
