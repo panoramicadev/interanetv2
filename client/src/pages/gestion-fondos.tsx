@@ -538,7 +538,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const getEstadoBadge = (estado: string) => {
+  const getEstadoBadge = (estado: string, fondo?: FundAllocation) => {
     const baseClasses = "whitespace-nowrap text-xs";
     switch (estado) {
       case 'solicitud':
@@ -553,9 +553,18 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
       case 'activo':
       case 'abierto':
         return <Badge variant="outline" className={`${baseClasses} bg-green-50 text-green-700 border-green-200`}>Activo</Badge>;
+      case 'aprobado':
+        return <Badge variant="outline" className={`${baseClasses} bg-green-50 text-green-700 border-green-200`}>Aprobado</Badge>;
       case 'cerrado':
         return <Badge variant="outline" className={`${baseClasses} bg-gray-50 text-gray-700 border-gray-200`}>Cerrado</Badge>;
       case 'rechazado':
+        if (fondo) {
+          const rechazadoPorSupervisor = fondo.supervisorAprobadorId && !fondo.rrhhAprobadorId;
+          if (rechazadoPorSupervisor) {
+            return <Badge variant="outline" className={`${baseClasses} bg-red-50 text-red-700 border-red-200`}>Rechazado por Supervisor</Badge>;
+          }
+          return <Badge variant="outline" className={`${baseClasses} bg-red-50 text-red-700 border-red-200`}>Rechazado por RRHH</Badge>;
+        }
         return <Badge variant="outline" className={`${baseClasses} bg-red-50 text-red-700 border-red-200`}>Rechazado</Badge>;
       default:
         return <Badge variant="outline" className={baseClasses}>{estado}</Badge>;
@@ -648,7 +657,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                   <TableCell className="text-right font-semibold text-green-600">
                     {formatCurrency(fondo.saldoDisponible || 0)}
                   </TableCell>
-                  <TableCell>{getEstadoBadge(fondo.estadoAprobacion || fondo.estado)}</TableCell>
+                  <TableCell>{getEstadoBadge(fondo.estadoAprobacion || fondo.estado, fondo)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
                       {canManageFunds && (fondo.estado === 'pendiente_rrhh' || fondo.estadoAprobacion === 'pendiente_rrhh') && (
@@ -1550,7 +1559,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
               <div className="bg-gray-50 p-4 rounded-lg space-y-3">
                 <div className="flex justify-between items-center border-b pb-2">
                   <span className="text-sm text-gray-500">Estado:</span>
-                  <span>{getEstadoBadge(selectedAllocation.estado)}</span>
+                  <span>{getEstadoBadge(selectedAllocation.estadoAprobacion || selectedAllocation.estado, selectedAllocation)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-500">Nombre del Fondo:</span>
