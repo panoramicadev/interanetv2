@@ -519,7 +519,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
     if (!selectedAllocation || !rejectReason.trim()) return;
     
     // If the allocation is pending supervisor approval and user is supervisor, use supervisor rejection
-    if (selectedAllocation.estado === 'pendiente_supervisor' && isSupervisor) {
+    if (selectedAllocation.estadoAprobacion === 'pendiente_supervisor' && isSupervisor) {
       supervisorRejectMutation.mutate({ allocationId: selectedAllocation.id, comentario: rejectReason });
     } else {
       // Otherwise use RRHH rejection
