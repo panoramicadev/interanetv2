@@ -9722,13 +9722,22 @@ export function registerRoutes(app: Express): Server {
     const { testEmail } = req.body;
     
     try {
+      console.log('[SMTP-TEST] Starting connection test...');
       const configs = await db.select().from(smtpConfig).where(eq(smtpConfig.id, 'default'));
       const config = configs[0];
+      
+      console.log('[SMTP-TEST] Config found:', config ? {
+        authMethod: config.authMethod,
+        hasRefreshToken: !!config.oauthRefreshToken,
+        email: config.oauthEmail || config.email
+      } : 'No config');
 
       // Check if Gmail OAuth is configured
       if (config?.authMethod === 'oauth' && config?.oauthRefreshToken) {
+        console.log('[SMTP-TEST] Using OAuth mode');
         // Use the new testConnection function
         const result = await testConnection(testEmail || undefined);
+        console.log('[SMTP-TEST] testConnection result:', result);
         
         if (result.success && testEmail) {
           // Log the test email
@@ -9757,7 +9766,9 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Fallback to traditional SMTP
+      console.log('[SMTP-TEST] No OAuth config, checking SMTP fallback');
       if (!config || !config.email || !config.password) {
+        console.log('[SMTP-TEST] No SMTP config available');
         return res.status(400).json({ 
           success: false, 
           message: 'SMTP no configurado. Guarda la configuración primero o conecta Gmail OAuth.' 
