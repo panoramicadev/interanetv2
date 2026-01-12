@@ -15784,7 +15784,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     }
   }));
 
-  // Reject gasto (supervisor/admin only)
+  // Reject gasto (supervisor/admin only) - Legacy endpoint
   app.post('/api/gastos-empresariales/:id/rechazar', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
@@ -15802,6 +15802,217 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       res.json(gasto);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al rechazar gasto', error: error.message });
+    }
+  }));
+
+  // ==================================================================================
+  // FLUJO DE APROBACIÓN DE DOS NIVELES PARA REEMBOLSOS
+  // ==================================================================================
+
+  // Get reembolsos pendientes para supervisor
+  app.get('/api/gastos-empresariales/reembolsos/pendientes-supervisor', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['supervisor', 'admin'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const reembolsos = await storage.getReembolsosPendientesSupervisor(user.id);
+      res.json(reembolsos);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener reembolsos pendientes', error: error.message });
+    }
+  }));
+
+  // Get reembolsos pendientes para RRHH
+  app.get('/api/gastos-empresariales/reembolsos/pendientes-rrhh', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const reembolsos = await storage.getReembolsosPendientesRrhh();
+      res.json(reembolsos);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener reembolsos pendientes', error: error.message });
+    }
+  }));
+
+  // Aprobar reembolso por supervisor
+  app.post('/api/gastos-empresariales/:id/supervisor-approve', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['supervisor', 'admin'].includes(user.role)) {
+        return res.status(403).json({ message: 'Solo supervisores pueden aprobar en esta etapa' });
+      }
+      
+      const gasto = await storage.getGastoEmpresarialById(req.params.id);
+      if (!gasto) {
+        return res.status(404).json({ message: 'Gasto no encontrado' });
+      }
+      
+      if (gasto.estadoAprobacion !== 'pendiente_supervisor') {
+        return res.status(400).json({ message: 'Este reembolso no está pendiente de aprobación de supervisor' });
+      }
+      
+      const { comentario } = req.body;
+      const result = await storage.aprobarReembolsoSupervisor(req.params.id, user.id, comentario);
+      
+      // Notificar a RRHH
+      try {
+        const rrhhUsers = await storage.getUsersByRole('recursos_humanos');
+        for (const rrhhUser of rrhhUsers) {
+          await storage.createNotification({
+            userId: rrhhUser.id,
+            title: 'Nuevo reembolso pendiente de aprobación',
+            message: `El supervisor ha aprobado un reembolso de $${gasto.monto}. Requiere tu aprobación final.`,
+            type: 'info',
+            link: '/gastos-empresariales',
+          });
+        }
+      } catch (notifError) {
+        console.error('Error al enviar notificación a RRHH:', notifError);
+      }
+      
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al aprobar reembolso', error: error.message });
+    }
+  }));
+
+  // Rechazar reembolso por supervisor
+  app.post('/api/gastos-empresariales/:id/supervisor-reject', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['supervisor', 'admin'].includes(user.role)) {
+        return res.status(403).json({ message: 'Solo supervisores pueden rechazar en esta etapa' });
+      }
+      
+      const gasto = await storage.getGastoEmpresarialById(req.params.id);
+      if (!gasto) {
+        return res.status(404).json({ message: 'Gasto no encontrado' });
+      }
+      
+      if (gasto.estadoAprobacion !== 'pendiente_supervisor') {
+        return res.status(400).json({ message: 'Este reembolso no está pendiente de aprobación de supervisor' });
+      }
+      
+      const { motivoRechazo } = req.body;
+      if (!motivoRechazo) {
+        return res.status(400).json({ message: 'El motivo del rechazo es requerido' });
+      }
+      
+      const result = await storage.rechazarReembolsoSupervisor(req.params.id, user.id, motivoRechazo);
+      
+      // Notificar al solicitante
+      try {
+        await storage.createNotification({
+          userId: gasto.userId,
+          title: 'Reembolso rechazado por supervisor',
+          message: `Tu solicitud de reembolso de $${gasto.monto} ha sido rechazada. Motivo: ${motivoRechazo}`,
+          type: 'warning',
+          link: '/gastos-empresariales',
+        });
+      } catch (notifError) {
+        console.error('Error al enviar notificación:', notifError);
+      }
+      
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al rechazar reembolso', error: error.message });
+    }
+  }));
+
+  // Aprobar reembolso por RRHH (aprobación final)
+  app.post('/api/gastos-empresariales/:id/rrhh-approve', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'Solo RRHH puede dar aprobación final' });
+      }
+      
+      const gasto = await storage.getGastoEmpresarialById(req.params.id);
+      if (!gasto) {
+        return res.status(404).json({ message: 'Gasto no encontrado' });
+      }
+      
+      if (gasto.estadoAprobacion !== 'pendiente_rrhh') {
+        return res.status(400).json({ message: 'Este reembolso no está pendiente de aprobación de RRHH' });
+      }
+      
+      const { comprobanteUrl, comentario } = req.body;
+      if (!comprobanteUrl) {
+        return res.status(400).json({ message: 'El comprobante de transferencia es requerido' });
+      }
+      
+      const result = await storage.aprobarReembolsoRrhh(req.params.id, user.id, comprobanteUrl, comentario);
+      
+      // Notificar al solicitante
+      try {
+        await storage.createNotification({
+          userId: gasto.userId,
+          title: 'Reembolso aprobado',
+          message: `Tu solicitud de reembolso de $${gasto.monto} ha sido aprobada y procesada.`,
+          type: 'success',
+          link: '/gastos-empresariales',
+        });
+      } catch (notifError) {
+        console.error('Error al enviar notificación:', notifError);
+      }
+      
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al aprobar reembolso', error: error.message });
+    }
+  }));
+
+  // Rechazar reembolso por RRHH
+  app.post('/api/gastos-empresariales/:id/rrhh-reject', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'Solo RRHH puede rechazar en esta etapa' });
+      }
+      
+      const gasto = await storage.getGastoEmpresarialById(req.params.id);
+      if (!gasto) {
+        return res.status(404).json({ message: 'Gasto no encontrado' });
+      }
+      
+      if (gasto.estadoAprobacion !== 'pendiente_rrhh') {
+        return res.status(400).json({ message: 'Este reembolso no está pendiente de aprobación de RRHH' });
+      }
+      
+      const { motivoRechazo } = req.body;
+      if (!motivoRechazo) {
+        return res.status(400).json({ message: 'El motivo del rechazo es requerido' });
+      }
+      
+      const result = await storage.rechazarReembolsoRrhh(req.params.id, user.id, motivoRechazo);
+      
+      // Notificar al solicitante
+      try {
+        await storage.createNotification({
+          userId: gasto.userId,
+          title: 'Reembolso rechazado por RRHH',
+          message: `Tu solicitud de reembolso de $${gasto.monto} ha sido rechazada. Motivo: ${motivoRechazo}`,
+          type: 'warning',
+          link: '/gastos-empresariales',
+        });
+      } catch (notifError) {
+        console.error('Error al enviar notificación:', notifError);
+      }
+      
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al rechazar reembolso', error: error.message });
     }
   }));
 

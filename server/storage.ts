@@ -1758,6 +1758,14 @@ export interface IStorage {
   deleteGastoEmpresarial(id: string): Promise<void>;
   aprobarGastoEmpresarial(id: string, supervisorId: string): Promise<GastoEmpresarial>;
   rechazarGastoEmpresarial(id: string, supervisorId: string, comentario: string): Promise<GastoEmpresarial>;
+  
+  // Flujo de aprobación de dos niveles para reembolsos
+  aprobarReembolsoSupervisor(id: string, supervisorId: string, comentario?: string): Promise<GastoEmpresarial>;
+  rechazarReembolsoSupervisor(id: string, supervisorId: string, motivoRechazo: string): Promise<GastoEmpresarial>;
+  aprobarReembolsoRrhh(id: string, rrhhId: string, comprobanteUrl: string, comentario?: string): Promise<GastoEmpresarial>;
+  rechazarReembolsoRrhh(id: string, rrhhId: string, motivoRechazo: string): Promise<GastoEmpresarial>;
+  getReembolsosPendientesSupervisor(supervisorId: string): Promise<GastoEmpresarial[]>;
+  getReembolsosPendientesRrhh(): Promise<GastoEmpresarial[]>;
   getGastosEmpresarialesSummary(filters?: {
     userId?: string;
     mes?: number;
@@ -19538,6 +19546,118 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(gastosEmpresariales.id, id))
       .returning();
+    return result;
+  }
+
+  // Flujo de aprobación de dos niveles para reembolsos
+  async aprobarReembolsoSupervisor(id: string, supervisorId: string, comentario?: string): Promise<GastoEmpresarial> {
+    const [result] = await db
+      .update(gastosEmpresariales)
+      .set({
+        estadoAprobacion: 'pendiente_rrhh',
+        supervisorAprobadorId: supervisorId,
+        fechaAprobacionSupervisor: new Date(),
+        comentarioSupervisor: comentario || 'Aprobado por supervisor',
+        updatedAt: new Date(),
+      })
+      .where(eq(gastosEmpresariales.id, id))
+      .returning();
+    return result;
+  }
+
+  async rechazarReembolsoSupervisor(id: string, supervisorId: string, motivoRechazo: string): Promise<GastoEmpresarial> {
+    const [result] = await db
+      .update(gastosEmpresariales)
+      .set({
+        estado: 'rechazado',
+        estadoAprobacion: 'rechazado',
+        supervisorAprobadorId: supervisorId,
+        fechaAprobacionSupervisor: new Date(),
+        comentarioSupervisor: motivoRechazo,
+        comentarioRechazo: motivoRechazo,
+        updatedAt: new Date(),
+      })
+      .where(eq(gastosEmpresariales.id, id))
+      .returning();
+    return result;
+  }
+
+  async aprobarReembolsoRrhh(id: string, rrhhId: string, comprobanteUrl: string, comentario?: string): Promise<GastoEmpresarial> {
+    const [result] = await db
+      .update(gastosEmpresariales)
+      .set({
+        estado: 'aprobado',
+        estadoAprobacion: 'aprobado',
+        rrhhAprobadorId: rrhhId,
+        fechaAprobacionRrhh: new Date(),
+        comentarioRrhh: comentario || 'Aprobado por RRHH',
+        comprobanteUrl,
+        fechaAprobacion: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(gastosEmpresariales.id, id))
+      .returning();
+    return result;
+  }
+
+  async rechazarReembolsoRrhh(id: string, rrhhId: string, motivoRechazo: string): Promise<GastoEmpresarial> {
+    const [result] = await db
+      .update(gastosEmpresariales)
+      .set({
+        estado: 'rechazado',
+        estadoAprobacion: 'rechazado',
+        rrhhAprobadorId: rrhhId,
+        fechaAprobacionRrhh: new Date(),
+        comentarioRrhh: motivoRechazo,
+        comentarioRechazo: motivoRechazo,
+        updatedAt: new Date(),
+      })
+      .where(eq(gastosEmpresariales.id, id))
+      .returning();
+    return result;
+  }
+
+  async getReembolsosPendientesSupervisor(supervisorId: string): Promise<GastoEmpresarial[]> {
+    // Obtener los segmentos asignados a este supervisor
+    const supervisorSegments = await db
+      .select({ segmentCode: segmentSupervisors.segmentCode })
+      .from(segmentSupervisors)
+      .where(eq(segmentSupervisors.supervisorId, supervisorId));
+    
+    const segmentCodes = supervisorSegments.map(s => s.segmentCode);
+    
+    if (segmentCodes.length === 0) {
+      return [];
+    }
+    
+    // Obtener reembolsos pendientes de supervisor para esos segmentos
+    const result = await db
+      .select()
+      .from(gastosEmpresariales)
+      .where(
+        and(
+          eq(gastosEmpresariales.fundingMode, 'reembolso'),
+          eq(gastosEmpresariales.estadoAprobacion, 'pendiente_supervisor'),
+          inArray(gastosEmpresariales.segmentCode, segmentCodes)
+        )
+      )
+      .orderBy(desc(gastosEmpresariales.createdAt));
+    
+    return result;
+  }
+
+  async getReembolsosPendientesRrhh(): Promise<GastoEmpresarial[]> {
+    const result = await db
+      .select()
+      .from(gastosEmpresariales)
+      .where(
+        and(
+          eq(gastosEmpresariales.fundingMode, 'reembolso'),
+          eq(gastosEmpresariales.estadoAprobacion, 'pendiente_rrhh')
+        )
+      )
+      .orderBy(desc(gastosEmpresariales.createdAt));
+    
     return result;
   }
 
