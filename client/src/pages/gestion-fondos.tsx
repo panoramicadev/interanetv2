@@ -112,6 +112,8 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
   const [pendingAsignacionData, setPendingAsignacionData] = useState<CrearFondoFormData | null>(null);
 
   const canManageFunds = user?.role === 'admin' || user?.role === 'recursos_humanos';
+  const isSupervisor = user?.role === 'supervisor';
+  const isRRHH = user?.role === 'admin' || user?.role === 'recursos_humanos' || user?.role === 'rrhh';
 
   // Fetch fund allocations
   const { data: allocations = [], isLoading: isLoadingAllocations } = useQuery<FundAllocation[]>({
@@ -121,6 +123,28 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
       if (!response.ok) return [];
       return response.json();
     },
+  });
+
+  // Fetch pending supervisor approvals (for supervisors only)
+  const { data: pendingSupervisorApprovals = [] } = useQuery<any[]>({
+    queryKey: ['/api/fund-allocations/pending/supervisor'],
+    queryFn: async () => {
+      const response = await fetch('/api/fund-allocations/pending/supervisor', { credentials: 'include' });
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: isSupervisor,
+  });
+
+  // Fetch pending RRHH approvals (for RRHH only)
+  const { data: pendingRRHHApprovals = [] } = useQuery<any[]>({
+    queryKey: ['/api/fund-allocations/pending/rrhh'],
+    queryFn: async () => {
+      const response = await fetch('/api/fund-allocations/pending/rrhh', { credentials: 'include' });
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: isRRHH,
   });
 
   // Fetch summary
@@ -310,6 +334,60 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
     },
   });
 
+  // Supervisor approval/rejection mutations
+  const supervisorApproveMutation = useMutation({
+    mutationFn: async ({ allocationId, comentario }: { allocationId: string; comentario?: string }) => {
+      return apiRequest(`/api/fondos/aprobar-supervisor/${allocationId}`, {
+        method: 'POST',
+        data: { comentario },
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Solicitud aprobada",
+        description: "La solicitud ha sido aprobada y enviada a RRHH para aprobación final.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations/pending/supervisor'] });
+      setShowApproveDialog(false);
+      setSelectedAllocation(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo aprobar la solicitud.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const supervisorRejectMutation = useMutation({
+    mutationFn: async ({ allocationId, comentario }: { allocationId: string; comentario: string }) => {
+      return apiRequest(`/api/fondos/rechazar-supervisor/${allocationId}`, {
+        method: 'POST',
+        data: { comentario },
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Solicitud rechazada",
+        description: "La solicitud ha sido rechazada.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations/pending/supervisor'] });
+      setShowRejectDialog(false);
+      setRejectReason("");
+      setSelectedAllocation(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo rechazar la solicitud.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleCrearFondo = async (data: CrearFondoFormData) => {
     // RRHH debe subir comprobante obligatoriamente
     if (!crearFondoComprobante) {
@@ -437,7 +515,14 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
 
   const handleReject = () => {
     if (!selectedAllocation || !rejectReason.trim()) return;
-    rejectMutation.mutate({ allocationId: selectedAllocation.id, motivoRechazo: rejectReason });
+    
+    // If the allocation is pending supervisor approval and user is supervisor, use supervisor rejection
+    if (selectedAllocation.estado === 'pendiente_supervisor' && isSupervisor) {
+      supervisorRejectMutation.mutate({ allocationId: selectedAllocation.id, comentario: rejectReason });
+    } else {
+      // Otherwise use RRHH rejection
+      rejectMutation.mutate({ allocationId: selectedAllocation.id, motivoRechazo: rejectReason });
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -685,6 +770,120 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
               <div className="text-xl font-bold text-green-600">{formatCurrency(summary.saldoDisponible || 0)}</div>
             </Card>
           </div>
+        )}
+
+        {/* Supervisor Pending Approvals Section */}
+        {isSupervisor && pendingSupervisorApprovals.length > 0 && (
+          <Card className="p-4 mb-4 border-orange-200 bg-orange-50">
+            <div className="flex items-center gap-2 mb-3">
+              <HandCoins className="h-5 w-5 text-orange-600" />
+              <h3 className="font-semibold text-orange-800">Solicitudes Pendientes de Aprobación ({pendingSupervisorApprovals.length})</h3>
+            </div>
+            <div className="space-y-3">
+              {pendingSupervisorApprovals.map((allocation: any) => {
+                const solicitante = salespeople.find((s: any) => s.id === allocation.assignedToId);
+                return (
+                  <div key={allocation.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                    <div className="flex-1">
+                      <div className="font-medium">{allocation.nombre}</div>
+                      <div className="text-sm text-gray-500">
+                        Solicitante: {solicitante?.salespersonName || 'Desconocido'} • 
+                        Segmento: {allocation.segmentCode} • 
+                        Monto: {formatCurrency(parseFloat(allocation.montoInicial))}
+                      </div>
+                      {allocation.motivo && (
+                        <div className="text-sm text-gray-600 mt-1">Motivo: {allocation.motivo}</div>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-green-600 border-green-300 hover:bg-green-50"
+                        onClick={() => {
+                          supervisorApproveMutation.mutate({ allocationId: allocation.id });
+                        }}
+                        disabled={supervisorApproveMutation.isPending}
+                      >
+                        <Check className="h-4 w-4 mr-1" />
+                        Aprobar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-600 border-red-300 hover:bg-red-50"
+                        onClick={() => {
+                          setSelectedAllocation(allocation);
+                          setShowRejectDialog(true);
+                        }}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Rechazar
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
+
+        {/* RRHH Pending Approvals Section */}
+        {isRRHH && pendingRRHHApprovals.length > 0 && (
+          <Card className="p-4 mb-4 border-purple-200 bg-purple-50">
+            <div className="flex items-center gap-2 mb-3">
+              <HandCoins className="h-5 w-5 text-purple-600" />
+              <h3 className="font-semibold text-purple-800">Solicitudes Pendientes de Aprobación RRHH ({pendingRRHHApprovals.length})</h3>
+            </div>
+            <div className="space-y-3">
+              {pendingRRHHApprovals.map((allocation: any) => {
+                const solicitante = salespeople.find((s: any) => s.id === allocation.assignedToId);
+                return (
+                  <div key={allocation.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                    <div className="flex-1">
+                      <div className="font-medium">{allocation.nombre}</div>
+                      <div className="text-sm text-gray-500">
+                        Solicitante: {solicitante?.salespersonName || 'Desconocido'} • 
+                        Segmento: {allocation.segmentCode} • 
+                        Monto: {formatCurrency(parseFloat(allocation.montoInicial))}
+                      </div>
+                      {allocation.comentarioSupervisor && (
+                        <div className="text-sm text-green-600 mt-1">
+                          ✓ Aprobado por supervisor: {allocation.comentarioSupervisor}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-green-600 border-green-300 hover:bg-green-50"
+                        onClick={() => {
+                          setSelectedAllocation(allocation);
+                          setShowApproveDialog(true);
+                        }}
+                      >
+                        <Check className="h-4 w-4 mr-1" />
+                        Aprobar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-600 border-red-300 hover:bg-red-50"
+                        onClick={() => {
+                          setSelectedAllocation(allocation);
+                          setShowRejectDialog(true);
+                        }}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Rechazar
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -1209,11 +1408,11 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                 </Button>
                 <Button 
                   onClick={handleReject}
-                  disabled={!rejectReason.trim() || rejectMutation.isPending}
+                  disabled={!rejectReason.trim() || rejectMutation.isPending || supervisorRejectMutation.isPending}
                   variant="destructive"
                   data-testid="button-confirm-reject"
                 >
-                  {rejectMutation.isPending ? (
+                  {rejectMutation.isPending || supervisorRejectMutation.isPending ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Rechazando...
@@ -1221,7 +1420,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                   ) : (
                     <>
                       <X className="h-4 w-4 mr-2" />
-                      Rechazar Fondo
+                      Rechazar Solicitud
                     </>
                   )}
                 </Button>
