@@ -109,6 +109,8 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
   const [crearFondoComprobante, setCrearFondoComprobante] = useState<File | null>(null);
   const [isUploadingCrearFondo, setIsUploadingCrearFondo] = useState(false);
   const [showConfirmAsignacionDialog, setShowConfirmAsignacionDialog] = useState(false);
+  const [showSupervisorApproveDialog, setShowSupervisorApproveDialog] = useState(false);
+  const [supervisorApproveComment, setSupervisorApproveComment] = useState("");
   const [pendingAsignacionData, setPendingAsignacionData] = useState<CrearFondoFormData | null>(null);
 
   const canManageFunds = user?.role === 'admin' || user?.role === 'recursos_humanos';
@@ -801,7 +803,8 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                         variant="outline"
                         className="text-green-600 border-green-300 hover:bg-green-50"
                         onClick={() => {
-                          supervisorApproveMutation.mutate({ allocationId: allocation.id });
+                          setSelectedAllocation(allocation);
+                          setShowSupervisorApproveDialog(true);
                         }}
                         disabled={supervisorApproveMutation.isPending}
                       >
@@ -1421,6 +1424,99 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                     <>
                       <X className="h-4 w-4 mr-2" />
                       Rechazar Solicitud
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Confirmar Aprobación Supervisor */}
+      <Dialog open={showSupervisorApproveDialog} onOpenChange={(open) => {
+        setShowSupervisorApproveDialog(open);
+        if (!open) {
+          setSupervisorApproveComment("");
+          setSelectedAllocation(null);
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirmar Aprobación</DialogTitle>
+            <DialogDescription>
+              ¿Está seguro que desea aprobar esta solicitud de fondo? Se enviará a RRHH para aprobación final.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedAllocation && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">Solicitante:</span>
+                  <span className="text-sm font-medium">{getAssigneeName(selectedAllocation.assignedToId)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">Monto:</span>
+                  <span className="text-sm font-bold text-green-600">{formatCurrency(parseFloat(selectedAllocation.montoInicial))}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">Segmento:</span>
+                  <span className="text-sm font-medium">{selectedAllocation.segmentCode}</span>
+                </div>
+                {selectedAllocation.motivo && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm text-gray-500">Motivo:</span>
+                    <span className="text-sm bg-white p-2 rounded border">{selectedAllocation.motivo}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Comentario (opcional)</label>
+                <Textarea
+                  placeholder="Agregue un comentario para RRHH..."
+                  value={supervisorApproveComment}
+                  onChange={(e) => setSupervisorApproveComment(e.target.value)}
+                  className="min-h-[80px]"
+                />
+              </div>
+
+              <DialogFooter className="sm:justify-end gap-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowSupervisorApproveDialog(false);
+                    setSupervisorApproveComment("");
+                    setSelectedAllocation(null);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={() => {
+                    if (selectedAllocation) {
+                      supervisorApproveMutation.mutate({ 
+                        allocationId: selectedAllocation.id, 
+                        comentario: supervisorApproveComment || undefined 
+                      });
+                      setShowSupervisorApproveDialog(false);
+                      setSupervisorApproveComment("");
+                    }
+                  }}
+                  disabled={supervisorApproveMutation.isPending}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {supervisorApproveMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Aprobando...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4 mr-2" />
+                      Confirmar Aprobación
                     </>
                   )}
                 </Button>
