@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -130,6 +130,11 @@ export default function GastosEmpresariales() {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [activeMainTab, setActiveMainTab] = useState("rendicion");
 
+  // Get salesperson's assigned segment (if any)
+  const userAssignedSegment = (user as any)?.assignedSegment || null;
+  const isSalesperson = user?.role === 'salesperson';
+  const hasFixedSegment = isSalesperson && userAssignedSegment;
+
   const solicitarFondoForm = useForm<SolicitarFondoFormData>({
     resolver: zodResolver(solicitarFondoSchema),
     defaultValues: {
@@ -137,9 +142,16 @@ export default function GastosEmpresariales() {
       motivo: "",
       centroCostos: "",
       fechaTermino: "",
-      segmentCode: "",
+      segmentCode: hasFixedSegment ? userAssignedSegment : "",
     },
   });
+
+  // Pre-select segment for salespeople when their assigned segment is loaded
+  useEffect(() => {
+    if (hasFixedSegment && solicitarFondoForm.getValues("segmentCode") !== userAssignedSegment) {
+      solicitarFondoForm.setValue("segmentCode", userAssignedSegment);
+    }
+  }, [hasFixedSegment, userAssignedSegment, solicitarFondoForm]);
 
   // Fetch segments for the form
   const { data: segmentosData = [] } = useQuery<Array<{segment: string, totalSales: number, percentage: number}>>({
@@ -1064,30 +1076,48 @@ export default function GastosEmpresariales() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Segmento</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-segmento-solicitar">
-                          <SelectValue placeholder="Seleccionar segmento..." />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {segmentos.length > 0 ? (
-                          segmentos.map((seg) => (
-                            <SelectItem key={seg} value={seg}>{seg}</SelectItem>
-                          ))
-                        ) : (
-                          <>
-                            <SelectItem value="PINTOR">PINTOR</SelectItem>
-                            <SelectItem value="CONSTRUCTOR">CONSTRUCTOR</SelectItem>
-                            <SelectItem value="RETAIL">RETAIL</SelectItem>
-                            <SelectItem value="INDUSTRIAL">INDUSTRIAL</SelectItem>
-                          </>
-                        )}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Tu solicitud será aprobada por el supervisor de este segmento
-                    </p>
+                    {hasFixedSegment ? (
+                      <>
+                        <FormControl>
+                          <Input 
+                            value={userAssignedSegment} 
+                            disabled 
+                            className="bg-muted"
+                            data-testid="input-segmento-fijo"
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Tu segmento asignado (no modificable)
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-segmento-solicitar">
+                              <SelectValue placeholder="Seleccionar segmento..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {segmentos.length > 0 ? (
+                              segmentos.map((seg) => (
+                                <SelectItem key={seg} value={seg}>{seg}</SelectItem>
+                              ))
+                            ) : (
+                              <>
+                                <SelectItem value="PINTOR">PINTOR</SelectItem>
+                                <SelectItem value="CONSTRUCTOR">CONSTRUCTOR</SelectItem>
+                                <SelectItem value="RETAIL">RETAIL</SelectItem>
+                                <SelectItem value="INDUSTRIAL">INDUSTRIAL</SelectItem>
+                              </>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Tu solicitud será aprobada por el supervisor de este segmento
+                        </p>
+                      </>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
