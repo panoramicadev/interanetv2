@@ -543,6 +543,10 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
     switch (estado) {
       case 'solicitud':
         return <Badge variant="outline" className={`${baseClasses} bg-blue-50 text-blue-700 border-blue-200`}>Solicitud</Badge>;
+      case 'pendiente_supervisor':
+        return <Badge variant="outline" className={`${baseClasses} bg-orange-50 text-orange-700 border-orange-200`}>Pendiente Supervisor</Badge>;
+      case 'pendiente_rrhh':
+        return <Badge variant="outline" className={`${baseClasses} bg-purple-50 text-purple-700 border-purple-200`}>Aprobado por Supervisor</Badge>;
       case 'pendiente':
       case 'pendiente_aprobacion':
         return <Badge variant="outline" className={`${baseClasses} bg-orange-50 text-orange-700 border-orange-200`}>Pendiente</Badge>;
@@ -644,10 +648,10 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                   <TableCell className="text-right font-semibold text-green-600">
                     {formatCurrency(fondo.saldoDisponible || 0)}
                   </TableCell>
-                  <TableCell>{getEstadoBadge(fondo.estado)}</TableCell>
+                  <TableCell>{getEstadoBadge(fondo.estadoAprobacion || fondo.estado)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      {canManageFunds && (fondo.estado === 'pendiente_aprobacion' || fondo.estado === 'solicitud') && (
+                      {canManageFunds && (fondo.estado === 'pendiente_rrhh' || fondo.estadoAprobacion === 'pendiente_rrhh') && (
                         <>
                           <Button
                             size="sm"
