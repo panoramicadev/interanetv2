@@ -267,6 +267,25 @@ export default function GastosEmpresariales() {
     return totalUsado;
   };
 
+  // Fetch pending supervisor approvals count (for supervisor badge)
+  const isSupervisor = user?.role === 'supervisor';
+  const { data: pendingSupervisorAllocations = [] } = useQuery<FundAllocation[]>({
+    queryKey: ['/api/fund-allocations/pending/supervisor'],
+    enabled: isSupervisor,
+  });
+  const pendingSupervisorCount = pendingSupervisorAllocations.length;
+
+  // Fetch pending RRHH approvals count (for RRHH badge)
+  const isRRHH = user?.role === 'recursos_humanos' || user?.role === 'rrhh' || user?.role === 'admin';
+  const { data: pendingRRHHAllocations = [] } = useQuery<FundAllocation[]>({
+    queryKey: ['/api/fund-allocations/pending/rrhh'],
+    enabled: isRRHH,
+  });
+  const pendingRRHHCount = pendingRRHHAllocations.length;
+
+  // Total pending approvals for badge
+  const pendingApprovalsCount = isSupervisor ? pendingSupervisorCount : (isRRHH ? pendingRRHHCount : 0);
+
   // Aprobar mutation
   const aprobarMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -402,9 +421,14 @@ export default function GastosEmpresariales() {
               <Banknote className="h-4 w-4" />
               Rendición de Gastos
             </TabsTrigger>
-            <TabsTrigger value="fondos" data-testid="tab-fondos" className="flex items-center gap-2 flex-shrink-0">
+            <TabsTrigger value="fondos" data-testid="tab-fondos" className="flex items-center gap-2 flex-shrink-0 relative">
               <HandCoins className="h-4 w-4" />
               Gestión de Fondos
+              {pendingApprovalsCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                  {pendingApprovalsCount > 9 ? '9+' : pendingApprovalsCount}
+                </span>
+              )}
             </TabsTrigger>
           </TabsList>
 
