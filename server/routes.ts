@@ -9932,6 +9932,7 @@ export function registerRoutes(app: Express): Server {
         { notificationType: 'alerta_inactividad', displayName: 'Alerta de Inactividad', description: 'Notificar sobre clientes sin compras recientes', enabled: false },
         { notificationType: 'visita_tecnica', displayName: 'Visita Técnica Programada', description: 'Notificar sobre nuevas visitas técnicas', enabled: false },
         { notificationType: 'mantencion_preventiva', displayName: 'Mantención Preventiva', description: 'Alertar sobre mantenciones programadas', enabled: false },
+        { notificationType: 'reporte_diario_ventas', displayName: 'Reporte Diario de Ventas', description: 'Enviar resumen de ventas del día a las 17:30 (solo supervisores y administradores)', enabled: false },
       ];
 
       for (const setting of defaultSettings) {
