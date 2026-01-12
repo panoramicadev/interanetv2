@@ -1074,16 +1074,17 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: 'RUT es requerido' });
       }
       
-      // Clean the RUT for comparison (remove dots and dashes)
-      const cleanRut = rut.replace(/\./g, '').replace(/-/g, '').trim().toUpperCase();
+      // Clean the RUT for comparison (remove dots, dashes, and spaces)
+      const cleanRut = rut.replace(/[\.\-\s]/g, '').trim().toUpperCase();
       
-      // Search for client with this RUT
-      const clients = await storage.getClients({ search: cleanRut, limit: 10 });
+      // Search for client with this RUT using the original format
+      const clients = await storage.getClients({ search: rut.trim(), limit: 50 });
       
-      // Check if any client has this exact RUT (cleaned)
+      // Check if any client has this exact RUT (normalized comparison)
       const exists = clients.some((client: any) => {
         if (!client.rten) return false;
-        const clientRut = client.rten.replace(/\./g, '').replace(/-/g, '').trim().toUpperCase();
+        // Normalize client RUT the same way
+        const clientRut = client.rten.replace(/[\.\-\s]/g, '').trim().toUpperCase();
         return clientRut === cleanRut;
       });
       
