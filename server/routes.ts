@@ -16189,13 +16189,12 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         return res.status(400).json({ message: 'El segmento es requerido para solicitar fondos' });
       }
       
-      // Verify segment has a supervisor assigned
+      // Check if segment has a supervisor assigned
       const segmentSupervisors = await storage.getSegmentSupervisors(segmentCode);
-      if (segmentSupervisors.length === 0) {
-        return res.status(400).json({ 
-          message: 'El segmento seleccionado no tiene un supervisor asignado. Contacte al administrador.' 
-        });
-      }
+      const hasSupervisor = segmentSupervisors.length > 0;
+      
+      // If no supervisor, go directly to RRHH approval
+      const initialApprovalState = hasSupervisor ? 'pendiente_supervisor' : 'pendiente_rrhh';
       
       // Create fund allocation with multi-level approval flow
       const allocation = await storage.createFundAllocation({
@@ -16205,7 +16204,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         assignedToId: user.id,
         assignedById: user.id, // Self-requested
         estado: 'solicitud',
-        estadoAprobacion: 'pendiente_supervisor', // Start with supervisor approval
+        estadoAprobacion: initialApprovalState, // Start with supervisor or RRHH approval
         segmentCode: segmentCode,
         fechaInicio: new Date().toISOString().split('T')[0],
         fechaTermino: fechaTermino || null,
@@ -16213,19 +16212,45 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         motivo: motivo || null,
       });
       
-      // Notify assigned supervisors
-      for (const sup of segmentSupervisors) {
+      // Notify assigned supervisors or RRHH if no supervisor
+      if (hasSupervisor) {
+        for (const sup of segmentSupervisors) {
+          try {
+            await storage.createNotification({
+              userId: sup.supervisorUserId,
+              type: 'fund_request',
+              title: 'Nueva solicitud de fondos',
+              message: `${user.fullName || user.username} ha solicitado fondos por $${Number(monto).toLocaleString('es-CL')}`,
+              priority: 'high',
+              metadata: { allocationId: allocation.id },
+            });
+          } catch (notifError) {
+            console.error('Error sending notification to supervisor:', notifError);
+          }
+        }
+      } else {
+        // Notify RRHH users directly when no supervisor is assigned
         try {
-          await storage.createNotification({
-            userId: sup.supervisorUserId,
-            type: 'fund_request',
-            title: 'Nueva solicitud de fondos',
-            message: `${user.fullName || user.username} ha solicitado fondos por $${Number(monto).toLocaleString('es-CL')}`,
-            priority: 'high',
-            metadata: { allocationId: allocation.id },
-          });
+          const { db } = await import('./db');
+          const { users } = await import('../shared/schema');
+          const { or, eq } = await import('drizzle-orm');
+          
+          const rrhhUsers = await db.select({ id: users.id, role: users.role })
+            .from(users)
+            .where(or(eq(users.role, 'rrhh'), eq(users.role, 'admin')));
+          
+          for (const rrhhUser of rrhhUsers) {
+            await storage.createNotification({
+              userId: rrhhUser.id,
+              type: 'fund_request',
+              title: 'Nueva solicitud de fondos (sin supervisor)',
+              message: `${user.fullName || user.username} ha solicitado fondos por $${Number(monto).toLocaleString('es-CL')} - Requiere aprobación directa de RRHH`,
+              priority: 'high',
+              metadata: { allocationId: allocation.id },
+            });
+          }
         } catch (notifError) {
-          console.error('Error sending notification to supervisor:', notifError);
+          console.error('Error sending notification to RRHH:', notifError);
         }
       }
       
