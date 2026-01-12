@@ -89,6 +89,16 @@ interface GastoEmpresarial {
   comentarioRechazo: string | null;
   fundAllocationId: string | null;
   fundingMode: string | null;
+  // Campos de aprobación de dos niveles
+  estadoAprobacion?: 'pendiente_supervisor' | 'pendiente_rrhh' | 'aprobado' | 'rechazado' | null;
+  supervisorAprobadorId?: string | null;
+  fechaAprobacionSupervisor?: string | null;
+  comentarioSupervisor?: string | null;
+  rrhhAprobadorId?: string | null;
+  fechaAprobacionRrhh?: string | null;
+  comentarioRrhh?: string | null;
+  comprobanteUrl?: string | null;
+  segmentCode?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -126,6 +136,7 @@ export default function GastosEmpresariales() {
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [showRejectionDialog, setShowRejectionDialog] = useState(false);
   const [comentarioRechazo, setComentarioRechazo] = useState("");
+  const [comprobanteUrl, setComprobanteUrl] = useState("");
   const [showSolicitarFondoDialog, setShowSolicitarFondoDialog] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [activeMainTab, setActiveMainTab] = useState("rendicion");
@@ -286,41 +297,79 @@ export default function GastosEmpresariales() {
   // Total pending approvals for badge
   const pendingApprovalsCount = isSupervisor ? pendingSupervisorCount : (isRRHH ? pendingRRHHCount : 0);
 
-  // Aprobar mutation
+  // Aprobar mutation - determina el endpoint correcto según el tipo de gasto y rol
   const aprobarMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return apiRequest(`/api/gastos-empresariales/${id}/aprobar`, {
+    mutationFn: async ({ gasto, comprobanteUrl }: { gasto: GastoEmpresarial; comprobanteUrl?: string }) => {
+      // Para reembolsos, usar el flujo de dos niveles
+      if (gasto.fundingMode === 'reembolso') {
+        if (gasto.estadoAprobacion === 'pendiente_supervisor' && user?.role === 'supervisor') {
+          return apiRequest(`/api/gastos-empresariales/${gasto.id}/supervisor-approve`, {
+            method: 'POST',
+            data: {}
+          });
+        } else if (gasto.estadoAprobacion === 'pendiente_rrhh' && ['admin', 'recursos_humanos'].includes(user?.role || '')) {
+          if (!comprobanteUrl) {
+            throw new Error('El comprobante de transferencia es requerido');
+          }
+          return apiRequest(`/api/gastos-empresariales/${gasto.id}/rrhh-approve`, {
+            method: 'POST',
+            data: { comprobanteUrl }
+          });
+        }
+      }
+      // Para gastos con fondo, usar el endpoint legacy
+      return apiRequest(`/api/gastos-empresariales/${gasto.id}/aprobar`, {
         method: 'POST'
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/reembolsos/pendientes-rrhh'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/reembolsos/pendientes-supervisor'] });
       toast({
         title: "Gasto aprobado",
         description: "El gasto ha sido aprobado correctamente",
       });
       setShowApprovalDialog(false);
       setSelectedGasto(null);
+      setComprobanteUrl("");
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: "No se pudo aprobar el gasto",
+        description: error.message || "No se pudo aprobar el gasto",
         variant: "destructive",
       });
     }
   });
 
-  // Rechazar mutation
+  // Rechazar mutation - determina el endpoint correcto según el tipo de gasto y rol
   const rechazarMutation = useMutation({
-    mutationFn: async ({ id, comentario }: { id: string; comentario: string }) => {
-      return apiRequest(`/api/gastos-empresariales/${id}/rechazar`, {
+    mutationFn: async ({ gasto, comentario }: { gasto: GastoEmpresarial; comentario: string }) => {
+      // Para reembolsos, usar el flujo de dos niveles
+      if (gasto.fundingMode === 'reembolso') {
+        if (gasto.estadoAprobacion === 'pendiente_supervisor' && user?.role === 'supervisor') {
+          return apiRequest(`/api/gastos-empresariales/${gasto.id}/supervisor-reject`, {
+            method: 'POST',
+            data: { motivoRechazo: comentario }
+          });
+        } else if (gasto.estadoAprobacion === 'pendiente_rrhh' && ['admin', 'recursos_humanos'].includes(user?.role || '')) {
+          return apiRequest(`/api/gastos-empresariales/${gasto.id}/rrhh-reject`, {
+            method: 'POST',
+            data: { motivoRechazo: comentario }
+          });
+        }
+      }
+      // Para gastos con fondo, usar el endpoint legacy
+      return apiRequest(`/api/gastos-empresariales/${gasto.id}/rechazar`, {
         method: 'POST',
         data: { comentario }
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/reembolsos/pendientes-rrhh'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/reembolsos/pendientes-supervisor'] });
       toast({
         title: "Gasto rechazado",
         description: "El gasto ha sido rechazado",
@@ -371,8 +420,26 @@ export default function GastosEmpresariales() {
     return matchesSearch;
   });
 
-  const getEstadoBadge = (estado: string) => {
-    switch (estado) {
+  const getEstadoBadge = (gasto: GastoEmpresarial) => {
+    // Para reembolsos, usar el flujo de dos niveles
+    if (gasto.fundingMode === 'reembolso' && gasto.estadoAprobacion) {
+      switch (gasto.estadoAprobacion) {
+        case 'pendiente_supervisor':
+          return <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">Pendiente Supervisor</Badge>;
+        case 'pendiente_rrhh':
+          return <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">Aprobado por Supervisor</Badge>;
+        case 'aprobado':
+          return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Aprobado</Badge>;
+        case 'rechazado':
+          if (gasto.supervisorAprobadorId && !gasto.rrhhAprobadorId) {
+            return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Rechazado por Supervisor</Badge>;
+          }
+          return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Rechazado por RRHH</Badge>;
+      }
+    }
+    
+    // Para gastos con fondo, usar el estado legacy
+    switch (gasto.estado) {
       case 'pendiente':
         return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pendiente</Badge>;
       case 'aprobado':
@@ -380,7 +447,7 @@ export default function GastosEmpresariales() {
       case 'rechazado':
         return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Rechazado</Badge>;
       default:
-        return <Badge variant="outline">{estado}</Badge>;
+        return <Badge variant="outline">{gasto.estado}</Badge>;
     }
   };
 
@@ -646,10 +713,75 @@ export default function GastosEmpresariales() {
                       <TableCell className="text-right font-semibold">
                         {formatCurrency(gasto.monto)}
                       </TableCell>
-                      <TableCell>{getEstadoBadge(gasto.estado)}</TableCell>
+                      <TableCell>{getEstadoBadge(gasto)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          {canApproveReject && gasto.estado === 'pendiente' && (
+                          {/* Supervisor puede aprobar/rechazar reembolsos pendientes de supervisor */}
+                          {user?.role === 'supervisor' && gasto.fundingMode === 'reembolso' && gasto.estadoAprobacion === 'pendiente_supervisor' && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedGasto(gasto);
+                                  setShowApprovalDialog(true);
+                                }}
+                                title="Aprobar (Supervisor)"
+                                data-testid={`button-approve-supervisor-${gasto.id}`}
+                              >
+                                <Check className="h-4 w-4 text-green-600" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedGasto(gasto);
+                                  setComentarioRechazo("");
+                                  setShowRejectionDialog(true);
+                                }}
+                                title="Rechazar (Supervisor)"
+                                data-testid={`button-reject-supervisor-${gasto.id}`}
+                              >
+                                <X className="h-4 w-4 text-red-600" />
+                              </Button>
+                            </>
+                          )}
+                          {/* RRHH puede aprobar/rechazar reembolsos pendientes de RRHH */}
+                          {['admin', 'recursos_humanos'].includes(user?.role || '') && gasto.fundingMode === 'reembolso' && gasto.estadoAprobacion === 'pendiente_rrhh' && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedGasto(gasto);
+                                  setShowApprovalDialog(true);
+                                }}
+                                title="Aprobar (RRHH)"
+                                data-testid={`button-approve-rrhh-${gasto.id}`}
+                              >
+                                <Check className="h-4 w-4 text-green-600" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedGasto(gasto);
+                                  setComentarioRechazo("");
+                                  setShowRejectionDialog(true);
+                                }}
+                                title="Rechazar (RRHH)"
+                                data-testid={`button-reject-rrhh-${gasto.id}`}
+                              >
+                                <X className="h-4 w-4 text-red-600" />
+                              </Button>
+                            </>
+                          )}
+                          {/* Gastos con fondo: aprobación legacy */}
+                          {canApproveReject && gasto.fundingMode === 'con_fondo' && gasto.estado === 'pendiente' && (
                             <>
                               <Button
                                 size="sm"
@@ -754,7 +886,7 @@ export default function GastosEmpresariales() {
             <div className="space-y-6">
               {/* Estado y Fecha */}
               <div className="flex items-center justify-between">
-                {getEstadoBadge(selectedGasto.estado)}
+                {getEstadoBadge(selectedGasto)}
                 <span className="text-sm text-gray-500">
                   Creado: {format(new Date(selectedGasto.createdAt), 'dd/MM/yyyy HH:mm', { locale: es })}
                 </span>
@@ -967,29 +1099,75 @@ export default function GastosEmpresariales() {
         </DialogContent>
       </Dialog>
       {/* Approval Dialog */}
-      <Dialog open={showApprovalDialog} onOpenChange={setShowApprovalDialog}>
+      <Dialog open={showApprovalDialog} onOpenChange={(open) => {
+        setShowApprovalDialog(open);
+        if (!open) setComprobanteUrl("");
+      }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Aprobar Gasto</DialogTitle>
+            <DialogTitle>
+              {selectedGasto?.fundingMode === 'reembolso' && selectedGasto?.estadoAprobacion === 'pendiente_supervisor' 
+                ? 'Aprobar Reembolso (Supervisor)'
+                : selectedGasto?.fundingMode === 'reembolso' && selectedGasto?.estadoAprobacion === 'pendiente_rrhh'
+                ? 'Aprobar Reembolso (RRHH)'
+                : 'Aprobar Gasto'}
+            </DialogTitle>
             <DialogDescription>
               ¿Estás seguro de aprobar este gasto por {selectedGasto && formatCurrency(selectedGasto.monto)}?
+              {selectedGasto?.fundingMode === 'reembolso' && selectedGasto?.estadoAprobacion === 'pendiente_supervisor' && (
+                <span className="block mt-2 text-orange-600">
+                  Al aprobar, este reembolso pasará a RRHH para aprobación final.
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button
-              variant="outline"
-              onClick={() => setShowApprovalDialog(false)}
-              data-testid="button-cancel-approve"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={() => selectedGasto && aprobarMutation.mutate(selectedGasto.id)}
-              disabled={aprobarMutation.isPending}
-              data-testid="button-confirm-approve"
-            >
-              {aprobarMutation.isPending ? 'Aprobando...' : 'Aprobar'}
-            </Button>
+          <div className="space-y-4 mt-4">
+            {/* RRHH necesita subir comprobante de transferencia */}
+            {selectedGasto?.fundingMode === 'reembolso' && selectedGasto?.estadoAprobacion === 'pendiente_rrhh' && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Comprobante de Transferencia *</label>
+                <Input
+                  placeholder="URL del comprobante de transferencia"
+                  value={comprobanteUrl}
+                  onChange={(e) => setComprobanteUrl(e.target.value)}
+                  data-testid="input-comprobante-url"
+                />
+                <p className="text-xs text-gray-500">
+                  Ingrese la URL del comprobante de la transferencia realizada al beneficiario.
+                </p>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowApprovalDialog(false);
+                  setComprobanteUrl("");
+                }}
+                data-testid="button-cancel-approve"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => {
+                  if (selectedGasto) {
+                    aprobarMutation.mutate({ 
+                      gasto: selectedGasto, 
+                      comprobanteUrl: comprobanteUrl || undefined 
+                    });
+                  }
+                }}
+                disabled={
+                  aprobarMutation.isPending || 
+                  (selectedGasto?.fundingMode === 'reembolso' && 
+                   selectedGasto?.estadoAprobacion === 'pendiente_rrhh' && 
+                   !comprobanteUrl.trim())
+                }
+                data-testid="button-confirm-approve"
+              >
+                {aprobarMutation.isPending ? 'Aprobando...' : 'Aprobar'}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -997,7 +1175,13 @@ export default function GastosEmpresariales() {
       <Dialog open={showRejectionDialog} onOpenChange={setShowRejectionDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rechazar Gasto</DialogTitle>
+            <DialogTitle>
+              {selectedGasto?.fundingMode === 'reembolso' && selectedGasto?.estadoAprobacion === 'pendiente_supervisor'
+                ? 'Rechazar Reembolso (Supervisor)'
+                : selectedGasto?.fundingMode === 'reembolso' && selectedGasto?.estadoAprobacion === 'pendiente_rrhh'
+                ? 'Rechazar Reembolso (RRHH)'
+                : 'Rechazar Gasto'}
+            </DialogTitle>
             <DialogDescription>
               Indica el motivo del rechazo de este gasto.
             </DialogDescription>
@@ -1026,7 +1210,7 @@ export default function GastosEmpresariales() {
                 onClick={() => {
                   if (selectedGasto && comentarioRechazo.trim()) {
                     rechazarMutation.mutate({
-                      id: selectedGasto.id,
+                      gasto: selectedGasto,
                       comentario: comentarioRechazo
                     });
                   }
