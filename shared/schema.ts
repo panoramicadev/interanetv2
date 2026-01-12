@@ -4775,9 +4775,19 @@ export const gastosEmpresariales = pgTable("gastos_empresariales", {
   fechaEmision: date("fecha_emision"),
   archivoUrl: varchar("archivo_url", { length: 500 }), // URL del documento adjunto
   estado: varchar("estado", { length: 50 }).notNull().default("pendiente"), // pendiente, aprobado, rechazado
-  supervisorId: varchar("supervisor_id"), // Supervisor que aprueba/rechaza
+  supervisorId: varchar("supervisor_id"), // Supervisor que aprueba/rechaza (legacy)
   fechaAprobacion: timestamp("fecha_aprobacion"),
   comentarioRechazo: text("comentario_rechazo"),
+  // Campos de aprobación de dos niveles para reembolsos (igual que fondos)
+  estadoAprobacion: varchar("estado_aprobacion", { length: 50 }).default("pendiente_supervisor"), // pendiente_supervisor, pendiente_rrhh, aprobado, rechazado
+  supervisorAprobadorId: varchar("supervisor_aprobador_id"),
+  fechaAprobacionSupervisor: timestamp("fecha_aprobacion_supervisor"),
+  comentarioSupervisor: text("comentario_supervisor"),
+  rrhhAprobadorId: varchar("rrhh_aprobador_id"),
+  fechaAprobacionRrhh: timestamp("fecha_aprobacion_rrhh"),
+  comentarioRrhh: text("comentario_rrhh"),
+  comprobanteUrl: varchar("comprobante_url", { length: 500 }), // Comprobante de transferencia para reembolso
+  segmentCode: varchar("segment_code", { length: 50 }), // Segmento para determinar supervisor
   // Campos de integración con Gestión de Fondos
   fundingMode: varchar("funding_mode", { length: 50 }).default("reembolso"), // 'con_fondo' o 'reembolso'
   fundAllocationId: varchar("fund_allocation_id"), // FK a fund_allocations (solo si fundingMode='con_fondo')
@@ -4786,6 +4796,8 @@ export const gastosEmpresariales = pgTable("gastos_empresariales", {
 }, (table) => ({
   fundAllocationIdx: index("IDX_gastos_fund_allocation").on(table.fundAllocationId),
   fundingModeIdx: index("IDX_gastos_funding_mode").on(table.fundingMode),
+  estadoAprobacionIdx: index("IDX_gastos_estado_aprobacion").on(table.estadoAprobacion),
+  segmentCodeIdx: index("IDX_gastos_segment_code").on(table.segmentCode),
 }));
 
 // Types
@@ -4798,6 +4810,10 @@ export const insertGastoEmpresarialSchema = createInsertSchema(gastosEmpresarial
   createdAt: true,
   updatedAt: true,
   fechaAprobacion: true,
+  fechaAprobacionSupervisor: true,
+  fechaAprobacionRrhh: true,
+  supervisorAprobadorId: true,
+  rrhhAprobadorId: true,
 }).extend({
   monto: z.string().or(z.number()).transform(val => typeof val === 'string' ? parseFloat(val) : val),
   descripcion: z.string().min(1, "La descripción es requerida"),
@@ -4805,11 +4821,42 @@ export const insertGastoEmpresarialSchema = createInsertSchema(gastosEmpresarial
   categoria: z.string().min(1, "La categoría es requerida"),
   tipoGasto: z.string().default("Reembolso").optional(),
   estado: z.enum(["pendiente", "aprobado", "rechazado"]).default("pendiente"),
+  estadoAprobacion: z.enum(["pendiente_supervisor", "pendiente_rrhh", "aprobado", "rechazado"]).default("pendiente_supervisor"),
   fechaEmision: z.string().or(z.date()).transform(val => 
     typeof val === 'string' ? new Date(val) : val
   ).optional(),
   fundingMode: z.enum(["con_fondo", "reembolso"]).default("reembolso"),
   fundAllocationId: z.string().optional().nullable(),
+  segmentCode: z.string().optional().nullable(),
+});
+
+// Schema para aprobación de supervisor de reembolso
+export const approveReembolsoSupervisorSchema = z.object({
+  gastoId: z.string().min(1, "El ID del gasto es requerido"),
+  supervisorId: z.string().min(1, "El ID del supervisor es requerido"),
+  comentario: z.string().optional(),
+});
+
+// Schema para rechazo de supervisor de reembolso
+export const rejectReembolsoSupervisorSchema = z.object({
+  gastoId: z.string().min(1, "El ID del gasto es requerido"),
+  supervisorId: z.string().min(1, "El ID del supervisor es requerido"),
+  motivoRechazo: z.string().min(1, "El motivo del rechazo es requerido"),
+});
+
+// Schema para aprobación de RRHH de reembolso
+export const approveReembolsoRrhhSchema = z.object({
+  gastoId: z.string().min(1, "El ID del gasto es requerido"),
+  rrhhId: z.string().min(1, "El ID del usuario RRHH es requerido"),
+  comprobanteUrl: z.string().min(1, "El comprobante de transferencia es requerido"),
+  comentario: z.string().optional(),
+});
+
+// Schema para rechazo de RRHH de reembolso
+export const rejectReembolsoRrhhSchema = z.object({
+  gastoId: z.string().min(1, "El ID del gasto es requerido"),
+  rrhhId: z.string().min(1, "El ID del usuario RRHH es requerido"),
+  motivoRechazo: z.string().min(1, "El motivo del rechazo es requerido"),
 });
 
 // Tabla de promesas de compra semanales
