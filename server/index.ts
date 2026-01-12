@@ -7,6 +7,7 @@ import { executeNVVETL } from "./etl-nvv";
 import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
 import { runProductionMigrations, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, bootstrapDatabase } from "./migrations";
+import { startDailySalesReportScheduler } from "./daily-sales-report";
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -318,6 +319,14 @@ async function initializeBackgroundServices() {
     startHealthMonitor(10);
   } catch (error: any) {
     console.error('Failed to initialize ETL health monitor:', error.message);
+  }
+
+  // Start daily sales report scheduler (runs at 17:30 Chile time)
+  try {
+    startDailySalesReportScheduler();
+    log('📊 Daily sales report scheduler initialized (runs at 17:30 Chile time)');
+  } catch (error: any) {
+    console.error('Failed to initialize daily sales report scheduler:', error.message);
   }
   
   log('✅ Background services initialization completed');
