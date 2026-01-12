@@ -142,9 +142,11 @@ export default function GastosEmpresariales() {
   });
 
   // Fetch segments for the form
-  const { data: segmentos = [] } = useQuery<string[]>({
+  const { data: segmentosData = [] } = useQuery<Array<{segment: string, totalSales: number, percentage: number}>>({
     queryKey: ['/api/sales/segments'],
   });
+  // Extract just the segment names as strings
+  const segmentos = segmentosData.map(s => s.segment).filter(Boolean);
 
   const solicitarFondoMutation = useMutation({
     mutationFn: async (data: SolicitarFondoFormData) => {
