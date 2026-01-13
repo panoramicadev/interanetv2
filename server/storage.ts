@@ -2543,7 +2543,8 @@ export class DatabaseStorage implements IStorage {
     conditions.push(eq(factGdv.cantidadPendiente, true));
     
     if (salesperson) {
-      conditions.push(eq(factGdv.nokofu, salesperson));
+      const searchTerm = salesperson.toUpperCase().trim();
+      conditions.push(sql`UPPER(TRIM(${factGdv.nokofu})) = ${searchTerm}`);
     }
     if (segment) {
       conditions.push(eq(factGdv.noruen, segment));
@@ -12775,9 +12776,13 @@ export class DatabaseStorage implements IStorage {
         conditions.push(sql`feerli <= ${options.endDate.toISOString().split('T')[0]}`);
       }
 
-      // Use kofulido for salesperson filtering
+      // Use kofulido or nombre_vendedor for salesperson filtering (normalized to match getNvvBySalesperson)
       if (options.salesperson) {
-        conditions.push(sql`kofulido = ${options.salesperson}`);
+        const searchTerm = options.salesperson.toUpperCase().trim();
+        conditions.push(sql`(
+          UPPER(TRIM(nombre_vendedor)) = ${searchTerm}
+          OR UPPER(TRIM(kofulido)) = ${searchTerm}
+        )`);
       }
 
       // Use nombre_segmento_cliente for segment filtering
