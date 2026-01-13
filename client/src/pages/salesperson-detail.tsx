@@ -626,6 +626,47 @@ export default function SalespersonDetail({
   const goals = Array.isArray(goalsData) ? goalsData : [];
   const primaryGoal = goals.length > 0 ? goals[0] : null;
 
+  // Query for NVV metrics for the salesperson - for combined progress bar
+  const { data: nvvMetrics } = useQuery<{
+    totalAmount: number;
+    totalQuantity: number;
+    pendingCount: number;
+  }>({
+    queryKey: ['/api/nvv/metrics', 'salesperson-goal', salespersonName],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (salespersonName) {
+        params.append('salesperson', salespersonName);
+      }
+      const res = await fetch(`/api/nvv/metrics?${params.toString()}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: !!salespersonName,
+  });
+
+  // Query for GDV metrics for the salesperson - for combined progress bar
+  const { data: gdvMetrics } = useQuery<{
+    gdvSales: number;
+    gdvCount: number;
+  }>({
+    queryKey: ['/api/sales/gdv-pending', 'salesperson-goal', salespersonName],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (salespersonName) {
+        params.append('salesperson', salespersonName);
+      }
+      const res = await fetch(`/api/sales/gdv-pending?${params.toString()}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: !!salespersonName,
+  });
+
+  // Calculate NVV and GDV totals for combined progress bar
+  const nvvTotal = Number(nvvMetrics?.totalAmount || 0);
+  const gdvTotal = Number(gdvMetrics?.gdvSales || 0);
+
   if (!salespersonName) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -1165,14 +1206,48 @@ export default function SalespersonDetail({
                   </div>
                   
                   {/* Barra de progreso */}
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
-                    <div
-                      className={`h-3 rounded-full transition-all duration-500 ${
-                        (primaryGoal.percentage || 0) >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
-                        (primaryGoal.percentage || 0) >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
-                      }`}
-                      style={{ width: `${Math.min(primaryGoal.percentage || 0, 100)}%` }}
-                    ></div>
+                  <div className="space-y-1">
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                      <div
+                        className={`h-3 rounded-full transition-all duration-500 ${
+                          (primaryGoal.percentage || 0) >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
+                          (primaryGoal.percentage || 0) >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
+                        }`}
+                        style={{ width: `${Math.min(primaryGoal.percentage || 0, 100)}%` }}
+                      ></div>
+                    </div>
+                    
+                    {/* Segunda barra de progreso - Total Combinado (Ventas + NVV + GDV) */}
+                    {(nvvTotal > 0 || gdvTotal > 0) && (() => {
+                      const combinedTotal = (primaryGoal.currentSales || 0) + nvvTotal + gdvTotal;
+                      const combinedPercentage = (primaryGoal.targetAmount || 0) > 0 
+                        ? (combinedTotal / (primaryGoal.targetAmount || 1)) * 100 
+                        : 0;
+                      return (
+                        <div className="space-y-0.5">
+                          <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className={`h-1.5 rounded-full transition-all duration-500 ${
+                                combinedPercentage >= 100 ? 'bg-gradient-to-r from-cyan-300 to-cyan-500' : 
+                                combinedPercentage >= 70 ? 'bg-gradient-to-r from-sky-300 to-sky-500' : 'bg-gradient-to-r from-indigo-300 to-indigo-500'
+                              }`}
+                              style={{ width: `${Math.min(combinedPercentage, 100)}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                              Total + NVV + GDV: {formatCurrency(combinedTotal)}
+                            </p>
+                            <p className={`text-[10px] font-medium ${
+                              combinedPercentage >= 100 ? 'text-cyan-600' : 
+                              combinedPercentage >= 70 ? 'text-sky-600' : 'text-indigo-600'
+                            }`}>
+                              {combinedPercentage.toFixed(1)}%
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                   
                   {/* Desglose por segmento - siempre visible */}
