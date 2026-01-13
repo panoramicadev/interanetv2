@@ -1218,7 +1218,7 @@ export default function SalespersonDetail({
                     </div>
                     
                     {/* Segunda barra de progreso - Total Combinado (Ventas + NVV + GDV) */}
-                    {(nvvTotal > 0 || gdvTotal > 0) && (() => {
+                    {(() => {
                       const combinedTotal = (primaryGoal.currentSales || 0) + nvvTotal + gdvTotal;
                       const combinedPercentage = (primaryGoal.targetAmount || 0) > 0 
                         ? (combinedTotal / (primaryGoal.targetAmount || 1)) * 100 
