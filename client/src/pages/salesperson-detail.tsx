@@ -626,13 +626,13 @@ export default function SalespersonDetail({
   const goals = Array.isArray(goalsData) ? goalsData : [];
   const primaryGoal = goals.length > 0 ? goals[0] : null;
 
-  // Query for NVV metrics for the salesperson - for combined progress bar
+  // Query for NVV metrics for the salesperson - for combined progress bar (only for month filter)
   const { data: nvvMetrics } = useQuery<{
     totalAmount: number;
     totalQuantity: number;
     pendingCount: number;
   }>({
-    queryKey: ['/api/nvv/metrics', 'salesperson-goal', salespersonName],
+    queryKey: ['/api/nvv/metrics', 'salesperson', salespersonName],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (salespersonName) {
@@ -642,15 +642,15 @@ export default function SalespersonDetail({
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
-    enabled: !!salespersonName,
+    enabled: !!salespersonName && filterType === 'month',
   });
 
-  // Query for GDV metrics for the salesperson - for combined progress bar
+  // Query for GDV metrics for the salesperson - for combined progress bar (only for month filter)
   const { data: gdvMetrics } = useQuery<{
     gdvSales: number;
     gdvCount: number;
   }>({
-    queryKey: ['/api/sales/gdv-pending', 'salesperson-goal', salespersonName],
+    queryKey: ['/api/sales/gdv-pending', 'salesperson', salespersonName],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (salespersonName) {
@@ -660,7 +660,7 @@ export default function SalespersonDetail({
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
-    enabled: !!salespersonName,
+    enabled: !!salespersonName && filterType === 'month',
   });
 
   // Calculate NVV and GDV totals for combined progress bar
@@ -1236,7 +1236,7 @@ export default function SalespersonDetail({
                           </div>
                           <div className="flex items-center justify-between">
                             <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                              Total + NVV + GDV: {formatCurrency(combinedTotal)}
+                              Total Combinado: {formatCurrency(combinedTotal)}
                             </p>
                             <p className={`text-[10px] font-medium ${
                               combinedPercentage >= 100 ? 'text-cyan-600' : 
