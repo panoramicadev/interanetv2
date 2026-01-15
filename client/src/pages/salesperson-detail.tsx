@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Home, Eye, Building, ChevronDown, ChevronUp, Download, Search, X, Truck } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Home, Eye, Building, ChevronDown, ChevronUp, Download, Search, X, Truck, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,6 +20,8 @@ import SalespersonPendingGDV from "@/components/dashboard/salesperson-pending-gd
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 
 interface GoalProgress {
   id: string;
@@ -400,6 +402,71 @@ export default function SalespersonDetail({
 
   // Client products list expansion state
   const [expandedClientProducts, setExpandedClientProducts] = useState<string | null>(null);
+
+  // ETL refresh state
+  const [isRefreshingETL, setIsRefreshingETL] = useState(false);
+  const { toast } = useToast();
+
+  // Function to refresh all ETL processes (Sales, NVV, GDV)
+  const handleRefreshAllETL = async () => {
+    setIsRefreshingETL(true);
+    try {
+      const results = await Promise.allSettled([
+        apiRequest('POST', '/api/etl/sync-sales'),
+        apiRequest('POST', '/api/etl/sync-nvv'),
+        apiRequest('POST', '/api/etl/sync-gdv'),
+      ]);
+      
+      const salesResult = results[0];
+      const nvvResult = results[1];
+      const gdvResult = results[2];
+      
+      const successes: string[] = [];
+      const errors: string[] = [];
+      
+      if (salesResult.status === 'fulfilled') successes.push('Ventas');
+      else errors.push('Ventas');
+      
+      if (nvvResult.status === 'fulfilled') successes.push('NVV');
+      else errors.push('NVV');
+      
+      if (gdvResult.status === 'fulfilled') successes.push('GDV');
+      else errors.push('GDV');
+      
+      if (errors.length === 0) {
+        toast({
+          title: "ETL Actualizado",
+          description: `Se actualizaron: ${successes.join(', ')}`,
+        });
+      } else if (successes.length > 0) {
+        toast({
+          title: "ETL Parcialmente Actualizado",
+          description: `Éxito: ${successes.join(', ')}. Errores: ${errors.join(', ')}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error al actualizar ETL",
+          description: "No se pudo actualizar ningún proceso ETL",
+          variant: "destructive",
+        });
+      }
+      
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/nvv'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gdv'] });
+      
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Error al actualizar los procesos ETL",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshingETL(false);
+    }
+  };
 
   // Debounce search term
   useEffect(() => {
@@ -1290,6 +1357,31 @@ export default function SalespersonDetail({
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {/* ETL Refresh Button - Only visible for admin/supervisor */}
+          {(user?.role === 'admin' || user?.role === 'supervisor') && (
+            <div className="flex justify-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefreshAllETL}
+                disabled={isRefreshingETL}
+                className="gap-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                {isRefreshingETL ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Actualizando datos...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4" />
+                    Actualizar Ventas, NVV y GDV
+                  </>
+                )}
+              </Button>
+            </div>
           )}
 
           {/* KPI Cards */}
