@@ -411,8 +411,13 @@ export default function SalespersonDetail({
   const handleRefreshAllETL = async () => {
     setIsRefreshingETL(true);
     try {
+      // Calculate current month date range for sales ETL
+      const now = new Date();
+      const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const endDate = now.toISOString().split('T')[0];
+      
       const results = await Promise.allSettled([
-        apiRequest('POST', '/api/etl/sync-sales'),
+        apiRequest('POST', '/api/etl/sync-sales', { startDate, endDate, mode: 'incremental' }),
         apiRequest('POST', '/api/etl/sync-nvv'),
         apiRequest('POST', '/api/etl/sync-gdv'),
       ]);
