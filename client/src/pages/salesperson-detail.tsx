@@ -408,35 +408,44 @@ export default function SalespersonDetail({
   const { toast } = useToast();
 
   // Function to refresh all ETL processes (Sales, NVV, GDV)
+  // IMPORTANT: Run sequentially to avoid SQL Server connection pool conflicts
   const handleRefreshAllETL = async () => {
     setIsRefreshingETL(true);
+    const successes: string[] = [];
+    const errors: string[] = [];
+    
     try {
       // Calculate current month date range for sales ETL
       const now = new Date();
       const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
       const endDate = now.toISOString().split('T')[0];
       
-      const results = await Promise.allSettled([
-        apiRequest('POST', '/api/etl/sync-sales', { startDate, endDate, mode: 'incremental' }),
-        apiRequest('POST', '/api/etl/sync-nvv'),
-        apiRequest('POST', '/api/etl/sync-gdv'),
-      ]);
+      // Run ETLs SEQUENTIALLY to avoid SQL Server connection pool conflicts
+      // When run in parallel, one ETL closing its connection kills the others
       
-      const salesResult = results[0];
-      const nvvResult = results[1];
-      const gdvResult = results[2];
+      // 1. Sales ETL
+      try {
+        await apiRequest('POST', '/api/etl/sync-sales', { startDate, endDate, mode: 'incremental' });
+        successes.push('Ventas');
+      } catch (e) {
+        errors.push('Ventas');
+      }
       
-      const successes: string[] = [];
-      const errors: string[] = [];
+      // 2. NVV ETL (wait for sales to finish first)
+      try {
+        await apiRequest('POST', '/api/etl/sync-nvv');
+        successes.push('NVV');
+      } catch (e) {
+        errors.push('NVV');
+      }
       
-      if (salesResult.status === 'fulfilled') successes.push('Ventas');
-      else errors.push('Ventas');
-      
-      if (nvvResult.status === 'fulfilled') successes.push('NVV');
-      else errors.push('NVV');
-      
-      if (gdvResult.status === 'fulfilled') successes.push('GDV');
-      else errors.push('GDV');
+      // 3. GDV ETL (wait for NVV to finish first)
+      try {
+        await apiRequest('POST', '/api/etl/sync-gdv');
+        successes.push('GDV');
+      } catch (e) {
+        errors.push('GDV');
+      }
       
       if (errors.length === 0) {
         toast({
