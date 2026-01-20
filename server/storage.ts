@@ -234,6 +234,7 @@ import {
   fundMovements,
   segmentSupervisors,
   fundApprovalHistory,
+  fundAllocationRechargeHistory,
   type FundAllocation,
   type InsertFundAllocation,
   type FundMovement,
@@ -242,6 +243,7 @@ import {
   type InsertSegmentSupervisor,
   type FundApprovalHistory,
   type InsertFundApprovalHistory,
+  type FundAllocationRechargeHistory,
   // Promesas de compra
   promesasCompra,
   type PromesaCompra,
@@ -1866,6 +1868,19 @@ export interface IStorage {
   // Historial de aprobaciones
   getFundApprovalHistory(allocationId: string): Promise<FundApprovalHistory[]>;
   createFundApprovalHistory(data: InsertFundApprovalHistory): Promise<FundApprovalHistory>;
+  
+  // Recarga de fondos aprobados
+  rechargeFundAllocation(params: {
+    allocationId: string;
+    performedById: string;
+    performedByName?: string;
+    rechargeMode: 'gastado' | 'personalizado';
+    rechargeAmount?: number;
+    newFechaInicio?: string;
+    newFechaTermino?: string;
+    comentario: string;
+  }): Promise<{ allocation: FundAllocation; history: any }>;
+  getFundRechargeHistory(allocationId: string): Promise<any[]>;
 
   // ==================================================================================
   // PROMESAS DE COMPRA operations
@@ -20410,6 +20425,111 @@ export class DatabaseStorage implements IStorage {
   async createFundApprovalHistory(data: InsertFundApprovalHistory): Promise<FundApprovalHistory> {
     const [newHistory] = await db.insert(fundApprovalHistory).values(data).returning();
     return newHistory;
+  }
+
+  // Recargar fondo aprobado
+  async rechargeFundAllocation(params: {
+    allocationId: string;
+    performedById: string;
+    performedByName?: string;
+    rechargeMode: 'gastado' | 'personalizado';
+    rechargeAmount?: number;
+    newFechaInicio?: string;
+    newFechaTermino?: string;
+    comentario: string;
+  }): Promise<{ allocation: FundAllocation; history: any }> {
+    const { allocationId, performedById, performedByName, rechargeMode, rechargeAmount, newFechaInicio, newFechaTermino, comentario } = params;
+    
+    // 1. Obtener el fondo actual
+    const allocation = await this.getFundAllocationById(allocationId);
+    if (!allocation) {
+      throw new Error('Fondo no encontrado');
+    }
+    
+    // 2. Verificar que el fondo esté aprobado
+    if (allocation.estadoAprobacion !== 'aprobado') {
+      throw new Error('Solo se pueden recargar fondos aprobados');
+    }
+    
+    // 3. Calcular el monto gastado (gastos no rechazados asociados a este fondo)
+    const expensesResult = await db
+      .select({ total: sql<string>`COALESCE(SUM(monto), 0)` })
+      .from(gastosEmpresariales)
+      .where(
+        and(
+          eq(gastosEmpresariales.fundAllocationId, allocationId),
+          ne(gastosEmpresariales.estado, 'rechazado')
+        )
+      );
+    const totalGastado = parseFloat(expensesResult[0]?.total || '0');
+    
+    // 4. Calcular el monto de recarga
+    let deltaRecarga = 0;
+    if (rechargeMode === 'gastado') {
+      deltaRecarga = totalGastado;
+    } else if (rechargeAmount !== undefined) {
+      deltaRecarga = rechargeAmount;
+    }
+    
+    // 5. Calcular valores previos y nuevos
+    const prevMontoInicial = parseFloat(String(allocation.montoInicial || '0'));
+    const prevSaldoDisponible = prevMontoInicial - totalGastado;
+    const newMontoInicial = prevMontoInicial + deltaRecarga;
+    const newSaldoDisponible = newMontoInicial - totalGastado;
+    
+    // 6. Crear registro de historial
+    const historyData = {
+      fundAllocationId: allocationId,
+      eventType: 'recarga',
+      performedById,
+      performedByName: performedByName || '',
+      comentario,
+      prevMontoInicial: String(prevMontoInicial),
+      prevSaldoDisponible: String(prevSaldoDisponible),
+      prevFechaInicio: allocation.fechaInicio || null,
+      prevFechaTermino: allocation.fechaTermino || null,
+      newMontoInicial: String(newMontoInicial),
+      newSaldoDisponible: String(newSaldoDisponible),
+      newFechaInicio: newFechaInicio || allocation.fechaInicio || null,
+      newFechaTermino: newFechaTermino || allocation.fechaTermino || null,
+      deltaRecarga: String(deltaRecarga),
+    };
+    
+    const [newHistory] = await db.insert(fundAllocationRechargeHistory).values(historyData).returning();
+    
+    // 7. Actualizar el fondo
+    const updateData: any = {
+      montoInicial: String(newMontoInicial),
+      updatedAt: new Date(),
+    };
+    
+    if (newFechaInicio) {
+      updateData.fechaInicio = newFechaInicio;
+    }
+    if (newFechaTermino) {
+      updateData.fechaTermino = newFechaTermino;
+    }
+    
+    const [updatedAllocation] = await db
+      .update(fundAllocations)
+      .set(updateData)
+      .where(eq(fundAllocations.id, allocationId))
+      .returning();
+    
+    return {
+      allocation: updatedAllocation,
+      history: newHistory
+    };
+  }
+
+  async getFundRechargeHistory(allocationId: string): Promise<any[]> {
+    const history = await db
+      .select()
+      .from(fundAllocationRechargeHistory)
+      .where(eq(fundAllocationRechargeHistory.fundAllocationId, allocationId))
+      .orderBy(desc(fundAllocationRechargeHistory.createdAt));
+    
+    return history;
   }
 
   // ==================================================================================
