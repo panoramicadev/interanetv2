@@ -48,6 +48,9 @@ const formSchema = z.object({
   fechaEmision: z.string().optional(),
   fundingMode: z.enum(['con_fondo', 'reembolso']).default('reembolso'),
   fundAllocationId: z.string().optional(),
+  ruta: z.string().min(1, "La ruta es requerida"),
+  clientes: z.string().min(1, "El/los cliente(s) son requeridos"),
+  ciudad: z.string().min(1, "La ciudad es requerida"),
 });
 
 interface FundAllocation {
@@ -102,6 +105,9 @@ export default function GastosEmpresarialesForm() {
       fechaEmision: "",
       fundingMode: "reembolso",
       fundAllocationId: "",
+      ruta: "",
+      clientes: "",
+      ciudad: "",
     },
   });
 
@@ -526,6 +532,63 @@ export default function GastosEmpresarialesForm() {
                     </FormItem>
                   )}
                 />
+
+                {/* Campos de contexto del gasto */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="ruta"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Ruta *</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Ej: Ruta Sur"
+                            {...field}
+                            data-testid="input-ruta"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="clientes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Cliente(s) *</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Ej: Ferretería El Sol, Pinturas ABC"
+                            {...field}
+                            data-testid="input-clientes"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="ciudad"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Ciudad *</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Ej: Santiago"
+                            {...field}
+                            data-testid="input-ciudad"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
               </div>
 

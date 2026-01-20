@@ -4791,6 +4791,10 @@ export const gastosEmpresariales = pgTable("gastos_empresariales", {
   // Campos de integración con Gestión de Fondos
   fundingMode: varchar("funding_mode", { length: 50 }).default("reembolso"), // 'con_fondo' o 'reembolso'
   fundAllocationId: varchar("fund_allocation_id"), // FK a fund_allocations (solo si fundingMode='con_fondo')
+  // Campos obligatorios de contexto del gasto (Enero 2026)
+  ruta: text("ruta"), // Ruta donde se realizó el gasto
+  clientes: text("clientes"), // Cliente(s) visitados
+  ciudad: text("ciudad"), // Ciudad donde se realizó el gasto
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -4828,6 +4832,9 @@ export const insertGastoEmpresarialSchema = createInsertSchema(gastosEmpresarial
   fundingMode: z.enum(["con_fondo", "reembolso"]).default("reembolso"),
   fundAllocationId: z.string().optional().nullable(),
   segmentCode: z.string().optional().nullable(),
+  ruta: z.string().min(1, "La ruta es requerida"),
+  clientes: z.string().min(1, "El/los cliente(s) son requeridos"),
+  ciudad: z.string().min(1, "La ciudad es requerida"),
 });
 
 // Schema para aprobación de supervisor de reembolso
