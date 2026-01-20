@@ -16787,6 +16787,50 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     }
   }));
 
+  // Recharge approved fund allocation (admin/rrhh only)
+  app.patch('/api/fund-allocations/:id/recharge', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const allocationId = req.params.id;
+      
+      // Solo admin y rrhh pueden recargar fondos
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado para recargar fondos' });
+      }
+      
+      const { rechargeMode, rechargeAmount, newFechaInicio, newFechaTermino, comentario } = req.body;
+      
+      if (!comentario) {
+        return res.status(400).json({ message: 'El comentario es requerido' });
+      }
+      
+      const result = await storage.rechargeFundAllocation({
+        allocationId,
+        performedById: user.id,
+        performedByName: user.salespersonName || user.username || user.email,
+        rechargeMode: rechargeMode || 'gastado',
+        rechargeAmount: rechargeAmount ? parseFloat(rechargeAmount) : undefined,
+        newFechaInicio,
+        newFechaTermino,
+        comentario
+      });
+      
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || 'Error al recargar fondo' });
+    }
+  }));
+
+  // Get fund allocation recharge history
+  app.get('/api/fund-allocations/:id/recharge-history', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const history = await storage.getFundRechargeHistory(req.params.id);
+      res.json(history);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener historial de recargas', error: error.message });
+    }
+  }));
+
   // ==================================================================================
   // PROMESAS DE COMPRA ROUTES
   // ==================================================================================
