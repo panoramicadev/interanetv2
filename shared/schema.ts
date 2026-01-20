@@ -4751,6 +4751,49 @@ export const rejectFundAllocationSchema = z.object({
   rechazadoPorId: z.string().min(1, "El usuario que rechaza es requerido"),
 });
 
+// ===== HISTORIAL DE RECARGAS DE FONDOS (Enero 2026) =====
+// Registra cada recarga o actualización de período de fondos aprobados
+export const fundAllocationRechargeHistory = pgTable("fund_allocation_recharge_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fundAllocationId: varchar("fund_allocation_id").notNull(), // FK a fund_allocations
+  eventType: varchar("event_type", { length: 50 }).notNull(), // 'recarga', 'actualizacion_periodo', 'ajuste_manual'
+  performedById: varchar("performed_by_id").notNull(), // Usuario que realizó la acción
+  performedByName: varchar("performed_by_name", { length: 255 }), // Nombre del usuario para referencia
+  comentario: text("comentario"), // Comentario/motivo de la recarga
+  // Valores antes del cambio
+  prevMontoInicial: numeric("prev_monto_inicial", { precision: 15, scale: 2 }),
+  prevSaldoDisponible: numeric("prev_saldo_disponible", { precision: 15, scale: 2 }),
+  prevFechaInicio: date("prev_fecha_inicio"),
+  prevFechaTermino: date("prev_fecha_termino"),
+  // Valores después del cambio
+  newMontoInicial: numeric("new_monto_inicial", { precision: 15, scale: 2 }),
+  newSaldoDisponible: numeric("new_saldo_disponible", { precision: 15, scale: 2 }),
+  newFechaInicio: date("new_fecha_inicio"),
+  newFechaTermino: date("new_fecha_termino"),
+  // Delta de recarga (monto recargado)
+  deltaRecarga: numeric("delta_recarga", { precision: 15, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  fundAllocationIdx: index("IDX_fund_recharge_history_allocation").on(table.fundAllocationId),
+  performedByIdx: index("IDX_fund_recharge_history_performer").on(table.performedById),
+  createdAtIdx: index("IDX_fund_recharge_history_created").on(table.createdAt),
+}));
+
+// Types para historial de recargas
+export type FundAllocationRechargeHistory = typeof fundAllocationRechargeHistory.$inferSelect;
+export type InsertFundAllocationRechargeHistory = typeof fundAllocationRechargeHistory.$inferInsert;
+
+// Schema para recargar fondo aprobado
+export const rechargeFundAllocationSchema = z.object({
+  allocationId: z.string().min(1, "El ID de la asignación es requerido"),
+  performedById: z.string().min(1, "El ID del usuario es requerido"),
+  rechargeMode: z.enum(["gastado", "personalizado"]).default("gastado"), // gastado = recarga automática de lo gastado
+  rechargeAmount: z.number().optional(), // Solo si rechargeMode es 'personalizado'
+  newFechaInicio: z.string().optional(),
+  newFechaTermino: z.string().optional(),
+  comentario: z.string().min(1, "El comentario es requerido"),
+});
+
 export const insertFundMovementSchema = createInsertSchema(fundMovements).omit({
   id: true,
   createdAt: true,
