@@ -112,6 +112,10 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
   const [showSupervisorApproveDialog, setShowSupervisorApproveDialog] = useState(false);
   const [supervisorApproveComment, setSupervisorApproveComment] = useState("");
   const [pendingAsignacionData, setPendingAsignacionData] = useState<CrearFondoFormData | null>(null);
+  const [showRechargeDialog, setShowRechargeDialog] = useState(false);
+  const [rechargeComment, setRechargeComment] = useState("");
+  const [rechargeNewFechaInicio, setRechargeNewFechaInicio] = useState("");
+  const [rechargeNewFechaTermino, setRechargeNewFechaTermino] = useState("");
 
   const canManageFunds = user?.role === 'admin' || user?.role === 'recursos_humanos';
   const isSupervisor = user?.role === 'supervisor';
@@ -331,6 +335,40 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
       toast({
         title: "Error",
         description: error.message || "No se pudo eliminar el fondo.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const rechargeFundMutation = useMutation({
+    mutationFn: async (data: { allocationId: string; comentario: string; newFechaInicio?: string; newFechaTermino?: string }) => {
+      return apiRequest(`/api/fund-allocations/${data.allocationId}/recharge`, {
+        method: 'PATCH',
+        data: {
+          rechargeMode: 'gastado',
+          comentario: data.comentario,
+          newFechaInicio: data.newFechaInicio || undefined,
+          newFechaTermino: data.newFechaTermino || undefined,
+        },
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Fondo recargado",
+        description: "El fondo ha sido recargado exitosamente. El monto gastado fue agregado de vuelta.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations/summary/global'] });
+      setShowRechargeDialog(false);
+      setRechargeComment("");
+      setRechargeNewFechaInicio("");
+      setRechargeNewFechaTermino("");
+      setSelectedAllocation(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo recargar el fondo.",
         variant: "destructive",
       });
     },
@@ -701,6 +739,21 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                       >
                         Ver
                       </Button>
+                      {canManageFunds && fondo.estadoAprobacion === 'aprobado' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                          data-testid={`button-recharge-${fondo.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedAllocation(fondo);
+                            setShowRechargeDialog(true);
+                          }}
+                        >
+                          Recargar
+                        </Button>
+                      )}
                       {user?.role === 'admin' && (
                         <Button
                           size="sm"
@@ -1755,6 +1808,131 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                 </>
               ) : (
                 'Sí, Confirmar Asignación'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de recarga de fondo */}
+      <Dialog open={showRechargeDialog} onOpenChange={(open) => {
+        setShowRechargeDialog(open);
+        if (!open) {
+          setRechargeComment("");
+          setRechargeNewFechaInicio("");
+          setRechargeNewFechaTermino("");
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-blue-600">
+              <HandCoins className="h-5 w-5" />
+              Recargar Fondo
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Recarga el fondo de{' '}
+              <span className="font-bold">
+                {selectedAllocation ? getAssigneeName(selectedAllocation.assignedToId) : 'Usuario'}
+              </span>{' '}
+              agregando el monto gastado de vuelta al saldo disponible.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedAllocation && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Fondo:</span>
+                  <span className="font-medium">{selectedAllocation.nombre}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Monto Inicial:</span>
+                  <span className="font-medium">{formatCurrency(parseFloat(String(selectedAllocation.montoInicial || 0)))}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Saldo Disponible:</span>
+                  <span className="font-medium text-green-600">{formatCurrency(selectedAllocation.saldoDisponible || 0)}</span>
+                </div>
+                <div className="flex justify-between border-t pt-2">
+                  <span className="text-gray-600">Monto a Recargar (gastado):</span>
+                  <span className="font-bold text-blue-600">
+                    {formatCurrency(parseFloat(String(selectedAllocation.montoInicial || 0)) - (selectedAllocation.saldoDisponible || 0))}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Comentario / Motivo de Recarga *
+                  </label>
+                  <Textarea
+                    value={rechargeComment}
+                    onChange={(e) => setRechargeComment(e.target.value)}
+                    placeholder="Ej: Recarga mensual para nuevo período..."
+                    rows={2}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nueva Fecha Inicio (opcional)
+                    </label>
+                    <Input
+                      type="date"
+                      value={rechargeNewFechaInicio}
+                      onChange={(e) => setRechargeNewFechaInicio(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nueva Fecha Término (opcional)
+                    </label>
+                    <Input
+                      type="date"
+                      value={rechargeNewFechaTermino}
+                      onChange={(e) => setRechargeNewFechaTermino(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-800">
+                  Al recargar, el monto gastado se agregará al monto inicial del fondo, 
+                  dejando el saldo disponible igual al monto inicial actualizado. 
+                  Esta acción queda registrada en el historial.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowRechargeDialog(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={() => {
+                if (selectedAllocation && rechargeComment.trim()) {
+                  rechargeFundMutation.mutate({
+                    allocationId: selectedAllocation.id,
+                    comentario: rechargeComment,
+                    newFechaInicio: rechargeNewFechaInicio || undefined,
+                    newFechaTermino: rechargeNewFechaTermino || undefined,
+                  });
+                }
+              }}
+              disabled={rechargeFundMutation.isPending || !rechargeComment.trim()}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {rechargeFundMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Recargando...
+                </>
+              ) : (
+                'Confirmar Recarga'
               )}
             </Button>
           </DialogFooter>
