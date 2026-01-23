@@ -848,6 +848,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         LEFT JOIN ventas.stg_tabru ru_prod ON pr.rupr = ru_prod.koru -- Segmento del producto
         LEFT JOIN ventas.stg_tabru ru_cli ON en.ruen = ru_cli.koru -- Segmento del cliente
         WHERE (COALESCE(dd.caprco2, 0) - COALESCE(dd.caprex2, 0)) > 0 -- Solo líneas con cantidad pendiente > 0
+          AND (dd.eslido IS NULL OR TRIM(dd.eslido) = '') -- ESLIDO vacío = vigente/abierta
       `);
     });
 
