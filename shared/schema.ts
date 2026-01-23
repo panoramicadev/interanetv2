@@ -5692,10 +5692,11 @@ export const factNvv = nvvSchema.table("fact_nvv", {
   lilg: text("lilg"),
   luvtlido: integer("luvtlido"),
   
-  // CAMPO CALCULADO: Indica si tiene cantidad pendiente
-  // TRUE = Línea abierta con productos pendientes de despacho
-  // FALSE = Línea cerrada o sin productos pendientes
-  cantidad_pendiente: boolean("cantidad_pendiente").notNull().default(false),
+  // CAMPOS CALCULADOS: Cantidad y monto pendiente (sin usar ESLIDO)
+  // cantidad_pendiente_ud2 = CAPRCO2 - CAPREX2 (cantidad pedida menos entregada en UD2)
+  cantidad_pendiente_ud2: numeric("cantidad_pendiente_ud2", { precision: 15, scale: 2 }).default('0'),
+  // monto_pendiente = cantidad_pendiente_ud2 * PPPRNE (valor monetario pendiente)
+  monto_pendiente: numeric("monto_pendiente", { precision: 15, scale: 2 }).default('0'),
   
   // ETL control fields
   id: varchar("id").notNull().default(sql`gen_random_uuid()`).unique(),

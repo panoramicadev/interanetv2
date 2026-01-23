@@ -29,7 +29,11 @@ Preferred communication style: Simple, everyday language.
 - **Database Bootstrap System**: An idempotent `bootstrapDatabase()` function runs before migrations on application startup to ensure essential schemas and staging tables are present.
 
 ### System Design Choices
-- **NVV Module**: Utilizes an automated ETL process from SQL Server for "Notas de Venta Vigentes" with a full synchronization strategy, exclusively considering records where `eslido` is null or empty as pending. It uses `nvv.fact_nvv` as the primary data source.
+- **NVV Module (Updated January 2026)**: Utilizes an automated ETL process from SQL Server for "Notas de Venta Vigentes" with a full synchronization strategy. **The pending status is now determined by calculated quantity/amount fields, NOT by ESLIDO**:
+  - `cantidad_pendiente_ud2` = CAPRCO2 - CAPREX2 (quantity ordered minus delivered in UD2)
+  - `monto_pendiente` = cantidad_pendiente_ud2 × PPPRNE (pending monetary value)
+  - A line is considered "pending" when `monto_pendiente > 0`
+  - Uses `nvv.fact_nvv` as the primary data source.
 - **GDV Module**: Employs an automated ETL process from SQL Server for "Guías de Despacho Vigentes" with a full synchronization strategy, extracting only open dispatch guides and ensuring closed items are automatically removed. It relies on `gdv.fact_gdv` as the primary data source.
 - **Public Salesperson Catalog**: Enables salespeople to have public catalog pages (`/catalogo/:slug`) where visitors can browse products and submit quote requests without authentication.
 - **Shopify-Style Product Management**: The e-commerce system supports a hierarchical product → options → variants structure using `shopify_products`, `shopify_product_options`, and `shopify_product_variants` tables.
