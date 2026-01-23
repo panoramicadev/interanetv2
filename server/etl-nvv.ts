@@ -740,6 +740,8 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       await tx.execute(sql`DELETE FROM nvv.fact_nvv`);
 
       // PASO 2: Insertar TODOS los registros actuales desde staging
+      // NUEVA LÓGICA: Ya NO se filtra por ESLIDO. Se insertan todas las líneas
+      // y se calculan cantidad_pendiente_ud2 y monto_pendiente para determinar pendientes.
       console.log('   ➕ Insertando registros actuales desde staging...');
       // INSERT con JOINs a staging tables
       await tx.execute(sql`
@@ -755,7 +757,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
           eslido,
           feerli, feemli,
           ocdo, lilg, luvtlido,
-          cantidad_pendiente, last_etl_sync, data_source,
+          cantidad_pendiente_ud2, monto_pendiente, last_etl_sync, data_source,
           last_etl_execution_id, last_status
         )
         SELECT 
@@ -782,8 +784,8 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
           dd.ud02pr,
           dd.ppprne,
           dd.vaneli,
-          -- Monto PENDIENTE = (cantidad pedida - cantidad entregada) * precio
-          (GREATEST(COALESCE(dd.caprco2, 0) - COALESCE(dd.caprex2, 0), 0) * COALESCE(dd.ppprne, 0)) as monto,
+          -- Monto PENDIENTE = (cantidad pedida - cantidad entregada) * precio (valor raw)
+          ((COALESCE(dd.caprco2, 0) - COALESCE(dd.caprex2, 0)) * COALESCE(dd.ppprne, 0)) as monto,
           en.nokoen,
           en.ruen, -- Código de segmento del cliente
           ru_cli.nokoru as nombre_segmento_cliente, -- Nombre de segmento del cliente (desde ventas.stg_tabru)
@@ -797,14 +799,10 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
           dd.ocdo,
           dd.lilg,
           dd.luvtlido,
-          -- Calcular cantidad_pendiente: (eslido NULL/'') AND ((CAPRCO2 - CAPREX2) × PPPRNE >= 1000)
-          -- Usa UD2 según fórmula especificada por el usuario
-          CASE 
-            WHEN (dd.eslido IS NULL OR dd.eslido = '')
-              AND (((COALESCE(dd.caprco2, 0) - COALESCE(dd.caprex2, 0)) * COALESCE(dd.ppprne, 0)) >= 1000)
-            THEN TRUE
-            ELSE FALSE
-          END as cantidad_pendiente,
+          -- NUEVA LÓGICA: cantidad_pendiente_ud2 = CAPRCO2 - CAPREX2 (valor raw, puede ser negativo)
+          (COALESCE(dd.caprco2, 0) - COALESCE(dd.caprex2, 0)) as cantidad_pendiente_ud2,
+          -- NUEVA LÓGICA: monto_pendiente = cantidad_pendiente_ud2 * PPPRNE (valor raw)
+          ((COALESCE(dd.caprco2, 0) - COALESCE(dd.caprex2, 0)) * COALESCE(dd.ppprne, 0)) as monto_pendiente,
           NOW() as last_etl_sync,
           'etl_nvv' as data_source,
           ${executionId} as last_etl_execution_id,
@@ -818,7 +816,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         LEFT JOIN nvv.stg_maepr_nvv pr ON dd.koprct = pr.kopr
         LEFT JOIN ventas.stg_tabru ru_prod ON pr.rupr = ru_prod.koru -- Segmento del producto
         LEFT JOIN ventas.stg_tabru ru_cli ON en.ruen = ru_cli.koru -- Segmento del cliente
-        WHERE dd.eslido IS NULL OR dd.eslido = '' -- Solo insertar líneas pendientes (no cerradas)
+        WHERE (COALESCE(dd.caprco2, 0) - COALESCE(dd.caprex2, 0)) > 0 -- Solo líneas con cantidad pendiente > 0
       `);
     });
 

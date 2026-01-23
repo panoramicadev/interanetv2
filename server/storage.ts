@@ -2119,7 +2119,8 @@ export interface IStorage {
       nombre_bodega: string | null;
       eslido: string | null;
       monto: number;
-      cantidad_pendiente: boolean;
+      cantidad_pendiente_ud2: number;
+      monto_pendiente: number;
     }>;
     total: number;
   }>;
@@ -23213,11 +23214,11 @@ export class DatabaseStorage implements IStorage {
       total: countDistinct(factNvv.idmaeedo),
       abiertas: sql<number>`COUNT(DISTINCT CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.idmaeedo} END)`,
       cerradas: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.idmaeedo} END)`,
-      pendientes: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.idmaeedo} END)`,
+      pendientes: sql<number>`COUNT(DISTINCT CASE WHEN COALESCE(${factNvv.monto_pendiente}, 0) > 0 THEN ${factNvv.idmaeedo} END)`,
       montoTotal: sum(factNvv.monto),
       montoAbiertas: sql<number>`SUM(CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.monto} ELSE 0 END)`,
       montoCerradas: sql<number>`SUM(CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.monto} ELSE 0 END)`,
-      montoPendientes: sql<number>`SUM(CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.monto} ELSE 0 END)`,
+      montoPendientes: sql<number>`SUM(COALESCE(${factNvv.monto_pendiente}, 0))`,
     }).from(factNvv);
 
     const conditions = [];
@@ -23243,7 +23244,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`${factNvv.eslido} = 'C'`);
     }
     if (filters?.pendingOnly) {
-      conditions.push(eq(factNvv.cantidad_pendiente, true));
+      conditions.push(sql`COALESCE(${factNvv.monto_pendiente}, 0) > 0`);
     }
     if (filters?.minAmount !== undefined) {
       conditions.push(sql`${factNvv.monto} >= ${filters.minAmount}`);
@@ -23288,11 +23289,11 @@ export class DatabaseStorage implements IStorage {
       total: countDistinct(factNvv.idmaeedo),
       abiertas: sql<number>`COUNT(DISTINCT CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.idmaeedo} END)`,
       cerradas: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.idmaeedo} END)`,
-      pendientes: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.idmaeedo} END)`,
+      pendientes: sql<number>`COUNT(DISTINCT CASE WHEN COALESCE(${factNvv.monto_pendiente}, 0) > 0 THEN ${factNvv.idmaeedo} END)`,
       montoTotal: sum(factNvv.monto),
       montoAbiertas: sql<number>`SUM(CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.monto} ELSE 0 END)`,
       montoCerradas: sql<number>`SUM(CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.monto} ELSE 0 END)`,
-      montoPendientes: sql<number>`SUM(CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.monto} ELSE 0 END)`,
+      montoPendientes: sql<number>`SUM(COALESCE(${factNvv.monto_pendiente}, 0))`,
     }).from(factNvv);
 
     const conditions = [];
@@ -23318,7 +23319,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`${factNvv.eslido} = 'C'`);
     }
     if (filters?.pendingOnly) {
-      conditions.push(eq(factNvv.cantidad_pendiente, true));
+      conditions.push(sql`COALESCE(${factNvv.monto_pendiente}, 0) > 0`);
     }
     if (filters?.minAmount !== undefined) {
       conditions.push(sql`${factNvv.monto} >= ${filters.minAmount}`);
@@ -23365,11 +23366,11 @@ export class DatabaseStorage implements IStorage {
       total: countDistinct(factNvv.idmaeedo),
       abiertas: sql<number>`COUNT(DISTINCT CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.idmaeedo} END)`,
       cerradas: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.idmaeedo} END)`,
-      pendientes: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.idmaeedo} END)`,
+      pendientes: sql<number>`COUNT(DISTINCT CASE WHEN COALESCE(${factNvv.monto_pendiente}, 0) > 0 THEN ${factNvv.idmaeedo} END)`,
       montoTotal: sum(factNvv.monto),
       montoAbiertas: sql<number>`SUM(CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.monto} ELSE 0 END)`,
       montoCerradas: sql<number>`SUM(CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.monto} ELSE 0 END)`,
-      montoPendientes: sql<number>`SUM(CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.monto} ELSE 0 END)`,
+      montoPendientes: sql<number>`SUM(COALESCE(${factNvv.monto_pendiente}, 0))`,
     }).from(factNvv);
 
     const conditions = [];
@@ -23395,7 +23396,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`${factNvv.eslido} = 'C'`);
     }
     if (filters?.pendingOnly) {
-      conditions.push(eq(factNvv.cantidad_pendiente, true));
+      conditions.push(sql`COALESCE(${factNvv.monto_pendiente}, 0) > 0`);
     }
     if (filters?.minAmount !== undefined) {
       conditions.push(sql`${factNvv.monto} >= ${filters.minAmount}`);
@@ -23442,11 +23443,11 @@ export class DatabaseStorage implements IStorage {
       total: countDistinct(factNvv.idmaeedo),
       abiertas: sql<number>`COUNT(DISTINCT CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.idmaeedo} END)`,
       cerradas: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.idmaeedo} END)`,
-      pendientes: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.idmaeedo} END)`,
+      pendientes: sql<number>`COUNT(DISTINCT CASE WHEN COALESCE(${factNvv.monto_pendiente}, 0) > 0 THEN ${factNvv.idmaeedo} END)`,
       montoTotal: sum(factNvv.monto),
       montoAbiertas: sql<number>`SUM(CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.monto} ELSE 0 END)`,
       montoCerradas: sql<number>`SUM(CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.monto} ELSE 0 END)`,
-      montoPendientes: sql<number>`SUM(CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.monto} ELSE 0 END)`,
+      montoPendientes: sql<number>`SUM(COALESCE(${factNvv.monto_pendiente}, 0))`,
     }).from(factNvv);
 
     const conditions = [];
@@ -23472,7 +23473,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`${factNvv.eslido} = 'C'`);
     }
     if (filters?.pendingOnly) {
-      conditions.push(eq(factNvv.cantidad_pendiente, true));
+      conditions.push(sql`COALESCE(${factNvv.monto_pendiente}, 0) > 0`);
     }
     if (filters?.minAmount !== undefined) {
       conditions.push(sql`${factNvv.monto} >= ${filters.minAmount}`);
@@ -23519,11 +23520,11 @@ export class DatabaseStorage implements IStorage {
       total: countDistinct(factNvv.idmaeedo),
       abiertas: sql<number>`COUNT(DISTINCT CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.idmaeedo} END)`,
       cerradas: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.idmaeedo} END)`,
-      pendientes: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.idmaeedo} END)`,
+      pendientes: sql<number>`COUNT(DISTINCT CASE WHEN COALESCE(${factNvv.monto_pendiente}, 0) > 0 THEN ${factNvv.idmaeedo} END)`,
       montoTotal: sum(factNvv.monto),
       montoAbiertas: sql<number>`SUM(CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.monto} ELSE 0 END)`,
       montoCerradas: sql<number>`SUM(CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.monto} ELSE 0 END)`,
-      montoPendientes: sql<number>`SUM(CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.monto} ELSE 0 END)`,
+      montoPendientes: sql<number>`SUM(COALESCE(${factNvv.monto_pendiente}, 0))`,
     }).from(factNvv);
 
     const conditions = [];
@@ -23549,7 +23550,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`${factNvv.eslido} = 'C'`);
     }
     if (filters?.pendingOnly) {
-      conditions.push(eq(factNvv.cantidad_pendiente, true));
+      conditions.push(sql`COALESCE(${factNvv.monto_pendiente}, 0) > 0`);
     }
     if (filters?.minAmount !== undefined) {
       conditions.push(sql`${factNvv.monto} >= ${filters.minAmount}`);
@@ -23594,7 +23595,8 @@ export class DatabaseStorage implements IStorage {
       nombre_bodega: string | null;
       eslido: string | null;
       monto: number;
-      cantidad_pendiente: boolean;
+      cantidad_pendiente_ud2: number;
+      monto_pendiente: number;
     }>;
     total: number;
   }> {
@@ -23621,7 +23623,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`${factNvv.eslido} = 'C'`);
     }
     if (filters?.pendingOnly) {
-      conditions.push(eq(factNvv.cantidad_pendiente, true));
+      conditions.push(sql`COALESCE(${factNvv.monto_pendiente}, 0) > 0`);
     }
     if (filters?.minAmount !== undefined) {
       conditions.push(sql`${factNvv.monto} >= ${filters.minAmount}`);
@@ -23651,7 +23653,8 @@ export class DatabaseStorage implements IStorage {
       nombre_bodega: factNvv.nombre_bodega,
       eslido: factNvv.eslido,
       monto: factNvv.monto,
-      cantidad_pendiente: factNvv.cantidad_pendiente,
+      cantidad_pendiente_ud2: factNvv.cantidad_pendiente_ud2,
+      monto_pendiente: factNvv.monto_pendiente,
     }).from(factNvv);
 
     if (conditions.length > 0) {
@@ -23682,7 +23685,8 @@ export class DatabaseStorage implements IStorage {
         nombre_bodega: doc.nombre_bodega,
         eslido: doc.eslido,
         monto: Number(doc.monto || 0),
-        cantidad_pendiente: doc.cantidad_pendiente || false,
+        cantidad_pendiente_ud2: Number(doc.cantidad_pendiente_ud2 || 0),
+        monto_pendiente: Number(doc.monto_pendiente || 0),
       })),
       total,
     };

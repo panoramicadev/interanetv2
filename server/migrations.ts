@@ -320,6 +320,11 @@ export async function bootstrapDatabase(): Promise<void> {
       )
     `);
     
+    // Migración NVV: Agregar columnas cantidad_pendiente_ud2 y monto_pendiente (reemplaza boolean cantidad_pendiente)
+    console.log('  📊 Verificando columnas de cantidad/monto pendiente en NVV...');
+    await db.execute(sql`ALTER TABLE nvv.fact_nvv ADD COLUMN IF NOT EXISTS cantidad_pendiente_ud2 NUMERIC(15, 2) DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE nvv.fact_nvv ADD COLUMN IF NOT EXISTS monto_pendiente NUMERIC(15, 2) DEFAULT 0`);
+    
     // 4. Crear índices importantes
     console.log('  🔍 Creando índices...');
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_stg_maeddo_kofulido ON ventas.stg_maeddo(kofulido)`);
