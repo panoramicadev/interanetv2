@@ -18054,6 +18054,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
             koprct TEXT,
             nokopr TEXT,
             udtrpr TEXT,
+            kofulido TEXT,
             caprco1 NUMERIC(18,4),
             caprco2 NUMERIC(18,4),
             preuni NUMERIC(18,6),
@@ -18069,6 +18070,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         // Si la tabla ya existía, asegurar que tiene las columnas correctas
         // Esto corrige tablas creadas con 'caprco' en lugar de 'caprco1' y 'caprco2'
         try {
+          await db.execute(sql`ALTER TABLE ventas.stg_maeddo ADD COLUMN IF NOT EXISTS kofulido TEXT`);
           await db.execute(sql`ALTER TABLE ventas.stg_maeddo ADD COLUMN IF NOT EXISTS caprco1 NUMERIC(18,4)`);
           await db.execute(sql`ALTER TABLE ventas.stg_maeddo ADD COLUMN IF NOT EXISTS caprco2 NUMERIC(18,4)`);
           // Eliminar columna incorrecta 'caprco' si existe
