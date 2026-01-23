@@ -13,7 +13,7 @@ import {
   factNvv,
   nvvSyncLog,
   nvvSyncChanges,
-  etlConfigs
+  etlConfig
 } from '../shared/schema';
 import { CircuitBreaker, executeWithResilience } from './etl-resilience';
 import { createETLLogger } from './production-logger';
@@ -219,6 +219,31 @@ async function getLastWatermark(): Promise<Date> {
   return new Date('2025-01-01');
 }
 
+// Obtener configuración de NVV desde etl_config (tabla ventas.etl_config)
+async function getNVVConfig(): Promise<{ customWatermark: Date | null; useCustomWatermark: boolean }> {
+  try {
+    const config = await db
+      .select()
+      .from(etlConfig)
+      .where(sql`etl_name = 'nvv'`)
+      .limit(1);
+
+    if (config.length > 0 && config[0].useCustomWatermark && config[0].customWatermark) {
+      return {
+        customWatermark: new Date(config[0].customWatermark),
+        useCustomWatermark: true
+      };
+    }
+  } catch (error) {
+    console.error('Error obteniendo configuración NVV:', error);
+  }
+
+  return {
+    customWatermark: null,
+    useCustomWatermark: false
+  };
+}
+
 export async function executeNVVETL(): Promise<NVVETLResult> {
   console.log('\n╔═══════════════════════════════════════════════════════════════╗');
   console.log('║  📦 ETL DE NOTAS DE VENTA (NVV) - SINCRONIZACIÓN COMPLETA     ║');
@@ -364,7 +389,13 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     console.log('✅ Tablas staging limpias (aisladas de ETL ventas)\n');
 
     // 1. EXTRAER MAEEDO (encabezados NVV) - SINCRONIZACIÓN COMPLETA
-    // Extraer TODAS las NVV pendientes actuales (sin filtro de watermark)
+    // Obtener configuración de watermark desde el frontend
+    const nvvConfig = await getNVVConfig();
+    const watermarkDate = nvvConfig.useCustomWatermark && nvvConfig.customWatermark 
+      ? nvvConfig.customWatermark 
+      : new Date('2025-01-01');
+    const watermarkDateStr = watermarkDate.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+    
     emitProgress(2, TOTAL_STEPS, 'Extrayendo MAEEDO (NVV)', 'Sincronización completa...');
     console.log('1️⃣  Extrayendo MAEEDO (Encabezados NVV) - TODAS las NVV pendientes...');
     
@@ -373,7 +404,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     console.log('╚═══════════════════════════════════════════════════════════════╝');
     console.log(`🔍 TIDO = 'NVV'`);
     console.log(`🔍 SUDO IN: ${sucursales.join(', ')}`);
-    console.log(`🔍 FEEMDO >= '2025-01-01' (Solo docs de 2025 en adelante)`);
+    console.log(`🔍 FEEMDO >= '${watermarkDateStr}' ${nvvConfig.useCustomWatermark ? '(Watermark configurado desde frontend)' : '(Watermark por defecto)'}`);
     console.log(`📋 Extrayendo TODAS las NVV actuales (sin filtro de fecha FEER)`);
     console.log('');
     
@@ -383,7 +414,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         FROM dbo.MAEEDO
         WHERE TIDO = 'NVV'
           AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
-          AND FEEMDO >= '2025-01-01'
+          AND FEEMDO >= '${watermarkDateStr}'
         ORDER BY FEEMDO DESC
       `),
       sqlServerBreaker,
