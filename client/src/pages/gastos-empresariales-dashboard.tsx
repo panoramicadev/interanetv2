@@ -57,6 +57,40 @@ import type { GastoEmpresarial, FundAllocation } from "@shared/schema";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useToast } from "@/hooks/use-toast";
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
+// Function to convert first page of PDF to base64 image
+async function pdfToImage(pdfUrl: string, width: number = 400): Promise<string | null> {
+  try {
+    const loadingTask = pdfjsLib.getDocument(pdfUrl);
+    const pdf = await loadingTask.promise;
+    const page = await pdf.getPage(1);
+    
+    const viewport = page.getViewport({ scale: 1 });
+    const scale = width / viewport.width;
+    const scaledViewport = page.getViewport({ scale });
+    
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+    
+    canvas.width = scaledViewport.width;
+    canvas.height = scaledViewport.height;
+    
+    await page.render({
+      canvasContext: context,
+      viewport: scaledViewport
+    }).promise;
+    
+    return canvas.toDataURL('image/png');
+  } catch (error) {
+    console.error('Error converting PDF to image:', error);
+    return null;
+  }
+}
 
 ChartJS.register(
   CategoryScale,
@@ -711,7 +745,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
           startY: yPos,
           head: [['Fecha', 'Descripción', 'Categoría', 'Proveedor', 'Monto']],
           body: gastosAprobados.map(g => [
-            formatFullDate(g.createdAt as any),
+            formatFullDate((g.fechaEmision || g.createdAt) as any),
             String(g.descripcion || '-').substring(0, 35),
             g.categoria || '-',
             String(g.proveedor || '-').substring(0, 20),
@@ -756,7 +790,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
           startY: yPos,
           head: [['Fecha', 'Descripción', 'Categoría', 'Proveedor', 'Monto']],
           body: gastosRechazados.map(g => [
-            formatFullDate(g.createdAt as any),
+            formatFullDate((g.fechaEmision || g.createdAt) as any),
             String(g.descripcion || '-').substring(0, 35),
             g.categoria || '-',
             String(g.proveedor || '-').substring(0, 20),
@@ -801,7 +835,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
           startY: yPos,
           head: [['Fecha', 'Descripción', 'Categoría', 'Proveedor', 'Monto']],
           body: gastosPendientes.map(g => [
-            formatFullDate(g.createdAt as any),
+            formatFullDate((g.fechaEmision || g.createdAt) as any),
             String(g.descripcion || '-').substring(0, 35),
             g.categoria || '-',
             String(g.proveedor || '-').substring(0, 20),
@@ -870,7 +904,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
             type: 'gasto',
             vendedor: getUserName(gasto.userId),
             monto: formatCurrency(Number(gasto.monto) || 0),
-            fecha: formatFullDate(gasto.createdAt as any),
+            fecha: formatFullDate((gasto.fechaEmision || gasto.createdAt) as any),
             financiamiento: esConFondo ? 'Con Fondo Asignado' : 'Restitución/Reembolso',
             descripcion: gasto.descripcion || '-',
             categoria: gasto.categoria || '-',
@@ -1027,12 +1061,42 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
             const imgMaxHeight = sectionHeight - 16;
             
             if (isPDF) {
-              doc.setFontSize(9);
-              doc.setFont('helvetica', 'normal');
-              doc.text('Documento PDF:', imageColumnStart, imgYPos);
-              doc.setTextColor(0, 0, 255);
-              doc.textWithLink('[Ver PDF adjunto]', imageColumnStart, imgYPos + 7, { url: img.url });
-              doc.setTextColor(0, 0, 0);
+              const pdfImage = await pdfToImage(img.url, 400);
+              if (pdfImage) {
+                const imgObj = new Image();
+                await new Promise((resolve, reject) => {
+                  imgObj.onload = resolve;
+                  imgObj.onerror = reject;
+                  imgObj.src = pdfImage;
+                });
+                
+                let imgWidth = imgObj.width;
+                let imgHeight = imgObj.height;
+                
+                if (imgWidth > imageMaxWidth) {
+                  const ratio = imageMaxWidth / imgWidth;
+                  imgWidth = imageMaxWidth;
+                  imgHeight = imgHeight * ratio;
+                }
+                if (imgHeight > imgMaxHeight) {
+                  const ratio = imgMaxHeight / imgHeight;
+                  imgHeight = imgMaxHeight;
+                  imgWidth = imgWidth * ratio;
+                }
+                
+                doc.addImage(pdfImage, 'PNG', imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
+                doc.setFontSize(7);
+                doc.setTextColor(100, 116, 139);
+                doc.text('(Primera página del PDF)', imageColumnStart, imgYPos + imgHeight + 4);
+                doc.setTextColor(0, 0, 0);
+              } else {
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'normal');
+                doc.text('Documento PDF:', imageColumnStart, imgYPos);
+                doc.setTextColor(0, 0, 255);
+                doc.textWithLink('[Ver PDF adjunto]', imageColumnStart, imgYPos + 7, { url: img.url });
+                doc.setTextColor(0, 0, 0);
+              }
             } else {
               const response = await fetch(img.url);
               if (!response.ok) throw new Error(`HTTP ${response.status}`);
