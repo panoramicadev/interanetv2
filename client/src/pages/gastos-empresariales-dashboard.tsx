@@ -488,7 +488,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
     
     const headers = ['Fecha', 'Descripción', 'Categoría', 'Monto', 'Estado', 'Proveedor'];
     const rows = gastosParaExportar.map(g => [
-      formatFullDate(g.createdAt as any),
+      formatFullDate((g.fechaEmision || g.createdAt) as any),
       g.descripcion,
       g.categoria,
       g.monto,
