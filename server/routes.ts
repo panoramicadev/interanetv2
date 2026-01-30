@@ -16330,19 +16330,19 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/fund-allocations/:id/approve', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      console.log('[APPROVE FUND] Request received:', { id: req.params.id, comprobanteUrl: req.body.comprobanteUrl, userId: user.id });
+      console.log('[APPROVE FUND] Request received:', { id: req.params.id, comprobanteUrl: req.body.comprobanteUrl, comprobantePreviewUrl: req.body.comprobantePreviewUrl, userId: user.id });
       
       if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
       
-      const { comprobanteUrl } = req.body;
+      const { comprobanteUrl, comprobantePreviewUrl } = req.body;
       
       if (!comprobanteUrl) {
         return res.status(400).json({ message: 'El comprobante de transferencia es requerido' });
       }
       
-      const approved = await storage.approveFundAllocation(req.params.id, comprobanteUrl, user.id);
+      const approved = await storage.approveFundAllocation(req.params.id, comprobanteUrl, user.id, comprobantePreviewUrl);
       console.log('[APPROVE FUND] Result:', approved);
       res.json(approved);
     } catch (error: any) {

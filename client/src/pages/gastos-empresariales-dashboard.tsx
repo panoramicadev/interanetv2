@@ -1120,7 +1120,40 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
                   pdfPreviewLoaded = true;
                 }
               } catch (previewError) {
-                console.log('Preview not available, using fallback');
+                console.log('Server preview not available, trying client-side conversion');
+              }
+              
+              if (!pdfPreviewLoaded) {
+                const pdfImage = await pdfToImage(img.url, 400);
+                if (pdfImage) {
+                  const imgObj = new Image();
+                  await new Promise((resolve, reject) => {
+                    imgObj.onload = resolve;
+                    imgObj.onerror = reject;
+                    imgObj.src = pdfImage;
+                  });
+                  
+                  let imgWidth = imgObj.width;
+                  let imgHeight = imgObj.height;
+                  
+                  if (imgWidth > imageMaxWidth) {
+                    const ratio = imageMaxWidth / imgWidth;
+                    imgWidth = imageMaxWidth;
+                    imgHeight = imgHeight * ratio;
+                  }
+                  if (imgHeight > imgMaxHeight) {
+                    const ratio = imgMaxHeight / imgHeight;
+                    imgHeight = imgMaxHeight;
+                    imgWidth = imgWidth * ratio;
+                  }
+                  
+                  doc.addImage(pdfImage, 'PNG', imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
+                  doc.setFontSize(7);
+                  doc.setTextColor(100, 116, 139);
+                  doc.text('(Primera página del PDF)', imageColumnStart, imgYPos + imgHeight + 4);
+                  doc.setTextColor(0, 0, 0);
+                  pdfPreviewLoaded = true;
+                }
               }
               
               if (!pdfPreviewLoaded) {
