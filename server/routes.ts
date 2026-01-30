@@ -20052,6 +20052,114 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     }
   }));
 
+  // Endpoint para listar PDFs en el bucket (diagnóstico)
+  app.get('/api/admin/list-bucket-pdfs', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'Solo administradores' });
+      }
+      
+      const objectStorageService = new ObjectStorageService();
+      const prefix = (req.query.prefix as string) || 'fondos/';
+      
+      const files = await objectStorageService.listFiles(prefix);
+      const pdfs = files.filter(f => f.name.toLowerCase().endsWith('.pdf'));
+      
+      res.json({
+        prefix,
+        total: files.length,
+        pdfs: pdfs.length,
+        files: pdfs
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  }));
+
+  // Endpoint para migrar PDFs directamente del bucket (sin depender de la base de datos)
+  app.post('/api/admin/migrate-bucket-pdfs', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'Solo administradores pueden ejecutar migraciones' });
+      }
+      
+      const objectStorageService = new ObjectStorageService();
+      const prefix = (req.body.prefix as string) || 'fondos/';
+      const results: any[] = [];
+      
+      // Listar PDFs en el bucket
+      const files = await objectStorageService.listFiles(prefix);
+      const pdfs = files.filter(f => f.name.toLowerCase().endsWith('.pdf') && !f.name.includes('_preview'));
+      
+      console.log(`[BUCKET MIGRATION] Found ${pdfs.length} PDFs in ${prefix}`);
+      
+      for (const pdf of pdfs) {
+        try {
+          // Verificar si ya existe preview
+          const previewName = pdf.name.replace(/\.pdf$/i, '_preview.png');
+          const existingPreviews = files.filter(f => f.name === previewName);
+          
+          if (existingPreviews.length > 0) {
+            results.push({ name: pdf.name, status: 'skipped', message: 'Preview ya existe' });
+            continue;
+          }
+          
+          // Descargar PDF
+          const pdfUrl = `${req.protocol}://${req.get('host')}/public-objects/${pdf.name.split('/').slice(-2).join('/')}`;
+          console.log(`[BUCKET MIGRATION] Downloading: ${pdfUrl}`);
+          
+          const pdfResponse = await fetch(pdfUrl);
+          
+          if (!pdfResponse.ok) {
+            results.push({ name: pdf.name, status: 'error', message: `No se pudo descargar: ${pdfResponse.status}` });
+            continue;
+          }
+          
+          const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
+          
+          // Convertir a imagen
+          const previewBuffer = await convertPdfToImage(pdfBuffer, 600);
+          
+          if (!previewBuffer) {
+            results.push({ name: pdf.name, status: 'error', message: 'No se pudo convertir el PDF' });
+            continue;
+          }
+          
+          // Subir preview
+          const previewFileName = pdf.name.replace(/\.pdf$/i, '_preview.png');
+          const previewUrl = await objectStorageService.uploadImage(previewFileName, previewBuffer, 'image/png');
+          
+          results.push({ name: pdf.name, status: 'success', previewUrl });
+          console.log(`[BUCKET MIGRATION] Preview generated: ${previewUrl}`);
+        } catch (error: any) {
+          results.push({ name: pdf.name, status: 'error', message: error.message });
+          console.error(`[BUCKET MIGRATION] Error:`, error.message);
+        }
+      }
+      
+      const successCount = results.filter(r => r.status === 'success').length;
+      const skippedCount = results.filter(r => r.status === 'skipped').length;
+      const errorCount = results.filter(r => r.status === 'error').length;
+      
+      res.json({
+        message: `Migración de bucket completada: ${successCount} exitosos, ${skippedCount} omitidos, ${errorCount} errores`,
+        prefix,
+        totalPdfs: pdfs.length,
+        successCount,
+        skippedCount,
+        errorCount,
+        results
+      });
+    } catch (error: any) {
+      console.error('[BUCKET MIGRATION] Error:', error);
+      res.status(500).json({ message: 'Error en la migración', error: error.message });
+    }
+  }));
+
   const httpServer = createServer(app);
   return httpServer;
 }
