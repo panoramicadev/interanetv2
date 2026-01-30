@@ -59,8 +59,9 @@ import autoTable from 'jspdf-autotable';
 import { useToast } from "@/hooks/use-toast";
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Configure PDF.js worker - using static file from public folder
+// This avoids dynamic import issues in production builds
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
 // Function to convert first page of PDF to base64 image
 async function pdfToImage(pdfUrl: string, width: number = 400): Promise<string | null> {
