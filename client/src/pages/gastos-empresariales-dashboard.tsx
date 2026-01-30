@@ -1079,7 +1079,10 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
             if (isPDF) {
               let pdfPreviewLoaded = false;
               
-              const previewUrl = img.previewUrl || img.url.replace(/\.pdf$/i, '_preview.png');
+              const previewPath = img.previewUrl || img.url.replace(/\.pdf$/i, '_preview.png');
+              const previewUrl = previewPath.startsWith('http') 
+                ? previewPath 
+                : `${window.location.origin}${previewPath}`;
               
               try {
                 const previewResponse = await fetch(previewUrl, { credentials: 'include' });
@@ -1124,7 +1127,10 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
               }
               
               if (!pdfPreviewLoaded) {
-                const pdfImage = await pdfToImage(img.url, 400);
+                const pdfAbsoluteUrl = img.url.startsWith('http') 
+                  ? img.url 
+                  : `${window.location.origin}${img.url}`;
+                const pdfImage = await pdfToImage(pdfAbsoluteUrl, 400);
                 if (pdfImage) {
                   const imgObj = new Image();
                   await new Promise((resolve, reject) => {
@@ -1165,8 +1171,13 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
                 doc.setTextColor(0, 0, 0);
               }
             } else {
-              const response = await fetch(img.url);
-              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              // Construir URL absoluta para evitar problemas de rutas relativas
+              const absoluteUrl = img.url.startsWith('http') 
+                ? img.url 
+                : `${window.location.origin}${img.url}`;
+              
+              const response = await fetch(absoluteUrl, { credentials: 'include' });
+              if (!response.ok) throw new Error(`HTTP ${response.status} - ${absoluteUrl}`);
               const blob = await response.blob();
               const base64 = await new Promise<string>((resolve) => {
                 const reader = new FileReader();
