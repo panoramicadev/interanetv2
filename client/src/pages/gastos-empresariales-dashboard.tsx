@@ -65,7 +65,16 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs
 // Function to convert first page of PDF to base64 image
 async function pdfToImage(pdfUrl: string, width: number = 400): Promise<string | null> {
   try {
-    const loadingTask = pdfjsLib.getDocument(pdfUrl);
+    // Fetch PDF as ArrayBuffer to handle CORS properly
+    const response = await fetch(pdfUrl, { credentials: 'include' });
+    if (!response.ok) {
+      console.error('Failed to fetch PDF:', response.status);
+      return null;
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    
+    // Load PDF from ArrayBuffer data
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
     const page = await pdf.getPage(1);
     
