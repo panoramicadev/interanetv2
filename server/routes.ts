@@ -16112,26 +16112,20 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.get('/api/gastos-empresariales/analytics/por-usuario', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
+      const { mes, anio, userId } = req.query;
+      
+      const filters: any = {};
       
       // Supervisors and salespersons can only see their own data
       if (user.role === 'supervisor' || user.role === 'salesperson') {
-        // Return only the current user's data
-        const { mes, anio } = req.query;
-        const filters: any = { userId: user.id };
-        if (mes) filters.mes = parseInt(mes);
-        if (anio) filters.anio = parseInt(anio);
-        
-        const data = await storage.getGastosEmpresarialesByUser(filters);
-        return res.json(data);
-      }
-      
-      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        filters.userId = user.id;
+      } else if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
+      } else if (userId) {
+        // Admin/HR can filter by specific user
+        filters.userId = userId;
       }
       
-      const { mes, anio } = req.query;
-      
-      const filters: any = {};
       if (mes) filters.mes = parseInt(mes);
       if (anio) filters.anio = parseInt(anio);
       
