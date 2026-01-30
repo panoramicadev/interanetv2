@@ -913,7 +913,26 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
       }
       
       for (const gasto of gastosParaExportar) {
-        if (gasto.comprobanteUrl) {
+        // Primero añadir el documento adjunto del gasto (factura/boleta)
+        if ((gasto as any).archivoUrl) {
+          const esConFondo = gasto.fundingMode === 'con_fondo';
+          allImages.push({
+            url: (gasto as any).archivoUrl,
+            previewUrl: null, // archivoUrl no tiene preview separado
+            type: 'gasto',
+            vendedor: getUserName(gasto.userId),
+            monto: formatCurrency(Number(gasto.monto) || 0),
+            fecha: formatFullDate((gasto.fechaEmision || gasto.createdAt) as any),
+            financiamiento: esConFondo ? 'Con Fondo Asignado' : 'Restitución/Reembolso',
+            descripcion: gasto.descripcion || '-',
+            categoria: gasto.categoria || '-',
+            tipoDocumento: gasto.tipoDocumento || 'Documento Adjunto',
+            proveedor: gasto.proveedor || '-',
+            estado: gasto.estado || '-',
+          });
+        }
+        // Luego añadir el comprobante de transferencia (si existe y es diferente)
+        if (gasto.comprobanteUrl && gasto.comprobanteUrl !== (gasto as any).archivoUrl) {
           const esConFondo = gasto.fundingMode === 'con_fondo';
           allImages.push({
             url: gasto.comprobanteUrl,
@@ -922,10 +941,10 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
             vendedor: getUserName(gasto.userId),
             monto: formatCurrency(Number(gasto.monto) || 0),
             fecha: formatFullDate((gasto.fechaEmision || gasto.createdAt) as any),
-            financiamiento: esConFondo ? 'Con Fondo Asignado' : 'Restitución/Reembolso',
+            financiamiento: esConFondo ? 'Comprobante Transferencia (Fondo)' : 'Comprobante Transferencia (Reembolso)',
             descripcion: gasto.descripcion || '-',
             categoria: gasto.categoria || '-',
-            tipoDocumento: gasto.tipoDocumento || '-',
+            tipoDocumento: 'Comprobante de Pago',
             proveedor: gasto.proveedor || '-',
             estado: gasto.estado || '-',
           });
@@ -1401,11 +1420,14 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos los usuarios</SelectItem>
-                  {porUsuario.map(user => (
-                    <SelectItem key={user.userId} value={user.userId}>
-                      {user.userName}
-                    </SelectItem>
-                  ))}
+                  {allUsers
+                    .filter((u: any) => u.role === 'salesperson')
+                    .sort((a: any, b: any) => (a.salespersonName || '').localeCompare(b.salespersonName || ''))
+                    .map((user: any) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.salespersonName || user.fullName || user.username || 'Sin nombre'}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
