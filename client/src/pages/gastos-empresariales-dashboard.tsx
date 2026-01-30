@@ -202,48 +202,52 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
   };
 
   const { data: summary, isLoading: isLoadingSummary } = useQuery<GastosSummary>({
-    queryKey: ['/api/gastos-empresariales/analytics/summary', mes, anio],
+    queryKey: ['/api/gastos-empresariales/analytics/summary', mes, anio, usuarioFilter],
     queryFn: async () => {
-      const response = await fetch(
-        `/api/gastos-empresariales/analytics/summary?mes=${mes}&anio=${anio}`,
-        { credentials: 'include' }
-      );
+      let url = `/api/gastos-empresariales/analytics/summary?mes=${mes}&anio=${anio}`;
+      if (usuarioFilter !== 'todos') {
+        url += `&userId=${usuarioFilter}`;
+      }
+      const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Error al cargar resumen');
       return response.json();
     }
   });
 
   const { data: porCategoria = [], isLoading: isLoadingCategoria } = useQuery<GastosByCategoria[]>({
-    queryKey: ['/api/gastos-empresariales/analytics/por-categoria', mes, anio],
+    queryKey: ['/api/gastos-empresariales/analytics/por-categoria', mes, anio, usuarioFilter],
     queryFn: async () => {
-      const response = await fetch(
-        `/api/gastos-empresariales/analytics/por-categoria?mes=${mes}&anio=${anio}`,
-        { credentials: 'include' }
-      );
+      let url = `/api/gastos-empresariales/analytics/por-categoria?mes=${mes}&anio=${anio}`;
+      if (usuarioFilter !== 'todos') {
+        url += `&userId=${usuarioFilter}`;
+      }
+      const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Error al cargar datos por categoría');
       return response.json();
     }
   });
 
   const { data: porUsuario = [], isLoading: isLoadingUsuario } = useQuery<GastosByUser[]>({
-    queryKey: ['/api/gastos-empresariales/analytics/por-usuario', mes, anio],
+    queryKey: ['/api/gastos-empresariales/analytics/por-usuario', mes, anio, usuarioFilter],
     queryFn: async () => {
-      const response = await fetch(
-        `/api/gastos-empresariales/analytics/por-usuario?mes=${mes}&anio=${anio}`,
-        { credentials: 'include' }
-      );
+      let url = `/api/gastos-empresariales/analytics/por-usuario?mes=${mes}&anio=${anio}`;
+      if (usuarioFilter !== 'todos') {
+        url += `&userId=${usuarioFilter}`;
+      }
+      const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Error al cargar datos por usuario');
       return response.json();
     }
   });
 
   const { data: porDia = [], isLoading: isLoadingDia } = useQuery<GastosByDia[]>({
-    queryKey: ['/api/gastos-empresariales/analytics/por-dia', mes, anio],
+    queryKey: ['/api/gastos-empresariales/analytics/por-dia', mes, anio, usuarioFilter],
     queryFn: async () => {
-      const response = await fetch(
-        `/api/gastos-empresariales/analytics/por-dia?mes=${mes}&anio=${anio}`,
-        { credentials: 'include' }
-      );
+      let url = `/api/gastos-empresariales/analytics/por-dia?mes=${mes}&anio=${anio}`;
+      if (usuarioFilter !== 'todos') {
+        url += `&userId=${usuarioFilter}`;
+      }
+      const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Error al cargar datos por día');
       return response.json();
     }
