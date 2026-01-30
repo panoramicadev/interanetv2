@@ -51,6 +51,7 @@ import * as NotifyHelper from "./notifications-helper";
 import { format } from "date-fns";
 import { wrapEmailContent } from "./email-templates";
 import { getAuthUrl, handleCallback, getValidAccessToken, disconnectGmail, isOAuthConfigured, validateStateToken, sendEmailWithOAuth, testConnection, getConnectionStatus } from "./gmail-oauth";
+import { convertPdfToImage, isPdfFile } from "./pdf-to-image";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
@@ -410,7 +411,24 @@ export function registerRoutes(app: Express): Server {
       const objectStorageService = new ObjectStorageService();
       const fileUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
       console.log(`☁️ [UPLOAD] File uploaded: ${fileName} -> ${fileUrl}`);
-      res.json({ url: fileUrl });
+      
+      let previewUrl: string | null = null;
+      
+      if (isPdfFile(file.mimetype, file.originalname)) {
+        console.log(`📄 [UPLOAD] PDF detected, generating preview image...`);
+        try {
+          const previewBuffer = await convertPdfToImage(file.buffer, 600);
+          if (previewBuffer) {
+            const previewFileName = `upload-${timestamp}-${randomId}-preview.png`;
+            previewUrl = await objectStorageService.uploadImage(previewFileName, previewBuffer, 'image/png');
+            console.log(`🖼️ [UPLOAD] PDF preview generated: ${previewFileName} -> ${previewUrl}`);
+          }
+        } catch (previewError) {
+          console.warn('⚠️ [UPLOAD] Failed to generate PDF preview:', previewError);
+        }
+      }
+      
+      res.json({ url: fileUrl, previewUrl });
     } catch (error: any) {
       console.error('Error uploading file:', error);
       res.status(500).json({ message: 'Error al subir archivo', error: error.message });
@@ -15487,7 +15505,24 @@ export function registerRoutes(app: Express): Server {
       const objectStorageService = new ObjectStorageService();
       const imageUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
       console.log(`☁️ [GASTO-EVIDENCIA] Uploaded: ${fileName}`);
-      res.json({ url: imageUrl, fileName });
+      
+      let previewUrl: string | null = null;
+      
+      if (isPdfFile(file.mimetype, file.originalname)) {
+        console.log(`📄 [GASTO-EVIDENCIA] PDF detected, generating preview...`);
+        try {
+          const previewBuffer = await convertPdfToImage(file.buffer, 600);
+          if (previewBuffer) {
+            const previewFileName = `gastos/evidencia_${userIdShort}_${dateStr}_${randomId}_preview.png`;
+            previewUrl = await objectStorageService.uploadImage(previewFileName, previewBuffer, 'image/png');
+            console.log(`🖼️ [GASTO-EVIDENCIA] Preview generated: ${previewFileName}`);
+          }
+        } catch (previewError) {
+          console.warn('⚠️ [GASTO-EVIDENCIA] Failed to generate PDF preview:', previewError);
+        }
+      }
+      
+      res.json({ url: imageUrl, fileName, previewUrl });
     } catch (error: any) {
       console.error('Error uploading evidencia:', error);
       res.status(500).json({ message: 'Error al subir archivo', error: error.message });
@@ -15524,7 +15559,24 @@ export function registerRoutes(app: Express): Server {
       const objectStorageService = new ObjectStorageService();
       const imageUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
       console.log(`☁️ [FONDO-COMPROBANTE] Uploaded: ${fileName}`);
-      res.json({ url: imageUrl, fileName });
+      
+      let previewUrl: string | null = null;
+      
+      if (isPdfFile(file.mimetype, file.originalname)) {
+        console.log(`📄 [FONDO-COMPROBANTE] PDF detected, generating preview...`);
+        try {
+          const previewBuffer = await convertPdfToImage(file.buffer, 600);
+          if (previewBuffer) {
+            const previewFileName = `fondos/comprobante_${fundIdShort}_${dateStr}_${randomId}_preview.png`;
+            previewUrl = await objectStorageService.uploadImage(previewFileName, previewBuffer, 'image/png');
+            console.log(`🖼️ [FONDO-COMPROBANTE] Preview generated: ${previewFileName}`);
+          }
+        } catch (previewError) {
+          console.warn('⚠️ [FONDO-COMPROBANTE] Failed to generate PDF preview:', previewError);
+        }
+      }
+      
+      res.json({ url: imageUrl, fileName, previewUrl });
     } catch (error: any) {
       console.error('Error uploading comprobante de fondo:', error);
       res.status(500).json({ message: 'Error al subir archivo', error: error.message });

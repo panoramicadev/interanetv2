@@ -878,6 +878,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
       
       interface ImageInfo {
         url: string;
+        previewUrl?: string | null;
         type: 'gasto' | 'fondo';
         vendedor: string;
         monto: string;
@@ -897,6 +898,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         if (fondo.comprobanteUrl) {
           allImages.push({
             url: fondo.comprobanteUrl,
+            previewUrl: (fondo as any).comprobantePreviewUrl || null,
             type: 'fondo',
             vendedor: getUserName(fondo.assignedToId || ''),
             monto: formatCurrency(Number(fondo.montoInicial) || 0),
@@ -914,6 +916,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
           const esConFondo = gasto.fundingMode === 'con_fondo';
           allImages.push({
             url: gasto.comprobanteUrl,
+            previewUrl: (gasto as any).comprobantePreviewUrl || null,
             type: 'gasto',
             vendedor: getUserName(gasto.userId),
             monto: formatCurrency(Number(gasto.monto) || 0),
@@ -1074,35 +1077,53 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
             const imgMaxHeight = sectionHeight - 16;
             
             if (isPDF) {
-              const pdfImage = await pdfToImage(img.url, 400);
-              if (pdfImage) {
-                const imgObj = new Image();
-                await new Promise((resolve, reject) => {
-                  imgObj.onload = resolve;
-                  imgObj.onerror = reject;
-                  imgObj.src = pdfImage;
-                });
-                
-                let imgWidth = imgObj.width;
-                let imgHeight = imgObj.height;
-                
-                if (imgWidth > imageMaxWidth) {
-                  const ratio = imageMaxWidth / imgWidth;
-                  imgWidth = imageMaxWidth;
-                  imgHeight = imgHeight * ratio;
+              let pdfPreviewLoaded = false;
+              
+              const previewUrl = img.previewUrl || img.url.replace(/\.pdf$/i, '_preview.png');
+              
+              try {
+                const previewResponse = await fetch(previewUrl, { credentials: 'include' });
+                if (previewResponse.ok) {
+                  const previewBlob = await previewResponse.blob();
+                  const previewBase64 = await new Promise<string>((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.readAsDataURL(previewBlob);
+                  });
+                  
+                  const imgObj = new Image();
+                  await new Promise((resolve, reject) => {
+                    imgObj.onload = resolve;
+                    imgObj.onerror = reject;
+                    imgObj.src = previewBase64;
+                  });
+                  
+                  let imgWidth = imgObj.width;
+                  let imgHeight = imgObj.height;
+                  
+                  if (imgWidth > imageMaxWidth) {
+                    const ratio = imageMaxWidth / imgWidth;
+                    imgWidth = imageMaxWidth;
+                    imgHeight = imgHeight * ratio;
+                  }
+                  if (imgHeight > imgMaxHeight) {
+                    const ratio = imgMaxHeight / imgHeight;
+                    imgHeight = imgMaxHeight;
+                    imgWidth = imgWidth * ratio;
+                  }
+                  
+                  doc.addImage(previewBase64, 'PNG', imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
+                  doc.setFontSize(7);
+                  doc.setTextColor(100, 116, 139);
+                  doc.text('(Vista previa del PDF)', imageColumnStart, imgYPos + imgHeight + 4);
+                  doc.setTextColor(0, 0, 0);
+                  pdfPreviewLoaded = true;
                 }
-                if (imgHeight > imgMaxHeight) {
-                  const ratio = imgMaxHeight / imgHeight;
-                  imgHeight = imgMaxHeight;
-                  imgWidth = imgWidth * ratio;
-                }
-                
-                doc.addImage(pdfImage, 'PNG', imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
-                doc.setFontSize(7);
-                doc.setTextColor(100, 116, 139);
-                doc.text('(Primera página del PDF)', imageColumnStart, imgYPos + imgHeight + 4);
-                doc.setTextColor(0, 0, 0);
-              } else {
+              } catch (previewError) {
+                console.log('Preview not available, using fallback');
+              }
+              
+              if (!pdfPreviewLoaded) {
                 doc.setFontSize(9);
                 doc.setFont('helvetica', 'normal');
                 doc.text('Documento PDF:', imageColumnStart, imgYPos);
