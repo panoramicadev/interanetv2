@@ -256,6 +256,27 @@ export class ObjectStorageService {
     }
   }
 
+  // List files in a specific prefix (folder) within the bucket
+  async listFiles(prefix: string): Promise<{ name: string; url: string }[]> {
+    try {
+      const publicPath = this.getPublicObjectSearchPaths()[0];
+      const fullPath = `${publicPath}/${prefix}`;
+      
+      const { bucketName, objectName } = parseObjectPath(fullPath);
+      const bucket = objectStorageClient.bucket(bucketName);
+      
+      const [files] = await bucket.getFiles({ prefix: objectName });
+      
+      return files.map(file => ({
+        name: file.name,
+        url: `/public-objects/${file.name.replace(objectName.startsWith('/') ? objectName.slice(1) : '', prefix)}`
+      }));
+    } catch (error) {
+      console.error('Error listing files:', error);
+      return [];
+    }
+  }
+
   // Gets the object entity file from the object path.
   async getObjectEntityFile(objectPath: string): Promise<File> {
     if (!objectPath.startsWith("/objects/")) {
