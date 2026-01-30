@@ -42,7 +42,7 @@ import {
   emailLogs,
   smtpConfig
 } from "../shared/schema";
-import { eq, and, isNotNull, ne, sql, desc, or, sum, countDistinct } from "drizzle-orm";
+import { eq, and, isNotNull, isNull, ne, sql, desc, or, sum, countDistinct } from "drizzle-orm";
 import { emailService } from "./services/email";
 import { executeIncrementalETL, getETLStatus, updateETLConfig, etlProgressEmitter, sqlServerBreaker } from "./etl-incremental";
 import { executeGDVETL, gdvEtlProgressEmitter, gdvSqlServerBreaker } from "./etl-gdv";
@@ -19897,6 +19897,158 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         success: false,
         message: error.message || 'Error al enviar mensaje de prueba'
       });
+    }
+  }));
+
+  // Admin endpoint: Migrate existing PDFs to generate preview images
+  app.post('/api/admin/migrate-pdf-previews', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'Solo administradores pueden ejecutar migraciones' });
+      }
+      
+      const results: any[] = [];
+      const objectStorageService = new ObjectStorageService();
+      
+      // 1. Get PDFs from gastos_empresariales without preview
+      const gastosConPdf = await db
+        .select({
+          id: gastosEmpresariales.id,
+          archivoUrl: gastosEmpresariales.archivoUrl,
+          comprobantePreviewUrl: gastosEmpresariales.comprobantePreviewUrl,
+        })
+        .from(gastosEmpresariales)
+        .where(
+          and(
+            sql`${gastosEmpresariales.archivoUrl} ILIKE '%.pdf'`,
+            or(
+              isNull(gastosEmpresariales.comprobantePreviewUrl),
+              eq(gastosEmpresariales.comprobantePreviewUrl, '')
+            )
+          )
+        );
+      
+      console.log(`[MIGRATION] Found ${gastosConPdf.length} gastos with PDF without preview`);
+      
+      for (const gasto of gastosConPdf) {
+        try {
+          if (!gasto.archivoUrl) continue;
+          
+          // Download PDF from Object Storage
+          const pdfResponse = await fetch(`${req.protocol}://${req.get('host')}${gasto.archivoUrl}`, {
+            credentials: 'include'
+          });
+          
+          if (!pdfResponse.ok) {
+            results.push({ id: gasto.id, type: 'gasto', status: 'error', message: 'No se pudo descargar el PDF' });
+            continue;
+          }
+          
+          const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
+          
+          // Convert to image
+          const previewBuffer = await convertPdfToImage(pdfBuffer, 600);
+          
+          if (!previewBuffer) {
+            results.push({ id: gasto.id, type: 'gasto', status: 'error', message: 'No se pudo convertir el PDF' });
+            continue;
+          }
+          
+          // Upload preview image
+          const previewFileName = gasto.archivoUrl.replace(/\.pdf$/i, '_preview.png').replace(/^\/public-objects\//, '');
+          const previewUrl = await objectStorageService.uploadImage(previewFileName, previewBuffer, 'image/png');
+          
+          // Update database
+          await db
+            .update(gastosEmpresariales)
+            .set({ comprobantePreviewUrl: previewUrl })
+            .where(eq(gastosEmpresariales.id, gasto.id));
+          
+          results.push({ id: gasto.id, type: 'gasto', status: 'success', previewUrl });
+          console.log(`[MIGRATION] Gasto ${gasto.id} preview generated: ${previewUrl}`);
+        } catch (error: any) {
+          results.push({ id: gasto.id, type: 'gasto', status: 'error', message: error.message });
+          console.error(`[MIGRATION] Error processing gasto ${gasto.id}:`, error.message);
+        }
+      }
+      
+      // 2. Get PDFs from fund_allocations without preview
+      const fondosConPdf = await db
+        .select({
+          id: fundAllocations.id,
+          comprobanteUrl: fundAllocations.comprobanteUrl,
+          comprobantePreviewUrl: fundAllocations.comprobantePreviewUrl,
+        })
+        .from(fundAllocations)
+        .where(
+          and(
+            sql`${fundAllocations.comprobanteUrl} ILIKE '%.pdf'`,
+            or(
+              isNull(fundAllocations.comprobantePreviewUrl),
+              eq(fundAllocations.comprobantePreviewUrl, '')
+            )
+          )
+        );
+      
+      console.log(`[MIGRATION] Found ${fondosConPdf.length} fondos with PDF without preview`);
+      
+      for (const fondo of fondosConPdf) {
+        try {
+          if (!fondo.comprobanteUrl) continue;
+          
+          // Download PDF from Object Storage
+          const pdfResponse = await fetch(`${req.protocol}://${req.get('host')}${fondo.comprobanteUrl}`, {
+            credentials: 'include'
+          });
+          
+          if (!pdfResponse.ok) {
+            results.push({ id: fondo.id, type: 'fondo', status: 'error', message: 'No se pudo descargar el PDF' });
+            continue;
+          }
+          
+          const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
+          
+          // Convert to image
+          const previewBuffer = await convertPdfToImage(pdfBuffer, 600);
+          
+          if (!previewBuffer) {
+            results.push({ id: fondo.id, type: 'fondo', status: 'error', message: 'No se pudo convertir el PDF' });
+            continue;
+          }
+          
+          // Upload preview image
+          const previewFileName = fondo.comprobanteUrl.replace(/\.pdf$/i, '_preview.png').replace(/^\/public-objects\//, '');
+          const previewUrl = await objectStorageService.uploadImage(previewFileName, previewBuffer, 'image/png');
+          
+          // Update database
+          await db
+            .update(fundAllocations)
+            .set({ comprobantePreviewUrl: previewUrl })
+            .where(eq(fundAllocations.id, fondo.id));
+          
+          results.push({ id: fondo.id, type: 'fondo', status: 'success', previewUrl });
+          console.log(`[MIGRATION] Fondo ${fondo.id} preview generated: ${previewUrl}`);
+        } catch (error: any) {
+          results.push({ id: fondo.id, type: 'fondo', status: 'error', message: error.message });
+          console.error(`[MIGRATION] Error processing fondo ${fondo.id}:`, error.message);
+        }
+      }
+      
+      const successCount = results.filter(r => r.status === 'success').length;
+      const errorCount = results.filter(r => r.status === 'error').length;
+      
+      res.json({
+        message: `Migración completada: ${successCount} exitosos, ${errorCount} errores`,
+        totalProcessed: results.length,
+        successCount,
+        errorCount,
+        results
+      });
+    } catch (error: any) {
+      console.error('[MIGRATION] Error:', error);
+      res.status(500).json({ message: 'Error en la migración', error: error.message });
     }
   }));
 

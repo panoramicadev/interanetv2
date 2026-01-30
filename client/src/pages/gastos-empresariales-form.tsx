@@ -38,6 +38,7 @@ import {
 const formSchema = z.object({
   userId: z.string().min(1, "Debe seleccionar un vendedor"),
   archivoUrl: z.string().optional(),
+  comprobantePreviewUrl: z.string().optional().nullable(),
   monto: z.string().min(1, "El monto es requerido"),
   descripcion: z.string().min(1, "La descripción es requerida"),
   categoria: z.string().min(1, "La categoría es requerida"),
@@ -95,6 +96,7 @@ export default function GastosEmpresarialesForm() {
     defaultValues: {
       userId: "",
       archivoUrl: "",
+      comprobantePreviewUrl: "",
       monto: "",
       descripcion: "",
       categoria: "",
@@ -201,6 +203,9 @@ export default function GastosEmpresarialesForm() {
 
       const data = await response.json();
       form.setValue('archivoUrl', data.url);
+      if (data.previewUrl) {
+        form.setValue('comprobantePreviewUrl', data.previewUrl);
+      }
       setUploadedFile(file);
       toast({
         title: "Archivo subido",
@@ -290,6 +295,7 @@ export default function GastosEmpresarialesForm() {
   const handleFileRemove = () => {
     setUploadedFile(null);
     form.setValue('archivoUrl', '');
+    form.setValue('comprobantePreviewUrl', '');
   };
 
   const onSubmit = (data: FormValues) => {
