@@ -134,3 +134,19 @@ curl -X GET "https://your-domain.replit.app/external-api/dashboard?period=2025-0
 - `server/routes-external.ts` - All external API endpoints
 - `server/middleware/api-auth.ts` - API key validation middleware
 - `shared/schema.ts` - apiKeys table schema
+
+## Expense Management Module (January 2026)
+
+### Supervisor Permissions
+- Supervisors now have the same data visibility as admin/RRHH roles across expense endpoints
+- Only `salesperson` role is restricted to their own data
+- Affected endpoints: `/api/gastos-empresariales`, analytics endpoints (`/summary`, `/por-categoria`, `/por-usuario`, `/por-dia`)
+
+### PDF Report Generation
+- **Image Rotation**: Horizontal receipt images (width > height) are automatically rotated 90° clockwise to vertical orientation for better PDF readability
+- **Format Handling**: After rotation, image format is re-inferred from the final base64 to ensure jsPDF compatibility
+- **Attachment Types**: Both `archivoUrl` (invoice/receipt) and `comprobanteUrl` (transfer receipt) are included with appropriate labels
+
+### User Filtering
+- Dashboard user dropdown shows all users with expenses in the selected period (from `porUsuario` data)
+- Users are sorted alphabetically by name
