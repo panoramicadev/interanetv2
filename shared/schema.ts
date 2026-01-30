@@ -4642,6 +4642,7 @@ export const fundAllocations = pgTable("fund_allocations", {
   fechaTermino: date("fecha_termino"),
   estado: varchar("estado", { length: 50 }).notNull().default("pendiente_aprobacion"), // pendiente_aprobacion, activo, cerrado, rechazado
   comprobanteUrl: varchar("comprobante_url", { length: 500 }), // URL del comprobante de transferencia (para aprobar)
+  comprobantePreviewUrl: varchar("comprobante_preview_url", { length: 500 }), // URL de preview imagen (para PDFs)
   motivoRechazo: text("motivo_rechazo"), // Motivo del rechazo (si es rechazado)
   aprobadoPorId: varchar("aprobado_por_id"), // Usuario que aprobó/rechazó
   fechaAprobacion: timestamp("fecha_aprobacion"), // Fecha de aprobación/rechazo
@@ -4830,6 +4831,7 @@ export const gastosEmpresariales = pgTable("gastos_empresariales", {
   fechaAprobacionRrhh: timestamp("fecha_aprobacion_rrhh"),
   comentarioRrhh: text("comentario_rrhh"),
   comprobanteUrl: varchar("comprobante_url", { length: 500 }), // Comprobante de transferencia para reembolso
+  comprobantePreviewUrl: varchar("comprobante_preview_url", { length: 500 }), // URL de preview imagen (para PDFs)
   segmentCode: varchar("segment_code", { length: 50 }), // Segmento para determinar supervisor
   // Campos de integración con Gestión de Fondos
   fundingMode: varchar("funding_mode", { length: 50 }).default("reembolso"), // 'con_fondo' o 'reembolso'
