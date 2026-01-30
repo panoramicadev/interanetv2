@@ -1824,7 +1824,7 @@ export interface IStorage {
   getFundAllocationById(id: string): Promise<FundAllocation | undefined>;
   updateFundAllocation(id: string, updates: Partial<InsertFundAllocation>): Promise<FundAllocation>;
   closeFundAllocation(id: string): Promise<FundAllocation>;
-  approveFundAllocation(id: string, comprobanteUrl: string, aprobadoPorId: string): Promise<FundAllocation>;
+  approveFundAllocation(id: string, comprobanteUrl: string, aprobadoPorId: string, comprobantePreviewUrl?: string | null): Promise<FundAllocation>;
   rejectFundAllocation(id: string, motivoRechazo: string, rechazadoPorId: string): Promise<FundAllocation>;
   deleteFundAllocation(id: string): Promise<void>;
   
@@ -20015,13 +20015,14 @@ export class DatabaseStorage implements IStorage {
     return closed;
   }
 
-  async approveFundAllocation(id: string, comprobanteUrl: string, aprobadoPorId: string): Promise<FundAllocation> {
+  async approveFundAllocation(id: string, comprobanteUrl: string, aprobadoPorId: string, comprobantePreviewUrl?: string | null): Promise<FundAllocation> {
     const [approved] = await db
       .update(fundAllocations)
       .set({ 
         estado: 'activo', 
         estadoAprobacion: 'aprobado',
         comprobanteUrl,
+        comprobantePreviewUrl: comprobantePreviewUrl || null,
         aprobadoPorId,
         rrhhAprobadorId: aprobadoPorId,
         fechaAprobacion: new Date(),

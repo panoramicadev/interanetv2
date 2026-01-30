@@ -264,10 +264,10 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
   });
 
   const approveMutation = useMutation({
-    mutationFn: async ({ allocationId, comprobanteUrl }: { allocationId: string; comprobanteUrl: string }) => {
+    mutationFn: async ({ allocationId, comprobanteUrl, comprobantePreviewUrl }: { allocationId: string; comprobanteUrl: string; comprobantePreviewUrl?: string | null }) => {
       return apiRequest(`/api/fund-allocations/${allocationId}/approve`, {
         method: 'POST',
-        data: { comprobanteUrl },
+        data: { comprobanteUrl, comprobantePreviewUrl },
       });
     },
     onSuccess: () => {
@@ -469,6 +469,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
       
       const uploadResult = await uploadResponse.json();
       const comprobanteUrlUploaded = uploadResult.url;
+      const comprobantePreviewUrlUploaded = uploadResult.previewUrl || null;
       
       // Crear el fondo con estado activo (aprobado) y comprobante
       await apiRequest('/api/fund-allocations', {
@@ -481,6 +482,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
           fechaTermino: data.fechaTermino || null,
           estado: 'activo',
           comprobanteUrl: comprobanteUrlUploaded,
+          comprobantePreviewUrl: comprobantePreviewUrlUploaded,
         },
       });
       
@@ -538,9 +540,10 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
       const uploadResult = await uploadResponse.json();
       console.log('[handleApprove] Upload result:', uploadResult);
       const comprobanteUrl = uploadResult.url;
+      const comprobantePreviewUrl = uploadResult.previewUrl || null;
       
-      console.log('[handleApprove] Calling approve mutation:', { allocationId: selectedAllocation.id, comprobanteUrl });
-      approveMutation.mutate({ allocationId: selectedAllocation.id, comprobanteUrl });
+      console.log('[handleApprove] Calling approve mutation:', { allocationId: selectedAllocation.id, comprobanteUrl, comprobantePreviewUrl });
+      approveMutation.mutate({ allocationId: selectedAllocation.id, comprobanteUrl, comprobantePreviewUrl });
     } catch (error: any) {
       console.error('[handleApprove] Error:', error);
       toast({
