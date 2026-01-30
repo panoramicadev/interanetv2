@@ -16162,6 +16162,24 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     }
   }));
 
+  // Get ALL users who have ANY expense (for dropdown filter)
+  app.get('/api/gastos-empresariales/analytics/usuarios', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only admin, recursos_humanos and supervisor can see all users
+      if (!['admin', 'recursos_humanos', 'supervisor'].includes(user.role)) {
+        // For other roles, just return their own user info
+        return res.json([{ userId: user.id, userName: user.fullName || user.username }]);
+      }
+      
+      const data = await storage.getAllUsersWithGastos();
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener lista de usuarios', error: error.message });
+    }
+  }));
+
   // Get gastos by user (admin/recursos_humanos/supervisor can see all)
   app.get('/api/gastos-empresariales/analytics/por-usuario', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
