@@ -170,6 +170,11 @@ export default function GastosEmpresarialesForm() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales'] });
+      // Invalidar todos los analytics para actualizar el dropdown de usuarios y gráficos
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics/usuarios'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics/por-usuario'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics/summary'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics/por-categoria'] });
       toast({
         title: "Gasto creado",
         description: "El gasto ha sido registrado correctamente",

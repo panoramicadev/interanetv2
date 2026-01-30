@@ -1798,6 +1798,10 @@ export interface IStorage {
     total: number;
     cantidad: number;
   }>>;
+  getAllUsersWithGastos(): Promise<Array<{
+    userId: string;
+    userName: string;
+  }>>;
   getGastosEmpresarialesByDia(filters?: {
     userId?: string;
     mes?: number;
@@ -19836,6 +19840,27 @@ export class DatabaseStorage implements IStorage {
       userName: r.userName || 'Usuario Desconocido',
       total: parseFloat(r.total as any) || 0,
       cantidad: parseInt(r.cantidad as any) || 0,
+    }));
+  }
+
+  async getAllUsersWithGastos(): Promise<Array<{
+    userId: string;
+    userName: string;
+  }>> {
+    // Get ALL unique users who have ANY expense (any status, any date)
+    const results = await db
+      .selectDistinct({
+        userId: gastosEmpresariales.userId,
+        userName: sql<string>`COALESCE(${users.firstName} || ' ' || ${users.lastName}, ${salespeopleUsers.salespersonName}, 'Usuario Desconocido')`,
+      })
+      .from(gastosEmpresariales)
+      .leftJoin(users, eq(gastosEmpresariales.userId, users.id))
+      .leftJoin(salespeopleUsers, eq(gastosEmpresariales.userId, salespeopleUsers.id))
+      .orderBy(sql`COALESCE(${users.firstName} || ' ' || ${users.lastName}, ${salespeopleUsers.salespersonName}, 'Usuario Desconocido')`);
+
+    return results.map(r => ({
+      userId: r.userId,
+      userName: r.userName || 'Usuario Desconocido',
     }));
   }
 

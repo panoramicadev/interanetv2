@@ -326,6 +326,8 @@ export default function GastosEmpresariales() {
       queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales'] });
       queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/reembolsos/pendientes-rrhh'] });
       queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/reembolsos/pendientes-supervisor'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics/usuarios'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics/por-usuario'] });
       toast({
         title: "Gasto aprobado",
         description: "El gasto ha sido aprobado correctamente",
@@ -370,6 +372,8 @@ export default function GastosEmpresariales() {
       queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales'] });
       queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/reembolsos/pendientes-rrhh'] });
       queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/reembolsos/pendientes-supervisor'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics/usuarios'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics/por-usuario'] });
       toast({
         title: "Gasto rechazado",
         description: "El gasto ha sido rechazado",
@@ -396,6 +400,8 @@ export default function GastosEmpresariales() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics/usuarios'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics/por-usuario'] });
       toast({
         title: "Gasto eliminado",
         description: "El gasto ha sido eliminado correctamente",
