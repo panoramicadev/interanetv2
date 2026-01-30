@@ -15775,9 +15775,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       
       const filters: any = {};
       
-      // Salesperson and supervisor can only see their own expenses
-      // recursos_humanos and admin can see all and filter by userId
-      if (user.role === 'salesperson' || user.role === 'supervisor') {
+      // Salesperson can only see their own expenses
+      // Supervisor, recursos_humanos and admin can see all and filter by userId
+      if (user.role === 'salesperson') {
         filters.userId = user.id;
       } else if (userId) {
         filters.userId = userId;
@@ -16118,8 +16118,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       
       const filters: any = {};
       
-      // Salesperson and supervisor can only see their own summary
-      if (user.role === 'salesperson' || user.role === 'supervisor') {
+      // Salesperson can only see their own summary
+      // Supervisor, recursos_humanos and admin can see all
+      if (user.role === 'salesperson') {
         filters.userId = user.id;
       } else if (userId) {
         filters.userId = userId;
@@ -16143,8 +16144,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       
       const filters: any = {};
       
-      // Salesperson and supervisor can only see their own analytics
-      if (user.role === 'salesperson' || user.role === 'supervisor') {
+      // Salesperson can only see their own analytics
+      // Supervisor, recursos_humanos and admin can see all
+      if (user.role === 'salesperson') {
         filters.userId = user.id;
       } else if (userId) {
         filters.userId = userId;
@@ -16160,7 +16162,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     }
   }));
 
-  // Get gastos by user (admin/recursos_humanos only - supervisors see only their own)
+  // Get gastos by user (admin/recursos_humanos/supervisor can see all)
   app.get('/api/gastos-empresariales/analytics/por-usuario', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
@@ -16168,13 +16170,14 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       
       const filters: any = {};
       
-      // Supervisors and salespersons can only see their own data
-      if (user.role === 'supervisor' || user.role === 'salesperson') {
+      // Salesperson can only see their own data
+      // Supervisor, recursos_humanos and admin can see all
+      if (user.role === 'salesperson') {
         filters.userId = user.id;
-      } else if (!['admin', 'recursos_humanos'].includes(user.role)) {
+      } else if (!['admin', 'recursos_humanos', 'supervisor'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       } else if (userId) {
-        // Admin/HR can filter by specific user
+        // Admin/HR/Supervisor can filter by specific user
         filters.userId = userId;
       }
       
@@ -16196,8 +16199,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       
       const filters: any = {};
       
-      // Salesperson and supervisor can only see their own analytics
-      if (user.role === 'salesperson' || user.role === 'supervisor') {
+      // Salesperson can only see their own analytics
+      // Supervisor, recursos_humanos and admin can see all
+      if (user.role === 'salesperson') {
         filters.userId = user.id;
       } else if (userId) {
         filters.userId = userId;

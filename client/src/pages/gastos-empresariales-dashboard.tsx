@@ -63,6 +63,43 @@ import * as pdfjsLib from 'pdfjs-dist';
 // This avoids dynamic import issues in production builds
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
+// Function to rotate horizontal image to vertical orientation using canvas
+async function rotateHorizontalToVertical(imgObj: HTMLImageElement, base64: string): Promise<{ rotated: string; width: number; height: number }> {
+  const isHorizontal = imgObj.width > imgObj.height;
+  
+  if (!isHorizontal) {
+    // Image is already vertical or square, return as-is
+    return { rotated: base64, width: imgObj.width, height: imgObj.height };
+  }
+  
+  // Create canvas and rotate image 90 degrees clockwise
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return { rotated: base64, width: imgObj.width, height: imgObj.height };
+  }
+  
+  // Swap dimensions for rotation
+  canvas.width = imgObj.height;
+  canvas.height = imgObj.width;
+  
+  // Rotate 90 degrees clockwise
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate(90 * Math.PI / 180);
+  ctx.drawImage(imgObj, -imgObj.width / 2, -imgObj.height / 2);
+  
+  // Determine output format
+  let outputFormat = 'image/jpeg';
+  if (base64.includes('data:image/png')) {
+    outputFormat = 'image/png';
+  } else if (base64.includes('data:image/webp')) {
+    outputFormat = 'image/webp';
+  }
+  
+  const rotatedBase64 = canvas.toDataURL(outputFormat, 0.92);
+  return { rotated: rotatedBase64, width: canvas.width, height: canvas.height };
+}
+
 // Function to convert first page of PDF to base64 image
 async function pdfToImage(pdfUrl: string, width: number = 400): Promise<string | null> {
   try {
@@ -1219,8 +1256,20 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
                 imgObj.src = base64;
               });
               
-              let imgWidth = imgObj.width;
-              let imgHeight = imgObj.height;
+              // Rotate horizontal images to vertical orientation for better PDF readability
+              const { rotated: finalBase64, width: rotatedWidth, height: rotatedHeight } = 
+                await rotateHorizontalToVertical(imgObj, base64);
+              
+              // Re-infer format from the final base64 to ensure correct jsPDF format
+              let finalImgFormat: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
+              if (finalBase64.includes('data:image/png')) {
+                finalImgFormat = 'PNG';
+              } else if (finalBase64.includes('data:image/webp')) {
+                finalImgFormat = 'WEBP';
+              }
+              
+              let imgWidth = rotatedWidth;
+              let imgHeight = rotatedHeight;
               
               if (imgWidth > imageMaxWidth) {
                 const ratio = imageMaxWidth / imgWidth;
@@ -1233,7 +1282,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
                 imgWidth = imgWidth * ratio;
               }
               
-              doc.addImage(base64, imgFormat, imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
+              doc.addImage(finalBase64, finalImgFormat, imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
             }
             
             yPos = sectionStartY + sectionHeight + 8;
@@ -1420,12 +1469,11 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos los usuarios</SelectItem>
-                  {allUsers
-                    .filter((u: any) => u.role === 'salesperson')
-                    .sort((a: any, b: any) => (a.salespersonName || '').localeCompare(b.salespersonName || ''))
+                  {porUsuario
+                    .sort((a: any, b: any) => (a.userName || '').localeCompare(b.userName || ''))
                     .map((user: any) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.salespersonName || user.fullName || user.username || 'Sin nombre'}
+                      <SelectItem key={user.userId} value={user.userId}>
+                        {user.userName || 'Sin nombre'}
                       </SelectItem>
                     ))}
                 </SelectContent>
