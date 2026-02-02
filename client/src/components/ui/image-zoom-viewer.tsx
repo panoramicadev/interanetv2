@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ZoomIn, ZoomOut, RotateCcw, RotateCw, Move } from "lucide-react";
+import { ZoomIn, ZoomOut, RotateCw, Move, Home } from "lucide-react";
 
 interface ImageZoomViewerProps {
   src: string;
@@ -124,8 +124,8 @@ export function ImageZoomViewer({ src, alt = "Image", className = "" }: ImageZoo
     <div className={`space-y-2 ${className}`}>
       <div 
         ref={containerRef}
-        className="relative overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800 select-none"
-        style={{ minHeight: '200px', maxHeight: '60vh' }}
+        className="relative overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800 select-none flex items-center justify-center"
+        style={{ minHeight: '200px', maxHeight: '65vh' }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -138,7 +138,7 @@ export function ImageZoomViewer({ src, alt = "Image", className = "" }: ImageZoo
           src={src}
           alt={alt}
           draggable={false}
-          className="w-full h-auto object-contain transition-transform duration-150"
+          className="max-w-full max-h-[65vh] object-contain transition-transform duration-150"
           style={{
             transform: `rotate(${rotation}deg) scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
             cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default',
@@ -194,9 +194,10 @@ export function ImageZoomViewer({ src, alt = "Image", className = "" }: ImageZoo
           variant="ghost"
           onClick={handleReset}
           disabled={scale === 1 && position.x === 0 && position.y === 0 && rotation === 0}
+          title="Restablecer vista"
           data-testid="button-zoom-reset"
         >
-          <RotateCcw className="h-4 w-4" />
+          <Home className="h-4 w-4" />
         </Button>
       </div>
     </div>
