@@ -19847,21 +19847,43 @@ export class DatabaseStorage implements IStorage {
     userId: string;
     userName: string;
   }>> {
-    // Get ALL unique users who have ANY expense (any status, any date)
-    const results = await db
+    // Get ALL unique users who have ANY expense OR any fund allocation (any status, any date)
+    // Use two queries and merge results
+    const usersWithExpenses = await db
       .selectDistinct({
         userId: gastosEmpresariales.userId,
         userName: sql<string>`COALESCE(${users.firstName} || ' ' || ${users.lastName}, ${salespeopleUsers.salespersonName}, 'Usuario Desconocido')`,
       })
       .from(gastosEmpresariales)
       .leftJoin(users, eq(gastosEmpresariales.userId, users.id))
-      .leftJoin(salespeopleUsers, eq(gastosEmpresariales.userId, salespeopleUsers.id))
-      .orderBy(sql`COALESCE(${users.firstName} || ' ' || ${users.lastName}, ${salespeopleUsers.salespersonName}, 'Usuario Desconocido')`);
+      .leftJoin(salespeopleUsers, eq(gastosEmpresariales.userId, salespeopleUsers.id));
 
-    return results.map(r => ({
-      userId: r.userId,
-      userName: r.userName || 'Usuario Desconocido',
-    }));
+    const usersWithFunds = await db
+      .selectDistinct({
+        userId: fundAllocations.assignedToId,
+        userName: sql<string>`COALESCE(${users.firstName} || ' ' || ${users.lastName}, ${salespeopleUsers.salespersonName}, 'Usuario Desconocido')`,
+      })
+      .from(fundAllocations)
+      .leftJoin(users, eq(fundAllocations.assignedToId, users.id))
+      .leftJoin(salespeopleUsers, eq(fundAllocations.assignedToId, salespeopleUsers.id));
+
+    // Merge and deduplicate by userId
+    const userMap = new Map<string, string>();
+    for (const u of usersWithExpenses) {
+      userMap.set(u.userId, u.userName || 'Usuario Desconocido');
+    }
+    for (const u of usersWithFunds) {
+      if (!userMap.has(u.userId)) {
+        userMap.set(u.userId, u.userName || 'Usuario Desconocido');
+      }
+    }
+
+    // Convert to array and sort alphabetically
+    const results = Array.from(userMap.entries())
+      .map(([userId, userName]) => ({ userId, userName }))
+      .sort((a, b) => a.userName.localeCompare(b.userName));
+
+    return results;
   }
 
   async getGastosEmpresarialesByDia(filters?: {
