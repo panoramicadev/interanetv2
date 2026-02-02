@@ -66,14 +66,23 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
 // Tesseract worker singleton for OCR
 let tesseractWorker: Tesseract.Worker | null = null;
+let tesseractInitFailed = false;
 
-async function getTesseractWorker(): Promise<Tesseract.Worker> {
+async function getTesseractWorker(): Promise<Tesseract.Worker | null> {
+  if (tesseractInitFailed) return null;
+  
   if (!tesseractWorker) {
-    // Use local language data to avoid CDN dependency issues in production
-    tesseractWorker = await Tesseract.createWorker('spa', 1, {
-      langPath: '/tesseract',
-      logger: () => {} // Silent
-    });
+    try {
+      // Use local language data to avoid CDN dependency issues in production
+      tesseractWorker = await Tesseract.createWorker('spa', 1, {
+        langPath: '/tesseract',
+        logger: () => {} // Silent
+      });
+    } catch (e) {
+      console.error('Tesseract initialization failed:', e);
+      tesseractInitFailed = true;
+      return null;
+    }
   }
   return tesseractWorker;
 }
@@ -168,6 +177,12 @@ function rotateCanvas(sourceCanvas: HTMLCanvasElement, degrees: number): HTMLCan
 async function findBestRotationWithOCR(sourceCanvas: HTMLCanvasElement): Promise<{ rotation: number; confidence: number }> {
   try {
     const worker = await getTesseractWorker();
+    
+    // If Tesseract failed to initialize, return default
+    if (!worker) {
+      console.log('OCR unavailable, using default orientation');
+      return { rotation: 0, confidence: 0 };
+    }
     
     // Scale down for faster OCR (max 600px on longest side)
     const maxDim = 600;
