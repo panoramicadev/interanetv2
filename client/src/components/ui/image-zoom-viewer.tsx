@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ZoomIn, ZoomOut, RotateCcw, Move } from "lucide-react";
+import { ZoomIn, ZoomOut, RotateCcw, RotateCw, Move } from "lucide-react";
 
 interface ImageZoomViewerProps {
   src: string;
@@ -14,6 +14,7 @@ export function ImageZoomViewer({ src, alt = "Image", className = "" }: ImageZoo
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [rotation, setRotation] = useState(0);
 
   const MIN_SCALE = 1;
   const MAX_SCALE = 4;
@@ -36,21 +37,11 @@ export function ImageZoomViewer({ src, alt = "Image", className = "" }: ImageZoo
   const handleReset = useCallback(() => {
     setScale(1);
     setPosition({ x: 0, y: 0 });
+    setRotation(0);
   }, []);
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    if (e.deltaY < 0) {
-      setScale(prev => Math.min(prev + SCALE_STEP * 0.5, MAX_SCALE));
-    } else {
-      setScale(prev => {
-        const newScale = Math.max(prev - SCALE_STEP * 0.5, MIN_SCALE);
-        if (newScale === MIN_SCALE) {
-          setPosition({ x: 0, y: 0 });
-        }
-        return newScale;
-      });
-    }
+  const handleRotate = useCallback(() => {
+    setRotation(prev => (prev + 90) % 360);
   }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -135,7 +126,6 @@ export function ImageZoomViewer({ src, alt = "Image", className = "" }: ImageZoo
         ref={containerRef}
         className="relative overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800 select-none"
         style={{ minHeight: '200px', maxHeight: '60vh' }}
-        onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -150,8 +140,8 @@ export function ImageZoomViewer({ src, alt = "Image", className = "" }: ImageZoo
           draggable={false}
           className="w-full h-auto object-contain transition-transform duration-150"
           style={{
-            transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
-            cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in',
+            transform: `rotate(${rotation}deg) scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
+            cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default',
           }}
           data-testid="img-zoom-viewer"
         />
@@ -191,9 +181,19 @@ export function ImageZoomViewer({ src, alt = "Image", className = "" }: ImageZoo
         
         <Button
           size="sm"
+          variant="outline"
+          onClick={handleRotate}
+          title="Rotar imagen 90°"
+          data-testid="button-rotate"
+        >
+          <RotateCw className="h-4 w-4" />
+        </Button>
+        
+        <Button
+          size="sm"
           variant="ghost"
           onClick={handleReset}
-          disabled={scale === 1 && position.x === 0 && position.y === 0}
+          disabled={scale === 1 && position.x === 0 && position.y === 0 && rotation === 0}
           data-testid="button-zoom-reset"
         >
           <RotateCcw className="h-4 w-4" />

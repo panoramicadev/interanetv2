@@ -19491,11 +19491,15 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (filters?.fechaDesde) {
-      conditions.push(gte(gastosEmpresariales.createdAt, new Date(filters.fechaDesde)));
+      conditions.push(
+        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) >= ${new Date(filters.fechaDesde)}`
+      );
     }
 
     if (filters?.fechaHasta) {
-      conditions.push(lte(gastosEmpresariales.createdAt, new Date(filters.fechaHasta)));
+      conditions.push(
+        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) <= ${new Date(filters.fechaHasta)}`
+      );
     }
 
     if (filters?.categoria) {
@@ -19708,10 +19712,10 @@ export class DatabaseStorage implements IStorage {
       const startDate = new Date(filters.anio, filters.mes - 1, 1);
       const endDate = new Date(filters.anio, filters.mes, 0, 23, 59, 59);
       conditions.push(
-        and(
-          gte(gastosEmpresariales.createdAt, startDate),
-          lte(gastosEmpresariales.createdAt, endDate)
-        )
+        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) >= ${startDate}`
+      );
+      conditions.push(
+        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) <= ${endDate}`
       );
     }
 
@@ -19773,10 +19777,10 @@ export class DatabaseStorage implements IStorage {
       const startDate = new Date(filters.anio, filters.mes - 1, 1);
       const endDate = new Date(filters.anio, filters.mes, 0, 23, 59, 59);
       conditions.push(
-        and(
-          gte(gastosEmpresariales.createdAt, startDate),
-          lte(gastosEmpresariales.createdAt, endDate)
-        )
+        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) >= ${startDate}`
+      );
+      conditions.push(
+        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) <= ${endDate}`
       );
     }
 
@@ -19812,10 +19816,10 @@ export class DatabaseStorage implements IStorage {
       const startDate = new Date(filters.anio, filters.mes - 1, 1);
       const endDate = new Date(filters.anio, filters.mes, 0, 23, 59, 59);
       conditions.push(
-        and(
-          gte(gastosEmpresariales.createdAt, startDate),
-          lte(gastosEmpresariales.createdAt, endDate)
-        )
+        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) >= ${startDate}`
+      );
+      conditions.push(
+        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) <= ${endDate}`
       );
     }
 
@@ -19905,10 +19909,10 @@ export class DatabaseStorage implements IStorage {
       const startDate = new Date(filters.anio, filters.mes - 1, 1);
       const endDate = new Date(filters.anio, filters.mes, 0, 23, 59, 59);
       conditions.push(
-        and(
-          gte(gastosEmpresariales.createdAt, startDate),
-          lte(gastosEmpresariales.createdAt, endDate)
-        )
+        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) >= ${startDate}`
+      );
+      conditions.push(
+        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) <= ${endDate}`
       );
     }
 
