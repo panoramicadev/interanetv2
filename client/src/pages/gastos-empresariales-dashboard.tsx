@@ -63,6 +63,64 @@ import * as pdfjsLib from 'pdfjs-dist';
 // This avoids dynamic import issues in production builds
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
+// Function to rotate horizontal images to vertical orientation for better PDF readability
+// Receipts are typically vertical - if image is horizontal (width > height), rotate it 90° clockwise
+async function rotateImageIfNeeded(base64: string): Promise<{ base64: string; format: 'JPEG' | 'PNG' | 'WEBP' }> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      // If image is horizontal (wider than tall), rotate it 90° clockwise
+      if (img.width > img.height) {
+        const canvas = document.createElement('canvas');
+        // Swap dimensions for rotation
+        canvas.width = img.height;
+        canvas.height = img.width;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          // Rotate 90° clockwise
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate(Math.PI / 2);
+          ctx.drawImage(img, -img.width / 2, -img.height / 2);
+          
+          // Determine output format
+          let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
+          let mimeType = 'image/jpeg';
+          if (base64.includes('data:image/png')) {
+            format = 'PNG';
+            mimeType = 'image/png';
+          } else if (base64.includes('data:image/webp')) {
+            format = 'WEBP';
+            mimeType = 'image/webp';
+          }
+          
+          resolve({ base64: canvas.toDataURL(mimeType, 0.92), format });
+          return;
+        }
+      }
+      
+      // Image is already vertical or couldn't rotate, return original
+      let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
+      if (base64.includes('data:image/png')) {
+        format = 'PNG';
+      } else if (base64.includes('data:image/webp')) {
+        format = 'WEBP';
+      }
+      resolve({ base64, format });
+    };
+    img.onerror = () => {
+      // On error, return original
+      let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
+      if (base64.includes('data:image/png')) {
+        format = 'PNG';
+      } else if (base64.includes('data:image/webp')) {
+        format = 'WEBP';
+      }
+      resolve({ base64, format });
+    };
+    img.src = base64;
+  });
+}
+
 // Function to convert first page of PDF to base64 image
 async function pdfToImage(pdfUrl: string, width: number = 400): Promise<string | null> {
   try {
@@ -1210,18 +1268,15 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
               const response = await fetch(absoluteUrl, { credentials: 'include' });
               if (!response.ok) throw new Error(`HTTP ${response.status} - ${absoluteUrl}`);
               const blob = await response.blob();
-              const base64 = await new Promise<string>((resolve) => {
+              const originalBase64 = await new Promise<string>((resolve) => {
                 const reader = new FileReader();
                 reader.onloadend = () => resolve(reader.result as string);
                 reader.readAsDataURL(blob);
               });
               
-              let imgFormat: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
-              if (base64.includes('data:image/png')) {
-                imgFormat = 'PNG';
-              } else if (base64.includes('data:image/webp')) {
-                imgFormat = 'WEBP';
-              }
+              // Rotate horizontal images to vertical for better readability
+              // Receipts are typically photographed vertically - if horizontal, rotate 90°
+              const { base64, format: imgFormat } = await rotateImageIfNeeded(originalBase64);
               
               const imgObj = new Image();
               await new Promise((resolve, reject) => {
@@ -1230,8 +1285,6 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
                 imgObj.src = base64;
               });
               
-              // Use original image dimensions - no rotation needed
-              // Modern devices already provide correctly oriented images
               let imgWidth = imgObj.width;
               let imgHeight = imgObj.height;
               

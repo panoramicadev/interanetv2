@@ -147,7 +147,11 @@ curl -X GET "https://your-domain.replit.app/external-api/dashboard?period=2025-0
 - **Attachment Types**: Both `archivoUrl` (invoice/receipt) and `comprobanteUrl` (transfer receipt) are included with appropriate labels
 
 ### User Filtering
-- **NEW Endpoint**: `/api/gastos-empresariales/analytics/usuarios` returns ALL unique users with ANY expense (any status, any date)
-- Dashboard user dropdown uses this endpoint to always show complete list of users with expenses
+- **NEW Endpoint**: `/api/gastos-empresariales/analytics/usuarios` returns ALL unique users with ANY expense (any status, any date) OR with assigned funds
+- Dashboard user dropdown uses this endpoint to always show complete list of users with expenses or funds
 - Users are sorted alphabetically by name
 - Cache invalidation is properly configured across all mutations (create, approve, reject, delete)
+
+### Image Orientation in PDFs
+- Horizontal images (width > height) are automatically rotated 90° clockwise to vertical orientation
+- This ensures receipts and invoices are displayed with horizontal text for readability
