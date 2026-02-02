@@ -745,8 +745,8 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
           startY: yPos,
           head: [['Fecha Inicio', 'Fecha Término', 'Monto', 'Estado', 'Asignado Por']],
           body: fondosData.map(f => [
-            formatFullDate((f as any).fecha_inicio || f.createdAt as any),
-            formatFullDate((f as any).fecha_termino || f.createdAt as any),
+            formatFullDate(f.fechaInicio || f.createdAt as any),
+            formatFullDate(f.fechaTermino || f.createdAt as any),
             formatCurrency(Number(f.montoInicial) || 0),
             f.estado || '-',
             (f as any).assignedByName || getUserName(f.assignedById) || '-'
@@ -913,6 +913,8 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         vendedor: string;
         monto: string;
         fecha: string;
+        fechaInicio?: string;
+        fechaTermino?: string;
         financiamiento: string;
         descripcion?: string;
         categoria?: string;
@@ -926,15 +928,17 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
       
       for (const fondo of fondosData) {
         if (fondo.comprobanteUrl) {
-          const fechaInicio = (fondo as any).fecha_inicio ? formatFullDate((fondo as any).fecha_inicio) : '-';
-          const fechaTermino = (fondo as any).fecha_termino ? formatFullDate((fondo as any).fecha_termino) : '-';
+          const fechaInicio = fondo.fechaInicio ? formatFullDate(fondo.fechaInicio) : '-';
+          const fechaTermino = fondo.fechaTermino ? formatFullDate(fondo.fechaTermino) : '-';
           allImages.push({
             url: fondo.comprobanteUrl,
             previewUrl: (fondo as any).comprobantePreviewUrl || null,
             type: 'fondo',
             vendedor: getUserName(fondo.assignedToId || ''),
             monto: formatCurrency(Number(fondo.montoInicial) || 0),
-            fecha: `${fechaInicio} - ${fechaTermino}`,
+            fecha: '',
+            fechaInicio: fechaInicio,
+            fechaTermino: fechaTermino,
             financiamiento: 'Fondo Asignado',
             tipoFondo: fondo.fundType || 'General',
             estado: fondo.estado || '-',
@@ -1000,7 +1004,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         for (const img of allImages) {
           try {
             const isPDF = img.url.toLowerCase().endsWith('.pdf');
-            const sectionHeight = 95;
+            const sectionHeight = img.type === 'fondo' ? 102 : 95;
             
             if (yPos + sectionHeight > pageHeight - 20) {
               doc.addPage();
@@ -1047,13 +1051,31 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
             doc.text(img.monto, valueX, yPos);
             yPos += lineHeight;
             
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(100, 116, 139);
-            doc.text('Fecha', labelX, yPos);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(15, 23, 42);
-            doc.text(img.fecha, valueX, yPos);
-            yPos += lineHeight;
+            if (img.type === 'fondo' && img.fechaInicio && img.fechaTermino) {
+              doc.setFont('helvetica', 'bold');
+              doc.setTextColor(100, 116, 139);
+              doc.text('F. Inicio', labelX, yPos);
+              doc.setFont('helvetica', 'normal');
+              doc.setTextColor(15, 23, 42);
+              doc.text(img.fechaInicio, valueX, yPos);
+              yPos += lineHeight;
+              
+              doc.setFont('helvetica', 'bold');
+              doc.setTextColor(100, 116, 139);
+              doc.text('F. Término', labelX, yPos);
+              doc.setFont('helvetica', 'normal');
+              doc.setTextColor(15, 23, 42);
+              doc.text(img.fechaTermino, valueX, yPos);
+              yPos += lineHeight;
+            } else {
+              doc.setFont('helvetica', 'bold');
+              doc.setTextColor(100, 116, 139);
+              doc.text('Fecha', labelX, yPos);
+              doc.setFont('helvetica', 'normal');
+              doc.setTextColor(15, 23, 42);
+              doc.text(img.fecha, valueX, yPos);
+              yPos += lineHeight;
+            }
             
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(100, 116, 139);
