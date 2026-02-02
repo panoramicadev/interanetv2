@@ -58,34 +58,10 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useToast } from "@/hooks/use-toast";
 import * as pdfjsLib from 'pdfjs-dist';
-import Tesseract from 'tesseract.js';
 
 // Configure PDF.js worker - using static file from public folder
 // This avoids dynamic import issues in production builds
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
-
-// Tesseract worker singleton for OCR
-let tesseractWorker: Tesseract.Worker | null = null;
-let tesseractInitFailed = false;
-
-async function getTesseractWorker(): Promise<Tesseract.Worker | null> {
-  if (tesseractInitFailed) return null;
-  
-  if (!tesseractWorker) {
-    try {
-      // Use local language data to avoid CDN dependency issues in production
-      tesseractWorker = await Tesseract.createWorker('spa', 1, {
-        langPath: '/tesseract',
-        logger: () => {} // Silent
-      });
-    } catch (e) {
-      console.error('Tesseract initialization failed:', e);
-      tesseractInitFailed = true;
-      return null;
-    }
-  }
-  return tesseractWorker;
-}
 
 // Read EXIF orientation from JPEG binary data
 // Returns orientation value 1-8, or 1 (normal) if not found
@@ -151,118 +127,8 @@ function readExifOrientation(arrayBuffer: ArrayBuffer): number {
   return 1;
 }
 
-// Rotate an image canvas by given degrees (0, 90, 180, 270)
-function rotateCanvas(sourceCanvas: HTMLCanvasElement, degrees: number): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d')!;
-  
-  if (degrees === 90 || degrees === 270) {
-    canvas.width = sourceCanvas.height;
-    canvas.height = sourceCanvas.width;
-  } else {
-    canvas.width = sourceCanvas.width;
-    canvas.height = sourceCanvas.height;
-  }
-  
-  ctx.translate(canvas.width / 2, canvas.height / 2);
-  ctx.rotate((degrees * Math.PI) / 180);
-  ctx.drawImage(sourceCanvas, -sourceCanvas.width / 2, -sourceCanvas.height / 2);
-  
-  return canvas;
-}
-
-// Use OCR to find the best rotation for readable text
-// Takes a canvas (already EXIF-corrected) and tests all 4 rotations
-// Returns { rotation, confidence } so caller can decide whether to trust the result
-async function findBestRotationWithOCR(sourceCanvas: HTMLCanvasElement): Promise<{ rotation: number; confidence: number }> {
-  try {
-    const worker = await getTesseractWorker();
-    
-    // If Tesseract failed to initialize, return default
-    if (!worker) {
-      console.log('OCR unavailable, using default orientation');
-      return { rotation: 0, confidence: 0 };
-    }
-    
-    // Scale down for faster OCR (max 600px on longest side)
-    const maxDim = 600;
-    const scale = Math.min(1, maxDim / Math.max(sourceCanvas.width, sourceCanvas.height));
-    const scaledCanvas = document.createElement('canvas');
-    scaledCanvas.width = Math.round(sourceCanvas.width * scale);
-    scaledCanvas.height = Math.round(sourceCanvas.height * scale);
-    const scaledCtx = scaledCanvas.getContext('2d')!;
-    scaledCtx.drawImage(sourceCanvas, 0, 0, scaledCanvas.width, scaledCanvas.height);
-    
-    const rotations = [0, 90, 180, 270];
-    let bestRotation = 0;
-    let bestConfidence = 0;
-    
-    for (const rotation of rotations) {
-      const rotatedCanvas = rotation === 0 ? scaledCanvas : rotateCanvas(scaledCanvas, rotation);
-      const dataUrl = rotatedCanvas.toDataURL('image/jpeg', 0.7);
-      
-      const result = await worker.recognize(dataUrl);
-      const confidence = result.data.confidence;
-      
-      console.log(`OCR rotation ${rotation}°: confidence ${confidence.toFixed(1)}%`);
-      
-      if (confidence > bestConfidence) {
-        bestConfidence = confidence;
-        bestRotation = rotation;
-      }
-    }
-    
-    console.log(`Best rotation: ${bestRotation}° with confidence ${bestConfidence.toFixed(1)}%`);
-    return { rotation: bestRotation, confidence: bestConfidence };
-  } catch (e) {
-    console.error('OCR orientation detection failed:', e);
-    return { rotation: 0, confidence: 0 };
-  }
-}
-
-// Apply EXIF-based rotation to get initial corrected image
-async function applyExifRotation(blob: Blob): Promise<HTMLCanvasElement> {
-  const arrayBuffer = await blob.arrayBuffer();
-  const exifOrientation = readExifOrientation(arrayBuffer);
-  
-  const img = await createImageBitmap(blob, { imageOrientation: 'none' } as ImageBitmapOptions);
-  const width = img.width;
-  const height = img.height;
-  
-  // Determine transforms based on EXIF
-  let rotation = 0;
-  let flipH = false;
-  let swapDims = false;
-  
-  switch (exifOrientation) {
-    case 2: flipH = true; break;
-    case 3: rotation = 180; break;
-    case 4: rotation = 180; flipH = true; break;
-    case 5: rotation = 90; flipH = true; swapDims = true; break;
-    case 6: rotation = 90; swapDims = true; break;
-    case 7: rotation = 270; flipH = true; swapDims = true; break;
-    case 8: rotation = 270; swapDims = true; break;
-  }
-  
-  let canvasW = swapDims ? height : width;
-  let canvasH = swapDims ? width : height;
-  
-  const canvas = document.createElement('canvas');
-  canvas.width = canvasW;
-  canvas.height = canvasH;
-  const ctx = canvas.getContext('2d')!;
-  
-  ctx.translate(canvasW / 2, canvasH / 2);
-  if (flipH) ctx.scale(-1, 1);
-  ctx.rotate((rotation * Math.PI) / 180);
-  ctx.drawImage(img, -width / 2, -height / 2);
-  img.close();
-  
-  return canvas;
-}
-
 // Correct image orientation for PDF generation
-// Strategy: First apply EXIF, then use OCR to verify/correct if confidence is high enough
+// Uses EXIF metadata to apply correct rotation, then ensures vertical orientation
 async function correctImageOrientation(blob: Blob): Promise<{ base64: string; format: 'JPEG' | 'PNG' | 'WEBP' }> {
   let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
   let mimeType = 'image/jpeg';
@@ -275,31 +141,37 @@ async function correctImageOrientation(blob: Blob): Promise<{ base64: string; fo
   }
   
   try {
-    // Step 1: Apply EXIF rotation first
-    const exifCorrectedCanvas = await applyExifRotation(blob);
+    const arrayBuffer = await blob.arrayBuffer();
+    const exifOrientation = readExifOrientation(arrayBuffer);
     
-    // Step 2: Use OCR to find the best rotation on the EXIF-corrected image
-    // This ensures OCR analyzes the same image state that will be output
-    const { rotation: ocrRotation, confidence } = await findBestRotationWithOCR(exifCorrectedCanvas);
+    // Load image - let browser handle EXIF automatically for display
+    const img = await createImageBitmap(blob);
+    const width = img.width;
+    const height = img.height;
     
-    // Minimum confidence threshold to trust OCR result
-    const MIN_CONFIDENCE = 40;
+    // For JPEG with EXIF orientation, the browser already applies it
+    // We just need to ensure the image is vertical for receipts
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
     
-    let finalCanvas = exifCorrectedCanvas;
-    
-    if (confidence >= MIN_CONFIDENCE && ocrRotation !== 0) {
-      // OCR found a better rotation with high confidence
-      console.log(`Applying OCR rotation ${ocrRotation}° (confidence: ${confidence.toFixed(1)}%)`);
-      finalCanvas = rotateCanvas(exifCorrectedCanvas, ocrRotation);
-    } else if (confidence < MIN_CONFIDENCE) {
-      // Low confidence - fall back to ensuring vertical orientation
-      console.log(`Low OCR confidence (${confidence.toFixed(1)}%), using EXIF + vertical fallback`);
-      if (exifCorrectedCanvas.width > exifCorrectedCanvas.height) {
-        finalCanvas = rotateCanvas(exifCorrectedCanvas, 90);
-      }
+    // If image is wider than tall (horizontal), rotate 90° to make it vertical
+    if (width > height) {
+      canvas.width = height;
+      canvas.height = width;
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(Math.PI / 2);
+      ctx.drawImage(img, -width / 2, -height / 2);
+    } else {
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(img, 0, 0);
     }
     
-    return { base64: finalCanvas.toDataURL(mimeType, 0.90), format };
+    img.close();
+    
+    console.log(`Image processed: ${width}x${height} -> ${canvas.width}x${canvas.height}, EXIF: ${exifOrientation}`);
+    
+    return { base64: canvas.toDataURL(mimeType, 0.90), format };
   } catch (e) {
     console.error('Image orientation correction failed:', e);
     
