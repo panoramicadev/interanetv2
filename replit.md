@@ -135,7 +135,7 @@ curl -X GET "https://your-domain.replit.app/external-api/dashboard?period=2025-0
 - `server/middleware/api-auth.ts` - API key validation middleware
 - `shared/schema.ts` - apiKeys table schema
 
-## Expense Management Module (January 2026)
+## Expense Management Module (Updated February 2026)
 
 ### Supervisor Permissions
 - Supervisors now have the same data visibility as admin/RRHH roles across expense endpoints
@@ -143,8 +143,10 @@ curl -X GET "https://your-domain.replit.app/external-api/dashboard?period=2025-0
 - Affected endpoints: `/api/gastos-empresariales`, analytics endpoints (`/summary`, `/por-categoria`, `/por-usuario`, `/por-dia`)
 
 ### PDF Report Generation
-- **Image Orientation**: Images are used as-is without rotation; modern devices handle EXIF orientation automatically
+- **Image Handling**: Images are loaded as-is without any automatic rotation; users can manually rotate in the viewer
 - **Attachment Types**: Both `archivoUrl` (invoice/receipt) and `comprobanteUrl` (transfer receipt) are included with appropriate labels
+- **Fund Dates**: Funds table uses `fecha_inicio` and `fecha_termino` columns; Fund vouchers show date range format
+- **Expense Notes**: Notes are fully expanded using splitTextToSize (up to 4 lines) instead of being truncated
 
 ### User Filtering
 - **NEW Endpoint**: `/api/gastos-empresariales/analytics/usuarios` returns ALL unique users with ANY expense (any status, any date) OR with assigned funds
@@ -152,8 +154,12 @@ curl -X GET "https://your-domain.replit.app/external-api/dashboard?period=2025-0
 - Users are sorted alphabetically by name
 - Cache invalidation is properly configured across all mutations (create, approve, reject, delete)
 
-### Image Orientation in PDFs
-- Images are processed with EXIF orientation correction before adding to PDF
-- EXIF orientation tags (1-8) are read directly from JPEG data and applied
-- After EXIF correction, if image is still horizontal (width > height), it's rotated 90° to vertical
-- This ensures receipts and invoices are displayed with horizontal text for readability
+### Date Filtering (February 2026)
+- All expense filtering uses `COALESCE(fechaEmision, createdAt)` to prioritize emission date
+- Dashboard tables and analytics filter by emission date, not creation date
+- Expenses registered in a different month than they occurred will appear under the correct emission month
+
+### Image Viewer in Detail Dialog
+- Mouse wheel zoom disabled; zoom only via buttons
+- Manual rotation button added (90° clockwise)
+- Reset button restores zoom, position, AND rotation to defaults

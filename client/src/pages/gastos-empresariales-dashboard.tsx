@@ -63,125 +63,21 @@ import * as pdfjsLib from 'pdfjs-dist';
 // This avoids dynamic import issues in production builds
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
-// Read EXIF orientation from JPEG binary data
-// Returns orientation value 1-8, or 1 (normal) if not found
-function readExifOrientation(arrayBuffer: ArrayBuffer): number {
-  try {
-    const view = new DataView(arrayBuffer);
-    // Check JPEG magic number
-    if (view.getUint16(0, false) !== 0xFFD8) return 1;
-    
-    let offset = 2;
-    const length = view.byteLength;
-    
-    while (offset < length - 4) {
-      const marker = view.getUint16(offset, false);
-      
-      // Check for APP1 marker (EXIF)
-      if (marker === 0xFFE1) {
-        const segmentLength = view.getUint16(offset + 2, false);
-        const exifStart = offset + 4;
-        
-        // Verify "Exif\0\0" signature
-        if (exifStart + 6 > length) return 1;
-        const exifSignature = view.getUint32(exifStart, false);
-        if (exifSignature !== 0x45786966) return 1; // "Exif"
-        
-        const tiffStart = exifStart + 6;
-        if (tiffStart + 8 > length) return 1;
-        
-        // Determine byte order (II = little endian, MM = big endian)
-        const byteOrder = view.getUint16(tiffStart, false);
-        const littleEndian = byteOrder === 0x4949;
-        
-        // Get IFD0 offset
-        const ifdOffset = view.getUint32(tiffStart + 4, littleEndian);
-        const ifdStart = tiffStart + ifdOffset;
-        if (ifdStart + 2 > length) return 1;
-        
-        const numEntries = view.getUint16(ifdStart, littleEndian);
-        
-        // Search for orientation tag (0x0112)
-        for (let i = 0; i < numEntries; i++) {
-          const entryOffset = ifdStart + 2 + (i * 12);
-          if (entryOffset + 12 > length) break;
-          
-          const tag = view.getUint16(entryOffset, littleEndian);
-          if (tag === 0x0112) {
-            return view.getUint16(entryOffset + 8, littleEndian);
-          }
-        }
-        return 1;
-      }
-      
-      // Move to next marker
-      if ((marker & 0xFF00) !== 0xFF00) break;
-      if (marker === 0xFFD9) break; // End of image
-      
-      const segmentLength = view.getUint16(offset + 2, false);
-      offset += 2 + segmentLength;
-    }
-  } catch (e) {
-    console.error('Error reading EXIF:', e);
-  }
-  return 1;
-}
-
-// Correct image orientation for PDF generation
-// Uses EXIF metadata to apply correct rotation, then ensures vertical orientation
-async function correctImageOrientation(blob: Blob): Promise<{ base64: string; format: 'JPEG' | 'PNG' | 'WEBP' }> {
+// Load image for PDF generation - no automatic rotation
+// Images are displayed as-is, user can manually rotate in viewer
+async function loadImageForPdf(blob: Blob): Promise<{ base64: string; format: 'JPEG' | 'PNG' | 'WEBP' }> {
   let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
-  let mimeType = 'image/jpeg';
   if (blob.type === 'image/png') {
     format = 'PNG';
-    mimeType = 'image/png';
   } else if (blob.type === 'image/webp') {
     format = 'WEBP';
-    mimeType = 'image/webp';
   }
   
-  try {
-    const arrayBuffer = await blob.arrayBuffer();
-    const exifOrientation = readExifOrientation(arrayBuffer);
-    
-    // Load image - let browser handle EXIF automatically for display
-    const img = await createImageBitmap(blob);
-    const width = img.width;
-    const height = img.height;
-    
-    // For JPEG with EXIF orientation, the browser already applies it
-    // We just need to ensure the image is vertical for receipts
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d')!;
-    
-    // If image is wider than tall (horizontal), rotate 90° to make it vertical
-    if (width > height) {
-      canvas.width = height;
-      canvas.height = width;
-      ctx.translate(canvas.width / 2, canvas.height / 2);
-      ctx.rotate(Math.PI / 2);
-      ctx.drawImage(img, -width / 2, -height / 2);
-    } else {
-      canvas.width = width;
-      canvas.height = height;
-      ctx.drawImage(img, 0, 0);
-    }
-    
-    img.close();
-    
-    console.log(`Image processed: ${width}x${height} -> ${canvas.width}x${canvas.height}, EXIF: ${exifOrientation}`);
-    
-    return { base64: canvas.toDataURL(mimeType, 0.90), format };
-  } catch (e) {
-    console.error('Image orientation correction failed:', e);
-    
-    // Fallback: just read the image as-is
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve({ base64: reader.result as string, format });
-      reader.readAsDataURL(blob);
-    });
-  }
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve({ base64: reader.result as string, format });
+    reader.readAsDataURL(blob);
+  });
 }
 
 // Function to convert first page of PDF to base64 image
@@ -847,9 +743,10 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         
         autoTable(doc, {
           startY: yPos,
-          head: [['Fecha', 'Monto', 'Estado', 'Asignado Por']],
+          head: [['Fecha Inicio', 'Fecha Término', 'Monto', 'Estado', 'Asignado Por']],
           body: fondosData.map(f => [
-            formatFullDate(f.createdAt as any),
+            formatFullDate((f as any).fecha_inicio || f.createdAt as any),
+            formatFullDate((f as any).fecha_termino || f.createdAt as any),
             formatCurrency(Number(f.montoInicial) || 0),
             f.estado || '-',
             (f as any).assignedByName || getUserName(f.assignedById) || '-'
@@ -1029,13 +926,15 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
       
       for (const fondo of fondosData) {
         if (fondo.comprobanteUrl) {
+          const fechaInicio = (fondo as any).fecha_inicio ? formatFullDate((fondo as any).fecha_inicio) : '-';
+          const fechaTermino = (fondo as any).fecha_termino ? formatFullDate((fondo as any).fecha_termino) : '-';
           allImages.push({
             url: fondo.comprobanteUrl,
             previewUrl: (fondo as any).comprobantePreviewUrl || null,
             type: 'fondo',
             vendedor: getUserName(fondo.assignedToId || ''),
             monto: formatCurrency(Number(fondo.montoInicial) || 0),
-            fecha: formatFullDate(fondo.createdAt as any),
+            fecha: `${fechaInicio} - ${fechaTermino}`,
             financiamiento: 'Fondo Asignado',
             tipoFondo: fondo.fundType || 'General',
             estado: fondo.estado || '-',
@@ -1218,7 +1117,11 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
               doc.text('Nota', labelX, yPos);
               doc.setFont('helvetica', 'normal');
               doc.setTextColor(15, 23, 42);
-              doc.text(String(img.descripcion).substring(0, 22), valueX, yPos);
+              const notaMaxWidth = infoColumnWidth - 32;
+              const notaLines = doc.splitTextToSize(String(img.descripcion), notaMaxWidth);
+              for (let i = 0; i < notaLines.length && i < 4; i++) {
+                doc.text(notaLines[i], valueX, yPos + (i * 4));
+              }
             }
             
             doc.setDrawColor(229, 231, 235);
@@ -1333,7 +1236,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
               const blob = await response.blob();
               
               // Correct image orientation using EXIF data and ensure vertical orientation for receipts
-              const { base64, format: imgFormat } = await correctImageOrientation(blob);
+              const { base64, format: imgFormat } = await loadImageForPdf(blob);
               
               const imgObj = new Image();
               await new Promise((resolve, reject) => {
