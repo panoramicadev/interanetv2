@@ -63,61 +63,173 @@ import * as pdfjsLib from 'pdfjs-dist';
 // This avoids dynamic import issues in production builds
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
-// Function to rotate horizontal images to vertical orientation for better PDF readability
-// Receipts are typically vertical - if image is horizontal (width > height), rotate it 90° clockwise
-async function rotateImageIfNeeded(base64: string): Promise<{ base64: string; format: 'JPEG' | 'PNG' | 'WEBP' }> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      // If image is horizontal (wider than tall), rotate it 90° clockwise
-      if (img.width > img.height) {
-        const canvas = document.createElement('canvas');
-        // Swap dimensions for rotation
-        canvas.width = img.height;
-        canvas.height = img.width;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          // Rotate 90° clockwise
-          ctx.translate(canvas.width / 2, canvas.height / 2);
-          ctx.rotate(Math.PI / 2);
-          ctx.drawImage(img, -img.width / 2, -img.height / 2);
+// Read EXIF orientation from JPEG binary data
+// Returns orientation value 1-8, or 1 (normal) if not found
+function readExifOrientation(arrayBuffer: ArrayBuffer): number {
+  try {
+    const view = new DataView(arrayBuffer);
+    // Check JPEG magic number
+    if (view.getUint16(0, false) !== 0xFFD8) return 1;
+    
+    let offset = 2;
+    const length = view.byteLength;
+    
+    while (offset < length - 4) {
+      const marker = view.getUint16(offset, false);
+      
+      // Check for APP1 marker (EXIF)
+      if (marker === 0xFFE1) {
+        const segmentLength = view.getUint16(offset + 2, false);
+        const exifStart = offset + 4;
+        
+        // Verify "Exif\0\0" signature
+        if (exifStart + 6 > length) return 1;
+        const exifSignature = view.getUint32(exifStart, false);
+        if (exifSignature !== 0x45786966) return 1; // "Exif"
+        
+        const tiffStart = exifStart + 6;
+        if (tiffStart + 8 > length) return 1;
+        
+        // Determine byte order (II = little endian, MM = big endian)
+        const byteOrder = view.getUint16(tiffStart, false);
+        const littleEndian = byteOrder === 0x4949;
+        
+        // Get IFD0 offset
+        const ifdOffset = view.getUint32(tiffStart + 4, littleEndian);
+        const ifdStart = tiffStart + ifdOffset;
+        if (ifdStart + 2 > length) return 1;
+        
+        const numEntries = view.getUint16(ifdStart, littleEndian);
+        
+        // Search for orientation tag (0x0112)
+        for (let i = 0; i < numEntries; i++) {
+          const entryOffset = ifdStart + 2 + (i * 12);
+          if (entryOffset + 12 > length) break;
           
-          // Determine output format
-          let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
-          let mimeType = 'image/jpeg';
-          if (base64.includes('data:image/png')) {
-            format = 'PNG';
-            mimeType = 'image/png';
-          } else if (base64.includes('data:image/webp')) {
-            format = 'WEBP';
-            mimeType = 'image/webp';
+          const tag = view.getUint16(entryOffset, littleEndian);
+          if (tag === 0x0112) {
+            return view.getUint16(entryOffset + 8, littleEndian);
           }
-          
-          resolve({ base64: canvas.toDataURL(mimeType, 0.92), format });
-          return;
         }
+        return 1;
       }
       
-      // Image is already vertical or couldn't rotate, return original
-      let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
-      if (base64.includes('data:image/png')) {
-        format = 'PNG';
-      } else if (base64.includes('data:image/webp')) {
-        format = 'WEBP';
-      }
-      resolve({ base64, format });
+      // Move to next marker
+      if ((marker & 0xFF00) !== 0xFF00) break;
+      if (marker === 0xFFD9) break; // End of image
+      
+      const segmentLength = view.getUint16(offset + 2, false);
+      offset += 2 + segmentLength;
+    }
+  } catch (e) {
+    console.error('Error reading EXIF:', e);
+  }
+  return 1;
+}
+
+// Correct image orientation for PDF generation
+// Uses createImageBitmap with imageOrientation: 'none' to get raw pixels without EXIF auto-rotation
+// Then applies EXIF rotation manually and ensures vertical orientation for receipts
+async function correctImageOrientation(blob: Blob): Promise<{ base64: string; format: 'JPEG' | 'PNG' | 'WEBP' }> {
+  const arrayBuffer = await blob.arrayBuffer();
+  const exifOrientation = readExifOrientation(arrayBuffer);
+  
+  let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
+  let mimeType = 'image/jpeg';
+  if (blob.type === 'image/png') {
+    format = 'PNG';
+    mimeType = 'image/png';
+  } else if (blob.type === 'image/webp') {
+    format = 'WEBP';
+    mimeType = 'image/webp';
+  }
+  
+  try {
+    // Use createImageBitmap with imageOrientation: 'none' to get raw pixels
+    // This prevents browser from auto-applying EXIF rotation
+    const bitmap = await createImageBitmap(blob, { imageOrientation: 'none' });
+    
+    const width = bitmap.width;
+    const height = bitmap.height;
+    
+    // Determine transforms based on EXIF orientation
+    // Orientation: 1=normal, 2=flipH, 3=rotate180, 4=flipV,
+    // 5=rotate90CW+flipH, 6=rotate90CW, 7=rotate90CCW+flipH, 8=rotate90CCW
+    let rotation = 0;
+    let flipH = false;
+    let swapDims = false;
+    
+    switch (exifOrientation) {
+      case 2: flipH = true; break;
+      case 3: rotation = 180; break;
+      case 4: rotation = 180; flipH = true; break;
+      case 5: rotation = 90; flipH = true; swapDims = true; break;
+      case 6: rotation = 90; swapDims = true; break;
+      case 7: rotation = 270; flipH = true; swapDims = true; break;
+      case 8: rotation = 270; swapDims = true; break;
+    }
+    
+    // Dimensions after EXIF rotation
+    let canvasW = swapDims ? height : width;
+    let canvasH = swapDims ? width : height;
+    
+    // If still horizontal after EXIF, add 90° rotation for vertical receipts
+    if (canvasW > canvasH) {
+      rotation = (rotation + 90) % 360;
+      const tmp = canvasW;
+      canvasW = canvasH;
+      canvasH = tmp;
+    }
+    
+    const canvas = document.createElement('canvas');
+    canvas.width = canvasW;
+    canvas.height = canvasH;
+    const ctx = canvas.getContext('2d');
+    
+    if (ctx) {
+      ctx.translate(canvasW / 2, canvasH / 2);
+      if (flipH) ctx.scale(-1, 1);
+      ctx.rotate((rotation * Math.PI) / 180);
+      ctx.drawImage(bitmap, -width / 2, -height / 2);
+      bitmap.close();
+      
+      return { base64: canvas.toDataURL(mimeType, 0.90), format };
+    }
+    
+    bitmap.close();
+  } catch (e) {
+    // Fallback for browsers that don't support imageOrientation option
+    console.log('createImageBitmap fallback:', e);
+  }
+  
+  // Fallback: use regular Image loading (browser may auto-apply EXIF)
+  // Only rotate if horizontal
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      const img = new Image();
+      img.onload = () => {
+        if (img.width > img.height) {
+          // Rotate horizontal to vertical
+          const canvas = document.createElement('canvas');
+          canvas.width = img.height;
+          canvas.height = img.width;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate(Math.PI / 2);
+            ctx.drawImage(img, -img.width / 2, -img.height / 2);
+            resolve({ base64: canvas.toDataURL(mimeType, 0.90), format });
+            return;
+          }
+        }
+        resolve({ base64, format });
+      };
+      img.onerror = () => resolve({ base64, format });
+      img.src = base64;
     };
-    img.onerror = () => {
-      // On error, return original
-      let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
-      if (base64.includes('data:image/png')) {
-        format = 'PNG';
-      } else if (base64.includes('data:image/webp')) {
-        format = 'WEBP';
-      }
-      resolve({ base64, format });
-    };
-    img.src = base64;
+    reader.readAsDataURL(blob);
   });
 }
 
@@ -1268,15 +1380,9 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
               const response = await fetch(absoluteUrl, { credentials: 'include' });
               if (!response.ok) throw new Error(`HTTP ${response.status} - ${absoluteUrl}`);
               const blob = await response.blob();
-              const originalBase64 = await new Promise<string>((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result as string);
-                reader.readAsDataURL(blob);
-              });
               
-              // Rotate horizontal images to vertical for better readability
-              // Receipts are typically photographed vertically - if horizontal, rotate 90°
-              const { base64, format: imgFormat } = await rotateImageIfNeeded(originalBase64);
+              // Correct image orientation using EXIF data and ensure vertical orientation for receipts
+              const { base64, format: imgFormat } = await correctImageOrientation(blob);
               
               const imgObj = new Image();
               await new Promise((resolve, reject) => {

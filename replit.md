@@ -153,5 +153,7 @@ curl -X GET "https://your-domain.replit.app/external-api/dashboard?period=2025-0
 - Cache invalidation is properly configured across all mutations (create, approve, reject, delete)
 
 ### Image Orientation in PDFs
-- Horizontal images (width > height) are automatically rotated 90° clockwise to vertical orientation
+- Images are processed with EXIF orientation correction before adding to PDF
+- EXIF orientation tags (1-8) are read directly from JPEG data and applied
+- After EXIF correction, if image is still horizontal (width > height), it's rotated 90° to vertical
 - This ensures receipts and invoices are displayed with horizontal text for readability
