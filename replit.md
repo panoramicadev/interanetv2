@@ -162,4 +162,10 @@ curl -X GET "https://your-domain.replit.app/external-api/dashboard?period=2025-0
 ### Image Viewer in Detail Dialog
 - Mouse wheel zoom disabled; zoom only via buttons
 - Manual rotation button added (90° clockwise)
-- Reset button restores zoom, position, AND rotation to defaults
+- Reset button (Home icon) restores zoom, position, AND rotation to defaults
+
+### PDF Image Orientation (February 2026)
+- **Problem**: Images appeared correctly in web browsers (which interpret EXIF metadata) but rotated in PDFs (which ignore EXIF)
+- **Solution**: Backend endpoint `/api/image-normalized` uses Sharp library to normalize EXIF orientation before PDF embedding
+- **Security**: Endpoint requires authentication and validates URLs against allowed domains (Object Storage, CDN) to prevent SSRF attacks
+- **Process**: Sharp's `.rotate()` reads EXIF orientation and applies it, then `.withMetadata()` removes the orientation tag
