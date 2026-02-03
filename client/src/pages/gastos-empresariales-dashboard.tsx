@@ -63,9 +63,23 @@ import * as pdfjsLib from 'pdfjs-dist';
 // This avoids dynamic import issues in production builds
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
-// Load image for PDF generation - no automatic rotation
-// Images are displayed as-is, user can manually rotate in viewer
-async function loadImageForPdf(blob: Blob): Promise<{ base64: string; format: 'JPEG' | 'PNG' | 'WEBP' }> {
+// Load image for PDF generation - uses backend endpoint to normalize EXIF orientation
+// This ensures images are correctly oriented in PDF regardless of how they were taken
+async function loadImageForPdf(imageUrl: string): Promise<{ base64: string; format: 'JPEG' | 'PNG' | 'WEBP' }> {
+  // Use the backend endpoint that applies EXIF orientation correction
+  const absoluteUrl = imageUrl.startsWith('http') 
+    ? imageUrl 
+    : `${window.location.origin}${imageUrl}`;
+  
+  const normalizedUrl = `/api/image-normalized?url=${encodeURIComponent(absoluteUrl)}`;
+  
+  const response = await fetch(normalizedUrl, { credentials: 'include' });
+  if (!response.ok) {
+    throw new Error(`Failed to normalize image: HTTP ${response.status}`);
+  }
+  
+  const blob = await response.blob();
+  
   let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
   if (blob.type === 'image/png') {
     format = 'PNG';
@@ -1248,17 +1262,8 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
                 doc.setTextColor(0, 0, 0);
               }
             } else {
-              // Construir URL absoluta para evitar problemas de rutas relativas
-              const absoluteUrl = img.url.startsWith('http') 
-                ? img.url 
-                : `${window.location.origin}${img.url}`;
-              
-              const response = await fetch(absoluteUrl, { credentials: 'include' });
-              if (!response.ok) throw new Error(`HTTP ${response.status} - ${absoluteUrl}`);
-              const blob = await response.blob();
-              
-              // Correct image orientation using EXIF data and ensure vertical orientation for receipts
-              const { base64, format: imgFormat } = await loadImageForPdf(blob);
+              // Use the normalization endpoint to correct EXIF orientation
+              const { base64, format: imgFormat } = await loadImageForPdf(img.url);
               
               const imgObj = new Image();
               await new Promise((resolve, reject) => {

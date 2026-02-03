@@ -391,12 +391,62 @@ export function registerRoutes(app: Express): Server {
   app.use('/api/external', externalApiRouter);
 
   // Image normalization endpoint - applies EXIF rotation for PDF generation
-  app.get('/api/image-normalized', asyncHandler(async (req: any, res: any) => {
+  // Security: Requires authentication and validates URLs against allowed domains
+  app.get('/api/image-normalized', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const imageUrl = req.query.url as string;
       
       if (!imageUrl) {
         return res.status(400).json({ message: 'URL de imagen requerida' });
+      }
+
+      // Security: Validate URL to prevent SSRF attacks
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(imageUrl);
+      } catch {
+        return res.status(400).json({ message: 'URL inválida' });
+      }
+
+      // Only allow HTTPS and HTTP protocols
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        return res.status(400).json({ message: 'Protocolo no permitido' });
+      }
+
+      // Block localhost and private IP ranges
+      const hostname = parsedUrl.hostname.toLowerCase();
+      const blockedPatterns = [
+        'localhost', '127.0.0.1', '0.0.0.0', '::1',
+        /^10\.\d+\.\d+\.\d+$/, /^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/, /^192\.168\.\d+\.\d+$/,
+        /^169\.254\.\d+\.\d+$/, // Link-local
+        'metadata.google.internal', '169.254.169.254' // Cloud metadata endpoints
+      ];
+      
+      for (const pattern of blockedPatterns) {
+        if (typeof pattern === 'string' && hostname === pattern) {
+          return res.status(403).json({ message: 'URL no permitida' });
+        }
+        if (pattern instanceof RegExp && pattern.test(hostname)) {
+          return res.status(403).json({ message: 'URL no permitida' });
+        }
+      }
+
+      // Allowed domains for image sources (Object Storage, CDN)
+      const allowedDomains = [
+        'storage.googleapis.com',
+        'storage.cloud.google.com',
+        'objectstorage.replit.dev',
+        process.env.REPLIT_DEV_DOMAIN || '',
+        'replit.app'
+      ].filter(Boolean);
+
+      const isAllowedDomain = allowedDomains.some(domain => 
+        hostname === domain || hostname.endsWith(`.${domain}`)
+      );
+
+      if (!isAllowedDomain) {
+        console.warn(`[IMAGE-NORM] Blocked request to non-allowed domain: ${hostname}`);
+        return res.status(403).json({ message: 'Dominio de imagen no permitido' });
       }
 
       // Fetch the image from the URL
@@ -405,7 +455,18 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ message: 'Imagen no encontrada' });
       }
 
-      const contentType = response.headers.get('content-type') || 'image/jpeg';
+      // Validate content-type is an image
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.startsWith('image/')) {
+        return res.status(400).json({ message: 'El recurso no es una imagen' });
+      }
+
+      // Limit file size (max 20MB)
+      const contentLength = response.headers.get('content-length');
+      if (contentLength && parseInt(contentLength) > 20 * 1024 * 1024) {
+        return res.status(413).json({ message: 'Imagen demasiado grande' });
+      }
+
       const arrayBuffer = await response.arrayBuffer();
       const inputBuffer = Buffer.from(arrayBuffer);
 
