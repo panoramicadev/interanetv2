@@ -66,19 +66,37 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 // Load image for PDF generation - uses backend endpoint to normalize EXIF orientation
 // This ensures images are correctly oriented in PDF regardless of how they were taken
 async function loadImageForPdf(imageUrl: string): Promise<{ base64: string; format: 'JPEG' | 'PNG' | 'WEBP' }> {
-  // Use the backend endpoint that applies EXIF orientation correction
   const absoluteUrl = imageUrl.startsWith('http') 
     ? imageUrl 
     : `${window.location.origin}${imageUrl}`;
   
-  const normalizedUrl = `/api/image-normalized?url=${encodeURIComponent(absoluteUrl)}`;
+  let blob: Blob;
   
-  const response = await fetch(normalizedUrl, { credentials: 'include' });
-  if (!response.ok) {
-    throw new Error(`Failed to normalize image: HTTP ${response.status}`);
+  try {
+    // Try the backend endpoint that applies EXIF orientation correction
+    const normalizedUrl = `/api/image-normalized?url=${encodeURIComponent(absoluteUrl)}`;
+    const response = await fetch(normalizedUrl, { credentials: 'include' });
+    
+    if (response.ok) {
+      blob = await response.blob();
+    } else {
+      // Fallback: load image directly without EXIF correction
+      console.warn('EXIF normalization failed, loading image directly');
+      const directResponse = await fetch(absoluteUrl, { credentials: 'include' });
+      if (!directResponse.ok) {
+        throw new Error(`Failed to load image: HTTP ${directResponse.status}`);
+      }
+      blob = await directResponse.blob();
+    }
+  } catch (error) {
+    // Fallback: load image directly without EXIF correction
+    console.warn('EXIF normalization error, loading image directly:', error);
+    const directResponse = await fetch(absoluteUrl, { credentials: 'include' });
+    if (!directResponse.ok) {
+      throw new Error(`Failed to load image: HTTP ${directResponse.status}`);
+    }
+    blob = await directResponse.blob();
   }
-  
-  const blob = await response.blob();
   
   let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
   if (blob.type === 'image/png') {
@@ -1155,9 +1173,11 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
               doc.setTextColor(15, 23, 42);
               const notaMaxWidth = infoColumnWidth - 32;
               const notaLines = doc.splitTextToSize(String(img.descripcion), notaMaxWidth);
-              for (let i = 0; i < notaLines.length && i < 4; i++) {
+              const maxLines = Math.min(notaLines.length, 4);
+              for (let i = 0; i < maxLines; i++) {
                 doc.text(notaLines[i], valueX, yPos + (i * 4));
               }
+              yPos += (maxLines - 1) * 4;
             }
             
             doc.setDrawColor(229, 231, 235);

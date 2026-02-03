@@ -431,13 +431,16 @@ export function registerRoutes(app: Express): Server {
         }
       }
 
-      // Allowed domains for image sources (Object Storage, CDN)
+      // Allowed domains for image sources (Object Storage, CDN, Replit)
       const allowedDomains = [
         'storage.googleapis.com',
         'storage.cloud.google.com',
         'objectstorage.replit.dev',
+        'replit.dev',
+        'replit.app',
+        'repl.co',
         process.env.REPLIT_DEV_DOMAIN || '',
-        'replit.app'
+        process.env.REPL_SLUG ? `${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` : ''
       ].filter(Boolean);
 
       const isAllowedDomain = allowedDomains.some(domain => 
@@ -445,7 +448,7 @@ export function registerRoutes(app: Express): Server {
       );
 
       if (!isAllowedDomain) {
-        console.warn(`[IMAGE-NORM] Blocked request to non-allowed domain: ${hostname}`);
+        console.warn(`[IMAGE-NORM] Blocked request to non-allowed domain: ${hostname}. Allowed: ${allowedDomains.join(', ')}`);
         return res.status(403).json({ message: 'Dominio de imagen no permitido' });
       }
 
