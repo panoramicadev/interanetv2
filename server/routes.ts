@@ -52,6 +52,7 @@ import { format } from "date-fns";
 import { wrapEmailContent } from "./email-templates";
 import { getAuthUrl, handleCallback, getValidAccessToken, disconnectGmail, isOAuthConfigured, validateStateToken, sendEmailWithOAuth, testConnection, getConnectionStatus } from "./gmail-oauth";
 import { convertPdfToImage, isPdfFile } from "./pdf-to-image";
+import sharp from "sharp";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
@@ -388,6 +389,45 @@ export function registerRoutes(app: Express): Server {
   
   // Mount external API routes (with API key auth)
   app.use('/api/external', externalApiRouter);
+
+  // Image normalization endpoint - applies EXIF rotation for PDF generation
+  app.get('/api/image-normalized', asyncHandler(async (req: any, res: any) => {
+    try {
+      const imageUrl = req.query.url as string;
+      
+      if (!imageUrl) {
+        return res.status(400).json({ message: 'URL de imagen requerida' });
+      }
+
+      // Fetch the image from the URL
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        return res.status(404).json({ message: 'Imagen no encontrada' });
+      }
+
+      const contentType = response.headers.get('content-type') || 'image/jpeg';
+      const arrayBuffer = await response.arrayBuffer();
+      const inputBuffer = Buffer.from(arrayBuffer);
+
+      // Use Sharp to auto-rotate based on EXIF orientation and strip metadata
+      // .rotate() without parameters reads EXIF orientation and applies it
+      const normalizedBuffer = await sharp(inputBuffer)
+        .rotate() // Auto-rotate based on EXIF
+        .withMetadata({ orientation: undefined }) // Remove orientation metadata after rotation
+        .toBuffer();
+
+      // Set appropriate headers
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+      res.send(normalizedBuffer);
+    } catch (error) {
+      console.error('Error normalizing image:', error);
+      res.status(500).json({ 
+        message: 'Error al procesar la imagen',
+        error: error instanceof Error ? error.message : 'Error desconocido'
+      });
+    }
+  }));
 
   // Configure multer for file uploads
   const upload = multer({ 
