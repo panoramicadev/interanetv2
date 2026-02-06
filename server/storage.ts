@@ -19851,8 +19851,6 @@ export class DatabaseStorage implements IStorage {
     userId: string;
     userName: string;
   }>> {
-    // Get ALL unique users who have ANY expense OR any fund allocation (any status, any date)
-    // Use two queries and merge results
     const usersWithExpenses = await db
       .selectDistinct({
         userId: gastosEmpresariales.userId,
@@ -19871,8 +19869,18 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(users, eq(fundAllocations.assignedToId, users.id))
       .leftJoin(salespeopleUsers, eq(fundAllocations.assignedToId, salespeopleUsers.id));
 
-    // Merge and deduplicate by userId
+    const allActiveUsers = await db
+      .select({
+        userId: users.id,
+        userName: sql<string>`COALESCE(${users.firstName} || ' ' || ${users.lastName}, ${users.username}, 'Usuario Desconocido')`,
+      })
+      .from(users)
+      .where(sql`${users.role} IN ('salesperson', 'supervisor', 'recursos_humanos', 'admin')`);
+
     const userMap = new Map<string, string>();
+    for (const u of allActiveUsers) {
+      userMap.set(u.userId, u.userName || 'Usuario Desconocido');
+    }
     for (const u of usersWithExpenses) {
       userMap.set(u.userId, u.userName || 'Usuario Desconocido');
     }
@@ -19882,7 +19890,6 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // Convert to array and sort alphabetically
     const results = Array.from(userMap.entries())
       .map(([userId, userName]) => ({ userId, userName }))
       .sort((a, b) => a.userName.localeCompare(b.userName));
