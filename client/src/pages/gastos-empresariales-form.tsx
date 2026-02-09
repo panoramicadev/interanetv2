@@ -304,7 +304,14 @@ export default function GastosEmpresarialesForm() {
   };
 
   const onSubmit = (data: FormValues) => {
-    // Mostrar diálogo de confirmación en lugar de enviar directamente
+    if (data.fundingMode === 'reembolso' && !data.archivoUrl) {
+      toast({
+        title: "Foto requerida",
+        description: "Debe adjuntar una foto del comprobante para solicitar un reembolso",
+        variant: "destructive",
+      });
+      return;
+    }
     setPendingFormData(data);
     setShowConfirmDialog(true);
   };
