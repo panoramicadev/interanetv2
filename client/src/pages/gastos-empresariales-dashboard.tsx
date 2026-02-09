@@ -393,7 +393,10 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
 
   const formatFullDate = (dateString: string) => {
     if (!dateString) return '-';
-    const date = new Date(dateString);
+    const match = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const date = match 
+      ? new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]))
+      : new Date(dateString);
     return date.toLocaleDateString('es-CL', { 
       day: '2-digit', 
       month: 'short',

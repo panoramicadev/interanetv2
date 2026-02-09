@@ -1766,7 +1766,7 @@ export interface IStorage {
   aprobarReembolsoSupervisor(id: string, supervisorId: string, comentario?: string): Promise<GastoEmpresarial>;
   /** @deprecated Supervisor rejection step has been removed. Kept for backward compatibility. */
   rechazarReembolsoSupervisor(id: string, supervisorId: string, motivoRechazo: string): Promise<GastoEmpresarial>;
-  aprobarReembolsoRrhh(id: string, rrhhId: string, comprobanteUrl: string, comentario?: string): Promise<GastoEmpresarial>;
+  aprobarReembolsoRrhh(id: string, rrhhId: string, comprobanteUrl: string | null, comentario?: string): Promise<GastoEmpresarial>;
   rechazarReembolsoRrhh(id: string, rrhhId: string, motivoRechazo: string): Promise<GastoEmpresarial>;
   getReembolsosPendientesSupervisor(supervisorId: string): Promise<GastoEmpresarial[]>;
   getReembolsosPendientesRrhh(): Promise<GastoEmpresarial[]>;
@@ -19614,7 +19614,7 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async aprobarReembolsoRrhh(id: string, rrhhId: string, comprobanteUrl: string, comentario?: string): Promise<GastoEmpresarial> {
+  async aprobarReembolsoRrhh(id: string, rrhhId: string, comprobanteUrl: string | null, comentario?: string): Promise<GastoEmpresarial> {
     const [result] = await db
       .update(gastosEmpresariales)
       .set({

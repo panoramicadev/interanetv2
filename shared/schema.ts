@@ -4875,9 +4875,16 @@ export const insertGastoEmpresarialSchema = createInsertSchema(gastosEmpresarial
     if (typeof val === 'string') {
       const match = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
       if (match) {
-        return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
+        return `${match[1]}-${match[2]}-${match[3]}`;
       }
-      return new Date(val);
+      if (val instanceof Date || !isNaN(Date.parse(val))) {
+        const d = new Date(val);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }
+      return val;
+    }
+    if (val instanceof Date) {
+      return `${val.getFullYear()}-${String(val.getMonth() + 1).padStart(2, '0')}-${String(val.getDate()).padStart(2, '0')}`;
     }
     return val;
   }).optional(),
