@@ -24,6 +24,7 @@ import {
   insertClientSchema, 
   insertGastoEmpresarialSchema,
   insertFundAllocationSchema,
+  fundMovements,
   insertPromesaCompraSchema, 
   insertHitoMarketingSchema, 
   nvvPendingSales, 
@@ -15845,6 +15846,23 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       
       const isConFondo = validated.fundingMode === 'con_fondo' && validated.fundAllocationId;
       if (isConFondo) {
+        const allocation = await storage.getFundAllocationById(validated.fundAllocationId!);
+        if (!allocation) {
+          return res.status(400).json({ message: 'Fondo asignado no encontrado' });
+        }
+        if (allocation.fechaTermino) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const termino = new Date(allocation.fechaTermino + 'T23:59:59');
+          if (today > termino) {
+            return res.status(400).json({ message: 'El fondo asignado ha expirado. La fecha de término ya pasó.' });
+          }
+        }
+        const balance = await storage.getFundAllocationBalance(validated.fundAllocationId!);
+        const gastoMonto = parseFloat(validated.monto?.toString() || '0');
+        if (gastoMonto > balance.saldoDisponible) {
+          return res.status(400).json({ message: `Saldo insuficiente. Disponible: $${balance.saldoDisponible.toLocaleString('es-CL')}, Gasto: $${gastoMonto.toLocaleString('es-CL')}` });
+        }
         validated.estado = 'pendiente';
         validated.tipoGasto = 'Con Fondos Asignados';
         validated.estadoAprobacion = 'pendiente_rrhh';
@@ -15854,6 +15872,17 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       }
       
       const gasto = await storage.createGastoEmpresarial(validated);
+      
+      if (isConFondo && validated.fundAllocationId) {
+        await storage.createFundMovement({
+          allocationId: validated.fundAllocationId,
+          tipoMovimiento: 'gasto_pendiente',
+          gastoId: gasto.id,
+          monto: `-${validated.monto}`,
+          descripcion: `Gasto pendiente: ${validated.descripcion || validated.categoria}`,
+          creadoPorId: targetUserId,
+        });
+      }
       
       // 🔔 Notificación automática: Nuevo gasto creado
       const creatorName = user.salespersonName || `${user.firstName} ${user.lastName}` || user.email;
@@ -16150,14 +16179,38 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         return res.status(400).json({ message: 'El comprobante de transferencia es requerido para reembolsos' });
       }
       
-      const result = await storage.aprobarReembolsoRrhh(req.params.id, user.id, comprobanteUrl, comentario);
+      const result = await storage.aprobarReembolsoRrhh(req.params.id, user.id, comprobanteUrl || null, comentario);
       
-      // Notificar al solicitante
+      if (gasto.fundingMode === 'con_fondo' && gasto.fundAllocationId) {
+        try {
+          const existingMovements = await storage.getFundMovements(gasto.fundAllocationId);
+          const pendingMovement = existingMovements.find(
+            m => m.gastoId === gasto.id && m.tipoMovimiento === 'gasto_pendiente'
+          );
+          if (pendingMovement) {
+            await db.update(fundMovements)
+              .set({ tipoMovimiento: 'gasto_aprobado', descripcion: `Gasto aprobado por RRHH: ${gasto.descripcion || gasto.categoria}` })
+              .where(eq(fundMovements.id, pendingMovement.id));
+          } else {
+            await storage.createFundMovement({
+              allocationId: gasto.fundAllocationId,
+              tipoMovimiento: 'gasto_aprobado',
+              gastoId: gasto.id,
+              monto: `-${gasto.monto}`,
+              descripcion: `Gasto aprobado por RRHH: ${gasto.descripcion || gasto.categoria}`,
+              creadoPorId: user.id,
+            });
+          }
+        } catch (movError) {
+          console.error('Error al registrar movimiento de fondo aprobado:', movError);
+        }
+      }
+      
       try {
         await storage.createNotification({
           userId: gasto.userId,
-          title: 'Reembolso aprobado',
-          message: `Tu solicitud de reembolso de $${gasto.monto} ha sido aprobada y procesada.`,
+          title: gasto.fundingMode === 'con_fondo' ? 'Gasto aprobado' : 'Reembolso aprobado',
+          message: `Tu ${gasto.fundingMode === 'con_fondo' ? 'gasto' : 'solicitud de reembolso'} de $${gasto.monto} ha sido aprobado${gasto.fundingMode !== 'con_fondo' ? ' y procesado' : ''}.`,
           type: 'success',
           link: '/gastos-empresariales',
         });
@@ -16167,7 +16220,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ message: 'Error al aprobar reembolso', error: error.message });
+      res.status(500).json({ message: 'Error al aprobar gasto', error: error.message });
     }
   }));
 
@@ -16196,12 +16249,27 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       
       const result = await storage.rechazarReembolsoRrhh(req.params.id, user.id, motivoRechazo);
       
-      // Notificar al solicitante
+      if (gasto.fundingMode === 'con_fondo' && gasto.fundAllocationId) {
+        try {
+          const existingMovements = await storage.getFundMovements(gasto.fundAllocationId);
+          const pendingMovement = existingMovements.find(
+            m => m.gastoId === gasto.id && m.tipoMovimiento === 'gasto_pendiente'
+          );
+          if (pendingMovement) {
+            await db.update(fundMovements)
+              .set({ tipoMovimiento: 'gasto_rechazado', descripcion: `Gasto rechazado por RRHH: ${motivoRechazo}` })
+              .where(eq(fundMovements.id, pendingMovement.id));
+          }
+        } catch (movError) {
+          console.error('Error al registrar movimiento de fondo rechazado:', movError);
+        }
+      }
+      
       try {
         await storage.createNotification({
           userId: gasto.userId,
-          title: 'Reembolso rechazado por RRHH',
-          message: `Tu solicitud de reembolso de $${gasto.monto} ha sido rechazada. Motivo: ${motivoRechazo}`,
+          title: gasto.fundingMode === 'con_fondo' ? 'Gasto rechazado por RRHH' : 'Reembolso rechazado por RRHH',
+          message: `Tu ${gasto.fundingMode === 'con_fondo' ? 'gasto' : 'solicitud de reembolso'} de $${gasto.monto} ha sido rechazado. Motivo: ${motivoRechazo}`,
           type: 'warning',
           link: '/gastos-empresariales',
         });

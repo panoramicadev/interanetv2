@@ -959,7 +959,13 @@ export default function GastosEmpresariales() {
                     <div>
                       <p className="text-xs text-gray-500">Fecha de Emisión</p>
                       <p className="font-medium">
-                        {format(new Date(selectedGasto.fechaEmision), 'dd/MM/yyyy', { locale: es })}
+                        {(() => {
+                          const match = selectedGasto.fechaEmision!.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                          if (match) {
+                            return format(new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3])), 'dd/MM/yyyy', { locale: es });
+                          }
+                          return format(new Date(selectedGasto.fechaEmision!), 'dd/MM/yyyy', { locale: es });
+                        })()}
                       </p>
                     </div>
                   )}
@@ -1034,24 +1040,16 @@ export default function GastosEmpresariales() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {selectedGasto?.fundingMode === 'reembolso' && selectedGasto?.estadoAprobacion === 'pendiente_supervisor' 
-                ? 'Aprobar Reembolso (Supervisor)'
-                : selectedGasto?.fundingMode === 'reembolso' && selectedGasto?.estadoAprobacion === 'pendiente_rrhh'
+              {selectedGasto?.fundingMode === 'reembolso' 
                 ? 'Aprobar Reembolso (RRHH)'
-                : 'Aprobar Gasto'}
+                : 'Aprobar Gasto (RRHH)'}
             </DialogTitle>
             <DialogDescription>
               ¿Estás seguro de aprobar este gasto por {selectedGasto && formatCurrency(selectedGasto.monto)}?
-              {selectedGasto?.fundingMode === 'reembolso' && selectedGasto?.estadoAprobacion === 'pendiente_supervisor' && (
-                <span className="block mt-2 text-orange-600">
-                  Al aprobar, este reembolso pasará a RRHH para aprobación final.
-                </span>
-              )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-4">
-            {/* RRHH necesita subir comprobante de transferencia */}
-            {selectedGasto?.fundingMode === 'reembolso' && selectedGasto?.estadoAprobacion === 'pendiente_rrhh' && (
+            {selectedGasto?.fundingMode === 'reembolso' && ['pendiente_rrhh', 'pendiente_supervisor'].includes(selectedGasto?.estadoAprobacion || '') && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">Comprobante de Transferencia *</label>
                 <Input
@@ -1088,7 +1086,7 @@ export default function GastosEmpresariales() {
                 disabled={
                   aprobarMutation.isPending || 
                   (selectedGasto?.fundingMode === 'reembolso' && 
-                   selectedGasto?.estadoAprobacion === 'pendiente_rrhh' && 
+                   ['pendiente_rrhh', 'pendiente_supervisor'].includes(selectedGasto?.estadoAprobacion || '') && 
                    !comprobanteUrl.trim())
                 }
                 data-testid="button-confirm-approve"
@@ -1104,11 +1102,9 @@ export default function GastosEmpresariales() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {selectedGasto?.fundingMode === 'reembolso' && selectedGasto?.estadoAprobacion === 'pendiente_supervisor'
-                ? 'Rechazar Reembolso (Supervisor)'
-                : selectedGasto?.fundingMode === 'reembolso' && selectedGasto?.estadoAprobacion === 'pendiente_rrhh'
+              {selectedGasto?.fundingMode === 'reembolso' 
                 ? 'Rechazar Reembolso (RRHH)'
-                : 'Rechazar Gasto'}
+                : 'Rechazar Gasto (RRHH)'}
             </DialogTitle>
             <DialogDescription>
               Indica el motivo del rechazo de este gasto.
