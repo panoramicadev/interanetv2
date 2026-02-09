@@ -6,7 +6,7 @@ import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
 import { executeNVVETL } from "./etl-nvv";
 import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
-import { runProductionMigrations, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, bootstrapDatabase } from "./migrations";
+import { runProductionMigrations, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, bootstrapDatabase, syncMissingFundMovements } from "./migrations";
 import { startDailySalesReportScheduler } from "./daily-sales-report";
 
 const app = express();
@@ -135,6 +135,16 @@ async function initializeBackgroundServices() {
     console.error('⚠️ Error al clasificar productos:', error.message);
   }
   
+  // Sincronizar movimientos de fondos faltantes
+  try {
+    const syncResult = await syncMissingFundMovements();
+    if (syncResult.synced > 0) {
+      log(`💰 Movimientos de fondos sincronizados: ${syncResult.synced} creados, ${syncResult.errors} errores`);
+    }
+  } catch (error: any) {
+    console.error('⚠️ Error al sincronizar movimientos de fondos:', error.message);
+  }
+
   // Inicializar catálogos públicos para todos los vendedores
   try {
     const result = await storage.initializePublicCatalogs();
