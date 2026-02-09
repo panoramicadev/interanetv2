@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, X, FileText, Loader2, Receipt } from "lucide-react";
+import { ArrowLeft, Upload, X, XCircle, FileText, Loader2, Receipt } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -82,6 +82,7 @@ export default function GastosEmpresarialesForm() {
   const [isExtractingOCR, setIsExtractingOCR] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingFormData, setPendingFormData] = useState<FormValues | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Determinar si el usuario puede seleccionar otros colaboradores
   const canSelectOthers = user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'recursos_humanos';
@@ -169,8 +170,10 @@ export default function GastosEmpresarialesForm() {
       });
     },
     onSuccess: () => {
+      setShowConfirmDialog(false);
+      setPendingFormData(null);
+      setSubmitError(null);
       queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales'] });
-      // Invalidar todos los analytics para actualizar el dropdown de usuarios y gráficos
       queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics/usuarios'] });
       queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics/por-usuario'] });
       queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics/summary'] });
@@ -182,11 +185,7 @@ export default function GastosEmpresarialesForm() {
       setLocation('/gastos-empresariales');
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "No se pudo crear el gasto",
-        variant: "destructive",
-      });
+      setSubmitError(error.message || "No se pudo crear el gasto");
     }
   });
 
@@ -313,6 +312,7 @@ export default function GastosEmpresarialesForm() {
       return;
     }
     setPendingFormData(data);
+    setSubmitError(null);
     setShowConfirmDialog(true);
   };
 
@@ -337,9 +337,8 @@ export default function GastosEmpresarialesForm() {
 
   const confirmarGasto = () => {
     if (!pendingFormData) return;
-    setShowConfirmDialog(false);
+    setSubmitError(null);
     createMutation.mutate(pendingFormData);
-    setPendingFormData(null);
   };
 
   // Formatear moneda
@@ -932,31 +931,41 @@ export default function GastosEmpresarialesForm() {
             </div>
           )}
 
+          {submitError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+              <XCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-700">{submitError}</p>
+            </div>
+          )}
+
           <DialogFooter className="gap-2 mt-4">
             <Button 
               variant="outline" 
               onClick={() => {
                 setShowConfirmDialog(false);
                 setPendingFormData(null);
+                setSubmitError(null);
               }}
             >
-              Cancelar
+              {submitError ? 'Cerrar' : 'Cancelar'}
             </Button>
-            <Button 
-              onClick={confirmarGasto}
-              disabled={createMutation.isPending}
-              className="bg-green-600 hover:bg-green-700"
-              data-testid="button-confirmar-gasto"
-            >
-              {createMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Guardando...
-                </>
-              ) : (
-                'Sí, Confirmar Gasto'
-              )}
-            </Button>
+            {!submitError && (
+              <Button 
+                onClick={confirmarGasto}
+                disabled={createMutation.isPending}
+                className="bg-green-600 hover:bg-green-700"
+                data-testid="button-confirmar-gasto"
+              >
+                {createMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  'Sí, Confirmar Gasto'
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
