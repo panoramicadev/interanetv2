@@ -58,6 +58,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useToast } from "@/hooks/use-toast";
 import * as pdfjsLib from 'pdfjs-dist';
+import GastosFilterBar from "@/components/gastos-filter-bar";
 
 // Configure PDF.js worker - using static file from public folder
 // This avoids dynamic import issues in production builds
@@ -290,16 +291,6 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
     }
   });
 
-  // Query para obtener TODOS los usuarios con gastos (cualquier estado, cualquier fecha)
-  // Esto asegura que el dropdown siempre muestre todos los usuarios disponibles
-  const { data: todosUsuariosConGastos = [] } = useQuery<{userId: string; userName: string}[]>({
-    queryKey: ['/api/gastos-empresariales/analytics/usuarios'],
-    queryFn: async () => {
-      const response = await fetch('/api/gastos-empresariales/analytics/usuarios', { credentials: 'include' });
-      if (!response.ok) throw new Error('Error al cargar usuarios');
-      return response.json();
-    }
-  });
 
   const { data: porDia = [], isLoading: isLoadingDia } = useQuery<GastosByDia[]>({
     queryKey: ['/api/gastos-empresariales/analytics/por-dia', mes, anio, usuarioFilter],
@@ -954,6 +945,9 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         proveedor?: string;
         estado?: string;
         tipoFondo?: string;
+        ruta?: string;
+        clientes?: string;
+        ciudad?: string;
       }
       
       const allImages: ImageInfo[] = [];
@@ -996,9 +990,11 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
             tipoDocumento: gasto.tipoDocumento || 'Documento Adjunto',
             proveedor: gasto.proveedor || '-',
             estado: gasto.estado || '-',
+            ruta: (gasto as any).ruta || '-',
+            clientes: (gasto as any).clientes || '-',
+            ciudad: (gasto as any).ciudad || '-',
           });
         }
-        // Luego añadir el comprobante de transferencia (si existe y es diferente)
         if (gasto.comprobanteUrl && gasto.comprobanteUrl !== (gasto as any).archivoUrl) {
           const esConFondo = gasto.fundingMode === 'con_fondo';
           allImages.push({
@@ -1014,6 +1010,9 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
             tipoDocumento: 'Comprobante de Pago',
             proveedor: gasto.proveedor || '-',
             estado: gasto.estado || '-',
+            ruta: (gasto as any).ruta || '-',
+            clientes: (gasto as any).clientes || '-',
+            ciudad: (gasto as any).ciudad || '-',
           });
         }
       }
@@ -1036,7 +1035,7 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         for (const img of allImages) {
           try {
             const isPDF = img.url.toLowerCase().endsWith('.pdf');
-            const sectionHeight = img.type === 'fondo' ? 102 : 95;
+            const sectionHeight = img.type === 'fondo' ? 102 : 120;
             
             if (yPos + sectionHeight > pageHeight - 20) {
               doc.addPage();
@@ -1143,6 +1142,36 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
                 doc.setFont('helvetica', 'normal');
                 doc.setTextColor(15, 23, 42);
                 doc.text(String(img.proveedor).substring(0, 18), valueX, yPos);
+                yPos += lineHeight;
+              }
+              
+              if (img.ruta && img.ruta !== '-') {
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(100, 116, 139);
+                doc.text('Ruta', labelX, yPos);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(15, 23, 42);
+                doc.text(String(img.ruta).substring(0, 18), valueX, yPos);
+                yPos += lineHeight;
+              }
+              
+              if (img.clientes && img.clientes !== '-') {
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(100, 116, 139);
+                doc.text('Cliente(s)', labelX, yPos);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(15, 23, 42);
+                doc.text(String(img.clientes).substring(0, 18), valueX, yPos);
+                yPos += lineHeight;
+              }
+              
+              if (img.ciudad && img.ciudad !== '-') {
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(100, 116, 139);
+                doc.text('Ciudad', labelX, yPos);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(15, 23, 42);
+                doc.text(String(img.ciudad).substring(0, 18), valueX, yPos);
                 yPos += lineHeight;
               }
             } else {
@@ -1362,8 +1391,6 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
     { value: '12', label: 'Diciembre' },
   ];
 
-  const years = Array.from({ length: 5 }, (_, i) => (currentYear - i).toString());
-
   // Usar la función de filtrado para la vista
   const filteredGastos = getFilteredGastos();
 
@@ -1448,96 +1475,20 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         </div>
       )}
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filtros
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-3 overflow-x-auto pb-2">
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <Calendar className="h-4 w-4 text-gray-500" />
-              <Select value={mes} onValueChange={setMes}>
-                <SelectTrigger className="w-[120px]" data-testid="select-mes">
-                  <SelectValue placeholder="Mes" />
-                </SelectTrigger>
-                <SelectContent>
-                  {months.map(month => (
-                    <SelectItem key={month.value} value={month.value}>
-                      {month.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={anio} onValueChange={setAnio}>
-                <SelectTrigger className="w-[85px]" data-testid="select-anio">
-                  <SelectValue placeholder="Año" />
-                </SelectTrigger>
-                <SelectContent>
-                  {years.map(year => (
-                    <SelectItem key={year} value={year}>
-                      {year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <Users className="h-4 w-4 text-gray-500" />
-              <Select value={usuarioFilter} onValueChange={setUsuarioFilter}>
-                <SelectTrigger className="w-[150px]" data-testid="select-usuario">
-                  <SelectValue placeholder="Usuario" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos los usuarios</SelectItem>
-                  {todosUsuariosConGastos
-                    .sort((a: any, b: any) => (a.userName || '').localeCompare(b.userName || ''))
-                    .map((user: any) => (
-                      <SelectItem key={user.userId} value={user.userId}>
-                        {user.userName || 'Sin nombre'}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <Clock className="h-4 w-4 text-gray-500" />
-              <Select value={estadoFilter} onValueChange={setEstadoFilter}>
-                <SelectTrigger className="w-[130px]" data-testid="select-estado-dashboard">
-                  <SelectValue placeholder="Estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  <SelectItem value="pendiente">Pendiente</SelectItem>
-                  <SelectItem value="aprobado">Aprobado</SelectItem>
-                  <SelectItem value="rechazado">Rechazado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <FolderOpen className="h-4 w-4 text-gray-500" />
-              <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
-                <SelectTrigger className="w-[140px]" data-testid="select-categoria-dashboard">
-                  <SelectValue placeholder="Categoría" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todas</SelectItem>
-                  {CATEGORIAS.map(cat => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <GastosFilterBar
+        mes={mes}
+        setMes={setMes}
+        anio={anio}
+        setAnio={setAnio}
+        usuarioFilter={usuarioFilter}
+        setUsuarioFilter={setUsuarioFilter}
+        showEstadoFilter={true}
+        estadoFilter={estadoFilter}
+        setEstadoFilter={setEstadoFilter}
+        showCategoriaFilter={true}
+        categoriaFilter={categoriaFilter}
+        setCategoriaFilter={setCategoriaFilter}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-l-4 border-l-blue-500">

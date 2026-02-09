@@ -15843,13 +15843,14 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         userId: targetUserId,
       });
       
-      // Si es con fondos asignados, aprobar automáticamente
       const isConFondo = validated.fundingMode === 'con_fondo' && validated.fundAllocationId;
       if (isConFondo) {
-        validated.estado = 'aprobado';
+        validated.estado = 'pendiente';
         validated.tipoGasto = 'Con Fondos Asignados';
+        validated.estadoAprobacion = 'pendiente_rrhh';
       } else {
         validated.tipoGasto = 'Reembolso';
+        validated.estadoAprobacion = 'pendiente_rrhh';
       }
       
       const gasto = await storage.createGastoEmpresarial(validated);
@@ -16039,7 +16040,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     }
   }));
 
-  // Aprobar reembolso por supervisor
+  // [DEPRECATED] Aprobar reembolso por supervisor - kept for backward compatibility with existing pendiente_supervisor records
   app.post('/api/gastos-empresariales/:id/supervisor-approve', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
@@ -16082,7 +16083,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     }
   }));
 
-  // Rechazar reembolso por supervisor
+  // [DEPRECATED] Rechazar reembolso por supervisor - kept for backward compatibility with existing pendiente_supervisor records
   app.post('/api/gastos-empresariales/:id/supervisor-reject', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
@@ -16140,13 +16141,13 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         return res.status(404).json({ message: 'Gasto no encontrado' });
       }
       
-      if (gasto.estadoAprobacion !== 'pendiente_rrhh') {
-        return res.status(400).json({ message: 'Este reembolso no está pendiente de aprobación de RRHH' });
+      if (!['pendiente_rrhh', 'pendiente_supervisor'].includes(gasto.estadoAprobacion || '')) {
+        return res.status(400).json({ message: 'Este gasto no está pendiente de aprobación de RRHH' });
       }
       
       const { comprobanteUrl, comentario } = req.body;
-      if (!comprobanteUrl) {
-        return res.status(400).json({ message: 'El comprobante de transferencia es requerido' });
+      if (gasto.fundingMode !== 'con_fondo' && !comprobanteUrl) {
+        return res.status(400).json({ message: 'El comprobante de transferencia es requerido para reembolsos' });
       }
       
       const result = await storage.aprobarReembolsoRrhh(req.params.id, user.id, comprobanteUrl, comentario);
@@ -16184,8 +16185,8 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         return res.status(404).json({ message: 'Gasto no encontrado' });
       }
       
-      if (gasto.estadoAprobacion !== 'pendiente_rrhh') {
-        return res.status(400).json({ message: 'Este reembolso no está pendiente de aprobación de RRHH' });
+      if (!['pendiente_rrhh', 'pendiente_supervisor'].includes(gasto.estadoAprobacion || '')) {
+        return res.status(400).json({ message: 'Este gasto no está pendiente de aprobación de RRHH' });
       }
       
       const { motivoRechazo } = req.body;
@@ -16614,32 +16615,10 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         return res.status(400).json({ message: 'El segmento es requerido para solicitar fondos' });
       }
       
-      // Check if segment has a supervisor assigned
-      const segmentSupervisors = await storage.getSegmentSupervisors(segmentCode);
-      const hasSupervisor = segmentSupervisors.length > 0;
-      
-      // Check if the requester IS the supervisor for this segment (auto-approve supervisor step)
-      const requesterIsSupervisor = segmentSupervisors.some(sup => sup.supervisorUserId === user.id);
-      
-      // Determine initial approval state:
-      // - If requester is the supervisor: skip supervisor step, go to pendiente_rrhh
-      // - If no supervisor assigned: go to pendiente_rrhh
-      // - Otherwise: start with pendiente_supervisor
-      let initialApprovalState: string;
-      let supervisorAprobadorId: string | null = null;
-      let fechaAprobacionSupervisor: Date | null = null;
-      
-      if (requesterIsSupervisor) {
-        // Supervisor requesting for their own segment - auto-approve supervisor step
-        initialApprovalState = 'pendiente_rrhh';
-        supervisorAprobadorId = user.id;
-        fechaAprobacionSupervisor = new Date();
-        console.log(`[FUND REQUEST] Supervisor ${user.email} auto-approved their own request for segment ${segmentCode}`);
-      } else if (!hasSupervisor) {
-        initialApprovalState = 'pendiente_rrhh';
-      } else {
-        initialApprovalState = 'pendiente_supervisor';
-      }
+      // All fund allocations now go directly to RRHH approval (supervisor step removed)
+      const initialApprovalState = 'pendiente_rrhh';
+      const supervisorAprobadorId: string | null = null;
+      const fechaAprobacionSupervisor: Date | null = null;
       
       // Create fund allocation with multi-level approval flow
       const allocation = await storage.createFundAllocation({

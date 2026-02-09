@@ -137,6 +137,18 @@ curl -X GET "https://your-domain.replit.app/external-api/dashboard?period=2025-0
 
 ## Expense Management Module (Updated February 2026)
 
+### Approval Workflow (February 2026 - Simplified)
+- **RRHH-Only Approval**: Supervisor approval step has been removed. All expenses (both reembolsos and fund-backed) go directly to `pendiente_rrhh`
+- **Fund-Backed Expenses**: No longer auto-approved. Require RRHH approval like reembolsos, but without requiring `comprobanteUrl`
+- **Backward Compatibility**: Legacy `pendiente_supervisor` records can still be approved by RRHH
+- **State Machine**: `pendiente_rrhh` → `aprobado` or `rechazado` (single step)
+- **Supervisor Endpoints**: `/api/gastos-empresariales/:id/supervisor-approve` and `supervisor-reject` are deprecated but kept for compatibility
+
+### Reusable Filter Component (February 2026)
+- **Component**: `client/src/components/gastos-filter-bar.tsx` - shared across Dashboard, Rendición de Gastos, and Gestión de Fondos tabs
+- **Filters**: Month, Year, User/Colaborador (admin/supervisor/RRHH only), optional Estado and Categoría
+- **Rendición tab** now filters by date range (fechaDesde/fechaHasta) server-side, matching Dashboard behavior
+
 ### Supervisor Permissions
 - Supervisors now have the same data visibility as admin/RRHH roles across expense endpoints
 - Only `salesperson` role is restricted to their own data
