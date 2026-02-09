@@ -287,13 +287,6 @@ export default function GastosEmpresariales() {
     enabled: !!user?.id,
   });
 
-  // Calcular uso de cada fondo basado en gastos asociados
-  const getFundUsage = (fundId: string) => {
-    const fundGastos = gastos.filter(g => g.fundAllocationId === fundId && g.estado !== 'rechazado');
-    const totalUsado = fundGastos.reduce((sum, g) => sum + parseFloat(g.monto || '0'), 0);
-    return totalUsado;
-  };
-
   // Fetch pending RRHH approvals count (for RRHH badge)
   const isRRHH = user?.role === 'recursos_humanos' || user?.role === 'admin';
   const { data: pendingRRHHAllocations = [] } = useQuery<FundAllocation[]>({
@@ -531,8 +524,8 @@ export default function GastosEmpresariales() {
                       <div className="flex flex-col gap-3 w-full">
                         {userFundAllocations.map((fund) => {
                           const montoInicial = parseFloat(fund.montoInicial || '0');
-                          const montoUsado = fund.montoUsado ? parseFloat(fund.montoUsado) : getFundUsage(fund.id);
-                          const saldoDisponible = montoInicial - montoUsado;
+                          const saldoDisponible = fund.saldoDisponible != null ? parseFloat(String(fund.saldoDisponible)) : montoInicial;
+                          const montoUsado = montoInicial - saldoDisponible;
                           const porcentajeUsado = montoInicial > 0 ? (montoUsado / montoInicial) * 100 : 0;
                           const isOverBudget = porcentajeUsado > 100;
                           

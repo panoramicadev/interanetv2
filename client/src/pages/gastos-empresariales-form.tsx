@@ -316,6 +316,25 @@ export default function GastosEmpresarialesForm() {
     setShowConfirmDialog(true);
   };
 
+  const onFormError = (errors: any) => {
+    const fieldNames: Record<string, string> = {
+      monto: 'Monto',
+      descripcion: 'Descripción',
+      categoria: 'Categoría',
+      ruta: 'Ruta',
+      clientes: 'Cliente(s)',
+      ciudad: 'Ciudad',
+      userId: 'Vendedor',
+      fundAllocationId: 'Fondo',
+    };
+    const missing = Object.keys(errors).map(k => fieldNames[k] || k).join(', ');
+    toast({
+      title: "Campos incompletos",
+      description: `Por favor complete: ${missing}`,
+      variant: "destructive",
+    });
+  };
+
   const confirmarGasto = () => {
     if (!pendingFormData) return;
     setShowConfirmDialog(false);
@@ -367,7 +386,7 @@ export default function GastosEmpresarialesForm() {
         {/* Form */}
         <div className="bg-white rounded-lg shadow p-6">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={form.handleSubmit(onSubmit, onFormError)} className="space-y-6">
               {/* File Upload - First Field */}
               <div className="space-y-4 pb-4 border-b">
                 <h3 className="font-semibold text-lg">Evidencia del Gasto</h3>
