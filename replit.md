@@ -147,6 +147,8 @@ curl -X GET "https://your-domain.replit.app/external-api/dashboard?period=2025-0
 - **Fund Management**: Exclusively managed by RRHH (`recursos_humanos` role) and admin. Supervisors cannot manage funds.
 - **Role Reference**: Always use `recursos_humanos` (never `rrhh`) when checking HR role in code
 - **Supervisor Endpoints**: `/api/gastos-empresariales/:id/supervisor-approve` and `supervisor-reject` are deprecated but kept for compatibility
+- **Fund Balance Source**: The Card "Fondos Asignados" in Rendición de Gastos uses backend-provided `saldoDisponible` from enriched `/api/fund-allocations` response. Never calculate saldo locally from filtered expenses.
+- **Form Validation Feedback**: The expense form uses `onFormError` (react-hook-form's `onInvalid` callback) to show a toast listing missing required fields when the form fails validation.
 
 ### Reusable Filter Component (February 2026)
 - **Component**: `client/src/components/gastos-filter-bar.tsx` - shared across Dashboard, Rendición de Gastos, and Gestión de Fondos tabs
