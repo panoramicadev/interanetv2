@@ -139,9 +139,13 @@ curl -X GET "https://your-domain.replit.app/external-api/dashboard?period=2025-0
 
 ### Approval Workflow (February 2026 - Simplified)
 - **RRHH-Only Approval**: Supervisor approval step has been removed. All expenses (both reembolsos and fund-backed) go directly to `pendiente_rrhh`
+- **Auto Comprobante**: On RRHH approval, the expense's `archivoUrl` (photo uploaded at creation) is automatically assigned as `comprobanteUrl`. No manual URL input needed.
+- **Required Photo for Reembolso**: Creating a reembolso expense requires uploading a photo/receipt. The form will not submit without one.
 - **Fund-Backed Expenses**: No longer auto-approved. Require RRHH approval like reembolsos, but without requiring `comprobanteUrl`
 - **Backward Compatibility**: Legacy `pendiente_supervisor` records can still be approved by RRHH
 - **State Machine**: `pendiente_rrhh` → `aprobado` or `rechazado` (single step)
+- **Fund Management**: Exclusively managed by RRHH (`recursos_humanos` role) and admin. Supervisors cannot manage funds.
+- **Role Reference**: Always use `recursos_humanos` (never `rrhh`) when checking HR role in code
 - **Supervisor Endpoints**: `/api/gastos-empresariales/:id/supervisor-approve` and `supervisor-reject` are deprecated but kept for compatibility
 
 ### Reusable Filter Component (February 2026)
