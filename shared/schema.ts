@@ -4648,8 +4648,8 @@ export const fundAllocations = pgTable("fund_allocations", {
   fechaAprobacion: timestamp("fecha_aprobacion"), // Fecha de aprobación/rechazo
   // Campos para flujo de aprobación multi-nivel
   segmentCode: varchar("segment_code", { length: 100 }), // Segmento del vendedor
-  estadoAprobacion: varchar("estado_aprobacion", { length: 50 }).default("pendiente_supervisor"), // pendiente_supervisor, pendiente_rrhh, aprobado, rechazado
-  supervisorAprobadorId: varchar("supervisor_aprobador_id"), // Supervisor que aprueba/rechaza
+  estadoAprobacion: varchar("estado_aprobacion", { length: 50 }).default("pendiente_rrhh"), // pendiente_supervisor (legacy), pendiente_rrhh, aprobado, rechazado
+  supervisorAprobadorId: varchar("supervisor_aprobador_id"), // Supervisor que aprueba/rechaza (legacy)
   fechaAprobacionSupervisor: timestamp("fecha_aprobacion_supervisor"),
   comentarioSupervisor: text("comentario_supervisor"),
   rrhhAprobadorId: varchar("rrhh_aprobador_id"), // RRHH que aprueba/rechaza
@@ -4706,7 +4706,7 @@ export const insertFundAllocationSchema = createInsertSchema(fundAllocations).om
   fechaTermino: z.string().or(z.date()).optional().nullable().transform(val => val ? (typeof val === 'string' ? new Date(val) : val) : null),
   estado: z.enum(["solicitud", "pendiente_aprobacion", "activo", "cerrado", "rechazado"]).default("solicitud"),
   segmentCode: z.string().optional().nullable(),
-  estadoAprobacion: z.enum(["pendiente_supervisor", "pendiente_rrhh", "aprobado", "rechazado"]).default("pendiente_supervisor"),
+  estadoAprobacion: z.enum(["pendiente_supervisor", "pendiente_rrhh", "aprobado", "rechazado"]).default("pendiente_rrhh"),
 });
 
 // Schema para aprobación de supervisor
@@ -4823,7 +4823,7 @@ export const gastosEmpresariales = pgTable("gastos_empresariales", {
   fechaAprobacion: timestamp("fecha_aprobacion"),
   comentarioRechazo: text("comentario_rechazo"),
   // Campos de aprobación de dos niveles para reembolsos (igual que fondos)
-  estadoAprobacion: varchar("estado_aprobacion", { length: 50 }).default("pendiente_supervisor"), // pendiente_supervisor, pendiente_rrhh, aprobado, rechazado
+  estadoAprobacion: varchar("estado_aprobacion", { length: 50 }).default("pendiente_rrhh"), // pendiente_supervisor (legacy), pendiente_rrhh, aprobado, rechazado
   supervisorAprobadorId: varchar("supervisor_aprobador_id"),
   fechaAprobacionSupervisor: timestamp("fecha_aprobacion_supervisor"),
   comentarioSupervisor: text("comentario_supervisor"),
@@ -4870,10 +4870,17 @@ export const insertGastoEmpresarialSchema = createInsertSchema(gastosEmpresarial
   categoria: z.string().min(1, "La categoría es requerida"),
   tipoGasto: z.string().default("Reembolso").optional(),
   estado: z.enum(["pendiente", "aprobado", "rechazado"]).default("pendiente"),
-  estadoAprobacion: z.enum(["pendiente_supervisor", "pendiente_rrhh", "aprobado", "rechazado"]).default("pendiente_supervisor"),
-  fechaEmision: z.string().or(z.date()).transform(val => 
-    typeof val === 'string' ? new Date(val) : val
-  ).optional(),
+  estadoAprobacion: z.enum(["pendiente_supervisor", "pendiente_rrhh", "aprobado", "rechazado"]).default("pendiente_rrhh"),
+  fechaEmision: z.string().or(z.date()).transform(val => {
+    if (typeof val === 'string') {
+      const match = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (match) {
+        return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
+      }
+      return new Date(val);
+    }
+    return val;
+  }).optional(),
   fundingMode: z.enum(["con_fondo", "reembolso"]).default("reembolso"),
   fundAllocationId: z.string().optional().nullable(),
   segmentCode: z.string().optional().nullable(),

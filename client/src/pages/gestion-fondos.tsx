@@ -50,6 +50,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Plus, Search, HandCoins, Upload, Loader2, Check, X, Eye, Trash2 } from "lucide-react";
+import GastosFilterBar from "@/components/gastos-filter-bar";
 
 const crearFondoSchema = z.object({
   presupuesto: z.string().min(1, "El presupuesto es requerido"),
@@ -92,6 +93,11 @@ interface FundAllocation {
 export default function GestionFondos({ embedded = false }: GestionFondosProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const currentMonth = new Date().getMonth() + 1;
+  const currentYear = new Date().getFullYear();
+  const [mes, setMes] = useState(currentMonth.toString());
+  const [anio, setAnio] = useState(currentYear.toString());
+  const [usuarioFilter, setUsuarioFilter] = useState("todos");
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("asignaciones");
   const [showCrearFondoDialog, setShowCrearFondoDialog] = useState(false);
@@ -129,17 +135,6 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
       if (!response.ok) return [];
       return response.json();
     },
-  });
-
-  // Fetch pending supervisor approvals (for supervisors only)
-  const { data: pendingSupervisorApprovals = [] } = useQuery<any[]>({
-    queryKey: ['/api/fund-allocations/pending/supervisor'],
-    queryFn: async () => {
-      const response = await fetch('/api/fund-allocations/pending/supervisor', { credentials: 'include' });
-      if (!response.ok) return [];
-      return response.json();
-    },
-    enabled: isSupervisor,
   });
 
   // Fetch pending RRHH approvals (for RRHH only)
@@ -559,13 +554,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
   const handleReject = () => {
     if (!selectedAllocation || !rejectReason.trim()) return;
     
-    // If the allocation is pending supervisor approval and user is supervisor, use supervisor rejection
-    if (selectedAllocation.estadoAprobacion === 'pendiente_supervisor' && isSupervisor) {
-      supervisorRejectMutation.mutate({ allocationId: selectedAllocation.id, comentario: rejectReason });
-    } else {
-      // Otherwise use RRHH rejection
-      rejectMutation.mutate({ allocationId: selectedAllocation.id, motivoRechazo: rejectReason });
-    }
+    rejectMutation.mutate({ allocationId: selectedAllocation.id, motivoRechazo: rejectReason });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -585,9 +574,8 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
       case 'solicitud':
         return <Badge variant="outline" className={`${baseClasses} bg-blue-50 text-blue-700 border-blue-200`}>Solicitud</Badge>;
       case 'pendiente_supervisor':
-        return <Badge variant="outline" className={`${baseClasses} bg-orange-50 text-orange-700 border-orange-200`}>Pendiente Supervisor</Badge>;
       case 'pendiente_rrhh':
-        return <Badge variant="outline" className={`${baseClasses} bg-purple-50 text-purple-700 border-purple-200`}>Aprobado por Supervisor</Badge>;
+        return <Badge variant="outline" className={`${baseClasses} bg-orange-50 text-orange-700 border-orange-200`}>Pendiente RRHH</Badge>;
       case 'pendiente':
       case 'pendiente_aprobacion':
         return <Badge variant="outline" className={`${baseClasses} bg-orange-50 text-orange-700 border-orange-200`}>Pendiente</Badge>;
@@ -629,6 +617,14 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
     }).format(num);
   };
 
+  const getDateRange = (month: string, year: string) => {
+    const m = parseInt(month);
+    const y = parseInt(year);
+    const fechaDesde = new Date(y, m - 1, 1);
+    const fechaHasta = new Date(y, m, 0, 23, 59, 59, 999);
+    return { fechaDesde, fechaHasta };
+  };
+
   const filteredFondos = fondos.filter((fondo: FundAllocation) => {
     const assigneeName = getAssigneeName(fondo.assignedToId);
     const matchesSearch = searchTerm === "" || 
@@ -636,7 +632,13 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
       fondo.descripcion?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       assigneeName.toLowerCase().includes(searchTerm.toLowerCase());
 
-    return matchesSearch;
+    const { fechaDesde, fechaHasta } = getDateRange(mes, anio);
+    const fondoDate = new Date(fondo.createdAt);
+    const matchesDate = fondoDate >= fechaDesde && fondoDate <= fechaHasta;
+
+    const matchesUser = usuarioFilter === 'todos' || fondo.assignedToId === usuarioFilter;
+
+    return matchesSearch && matchesDate && matchesUser;
   });
 
   const renderTable = () => (
@@ -808,6 +810,15 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
           )}
         </div>
 
+        <GastosFilterBar
+          mes={mes}
+          setMes={setMes}
+          anio={anio}
+          setAnio={setAnio}
+          usuarioFilter={usuarioFilter}
+          setUsuarioFilter={setUsuarioFilter}
+        />
+
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -841,63 +852,6 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
               <div className="text-xl font-bold text-green-600">{formatCurrency(summary.saldoDisponible || 0)}</div>
             </Card>
           </div>
-        )}
-
-        {/* Supervisor Pending Approvals Section */}
-        {isSupervisor && pendingSupervisorApprovals.length > 0 && (
-          <Card className="p-4 mb-4 border-orange-200 bg-orange-50">
-            <div className="flex items-center gap-2 mb-3">
-              <HandCoins className="h-5 w-5 text-orange-600" />
-              <h3 className="font-semibold text-orange-800">Solicitudes Pendientes de Aprobación ({pendingSupervisorApprovals.length})</h3>
-            </div>
-            <div className="space-y-3">
-              {pendingSupervisorApprovals.map((allocation: any) => {
-                const solicitante = salespeople.find((s: any) => s.id === allocation.assignedToId);
-                return (
-                  <div key={allocation.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
-                    <div className="flex-1">
-                      <div className="font-medium">{allocation.nombre}</div>
-                      <div className="text-sm text-gray-500">
-                        Solicitante: {solicitante?.salespersonName || 'Desconocido'} • 
-                        Segmento: {allocation.segmentCode} • 
-                        Monto: {formatCurrency(parseFloat(allocation.montoInicial))}
-                      </div>
-                      {allocation.motivo && (
-                        <div className="text-sm text-gray-600 mt-1">Motivo: {allocation.motivo}</div>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-green-600 border-green-300 hover:bg-green-50"
-                        onClick={() => {
-                          setSelectedAllocation(allocation);
-                          setShowSupervisorApproveDialog(true);
-                        }}
-                        disabled={supervisorApproveMutation.isPending}
-                      >
-                        <Check className="h-4 w-4 mr-1" />
-                        Aprobar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-red-600 border-red-300 hover:bg-red-50"
-                        onClick={() => {
-                          setSelectedAllocation(allocation);
-                          setShowRejectDialog(true);
-                        }}
-                      >
-                        <X className="h-4 w-4 mr-1" />
-                        Rechazar
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
         )}
 
         {/* RRHH Pending Approvals Section */}
@@ -1480,11 +1434,11 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                 </Button>
                 <Button 
                   onClick={handleReject}
-                  disabled={!rejectReason.trim() || rejectMutation.isPending || supervisorRejectMutation.isPending}
+                  disabled={!rejectReason.trim() || rejectMutation.isPending}
                   variant="destructive"
                   data-testid="button-confirm-reject"
                 >
-                  {rejectMutation.isPending || supervisorRejectMutation.isPending ? (
+                  {rejectMutation.isPending ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Rechazando...
