@@ -2,14 +2,14 @@ import mssql from 'mssql';
 import { db } from './db';
 import { sql, desc, eq } from 'drizzle-orm';
 import { EventEmitter } from 'events';
-import { 
-  stgMaeedo, 
-  stgMaeddo, 
-  stgMaeen, 
-  stgMaepr, 
-  stgMaeven, 
+import {
+  stgMaeedo,
+  stgMaeddo,
+  stgMaeen,
+  stgMaepr,
+  stgMaeven,
   stgTabbo,
-  stgTabru, 
+  stgTabru,
   stgTabpp,
   factVentas,
   weeklyVentasCliente,
@@ -90,7 +90,7 @@ async function checkIfCancelled(executionId: string): Promise<boolean> {
       .from(etlExecutionLog)
       .where(sql`id = ${executionId}`)
       .limit(1);
-    
+
     if (result.length > 0 && result[0].status === 'cancelled') {
       console.log('🛑 ETL cancelado por el usuario');
       return true;
@@ -112,43 +112,43 @@ class ETLCancelledException extends Error {
 
 // Función helper para batch insert con manejo de errores robusto y logging
 async function batchInsert<T>(
-  table: any, 
-  records: T[], 
+  table: any,
+  records: T[],
   tableName: string,
   logger: ReturnType<typeof createETLLogger>,
   batchSize: number = 1000
 ) {
   if (records.length === 0) return 0;
-  
+
   let inserted = 0;
   let failedCount = 0;
   const errors: string[] = [];
-  
-  logger.info(`Iniciando batch insert en ${tableName}`, { 
-    totalRecords: records.length, 
-    batchSize 
+
+  logger.info(`Iniciando batch insert en ${tableName}`, {
+    totalRecords: records.length,
+    batchSize
   });
-  
+
   for (let i = 0; i < records.length; i += batchSize) {
     const batch = records.slice(i, i + batchSize);
     try {
       await db.insert(table).values(batch).onConflictDoNothing();
       inserted += batch.length;
-      logger.info(`Batch insertado exitosamente en ${tableName}`, { 
+      logger.info(`Batch insertado exitosamente en ${tableName}`, {
         batchNumber: Math.floor(i / batchSize) + 1,
         recordsInserted: batch.length,
         totalInserted: inserted
       });
     } catch (error: any) {
       // Si falla un batch grande, intentar con batches más pequeños
-      logger.warn(`Error en batch grande de ${tableName}, intentando batches más pequeños`, { 
+      logger.warn(`Error en batch grande de ${tableName}, intentando batches más pequeños`, {
         batchSize: batch.length,
         error: error.message,
         sampleRecord: batch[0]
       }, error);
-      
+
       const smallerBatchSize = Math.max(100, Math.floor(batchSize / 10));
-      
+
       for (let j = 0; j < batch.length; j += smallerBatchSize) {
         const smallBatch = batch.slice(j, j + smallerBatchSize);
         try {
@@ -158,8 +158,8 @@ async function batchInsert<T>(
           const errorMsg = `Error insertando batch pequeño (${smallBatch.length} registros): ${smallError.message}`;
           errors.push(errorMsg);
           failedCount += smallBatch.length;
-          
-          logger.critical(`Batch insert fallido en ${tableName}`, { 
+
+          logger.critical(`Batch insert fallido en ${tableName}`, {
             tableName,
             batchSize: smallBatch.length,
             failedCount,
@@ -168,24 +168,24 @@ async function batchInsert<T>(
             sampleRecord: JSON.stringify(smallBatch[0]),
             allRecordKeys: Object.keys(smallBatch[0] as any)
           }, smallError);
-          
+
           // Propagar el error para que el ETL falle en lugar de perder datos silenciosamente
           throw new Error(`Batch insert failed: ${failedCount} registros fallaron. Errores: ${errors.join('; ')}`);
         }
       }
     }
   }
-  
+
   // Si hubo errores en el fallback, reportarlos
   if (errors.length > 0) {
     logger.warn(`Fallback activado en ${tableName}`, { errorsCount: errors.length });
   }
-  
-  logger.info(`Batch insert completado en ${tableName}`, { 
+
+  logger.info(`Batch insert completado en ${tableName}`, {
     totalInserted: inserted,
-    totalFailed: failedCount 
+    totalFailed: failedCount
   });
-  
+
   return inserted;
 }
 
@@ -254,11 +254,11 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
   console.log('╚═══════════════════════════════════════════════════════════════╝');
   console.log(`📝 ETL Name: ${etlName}`);
   console.log(`⏰ Start Time: ${new Date().toISOString()}`);
-  
+
   const startTime = Date.now();
   const logger = createETLLogger(etlName);
   logger.info('ETL iniciado', { etlName, startTime: new Date().toISOString() });
-  
+
   let pool: mssql.ConnectionPool | null = null;
   const tiposDoc = ['FCV', 'GDV', 'FVL', 'NCV', 'BLV', 'FDV'];
   const sucursales = ['004', '006', '007'];
@@ -286,7 +286,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       const runningExec = runningETL[0];
       const runningTime = Date.now() - new Date(runningExec.startTime!).getTime();
       const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutos
-      
+
       if (runningTime > STALE_THRESHOLD_MS) {
         // Ejecución colgada - limpiar automáticamente
         console.log(`🧹 Limpiando ejecución colgada (ID: ${runningExec.id}, ${Math.round(runningTime / 60000)} minutos)...`);
@@ -323,7 +323,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     // Obtener el último watermark
     const lastWatermark = await getLastWatermark(etlName);
     const currentWatermark = new Date();
-    
+
     console.log('╔═══════════════════════════════════════════════════════════════╗');
     console.log('║  🔍 CONFIGURACIÓN DEL WATERMARK                               ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
@@ -336,12 +336,12 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       console.log(`🎯 Watermark personalizado configurado: ${new Date(config.customWatermark).toISOString()}`);
     }
     console.log('');
-    
+
     // Configurar timeout automático
     timeoutHandle = setTimeout(async () => {
       timedOut = true;
       console.log(`\n⏱️  TIMEOUT: ETL excedió el límite de ${config.timeoutMinutes} minutos`);
-      
+
       // Marcar ejecución como cancelada por timeout
       try {
         const runningExecution = await db
@@ -364,7 +364,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       } catch (timeoutError) {
         console.error('Error al marcar timeout:', timeoutError);
       }
-      
+
       // Cerrar conexión SQL Server si está abierta
       if (pool) {
         try {
@@ -376,7 +376,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     }, timeoutMs);
 
     console.log(`⏱️  Timeout configurado: ${config.timeoutMinutes} minutos`);
-    
+
     console.log(`📅 Período incremental:`);
     console.log(`   ETL: ${etlName}`);
     console.log(`   Desde: ${lastWatermark.toISOString()}`);
@@ -405,7 +405,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       branches: sucursales.join(','),
       watermarkDate: currentWatermark,
     }).returning();
-    
+
     // Guardar ID para usarlo en el catch block si hay error
     executionLogId = executionLog.id;
 
@@ -430,7 +430,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     const startDateSQL = lastWatermark.toISOString().split('T')[0];
     const endDateSQL = currentWatermark.toISOString().split('T')[0];
     const startYear = lastWatermark.getFullYear();
-    
+
     console.log('╔═══════════════════════════════════════════════════════════════╗');
     console.log('║  📝 QUERY SQL MAEEDO - FILTROS APLICADOS                      ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
@@ -440,7 +440,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     console.log(`🔍 FEEMDO <= '${endDateSQL}' (Fecha de emisión del documento)`);
     console.log(`🔍 YEAR(FEEMDO) >= ${startYear} (dinámico según watermark)`);
     console.log('');
-    
+
     const maeedo = await executeWithResilience(
       async () => pool.request().query(`
         SELECT *
@@ -455,12 +455,12 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       sqlServerBreaker,
       { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
     );
-    
+
     if (maeedo.recordset.length === 0) {
       console.log('\n⚠️  No hay registros nuevos para procesar en el período especificado');
       console.log(`   Fecha inicio: ${startDateSQL}`);
       console.log(`   Fecha fin: ${endDateSQL}\n`);
-      
+
       await db.update(etlExecutionLog)
         .set({
           status: 'success',
@@ -471,7 +471,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         .where(sql`id = ${executionLog.id}`);
 
       await pool.close();
-      
+
       return {
         success: true,
         recordsProcessed: 0,
@@ -483,7 +483,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
 
     const TOTAL_STEPS = 10;
     emitProgress(1, TOTAL_STEPS, 'Extrayendo MAEEDO', `${maeedo.recordset.length} registros encontrados`);
-    
+
     console.log(`\n📊 Resumen de extracción MAEEDO:`);
     console.log(`   ✅ ${maeedo.recordset.length} registros encontrados`);
     if (maeedo.recordset.length > 0) {
@@ -578,7 +578,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     console.log('3️⃣  Extrayendo MAEEN (Entidades)...');
     const endos = [...new Set(maeedo.recordset.map(r => r.ENDO?.trim()).filter(e => e))];
     let maeen = { recordset: [] };
-    
+
     if (endos.length > 0) {
       maeen = await executeWithResilience(
         async () => pool.request().query(`
@@ -629,7 +629,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     console.log('5️⃣  Extrayendo MAEVEN (Vendedores)...');
     const kofuens = [...new Set(maeen.recordset.map(r => r.KOFUEN).filter(k => k))];
     let maeven = { recordset: [] };
-    
+
     if (kofuens.length > 0) {
       maeven = await executeWithResilience(
         async () => pool.request().query(`
@@ -653,7 +653,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     console.log('6️⃣  Extrayendo TABRU (Segmentos)...');
     const ruens = [...new Set(maeen.recordset.map(r => r.RUEN).filter(r => r))];
     let tabru = { recordset: [] };
-    
+
     if (ruens.length > 0) {
       tabru = await executeWithResilience(
         async () => pool.request().query(`
@@ -677,7 +677,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     console.log('7️⃣  Extrayendo TABBO (Bodegas)...');
     const sulis = [...new Set(maeedo.recordset.map(r => r.SULI))];
     const bosulis = [...new Set(maeedo.recordset.map(r => r.BOSULIDO))];
-    
+
     const tabbo = await executeWithResilience(
       async () => pool.request().query(`
         SELECT EMPRESA, KOBO, NOKOBO
@@ -730,14 +730,14 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     // 9. PROCESAR A FACT_VENTAS (UPSERT - eliminar registros antiguos e insertar nuevos)
     emitProgress(8, TOTAL_STEPS, 'Procesando FACT_VENTAS', 'Aplicando UPSERT...');
     console.log('9️⃣  Procesando FACT_VENTAS (UPSERT)...');
-    
+
     // Contar filas ANTES del proceso para calcular registros nuevos
     const countBeforeResult = await db.execute(sql`SELECT COUNT(*) as count FROM ventas.fact_ventas`);
     const rowsBeforeUpsert = Number(countBeforeResult.rows[0].count);
-    
+
     // UPSERT atómico: DELETE + INSERT en una sola transacción (garantiza integridad)
     const idmaeddosToDelete = maeddo.recordset.map(r => cleanNumeric(r.IDMAEDDO));
-    
+
     await db.transaction(async (tx) => {
       // Primero eliminar registros existentes de los documentos modificados
       if (idmaeddosToDelete.length > 0) {
@@ -858,11 +858,11 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     // Contar filas DESPUÉS del proceso para calcular registros nuevos
     const countAfterResult = await db.execute(sql`SELECT COUNT(*) as count FROM ventas.fact_ventas`);
     const rowsAfterUpsert = Number(countAfterResult.rows[0].count);
-    
+
     // Calcular registros nuevos netos (después - antes)
     const newRecordsInserted = rowsAfterUpsert - rowsBeforeUpsert;
     const recordsProcessed = maeddo.recordset.length;
-    
+
     console.log(`   ✅ ${recordsProcessed} registros procesados del staging`);
     console.log(`   📊 ${newRecordsInserted} registros nuevos agregados a fact_ventas (${rowsBeforeUpsert} → ${rowsAfterUpsert})\n`);
 
@@ -885,16 +885,16 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     `);
 
     const validation = validationResult.rows[0];
-    const hasCriticalNulls = 
-      Number(validation.null_nokoen) > 0 || 
-      Number(validation.null_nokofu) > 0 || 
+    const hasCriticalNulls =
+      Number(validation.null_nokoen) > 0 ||
+      Number(validation.null_nokofu) > 0 ||
       Number(validation.null_noruen) > 0;
 
-    const hasOtherNulls = 
-      Number(validation.null_feemdo) > 0 || 
-      Number(validation.null_feulvedo) > 0 || 
-      Number(validation.null_sudo) > 0 || 
-      Number(validation.null_esdo) > 0 || 
+    const hasOtherNulls =
+      Number(validation.null_feemdo) > 0 ||
+      Number(validation.null_feulvedo) > 0 ||
+      Number(validation.null_sudo) > 0 ||
+      Number(validation.null_esdo) > 0 ||
       Number(validation.null_espgdo) > 0;
 
     if (hasCriticalNulls) {
@@ -914,13 +914,13 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       if (Number(validation.null_esdo) > 0) console.log(`      - esdo: ${validation.null_esdo} registros`);
       if (Number(validation.null_espgdo) > 0) console.log(`      - espgdo: ${validation.null_espgdo} registros`);
     }
-    
+
     console.log('');
 
     // 10. ACTUALIZAR WEEKLY_VENTAS_CLIENTE (Agregación para promesas de compra)
     emitProgress(10, TOTAL_STEPS + 1, 'Actualizando agregados semanales', 'Calculando ventas por cliente y semana...');
     console.log('🔄 Actualizando weekly_ventas_cliente (agregados para promesas)...');
-    
+
     try {
       // Identificar las semanas afectadas por los documentos procesados (usando semana ISO consistente)
       const weeksAffectedResult = await db.execute(sql`
@@ -1010,15 +1010,8 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         .where(eq(etlConfig.etlName, etlName));
     }
 
-    // Limpiar timeout
-    if (timeoutHandle) {
-      clearTimeout(timeoutHandle);
-    }
-
-    await pool.close();
-
     emitProgress(10, TOTAL_STEPS, 'ETL Completado', `${newRecordsInserted} registros nuevos agregados`);
-    
+
     console.log('╔═══════════════════════════════════════════════════╗');
     console.log('║     ✅ ETL INCREMENTAL COMPLETADO                 ║');
     console.log('╚═══════════════════════════════════════════════════╝\n');
@@ -1037,11 +1030,6 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
   } catch (error: any) {
     const executionTimeMs = Date.now() - startTime;
     const isCancelled = error instanceof ETLCancelledException;
-    
-    // Limpiar timeout si hubo error
-    if (timeoutHandle) {
-      clearTimeout(timeoutHandle);
-    }
 
     if (isCancelled) {
       // Manejo específico para cancelación por usuario
@@ -1050,17 +1038,9 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         etlName,
         executionTimeMs,
       });
-      
+
       // No actualizar el estado porque ya fue marcado como 'cancelled' por el usuario
-      // Solo cerrar la conexión
-      if (pool) {
-        try {
-          await pool.close();
-        } catch (closeError) {
-          console.error('Error cerrando conexión después de cancelación:', closeError);
-        }
-      }
-      
+
       return {
         success: false,
         recordsProcessed: 0,
@@ -1070,7 +1050,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         error: 'ETL cancelado por el usuario',
       };
     }
-    
+
     // Manejo de errores normales
     console.error('\n❌ ERROR EN ETL INCREMENTAL:', error.message);
     logger.critical('ETL falló con error crítico', {
@@ -1080,7 +1060,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       errorMessage: error.message,
       errorStack: error.stack
     }, error);
-    
+
     // Actualizar el registro existente con el error (NO insertar uno nuevo)
     if (!timedOut) {
       try {
@@ -1094,7 +1074,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
               errorMessage: error.message,
             })
             .where(sql`id = ${executionLogId}`);
-          
+
           logger.info('Registro de ejecución actualizado con error', {
             executionLogId,
             errorMessage: error.message
@@ -1112,7 +1092,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
             executionTimeMs,
             errorMessage: error.message,
           });
-          
+
           logger.warn('Registro de ejecución creado después del error', {
             etlName,
             errorMessage: error.message
@@ -1126,10 +1106,6 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       }
     }
 
-    if (pool) {
-      await pool.close();
-    }
-
     return {
       success: false,
       recordsProcessed: 0,
@@ -1138,6 +1114,27 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       watermarkDate: new Date(),
       error: timedOut ? `Timeout: Proceso cancelado automáticamente` : error.message,
     };
+  } finally {
+    // ✅ CRIMINALLY CRITICAL: Ensure robust cleanup in ALL scenarios
+
+    // 1. Clear timeout
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+      timeoutHandle = null;
+    }
+
+    // 2. Force close SQL Server connection
+    if (pool) {
+      try {
+        console.log('🔒 Closing SQL Server connection pool...');
+        await pool.close();
+        console.log('✅ Connection pool closed successfully');
+      } catch (closeError) {
+        console.error('❌ Error closing connection pool:', closeError);
+        // Swallowing close error to not mask original error if any
+      }
+      pool = null; // Prevent double closure
+    }
   }
 }
 
@@ -1152,7 +1149,7 @@ export async function updateETLConfig(
   const startTime = Date.now();
   try {
     console.log(`[ETL-CONFIG] Starting config update for ${etlName}`);
-    
+
     // Verificar si existe configuración
     console.log('[ETL-CONFIG] Checking for existing config...');
     const existing = await db
@@ -1173,7 +1170,7 @@ export async function updateETLConfig(
       if (intervalMinutes !== undefined) updateData.intervalMinutes = intervalMinutes;
 
       console.log('[ETL-CONFIG] Updating existing config with:', updateData);
-      
+
       const [updated] = await db.update(etlConfig)
         .set(updateData)
         .where(eq(etlConfig.etlName, etlName))
@@ -1190,9 +1187,9 @@ export async function updateETLConfig(
         timeoutMinutes: timeoutMinutes || 10,
         intervalMinutes: intervalMinutes || 15,
       };
-      
+
       console.log('[ETL-CONFIG] Creating new config with:', newConfigData);
-      
+
       const [newConfig] = await db.insert(etlConfig).values(newConfigData).returning();
 
       console.log(`[ETL-CONFIG] Config created successfully in ${Date.now() - startTime}ms`);
@@ -1212,7 +1209,7 @@ export async function updateETLConfig(
       timeoutMinutes,
       intervalMinutes
     });
-    
+
     // Re-throw con más contexto
     const enhancedError = new Error(`Failed to update ETL config for ${etlName}: ${error.message}`);
     enhancedError.stack = error.stack;
@@ -1289,13 +1286,13 @@ export async function getETLStatus(
     } else {
       // Default: Consultar ventas.etl_execution_log
       let whereConditions = eq(etlExecutionLog.etlName, etlName);
-      
+
       if (startDate && endDate) {
         const start = new Date(startDate);
         start.setHours(0, 0, 0, 0);
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
-        
+
         whereConditions = sql`${etlExecutionLog.etlName} = ${etlName} 
           AND ${etlExecutionLog.startTime} >= ${start.toISOString()} 
           AND ${etlExecutionLog.startTime} <= ${end.toISOString()}`;

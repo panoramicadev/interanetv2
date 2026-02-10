@@ -2,8 +2,8 @@ import mssql from 'mssql';
 import { db } from './db';
 import { sql, desc, eq, inArray } from 'drizzle-orm';
 import { EventEmitter } from 'events';
-import { 
-  stgMaeedoGdv, 
+import {
+  stgMaeedoGdv,
   stgMaeddoGdv,
   stgMaeenGdv,
   stgMaeprGdv,
@@ -83,35 +83,35 @@ function emitProgress(step: number, totalSteps: number, message: string, details
 
 // Función helper para batch insert con manejo de errores
 async function batchInsert<T>(
-  table: any, 
-  records: T[], 
+  table: any,
+  records: T[],
   tableName: string,
   logger: ReturnType<typeof createETLLogger>,
   batchSize: number = 1000
 ) {
   if (records.length === 0) return 0;
-  
+
   let inserted = 0;
-  
-  logger.info(`Iniciando batch insert en ${tableName}`, { 
-    totalRecords: records.length, 
-    batchSize 
+
+  logger.info(`Iniciando batch insert en ${tableName}`, {
+    totalRecords: records.length,
+    batchSize
   });
-  
+
   for (let i = 0; i < records.length; i += batchSize) {
     const batch = records.slice(i, i + batchSize);
     try {
       await db.insert(table).values(batch).onConflictDoNothing();
       inserted += batch.length;
     } catch (error: any) {
-      logger.critical(`Error en batch insert de ${tableName}`, { 
+      logger.critical(`Error en batch insert de ${tableName}`, {
         batchSize: batch.length,
         errorMessage: error.message
       }, error);
       throw error;
     }
   }
-  
+
   return inserted;
 }
 
@@ -156,11 +156,11 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
   console.log('║  📦 ETL DE GUÍAS DE DESPACHO (GDV) - SINCRONIZACIÓN COMPLETA ║');
   console.log('╚═══════════════════════════════════════════════════════════════╝');
   console.log(`⏰ Inicio: ${new Date().toISOString()}`);
-  
+
   const startTime = Date.now();
   const logger = createETLLogger('gdv_etl');
   logger.info('ETL de GDV iniciado (full_sync)', { startTime: new Date().toISOString() });
-  
+
   let pool: mssql.ConnectionPool | null = null;
   const sucursales = ['004', '006', '007'];
   const TOTAL_STEPS = 10;
@@ -183,7 +183,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
       const runningExec = runningGDV[0];
       const runningTime = Date.now() - new Date(runningExec.startTime!).getTime();
       const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutos
-      
+
       if (runningTime > STALE_THRESHOLD_MS) {
         // Ejecución colgada - limpiar automáticamente
         console.log(`🧹 Limpiando ejecución colgada (ID: ${runningExec.id}, ${Math.round(runningTime / 60000)} minutos)...`);
@@ -212,7 +212,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
 
     // Para sincronización completa, usamos timestamp actual
     const currentTimestamp = new Date();
-    
+
     console.log('╔═══════════════════════════════════════════════════════════════╗');
     console.log('║  📋 ESTRATEGIA: SINCRONIZACIÓN COMPLETA (SNAPSHOT)           ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
@@ -254,12 +254,12 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
     // 1. EXTRAER MAEEDO (encabezados GDV) - Solo GDV del MES ACTUAL (datos volátiles)
     emitProgress(2, TOTAL_STEPS, 'Extrayendo MAEEDO (GDV mes actual)', 'Consultando SQL Server...');
     console.log('1️⃣  Extrayendo MAEEDO (Encabezados GDV del mes actual)...');
-    
+
     // Calcular primer día del mes actual para filtrar solo GDV recientes
     const now = new Date();
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const dateFilter = firstDayOfMonth.toISOString().split('T')[0]; // YYYY-MM-DD
-    
+
     console.log('╔═══════════════════════════════════════════════════════════════╗');
     console.log('║  📝 QUERY SQL MAEEDO - SOLO MES ACTUAL (DATOS VOLÁTILES)     ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
@@ -268,7 +268,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
     console.log(`🔍 FEEMDO >= '${dateFilter}' (Solo mes actual)`);
     console.log(`🔍 ESDO IS NULL OR ESDO = '' (Solo documentos abiertos)`);
     console.log('');
-    
+
     const maeedo = await executeWithResilience(
       async () => pool!.request().query(`
         SELECT *
@@ -282,16 +282,16 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
       sqlServerBreaker,
       { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
     );
-    
+
     console.log(`   ✅ ${maeedo.recordset.length} documentos GDV abiertos encontrados`);
 
     if (maeedo.recordset.length === 0) {
       console.log('\n⚠️  No hay GDV abiertas en el sistema\n');
-      
+
       // En sincronización completa, si no hay GDV abiertas, limpiamos fact_gdv
       console.log('🧹 Limpiando fact_gdv (no hay GDV abiertas)...');
       await db.execute(sql`TRUNCATE TABLE gdv.fact_gdv`);
-      
+
       await db.update(gdvSyncLog)
         .set({
           status: 'success',
@@ -305,7 +305,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
         .where(sql`id = ${executionLog.id}`);
 
       await pool.close();
-      
+
       return {
         success: true,
         recordsProcessed: 0,
@@ -353,15 +353,15 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
     emitProgress(4, TOTAL_STEPS, 'Extrayendo MAEDDO (Detalles)', 'Consultando SQL Server...');
     console.log('2️⃣  Extrayendo MAEDDO (Detalles)...');
     const idmaeedos = maeedo.recordset.map(r => r.IDMAEEDO);
-    
+
     // Chunking para evitar límite de 2100 parámetros en SQL Server
     const chunkSize = 2000;
     let allMaeddo: any[] = [];
-    
+
     for (let i = 0; i < idmaeedos.length; i += chunkSize) {
       const chunk = idmaeedos.slice(i, i + chunkSize);
       console.log(`   Procesando chunk ${Math.floor(i / chunkSize) + 1}/${Math.ceil(idmaeedos.length / chunkSize)} (${chunk.length} IDs)...`);
-      
+
       const maeddoChunk = await executeWithResilience(
         async () => pool!.request().query(`
           SELECT *
@@ -371,10 +371,10 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
         sqlServerBreaker,
         { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
       );
-      
+
       allMaeddo = allMaeddo.concat(maeddoChunk.recordset);
     }
-    
+
     const maeddo = { recordset: allMaeddo };
     console.log(`   ✅ ${maeddo.recordset.length} líneas de detalle encontradas`);
 
@@ -410,12 +410,12 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
 
     // 3-6. EXTRAER TABLAS MAESTRAS (reutilizamos las del esquema ventas)
     emitProgress(6, TOTAL_STEPS, 'Extrayendo tablas maestras', 'MAEEN, MAEPR, TABFU, TABRU, TABBO...');
-    
+
     // MAEEN (Clientes)
     console.log('3️⃣  Extrayendo MAEEN (Entidades)...');
     const endos = Array.from(new Set(maeedo.recordset.map(r => r.ENDO?.trim()).filter(e => e)));
     let maeen: any = { recordset: [] };
-    
+
     if (endos.length > 0) {
       maeen = await executeWithResilience(
         async () => pool!.request().query(`
@@ -469,7 +469,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
       ...maeddo.recordset.map(r => r.KOFULIDO?.trim()).filter(k => k)
     ]));
     let tabfu: any = { recordset: [] };
-    
+
     if (kofudos.length > 0) {
       tabfu = await executeWithResilience(
         async () => pool!.request().query(`
@@ -493,7 +493,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
     console.log('6️⃣  Extrayendo TABRU (Segmentos)...');
     const ruens = Array.from(new Set(maeen.recordset.map((r: any) => r.RUEN).filter((r: any) => r)));
     let tabru: any = { recordset: [] };
-    
+
     if (ruens.length > 0) {
       tabru = await executeWithResilience(
         async () => pool!.request().query(`
@@ -520,15 +520,15 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
       const bosulido = r.BOSULIDO?.trim();
       return suli && bosulido ? `${suli}|${bosulido}` : null;
     }).filter(b => b)));
-    
+
     let tabbo: any = { recordset: [] };
-    
+
     if (bodegas.length > 0) {
       const bodegaConditions = bodegas.map(b => {
         const [suli, bosulido] = b!.split('|');
         return `(EMPRESA = '${suli}' AND KOBO = '${bosulido}')`;
       }).join(' OR ');
-      
+
       tabbo = await executeWithResilience(
         async () => pool!.request().query(`
           SELECT EMPRESA as SULI, KOBO as BOSULI, NOKOBO as NOBOSULI
@@ -551,7 +551,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
     // 7. SINCRONIZACIÓN COMPLETA: DELETE ALL + INSERT ALL
     emitProgress(7, TOTAL_STEPS, 'Preparando sincronización', 'Contando registros existentes...');
     console.log('\n8️⃣  Preparando sincronización completa...');
-    
+
     // Contar registros antes (para calcular eliminados)
     const countBeforeResult = await db.execute(sql`SELECT COUNT(*) as count FROM gdv.fact_gdv`);
     const rowsBeforeSync = Number(countBeforeResult.rows[0].count);
@@ -654,7 +654,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
     // Contar registros después
     const countAfterResult = await db.execute(sql`SELECT COUNT(*) as count FROM gdv.fact_gdv`);
     const rowsAfterSync = Number(countAfterResult.rows[0].count);
-    
+
     // En sincronización completa, todos son inserts nuevos
     const recordsInserted = rowsAfterSync;
     const recordsRemoved = Math.max(0, rowsBeforeSync - rowsAfterSync);
@@ -667,7 +667,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
 
     // Actualizar log de ejecución
     emitProgress(10, TOTAL_STEPS, 'Finalizando', 'Actualizando log de sincronización...');
-    
+
     await db.update(gdvSyncLog)
       .set({
         status: 'success',
@@ -713,11 +713,11 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
   } catch (error: any) {
     const executionTime = Date.now() - startTime;
     const errorMessage = error.message || 'Error desconocido';
-    
+
     console.error('\n❌ ERROR EN ETL DE GDV:');
     console.error(`   Mensaje: ${errorMessage}`);
     console.error(`   Tipo: ${error.name || 'Unknown'}`);
-    
+
     logger.critical('Error en ETL de GDV', { errorMessage, error }, error);
 
     // Actualizar log de ejecución con error
@@ -743,14 +743,6 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
       console.error('Error actualizando log de error:', logError);
     }
 
-    if (pool) {
-      try {
-        await pool.close();
-      } catch (closeError) {
-        console.error('Error cerrando conexión:', closeError);
-      }
-    }
-
     return {
       success: false,
       recordsProcessed: 0,
@@ -760,5 +752,20 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
       executionTimeMs: executionTime,
       error: errorMessage,
     };
+  } finally {
+    // ✅ CRIMINALLY CRITICAL: Ensure robust cleanup in ALL scenarios
+
+    // Force close SQL Server connection
+    if (pool) {
+      try {
+        console.log('🔒 Closing SQL Server connection pool (GDV)...');
+        await pool.close();
+        console.log('✅ Connection pool closed successfully (GDV)');
+      } catch (closeError) {
+        console.error('❌ Error closing connection pool (GDV):', closeError);
+        // Swallowing close error to not mask original error if any
+      }
+      pool = null; // Prevent double closure
+    }
   }
 }
