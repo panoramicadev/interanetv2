@@ -3,8 +3,8 @@ import { db } from './db';
 import { sql, desc, eq, inArray } from 'drizzle-orm';
 import { EventEmitter } from 'events';
 import { nanoid } from 'nanoid';
-import { 
-  stgMaeedoNvv, 
+import {
+  stgMaeedoNvv,
   stgMaeddoNvv,
   stgMaeenNvv,
   stgMaeprNvv,
@@ -26,7 +26,7 @@ async function checkIfCancelled(executionId: string): Promise<boolean> {
       .from(nvvSyncLog)
       .where(sql`id = ${executionId}`)
       .limit(1);
-    
+
     if (result.length > 0 && result[0].status === 'cancelled') {
       console.log('🛑 ETL de NVV cancelado por el usuario');
       return true;
@@ -124,20 +124,20 @@ function emitProgress(step: number, totalSteps: number, message: string, details
     details,
     percentage,
   };
-  
+
   // Almacenar evento en replay buffer usando lastReplayExecutionId
   if (lastReplayExecutionId) {
     const buffer = progressReplayBuffer.get(lastReplayExecutionId) || [];
     buffer.push(event);
-    
+
     // Limitar tamaño del buffer (mantener solo los últimos MAX_BUFFER_SIZE eventos)
     if (buffer.length > MAX_BUFFER_SIZE) {
       buffer.shift();
     }
-    
+
     progressReplayBuffer.set(lastReplayExecutionId, buffer);
   }
-  
+
   nvvEtlProgressEmitter.emit('progress', event);
   console.log(`📊 [${percentage}%] Paso ${step}/${totalSteps}: ${message}`);
   if (details) {
@@ -147,35 +147,35 @@ function emitProgress(step: number, totalSteps: number, message: string, details
 
 // Función helper para batch insert con manejo de errores
 async function batchInsert<T>(
-  table: any, 
-  records: T[], 
+  table: any,
+  records: T[],
   tableName: string,
   logger: ReturnType<typeof createETLLogger>,
   batchSize: number = 1000
 ) {
   if (records.length === 0) return 0;
-  
+
   let inserted = 0;
-  
-  logger.info(`Iniciando batch insert en ${tableName}`, { 
-    totalRecords: records.length, 
-    batchSize 
+
+  logger.info(`Iniciando batch insert en ${tableName}`, {
+    totalRecords: records.length,
+    batchSize
   });
-  
+
   for (let i = 0; i < records.length; i += batchSize) {
     const batch = records.slice(i, i + batchSize);
     try {
       await db.insert(table).values(batch).onConflictDoNothing();
       inserted += batch.length;
     } catch (error: any) {
-      logger.critical(`Error en batch insert de ${tableName}`, { 
+      logger.critical(`Error en batch insert de ${tableName}`, {
         batchSize: batch.length,
         error_message: error.message
       }, error);
       throw error;
     }
   }
-  
+
   return inserted;
 }
 
@@ -250,11 +250,11 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
   console.log('╚═══════════════════════════════════════════════════════════════╝');
   console.log(`⏰ Inicio: ${new Date().toISOString()}`);
   console.log('📋 Modo: Snapshot completo (elimina NVV cerradas/facturadas)');
-  
+
   const startTime = Date.now();
   const logger = createETLLogger('nvv_etl');
   logger.info('ETL de NVV iniciado', { startTime: new Date().toISOString() });
-  
+
   let pool: mssql.ConnectionPool | null = null;
   const sucursales = ['004', '005', '006', '007'];
   const TOTAL_STEPS = 10;
@@ -267,7 +267,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
 
     // 🔒 GUARD IN-MEMORY: Verificar si ya hay una ejecución en curso (previene race conditions)
     console.log('\n🔒 Verificando ejecuciones activas...');
-    
+
     if (activeExecutionId !== null) {
       console.log(`⚠️  ETL de NVV ya en ejecución (in-memory guard: ${activeExecutionId})`);
       return {
@@ -280,7 +280,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         error: 'ETL de NVV ya en ejecución'
       };
     }
-    
+
     const runningNVV = await db
       .select()
       .from(nvvSyncLog)
@@ -291,7 +291,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       const runningExec = runningNVV[0];
       const runningTime = Date.now() - new Date(runningExec.startTime!).getTime();
       const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutos
-      
+
       if (runningTime > STALE_THRESHOLD_MS) {
         // Ejecución colgada - limpiar automáticamente
         console.log(`🧹 Limpiando ejecución colgada (ID: ${runningExec.id}, ${Math.round(runningTime / 60000)} minutos)...`);
@@ -322,12 +322,12 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     // ✅ Generar execution ID y establecer AMBOS guards/pointers atómicamente
     const executionId = nanoid();
     activeExecutionId = executionId;  // Guard de mutual exclusion
-    
+
     // 🧹 Limpiar buffer de ejecución PREVIA antes de empezar nueva ejecución
     if (lastReplayExecutionId && lastReplayExecutionId !== executionId) {
       clearNVVProgressHistory(lastReplayExecutionId);
     }
-    
+
     lastReplayExecutionId = executionId;  // Establecer nuevo pointer para replay buffer
 
     // Para sincronización completa no usamos watermark incremental
@@ -356,16 +356,16 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
 
     // Registrar inicio de ejecución
     const formatTime = (date: Date) => {
-      return date.toLocaleTimeString('es-CL', { 
-        hour: '2-digit', 
+      return date.toLocaleTimeString('es-CL', {
+        hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
-        hour12: false 
+        hour12: false
       });
     };
-    
+
     const periodDisplay = `Sincronización completa - ${currentTimestamp.toLocaleDateString('es-CL')} ${formatTime(currentTimestamp)}`;
-    
+
     const [executionLog] = await db.insert(nvvSyncLog).values({
       id: executionId,
       startTime: new Date(),
@@ -391,14 +391,14 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     // 1. EXTRAER MAEEDO (encabezados NVV) - SINCRONIZACIÓN COMPLETA
     // Obtener configuración de watermark desde el frontend
     const nvvConfig = await getNVVConfig();
-    const watermarkDate = nvvConfig.useCustomWatermark && nvvConfig.customWatermark 
-      ? nvvConfig.customWatermark 
+    const watermarkDate = nvvConfig.useCustomWatermark && nvvConfig.customWatermark
+      ? nvvConfig.customWatermark
       : new Date('2025-01-01');
     const watermarkDateStr = watermarkDate.toISOString().split('T')[0]; // Formato YYYY-MM-DD
-    
+
     emitProgress(2, TOTAL_STEPS, 'Extrayendo MAEEDO (NVV)', 'Sincronización completa...');
     console.log('1️⃣  Extrayendo MAEEDO (Encabezados NVV) - TODAS las NVV pendientes...');
-    
+
     console.log('╔═══════════════════════════════════════════════════════════════╗');
     console.log('║  📝 QUERY SQL MAEEDO - SINCRONIZACIÓN COMPLETA                ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
@@ -407,7 +407,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     console.log(`🔍 FEEMDO >= '${watermarkDateStr}' ${nvvConfig.useCustomWatermark ? '(Watermark configurado desde frontend)' : '(Watermark por defecto)'}`);
     console.log(`📋 Extrayendo TODAS las NVV actuales (sin filtro de fecha FEER)`);
     console.log('');
-    
+
     const maeedo = await executeWithResilience(
       async () => pool!.request().query(`
         SELECT *
@@ -420,7 +420,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       sqlServerBreaker,
       { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
     );
-    
+
     console.log(`   ✅ ${maeedo.recordset.length} documentos NVV encontrados en la fuente`);
 
     // Checkpoint de cancelación después de extraer encabezados
@@ -430,12 +430,12 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
 
     if (maeedo.recordset.length === 0) {
       console.log('\n⚠️  No hay NVV en la fuente - eliminando todas las NVV existentes\n');
-      
+
       // Sincronización completa: si no hay NVV en la fuente, eliminar todas de fact_nvv
       const deleteResult = await db.execute(sql`DELETE FROM nvv.fact_nvv`);
       const deletedCount = deleteResult.rowCount || 0;
       console.log(`   🗑️  ${deletedCount} registros eliminados de fact_nvv`);
-      
+
       await db.update(nvvSyncLog)
         .set({
           status: 'success',
@@ -452,7 +452,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         .where(sql`id = ${executionLog.id}`);
 
       await pool.close();
-      
+
       return {
         success: true,
         records_processed: 0,
@@ -466,7 +466,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
 
     // Cargar MAEEDO a staging
     const normalizeStatus = (value: any): string => (value || '').trim();
-    
+
     const maeedo_records = maeedo.recordset.map(row => ({
       idmaeedo: cleanNumeric(row.IDMAEEDO),
       tido: row.TIDO?.trim() || null,
@@ -494,15 +494,15 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     emitProgress(4, TOTAL_STEPS, 'Extrayendo MAEDDO (Detalles)', 'Consultando SQL Server...');
     console.log('2️⃣  Extrayendo MAEDDO (Detalles)...');
     const idmaeedos = maeedo.recordset.map(r => r.IDMAEEDO);
-    
+
     // Chunking para evitar límite de 2100 parámetros en SQL Server
     const chunkSize = 2000;
     let allMaeddo: any[] = [];
-    
+
     for (let i = 0; i < idmaeedos.length; i += chunkSize) {
       const chunk = idmaeedos.slice(i, i + chunkSize);
       console.log(`   Procesando chunk ${Math.floor(i / chunkSize) + 1}/${Math.ceil(idmaeedos.length / chunkSize)} (${chunk.length} IDs)...`);
-      
+
       const maeddoChunk = await executeWithResilience(
         async () => pool!.request().query(`
           SELECT *
@@ -512,10 +512,10 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         sqlServerBreaker,
         { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
       );
-      
+
       allMaeddo = allMaeddo.concat(maeddoChunk.recordset);
     }
-    
+
     const maeddo = { recordset: allMaeddo };
     console.log(`   ✅ ${maeddo.recordset.length} líneas de detalle encontradas`);
 
@@ -564,12 +564,12 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
 
     // 3-6. EXTRAER TABLAS MAESTRAS (reutilizamos las del esquema ventas)
     emitProgress(6, TOTAL_STEPS, 'Extrayendo tablas maestras', 'MAEEN, MAEPR, TABFU, TABRU, TABBO...');
-    
+
     // MAEEN (Clientes)
     console.log('3️⃣  Extrayendo MAEEN (Entidades)...');
     const endos = Array.from(new Set(maeedo.recordset.map(r => r.ENDO?.trim()).filter(e => e)));
     let maeen: any = { recordset: [] };
-    
+
     if (endos.length > 0) {
       maeen = await executeWithResilience(
         async () => pool!.request().query(`
@@ -630,7 +630,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       ...maeddo.recordset.map(r => r.KOFULIDO?.trim()).filter(k => k)
     ]));
     let tabfu: any = { recordset: [] };
-    
+
     if (kofudos.length > 0) {
       tabfu = await executeWithResilience(
         async () => pool!.request().query(`
@@ -665,15 +665,15 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       return sulido && bosulido ? `${sulido}|${bosulido}` : null;
     });
     const bodegas = Array.from(new Set([...bodegasHeader, ...bodegasDetail].filter(b => b)));
-    
+
     let tabbo: any = { recordset: [] };
-    
+
     if (bodegas.length > 0) {
       const bodegaConditions = bodegas.map(b => {
         const [suli, bosulido] = b!.split('|');
         return `(EMPRESA = '${suli}' AND KOBO = '${bosulido}')`;
       }).join(' OR ');
-      
+
       tabbo = await executeWithResilience(
         async () => pool!.request().query(`
           SELECT EMPRESA as SULI, KOBO as BOSULI, NOKOBO as NOBOSULI
@@ -696,11 +696,11 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     // 7. DETECTAR CAMBIOS Y CALCULAR ELIMINACIONES REALES
     emitProgress(7, TOTAL_STEPS, 'Detectando cambios', 'Comparando con registros existentes...');
     console.log('\n8️⃣  Detectando cambios y eliminaciones...');
-    
+
     // Conjunto de IDs de la fuente actual
     const sourceIdSet = new Set(maeddo.recordset.map(r => cleanBigIntId(r.IDMAEDDO)));
     console.log(`   📋 IDs únicos en fuente: ${sourceIdSet.size}`);
-    
+
     // Obtener TODOS los IDs existentes en fact_nvv (para contar eliminaciones)
     const allExistingResult = await db.execute(sql`
       SELECT idmaeddo, eslido FROM nvv.fact_nvv
@@ -709,7 +709,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       allExistingResult.rows.map((row: any) => row.idmaeddo?.toString() || '0')
     );
     console.log(`   📋 IDs existentes en BD: ${allExistingIds.size}`);
-    
+
     // Calcular NVV que ya no existen en fuente (eliminaciones reales)
     let nvv_eliminadas = 0;
     for (const existingId of allExistingIds) {
@@ -718,7 +718,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       }
     }
     console.log(`   🗑️  NVV que serán eliminadas (no en fuente): ${nvv_eliminadas}`);
-    
+
     // Mapa de existentes para detección de cambios de estado (solo los que coinciden)
     const existingMap = new Map(
       allExistingResult.rows.map((row: any) => [row.idmaeddo?.toString() || '0', row])
@@ -730,12 +730,12 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     for (const row of maeddo.recordset) {
       const idmaeddo = cleanBigIntId(row.IDMAEDDO);
       const existingRecord = existingMap.get(idmaeddo);
-      
+
       if (existingRecord) {
         // Normalizar: null/'' = abierto, 'C' = cerrado
         const oldStatus = normalizeStatus(existingRecord.eslido);
         const newStatus = normalizeStatus(row.ESLIDO);
-        
+
         // Detectar cambio de estado a cerrado ('' → 'C')
         if (oldStatus === '' && newStatus === 'C') {
           status_changes++;
@@ -759,12 +759,12 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     emitProgress(8, TOTAL_STEPS, 'Sincronizando', 'Reemplazando todos los registros en fact_nvv...');
     console.log('9️⃣  Procesando SINCRONIZACIÓN COMPLETA a fact_nvv...');
     console.log('   📋 Estrategia: DELETE ALL + INSERT ALL (snapshot)');
-    
+
     // Contar registros antes
     const countBeforeResult = await db.execute(sql`SELECT COUNT(*) as count FROM nvv.fact_nvv`);
     const rowsBeforeSync = Number(countBeforeResult.rows[0].count);
     console.log(`   📊 Registros existentes antes: ${rowsBeforeSync}`);
-    
+
     await db.transaction(async (tx) => {
       // PASO 1: Eliminar TODOS los registros existentes
       console.log('   🗑️  Eliminando todos los registros existentes...');
@@ -855,7 +855,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     // Contar registros después de la sincronización
     const countAfterResult = await db.execute(sql`SELECT COUNT(*) as count FROM nvv.fact_nvv`);
     const rowsAfterSync = Number(countAfterResult.rows[0].count);
-    
+
     // Calcular estadísticas de sincronización
     const records_inserted = rowsAfterSync; // Todos los actuales fueron insertados
     const net_change = rowsAfterSync - rowsBeforeSync;
@@ -871,7 +871,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
 
     // Actualizar log de ejecución
     emitProgress(10, TOTAL_STEPS, 'Finalizando', 'Actualizando log de sincronización...');
-    
+
     await db.update(nvvSyncLog)
       .set({
         status: 'success',
@@ -923,19 +923,19 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     const executionTime = Date.now() - startTime;
     const isCancellation = error instanceof NVVETLCancelledException || error.name === 'NVVETLCancelledException';
     const error_message = isCancellation ? 'ETL cancelado por el usuario' : (error.message || 'Error desconocido');
-    
+
     if (isCancellation) {
       console.log('\n🛑 ETL DE NVV CANCELADO POR EL USUARIO');
       console.log(`⏱️  Tiempo hasta cancelación: ${(executionTime / 1000).toFixed(2)}s`);
-      
+
       emitProgress(TOTAL_STEPS, TOTAL_STEPS, 'ETL Cancelado', 'Proceso cancelado por el usuario');
-      
+
       logger.info('ETL de NVV cancelado por el usuario', { execution_time_ms: executionTime });
     } else {
       console.error('\n❌ ERROR EN ETL DE NVV:');
       console.error(`   Mensaje: ${error_message}`);
       console.error(`   Tipo: ${error.name || 'Unknown'}`);
-      
+
       logger.critical('Error en ETL de NVV', { error_message, error }, error);
     }
 
@@ -962,14 +962,6 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       console.error('Error actualizando log de error:', logError);
     }
 
-    if (pool) {
-      try {
-        await pool.close();
-      } catch (closeError) {
-        console.error('Error cerrando conexión:', closeError);
-      }
-    }
-
     // Buffer persiste para clientes tardíos hasta que la PRÓXIMA ejecución lo limpie
     // activeExecutionId se limpia en finally block
     return {
@@ -982,7 +974,22 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       error: error_message,
     };
   } finally {
-    // ✅ FINALLY BLOCK: Liberar guard de mutual exclusion INMEDIATAMENTE
+    // ✅ CRIMINALLY CRITICAL: Ensure robust cleanup in ALL scenarios
+
+    // 1. Force close SQL Server connection
+    if (pool) {
+      try {
+        console.log('🔒 Closing SQL Server connection pool (NVV)...');
+        await pool.close();
+        console.log('✅ Connection pool closed successfully (NVV)');
+      } catch (closeError) {
+        console.error('❌ Error closing connection pool (NVV):', closeError);
+        // Swallowing close error to not mask original error if any
+      }
+      pool = null; // Prevent double closure
+    }
+
+    // 2. Liberar guard de mutual exclusion INMEDIATAMENTE
     // Garantiza que el guard nunca quede "stuck", sin importar qué excepción ocurra
     activeExecutionId = null;
   }

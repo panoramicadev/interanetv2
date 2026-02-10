@@ -331,9 +331,9 @@ function normalizeComunaName(name: string | null): string | null {
 // Utility function to extract packaging type from product names
 function extractPackagingType(productName: string | null): string {
   if (!productName) return 'OT'; // Other
-  
+
   const nameUpper = productName.toUpperCase().trim();
-  
+
   // Define packaging type patterns - order matters for specificity
   const packagingPatterns = [
     { type: 'BD', patterns: ['BALDE', 'BALDES'] },
@@ -346,7 +346,7 @@ function extractPackagingType(productName: string | null): string {
     { type: 'GB', patterns: ['GARRAFA', 'BIDÓN'] },
     { type: 'OD', patterns: ['ONZA', 'OZ'] }
   ];
-  
+
   // Check each pattern in order of specificity
   for (const packagingGroup of packagingPatterns) {
     for (const pattern of packagingGroup.patterns) {
@@ -355,11 +355,11 @@ function extractPackagingType(productName: string | null): string {
       }
     }
   }
-  
+
   // Special cases for fractions
   if (nameUpper.match(/1\/4\s*GL/)) return 'Q4';
   if (nameUpper.match(/1\/2\s*GL/)) return 'GL';
-  
+
   return 'OT'; // Other - unclassified packaging
 }
 
@@ -383,7 +383,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   createUser(user: InsertUser): Promise<User>;
-  
+
   // Sales operations
   insertSalesTransaction(transaction: InsertSalesTransaction): Promise<SalesTransaction>;
   insertMultipleSalesTransactions(transactions: InsertSalesTransaction[]): Promise<void>;
@@ -505,12 +505,12 @@ export interface IStorage {
     period: string;
     sales: number;
   }>>;
-  
+
   getAvailablePeriods(): Promise<{
     months: Array<{ value: string; label: string }>;
     years: Array<{ value: string; label: string }>;
   }>;
-  
+
   getYearlyTotals(year: number, filters?: { segment?: string; salesperson?: string; client?: string }): Promise<{
     currentYearTotal: number;
     previousYearTotal: number;
@@ -518,12 +518,12 @@ export interface IStorage {
     comparisonDate: string;
     isYTD: boolean;
   }>;
-  
+
   getBestYearHistorical(filters?: { segment?: string; salesperson?: string; client?: string }): Promise<{
     bestYear: number;
     bestYearTotal: number;
   }>;
-  
+
   // Packaging metrics operations
   getPackagingMetrics(filters?: {
     startDate?: string;
@@ -539,7 +539,7 @@ export interface IStorage {
     salesPercentage: number;
     unitPercentage: number;
   }>>;
-  
+
   // Product analytics operations
   getProductDetails(productName: string, filters?: {
     startDate?: string;
@@ -553,7 +553,7 @@ export interface IStorage {
     topClient: string;
     topSalesperson: string;
   }>;
-  
+
   getProductFormats(productName: string, filters?: {
     startDate?: string;
     endDate?: string;
@@ -563,7 +563,7 @@ export interface IStorage {
     totalUnits: number;
     percentage: number;
   }>>;
-  
+
   getProductColors(productName: string, filters?: {
     startDate?: string;
     endDate?: string;
@@ -573,7 +573,7 @@ export interface IStorage {
     totalUnits: number;
     percentage: number;
   }>>;
-  
+
   // Goals operations
   getGoals(): Promise<Goal[]>;
   getGoalsByType(type: string): Promise<Goal[]>;
@@ -582,7 +582,7 @@ export interface IStorage {
   createGoal(goal: InsertGoal): Promise<Goal>;
   updateGoal(id: string, goal: Partial<InsertGoal>): Promise<Goal>;
   deleteGoal(id: string): Promise<void>;
-  
+
   // Data for goals form and filtering
   getUniqueSegments(): Promise<string[]>;
   getUniqueSalespeople(filters?: { startDate?: string; endDate?: string }): Promise<string[]>;
@@ -594,7 +594,7 @@ export interface IStorage {
   getClientsForDropdown(): Promise<Array<{ id: string; nokoen: string; koen: string }>>;
   getProductsForDropdown(): Promise<Array<{ id: string; kopr: string; name: string; ud02pr: string }>>;
   searchClientsByName(searchTerm: string): Promise<Array<{ id: string; nokoen: string; koen: string }>>;
-  
+
   // Client categorization for salespeople
   getSalespersonClientsAnalysis(salesperson: string): Promise<{
     vipClients: Array<{
@@ -624,7 +624,7 @@ export interface IStorage {
       totalClientSales: number;
     }>;
   }>;
-  
+
   getSalespersonSmartNotifications(salesperson: string): Promise<{
     inactiveClients: Array<{
       clientName: string;
@@ -658,7 +658,7 @@ export interface IStorage {
       totalAmount: number;
     }>;
   } | null>;
-  
+
   // Lead-specific recommendations for CRM
   fetchLeadRecommendations(leadId: string, salesperson: string, clientName: string): Promise<{
     clientActivity: {
@@ -678,12 +678,12 @@ export interface IStorage {
       recommendation: string;
     }>;
   }>;
-  
+
   // Sales data for goals comparison
   getGlobalSalesForPeriod(period: string): Promise<number>;
   getSegmentSalesForPeriod(segment: string, period: string): Promise<number>;
   getSalespersonSalesForPeriod(salesperson: string, period: string): Promise<number>;
-  
+
   // Segment detail operations
   getSegmentClients(segmentName: string, period?: string, filterType?: string): Promise<Array<{
     clientName: string;
@@ -711,7 +711,7 @@ export interface IStorage {
     recurringCount: number;
     newCount: number;
   }>;
-  
+
   // Branch detail operations
   getBranchClients(branchName: string, period?: string, filterType?: string): Promise<Array<{
     clientName: string;
@@ -728,7 +728,7 @@ export interface IStorage {
     percentage: number;
   }>>;
   getBranchSalesForPeriod(branchName: string, period: string): Promise<number>;
-  
+
   // Salesperson detail operations
   getSalespersonDetails(salespersonName: string, period?: string, filterType?: string): Promise<{
     totalSales: number;
@@ -804,7 +804,7 @@ export interface IStorage {
     totalSales: number;
     percentage: number;
   }>>;
-  
+
   // Client detail operations
   getClientDetails(clientName: string, period?: string, filterType?: string): Promise<{
     totalPurchases: number;
@@ -821,7 +821,7 @@ export interface IStorage {
     lastPurchase: string;
     daysSinceLastPurchase: number;
   }>>;
-  
+
   // Salesperson users management
   getSalespeopleUsers(): Promise<SalespersonUser[]>;
   getSupervisors(): Promise<SalespersonUser[]>;
@@ -831,10 +831,10 @@ export interface IStorage {
   getSalespersonUser(id: string): Promise<SalespersonUser | undefined>;
   getSalespersonUserByEmail(email: string): Promise<SalespersonUser | undefined>;
   initializePublicCatalogs(): Promise<{ updated: number; skipped: number }>;
-  
+
   // Session management
   invalidateUserSessions(userId: string): Promise<void>;
-  
+
   // Supervisor specific methods
   getSalespeopleUnderSupervisor(supervisorId: string): Promise<Array<{
     id: string;
@@ -862,7 +862,7 @@ export interface IStorage {
     message: string;
     data: any;
   }>>;
-  
+
   // Nuevas funciones para métricas del equipo
   getTopProductsByTeam(salespeopleNames: string[], limit?: number): Promise<Array<{
     productId: string;
@@ -871,7 +871,7 @@ export interface IStorage {
     totalQuantity: number;
     salesCount: number;
   }>>;
-  
+
   getTeamMetrics(salespeopleNames: string[]): Promise<{
     totalSales: number;
     totalTransactions: number;
@@ -879,12 +879,12 @@ export interface IStorage {
     bestPerformer: { name: string; sales: number } | null;
     teamGrowth: number;
   }>;
-  
+
   // Warehouse operations  
   getWarehouse(kobo: string, kosu: string): Promise<Warehouse | undefined>;
   createWarehouse(warehouse: InsertWarehouse): Promise<Warehouse>;
   updateWarehouse(kobo: string, kosu: string, warehouse: Partial<InsertWarehouse>): Promise<Warehouse>;
-  
+
   // Product operations (KOPR-based)
   getProducts(filters?: {
     search?: string;
@@ -902,7 +902,7 @@ export interface IStorage {
   createProduct(product: InsertProduct): Promise<Product>;
   updateProduct(kopr: string, product: Partial<InsertProduct>): Promise<Product>;
   updateProductPrice(kopr: string, newPrice: number, changedBy: string, reason?: string): Promise<Product>;
-  
+
   // eCommerce product operations
   getEcommerceProducts(filters?: EcommerceProductFilters): Promise<Array<Product & {
     primaryImageUrl?: string;
@@ -916,7 +916,7 @@ export interface IStorage {
   toggleEcommerceActive(kopr: string): Promise<Product>;
   getEcommerceCategories(): Promise<string[]>;
   validateProductSlug(slug: string, excludeKopr?: string): Promise<boolean>;
-  
+
   // eCommerce Admin operations (Simple approach using priceList)
   getEcommerceAdminProducts(filters?: {
     search?: string;
@@ -985,7 +985,7 @@ export interface IStorage {
     descripcion?: string;
     activa: boolean;
   }>;
-  
+
   // eCommerce Product Groups operations
   createProductGroup(data: InsertEcommerceProductGroupInput): Promise<EcommerceProductGroup>;
   getProductGroups(filters?: {
@@ -999,7 +999,7 @@ export interface IStorage {
   getProductGroup(id: string): Promise<EcommerceProductGroup | undefined>;
   getProductGroupWithVariants(id: string): Promise<{
     group: EcommerceProductGroup;
-    variants: Array<EcommerceProduct & { 
+    variants: Array<EcommerceProduct & {
       priceListProduct?: any;
     }>;
   } | null>;
@@ -1007,7 +1007,7 @@ export interface IStorage {
   deleteProductGroup(id: string): Promise<void>;
   assignProductToGroup(productId: string, groupId: string, variantLabel?: string, isMainVariant?: boolean): Promise<void>;
   removeProductFromGroup(productId: string): Promise<void>;
-  
+
   // Shopify-style Product operations
   createShopifyProduct(product: InsertShopifyProductInput): Promise<ShopifyProduct>;
   getShopifyProducts(filters?: {
@@ -1022,34 +1022,34 @@ export interface IStorage {
   getShopifyProductByHandle(handle: string): Promise<ShopifyProductWithVariants | null>;
   updateShopifyProduct(id: string, updates: UpdateShopifyProductInput): Promise<ShopifyProduct>;
   deleteShopifyProduct(id: string): Promise<void>;
-  
+
   // Shopify Product Options
   createShopifyProductOption(option: InsertShopifyProductOption): Promise<ShopifyProductOption>;
   updateShopifyProductOptions(productId: string, options: Array<{ name: string; values: string[] }>): Promise<ShopifyProductOption[]>;
-  
+
   // Shopify Product Variants
   createShopifyProductVariant(variant: InsertShopifyProductVariantInput): Promise<ShopifyProductVariant>;
   updateShopifyProductVariant(id: string, updates: UpdateShopifyProductVariantInput): Promise<ShopifyProductVariant>;
   deleteShopifyProductVariant(id: string): Promise<void>;
   getShopifyVariantBySku(sku: string): Promise<ShopifyProductVariant | null>;
-  
+
   // Import from CSV
   importShopifyProductsFromCsv(csvData: any[]): Promise<{
     productsCreated: number;
     variantsCreated: number;
     errors: string[];
   }>;
-  
+
   // Import ecommerce products from new catalog CSV format
   importEcommerceProductsFromCatalogCsv(csvData: any[]): Promise<{
     productsCreated: number;
     productsUpdated: number;
     errors: string[];
   }>;
-  
+
   // Clear all ecommerce products
   clearAllEcommerceProducts(): Promise<{ deletedCount: number }>;
-  
+
   // eCommerce Orders operations
   createEcommerceOrder(order: any): Promise<any>;
   getEcommerceOrders(filters?: {
@@ -1057,7 +1057,7 @@ export interface IStorage {
     salespersonId?: string;
     status?: string;
   }): Promise<any[]>;
-  
+
   // Public Catalog operations
   getPublicSalespersonBySlug(slug: string): Promise<{
     id: string;
@@ -1098,22 +1098,22 @@ export interface IStorage {
     }>;
   }>>;
   createPublicQuoteRequest(salespersonId: string, quoteData: any): Promise<any>;
-  
+
   // Notification operations
   createNotification(notification: any): Promise<any>;
-  
+
   // Helper operations
   getAdminUserId(): Promise<string | null>;
-  
+
   // Notification automation methods
   checkAndNotifyLowStock(): Promise<void>;
   notifyNewSale(saleData: { clientName: string; amount: number; salesperson: string; documentNumber: string }): Promise<void>;
-  
+
   // Product stock operations (KOPR-based)
   getProductStock(kopr: string): Promise<ProductStock[]>;
   getProductStockByWarehouse(kopr: string, kobo: string, kosu?: string): Promise<ProductStock[]>;
   upsertProductStock(stock: InsertProductStock): Promise<ProductStock>;
-  
+
   // Client operations
   getClients(filters?: {
     search?: string;
@@ -1165,7 +1165,7 @@ export interface IStorage {
     newWarehouses: number;
     errors: string[];
   }>;
-  
+
   // Legacy import for compatibility
   importProductStockFromCSV(csvData: Array<{
     sku: string;
@@ -1193,7 +1193,7 @@ export interface IStorage {
     updatedStock: number;
     errors: string[];
   }>;
-  
+
   // Product analytics
   getProductAnalytics(sku: string): Promise<{
     totalSales: number;
@@ -1211,10 +1211,10 @@ export interface IStorage {
       units: number;
     }>;
   }>;
-  
+
   // Price history
   getProductPriceHistory(sku: string): Promise<ProductPriceHistory[]>;
-  
+
   // Warehouse and branch operations
   getWarehouses(): Promise<Array<{
     code: string;
@@ -1260,12 +1260,12 @@ export interface IStorage {
   updateAssignmentStatus(assignmentId: string, status: string, notes?: string, evidenceImages?: string[]): Promise<TaskAssignment>;
   markAssignmentRead(assignmentId: string): Promise<TaskAssignment>;
   getTasksForUser(userId: string, userSegments: string[]): Promise<Array<Task & { assignments: TaskAssignment[] }>>;
-  
+
   // Task comments - sistema de comentarios en hilo
   getTaskComments(assignmentId: string): Promise<TaskComment[]>;
   addTaskComment(comment: InsertTaskComment): Promise<TaskComment>;
   deleteTaskComment(commentId: string, authorId: string): Promise<void>;
-  
+
   // Personal Task Management - SECURITY: All methods filter by assignedToUserId = userId
   createMyTask(task: InsertTaskInput, userId: string): Promise<Task>;
   getMyTasks(filters: {
@@ -1290,7 +1290,7 @@ export interface IStorage {
     };
     montoEstimadoTotal: number;
   }>;
-  
+
   // Order management operations
   createOrder(order: InsertOrder): Promise<Order>;
   getOrders(filters?: {
@@ -1306,13 +1306,13 @@ export interface IStorage {
   getOrderItemById(id: string): Promise<OrderItem | undefined>;
   updateOrder(id: string, order: Partial<InsertOrder>): Promise<Order>;
   deleteOrder(id: string): Promise<void>;
-  
+
   // Order items operations
   createOrderItem(orderItem: InsertOrderItem): Promise<OrderItem>;
   getOrderItems(orderId: string): Promise<OrderItem[]>;
   updateOrderItem(id: string, orderItem: Partial<InsertOrderItem>): Promise<OrderItem>;
   deleteOrderItem(id: string): Promise<void>;
-  
+
   // Enhanced Order operations with items CRUD
   getOrderWithItems(id: string): Promise<(Order & { items: OrderItem[] }) | undefined>;
   addOrderItem(orderId: string, item: AddOrderItemInput): Promise<OrderItem>;
@@ -1353,26 +1353,26 @@ export interface IStorage {
   getQuoteById(id: string): Promise<Quote | undefined>;
   updateQuote(id: string, quote: Partial<InsertQuote>): Promise<Quote>;
   deleteQuote(id: string): Promise<void>;
-  
+
   // Quote items operations
   createQuoteItem(quoteItem: InsertQuoteItemInput): Promise<QuoteItem>;
   getQuoteItems(quoteId: string): Promise<QuoteItem[]>;
   updateQuoteItem(id: string, quoteItem: Partial<InsertQuoteItem>): Promise<QuoteItem>;
   deleteQuoteItem(id: string): Promise<void>;
-  
+
   // Enhanced Quote operations with items CRUD
   getQuoteWithItems(id: string): Promise<(Quote & { items: QuoteItem[] }) | undefined>;
   addQuoteItem(quoteId: string, item: InsertQuoteItemInput): Promise<QuoteItem>;
   updateQuoteItemById(itemId: string, updates: Partial<InsertQuoteItemInput>): Promise<QuoteItem>;
   deleteQuoteItemById(itemId: string): Promise<void>;
   recalculateQuoteTotals(quoteId: string): Promise<Quote>;
-  
+
   // Quote to Order conversion
   convertQuoteToOrder(quoteId: string, userId: string): Promise<Order>;
-  
+
   // Quote duplication for editing (atomic operation)
   duplicateQuote(originalQuoteId: string, userId: string): Promise<Quote>;
-  
+
   // Additional helper for quote items
   getQuoteItemById(id: string): Promise<QuoteItem | undefined>;
 
@@ -1387,7 +1387,7 @@ export interface IStorage {
     offset?: number;
   }): Promise<any[]>;
   getEcommerceCategories(): Promise<string[]>;
-  
+
   // File Upload Registry operations
   recordFileUpload(upload: InsertFileUpload): Promise<FileUpload>;
   getLastFileUpload(fileType?: string): Promise<FileUpload | undefined>;
@@ -1418,50 +1418,50 @@ export interface IStorage {
   getReclamoGeneralHistorial(reclamoId: string): Promise<ReclamoGeneralHistorial[]>;
 
   // Combined operations
-  getReclamoGeneralWithDetails(id: string): Promise<(ReclamoGeneral & { 
+  getReclamoGeneralWithDetails(id: string): Promise<(ReclamoGeneral & {
     photos: ReclamoGeneralPhoto[];
     historial: ReclamoGeneralHistorial[];
   }) | undefined>;
-  
+
   // Asignar técnico y cambiar estado
   assignTecnicoToReclamo(id: string, tecnicoId: string, tecnicoName: string, userId: string, userName: string): Promise<ReclamoGeneral>;
-  
+
   // Cambiar estado del reclamo
   updateReclamoGeneralEstado(id: string, nuevoEstado: string, userId: string, userName: string, notas?: string): Promise<ReclamoGeneral>;
-  
+
   // Derivar a laboratorio o producción
   derivarReclamoGeneralLaboratorio(id: string, userId: string, userName: string): Promise<ReclamoGeneral>;
   derivarReclamoGeneralProduccion(id: string, userId: string, userName: string): Promise<ReclamoGeneral>;
-  
+
   // Validación técnica
   validarReclamoTecnico(
-    id: string, 
-    procede: boolean, 
-    areaResponsable: string, 
+    id: string,
+    procede: boolean,
+    areaResponsable: string,
     notas: string | undefined,
-    userId: string, 
+    userId: string,
     userName: string
   ): Promise<ReclamoGeneral>;
-  
+
   // Informes
   updateInformeLaboratorio(id: string, informe: string, userId: string, userName: string): Promise<ReclamoGeneral>;
   updateInformeProduccion(id: string, informe: string, userId: string, userName: string): Promise<ReclamoGeneral>;
   updateInformeTecnico(id: string, informe: string, userId: string, userName: string): Promise<ReclamoGeneral>;
-  
+
   // Resolución laboratorio con evidencia (DEPRECATED - usar updateResolucionArea)
   updateResolucionLaboratorio(id: string, informe: string, categoriaResponsable: string, photos: Array<{ photoUrl: string; description?: string }>, userId: string, userName: string, documents?: Array<{ fileName: string; fileData: string; mimeType: string }>): Promise<ReclamoGeneral | null>;
   getReclamoGeneralResolucionPhotos(reclamoId: string): Promise<any[]>;
-  
+
   // Resolución genérica para cualquier área responsable
   updateResolucionArea(id: string, resolucionDescripcion: string, photos: Array<{ photoUrl: string; description?: string }>, userId: string, userName: string, userRole: string, documents?: Array<{ fileName: string; fileData: string; mimeType: string }>): Promise<ReclamoGeneral | null>;
-  
+
   // Cerrar reclamo
   cerrarReclamoGeneral(id: string, userId: string, userName: string, notas?: string, photos?: Array<{ photoUrl: string; description?: string }>): Promise<ReclamoGeneral>;
 
   // ==================================================================================
   // MANTENCIÓN MODULE operations
   // ==================================================================================
-  
+
   // Solicitudes de Mantención operations
   createSolicitudMantencion(solicitud: InsertSolicitudMantencion): Promise<SolicitudMantencion>;
   getSolicitudesMantencion(filters?: {
@@ -1487,33 +1487,33 @@ export interface IStorage {
   getMantencionHistorial(mantencionId: string): Promise<MantencionHistorial[]>;
 
   // Combined operations
-  getSolicitudMantencionWithDetails(id: string): Promise<(SolicitudMantencion & { 
+  getSolicitudMantencionWithDetails(id: string): Promise<(SolicitudMantencion & {
     photos: MantencionPhoto[];
     historial: MantencionHistorial[];
     resolucionPhotos: MantencionResolucionPhoto[];
   }) | undefined>;
-  
+
   // Asignar técnico
   assignTecnicoToMantencion(id: string, tecnicoId: string, tecnicoName: string, userId: string, userName: string): Promise<SolicitudMantencion>;
-  
+
   // Cambiar estado
   updateMantencionEstado(id: string, nuevoEstado: string, userId: string, userName: string, notas?: string): Promise<SolicitudMantencion>;
-  
+
   // Resolución (solo produccion)
   updateResolucionMantencion(id: string, resolucionDescripcion: string, photos: Array<{ photoUrl: string; description?: string }>, userId: string, userName: string, costoReal?: number, tiempoReal?: number, repuestosUtilizados?: string): Promise<SolicitudMantencion | null>;
   getMantencionResolucionPhotos(mantencionId: string): Promise<MantencionResolucionPhoto[]>;
-  
+
   // Cerrar solicitud de mantención
   cerrarMantencion(id: string, userId: string, userName: string, notas?: string): Promise<SolicitudMantencion>;
 
   // ==================================================================================
   // CMMS - SISTEMA DE GESTIÓN DE MANTENIMIENTO
   // ==================================================================================
-  
+
   // ===== EQUIPOS CRÍTICOS =====
   createEquipoCritico(equipo: InsertEquipoCritico): Promise<EquipoCritico>;
-  getEquiposCriticos(filters?: { 
-    area?: string; 
+  getEquiposCriticos(filters?: {
+    area?: string;
     criticidad?: string;
     estadoActual?: string;
   }): Promise<EquipoCritico[]>;
@@ -1523,21 +1523,21 @@ export interface IStorage {
   deleteEquipoCritico(id: string): Promise<void>;
   getComponentesDeEquipo(equipoPadreId: string): Promise<EquipoCritico[]>;
   getEquiposPrincipales(): Promise<EquipoCritico[]>;
-  
+
   // ===== PROVEEDORES EXTERNOS =====
   createProveedorMantencion(proveedor: InsertProveedorMantencion): Promise<ProveedorMantencion>;
   getProveedoresMantencion(filters?: { activo?: boolean }): Promise<ProveedorMantencion[]>;
   getProveedorMantencionById(id: string): Promise<ProveedorMantencion | undefined>;
   updateProveedorMantencion(id: string, updates: Partial<InsertProveedorMantencion>): Promise<ProveedorMantencion>;
   deleteProveedorMantencion(id: string): Promise<void>;
-  
+
   // ===== PRESUPUESTO ANUAL =====
   createPresupuestoMantencion(presupuesto: InsertPresupuestoMantencion): Promise<PresupuestoMantencion>;
   getPresupuestosMantencion(filters?: { anio?: number; area?: string }): Promise<PresupuestoMantencion[]>;
   getPresupuestoMantencionByPeriod(anio: number, mes: number, area?: string): Promise<PresupuestoMantencion | undefined>;
   updatePresupuestoMantencion(id: string, updates: Partial<InsertPresupuestoMantencion>): Promise<PresupuestoMantencion>;
   deletePresupuestoMantencion(id: string): Promise<void>;
-  
+
   // ===== GASTOS DE MATERIALES =====
   createGastoMaterialMantencion(gasto: InsertGastoMaterialMantencion): Promise<GastoMaterialMantencion>;
   getGastosMaterialesMantencion(filters?: {
@@ -1571,10 +1571,10 @@ export interface IStorage {
       contacto: string | null;
     } | null;
   }>>;
-  
+
   // ===== PLANES PREVENTIVOS =====
   createPlanPreventivo(plan: InsertPlanPreventivo): Promise<PlanPreventivo>;
-  getPlanesPreventivos(filters?: { 
+  getPlanesPreventivos(filters?: {
     equipoId?: string;
     activo?: boolean;
   }): Promise<PlanPreventivo[]>;
@@ -1582,7 +1582,7 @@ export interface IStorage {
   getPlanesPreventivosVencidos(): Promise<PlanPreventivo[]>;
   updatePlanPreventivo(id: string, updates: Partial<InsertPlanPreventivo>): Promise<PlanPreventivo>;
   deletePlanPreventivo(id: string): Promise<void>;
-  
+
   // ===== MANTENCIONES PLANIFICADAS (Proyectos grandes futuros) =====
   createMantencionPlanificada(mantencion: InsertMantencionPlanificada): Promise<MantencionPlanificada>;
   getMantencionesPlanificadas(filters?: {
@@ -1595,7 +1595,7 @@ export interface IStorage {
   deleteMantencionPlanificada(id: string): Promise<void>;
   getPresupuestoEjecutadoDelMes(anio: number, mes: number, area?: string): Promise<number>;
   getMantencionesPlanificadasDelMes(anio: number, mes: number, area?: string): Promise<MantencionPlanificada[]>;
-  
+
   // ===== KPIs Y DASHBOARDS CMMS =====
   getCMMSMetrics(filters?: {
     startDate?: string;
@@ -1636,12 +1636,12 @@ export interface IStorage {
   // ==================================================================================
   // MARKETING MODULE operations
   // ==================================================================================
-  
+
   // Presupuesto Marketing operations
   createPresupuestoMarketing(presupuesto: InsertPresupuestoMarketing): Promise<PresupuestoMarketing>;
   getPresupuestoMarketing(mes: number, anio: number): Promise<PresupuestoMarketing | undefined>;
   updatePresupuestoMarketing(id: string, presupuesto: Partial<InsertPresupuestoMarketing>): Promise<PresupuestoMarketing>;
-  
+
   // Solicitudes Marketing operations
   createSolicitudMarketing(solicitud: InsertSolicitudMarketing): Promise<SolicitudMarketing>;
   getSolicitudesMarketing(filters?: {
@@ -1656,10 +1656,10 @@ export interface IStorage {
   getSolicitudesMarketingByUrgency(supervisorId: string, urgencia: string): Promise<SolicitudMarketing[]>;
   updateSolicitudMarketing(id: string, updates: Partial<InsertSolicitudMarketing>): Promise<SolicitudMarketing>;
   deleteSolicitudMarketing(id: string): Promise<void>;
-  
+
   // Cambiar estado de solicitud
   updateSolicitudMarketingEstado(id: string, nuevoEstado: string, motivoRechazo?: string, monto?: number, pdfPresupuesto?: string): Promise<SolicitudMarketing>;
-  
+
   // Métricas de marketing
   getMarketingMetrics(mes: number, anio: number): Promise<{
     presupuestoTotal: number;
@@ -1673,7 +1673,7 @@ export interface IStorage {
       rechazado: number;
     };
   }>;
-  
+
   // Solicitantes de marketing (admin, supervisor, vendedor)
   getMarketingSolicitantes(): Promise<Array<{
     id: number;
@@ -1701,18 +1701,18 @@ export interface IStorage {
   // ==================================================================================
   // INVENTORY operations
   // ==================================================================================
-  
+
   getInventory(filters?: {
     search?: string;
     warehouse?: string;
   }): Promise<any[]>;
-  
+
   getInventoryWithPrices(filters?: {
     search?: string;
     warehouse?: string;
     branch?: string;
   }): Promise<any[]>;
-  
+
   getInventorySummary(filters?: {
     search?: string;
     warehouse?: string;
@@ -1723,7 +1723,7 @@ export interface IStorage {
     totalAvailable: number;
     lowStock: number;
   }>;
-  
+
   getInventorySummaryWithPrices(filters?: {
     search?: string;
     warehouse?: string;
@@ -1737,14 +1737,14 @@ export interface IStorage {
     totalValue: number;
     lowStock: number;
   }>;
-  
+
   getWarehouses(branch?: string): Promise<{ code: string; name: string }[]>;
   getBranches(): Promise<{ code: string; name: string }[]>;
 
   // ==================================================================================
   // GASTOS EMPRESARIALES operations
   // ==================================================================================
-  
+
   createGastoEmpresarial(gasto: InsertGastoEmpresarial): Promise<GastoEmpresarial>;
   getGastosEmpresariales(filters?: {
     userId?: string;
@@ -1760,7 +1760,7 @@ export interface IStorage {
   deleteGastoEmpresarial(id: string): Promise<void>;
   aprobarGastoEmpresarial(id: string, supervisorId: string): Promise<GastoEmpresarial>;
   rechazarGastoEmpresarial(id: string, supervisorId: string, comentario: string): Promise<GastoEmpresarial>;
-  
+
   // Flujo de aprobación de dos niveles para reembolsos
   /** @deprecated Supervisor approval step has been removed. Kept for backward compatibility. */
   aprobarReembolsoSupervisor(id: string, supervisorId: string, comentario?: string): Promise<GastoEmpresarial>;
@@ -1817,7 +1817,7 @@ export interface IStorage {
   // ==================================================================================
   // GESTIÓN DE FONDOS operations
   // ==================================================================================
-  
+
   createFundAllocation(allocation: InsertFundAllocation): Promise<FundAllocation>;
   getFundAllocations(filters?: {
     assignedToId?: string;
@@ -1833,21 +1833,21 @@ export interface IStorage {
   approveFundAllocation(id: string, comprobanteUrl: string, aprobadoPorId: string, comprobantePreviewUrl?: string | null): Promise<FundAllocation>;
   rejectFundAllocation(id: string, motivoRechazo: string, rechazadoPorId: string): Promise<FundAllocation>;
   deleteFundAllocation(id: string): Promise<void>;
-  
+
   createFundMovement(movement: InsertFundMovement): Promise<FundMovement>;
   getFundMovements(allocationId: string): Promise<FundMovement[]>;
-  
+
   getFundAllocationBalance(allocationId: string): Promise<{
     montoInicial: number;
     totalComprometido: number;
     totalAprobado: number;
     saldoDisponible: number;
   }>;
-  
+
   getUserActiveFundAllocations(userId: string): Promise<Array<FundAllocation & {
     saldoDisponible: number;
   }>>;
-  
+
   getFundAllocationSummary(userId?: string): Promise<{
     totalAsignado: number;
     totalComprometido: number;
@@ -1860,21 +1860,21 @@ export interface IStorage {
   getSegmentSupervisors(segmentCode?: string): Promise<SegmentSupervisor[]>;
   createSegmentSupervisor(data: InsertSegmentSupervisor): Promise<SegmentSupervisor>;
   deleteSegmentSupervisor(id: string): Promise<void>;
-  
+
   // Obtener fondos pendientes por rol
   getFundAllocationsPendingSupervisor(supervisorId: string): Promise<FundAllocation[]>;
   getFundAllocationsPendingRRHH(): Promise<FundAllocation[]>;
-  
+
   // Acciones de aprobación multi-nivel
   supervisorApproveFund(allocationId: string, supervisorId: string, comentario?: string): Promise<FundAllocation>;
   supervisorRejectFund(allocationId: string, supervisorId: string, comentario: string): Promise<FundAllocation>;
   rrhhApproveFund(allocationId: string, rrhhId: string, comprobanteUrl: string, comentario?: string): Promise<FundAllocation>;
   rrhhRejectFund(allocationId: string, rrhhId: string, comentario: string): Promise<FundAllocation>;
-  
+
   // Historial de aprobaciones
   getFundApprovalHistory(allocationId: string): Promise<FundApprovalHistory[]>;
   createFundApprovalHistory(data: InsertFundApprovalHistory): Promise<FundApprovalHistory>;
-  
+
   // Recarga de fondos aprobados
   rechargeFundAllocation(params: {
     allocationId: string;
@@ -1891,7 +1891,7 @@ export interface IStorage {
   // ==================================================================================
   // PROMESAS DE COMPRA operations
   // ==================================================================================
-  
+
   createPromesaCompra(promesa: InsertPromesaCompra): Promise<PromesaCompra>;
   getPromesasCompra(filters?: {
     vendedorId?: string;
@@ -1920,7 +1920,7 @@ export interface IStorage {
   // ==================================================================================
   // ETL operations
   // ==================================================================================
-  
+
   getRunningETLExecution(etlName: string): Promise<any | undefined>;
   cancelETLExecution(executionId: string, cancelledBy: string, etlName?: string): Promise<void>;
   getLastSalesWatermark(): Promise<Date | null>;
@@ -1928,11 +1928,11 @@ export interface IStorage {
   // ==================================================================================
   // NOTIFICATIONS operations - Sistema robusto de notificaciones internas
   // ==================================================================================
-  
+
   createNotification(notification: InsertNotificationInput): Promise<Notification>;
   getNotificationsForUser(
-    userId: string, 
-    userRole: string, 
+    userId: string,
+    userRole: string,
     userSegment?: string | null,
     filters?: {
       isArchived?: boolean;
@@ -1953,7 +1953,7 @@ export interface IStorage {
   // ==================================================================================
   // PROYECCIONES DE VENTAS operations - Sistema de proyección manual
   // ==================================================================================
-  
+
   getHistoricoVentasPorAnio(filters?: {
     years?: number[];
     months?: number[];
@@ -1969,35 +1969,35 @@ export interface IStorage {
     totalSales: number;
     purchaseFrequency: number;
   }>>;
-  
+
   getYearsWithData(): Promise<number[]>;
-  
+
   getSalespeopleList(): Promise<Array<{
     code: string;
     name: string;
   }>>;
-  
+
   getSalespeopleBySegment(segment: string): Promise<Array<{
     code: string;
     name: string;
   }>>;
-  
+
   getSegmentsList(): Promise<Array<{
     code: string;
     name: string;
   }>>;
-  
+
   upsertProyeccionVenta(proyeccion: InsertProyeccionVentaInput): Promise<ProyeccionVenta>;
-  
+
   getProyeccionesVentas(filters?: {
     years?: number[];
     months?: number[];
     salespersonCode?: string;
     segment?: string;
   }): Promise<ProyeccionVenta[]>;
-  
+
   getProyeccionById(id: string): Promise<ProyeccionVenta | undefined>;
-  
+
   deleteProyeccionVenta(id: string): Promise<void>;
 
   // GDV ETL operations
@@ -2170,7 +2170,7 @@ export class DatabaseStorage implements IStorage {
     timestamp: number;
     inFlightPromise: Promise<any[]> | null;
   }>();
-  
+
   private readonly INVENTORY_CACHE_TTL = 30000; // 30 seconds
 
   // User operations (mandatory for Replit Auth)
@@ -2276,52 +2276,52 @@ export class DatabaseStorage implements IStorage {
 
   async insertMultipleSalesTransactions(transactions: InsertSalesTransaction[]): Promise<void> {
     if (transactions.length === 0) return;
-    
+
     const BATCH_SIZE = 100;
     let totalInserted = 0;
     let totalSkipped = 0;
-    
+
     console.log(`📊 Starting import of ${transactions.length} transactions in batches of ${BATCH_SIZE}`);
-    
+
     // Process transactions in batches to avoid memory issues
     for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
       const batch = transactions.slice(i, i + BATCH_SIZE);
       const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
       const totalBatches = Math.ceil(transactions.length / BATCH_SIZE);
-      
+
       // Get unique IDMAEEDO values from this batch
       const batchIds = Array.from(new Set(batch.map(t => t.idmaeedo)));
-      
+
       // Check which IDMAEEDO values already exist in database
       const validBatchIds = batchIds.filter(id => id != null && id !== '').map(id => id!.toString());
-      
+
       const existingIds = validBatchIds.length > 0 ? await db
         .select({ idmaeedo: factVentas.idmaeedo })
         .from(factVentas)
         .where(inArray(factVentas.idmaeedo, validBatchIds)) : [];
-      
+
       const existingIdSet = new Set(existingIds.map(row => row.idmaeedo?.toString()));
-      
+
       // Filter out transactions with existing IDMAEEDO
-      const newTransactions = batch.filter(transaction => 
+      const newTransactions = batch.filter(transaction =>
         !existingIdSet.has(transaction.idmaeedo?.toString() || '')
       );
-      
+
       const batchSkipped = batch.length - newTransactions.length;
-      
+
       // Insert only new transactions from this batch
       if (newTransactions.length > 0) {
         await db
           .insert(salesTransactions)
           .values(newTransactions);
       }
-      
+
       totalInserted += newTransactions.length;
       totalSkipped += batchSkipped;
-      
+
       console.log(`📦 Batch ${batchNumber}/${totalBatches}: Inserted ${newTransactions.length}, Skipped ${batchSkipped} duplicates`);
     }
-    
+
     console.log(`✅ Import completed: ${totalInserted} new transactions imported, ${totalSkipped} duplicates skipped`);
   }
 
@@ -2335,14 +2335,14 @@ export class DatabaseStorage implements IStorage {
           lte(salesTransactions.feemdo, endDate)
         )
       );
-    
+
     return result.rowCount || 0;
   }
 
   // Atomic operation: delete existing + insert new transactions
   async replaceTransactionsByDateRange(
-    transactions: InsertSalesTransaction[], 
-    startDate: string, 
+    transactions: InsertSalesTransaction[],
+    startDate: string,
     endDate: string
   ): Promise<{ deleted: number; inserted: number }> {
     if (transactions.length === 0) {
@@ -2350,7 +2350,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     console.log(`🔄 Starting atomic replace operation for period ${startDate} to ${endDate}`);
-    
+
     return await db.transaction(async (tx) => {
       // 1. Delete existing transactions in the date range
       const deleteResult = await tx
@@ -2361,26 +2361,26 @@ export class DatabaseStorage implements IStorage {
             lte(salesTransactions.feemdo, endDate)
           )
         );
-      
+
       const deletedCount = deleteResult.rowCount || 0;
       console.log(`🗑️  Deleted ${deletedCount} existing transactions`);
 
       // 2. Insert new transactions in batches
       const BATCH_SIZE = 100;
       let totalInserted = 0;
-      
+
       for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
         const batch = transactions.slice(i, i + BATCH_SIZE);
         await tx.insert(salesTransactions).values(batch);
         totalInserted += batch.length;
-        
+
         if (i + BATCH_SIZE < transactions.length) {
           console.log(`📦 Inserted batch: ${totalInserted}/${transactions.length}`);
         }
       }
-      
+
       console.log(`✅ Replace operation completed: ${deletedCount} deleted, ${totalInserted} inserted`);
-      
+
       return {
         deleted: deletedCount,
         inserted: totalInserted
@@ -2401,11 +2401,11 @@ export class DatabaseStorage implements IStorage {
     product?: string;
   } = {}): Promise<SalesTransaction[]> {
     const { startDate, endDate, salesperson, segment, limit = 50, offset = 0, client, product } = filters;
-    
+
     const conditions = [
       sql`${factVentas.tido} != 'GDV'`
     ];
-    
+
     if (startDate) {
       conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
@@ -2424,9 +2424,9 @@ export class DatabaseStorage implements IStorage {
     if (product) {
       conditions.push(eq(factVentas.nokoar, product));
     }
-    
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-    
+
     // Map nokoprct to nokopr for frontend compatibility
     const result = await db.select({
       idmaeedo: factVentas.idmaeedo,
@@ -2447,7 +2447,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(factVentas.feemdo))
       .limit(limit)
       .offset(offset);
-    
+
     return result as any;
   }
 
@@ -2457,11 +2457,11 @@ export class DatabaseStorage implements IStorage {
     endDateCondition?: any;
   } {
     const conditions: any = {};
-    
+
     if (startDate) {
       conditions.startDateCondition = sql`${factVentas.feemdo} >= ${startDate}::date`;
     }
-    
+
     if (endDate) {
       // Create exclusive end date by adding 1 day for proper inclusive range
       const endDateObj = new Date(endDate);
@@ -2469,7 +2469,7 @@ export class DatabaseStorage implements IStorage {
       const endDateExclusive = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
       conditions.endDateCondition = sql`${factVentas.feemdo} < ${endDateExclusive}::date`;
     }
-    
+
     return conditions;
   }
 
@@ -2492,7 +2492,7 @@ export class DatabaseStorage implements IStorage {
   }> {
     const { startDate, endDate, salesperson, segment, client, supplier, product } = filters;
     const conditions = [];
-    
+
     if (startDate) {
       conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
@@ -2553,7 +2553,7 @@ export class DatabaseStorage implements IStorage {
   }> {
     const { salesperson, segment, client } = filters;
     const conditions = [];
-    
+
     // GDV uses volatile data from fact_gdv (full snapshot like NVV)
     // Filter by eslido (line status) and cantidadPendiente for pending lines
     conditions.push(
@@ -2563,7 +2563,7 @@ export class DatabaseStorage implements IStorage {
       )
     );
     conditions.push(eq(factGdv.cantidadPendiente, true));
-    
+
     if (salesperson) {
       const searchTerm = salesperson.toUpperCase().trim();
       conditions.push(sql`UPPER(TRIM(${factGdv.nokofu})) = ${searchTerm}`);
@@ -2601,36 +2601,36 @@ export class DatabaseStorage implements IStorage {
     const today = new Date();
     const currentCalendarYear = today.getFullYear();
     const previousYear = year - 1;
-    
+
     // Determine if we're looking at the current year (for YTD) or a historical year
     const isCurrentYear = year === currentCalendarYear;
-    
+
     let requestedYearStart: string;
     let requestedYearEnd: string;
     let previousYearStart: string;
     let previousYearEnd: string;
-    
+
     if (isCurrentYear) {
       // Year-to-date comparison: current year up to today vs last year up to same date
       requestedYearStart = `${year}-01-01`;
       requestedYearEnd = today.toISOString().split('T')[0]; // Today's date
-      
+
       previousYearStart = `${previousYear}-01-01`;
       const sameDayLastYear = new Date(today);
       sameDayLastYear.setFullYear(previousYear);
-      
+
       // Handle leap year edge case: if today is Feb 29 and previous year is not a leap year,
       // setFullYear will roll to March 1. Adjust to Feb 28 in that case.
       if (today.getMonth() === 1 && today.getDate() === 29 && sameDayLastYear.getMonth() === 2) {
         sameDayLastYear.setMonth(1, 28); // February 28
       }
-      
+
       previousYearEnd = sameDayLastYear.toISOString().split('T')[0];
     } else {
       // Historical year: compare full year to full previous year
       requestedYearStart = `${year}-01-01`;
       requestedYearEnd = `${year}-12-31`;
-      
+
       previousYearStart = `${previousYear}-01-01`;
       previousYearEnd = `${previousYear}-12-31`;
     }
@@ -2742,7 +2742,7 @@ export class DatabaseStorage implements IStorage {
       sql`${factVentas.nokofu} IS NOT NULL AND ${factVentas.nokofu} != ''`,
       sql`${factVentas.tido} != 'GDV'`
     ];
-    
+
     if (startDate) {
       conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
@@ -2758,9 +2758,9 @@ export class DatabaseStorage implements IStorage {
     if (product) {
       conditions.push(eq(factVentas.nokoar, product));
     }
-    
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-    
+
     // Get period total sales
     const [totalResult] = await db
       .select({
@@ -2768,7 +2768,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(factVentas)
       .where(whereClause);
-    
+
     // Get total count of unique salespeople
     const [countResult] = await db
       .select({
@@ -2776,7 +2776,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(factVentas)
       .where(whereClause);
-    
+
     const results = await db
       .select({
         salesperson: factVentas.nokofu,
@@ -2810,7 +2810,7 @@ export class DatabaseStorage implements IStorage {
       sql`${factVentas.nokofu} IS NOT NULL AND ${factVentas.nokofu} != ''`,
       sql`${factVentas.tido} != 'GDV'`
     ];
-    
+
     if (startDate) {
       conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
@@ -2826,9 +2826,9 @@ export class DatabaseStorage implements IStorage {
     if (product) {
       conditions.push(eq(factVentas.nokoar, product));
     }
-    
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-    
+
     const results = await db
       .select({
         name: factVentas.nokofu,
@@ -2864,7 +2864,7 @@ export class DatabaseStorage implements IStorage {
     const conditions = [
       sql`${factVentas.tido} != 'GDV'`
     ];
-    
+
     if (startDate) {
       conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
@@ -2880,9 +2880,9 @@ export class DatabaseStorage implements IStorage {
     if (client) {
       conditions.push(eq(factVentas.nokoen, client));
     }
-    
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-    
+
     // Get period total sales
     const [totalResult] = await db
       .select({
@@ -2890,17 +2890,17 @@ export class DatabaseStorage implements IStorage {
       })
       .from(factVentas)
       .where(whereClause);
-    
+
     const periodTotal = Number(totalResult.total);
-    
+
     // For products, filter only transactions with product name
     const productConditions = [
       ...conditions,
       sql`${factVentas.nokoprct} IS NOT NULL AND ${factVentas.nokoprct} != ''`
     ];
-    
+
     const productWhereClause = productConditions.length > 0 ? and(...productConditions) : undefined;
-    
+
     // Get total count of unique products
     const [countResult] = await db
       .select({
@@ -2908,7 +2908,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(factVentas)
       .where(productWhereClause);
-    
+
     // Sum by individual product lines using MONTO
     const results = await db
       .select({
@@ -2957,7 +2957,7 @@ export class DatabaseStorage implements IStorage {
       sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`,
       sql`${factVentas.tido} != 'GDV'`
     ];
-    
+
     if (startDate) {
       conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
@@ -2973,9 +2973,9 @@ export class DatabaseStorage implements IStorage {
     if (product) {
       conditions.push(eq(factVentas.nokoar, product));
     }
-    
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-    
+
     // Get period total sales
     const [totalResult] = await db
       .select({
@@ -2983,7 +2983,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(factVentas)
       .where(whereClause);
-    
+
     // Get total count of unique clients
     const [countResult] = await db
       .select({
@@ -2991,7 +2991,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(factVentas)
       .where(whereClause);
-    
+
     const results = await db
       .select({
         clientName: factVentas.nokoen,
@@ -3186,7 +3186,7 @@ export class DatabaseStorage implements IStorage {
       sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`,
       sql`${factVentas.tido} != 'GDV'`
     ];
-    
+
     if (startDate) {
       conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
@@ -3199,9 +3199,9 @@ export class DatabaseStorage implements IStorage {
     if (segment) {
       conditions.push(eq(factVentas.noruen, segment));
     }
-    
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-    
+
     const results = await db
       .select({
         name: factVentas.nokoen,
@@ -3233,7 +3233,7 @@ export class DatabaseStorage implements IStorage {
       sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`,
       sql`${factVentas.tido} != 'GDV'`
     ];
-    
+
     // Apply date filters if period is provided
     if (period && filterType) {
       switch (filterType) {
@@ -3283,14 +3283,14 @@ export class DatabaseStorage implements IStorage {
           break;
       }
     }
-    
+
     // Filter by segment if provided
     if (segment) {
       conditions.push(eq(factVentas.noruen, segment));
     }
-    
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-    
+
     const results = await db
       .select({
         clientName: factVentas.nokoen,
@@ -3424,7 +3424,7 @@ export class DatabaseStorage implements IStorage {
       sql`${factVentas.nokoprct} IS NOT NULL AND ${factVentas.nokoprct} != ''`,
       sql`${factVentas.tido} != 'GDV'`
     ];
-    
+
     // Apply date filters if period is provided
     if (period && filterType) {
       switch (filterType) {
@@ -3474,14 +3474,14 @@ export class DatabaseStorage implements IStorage {
           break;
       }
     }
-    
+
     // Filter by segment if provided
     if (segment) {
       conditions.push(eq(factVentas.noruen, segment));
     }
-    
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-    
+
     const results = await db
       .select({
         productName: factVentas.nokoprct,
@@ -3655,7 +3655,7 @@ export class DatabaseStorage implements IStorage {
       sql`${factVentas.nokoprct} IS NOT NULL AND ${factVentas.nokoprct} != ''`,
       sql`${factVentas.tido} != 'GDV'`
     ];
-    
+
     if (startDate) {
       conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
@@ -3668,9 +3668,9 @@ export class DatabaseStorage implements IStorage {
     if (segment) {
       conditions.push(eq(factVentas.noruen, segment));
     }
-    
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-    
+
     const results = await db
       .select({
         name: factVentas.nokoprct,
@@ -3698,7 +3698,7 @@ export class DatabaseStorage implements IStorage {
     const dateConditions = [
       sql`${factVentas.tido} != 'GDV'`
     ];
-    
+
     if (startDate) {
       dateConditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
@@ -3726,7 +3726,7 @@ export class DatabaseStorage implements IStorage {
       sql`${factVentas.noruen} IS NOT NULL AND ${factVentas.noruen} != ''`,
       sql`${factVentas.tido} != 'GDV'`
     ];
-    
+
     if (startDate) {
       conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
@@ -3765,7 +3765,7 @@ export class DatabaseStorage implements IStorage {
       sql`${factVentas.feemdo} IS NOT NULL`,
       sql`${factVentas.tido} != 'GDV'`
     ];
-    
+
     if (startDate) {
       conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
@@ -3784,9 +3784,9 @@ export class DatabaseStorage implements IStorage {
     if (product) {
       conditions.push(eq(factVentas.nokoprct, product));
     }
-    
+
     let query: any;
-    
+
     switch (period) {
       case 'daily':
         query = db
@@ -3857,7 +3857,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) DESC`);
 
     const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-                       "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
     const months = monthResults.map((r: any) => {
       const [year, month] = r.yearMonth.split('-');
@@ -3895,7 +3895,7 @@ export class DatabaseStorage implements IStorage {
     const conditions = [
       sql`${factVentas.tido} != 'GDV'`
     ];
-    
+
     if (filters?.startDate) {
       conditions.push(sql`${factVentas.feemdo} >= ${filters.startDate}::date`);
     }
@@ -3994,7 +3994,7 @@ export class DatabaseStorage implements IStorage {
     const conditions = [
       sql`LOWER(${factVentas.nokoprct}) = LOWER(${productName})`
     ];
-    
+
     if (filters?.startDate) {
       conditions.push(sql`${factVentas.feemdo} >= ${filters.startDate}::date`);
     }
@@ -4005,7 +4005,7 @@ export class DatabaseStorage implements IStorage {
       const endDateExclusive = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
       conditions.push(sql`${factVentas.feemdo} < ${endDateExclusive}::date`);
     }
-    
+
     const whereClause = and(...conditions);
 
     // Get main product metrics
@@ -4066,7 +4066,7 @@ export class DatabaseStorage implements IStorage {
     const conditions = [
       sql`LOWER(${factVentas.nokoprct}) = LOWER(${productName})`
     ];
-    
+
     if (filters?.startDate) {
       conditions.push(sql`${factVentas.feemdo} >= ${filters.startDate}::date`);
     }
@@ -4077,7 +4077,7 @@ export class DatabaseStorage implements IStorage {
       const endDateExclusive = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
       conditions.push(sql`${factVentas.feemdo} < ${endDateExclusive}::date`);
     }
-    
+
     const whereClause = and(...conditions);
 
     // Get total sales for percentage calculation
@@ -4087,7 +4087,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(factVentas)
       .where(whereClause);
-    
+
     const totalSales = Number(totalResult.total);
 
     // Extract format from product names using regex patterns for common formats
@@ -4103,14 +4103,14 @@ export class DatabaseStorage implements IStorage {
 
     // Process results to extract formats
     const formatMap = new Map<string, { totalSales: number; totalUnits: number }>();
-    
+
     results.forEach(result => {
       const productName = result.productName || '';
       let format = 'Otro'; // Default format
-      
+
       // Extract format from product name using common patterns
       const lowerName = productName.toLowerCase();
-      
+
       // Check for specific patterns in order of specificity
       if (lowerName.includes('4 galones') || lowerName.includes('4gal')) {
         format = '4 Galones';
@@ -4129,7 +4129,7 @@ export class DatabaseStorage implements IStorage {
       } else if (lowerName.includes('metro') || lowerName.includes(' mt') || lowerName.includes(' m ')) {
         format = 'Metro';
       }
-      
+
       const existing = formatMap.get(format) || { totalSales: 0, totalUnits: 0 };
       formatMap.set(format, {
         totalSales: existing.totalSales + Number(result.totalSales),
@@ -4142,8 +4142,8 @@ export class DatabaseStorage implements IStorage {
       format,
       totalSales: isNaN(data.totalSales) ? 0 : data.totalSales,
       totalUnits: isNaN(data.totalUnits) ? 0 : data.totalUnits,
-      percentage: totalSales > 0 && !isNaN(totalSales) && !isNaN(data.totalSales) 
-        ? (data.totalSales / totalSales) * 100 
+      percentage: totalSales > 0 && !isNaN(totalSales) && !isNaN(data.totalSales)
+        ? (data.totalSales / totalSales) * 100
         : 0,
     })).filter(item => item.totalSales > 0).sort((a, b) => b.totalSales - a.totalSales);
   }
@@ -4160,7 +4160,7 @@ export class DatabaseStorage implements IStorage {
     const conditions = [
       sql`LOWER(${factVentas.nokoprct}) = LOWER(${productName})`
     ];
-    
+
     if (filters?.startDate) {
       conditions.push(sql`${factVentas.feemdo} >= ${filters.startDate}::date`);
     }
@@ -4171,7 +4171,7 @@ export class DatabaseStorage implements IStorage {
       const endDateExclusive = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
       conditions.push(sql`${factVentas.feemdo} < ${endDateExclusive}::date`);
     }
-    
+
     const whereClause = and(...conditions);
 
     // Get total sales for percentage calculation
@@ -4181,7 +4181,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(factVentas)
       .where(whereClause);
-    
+
     const totalSales = Number(totalResult.total);
 
     // Get all product variations for this product
@@ -4197,14 +4197,14 @@ export class DatabaseStorage implements IStorage {
 
     // Process results to extract colors
     const colorMap = new Map<string, { totalSales: number; totalUnits: number }>();
-    
+
     results.forEach(result => {
       const productName = result.productName || '';
       let color = 'Sin especificar'; // Default color
-      
+
       // Extract color from product name using common color patterns
       const lowerName = productName.toLowerCase();
-      
+
       // Use simple string matching since it's more reliable than regex in this context
       if (lowerName.includes('blanco')) {
         color = 'Blanco';
@@ -4233,7 +4233,7 @@ export class DatabaseStorage implements IStorage {
       } else if (lowerName.includes('incoloro') || lowerName.includes('transparente')) {
         color = 'Incoloro';
       }
-      
+
       const existing = colorMap.get(color) || { totalSales: 0, totalUnits: 0 };
       colorMap.set(color, {
         totalSales: existing.totalSales + Number(result.totalSales),
@@ -4246,8 +4246,8 @@ export class DatabaseStorage implements IStorage {
       color,
       totalSales: isNaN(data.totalSales) ? 0 : data.totalSales,
       totalUnits: isNaN(data.totalUnits) ? 0 : data.totalUnits,
-      percentage: totalSales > 0 && !isNaN(totalSales) && !isNaN(data.totalSales) 
-        ? (data.totalSales / totalSales) * 100 
+      percentage: totalSales > 0 && !isNaN(totalSales) && !isNaN(data.totalSales)
+        ? (data.totalSales / totalSales) * 100
         : 0,
     })).filter(item => item.totalSales > 0).sort((a, b) => b.totalSales - a.totalSales);
   }
@@ -4333,7 +4333,7 @@ export class DatabaseStorage implements IStorage {
   // Alerts for salesperson
   async getSalespersonAlerts(salesperson: string): Promise<any[]> {
     const alerts: any[] = [];
-    
+
     try {
       // 1. Clientes que no han comprado hace tiempo (más de 60 días)
       const inactiveClients = await db
@@ -4377,8 +4377,8 @@ export class DatabaseStorage implements IStorage {
 
       seasonalClients.forEach(client => {
         if (client.client) {
-          const monthNames = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
-                             'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+          const monthNames = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
           alerts.push({
             type: 'seasonal_pattern',
             priority: 'high',
@@ -4461,7 +4461,7 @@ export class DatabaseStorage implements IStorage {
       .from(factVentas)
       .where(sql`${factVentas.noruen} IS NOT NULL AND ${factVentas.noruen} != ''`)
       .orderBy(factVentas.noruen);
-    
+
     return result.map((r: any) => r.segment).filter((segment: string | null): segment is string => Boolean(segment));
   }
 
@@ -4480,7 +4480,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(factVentas.nokofu);
 
     const result = await query;
-    
+
     return result.map((r: any) => r.salesperson).filter((salesperson: string | null): salesperson is string => Boolean(salesperson));
   }
 
@@ -4490,7 +4490,7 @@ export class DatabaseStorage implements IStorage {
       .from(factVentas)
       .where(sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`)
       .orderBy(factVentas.nokoen);
-    
+
     return result.map((r: any) => r.client).filter((client: string | null): client is string => Boolean(client));
   }
 
@@ -4507,7 +4507,7 @@ export class DatabaseStorage implements IStorage {
       .where(sql`${clients.gien} IS NOT NULL AND ${clients.gien} != '' AND LENGTH(${clients.gien}) > 1`)
       .orderBy(clients.gien)
       .limit(200); // Limit results to avoid heavy queries
-    
+
     // Simple filter for obvious placeholder values  
     return result
       .map(row => row.gien?.trim())
@@ -4520,7 +4520,7 @@ export class DatabaseStorage implements IStorage {
       .from(clients)
       .where(sql`${clients.tien} IS NOT NULL AND ${clients.tien} != ''`)
       .orderBy(clients.tien);
-    
+
     return result
       .map(row => row.tien?.trim())
       .filter(type => type && type.length > 0) as string[];
@@ -4535,7 +4535,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(clients)
       .orderBy(clients.nokoen);
-    
+
     return result.map(client => ({
       id: client.id,
       nokoen: client.nokoen,
@@ -4554,7 +4554,7 @@ export class DatabaseStorage implements IStorage {
       .where(sql`${clients.nokoen} IS NOT NULL`)
       .orderBy(asc(clients.nokoen))
       .limit(5000);
-    
+
     return result as Array<{ id: string; nokoen: string; koen: string }>;
   }
 
@@ -4569,7 +4569,7 @@ export class DatabaseStorage implements IStorage {
       .from(priceList)
       .orderBy(asc(priceList.producto))
       .limit(5000);
-    
+
     return result as Array<{ id: string; kopr: string; name: string; ud02pr: string }>;
   }
 
@@ -4587,7 +4587,7 @@ export class DatabaseStorage implements IStorage {
       )
       .orderBy(asc(clients.nokoen))
       .limit(50);
-    
+
     return result as Array<{ id: string; nokoen: string; koen: string }>;
   }
 
@@ -4715,10 +4715,10 @@ export class DatabaseStorage implements IStorage {
       .where(and(...conditions))
       .groupBy(factVentas.nokoen)
       .orderBy(sql`SUM(CAST(${factVentas.monto} AS NUMERIC)) DESC`);
-    
+
     // Calculate segment total for percentages - ensure proper number conversion
     const segmentTotal = result.reduce((sum, client) => sum + Number(client.totalSales || 0), 0);
-    
+
     return result.map(client => ({
       clientName: client.clientName || 'Cliente desconocido',
       salespersonName: client.salespersonName || '',
@@ -4843,10 +4843,10 @@ export class DatabaseStorage implements IStorage {
       .where(and(...conditions))
       .groupBy(factVentas.nokofu)
       .orderBy(sql`SUM(CAST(${factVentas.monto} AS NUMERIC)) DESC`);
-    
+
     // Calculate segment total for percentages - ensure proper number conversion
     const segmentTotal = result.reduce((sum, salesperson) => sum + Number(salesperson.totalSales || 0), 0);
-    
+
     return result.map(salesperson => ({
       salespersonName: salesperson.salespersonName || 'Vendedor desconocido',
       totalSales: Number(salesperson.totalSales),
@@ -4961,7 +4961,7 @@ export class DatabaseStorage implements IStorage {
     `);
 
     const row = result.rows[0] as { new_count: string | number; recurring_count: string | number } | undefined;
-    
+
     return {
       recurringCount: Number(row?.recurring_count || 0),
       newCount: Number(row?.new_count || 0)
@@ -5033,9 +5033,9 @@ export class DatabaseStorage implements IStorage {
       .where(and(...conditions))
       .groupBy(factVentas.nokoen)
       .orderBy(sql`SUM(CAST(${factVentas.monto} AS NUMERIC)) DESC`);
-    
+
     const branchTotal = result.reduce((sum, client) => sum + Number(client.totalSales || 0), 0);
-    
+
     return result.map(client => ({
       clientName: client.clientName || 'Cliente desconocido',
       totalSales: Number(client.totalSales),
@@ -5108,9 +5108,9 @@ export class DatabaseStorage implements IStorage {
       .where(and(...conditions))
       .groupBy(factVentas.nokofu)
       .orderBy(sql`SUM(CAST(${factVentas.monto} AS NUMERIC)) DESC`);
-    
+
     const branchTotal = result.reduce((sum, salesperson) => sum + Number(salesperson.totalSales || 0), 0);
-    
+
     return result.map(salesperson => ({
       salespersonName: salesperson.salespersonName || 'Vendedor desconocido',
       totalSales: Number(salesperson.totalSales),
@@ -5320,10 +5320,10 @@ export class DatabaseStorage implements IStorage {
 
       // For each client, check if they had ANY previous purchases in the ENTIRE company before this period
       const periodStart = this.getPeriodStart(period, filterType);
-      
+
       for (const client of clientsInPeriod) {
         if (!client.nokoen) continue; // Skip null clients
-        
+
         const [previousSale] = await db
           .select({
             count: sql<number>`COUNT(*)`
@@ -5334,7 +5334,7 @@ export class DatabaseStorage implements IStorage {
             sql`${factVentas.tido} != 'GDV'`,
             sql`${factVentas.feemdo} < ${periodStart}`
           ));
-        
+
         // If no previous sales in the ENTIRE company, this is a truly new client
         if (Number(previousSale.count) === 0) {
           newClients++;
@@ -5407,7 +5407,7 @@ export class DatabaseStorage implements IStorage {
       eq(factVentas.nokofu, salespersonName),
       sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
-    
+
     // Filter by segment if provided
     if (segment) {
       conditions.push(eq(factVentas.noruen, segment));
@@ -5533,7 +5533,7 @@ export class DatabaseStorage implements IStorage {
       eq(factVentas.nokofu, salespersonName),
       sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
-    
+
     // Filter by segment if provided
     if (segment) {
       conditions.push(eq(factVentas.noruen, segment));
@@ -5789,7 +5789,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(factVentas)
       .where(and(...conditions));
-    
+
     const segments = segmentResults
       .map(r => r.segment)
       .filter((s): s is string => !!s && s.trim() !== '')
@@ -5929,7 +5929,7 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
 
     if (!result) return null;
-    
+
     return {
       id: result.id,
       nudo: result.nudo,
@@ -5976,16 +5976,16 @@ export class DatabaseStorage implements IStorage {
   async getSalespeopleUsers(): Promise<SalespersonUser[]> {
     // Get salespeople/supervisors from salespeopleUsers table
     const salespeople = await db.select().from(salespeopleUsers).orderBy(salespeopleUsers.salespersonName);
-    
+
     // Get admin users from users table and map to SalespersonUser format
     const adminUsers = await db.select().from(users).where(eq(users.role, 'admin'));
-    
+
     // Remove password from salespeople responses
     const safeSalespeople = salespeople.map(user => ({
       ...user,
       password: '' // Never expose password hashes
     }));
-    
+
     const mappedAdmins: SalespersonUser[] = adminUsers.map(admin => ({
       id: admin.id,
       salespersonName: `${admin.firstName || ''} ${admin.lastName || ''}`.trim() || admin.email,
@@ -5999,10 +5999,10 @@ export class DatabaseStorage implements IStorage {
       createdAt: admin.createdAt,
       updatedAt: admin.updatedAt,
     }));
-    
+
     // Combine both arrays, deduplicate by id, and sort by salespersonName
     const allUsers = [...safeSalespeople, ...mappedAdmins];
-    const deduplicatedUsers = allUsers.filter((user, index, arr) => 
+    const deduplicatedUsers = allUsers.filter((user, index, arr) =>
       arr.findIndex(u => u.id === user.id) === index
     );
     return deduplicatedUsers.sort((a, b) => (a.salespersonName || '').localeCompare(b.salespersonName || ''));
@@ -6018,7 +6018,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateSalespersonUser(id: string, user: Partial<InsertSalespersonUser>): Promise<SalespersonUser> {
     const bcrypt = await import('bcryptjs');
-    
+
     // Hash password if provided and not already hashed (robust bcrypt detection)
     let hashedPassword: string | undefined;
     const bcryptHashRegex = /^\$2[aby]\$\d{2}\$/;
@@ -6027,72 +6027,72 @@ export class DatabaseStorage implements IStorage {
     } else if (user.password) {
       hashedPassword = user.password; // Already hashed
     }
-    
+
     // Track if we need to invalidate sessions
     const needsSessionInvalidation = hashedPassword || user.isActive === false;
-    
+
     // First check if it's a salesperson/supervisor user
     const [existingSalesperson] = await db
       .select({ id: salespeopleUsers.id })
       .from(salespeopleUsers)
       .where(eq(salespeopleUsers.id, id));
-    
+
     if (existingSalesperson) {
       // Update in salespeopleUsers table
       const updateData = { ...user, updatedAt: new Date() };
       if (hashedPassword) updateData.password = hashedPassword;
-      
+
       const [result] = await db
         .update(salespeopleUsers)
         .set(updateData)
         .where(eq(salespeopleUsers.id, id))
         .returning();
-      
+
       // Invalidate sessions if password changed or user deactivated
       if (needsSessionInvalidation) {
         await this.invalidateUserSessions(id);
       }
-      
+
       // Return without password hash
       return {
         ...result,
         password: '' // Never expose password hashes
       };
     }
-    
+
     // Check if it's an admin user
     const [existingAdmin] = await db
       .select({ id: users.id })
       .from(users)
       .where(and(eq(users.id, id), eq(users.role, 'admin')));
-    
+
     if (existingAdmin) {
       // Map SalespersonUser fields back to User fields for admin users
       const adminUpdate: Partial<typeof users.$inferInsert> = {};
-      
+
       if (user.salespersonName) {
         const nameParts = user.salespersonName.split(' ');
         adminUpdate.firstName = nameParts[0] || '';
         adminUpdate.lastName = nameParts.slice(1).join(' ') || '';
       }
-      
+
       if (user.email) adminUpdate.email = user.email;
       if (hashedPassword) adminUpdate.password = hashedPassword;
-      
+
       adminUpdate.updatedAt = new Date();
-      
+
       // Update in users table
       const [updatedAdmin] = await db
         .update(users)
         .set(adminUpdate)
         .where(eq(users.id, id))
         .returning();
-      
+
       // Invalidate sessions if password changed or user deactivated
       if (needsSessionInvalidation) {
         await this.invalidateUserSessions(id);
       }
-      
+
       // Return in SalespersonUser format without password hash
       return {
         id: updatedAdmin.id,
@@ -6108,7 +6108,7 @@ export class DatabaseStorage implements IStorage {
         updatedAt: updatedAdmin.updatedAt,
       };
     }
-    
+
     throw new Error(`User with id ${id} not found`);
   }
 
@@ -6122,7 +6122,7 @@ export class DatabaseStorage implements IStorage {
     // and solicitudes_marketing has a foreign key to salespeople_users
     const supervisors = await db.select().from(salespeopleUsers)
       .where(eq(salespeopleUsers.role, 'supervisor'));
-    
+
     return supervisors.sort((a, b) => a.salespersonName.localeCompare(b.salespersonName));
   }
 
@@ -6132,20 +6132,20 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(salespeopleUsers)
       .where(eq(salespeopleUsers.id, id));
-    
+
     if (salespersonUser) {
       return {
         ...salespersonUser,
         password: '' // Never expose password hashes
       };
     }
-    
+
     // If not found, try to find in admin users table
     const [adminUser] = await db
       .select()
       .from(users)
       .where(and(eq(users.id, id), eq(users.role, 'admin')));
-    
+
     if (adminUser) {
       return {
         id: adminUser.id,
@@ -6161,7 +6161,7 @@ export class DatabaseStorage implements IStorage {
         updatedAt: adminUser.updatedAt,
       };
     }
-    
+
     return undefined;
   }
 
@@ -6175,18 +6175,18 @@ export class DatabaseStorage implements IStorage {
 
   async initializePublicCatalogs(): Promise<{ updated: number; skipped: number }> {
     console.log('🔧 Inicializando catálogos públicos para todos los vendedores...');
-    
+
     const salespeople = await db.select().from(salespeopleUsers);
-    
+
     let updated = 0;
     let skipped = 0;
-    
+
     for (const salesperson of salespeople) {
       if (salesperson.publicSlug && salesperson.catalogEnabled) {
         skipped++;
         continue;
       }
-      
+
       const generateSlug = (name: string): string => {
         return name
           .toLowerCase()
@@ -6198,27 +6198,27 @@ export class DatabaseStorage implements IStorage {
           .trim()
           .replace(/^-|-$/g, '');
       };
-      
+
       let baseSlug = generateSlug(salesperson.salespersonName);
       if (!baseSlug) {
         baseSlug = `vendedor-${salesperson.id.substring(0, 8)}`;
       }
-      
+
       let slug = baseSlug;
       let counter = 1;
-      
+
       const existingSlugs = await db
         .select({ slug: salespeopleUsers.publicSlug })
         .from(salespeopleUsers)
         .where(sql`${salespeopleUsers.publicSlug} LIKE ${baseSlug + '%'}`);
-      
+
       const slugSet = new Set(existingSlugs.map(s => s.slug).filter(Boolean));
-      
+
       while (slugSet.has(slug)) {
         slug = `${baseSlug}-${counter}`;
         counter++;
       }
-      
+
       await db
         .update(salespeopleUsers)
         .set({
@@ -6227,13 +6227,13 @@ export class DatabaseStorage implements IStorage {
           updatedAt: new Date()
         })
         .where(eq(salespeopleUsers.id, salesperson.id));
-      
+
       console.log(`  ✅ Catálogo activado: ${salesperson.salespersonName} → /catalogo/${slug}`);
       updated++;
     }
-    
+
     console.log(`✅ Catálogos inicializados: ${updated} actualizados, ${skipped} ya configurados`);
-    
+
     return { updated, skipped };
   }
 
@@ -6275,7 +6275,7 @@ export class DatabaseStorage implements IStorage {
     }>;
   }> {
     const today = new Date();
-    
+
     // Obtener todos los clientes del vendedor con estadísticas
     const allClients = await db
       .select({
@@ -6418,14 +6418,14 @@ export class DatabaseStorage implements IStorage {
       const previous = previousProductSales.find(p => p.productName === recent.productName);
       const previousSalesValue = Number(previous?.previousSales || 0);
       const recentSalesValue = Number(recent.recentSales);
-      
+
       let growthRate = 0;
       if (previousSalesValue > 0) {
         growthRate = ((recentSalesValue - previousSalesValue) / previousSalesValue) * 100;
       } else if (recentSalesValue > 0) {
         growthRate = 100; // New product with sales
       }
-      
+
       return {
         productName: recent.productName || '',
         recentSales: recentSalesValue,
@@ -6433,9 +6433,9 @@ export class DatabaseStorage implements IStorage {
         previousSales: previousSalesValue
       };
     })
-    .filter(p => p.growthRate > 10 && p.recentSales > 0)
-    .sort((a, b) => b.growthRate - a.growthRate)
-    .slice(0, limit);
+      .filter(p => p.growthRate > 10 && p.recentSales > 0)
+      .sort((a, b) => b.growthRate - a.growthRate)
+      .slice(0, limit);
 
     // Map to final format with recommendations
     return productTrends.map(product => {
@@ -6447,7 +6447,7 @@ export class DatabaseStorage implements IStorage {
       } else {
         recommendation = 'Crecimiento moderado - Mantener en oferta';
       }
-      
+
       return {
         productName: product.productName,
         recentSales: product.recentSales,
@@ -6465,18 +6465,18 @@ export class DatabaseStorage implements IStorage {
     lastPurchaseId: string;
   }>> {
     const today = new Date();
-    
+
     const conditions = [
       eq(factVentas.nokofu, salesperson),
       sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`,
       sql`${factVentas.tido} != 'GDV'`
     ];
-    
+
     // If specific client requested, filter by name
     if (clientName) {
       conditions.push(eq(factVentas.nokoen, clientName));
     }
-    
+
     // Clientes que requieren seguimiento: al menos 4 compras en los últimos 12 meses
     // y más de 30 días sin comprar
     const inactiveClientsData = await db
@@ -6518,7 +6518,7 @@ export class DatabaseStorage implements IStorage {
     return inactiveClientsData.map(client => {
       const lastPurchaseDate = new Date(client.lastPurchaseDate);
       const daysSinceLastPurchase = Math.floor((today.getTime() - lastPurchaseDate.getTime()) / (1000 * 60 * 60 * 24));
-      
+
       return {
         clientName: client.clientName || '',
         daysSinceLastPurchase,
@@ -6538,18 +6538,18 @@ export class DatabaseStorage implements IStorage {
     const today = new Date();
     const currentMonth = today.getMonth() + 1;
     const monthName = format(new Date(2024, currentMonth - 1, 1), 'MMMM', { locale: es });
-    
+
     const conditions = [
       eq(factVentas.nokofu, salesperson),
       sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`,
       sql`EXTRACT(MONTH FROM ${factVentas.feemdo}::date) = ${currentMonth}`
     ];
-    
+
     // If specific client requested, filter by name
     if (clientName) {
       conditions.push(eq(factVentas.nokoen, clientName));
     }
-    
+
     // Find clients who have purchased in this month historically (across multiple years)
     // but are NOT currently active (haven't purchased in last 30 days)
     const seasonalClientsData = await db
@@ -6574,13 +6574,13 @@ export class DatabaseStorage implements IStorage {
       const purchasePattern = `Suele comprar en ${monthName.charAt(0).toUpperCase() + monthName.slice(1)}`;
       const yearsCount = Number(client.yearsCount);
       const transactionCount = Number(client.transactionCount);
-      
+
       return {
         clientName: client.clientName || '',
         expectedPurchaseDate: `${currentMonth}/${today.getFullYear()}`,
         averagePurchaseAmount: Number(client.avgAmount),
-        purchasePattern: yearsCount > 2 
-          ? `${purchasePattern} (${yearsCount} años consecutivos, ${transactionCount} compras)` 
+        purchasePattern: yearsCount > 2
+          ? `${purchasePattern} (${yearsCount} años consecutivos, ${transactionCount} compras)`
           : `${purchasePattern} (${transactionCount} compras)`
       };
     });
@@ -6627,7 +6627,7 @@ export class DatabaseStorage implements IStorage {
       lastPurchaseId: string;
       id?: string;
     }> = [];
-    
+
     let usedFallback = false;
 
     // FALLBACK: Use on-demand query if salesperson user lookup fails (ETL hasn't run or user not in table)
@@ -6657,7 +6657,7 @@ export class DatabaseStorage implements IStorage {
           totalHistoricalSales: Number(client.totalPurchasesLastYear || 0),
           lastPurchaseId: '', // Will be fetched on-demand when needed
         }));
-        
+
         // Empty result is valid - it means all clients are already added or dismissed
       } catch (error) {
         // FALLBACK: Only if the query itself fails
@@ -6824,7 +6824,7 @@ export class DatabaseStorage implements IStorage {
     }>;
   }>> {
     console.log(`[DEBUG] Looking for salespeople under supervisor: ${supervisorId}`);
-    
+
     // Obtener vendedores bajo este supervisor
     const salespeople = await db
       .select()
@@ -6859,7 +6859,7 @@ export class DatabaseStorage implements IStorage {
           eq(goals.target, salesperson.salespersonName)
         ))
         .orderBy(desc(goals.createdAt));
-      
+
       console.log(`[DEBUG] Found ${salespersonGoals.length} goals for ${salesperson.salespersonName}:`, salespersonGoals);
 
       // Procesar metas con progreso
@@ -6880,7 +6880,7 @@ export class DatabaseStorage implements IStorage {
           period: goal.period || "",
           progress: Math.round(progress)
         };
-        
+
         console.log(`[DEBUG] Processed goal for ${salesperson.salespersonName}:`, processedGoal);
         processedGoals.push(processedGoal);
       }
@@ -6895,7 +6895,7 @@ export class DatabaseStorage implements IStorage {
         lastSale: salesStats?.lastSale || '',
         goals: processedGoals
       };
-      
+
       console.log(`[DEBUG] Final salesperson data for ${salesperson.salespersonName}:`, salespersonResult);
       results.push(salespersonResult);
     }
@@ -6906,7 +6906,7 @@ export class DatabaseStorage implements IStorage {
   async getSupervisorGoals(supervisorId: string): Promise<any[]> {
     // Obtener supervisor con su segmento asignado
     const [supervisor] = await db
-      .select({ 
+      .select({
         salespersonName: salespeopleUsers.salespersonName,
         assignedSegment: salespeopleUsers.assignedSegment
       })
@@ -6926,7 +6926,7 @@ export class DatabaseStorage implements IStorage {
         eq(goals.target, supervisor.salespersonName)
       ))
       .orderBy(desc(goals.createdAt));
-    
+
     // Procesar metas personales
     for (const goal of personalGoals) {
       const currentSales = await this.getSalespersonSalesForPeriod(supervisor.salespersonName, goal.period);
@@ -6957,7 +6957,7 @@ export class DatabaseStorage implements IStorage {
           eq(goals.target, supervisor.assignedSegment)
         ))
         .orderBy(desc(goals.createdAt));
-      
+
       // Procesar metas del segmento
       for (const goal of segmentGoals) {
         const currentSales = await this.getSegmentSalesForPeriod(supervisor.assignedSegment, goal.period);
@@ -6994,7 +6994,7 @@ export class DatabaseStorage implements IStorage {
           eq(goals.target, salesperson.salespersonName)
         ))
         .orderBy(desc(goals.createdAt));
-      
+
       // Procesar metas de cada vendedor
       for (const goal of salespersonGoals) {
         const currentSales = await this.getSalespersonSalesForPeriod(salesperson.salespersonName, goal.period);
@@ -7027,20 +7027,20 @@ export class DatabaseStorage implements IStorage {
     data: any;
   }>> {
     const alerts = [];
-    
+
     // Obtener vendedores del supervisor con sus datos
     const salespeople = await this.getSalespeopleUnderSupervisor(supervisorId);
-    
+
     const now = new Date();
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(now.getDate() - 30);
-    
+
     for (const salesperson of salespeople) {
       // ALERTA 1: Vendedor inactivo (sin ventas en mucho tiempo)
       if (salesperson.lastSale) {
         const lastSaleDate = new Date(salesperson.lastSale);
         const daysSinceLastSale = Math.floor((now.getTime() - lastSaleDate.getTime()) / (1000 * 60 * 60 * 24));
-        
+
         if (daysSinceLastSale >= 30) {
           alerts.push({
             type: 'inactive' as const,
@@ -7059,11 +7059,11 @@ export class DatabaseStorage implements IStorage {
           data: { daysSinceLastSale: null, lastSale: null }
         });
       }
-      
+
       // ALERTA 2 y 3: Metas bajo cumplimiento y proyecciones
       for (const goal of salesperson.goals) {
         const progress = goal.progress;
-        
+
         // Alerta por estar bajo meta
         if (progress < 50) {
           alerts.push({
@@ -7071,15 +7071,15 @@ export class DatabaseStorage implements IStorage {
             severity: progress < 25 ? ('high' as const) : progress < 40 ? ('medium' as const) : ('low' as const),
             salesperson: salesperson.salespersonName,
             message: `${salesperson.salespersonName} está al ${progress}% de su meta (${goal.description})`,
-            data: { 
-              progress, 
-              currentSales: goal.currentSales, 
+            data: {
+              progress,
+              currentSales: goal.currentSales,
               targetAmount: goal.targetAmount,
               goalDescription: goal.description
             }
           });
         }
-        
+
         // ALERTA 3: Proyección negativa
         // Calcular ritmo de ventas mensual y proyectar
         const monthsInPeriod = this.getMonthsFromPeriod(goal.period);
@@ -7088,14 +7088,14 @@ export class DatabaseStorage implements IStorage {
           const currentMonthlyRate = goal.currentSales / currentMonthsElapsed;
           const projectedTotal = currentMonthlyRate * monthsInPeriod;
           const projectionPercentage = (projectedTotal / goal.targetAmount) * 100;
-          
+
           if (projectionPercentage < 80 && progress > 0) { // Solo si hay algo de progreso
             alerts.push({
               type: 'projection' as const,
               severity: projectionPercentage < 50 ? ('high' as const) : projectionPercentage < 65 ? ('medium' as const) : ('low' as const),
               salesperson: salesperson.salespersonName,
               message: `${salesperson.salespersonName} proyecta alcanzar solo ${Math.round(projectionPercentage)}% de su meta`,
-              data: { 
+              data: {
                 projectionPercentage: Math.round(projectionPercentage),
                 projectedTotal,
                 targetAmount: goal.targetAmount,
@@ -7107,12 +7107,12 @@ export class DatabaseStorage implements IStorage {
         }
       }
     }
-    
+
     // Ordenar alertas por severidad
     const severityOrder: Record<'high' | 'medium' | 'low', number> = { 'high': 3, 'medium': 2, 'low': 1 };
     return alerts.sort((a, b) => severityOrder[b.severity as keyof typeof severityOrder] - severityOrder[a.severity as keyof typeof severityOrder]);
   }
-  
+
   private getMonthsFromPeriod(period: string): number {
     if (!period) return 0;
     const periodLower = period.toLowerCase();
@@ -7133,17 +7133,17 @@ export class DatabaseStorage implements IStorage {
     offset?: number;
   }): Promise<Array<Product & { primaryImageUrl?: string }>> {
     const conditions = [];
-    
+
     // Only show products that are active AND eCommerceActive
     conditions.push(eq(products.active, true));
     conditions.push(eq(products.ecomActive, true));
-    
+
     if (filters?.search) {
       conditions.push(
         sql`(${products.kopr} ILIKE ${`%${filters.search}%`} OR ${products.name} ILIKE ${`%${filters.search}%`})`
       );
     }
-    
+
     if (filters?.category) {
       conditions.push(eq(products.category, filters.category));
     }
@@ -7175,13 +7175,13 @@ export class DatabaseStorage implements IStorage {
     if (filters?.limit) {
       query = query.limit(filters.limit) as typeof query;
     }
-    
+
     if (filters?.offset) {
       query = query.offset(filters.offset) as typeof query;
     }
 
     const publicProducts = await query.orderBy(products.name);
-    
+
     // Map to include missing fields and extract primary image
     return publicProducts.map(p => {
       let primaryImageUrl: string | undefined = undefined;
@@ -7231,17 +7231,17 @@ export class DatabaseStorage implements IStorage {
     offset?: number;
   }): Promise<Array<Product & { sku?: string; price?: string; totalStock?: number; warehouses?: string[] }>> {
     const conditions = [];
-    
+
     if (filters?.search) {
       conditions.push(
         sql`(${products.kopr} ILIKE ${`%${filters.search}%`} OR ${products.name} ILIKE ${`%${filters.search}%`})`
       );
     }
-    
+
     if (filters?.active !== undefined) {
       conditions.push(eq(products.active, filters.active));
     }
-    
+
     if (filters?.hasPrices !== undefined) {
       if (filters.hasPrices) {
         conditions.push(sql`${products.priceProduct} IS NOT NULL AND ${products.priceProduct} != '0'`);
@@ -7259,13 +7259,13 @@ export class DatabaseStorage implements IStorage {
     if (filters?.limit) {
       query = query.limit(filters.limit) as typeof query;
     }
-    
+
     if (filters?.offset) {
       query = query.offset(filters.offset) as typeof query;
     }
 
     const productsList = await query.orderBy(products.name);
-    
+
     // Get stock information for each product
     const enrichedProducts = await Promise.all(productsList.map(async (product) => {
       const stocks = await db.select({
@@ -7275,14 +7275,14 @@ export class DatabaseStorage implements IStorage {
         availableStock1: productStock.availableStock1,
         availableStock2: productStock.availableStock2
       }).from(productStock).where(eq(productStock.kopr, product.kopr));
-      
+
       const totalStock = stocks.reduce((sum, stock) => {
         return sum + (Number(stock.availableStock1) || 0) + (Number(stock.availableStock2) || 0);
       }, 0);
-      
+
       const warehouseSet = new Set(stocks.map(s => s.warehouseCode));
       const warehouses = Array.from(warehouseSet);
-      
+
       return {
         ...product,
         // Mapear campos para compatibilidad con frontend
@@ -7330,14 +7330,14 @@ export class DatabaseStorage implements IStorage {
     if (!currentProduct) {
       throw new Error(`Product with KOPR ${kopr} not found`);
     }
-    
+
     const oldPrice = currentProduct.priceProduct ? Number(currentProduct.priceProduct) : null;
     const oldOfferPrice = currentProduct.priceOffer ? Number(currentProduct.priceOffer) : null;
 
     // Update product prices
-    const updateData: any = { 
-      priceProduct: newPrice.toString(), 
-      updatedAt: new Date() 
+    const updateData: any = {
+      priceProduct: newPrice.toString(),
+      updatedAt: new Date()
     };
 
     const [updatedProduct] = await db
@@ -7409,13 +7409,13 @@ export class DatabaseStorage implements IStorage {
     if (filters?.limit) {
       query = query.limit(filters.limit) as typeof query;
     }
-    
+
     if (filters?.offset) {
       query = query.offset(filters.offset) as typeof query;
     }
 
     const productsList = await query.orderBy(products.name);
-    
+
     // Enrich with primary image and stock info
     const enrichedProducts = await Promise.all(productsList.map(async (product) => {
       // Get primary image URL
@@ -7431,7 +7431,7 @@ export class DatabaseStorage implements IStorage {
         availableStock1: productStock.availableStock1,
         availableStock2: productStock.availableStock2
       }).from(productStock).where(eq(productStock.kopr, product.kopr));
-      
+
       const totalStock = stocks.reduce((sum, stock) => {
         return sum + (Number(stock.availableStock1) || 0) + (Number(stock.availableStock2) || 0);
       }, 0);
@@ -7471,7 +7471,7 @@ export class DatabaseStorage implements IStorage {
     ecomPrice?: number;
     category?: string;
     tags?: string[];
-    images?: Array<{id: string, url: string, alt: string, primary: boolean, sort: number}>;
+    images?: Array<{ id: string, url: string, alt: string, primary: boolean, sort: number }>;
     seoTitle?: string;
     seoDescription?: string;
     ogImageUrl?: string;
@@ -7481,8 +7481,8 @@ export class DatabaseStorage implements IStorage {
     showInStore?: boolean;
     active?: boolean;
   }>): Promise<Product> {
-    const updateData: any = { 
-      ...productData, 
+    const updateData: any = {
+      ...productData,
       updatedAt: new Date()
     };
 
@@ -7535,7 +7535,7 @@ export class DatabaseStorage implements IStorage {
 
       if (priceListProduct.length > 0) {
         console.log(`[ZIP IMPORT] Auto-creating ecommerce product for code: ${code}`);
-        
+
         // Create ecommerce product entry
         const [newEcomProduct] = await db
           .insert(ecommerceProducts)
@@ -7571,7 +7571,7 @@ export class DatabaseStorage implements IStorage {
 
     const [updatedProduct] = await db
       .update(products)
-      .set({ 
+      .set({
         ecomActive: !currentProduct.ecomActive,
         updatedAt: new Date()
       })
@@ -7595,7 +7595,7 @@ export class DatabaseStorage implements IStorage {
 
   async validateProductSlug(slug: string, excludeKopr?: string): Promise<boolean> {
     const conditions = [eq(products.slug, slug)];
-    
+
     if (excludeKopr) {
       conditions.push(sql`${products.kopr} != ${excludeKopr}`);
     }
@@ -7638,7 +7638,7 @@ export class DatabaseStorage implements IStorage {
   }>> {
     // Use direct imports instead of dynamic imports
     const { priceList, ecommerceProducts } = await import('@shared/schema');
-    
+
     // Build the main query
     let baseQuery = db
       .select({
@@ -7769,12 +7769,12 @@ export class DatabaseStorage implements IStorage {
     }>;
   }>> {
     const { ecommerceProductGroups, ecommerceProducts, priceList } = await import('@shared/schema');
-    
+
     const groups = await db
       .select()
       .from(ecommerceProductGroups)
       .orderBy(ecommerceProductGroups.nombre);
-    
+
     const variations = await db
       .select({
         id: ecommerceProducts.id,
@@ -7794,14 +7794,14 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(priceList, eq(ecommerceProducts.priceListId, priceList.id))
       .where(isNotNull(ecommerceProducts.groupId))
       .orderBy(ecommerceProducts.color, priceList.unidad);
-    
+
     const variationsByGroup = new Map<string, typeof variations>();
     for (const v of variations) {
       const groupVariations = variationsByGroup.get(v.groupId!) || [];
       groupVariations.push(v);
       variationsByGroup.set(v.groupId!, groupVariations);
     }
-    
+
     return groups.map(group => ({
       id: group.id,
       nombre: group.nombre,
@@ -7833,7 +7833,7 @@ export class DatabaseStorage implements IStorage {
     activo?: boolean;
   }): Promise<{ id: string; nombre: string }> {
     const { ecommerceProductGroups } = await import('@shared/schema');
-    
+
     const [updated] = await db
       .update(ecommerceProductGroups)
       .set({
@@ -7842,17 +7842,17 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(ecommerceProductGroups.id, id))
       .returning();
-    
+
     if (!updated) {
       throw new Error('Product group not found');
     }
-    
+
     return { id: updated.id, nombre: updated.nombre };
   }
 
   async reassignVariationToGroup(variationId: string, newGroupId: string | null): Promise<void> {
     const { ecommerceProducts } = await import('@shared/schema');
-    
+
     await db
       .update(ecommerceProducts)
       .set({
@@ -7870,7 +7870,7 @@ export class DatabaseStorage implements IStorage {
     productoCount: number;
   }>> {
     const { ecommerceCategories, ecommerceProducts } = await import('@shared/schema');
-    
+
     const results = await db
       .select({
         id: ecommerceCategories.id,
@@ -7900,7 +7900,7 @@ export class DatabaseStorage implements IStorage {
     ventasMes: number;
   }> {
     const { priceList, ecommerceProducts, ecommerceCategories, ecommerceOrders } = await import('@shared/schema');
-    
+
     // Get current month boundaries
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -7993,7 +7993,7 @@ export class DatabaseStorage implements IStorage {
       console.log('🛒 [STORAGE] Registro ecommerce existente:', existingEcomProduct);
 
       let ecomProduct;
-      
+
       if (existingEcomProduct) {
         // Update existing ecommerce record
         console.log('🔄 [STORAGE] Actualizando registro ecommerce existente:', {
@@ -8105,20 +8105,20 @@ export class DatabaseStorage implements IStorage {
 
   async bulkAssignProductsToGroup(productIds: string[], groupId: string): Promise<{ count: number }> {
     const { ecommerceProducts, ecommerceProductGroups } = await import('@shared/schema');
-    
+
     // Verify group exists
     const [group] = await db
       .select()
       .from(ecommerceProductGroups)
       .where(eq(ecommerceProductGroups.id, groupId))
       .limit(1);
-    
+
     if (!group) {
       throw new Error('Group not found');
     }
-    
+
     let count = 0;
-    
+
     for (const priceListId of productIds) {
       // Check if ecommerce record exists
       const [existingProduct] = await db
@@ -8126,7 +8126,7 @@ export class DatabaseStorage implements IStorage {
         .from(ecommerceProducts)
         .where(eq(ecommerceProducts.priceListId, priceListId))
         .limit(1);
-      
+
       if (existingProduct) {
         // Update existing record
         await db
@@ -8148,7 +8148,7 @@ export class DatabaseStorage implements IStorage {
       }
       count++;
     }
-    
+
     console.log(`✅ Bulk assigned ${count} products to group ${group.nombre}`);
     return { count };
   }
@@ -8191,12 +8191,12 @@ export class DatabaseStorage implements IStorage {
   // eCommerce Product Groups operations
   async createProductGroup(data: InsertEcommerceProductGroupInput): Promise<EcommerceProductGroup> {
     const { ecommerceProductGroups } = await import('@shared/schema');
-    
+
     const [newGroup] = await db
       .insert(ecommerceProductGroups)
       .values(data)
       .returning();
-    
+
     return newGroup;
   }
 
@@ -8209,10 +8209,10 @@ export class DatabaseStorage implements IStorage {
     mainVariant?: EcommerceProduct | null;
   }>> {
     const { ecommerceProductGroups, ecommerceProducts } = await import('@shared/schema');
-    
+
     let query = db.select().from(ecommerceProductGroups);
     const conditions = [];
-    
+
     if (filters?.search) {
       conditions.push(
         or(
@@ -8221,21 +8221,21 @@ export class DatabaseStorage implements IStorage {
         )
       );
     }
-    
+
     if (filters?.categoria) {
       conditions.push(eq(ecommerceProductGroups.categoria, filters.categoria));
     }
-    
+
     if (filters?.activo !== undefined) {
       conditions.push(eq(ecommerceProductGroups.activo, filters.activo));
     }
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as any;
     }
-    
+
     const groups = await query.orderBy(ecommerceProductGroups.orden, ecommerceProductGroups.nombre);
-    
+
     // Get variant count and main variant for each group
     const groupsWithDetails = await Promise.all(
       groups.map(async (group) => {
@@ -8243,9 +8243,9 @@ export class DatabaseStorage implements IStorage {
           .select()
           .from(ecommerceProducts)
           .where(eq(ecommerceProducts.groupId, group.id));
-        
+
         const mainVariant = variants.find(v => v.isMainVariant) || null;
-        
+
         return {
           ...group,
           variantCount: variants.length,
@@ -8253,18 +8253,18 @@ export class DatabaseStorage implements IStorage {
         };
       })
     );
-    
+
     return groupsWithDetails;
   }
 
   async getProductGroup(id: string): Promise<EcommerceProductGroup | undefined> {
     const { ecommerceProductGroups } = await import('@shared/schema');
-    
+
     const [group] = await db
       .select()
       .from(ecommerceProductGroups)
       .where(eq(ecommerceProductGroups.id, id));
-    
+
     return group;
   }
 
@@ -8273,16 +8273,16 @@ export class DatabaseStorage implements IStorage {
     variants: Array<EcommerceProduct & { priceListProduct?: any }>;
   } | null> {
     const { ecommerceProductGroups, ecommerceProducts, priceList } = await import('@shared/schema');
-    
+
     const [group] = await db
       .select()
       .from(ecommerceProductGroups)
       .where(eq(ecommerceProductGroups.id, id));
-    
+
     if (!group) {
       return null;
     }
-    
+
     const variants = await db
       .select()
       .from(ecommerceProducts)
@@ -8292,7 +8292,7 @@ export class DatabaseStorage implements IStorage {
         ecommerceProducts.orden,
         ecommerceProducts.variantLabel
       );
-    
+
     // Get price list data for each variant
     const variantsWithPriceList = await Promise.all(
       variants.map(async (variant) => {
@@ -8300,14 +8300,14 @@ export class DatabaseStorage implements IStorage {
           .select()
           .from(priceList)
           .where(eq(priceList.id, variant.priceListId));
-        
+
         return {
           ...variant,
           priceListProduct,
         };
       })
     );
-    
+
     return {
       group,
       variants: variantsWithPriceList,
@@ -8316,7 +8316,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateProductGroup(id: string, data: UpdateEcommerceProductGroupInput): Promise<EcommerceProductGroup> {
     const { ecommerceProductGroups } = await import('@shared/schema');
-    
+
     const [updated] = await db
       .update(ecommerceProductGroups)
       .set({
@@ -8325,17 +8325,17 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(ecommerceProductGroups.id, id))
       .returning();
-    
+
     if (!updated) {
       throw new Error('Grupo de productos no encontrado');
     }
-    
+
     return updated;
   }
 
   async deleteProductGroup(id: string): Promise<void> {
     const { ecommerceProductGroups, ecommerceProducts } = await import('@shared/schema');
-    
+
     // First, remove groupId from all products in this group
     await db
       .update(ecommerceProducts)
@@ -8345,7 +8345,7 @@ export class DatabaseStorage implements IStorage {
         isMainVariant: false,
       })
       .where(eq(ecommerceProducts.groupId, id));
-    
+
     // Then delete the group
     await db
       .delete(ecommerceProductGroups)
@@ -8359,7 +8359,7 @@ export class DatabaseStorage implements IStorage {
     isMainVariant?: boolean
   ): Promise<void> {
     const { ecommerceProducts } = await import('@shared/schema');
-    
+
     await db
       .update(ecommerceProducts)
       .set({
@@ -8373,7 +8373,7 @@ export class DatabaseStorage implements IStorage {
 
   async removeProductFromGroup(productId: string): Promise<void> {
     const { ecommerceProducts } = await import('@shared/schema');
-    
+
     await db
       .update(ecommerceProducts)
       .set({
@@ -8439,7 +8439,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     let query = db.select().from(shopifyProducts);
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as any;
     }
@@ -8626,7 +8626,7 @@ export class DatabaseStorage implements IStorage {
     // Group products by variant_parentSku maintaining order of first appearance
     const productGroups = new Map<string, any[]>();
     const groupOrder: string[] = []; // Track order of first appearance
-    
+
     for (const row of csvData) {
       const parentSku = row.variant_parentSku || row.productId;
       if (!productGroups.has(parentSku)) {
@@ -8640,18 +8640,18 @@ export class DatabaseStorage implements IStorage {
     for (let groupIndex = 0; groupIndex < groupOrder.length; groupIndex++) {
       const parentSku = groupOrder[groupIndex];
       const variants = productGroups.get(parentSku)!;
-      
+
       // Sort variants by variant_index to maintain correct order
       variants.sort((a, b) => {
         const indexA = parseInt(a.variant_index || '0', 10);
         const indexB = parseInt(b.variant_index || '0', 10);
         return indexA - indexB;
       });
-      
+
       try {
         // Check if product already exists by parentSku (the correct way to identify products)
         const existingProduct = await this.getShopifyProductByParentSku(parentSku);
-        
+
         if (existingProduct) {
           // Product exists, add/update variants
           for (let i = 0; i < variants.length; i++) {
@@ -8662,20 +8662,20 @@ export class DatabaseStorage implements IStorage {
           }
           continue;
         }
-        
+
         // Find the parent product row (variant_index = 0 or where productId === variant_parentSku)
-        const parentRow = variants.find(v => v.variant_index === '0' || v.variant_index === 0) 
-                        || variants.find(v => v.productId === parentSku) 
-                        || variants[0];
-        
+        const parentRow = variants.find(v => v.variant_index === '0' || v.variant_index === 0)
+          || variants.find(v => v.productId === parentSku)
+          || variants[0];
+
         // Extract product title from variant_genericDisplayName or name
-        const title = parentRow.variant_genericDisplayName || 
-                     parentRow.name?.replace(/\s+(BLANCO|NEGRO|GRIS|ROJO|VERDE|AZUL|CAFE|INCOLORA?|BASE OSCURA|BASE INCOLORA)\s*/gi, '').trim() ||
-                     parentRow.name;
+        const title = parentRow.variant_genericDisplayName ||
+          parentRow.name?.replace(/\s+(BLANCO|NEGRO|GRIS|ROJO|VERDE|AZUL|CAFE|INCOLORA?|BASE OSCURA|BASE INCOLORA)\s*/gi, '').trim() ||
+          parentRow.name;
 
         // Generate handle from parentSku (not from name) to ensure uniqueness
         const handle = this.generateHandle(parentSku);
-        
+
         const [product] = await db
           .insert(shopifyProducts)
           .values({
@@ -8914,15 +8914,15 @@ export class DatabaseStorage implements IStorage {
 
   async clearAllEcommerceProducts(): Promise<{ deletedCount: number }> {
     console.log('[CATALOG CLEAR] Clearing all ecommerce products and priceList entries');
-    
+
     // First delete all ecommerceProducts
     const ecomDeleted = await db.delete(ecommerceProducts).returning();
-    
+
     // Then delete all priceList entries
     const priceDeleted = await db.delete(priceList).returning();
-    
+
     console.log(`[CATALOG CLEAR] Deleted ${ecomDeleted.length} ecommerce entries and ${priceDeleted.length} priceList entries`);
-    
+
     return { deletedCount: ecomDeleted.length + priceDeleted.length };
   }
 
@@ -8934,7 +8934,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(shopifyProducts.sortOrder, shopifyProducts.title);
 
     const result: any[] = [];
-    
+
     for (const product of products) {
       const options = await db
         .select()
@@ -9043,7 +9043,7 @@ export class DatabaseStorage implements IStorage {
     errors: string[];
   }> {
     console.log(`🚀 Iniciando importación de ${csvData.length} productos`);
-    
+
     const errors: string[] = [];
     let processedProducts = 0;
     let newProducts = 0;
@@ -9075,7 +9075,7 @@ export class DatabaseStorage implements IStorage {
 
         // Verificar si el producto existe
         let product = await this.getProductBySku(row.sku);
-        
+
         if (!product) {
           console.log(`➕ Creando nuevo producto: ${row.sku}`);
           // Crear nuevo producto (sin precio, se establece manualmente)
@@ -9097,7 +9097,7 @@ export class DatabaseStorage implements IStorage {
 
         // Actualizar stock
         console.log(`📊 Actualizando stock para ${row.sku}: Stock Físico 1: ${row.physicalStock1}, Disponible 1: ${row.availableStock1}`);
-        
+
         const stockData = {
           kopr: product.kopr, // Use KOPR from product
           productSku: row.sku, // Compatibility field
@@ -9122,14 +9122,14 @@ export class DatabaseStorage implements IStorage {
         };
 
         await this.upsertProductStock(stockData);
-        
+
         updatedStock++;
         processedProducts++;
-        
+
         if (processedProducts % 50 === 0) {
           console.log(`📈 Progreso: ${processedProducts} productos procesados`);
         }
-        
+
       } catch (error) {
         console.error(`❌ Error procesando SKU ${row.sku} (Fila ${row.originalRowIndex}):`, error);
         errors.push(`Fila ${row.originalRowIndex} - SKU ${row.sku}: ${error instanceof Error ? error.message : String(error)}`);
@@ -9146,7 +9146,7 @@ export class DatabaseStorage implements IStorage {
     };
 
     console.log(`🎉 Importación completada:`, summary);
-    
+
     return summary;
   }
 
@@ -9192,7 +9192,7 @@ export class DatabaseStorage implements IStorage {
     errors: string[];
   }> {
     console.log(`🚀 Iniciando importación de ${csvData.length} productos`);
-    
+
     const errors: string[] = [];
     let processedProducts = 0;
     let newProducts = 0;
@@ -9218,10 +9218,10 @@ export class DatabaseStorage implements IStorage {
 
         // Verificar si el producto existe
         const existingProduct = await this.getProduct(row.productId);
-        
+
         if (!existingProduct) {
           console.log(`➕ Creando nuevo producto: ${row.productId}`);
-          
+
           // Crear nuevo producto
           await db.insert(products).values({
             kopr: row.productId,
@@ -9230,11 +9230,11 @@ export class DatabaseStorage implements IStorage {
             priceProduct: row.pricePerUnit ? parseFloat(row.pricePerUnit.replace(',', '.')).toString() : null,
             active: true
           });
-          
+
           newProducts++;
         } else {
           console.log(`🔄 Actualizando producto existente: ${row.productId}`);
-          
+
           // Actualizar producto existente (preservando precios existentes)
           const updateData: any = {
             name: row.name,
@@ -9250,16 +9250,16 @@ export class DatabaseStorage implements IStorage {
             .update(products)
             .set(updateData)
             .where(eq(products.kopr, row.productId));
-          
+
           updatedProducts++;
         }
-        
+
         processedProducts++;
-        
+
         if (processedProducts % 50 === 0) {
           console.log(`📈 Progreso: ${processedProducts} productos procesados`);
         }
-        
+
       } catch (error) {
         console.error(`❌ Error procesando producto ${row.productId} (Fila ${row.originalRowIndex}):`, error);
         errors.push(`Fila ${row.originalRowIndex} - productId ${row.productId}: ${error instanceof Error ? error.message : String(error)}`);
@@ -9276,7 +9276,7 @@ export class DatabaseStorage implements IStorage {
     };
 
     console.log(`🎉 Importación de productos completada:`, summary);
-    
+
     return summary;
   }
 
@@ -9477,7 +9477,7 @@ export class DatabaseStorage implements IStorage {
     unit2?: string;
   }>> {
     const conditions = [eq(productStock.warehouseCode, warehouseCode)];
-    
+
     if (branchCode) {
       conditions.push(eq(productStock.branchCode, branchCode));
     }
@@ -9535,7 +9535,7 @@ export class DatabaseStorage implements IStorage {
         GROUP BY nokofu, noruen
         ORDER BY total_sales DESC
       `;
-      
+
       const result = await db.execute(query);
       return result.rows.map((row: any) => ({
         salespersonName: row.salesperson_name,
@@ -9656,7 +9656,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(sql`SUM(${factVentas.monto})`))
       .limit(1);
 
-    const bestPerformer = bestPerformerQuery.length > 0 
+    const bestPerformer = bestPerformerQuery.length > 0
       ? { name: bestPerformerQuery[0].vendedor || '', sales: Number(bestPerformerQuery[0].totalSales) }
       : null;
 
@@ -9683,7 +9683,7 @@ export class DatabaseStorage implements IStorage {
       await db
         .delete(sessions)
         .where(sql`sess::jsonb -> 'passport' ->> 'user' = ${userId}`);
-      
+
       console.log('[DEBUG] Successfully invalidated sessions for user:', userId);
     } catch (error) {
       console.error('[ERROR] Failed to invalidate user sessions:', error);
@@ -9708,13 +9708,13 @@ export class DatabaseStorage implements IStorage {
     errors: string[];
   }> {
     console.log(`🚀 Iniciando importación KOPR de ${csvData.length} registros`);
-    
+
     const errors: string[] = [];
     let processedProducts = 0;
     let newProducts = 0;
     let updatedStock = 0;
     let newWarehouses = 0;
-    
+
     // Mapa para rastrear productos ya procesados (un producto por KOPR)
     const processedKOPRs = new Set<string>();
 
@@ -9745,10 +9745,10 @@ export class DatabaseStorage implements IStorage {
             .from(products)
             .where(eq(products.kopr, row.KOPR))
             .limit(1);
-          
+
           if (!existingProduct) {
             console.log(`➕ Creando nuevo producto: ${row.KOPR} - ${row.NOKOPR}`);
-            
+
             await db.insert(products).values({
               kopr: row.KOPR,
               name: row.NOKOPR,
@@ -9756,10 +9756,10 @@ export class DatabaseStorage implements IStorage {
               priceProduct: null, // Precio se puede agregar después
               active: true
             });
-            
+
             newProducts++;
           }
-          
+
           processedKOPRs.add(row.KOPR);
         }
 
@@ -9767,7 +9767,7 @@ export class DatabaseStorage implements IStorage {
         const existingWarehouse = await this.getWarehouse(row.KOBO, row.KOSU);
         if (!existingWarehouse) {
           console.log(`➕ Creando nueva bodega: ${row.KOBO} - Sucursal: ${row.KOSU}`);
-          
+
           await this.createWarehouse({
             kobo: row.KOBO,
             kosu: row.KOSU,
@@ -9776,7 +9776,7 @@ export class DatabaseStorage implements IStorage {
             location: row.DATOSUBIC || '',
             active: true
           });
-          
+
           newWarehouses++;
         }
 
@@ -9798,11 +9798,11 @@ export class DatabaseStorage implements IStorage {
 
         updatedStock++;
         processedProducts++;
-        
+
         if (processedProducts % 100 === 0) {
           console.log(`📈 Progreso: ${processedProducts} registros procesados`);
         }
-        
+
       } catch (error) {
         console.error(`❌ Error procesando KOPR ${row.KOPR}:`, error);
         errors.push(`KOPR ${row.KOPR}: ${error instanceof Error ? error.message : String(error)}`);
@@ -9843,10 +9843,10 @@ export class DatabaseStorage implements IStorage {
       .groupBy(factVentas.noruen);
 
     const segments = await query;
-    
+
     // Calculate total unique clients across all segments for percentage
     const totalUniqueClients = segments.reduce((sum, segment) => sum + Number(segment.uniqueClients), 0);
-    
+
     return segments.map(segment => ({
       segment: segment.segment || '',
       uniqueClients: Number(segment.uniqueClients),
@@ -9924,11 +9924,11 @@ export class DatabaseStorage implements IStorage {
 
     // Normalize and group by normalized comuna names
     const normalizedMap = new Map<string, { totalSales: number; transactionCount: number }>();
-    
+
     for (const result of results) {
       const normalizedComuna = normalizeComunaName(result.rawComuna) || 'Sin comuna';
       const existing = normalizedMap.get(normalizedComuna) || { totalSales: 0, transactionCount: 0 };
-      
+
       normalizedMap.set(normalizedComuna, {
         totalSales: existing.totalSales + Number(result.totalSales),
         transactionCount: existing.transactionCount + Number(result.transactionCount)
@@ -10019,7 +10019,7 @@ export class DatabaseStorage implements IStorage {
     const regionMap = new Map<string, { totalSales: number; transactionCount: number }>();
     let unknownRegionSales = 0;
     let unknownRegionCount = 0;
-    
+
     // Process all comunas in parallel for better performance
     const regionMatches = await Promise.all(
       comunaResults.map(async (comunaData) => {
@@ -10027,20 +10027,20 @@ export class DatabaseStorage implements IStorage {
         return { comunaData, regionMatch };
       })
     );
-    
+
     for (const { comunaData, regionMatch } of regionMatches) {
       // Map regions with confidence-based handling
       const finalRegion = regionMatch.region === 'Sin región' || regionMatch.confidence < 0.6
-        ? 'Sin región' 
+        ? 'Sin región'
         : regionMatch.region;
-      
+
       if (finalRegion === 'Sin región') {
         unknownRegionSales += Number(comunaData.totalSales);
         unknownRegionCount += Number(comunaData.transactionCount);
       }
-      
+
       const existing = regionMap.get(finalRegion) || { totalSales: 0, transactionCount: 0 };
-      
+
       regionMap.set(finalRegion, {
         totalSales: existing.totalSales + Number(comunaData.totalSales),
         transactionCount: existing.transactionCount + Number(comunaData.transactionCount)
@@ -10071,10 +10071,10 @@ export class DatabaseStorage implements IStorage {
     // Use Chilean timezone
     const chileanTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Santiago' }));
     const today = new Date(chileanTime.getFullYear(), chileanTime.getMonth(), chileanTime.getDate());
-    
+
     let startDate: Date;
     let endDate: Date = today;
-    
+
     switch (period) {
       case 'today':
         startDate = today;
@@ -10119,7 +10119,7 @@ export class DatabaseStorage implements IStorage {
       default:
         return null;
     }
-    
+
     return {
       startDate: startDate.toISOString().split('T')[0],
       endDate: endDate.toISOString().split('T')[0]
@@ -10144,7 +10144,7 @@ export class DatabaseStorage implements IStorage {
     lastTransactionDate?: string;
   }>> {
     const conditions = [];
-    
+
     if (filters?.search) {
       conditions.push(
         sql`(${clients.nokoen} ILIKE ${`%${filters.search}%`} OR ${clients.rten} ILIKE ${`%${filters.search}%`} OR ${clients.koen} ILIKE ${`%${filters.search}%`})`
@@ -10197,7 +10197,7 @@ export class DatabaseStorage implements IStorage {
     // Sales period filter - requires join with factVentas
     const needsSalesJoin = filters?.salesperson || filters?.salesPeriod;
     const salesPeriodRange = filters?.salesPeriod ? this.getSalesPeriodDateRange(filters.salesPeriod) : null;
-    
+
     if (filters?.salesPeriod) {
       console.log(`[getClients] Sales period filter: ${filters.salesPeriod}, range: ${JSON.stringify(salesPeriodRange)}`);
     }
@@ -10208,16 +10208,16 @@ export class DatabaseStorage implements IStorage {
     // If filtering by salesperson or salesPeriod, we need to join with sales transactions
     if (needsSalesJoin) {
       const salesConditions: any[] = [];
-      
+
       if (filters?.salesperson) {
         salesConditions.push(eq(factVentas.nokofu, filters.salesperson));
       }
-      
+
       if (salesPeriodRange) {
         salesConditions.push(sql`${factVentas.feemdo} >= ${salesPeriodRange.startDate}`);
         salesConditions.push(sql`${factVentas.feemdo} <= ${salesPeriodRange.endDate}`);
       }
-      
+
       const allConditions = [...conditions, ...salesConditions];
 
       query = db
@@ -10259,7 +10259,7 @@ export class DatabaseStorage implements IStorage {
           .where(eq(factVentas.nokoen, client.nokoen));
 
         const [salesData] = await db
-          .select({ 
+          .select({
             totalSales: sql<number>`COALESCE(SUM(${factVentas.vabrdo}), 0)`,
             lastTransactionDate: sql<string>`MAX(${factVentas.feemdo})::text`
           })
@@ -10289,7 +10289,7 @@ export class DatabaseStorage implements IStorage {
     salesPeriod?: string;
   }): Promise<number> {
     const conditions = [];
-    
+
     if (filters?.search) {
       conditions.push(
         sql`(${clients.nokoen} ILIKE ${`%${filters.search}%`} OR ${clients.rten} ILIKE ${`%${filters.search}%`} OR ${clients.koen} ILIKE ${`%${filters.search}%`})`
@@ -10346,16 +10346,16 @@ export class DatabaseStorage implements IStorage {
     // If filtering by salesperson or salesPeriod, we need to join with sales transactions
     if (needsSalesJoin) {
       const salesConditions: any[] = [];
-      
+
       if (filters?.salesperson) {
         salesConditions.push(eq(factVentas.nokofu, filters.salesperson));
       }
-      
+
       if (salesPeriodRange) {
         salesConditions.push(sql`${factVentas.feemdo} >= ${salesPeriodRange.startDate}`);
         salesConditions.push(sql`${factVentas.feemdo} <= ${salesPeriodRange.endDate}`);
       }
-      
+
       const allConditions = [...conditions, ...salesConditions];
 
       const [result] = await db
@@ -10363,7 +10363,7 @@ export class DatabaseStorage implements IStorage {
         .from(clients)
         .innerJoin(factVentas, eq(clients.nokoen, factVentas.nokoen))
         .where(allConditions.length > 0 ? and(...allConditions) : undefined);
-      
+
       return Number(result?.count || 0);
     } else {
       countQuery = conditions.length > 0 ? countQuery.where(and(...conditions)) as any : countQuery;
@@ -10379,7 +10379,7 @@ export class DatabaseStorage implements IStorage {
       .from(clients)
       .where(eq(clients.koen, koen))
       .limit(1);
-    
+
     return result[0];
   }
 
@@ -10389,14 +10389,14 @@ export class DatabaseStorage implements IStorage {
       .from(clients)
       .where(eq(clients.userId, userId))
       .limit(1);
-    
+
     return result[0];
   }
 
   async getClientByRut(rut: string) {
     // Clean RUT for comparison (remove dots, dashes, spaces)
     const cleanRut = rut.replace(/\./g, '').replace(/-/g, '').replace(/\s/g, '').toUpperCase();
-    
+
     // Search with LIKE to handle different RUT formats stored in DB
     const result = await db
       .select()
@@ -10405,7 +10405,7 @@ export class DatabaseStorage implements IStorage {
         sql`REPLACE(REPLACE(REPLACE(UPPER(${clients.rten}), '.', ''), '-', ''), ' ', '') = ${cleanRut}`
       )
       .limit(1);
-    
+
     return result[0];
   }
 
@@ -10414,105 +10414,105 @@ export class DatabaseStorage implements IStorage {
       .insert(clients)
       .values(client)
       .returning();
-    
+
     return result[0];
   }
 
   // SIMPLE CLIENT IMPORT - Identical to successful order system
   async insertMultipleClientsSimple(clientsData: InsertClient[]): Promise<{ inserted: number; updated: number; skipped: number }> {
     if (clientsData.length === 0) return { inserted: 0, updated: 0, skipped: 0 };
-    
+
     const BATCH_SIZE = 100;
     let totalInserted = 0;
     let totalSkipped = 0;
-    
+
     console.log(`📊 Starting import of ${clientsData.length} clients in batches of ${BATCH_SIZE}`);
-    
+
     // Process clients in batches to avoid memory issues
     for (let i = 0; i < clientsData.length; i += BATCH_SIZE) {
       const batch = clientsData.slice(i, i + BATCH_SIZE);
       const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
       const totalBatches = Math.ceil(clientsData.length / BATCH_SIZE);
-      
+
       // Get unique KOEN values from this batch, filtering out nulls/empty
       const batchKoens = Array.from(new Set(
         batch.map(c => c.koen).filter(koen => koen != null && koen !== '')
       ));
-      
+
       // Check which KOEN values already exist in database  
       const existingKoens = batchKoens.length > 0 ? await db
         .select({ koen: clients.koen })
         .from(clients)
         .where(inArray(clients.koen, batchKoens)) : [];
-      
+
       const existingKoenSet = new Set(existingKoens.map(row => row.koen).filter(Boolean));
-      
+
       // Filter out clients with existing KOEN + handle within-batch duplicates
       const batchKoensSeen = new Set<string>();
       const newClients = batch.filter(client => {
         const clientKoen = client.koen;
         // If client has no KOEN, allow it (unique constraint handles this)
         if (!clientKoen || clientKoen === '') return true;
-        
+
         // Check if KOEN already exists in database
         if (existingKoenSet.has(clientKoen)) return false;
-        
+
         // Check if KOEN already seen in this batch
         if (batchKoensSeen.has(clientKoen)) return false;
-        
+
         // Mark this KOEN as seen in this batch
         batchKoensSeen.add(clientKoen);
         return true;
       });
-      
+
       const batchSkipped = batch.length - newClients.length;
-      
+
       // Insert only new clients from this batch
       if (newClients.length > 0) {
         await db
           .insert(clients)
           .values(newClients);
       }
-      
+
       totalInserted += newClients.length;
       totalSkipped += batchSkipped;
-      
+
       console.log(`📦 Batch ${batchNumber}/${totalBatches}: Inserted ${newClients.length}, Skipped ${batchSkipped} duplicates`);
     }
-    
+
     console.log(`✅ Import completed: ${totalInserted} new clients imported, ${totalSkipped} duplicates skipped`);
-    
+
     return { inserted: totalInserted, updated: 0, skipped: totalSkipped };
   }
 
   async insertMultipleClients(clientsData: InsertClient[]) {
     if (clientsData.length === 0) return { inserted: 0, updated: 0, skipped: 0 };
-    
+
     let inserted = 0;
     let updated = 0;
     let skipped = 0;
-    
+
     console.log(`🚀 Starting FAST batch import of ${clientsData.length} clients`);
-    
+
     try {
       // Get ALL existing clients in ONE query for super fast lookup (only needed columns)
       const existingClients = await this.getClientsForDuplicateCheck();
       const existingByKoen = new Map(existingClients.filter(c => c.koen).map(c => [c.koen!, c]));
       const existingByName = new Map(existingClients.filter(c => c.nokoen).map(c => [c.nokoen, c]));
-      
+
       // Separate clients into insert and update batches
       const toInsert: InsertClient[] = [];
       const toUpdate: Array<{ id: string; data: InsertClient }> = [];
-      
+
       console.log(`📋 Analyzing ${clientsData.length} clients for duplicates...`);
-      
+
       for (const client of clientsData) {
         try {
           // Super fast lookup using Maps (no database queries)
           const existingByKoenMatch = client.koen ? existingByKoen.get(client.koen) : null;
           const existingByNameMatch = !existingByKoenMatch && client.nokoen ? existingByName.get(client.nokoen) : null;
           const existing = existingByKoenMatch || existingByNameMatch;
-          
+
           if (existing) {
             toUpdate.push({ id: existing.id, data: client });
           } else {
@@ -10523,18 +10523,18 @@ export class DatabaseStorage implements IStorage {
           skipped++;
         }
       }
-      
+
       console.log(`📊 Analysis complete: ${toInsert.length} new, ${toUpdate.length} existing`);
-      
+
       // Batch insert new clients (SUPER fast - 500 at a time)
       if (toInsert.length > 0) {
         const BATCH_SIZE = 500;
         const totalBatches = Math.ceil(toInsert.length / BATCH_SIZE);
-        
+
         for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
           const batch = toInsert.slice(i, i + BATCH_SIZE);
-          const batchNumber = Math.floor(i/BATCH_SIZE) + 1;
-          
+          const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+
           try {
             await db.insert(clients).values(batch);
             inserted += batch.length;
@@ -10545,7 +10545,7 @@ export class DatabaseStorage implements IStorage {
           }
         }
       }
-      
+
       // Update existing clients (still fast, individual updates)
       if (toUpdate.length > 0) {
         console.log(`🔄 Updating ${toUpdate.length} existing clients...`);
@@ -10563,12 +10563,12 @@ export class DatabaseStorage implements IStorage {
         }
         console.log(`✅ Updated ${updated} existing clients`);
       }
-      
+
     } catch (error) {
       console.error(`💥 Critical error in FAST client import:`, error);
       throw error;
     }
-    
+
     console.log(`🎉 FAST import completed in seconds: ${inserted} new, ${updated} updated, ${skipped} errors`);
     return { inserted, updated, skipped };
   }
@@ -10576,52 +10576,52 @@ export class DatabaseStorage implements IStorage {
   // OPTIMIZED VERSION for MASSIVE files (20,000 rows x 500 columns)
   async insertMultipleClientsOptimized(clientsData: InsertClient[]) {
     if (clientsData.length === 0) return { inserted: 0, updated: 0, skipped: 0 };
-    
+
     let inserted = 0;
     let updated = 0;
     let skipped = 0;
-    
+
     const startTime = Date.now();
     console.log(`🚀 MASSIVE CLIENT IMPORT: Starting optimized import of ${clientsData.length} clients`);
-    
+
     try {
       // STEP 1: Ultra-fast duplicate checking with minimal data
       const duplicateCheckStart = Date.now();
       const existingClients = await this.getClientsForDuplicateCheck();
       const existingByKoen = new Map(existingClients.filter(c => c.koen).map(c => [c.koen!, c]));
       const existingByName = new Map(existingClients.filter(c => c.nokoen).map(c => [c.nokoen, c]));
-      
+
       const duplicateCheckTime = Date.now() - duplicateCheckStart;
       console.log(`⚡ DUPLICATE CHECK: ${existingClients.length} existing clients processed in ${duplicateCheckTime}ms`);
-      
+
       // 🔍 DEBUG: Show sample existing client keys to verify data format
       if (existingClients.length > 0) {
         const sampleKeys = existingClients.filter(c => c.koen).slice(0, 10).map(c => c.koen);
         console.log(`🔑 SAMPLE EXISTING KOEN KEYS:`, sampleKeys);
       }
-      
+
       // STEP 2: Memory-efficient batch analysis
       const analysisStart = Date.now();
       const toInsert: InsertClient[] = [];
       const toUpdate: Array<{ id: string; data: InsertClient }> = [];
-      
+
       const ANALYSIS_BATCH_SIZE = 2000; // Process analysis in chunks for memory efficiency
       console.log(`📊 MASSIVE ANALYSIS: Processing ${clientsData.length} clients in chunks of ${ANALYSIS_BATCH_SIZE}...`);
-      
+
       for (let i = 0; i < clientsData.length; i += ANALYSIS_BATCH_SIZE) {
         const chunk = clientsData.slice(i, i + ANALYSIS_BATCH_SIZE);
         const chunkNumber = Math.floor(i / ANALYSIS_BATCH_SIZE) + 1;
         const totalChunks = Math.ceil(clientsData.length / ANALYSIS_BATCH_SIZE);
-        
+
         console.log(`🔍 Processing analysis chunk ${chunkNumber}/${totalChunks} (${chunk.length} clients)`);
-        
+
         for (const client of chunk) {
           try {
             // Ultra-fast lookup using Maps (no database queries)
             const existingByKoenMatch = client.koen ? existingByKoen.get(client.koen) : null;
             const existingByNameMatch = !existingByKoenMatch && client.nokoen ? existingByName.get(client.nokoen) : null;
             const existing = existingByKoenMatch || existingByNameMatch;
-            
+
             // 🔍 DEBUG: Log first few duplicate checks to verify logic
             if (chunkNumber === 1 && toInsert.length + toUpdate.length < 5) {
               console.log(`🔍 DUPLICATE CHECK SAMPLE for "${client.nokoen}":`, {
@@ -10631,7 +10631,7 @@ export class DatabaseStorage implements IStorage {
                 decision: existing ? 'UPDATE' : 'INSERT'
               });
             }
-            
+
             if (existing) {
               toUpdate.push({ id: existing.id, data: client });
             } else {
@@ -10643,22 +10643,22 @@ export class DatabaseStorage implements IStorage {
           }
         }
       }
-      
+
       const analysisTime = Date.now() - analysisStart;
       console.log(`⚡ ANALYSIS COMPLETE: ${toInsert.length} new, ${toUpdate.length} existing in ${analysisTime}ms`);
-      
+
       // STEP 3: MASSIVE batch inserts with database transactions for performance
       if (toInsert.length > 0) {
         const insertStart = Date.now();
         const MASSIVE_BATCH_SIZE = 1000; // Larger batches for massive imports
         const totalBatches = Math.ceil(toInsert.length / MASSIVE_BATCH_SIZE);
-        
+
         console.log(`📦 MASSIVE INSERT: ${toInsert.length} clients in ${totalBatches} batches of ${MASSIVE_BATCH_SIZE}`);
-        
+
         for (let i = 0; i < toInsert.length; i += MASSIVE_BATCH_SIZE) {
           const batch = toInsert.slice(i, i + MASSIVE_BATCH_SIZE);
-          const batchNumber = Math.floor(i/MASSIVE_BATCH_SIZE) + 1;
-          
+          const batchNumber = Math.floor(i / MASSIVE_BATCH_SIZE) + 1;
+
           try {
             // 🔍 DETAILED LOGGING - Inspect batch data before insertion
             console.log(`📈 BATCH ${batchNumber} DATA INSPECTION:`, {
@@ -10670,7 +10670,7 @@ export class DatabaseStorage implements IStorage {
                 hasNumericFields: ['crsd', 'crch', 'crlt'].some(field => batch[0][field] !== undefined)
               } : 'NO DATA'
             });
-            
+
             // 🔍 Check for problematic values in the batch
             const problemValues = [];
             for (let i = 0; i < Math.min(batch.length, 3); i++) {
@@ -10686,20 +10686,20 @@ export class DatabaseStorage implements IStorage {
             if (problemValues.length > 0) {
               console.warn(`⚠️  BATCH ${batchNumber} PROBLEM VALUES:`, problemValues);
             }
-            
+
             // Use database transaction for better performance on large inserts
             await db.transaction(async (tx) => {
               console.log(`💾 INSERTING BATCH ${batchNumber}: ${batch.length} clients...`);
               await tx.insert(clients).values(batch);
               console.log(`✅ BATCH ${batchNumber} INSERT SUCCESS`);
             });
-            
+
             inserted += batch.length;
             const progress = ((inserted / toInsert.length) * 100).toFixed(1);
             console.log(`✅ MASSIVE BATCH ${batchNumber}/${totalBatches}: ${batch.length} clients (${progress}% complete)`);
           } catch (error) {
             console.error(`❌ MASSIVE BATCH ${batchNumber} FAILED:`, error);
-            
+
             // 🔍 DETAILED ERROR ANALYSIS
             if (error instanceof Error) {
               console.error(`📝 ERROR DETAILS:`, {
@@ -10708,17 +10708,17 @@ export class DatabaseStorage implements IStorage {
                 firstClientFields: Object.keys(batch[0] || {}).length,
                 sampleData: batch[0] ? JSON.stringify(batch[0], null, 2).substring(0, 300) + '...' : 'NO DATA'
               });
-              
+
               // Attempt individual inserts to identify problematic records
               if (batch.length <= 10) {
                 console.log(`🔍 ATTEMPTING INDIVIDUAL INSERTS FOR SMALL BATCH...`);
                 for (let i = 0; i < batch.length; i++) {
                   try {
                     await db.insert(clients).values([batch[i]]);
-                    console.log(`✅ Individual insert ${i+1}/${batch.length} success`);
+                    console.log(`✅ Individual insert ${i + 1}/${batch.length} success`);
                     inserted++;
                   } catch (individualError) {
-                    console.error(`❌ Individual insert ${i+1}/${batch.length} failed:`, {
+                    console.error(`❌ Individual insert ${i + 1}/${batch.length} failed:`, {
                       error: individualError instanceof Error ? individualError.message : 'Unknown error',
                       clientData: JSON.stringify(batch[i], null, 2).substring(0, 200) + '...'
                     });
@@ -10733,23 +10733,23 @@ export class DatabaseStorage implements IStorage {
             }
           }
         }
-        
+
         const insertTime = Date.now() - insertStart;
-        console.log(`⚡ MASSIVE INSERTS COMPLETE: ${inserted} clients in ${insertTime}ms (${Math.round(inserted/(insertTime/1000))} clients/sec)`);
+        console.log(`⚡ MASSIVE INSERTS COMPLETE: ${inserted} clients in ${insertTime}ms (${Math.round(inserted / (insertTime / 1000))} clients/sec)`);
       }
-      
+
       // STEP 4: Efficient batch updates
       if (toUpdate.length > 0) {
         const updateStart = Date.now();
         console.log(`🔄 MASSIVE UPDATES: Processing ${toUpdate.length} existing clients...`);
-        
+
         const UPDATE_BATCH_SIZE = 100; // Smaller batches for updates
         const updateBatches = Math.ceil(toUpdate.length / UPDATE_BATCH_SIZE);
-        
+
         for (let i = 0; i < toUpdate.length; i += UPDATE_BATCH_SIZE) {
           const batch = toUpdate.slice(i, i + UPDATE_BATCH_SIZE);
-          const batchNumber = Math.floor(i/UPDATE_BATCH_SIZE) + 1;
-          
+          const batchNumber = Math.floor(i / UPDATE_BATCH_SIZE) + 1;
+
           try {
             // Process updates in parallel for better performance
             await Promise.all(batch.map(async ({ id, data }) => {
@@ -10758,7 +10758,7 @@ export class DatabaseStorage implements IStorage {
                 .set({ ...data, updatedAt: new Date() })
                 .where(eq(clients.id, id));
             }));
-            
+
             updated += batch.length;
             console.log(`✅ UPDATE BATCH ${batchNumber}/${updateBatches}: ${batch.length} clients`);
           } catch (error) {
@@ -10766,23 +10766,23 @@ export class DatabaseStorage implements IStorage {
             skipped += batch.length;
           }
         }
-        
+
         const updateTime = Date.now() - updateStart;
         console.log(`⚡ MASSIVE UPDATES COMPLETE: ${updated} clients in ${updateTime}ms`);
       }
-      
+
     } catch (error) {
       console.error(`💥 CRITICAL ERROR in MASSIVE client import:`, error);
       throw error;
     }
-    
+
     const totalTime = Date.now() - startTime;
     const throughput = Math.round(clientsData.length / (totalTime / 1000));
-    
+
     console.log(`🎉 MASSIVE IMPORT COMPLETE: ${totalTime}ms total`);
     console.log(`📊 FINAL STATS: ${inserted} inserted, ${updated} updated, ${skipped} errors`);
     console.log(`⚡ PERFORMANCE: ${throughput} clients/second`);
-    
+
     // 🔍 DETAILED COMPLETION ANALYSIS
     if (skipped > 0) {
       console.warn(`⚠️  IMPORT ISSUES DETECTED:`, {
@@ -10791,7 +10791,7 @@ export class DatabaseStorage implements IStorage {
         recommendation: skipped > clientsData.length * 0.5 ? 'CHECK DATA TYPES AND VALIDATION' : 'Minor issues detected'
       });
     }
-    
+
     return { inserted, updated, skipped };
   }
 
@@ -10801,7 +10801,7 @@ export class DatabaseStorage implements IStorage {
       .set({ ...client, updatedAt: new Date() })
       .where(eq(clients.koen, koen))
       .returning();
-    
+
     return result[0];
   }
 
@@ -10870,7 +10870,7 @@ export class DatabaseStorage implements IStorage {
     userId?: string; // NEW: User ID for access control
   } = {}): Promise<Array<Task & { assignments: TaskAssignment[] }>> {
     const { creatorId, assigneeUserId, assigneeSegments, status, priority, userRole, userId } = filters;
-    
+
     // SECURITY: Implement strict RBAC at database level
     if (userRole && userId) {
       switch (userRole) {
@@ -10894,7 +10894,7 @@ export class DatabaseStorage implements IStorage {
           throw new Error('Unauthorized: Invalid user role');
       }
     }
-    
+
     const conditions = [];
 
     if (creatorId) {
@@ -10951,11 +10951,11 @@ export class DatabaseStorage implements IStorage {
     assigneeSegments?: string[];
   } = {}): Promise<Array<Task & { assignments: TaskAssignment[] }>> {
     const { status, priority, userRole, userId, assigneeSegments } = filters;
-    
+
     // SECURITY: Apply RBAC filtering at database level
     const taskConditions = [];
     const assignmentConditions = [];
-    
+
     // Basic filtering conditions
     if (status) {
       taskConditions.push(eq(tasks.status, status));
@@ -10963,7 +10963,7 @@ export class DatabaseStorage implements IStorage {
     if (priority) {
       taskConditions.push(eq(tasks.priority, priority));
     }
-    
+
     // SECURITY: Role-based access control
     if (userRole && userId) {
       switch (userRole) {
@@ -11026,7 +11026,7 @@ export class DatabaseStorage implements IStorage {
           throw new Error('Unauthorized: Invalid user role');
       }
     }
-    
+
     // Build the optimized query with LEFT JOIN
     let query = db
       .select({
@@ -11055,16 +11055,16 @@ export class DatabaseStorage implements IStorage {
       })
       .from(tasks)
       .leftJoin(taskAssignments, eq(tasks.id, taskAssignments.taskId));
-    
+
     if (taskConditions.length > 0) {
       query = query.where(and(...taskConditions)) as any;
     }
-    
+
     const results = await query.orderBy(desc(tasks.createdAt), taskAssignments.createdAt);
-    
+
     // Group results by task and build assignments
     const taskMap = new Map<string, Task & { assignments: TaskAssignment[] }>();
-    
+
     results.forEach((row) => {
       if (!taskMap.has(row.id)) {
         taskMap.set(row.id, {
@@ -11084,7 +11084,7 @@ export class DatabaseStorage implements IStorage {
           assignments: [],
         });
       }
-      
+
       // Add assignment if it exists
       if (row.assignmentId) {
         const task = taskMap.get(row.id)!;
@@ -11101,7 +11101,7 @@ export class DatabaseStorage implements IStorage {
         });
       }
     });
-    
+
     return Array.from(taskMap.values());
   }
 
@@ -11137,7 +11137,7 @@ export class DatabaseStorage implements IStorage {
         ...assignment,
         taskId: newTask.id,
       }));
-      
+
       await db
         .insert(taskAssignments)
         .values(assignmentsWithTaskId);
@@ -11321,7 +11321,7 @@ export class DatabaseStorage implements IStorage {
     if (filters.period) {
       const now = new Date();
       let startDate: Date;
-      
+
       if (filters.period === 'week') {
         // Get start of current week (Monday)
         const startOfWeek = new Date(now);
@@ -11336,7 +11336,7 @@ export class DatabaseStorage implements IStorage {
       } else {
         startDate = new Date(0); // Default: all time
       }
-      
+
       conditions.push(gte(tasks.createdAt, startDate));
     }
 
@@ -11441,7 +11441,7 @@ export class DatabaseStorage implements IStorage {
     if (filters.period) {
       const now = new Date();
       let startDate: Date;
-      
+
       if (filters.period === 'week') {
         // Get start of current week (Monday)
         const startOfWeek = new Date(now);
@@ -11456,7 +11456,7 @@ export class DatabaseStorage implements IStorage {
       } else {
         startDate = new Date(0); // Default: all time
       }
-      
+
       baseConditions.push(gte(tasks.createdAt, startDate));
     }
 
@@ -11497,10 +11497,10 @@ export class DatabaseStorage implements IStorage {
       // Sum montoEstimado for formulario tasks with compras_potenciales
       if (task.type === 'formulario' && task.payload) {
         try {
-          const payload = typeof task.payload === 'string' 
-            ? JSON.parse(task.payload) 
+          const payload = typeof task.payload === 'string'
+            ? JSON.parse(task.payload)
             : task.payload;
-          
+
           if (payload.formKey === 'compras_potenciales' && payload.montoEstimado) {
             montoEstimadoTotal += payload.montoEstimado;
           }
@@ -11524,9 +11524,9 @@ export class DatabaseStorage implements IStorage {
     const orderCount = await db
       .select({ count: sql<number>`count(*)` })
       .from(orders);
-    
+
     const orderNumber = `ORD-${new Date().getFullYear()}-${String((Number(orderCount[0]?.count) || 0) + 1).padStart(6, '0')}`;
-    
+
     const [newOrder] = await db
       .insert(orders)
       .values({
@@ -11548,9 +11548,9 @@ export class DatabaseStorage implements IStorage {
     offset?: number;
   } = {}): Promise<Order[]> {
     const { createdBy, status, clientName, userRole, userId, limit = 50, offset = 0 } = filters;
-    
+
     const conditions = [];
-    
+
     // Role-based access control
     if (userRole && userId) {
       switch (userRole) {
@@ -11572,7 +11572,7 @@ export class DatabaseStorage implements IStorage {
           throw new Error('Unauthorized: Invalid user role');
       }
     }
-    
+
     if (createdBy) {
       conditions.push(eq(orders.createdBy, createdBy));
     }
@@ -11727,14 +11727,14 @@ export class DatabaseStorage implements IStorage {
     // Calculate new total price if quantity or unit price changed
     let updateData = { ...updates };
     if (updates.quantity !== undefined || updates.unitPrice !== undefined) {
-      const quantity = updates.quantity !== undefined 
+      const quantity = updates.quantity !== undefined
         ? (typeof updates.quantity === 'string' ? parseFloat(updates.quantity) : updates.quantity)
         : (typeof currentItem.quantity === 'string' ? parseFloat(currentItem.quantity) : currentItem.quantity);
-      
-      const unitPrice = updates.unitPrice !== undefined 
+
+      const unitPrice = updates.unitPrice !== undefined
         ? (typeof updates.unitPrice === 'string' ? parseFloat(updates.unitPrice) : updates.unitPrice)
         : (typeof currentItem.unitPrice === 'string' ? parseFloat(currentItem.unitPrice) : (currentItem.unitPrice || 0));
-      
+
       updateData.totalPrice = (quantity * unitPrice).toString();
     }
 
@@ -11811,7 +11811,7 @@ export class DatabaseStorage implements IStorage {
   }): Promise<any[]> {
     const limit = filters?.limit || 50;
     const offset = filters?.offset || 0;
-    
+
     // Build query with subquery to get average precioMedio (PPP) from inventory_products
     let query = db
       .select({
@@ -11829,10 +11829,10 @@ export class DatabaseStorage implements IStorage {
         `.as('precio_promedio_ponderado')
       })
       .from(priceList);
-    
+
     // Build where conditions
     const conditions = [];
-    
+
     if (filters?.search) {
       const searchTerm = `%${filters.search}%`;
       conditions.push(
@@ -11840,19 +11840,19 @@ export class DatabaseStorage implements IStorage {
             ${priceList.producto} ILIKE ${searchTerm})`
       );
     }
-    
+
     if (filters?.unidad) {
       conditions.push(eq(priceList.unidad, filters.unidad));
     }
-    
+
     if (filters?.tipoProducto) {
       conditions.push(sql`${priceList.producto} ILIKE ${'%' + filters.tipoProducto + '%'}`);
     }
-    
+
     if (filters?.color) {
       conditions.push(sql`${priceList.producto} ILIKE ${'%' + filters.color + '%'}`);
     }
-    
+
     // Apply conditions dynamically
     if (conditions.length > 0) {
       let combinedCondition = conditions[0];
@@ -11861,12 +11861,12 @@ export class DatabaseStorage implements IStorage {
       }
       query = query.where(combinedCondition) as any;
     }
-    
+
     const items = await query
       .orderBy(priceList.codigo)
       .limit(limit)
       .offset(offset);
-    
+
     // Flatten the result to include PPP directly on price list object
     return items.map(row => ({
       ...row.priceList,
@@ -11876,10 +11876,10 @@ export class DatabaseStorage implements IStorage {
 
   async getPriceListCount(search?: string, unidad?: string, tipoProducto?: string, color?: string): Promise<number> {
     let query = db.select({ count: sql`count(*)`.as('count') }).from(priceList);
-    
+
     // Build where conditions
     const conditions = [];
-    
+
     if (search) {
       const searchTerm = `%${search}%`;
       conditions.push(
@@ -11887,19 +11887,19 @@ export class DatabaseStorage implements IStorage {
             ${priceList.producto} ILIKE ${searchTerm})`
       );
     }
-    
+
     if (unidad) {
       conditions.push(eq(priceList.unidad, unidad));
     }
-    
+
     if (tipoProducto) {
       conditions.push(sql`${priceList.producto} ILIKE ${'%' + tipoProducto + '%'}`);
     }
-    
+
     if (color) {
       conditions.push(sql`${priceList.producto} ILIKE ${'%' + color + '%'}`);
     }
-    
+
     // Apply conditions dynamically
     if (conditions.length > 0) {
       let combinedCondition = conditions[0];
@@ -11908,7 +11908,7 @@ export class DatabaseStorage implements IStorage {
       }
       query = query.where(combinedCondition) as any;
     }
-    
+
     const [result] = await query;
     return Number(result.count) || 0;
   }
@@ -11919,7 +11919,7 @@ export class DatabaseStorage implements IStorage {
       .from(priceList)
       .where(sql`${priceList.unidad} IS NOT NULL AND ${priceList.unidad} != ''`)
       .orderBy(priceList.unidad);
-    
+
     return result.map(row => row.unidad).filter(Boolean) as string[];
   }
 
@@ -11929,11 +11929,11 @@ export class DatabaseStorage implements IStorage {
       .select({ producto: priceList.producto })
       .from(priceList)
       .where(sql`${priceList.producto} IS NOT NULL AND ${priceList.producto} != ''`);
-    
+
     // Extract common product type keywords
     const productTypes = new Set<string>();
     const keywords = ['ESMALTE', 'PINTURA', 'BARNIZ', 'SELLADOR', 'DILUYENTE', 'THINNER', 'MASILLA', 'PRIMER', 'ANTICORROSIVO', 'LACA', 'FONDO', 'CONVERTIDOR', 'REMOVEDOR'];
-    
+
     result.forEach(row => {
       const producto = row.producto?.toUpperCase() || '';
       keywords.forEach(keyword => {
@@ -11942,7 +11942,7 @@ export class DatabaseStorage implements IStorage {
         }
       });
     });
-    
+
     return Array.from(productTypes).sort();
   }
 
@@ -11952,11 +11952,11 @@ export class DatabaseStorage implements IStorage {
       .select({ producto: priceList.producto })
       .from(priceList)
       .where(sql`${priceList.producto} IS NOT NULL AND ${priceList.producto} != ''`);
-    
+
     // Extract common color keywords
     const productColors = new Set<string>();
     const colors = ['BLANCO', 'NEGRO', 'ROJO', 'AZUL', 'VERDE', 'AMARILLO', 'GRIS', 'CAFE', 'MARRON', 'NARANJA', 'ROSA', 'VIOLETA', 'MORADO', 'CELESTE', 'BEIGE', 'CREMA', 'DORADO', 'PLATEADO', 'TRANSPARENTE', 'INCOLORO'];
-    
+
     result.forEach(row => {
       const producto = row.producto?.toUpperCase() || '';
       colors.forEach(color => {
@@ -11965,7 +11965,7 @@ export class DatabaseStorage implements IStorage {
         }
       });
     });
-    
+
     return Array.from(productColors).sort();
   }
 
@@ -11974,7 +11974,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(priceList)
       .where(eq(priceList.id, id));
-      
+
     return item;
   }
 
@@ -11983,7 +11983,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(priceList)
       .where(eq(priceList.codigo, codigo));
-      
+
     return item;
   }
 
@@ -11992,13 +11992,13 @@ export class DatabaseStorage implements IStorage {
       .insert(priceList)
       .values(item)
       .returning();
-      
+
     return newItem;
   }
 
   async createMultiplePriceListItems(items: InsertPriceListInput[]): Promise<void> {
     if (items.length === 0) return;
-    
+
     // Process in batches to avoid too large queries
     const batchSize = 100;
     for (let i = 0; i < items.length; i += batchSize) {
@@ -12013,7 +12013,7 @@ export class DatabaseStorage implements IStorage {
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(priceList.id, id))
       .returning();
-      
+
     return updatedItem;
   }
 
@@ -12031,7 +12031,7 @@ export class DatabaseStorage implements IStorage {
   async createQuote(quote: InsertQuote): Promise<Quote> {
     // Generate quote number
     const quoteNumber = `Q-${Date.now()}`;
-    
+
     const [newQuote] = await db
       .insert(quotes)
       .values({
@@ -12039,7 +12039,7 @@ export class DatabaseStorage implements IStorage {
         quoteNumber,
       })
       .returning();
-      
+
     return newQuote;
   }
 
@@ -12054,16 +12054,16 @@ export class DatabaseStorage implements IStorage {
   }): Promise<any[]> {
     const limit = filters?.limit || 50;
     const offset = filters?.offset || 0;
-    
+
     let query = db.select({
       quote: quotes,
       creatorEmail: users.email,
       creatorFirstName: users.firstName,
       creatorLastName: users.lastName,
     })
-    .from(quotes)
-    .leftJoin(users, eq(quotes.createdBy, users.id));
-    
+      .from(quotes)
+      .leftJoin(users, eq(quotes.createdBy, users.id));
+
     const conditions = [];
     if (filters?.createdBy) {
       conditions.push(eq(quotes.createdBy, filters.createdBy));
@@ -12080,20 +12080,20 @@ export class DatabaseStorage implements IStorage {
     if (filters?.dateTo) {
       conditions.push(sql`${quotes.createdAt} <= (${filters.dateTo}::date + interval '1 day')`);
     }
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as any;
     }
-    
+
     const result = await query
       .orderBy(desc(quotes.createdAt))
       .limit(limit)
       .offset(offset);
-    
+
     // Flatten the result to include creator info directly on quote object
     return result.map(row => {
       let creatorName = 'Usuario desconocido';
-      
+
       if (row.creatorFirstName && row.creatorLastName) {
         creatorName = `${row.creatorFirstName} ${row.creatorLastName}`;
       } else if (row.creatorFirstName) {
@@ -12104,7 +12104,7 @@ export class DatabaseStorage implements IStorage {
         // Use email username part if no name is available
         creatorName = row.creatorEmail.split('@')[0];
       }
-      
+
       return {
         ...row.quote,
         creatorEmail: row.creatorEmail,
@@ -12115,21 +12115,21 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  async getQuoteCreators(): Promise<Array<{id: string; name: string}>> {
+  async getQuoteCreators(): Promise<Array<{ id: string; name: string }>> {
     const result = await db.selectDistinct({
       id: quotes.createdBy,
       email: users.email,
       firstName: users.firstName,
       lastName: users.lastName,
     })
-    .from(quotes)
-    .leftJoin(users, eq(quotes.createdBy, users.id))
-    .where(isNotNull(quotes.createdBy));
+      .from(quotes)
+      .leftJoin(users, eq(quotes.createdBy, users.id))
+      .where(isNotNull(quotes.createdBy));
 
     return result.map(row => ({
       id: row.id || '',
-      name: row.firstName && row.lastName 
-        ? `${row.firstName} ${row.lastName}` 
+      name: row.firstName && row.lastName
+        ? `${row.firstName} ${row.lastName}`
         : row.firstName || row.lastName || row.email?.split('@')[0] || 'Usuario'
     })).filter(creator => creator.id);
   }
@@ -12139,7 +12139,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(quotes)
       .where(eq(quotes.id, id));
-      
+
     return quote;
   }
 
@@ -12149,14 +12149,14 @@ export class DatabaseStorage implements IStorage {
       .set({ ...quote, updatedAt: new Date() })
       .where(eq(quotes.id, id))
       .returning();
-      
+
     return updatedQuote;
   }
 
   async deleteQuote(id: string): Promise<void> {
     // First delete all quote items
     await db.delete(quoteItems).where(eq(quoteItems.quoteId, id));
-    
+
     // Then delete the quote
     await db.delete(quotes).where(eq(quotes.id, id));
   }
@@ -12167,7 +12167,7 @@ export class DatabaseStorage implements IStorage {
     const quantity = typeof quoteItem.quantity === 'string' ? parseFloat(quoteItem.quantity) : quoteItem.quantity;
     const unitPrice = typeof quoteItem.unitPrice === 'string' ? parseFloat(quoteItem.unitPrice) : quoteItem.unitPrice;
     const totalPrice = quantity * unitPrice;
-    
+
     const [newItem] = await db
       .insert(quoteItems)
       .values({
@@ -12175,7 +12175,7 @@ export class DatabaseStorage implements IStorage {
         totalPrice: totalPrice.toString(), // Ensure totalPrice is calculated and provided
       })
       .returning();
-      
+
     return newItem;
   }
 
@@ -12185,7 +12185,7 @@ export class DatabaseStorage implements IStorage {
       .from(quoteItems)
       .where(eq(quoteItems.quoteId, quoteId))
       .orderBy(desc(quoteItems.createdAt));
-      
+
     return result;
   }
 
@@ -12200,22 +12200,22 @@ export class DatabaseStorage implements IStorage {
       // If only one is updated, fetch the current item to get the other value
       const currentItem = await this.getQuoteItemById(id);
       if (currentItem) {
-        const quantity = quoteItem.quantity !== undefined 
+        const quantity = quoteItem.quantity !== undefined
           ? (typeof quoteItem.quantity === 'string' ? parseFloat(quoteItem.quantity) : quoteItem.quantity)
           : parseFloat(currentItem.quantity);
-        const unitPrice = quoteItem.unitPrice !== undefined 
+        const unitPrice = quoteItem.unitPrice !== undefined
           ? (typeof quoteItem.unitPrice === 'string' ? parseFloat(quoteItem.unitPrice) : quoteItem.unitPrice)
           : parseFloat(currentItem.unitPrice);
         updatedData.totalPrice = (quantity * unitPrice).toString();
       }
     }
-    
+
     const [updatedItem] = await db
       .update(quoteItems)
       .set(updatedData)
       .where(eq(quoteItems.id, id))
       .returning();
-      
+
     return updatedItem;
   }
 
@@ -12230,7 +12230,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(quoteItems)
       .where(eq(quoteItems.id, id));
-      
+
     return item;
   }
 
@@ -12289,14 +12289,14 @@ export class DatabaseStorage implements IStorage {
     // Calculate new total price if quantity or unit price changed
     let updateData = { ...updates };
     if (updates.quantity !== undefined || updates.unitPrice !== undefined) {
-      const quantity = updates.quantity !== undefined 
+      const quantity = updates.quantity !== undefined
         ? (typeof updates.quantity === 'string' ? parseFloat(updates.quantity) : updates.quantity)
         : (typeof currentItem.quantity === 'string' ? parseFloat(currentItem.quantity) : currentItem.quantity);
-      
-      const unitPrice = updates.unitPrice !== undefined 
+
+      const unitPrice = updates.unitPrice !== undefined
         ? (typeof updates.unitPrice === 'string' ? parseFloat(updates.unitPrice) : updates.unitPrice)
         : (typeof currentItem.unitPrice === 'string' ? parseFloat(currentItem.unitPrice) : currentItem.unitPrice);
-      
+
       updateData.totalPrice = (quantity * unitPrice).toString();
     }
 
@@ -12431,8 +12431,8 @@ export class DatabaseStorage implements IStorage {
           clientPhone: originalQuote.clientPhone,
           clientAddress: originalQuote.clientAddress,
           validUntil: originalQuote.validUntil,
-          notes: originalQuote.notes 
-            ? `Copia de cotización #${originalQuote.quoteNumber} - ${originalQuote.notes}` 
+          notes: originalQuote.notes
+            ? `Copia de cotización #${originalQuote.quoteNumber} - ${originalQuote.notes}`
             : `Copia de cotización #${originalQuote.quoteNumber}`,
           subtotal: originalQuote.subtotal,
           total: originalQuote.total,
@@ -12548,17 +12548,17 @@ export class DatabaseStorage implements IStorage {
         const batch = nvvData.slice(i, i + BATCH_SIZE);
         const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
         const totalBatches = Math.ceil(nvvData.length / BATCH_SIZE);
-        
+
         // Prepare batch records with calculations
         const recordsToInsert = batch.map(data => {
           // Calculate the new columns as requested
           const caprco2 = parseFloat(data.CAPRCO2?.toString() || '0');
           const caprex2 = parseFloat(data.CAPREX2?.toString() || '0');
           const ppprne = parseFloat(data.PPPRNE?.toString() || '0');
-          
+
           const cantidadPendiente = caprco2 - caprex2;
           const totalPendiente = ppprne * cantidadPendiente;
-          
+
           return {
             ...data,
             importBatch,
@@ -12573,13 +12573,13 @@ export class DatabaseStorage implements IStorage {
           const insertResult = await db
             .insert(nvvPendingSales)
             .values(recordsToInsert);
-          
+
           // Count successful inserts
           const batchInserted = insertResult.rowCount || 0;
-          
+
           totalInserted += batchInserted;
           result.successfulImports += batchInserted;
-          
+
           console.log(`📦 NVV Batch ${batchNumber}/${totalBatches}: Inserted ${batchInserted} records (duplicates allowed)`);
         } catch (error) {
           console.error(`Error importing NVV batch ${batchNumber}:`, error);
@@ -12591,7 +12591,7 @@ export class DatabaseStorage implements IStorage {
       }
 
       console.log(`✅ NVV Import completed: ${totalInserted} records imported (duplicates allowed)`);
-      
+
       if (result.errors.length > 0) {
         result.success = result.successfulImports > 0;
       }
@@ -12617,13 +12617,13 @@ export class DatabaseStorage implements IStorage {
     console.warn('⚠️ DEPRECATED: clearAllNvvData() is deprecated. NVV cleanup is handled by ETL.');
     try {
       console.log('🗑️ Starting complete NVV data cleanup...');
-      
+
       // Delete all records from nvv_pending_sales table
       const result = await db.delete(nvvPendingSales);
       const deletedCount = result.rowCount || 0;
-      
+
       console.log(`✅ NVV cleanup completed: ${deletedCount} records deleted`);
-      
+
       return {
         success: true,
         deletedCount,
@@ -12646,7 +12646,7 @@ export class DatabaseStorage implements IStorage {
     try {
       // If segment filter is provided, we need to find the salespeople (kofulido codes) that belong to that segment
       let vendorCodesForSegment: string[] | null = null;
-      
+
       if (options?.segment) {
         // Get unique vendor codes (kofulido) from nvv.fact_nvv for the segment
         const vendorsBySegment = await db.execute(sql`
@@ -12658,26 +12658,26 @@ export class DatabaseStorage implements IStorage {
             AND (eslido IS NULL OR eslido = '')
         `);
         vendorCodesForSegment = vendorsBySegment.rows.map((row: any) => row.kofulido);
-        
+
         // If no vendors found for segment, return zero results
         if (vendorCodesForSegment.length === 0) {
           return { totalAmount: 0, totalRecords: 0 };
         }
       }
-      
+
       // Build conditions - always filter for pending NVV only (eslido IS NULL OR eslido = '')
       const conditions = [sql`(eslido IS NULL OR eslido = '')`];
-      
+
       if (options?.salesperson) {
         conditions.push(sql`kofulido = ${options.salesperson}`);
       }
-      
+
       if (vendorCodesForSegment && vendorCodesForSegment.length > 0) {
         conditions.push(sql`kofulido IN (${sql.join(vendorCodesForSegment.map(v => sql`${v}`), sql`, `)})`);
       }
-      
+
       const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
-      
+
       // Get total amount from monto column in nvv.fact_nvv (ETL data)
       const totalResult = await db.execute(sql`
         SELECT 
@@ -12713,7 +12713,7 @@ export class DatabaseStorage implements IStorage {
     try {
       // Build conditions - always filter for pending NVV only (eslido IS NULL OR eslido = '')
       const conditions = [sql`(eslido IS NULL OR eslido = '')`];
-      
+
       // If segment filter is provided, filter by nombre_segmento_cliente
       if (options.segment) {
         conditions.push(sql`nombre_segmento_cliente = ${options.segment}`);
@@ -12893,12 +12893,12 @@ export class DatabaseStorage implements IStorage {
   }>> {
     try {
       const searchTerm = options.salesperson.toUpperCase().trim();
-      
+
       // Build conditions - always filter for pending NVV only (eslido IS NULL or empty)
       const conditions: SQL[] = [
         sql`(${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '')`
       ];
-      
+
       // Search by either nombre_vendedor (full name) or kofulido (code)
       conditions.push(sql`(
         UPPER(TRIM(${factNvv.nombre_vendedor})) = ${searchTerm}
@@ -12993,7 +12993,7 @@ export class DatabaseStorage implements IStorage {
       }
 
       const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
-      
+
       // Query from nvv.fact_nvv (ETL data)
       const queryResults = await db.execute(sql`
         SELECT 
@@ -13015,7 +13015,7 @@ export class DatabaseStorage implements IStorage {
         ${whereClause}
         ORDER BY feemdo DESC
       `);
-      
+
       const results = queryResults.rows as any[];
 
       // Get salesperson names from SQL Server TABFU table with caching
@@ -13035,7 +13035,7 @@ export class DatabaseStorage implements IStorage {
         const kofulido = row.KOFULIDO?.trim().toUpperCase() || 'SIN_VENDEDOR';
         const mappedName = kofulidoToNameMap.get(kofulido);
         const salespersonName = mappedName || row.KOFULIDO?.trim() || 'Sin vendedor';
-        
+
         // Log unmapped codes for debugging
         if (!mappedName && kofulido !== 'SIN_VENDEDOR') {
           console.log(`[NVV MAPPING] No name found for code: "${kofulido}"`);
@@ -13055,7 +13055,7 @@ export class DatabaseStorage implements IStorage {
         const group = groupedBySalesperson.get(kofulido)!;
         group.totalAmount += Number(row.total_pendiente) || 0;
         // Calculate units from (CAPRCO2 - CAPREX2) * PPPRNE
-        const unitsCalc = ((Number(row.CAPRCO2) || 0) - (Number(row.CAPREX2) || 0)) * (Number(row.PPPRNE) || 1);
+        const unitsCalc = (Number(row.CAPRCO2) || 0) - (Number(row.CAPREX2) || 0);
         group.totalUnits += unitsCalc;
         group.totalOrders += 1;
         group.records.push({
@@ -13112,7 +13112,7 @@ export class DatabaseStorage implements IStorage {
     try {
       // Build conditions - always filter for pending NVV only
       const conditions = [sql`(eslido IS NULL OR eslido = '')`];
-      
+
       // Search by salesperson name OR code (nombre_vendedor or kofulido in fact_nvv)
       const searchTerm = salespersonName.toUpperCase().trim();
       conditions.push(sql`(
@@ -13129,7 +13129,7 @@ export class DatabaseStorage implements IStorage {
       }
 
       const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
-      
+
       // Query from nvv.fact_nvv (ETL data)
       const queryResults = await db.execute(sql`
         SELECT 
@@ -13151,7 +13151,7 @@ export class DatabaseStorage implements IStorage {
         ${whereClause}
         ORDER BY feemdo DESC
       `);
-      
+
       const results = queryResults.rows as any[];
 
       if (results.length === 0) {
@@ -13168,8 +13168,8 @@ export class DatabaseStorage implements IStorage {
 
       const records = results.map(row => {
         const pendiente = Number(row.total_pendiente) || 0;
-        const unitsCalc = ((Number(row.CAPRCO2) || 0) - (Number(row.CAPREX2) || 0)) * (Number(row.PPPRNE) || 1);
-        
+        const unitsCalc = (Number(row.CAPRCO2) || 0) - (Number(row.CAPREX2) || 0);
+
         totalAmount += pendiente;
         totalUnits += unitsCalc;
 
@@ -13244,7 +13244,7 @@ export class DatabaseStorage implements IStorage {
     try {
       // Build conditions - always filter for pending NVV only
       const conditions = [sql`(eslido IS NULL OR eslido = '')`];
-      
+
       // Filter by segment name (nombre_segmento_cliente in fact_nvv)
       conditions.push(sql`nombre_segmento_cliente = ${options.segment}`);
 
@@ -13282,7 +13282,7 @@ export class DatabaseStorage implements IStorage {
       console.log(`Found ${results.length} NVV records for segment ${options.segment}`);
 
       return results.map(row => {
-        const unitsCalc = ((Number(row.CAPRCO2) || 0) - (Number(row.CAPREX2) || 0)) * (Number(row.PPPRNE) || 1);
+        const unitsCalc = (Number(row.CAPRCO2) || 0) - (Number(row.CAPREX2) || 0);
         return {
           id: row.id || '',
           NUDO: row.NUDO || '',
@@ -13465,11 +13465,11 @@ export class DatabaseStorage implements IStorage {
   async getLastFileUpload(fileType?: string): Promise<FileUpload | undefined> {
     try {
       let query = db.select().from(fileUploads).orderBy(desc(fileUploads.uploadedAt));
-      
+
       if (fileType) {
         query = query.where(eq(fileUploads.fileType, fileType));
       }
-      
+
       const [result] = await query.limit(1);
       return result;
     } catch (error) {
@@ -13481,11 +13481,11 @@ export class DatabaseStorage implements IStorage {
   async getFileUploadHistory(fileType?: string, limit: number = 10): Promise<FileUpload[]> {
     try {
       let query = db.select().from(fileUploads).orderBy(desc(fileUploads.uploadedAt));
-      
+
       if (fileType) {
         query = query.where(eq(fileUploads.fileType, fileType));
       }
-      
+
       const results = await query.limit(limit);
       return results;
     } catch (error) {
@@ -13509,12 +13509,12 @@ export class DatabaseStorage implements IStorage {
   }> {
     try {
       const { periodo = 'current' } = options;
-      
+
       // Calculate date range based on periodo
       const now = new Date();
       let startDate: Date;
       let endDate: Date;
-      
+
       switch (periodo) {
         case 'all':
           // Get all visitas from all time
@@ -13542,11 +13542,11 @@ export class DatabaseStorage implements IStorage {
           startDate = new Date(2020, 0, 1); // Default to all time
           endDate = new Date(now.getFullYear() + 1, 11, 31);
       }
-      
+
       // Get visitas in date range using SQL CAST for date comparison
       // Set endDate to end of day for inclusive range
       endDate.setHours(23, 59, 59, 999);
-      
+
       const visitas = await db.select().from(visitasTecnicas)
         .where(
           and(
@@ -13554,11 +13554,11 @@ export class DatabaseStorage implements IStorage {
             sql`${visitasTecnicas.createdAt}::date <= ${endDate.toISOString().split('T')[0]}::date`
           )
         );
-      
+
       const totalVisitas = visitas.length;
       const visitasCompletadas = visitas.filter(v => v.estado === 'completada').length;
       const visitasBorrador = visitas.filter(v => v.estado === 'borrador').length;
-      
+
       // Get productos evaluados for statistics
       const visitaIds = visitas.map(v => v.id);
       let aplicacionesCorrectas = 0;
@@ -13566,11 +13566,11 @@ export class DatabaseStorage implements IStorage {
       let reclamosPendientes = 0;
       let totalProgreso = 0;
       let productosCount = 0;
-      
+
       if (visitaIds.length > 0) {
         const productos = await db.select().from(productosEvaluados)
           .where(inArray(productosEvaluados.visitaId, visitaIds));
-        
+
         // Only count products that have valid porcentaje_avance for the average
         productos.forEach(p => {
           if (p.porcentajeAvance && p.porcentajeAvance.toString().trim() !== '') {
@@ -13581,7 +13581,7 @@ export class DatabaseStorage implements IStorage {
             }
           }
         });
-        
+
         // Get evaluaciones to count aplicaciones correctas/deficientes
         const evaluaciones = await db.select().from(evaluacionesTecnicas)
           .where(
@@ -13590,12 +13590,12 @@ export class DatabaseStorage implements IStorage {
               productos.map(p => p.id)
             )
           );
-        
+
         evaluaciones.forEach(e => {
           if (e.aplicacion === 'correcta') aplicacionesCorrectas++;
           if (e.aplicacion === 'deficiente') aplicacionesDeficientes++;
         });
-        
+
         // Count reclamos pendientes
         const reclamosResult = await db.select().from(reclamos)
           .where(
@@ -13606,9 +13606,9 @@ export class DatabaseStorage implements IStorage {
           );
         reclamosPendientes = reclamosResult.length;
       }
-      
+
       const promedioProgreso = productosCount > 0 ? Math.round(totalProgreso / productosCount) : 0;
-      
+
       return {
         totalVisitas,
         visitasCompletadas,
@@ -13643,28 +13643,28 @@ export class DatabaseStorage implements IStorage {
     try {
       const now = new Date();
       const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
-      
+
       // Get visitas from last 6 months
       const visitas = await db.select().from(visitasTecnicas)
         .where(
           sql`${visitasTecnicas.createdAt}::date >= ${sixMonthsAgo.toISOString().split('T')[0]}::date`
         );
-      
+
       // Group by month
       const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
       const visitasPorMes: Array<{ mes: string; completadas: number; pendientes: number; total: number }> = [];
-      
+
       for (let i = 5; i >= 0; i--) {
         const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const monthKey = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`;
         const monthLabel = `${monthNames[monthDate.getMonth()]} ${monthDate.getFullYear()}`;
-        
+
         const monthVisitas = visitas.filter(v => {
           const visitaDate = new Date(v.createdAt!);
-          return visitaDate.getFullYear() === monthDate.getFullYear() && 
-                 visitaDate.getMonth() === monthDate.getMonth();
+          return visitaDate.getFullYear() === monthDate.getFullYear() &&
+            visitaDate.getMonth() === monthDate.getMonth();
         });
-        
+
         visitasPorMes.push({
           mes: monthLabel,
           completadas: monthVisitas.filter(v => v.estado === 'completada').length,
@@ -13672,19 +13672,19 @@ export class DatabaseStorage implements IStorage {
           total: monthVisitas.length
         });
       }
-      
+
       // Count active obras (unique obras from visitas in last 3 months)
       const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
       const recentVisitas = visitas.filter(v => new Date(v.createdAt!) >= threeMonthsAgo);
       const uniqueObras = new Set(recentVisitas.map(v => v.nombreObra));
       const obrasActivas = uniqueObras.size;
-      
+
       // Count active technicians
       const tecnicos = await db.selectDistinct({ tecnicoId: visitasTecnicas.tecnicoId })
         .from(visitasTecnicas)
         .where(sql`${visitasTecnicas.createdAt}::date >= ${threeMonthsAgo.toISOString().split('T')[0]}::date`);
       const totalTecnicos = tecnicos.length;
-      
+
       // Count total products evaluated
       const visitaIds = visitas.map(v => v.id);
       let productosEvaluadosTotal = 0;
@@ -13693,7 +13693,7 @@ export class DatabaseStorage implements IStorage {
           .where(inArray(productosEvaluados.visitaId, visitaIds));
         productosEvaluadosTotal = productos.length;
       }
-      
+
       // Count resolved reclamos in last month
       const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
       const reclamosResueltos = await db.select().from(reclamos)
@@ -13704,11 +13704,11 @@ export class DatabaseStorage implements IStorage {
           )
         );
       const reclamosResueltosUltimoMes = reclamosResueltos.length;
-      
+
       // Count visitas in last 30 days
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       const visitasUltimos30Dias = visitas.filter(v => new Date(v.createdAt!) >= thirtyDaysAgo).length;
-      
+
       return {
         visitasPorMes,
         obrasActivas,
@@ -13748,9 +13748,9 @@ export class DatabaseStorage implements IStorage {
   }>> {
     try {
       const { search, estado, tecnico, limit = 20, offset = 0 } = options;
-      
+
       console.log('🔍 getListadoVisitasTecnicas - Opciones:', options);
-      
+
       // Build base query
       let query = db
         .select({
@@ -13769,7 +13769,7 @@ export class DatabaseStorage implements IStorage {
         .leftJoin(users, eq(visitasTecnicas.tecnicoId, users.id))
         .leftJoin(clients, eq(visitasTecnicas.clienteId, clients.id))
         .orderBy(desc(visitasTecnicas.createdAt));
-      
+
       // Apply filters
       const conditions = [];
       if (search) {
@@ -13786,21 +13786,21 @@ export class DatabaseStorage implements IStorage {
       if (tecnico) {
         conditions.push(eq(visitasTecnicas.tecnicoId, tecnico));
       }
-      
+
       if (conditions.length > 0) {
         query = query.where(and(...conditions)) as any;
       }
-      
+
       // Execute query with pagination
       const results = await query.limit(limit).offset(offset);
-      
+
       console.log('📊 Resultados de query:', results.length, results);
-      
+
       // For each visit, count productos and reclamos
       const visitaIds = results.map(r => r.id);
       const productosCountMap: Record<string, number> = {};
       const reclamosCountMap: Record<string, number> = {};
-      
+
       if (visitaIds.length > 0) {
         const productosCounts = await db
           .select({
@@ -13810,11 +13810,11 @@ export class DatabaseStorage implements IStorage {
           .from(productosEvaluados)
           .where(inArray(productosEvaluados.visitaId, visitaIds))
           .groupBy(productosEvaluados.visitaId);
-        
+
         productosCounts.forEach(p => {
           productosCountMap[p.visitaId] = p.count;
         });
-        
+
         const reclamosCounts = await db
           .select({
             visitaId: reclamos.visitaId,
@@ -13823,12 +13823,12 @@ export class DatabaseStorage implements IStorage {
           .from(reclamos)
           .where(inArray(reclamos.visitaId, visitaIds))
           .groupBy(reclamos.visitaId);
-        
+
         reclamosCounts.forEach(r => {
           reclamosCountMap[r.visitaId] = r.count;
         });
       }
-      
+
       // Format results
       const formattedResults = results.map(r => {
         // Combinar RUT y nombre del cliente
@@ -13840,13 +13840,13 @@ export class DatabaseStorage implements IStorage {
         } else if (r.clienteRut) {
           clienteDisplay = r.clienteRut;
         }
-        
+
         return {
           id: r.id,
           nombreObra: r.nombreObra,
           fechaVisita: r.createdAt,
-          tecnico: (r.tecnicoFirstName && r.tecnicoLastName) 
-            ? `${r.tecnicoFirstName} ${r.tecnicoLastName}` 
+          tecnico: (r.tecnicoFirstName && r.tecnicoLastName)
+            ? `${r.tecnicoFirstName} ${r.tecnicoLastName}`
             : r.tecnicoFirstName || r.tecnicoLastName || 'Sin asignar',
           cliente: clienteDisplay,
           estado: r.estado,
@@ -13854,9 +13854,9 @@ export class DatabaseStorage implements IStorage {
           reclamosTotal: reclamosCountMap[r.id] || 0
         };
       });
-      
+
       console.log('✅ Resultados formateados:', formattedResults);
-      
+
       return formattedResults;
     } catch (error) {
       console.error('Error getting listado visitas técnicas:', error);
@@ -13877,7 +13877,7 @@ export class DatabaseStorage implements IStorage {
   async getVisitaTecnicaById(id: string) {
     try {
       const [visita] = await db.select().from(visitasTecnicas).where(eq(visitasTecnicas.id, id));
-      
+
       if (!visita) return null;
 
       // Get client name if clienteId exists
@@ -13908,14 +13908,14 @@ export class DatabaseStorage implements IStorage {
 
           // Si no tiene productoId (es personalizado), generar un ID custom
           const isCustom = !prod.productoId;
-          const productIdForFrontend = isCustom 
-            ? `custom-${prod.id}` 
+          const productIdForFrontend = isCustom
+            ? `custom-${prod.id}`
             : prod.productoId;
 
           // Get SKU and name from priceList table if it's a catalog product
           let sku = '';
           let name = prod.productoManual || '';
-          
+
           if (prod.productoId) {
             // First try priceList (the actual catalog source)
             const [catalogProduct] = await db
@@ -13927,7 +13927,7 @@ export class DatabaseStorage implements IStorage {
               name = catalogProduct.name || prod.productoManual || '';
             }
           }
-          
+
           console.log(`📦 Producto evaluado: id=${prod.id}, productoId=${prod.productoId}, name="${name}", productoManual="${prod.productoManual}", sku="${sku}"`);
 
           return {
@@ -13963,7 +13963,7 @@ export class DatabaseStorage implements IStorage {
         'condicionesClimaticas', 'dilucion', 'observacionesGenerales', 'comentarios',
         'firmaTecnicoNombre', 'firmaTecnicoData', 'firmaRecepcionistaData', 'fechaFirma'
       ];
-      
+
       const filteredData: any = {};
       for (const key of validFields) {
         if (key in data) {
@@ -13971,7 +13971,7 @@ export class DatabaseStorage implements IStorage {
         }
       }
       filteredData.updatedAt = new Date();
-      
+
       const [visitaActualizada] = await db
         .update(visitasTecnicas)
         .set(filteredData)
@@ -13992,10 +13992,10 @@ export class DatabaseStorage implements IStorage {
       await db.delete(reclamos).where(eq(reclamos.visitaId, id));
       await db.delete(firmasDigitales).where(eq(firmasDigitales.visitaId, id));
       await db.delete(evidencias).where(eq(evidencias.visitaId, id));
-      
+
       // Eliminar la visita principal
       await db.delete(visitasTecnicas).where(eq(visitasTecnicas.id, id));
-      
+
       return true;
     } catch (error) {
       console.error('Error deleting visita técnica:', error);
@@ -14019,7 +14019,7 @@ export class DatabaseStorage implements IStorage {
       }).from(products);
 
       const conditions = [];
-      
+
       if (options.active) {
         conditions.push(eq(products.active, true));
       }
@@ -14543,15 +14543,15 @@ export class DatabaseStorage implements IStorage {
         fraccionPeso: recetas.fraccionPeso,
         pigmentoCosto: pigments.costoKgClp
       })
-      .from(recetas)
-      .leftJoin(pigments, eq(recetas.pigmentoCode, pigments.pigmentoCode))
-      .where(eq(recetas.colorId, colorId));
+        .from(recetas)
+        .leftJoin(pigments, eq(recetas.pigmentoCode, pigments.pigmentoCode))
+        .where(eq(recetas.colorId, colorId));
 
       // Calculate paint weight (kg for this container)
       const paintWeightKg = Number(envase.kgPorEnvase);
 
       // Calculate base cost (usually most of the weight)
-      const totalFraccionPigmentos = recetasColor.reduce((sum, receta) => 
+      const totalFraccionPigmentos = recetasColor.reduce((sum, receta) =>
         sum + Number(receta.fraccionPeso), 0);
       const fraccionBase = Math.max(0, 1 - totalFraccionPigmentos);
       const baseCost = fraccionBase * paintWeightKg * Number(base.costoKgClp);
@@ -14574,7 +14574,7 @@ export class DatabaseStorage implements IStorage {
         .from(parametros)
         .where(eq(parametros.parametro, 'precio_multiplicador'));
 
-      const suggestedPrice = priceMultiplierParam 
+      const suggestedPrice = priceMultiplierParam
         ? totalCost * Number(priceMultiplierParam.valor)
         : undefined;
 
@@ -14599,12 +14599,12 @@ export class DatabaseStorage implements IStorage {
   // eCommerce Orders operations
   async createEcommerceOrder(orderData: any) {
     const { ecommerceOrders } = await import('@shared/schema');
-    
+
     const [newOrder] = await db
       .insert(ecommerceOrders)
       .values(orderData)
       .returning();
-    
+
     return newOrder;
   }
 
@@ -14614,37 +14614,37 @@ export class DatabaseStorage implements IStorage {
     status?: string;
   }) {
     const { ecommerceOrders } = await import('@shared/schema');
-    
+
     const conditions = [];
-    
+
     if (filters?.clientId) {
       conditions.push(eq(ecommerceOrders.clientId, filters.clientId));
     }
-    
+
     if (filters?.salespersonId) {
       conditions.push(eq(ecommerceOrders.assignedSalespersonId, filters.salespersonId));
     }
-    
+
     if (filters?.status) {
       conditions.push(eq(ecommerceOrders.status, filters.status));
     }
-    
+
     let query = db
       .select()
       .from(ecommerceOrders)
       .orderBy(desc(ecommerceOrders.createdAt));
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as typeof query;
     }
-    
+
     return await query;
   }
 
   // Public Catalog Operations
   async getPublicSalespersonBySlug(slug: string) {
     const { salespeopleUsers } = await import('@shared/schema');
-    
+
     const [salesperson] = await db
       .select({
         id: salespeopleUsers.id,
@@ -14663,9 +14663,9 @@ export class DatabaseStorage implements IStorage {
         eq(salespeopleUsers.isActive, true)
       ))
       .limit(1);
-    
+
     if (!salesperson) return null;
-    
+
     return {
       id: salesperson.id,
       salespersonName: salesperson.salespersonName,
@@ -14680,7 +14680,7 @@ export class DatabaseStorage implements IStorage {
 
   async getPublicCatalogProducts() {
     const { priceList, ecommerceProducts } = await import('@shared/schema');
-    
+
     // Get products that are active in ecommerce
     const productsData = await db
       .select({
@@ -14704,7 +14704,7 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(ecommerceProducts, eq(priceList.id, ecommerceProducts.priceListId))
       .where(eq(ecommerceProducts.activo, true))
       .orderBy(priceList.producto);
-    
+
     return productsData.map(p => ({
       id: p.id,
       codigo: p.codigo,
@@ -14724,7 +14724,7 @@ export class DatabaseStorage implements IStorage {
 
   async getGroupedCatalogProducts() {
     const products = await this.getPublicCatalogProducts();
-    
+
     // Group products by family
     const familyMap = new Map<string, {
       family: string;
@@ -14745,11 +14745,11 @@ export class DatabaseStorage implements IStorage {
       categoria: string | null;
       descripcion: string | null;
     }>();
-    
+
     for (const product of products) {
       const family = product.productFamily || product.producto;
       const color = product.color || 'SIN COLOR';
-      
+
       if (!familyMap.has(family)) {
         familyMap.set(family, {
           family,
@@ -14759,16 +14759,16 @@ export class DatabaseStorage implements IStorage {
           descripcion: product.descripcion,
         });
       }
-      
+
       const familyData = familyMap.get(family)!;
-      
+
       if (!familyData.colors.has(color)) {
         familyData.colors.set(color, {
           color,
           formats: [],
         });
       }
-      
+
       familyData.colors.get(color)!.formats.push({
         id: product.id,
         codigo: product.codigo,
@@ -14779,13 +14779,13 @@ export class DatabaseStorage implements IStorage {
         stepSize: product.stepSize,
         formatUnit: product.formatUnit,
       });
-      
+
       // Update family image if current product has one
       if (product.imagenUrl && !familyData.imagenUrl) {
         familyData.imagenUrl = product.imagenUrl;
       }
     }
-    
+
     // Convert to array format
     return Array.from(familyMap.values()).map(f => ({
       family: f.family,
@@ -14801,7 +14801,7 @@ export class DatabaseStorage implements IStorage {
 
   async createPublicQuoteRequest(salespersonId: string, quoteData: any) {
     const { ecommerceOrders, salespeopleUsers } = await import('@shared/schema');
-    
+
     // Get salesperson info
     const [salesperson] = await db
       .select({
@@ -14811,16 +14811,16 @@ export class DatabaseStorage implements IStorage {
       .from(salespeopleUsers)
       .where(eq(salespeopleUsers.id, salespersonId))
       .limit(1);
-    
+
     if (!salesperson) {
       throw new Error('Vendedor no encontrado');
     }
-    
+
     // Calculate totals
-    const subtotal = quoteData.items.reduce((sum: number, item: any) => 
+    const subtotal = quoteData.items.reduce((sum: number, item: any) =>
       sum + (item.quantity * item.unitPrice), 0
     );
-    
+
     // Create the order with "pendiente" status
     const [newOrder] = await db
       .insert(ecommerceOrders)
@@ -14836,24 +14836,24 @@ export class DatabaseStorage implements IStorage {
         subtotal: subtotal.toString(),
         tax: '0', // Sin impuesto para cotizaciones públicas
         total: subtotal.toString(),
-        notes: quoteData.message 
-          ? `[CATÁLOGO PÚBLICO]\nEmpresa: ${quoteData.visitorCompany || 'N/A'}\nMensaje: ${quoteData.message}` 
+        notes: quoteData.message
+          ? `[CATÁLOGO PÚBLICO]\nEmpresa: ${quoteData.visitorCompany || 'N/A'}\nMensaje: ${quoteData.message}`
           : `[CATÁLOGO PÚBLICO]\nEmpresa: ${quoteData.visitorCompany || 'N/A'}`,
       })
       .returning();
-    
+
     return newOrder;
   }
 
   // Notification operations
   async createNotification(notificationData: any) {
     const { notifications } = await import('@shared/schema');
-    
+
     const [newNotification] = await db
       .insert(notifications)
       .values(notificationData)
       .returning();
-    
+
     return newNotification;
   }
 
@@ -14864,7 +14864,7 @@ export class DatabaseStorage implements IStorage {
       .from(users)
       .where(eq(users.role, 'admin'))
       .limit(1);
-    
+
     return admin?.id || null;
   }
 
@@ -14877,7 +14877,7 @@ export class DatabaseStorage implements IStorage {
       .insert(reclamosGenerales)
       .values(reclamo)
       .returning();
-    
+
     // Create initial historial entry
     await this.createReclamoGeneralHistorial({
       reclamoId: newReclamo.id,
@@ -14887,13 +14887,13 @@ export class DatabaseStorage implements IStorage {
       userName: reclamo.vendedorName || '',
       notas: 'Reclamo creado',
     });
-    
+
     // Crear notificación para admins y supervisors
     const adminsAndSupervisors = await db
       .select({ id: users.id, firstName: users.firstName, lastName: users.lastName })
       .from(users)
       .where(or(eq(users.role, 'admin'), eq(users.role, 'supervisor')));
-    
+
     const notificationPromises = adminsAndSupervisors.map(user =>
       this.createNotification({
         userId: user.id,
@@ -14904,9 +14904,9 @@ export class DatabaseStorage implements IStorage {
         read: false,
       })
     );
-    
+
     await Promise.all(notificationPromises);
-    
+
     return newReclamo;
   }
 
@@ -14921,39 +14921,39 @@ export class DatabaseStorage implements IStorage {
     offset?: number;
   }): Promise<ReclamoGeneral[]> {
     const conditions = [];
-    
+
     if (filters?.vendedorId) {
       conditions.push(eq(reclamosGenerales.vendedorId, filters.vendedorId));
     }
-    
+
     if (filters?.tecnicoId) {
       conditions.push(eq(reclamosGenerales.tecnicoId, filters.tecnicoId));
     }
-    
+
     if (filters?.responsableAreaId) {
       conditions.push(eq(reclamosGenerales.responsableAreaId, filters.responsableAreaId));
     }
-    
+
     if (filters?.estado) {
       conditions.push(eq(reclamosGenerales.estado, filters.estado));
     }
-    
+
     if (filters?.gravedad) {
       conditions.push(eq(reclamosGenerales.gravedad, filters.gravedad));
     }
-    
+
     if (filters?.areaResponsable) {
       // Apply area mapping: if filtering by operative area, include specific areas that map to it
       // Example: filtering by 'produccion' should include 'produccion', 'etiqueta', 'colores'
       const areasToInclude = [filters.areaResponsable];
-      
+
       // Find all specific areas that map to this operative area
       for (const [specificArea, operativeArea] of Object.entries(AREA_ESPECIFICA_TO_OPERATIVA)) {
         if (operativeArea === filters.areaResponsable) {
           areasToInclude.push(specificArea);
         }
       }
-      
+
       // Use IN clause if multiple areas, otherwise use eq
       if (areasToInclude.length > 1) {
         conditions.push(inArray(reclamosGenerales.areaResponsableActual, areasToInclude));
@@ -14961,24 +14961,24 @@ export class DatabaseStorage implements IStorage {
         conditions.push(eq(reclamosGenerales.areaResponsableActual, filters.areaResponsable));
       }
     }
-    
+
     let query = db
       .select()
       .from(reclamosGenerales)
       .orderBy(desc(reclamosGenerales.fechaRegistro));
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as typeof query;
     }
-    
+
     if (filters?.limit) {
       query = query.limit(filters.limit);
     }
-    
+
     if (filters?.offset) {
       query = query.offset(filters.offset);
     }
-    
+
     return await query;
   }
 
@@ -14987,7 +14987,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(reclamosGenerales)
       .where(eq(reclamosGenerales.id, id));
-    
+
     return reclamo;
   }
 
@@ -14997,7 +14997,7 @@ export class DatabaseStorage implements IStorage {
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(reclamosGenerales.id, id))
       .returning();
-    
+
     return updated;
   }
 
@@ -15072,7 +15072,7 @@ export class DatabaseStorage implements IStorage {
       .insert(reclamosGeneralesPhotos)
       .values(photo)
       .returning();
-    
+
     return newPhoto;
   }
 
@@ -15094,7 +15094,7 @@ export class DatabaseStorage implements IStorage {
       .insert(reclamosGeneralesHistorial)
       .values(historial)
       .returning();
-    
+
     return newHistorial;
   }
 
@@ -15107,19 +15107,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Combined operations
-  async getReclamoGeneralWithDetails(id: string): Promise<(ReclamoGeneral & { 
+  async getReclamoGeneralWithDetails(id: string): Promise<(ReclamoGeneral & {
     photos: ReclamoGeneralPhoto[];
     historial: ReclamoGeneralHistorial[];
   }) | undefined> {
     const reclamo = await this.getReclamoGeneralById(id);
-    
+
     if (!reclamo) {
       return undefined;
     }
-    
+
     const photos = await this.getReclamoGeneralPhotos(id);
     const historial = await this.getReclamoGeneralHistorial(id);
-    
+
     return {
       ...reclamo,
       photos,
@@ -15129,18 +15129,18 @@ export class DatabaseStorage implements IStorage {
 
   // Asignar técnico y cambiar estado
   async assignTecnicoToReclamo(
-    id: string, 
-    tecnicoId: string, 
-    tecnicoName: string, 
-    userId: string, 
+    id: string,
+    tecnicoId: string,
+    tecnicoName: string,
+    userId: string,
     userName: string
   ): Promise<ReclamoGeneral> {
     const reclamo = await this.getReclamoGeneralById(id);
-    
+
     if (!reclamo) {
       throw new Error('Reclamo not found');
     }
-    
+
     const [updated] = await db
       .update(reclamosGenerales)
       .set({
@@ -15152,7 +15152,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(reclamosGenerales.id, id))
       .returning();
-    
+
     // Create historial entry
     await this.createReclamoGeneralHistorial({
       reclamoId: id,
@@ -15162,24 +15162,24 @@ export class DatabaseStorage implements IStorage {
       userName,
       notas: `Técnico asignado: ${tecnicoName}`,
     });
-    
+
     return updated;
   }
 
   // Cambiar estado del reclamo
   async updateReclamoGeneralEstado(
-    id: string, 
-    nuevoEstado: string, 
-    userId: string, 
-    userName: string, 
+    id: string,
+    nuevoEstado: string,
+    userId: string,
+    userName: string,
     notas?: string
   ): Promise<ReclamoGeneral> {
     const reclamo = await this.getReclamoGeneralById(id);
-    
+
     if (!reclamo) {
       throw new Error('Reclamo not found');
     }
-    
+
     const [updated] = await db
       .update(reclamosGenerales)
       .set({
@@ -15188,7 +15188,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(reclamosGenerales.id, id))
       .returning();
-    
+
     // Create historial entry
     await this.createReclamoGeneralHistorial({
       reclamoId: id,
@@ -15198,10 +15198,10 @@ export class DatabaseStorage implements IStorage {
       userName,
       notas: notas || `Estado actualizado a ${nuevoEstado}`,
     });
-    
+
     // Notificar cambio de estado al vendedor y técnico
     const notificationPromises = [];
-    
+
     if (updated.vendedorId && updated.vendedorId !== userId) {
       notificationPromises.push(
         this.createNotification({
@@ -15214,7 +15214,7 @@ export class DatabaseStorage implements IStorage {
         })
       );
     }
-    
+
     if (updated.tecnicoId && updated.tecnicoId !== userId) {
       notificationPromises.push(
         this.createNotification({
@@ -15227,24 +15227,24 @@ export class DatabaseStorage implements IStorage {
         })
       );
     }
-    
+
     await Promise.all(notificationPromises);
-    
+
     return updated;
   }
 
   // Derivar a laboratorio
   async derivarReclamoGeneralLaboratorio(
-    id: string, 
-    userId: string, 
+    id: string,
+    userId: string,
     userName: string
   ): Promise<ReclamoGeneral> {
     const reclamo = await this.getReclamoGeneralById(id);
-    
+
     if (!reclamo) {
       throw new Error('Reclamo not found');
     }
-    
+
     const [updated] = await db
       .update(reclamosGenerales)
       .set({
@@ -15255,7 +15255,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(reclamosGenerales.id, id))
       .returning();
-    
+
     // Create historial entry
     await this.createReclamoGeneralHistorial({
       reclamoId: id,
@@ -15265,22 +15265,22 @@ export class DatabaseStorage implements IStorage {
       userName,
       notas: 'Reclamo derivado a laboratorio',
     });
-    
+
     return updated;
   }
 
   // Derivar a producción
   async derivarReclamoGeneralProduccion(
-    id: string, 
-    userId: string, 
+    id: string,
+    userId: string,
     userName: string
   ): Promise<ReclamoGeneral> {
     const reclamo = await this.getReclamoGeneralById(id);
-    
+
     if (!reclamo) {
       throw new Error('Reclamo not found');
     }
-    
+
     const [updated] = await db
       .update(reclamosGenerales)
       .set({
@@ -15290,7 +15290,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(reclamosGenerales.id, id))
       .returning();
-    
+
     // Create historial entry
     await this.createReclamoGeneralHistorial({
       reclamoId: id,
@@ -15300,7 +15300,7 @@ export class DatabaseStorage implements IStorage {
       userName,
       notas: 'Reclamo derivado a producción',
     });
-    
+
     return updated;
   }
 
@@ -15314,11 +15314,11 @@ export class DatabaseStorage implements IStorage {
     userName: string
   ): Promise<ReclamoGeneral> {
     const reclamo = await this.getReclamoGeneralById(id);
-    
+
     if (!reclamo) {
       throw new Error('Reclamo not found');
     }
-    
+
     // Determinar nuevo estado según si procede o no y el área responsable
     // Si procede y es laboratorio: pasa a en_laboratorio
     // Si procede y es produccion: pasa a en_produccion
@@ -15336,7 +15336,7 @@ export class DatabaseStorage implements IStorage {
     } else {
       nuevoEstado = 'en_revision_tecnica';
     }
-    
+
     // Si procede, buscar un usuario activo del área responsable para asignación automática
     let responsableArea = null;
     if (procede && areaResponsable) {
@@ -15351,12 +15351,12 @@ export class DatabaseStorage implements IStorage {
           )
         )
         .limit(1);
-      
+
       if (usuariosArea.length > 0) {
         responsableArea = usuariosArea[0];
       }
     }
-    
+
     const [updated] = await db
       .update(reclamosGenerales)
       .set({
@@ -15370,12 +15370,12 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(reclamosGenerales.id, id))
       .returning();
-    
+
     // Create historial entry
-    const notasHistorial = notas || (procede 
-      ? `Reclamo validado y derivado a ${areaResponsable}${responsableArea ? ` - Asignado a ${responsableArea.fullName}` : ''}` 
+    const notasHistorial = notas || (procede
+      ? `Reclamo validado y derivado a ${areaResponsable}${responsableArea ? ` - Asignado a ${responsableArea.fullName}` : ''}`
       : 'Reclamo marcado como no procedente - pendiente revisión');
-    
+
     await this.createReclamoGeneralHistorial({
       reclamoId: id,
       estadoAnterior: reclamo.estado,
@@ -15384,7 +15384,7 @@ export class DatabaseStorage implements IStorage {
       userName,
       notas: notasHistorial,
     });
-    
+
     // Crear notificación para el responsable del área si fue asignado
     if (procede && responsableArea) {
       await this.createNotification({
@@ -15396,15 +15396,15 @@ export class DatabaseStorage implements IStorage {
         read: false,
       });
     }
-    
+
     return updated;
   }
 
   // Update informes
   async updateInformeLaboratorio(
-    id: string, 
-    informe: string, 
-    userId: string, 
+    id: string,
+    informe: string,
+    userId: string,
     userName: string
   ): Promise<ReclamoGeneral> {
     const [updated] = await db
@@ -15416,7 +15416,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(reclamosGenerales.id, id))
       .returning();
-    
+
     // Create historial entry
     await this.createReclamoGeneralHistorial({
       reclamoId: id,
@@ -15426,14 +15426,14 @@ export class DatabaseStorage implements IStorage {
       userName,
       notas: 'Informe de laboratorio agregado',
     });
-    
+
     return updated;
   }
 
   async updateInformeProduccion(
-    id: string, 
-    informe: string, 
-    userId: string, 
+    id: string,
+    informe: string,
+    userId: string,
     userName: string
   ): Promise<ReclamoGeneral> {
     const [updated] = await db
@@ -15444,7 +15444,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(reclamosGenerales.id, id))
       .returning();
-    
+
     // Create historial entry
     await this.createReclamoGeneralHistorial({
       reclamoId: id,
@@ -15454,14 +15454,14 @@ export class DatabaseStorage implements IStorage {
       userName,
       notas: 'Informe de producción agregado',
     });
-    
+
     return updated;
   }
 
   async updateInformeTecnico(
-    id: string, 
-    informe: string, 
-    userId: string, 
+    id: string,
+    informe: string,
+    userId: string,
     userName: string
   ): Promise<ReclamoGeneral> {
     const [updated] = await db
@@ -15472,7 +15472,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(reclamosGenerales.id, id))
       .returning();
-    
+
     // Create historial entry
     await this.createReclamoGeneralHistorial({
       reclamoId: id,
@@ -15482,7 +15482,7 @@ export class DatabaseStorage implements IStorage {
       userName,
       notas: 'Informe técnico agregado',
     });
-    
+
     return updated;
   }
 
@@ -15517,12 +15517,12 @@ export class DatabaseStorage implements IStorage {
         isNull(reclamosGenerales.informeLaboratorio) // Solo actualizar si no tiene informe previo
       ))
       .returning();
-    
+
     // Si no se actualizó ninguna fila, retornar null
     if (!updated) {
       return null;
     }
-    
+
     // Crear las fotos de evidencia
     for (const photo of photos) {
       await db.insert(reclamosGeneralesResolucionPhotos).values({
@@ -15531,7 +15531,7 @@ export class DatabaseStorage implements IStorage {
         description: photo.description,
       });
     }
-    
+
     // Crear los documentos de evidencia
     const documentCount = documents?.length || 0;
     if (documents && documents.length > 0) {
@@ -15543,13 +15543,13 @@ export class DatabaseStorage implements IStorage {
         });
       }
     }
-    
+
     // Create historial entry
     const evidenceNotes = [];
     if (photos.length > 0) evidenceNotes.push(`${photos.length} foto(s)`);
     if (documentCount > 0) evidenceNotes.push(`${documentCount} documento(s)`);
     const evidenceText = evidenceNotes.length > 0 ? ` con ${evidenceNotes.join(' y ')} de evidencia` : '';
-    
+
     await this.createReclamoGeneralHistorial({
       reclamoId: id,
       estadoAnterior: reclamoAnterior.estado,
@@ -15592,7 +15592,7 @@ export class DatabaseStorage implements IStorage {
 
     // Ejecutar las notificaciones en paralelo
     await Promise.all(notificaciones);
-    
+
     return updated;
   }
 
@@ -15615,39 +15615,39 @@ export class DatabaseStorage implements IStorage {
     documents?: Array<{ fileName: string; fileData: string; mimeType: string }>
   ): Promise<ReclamoGeneral | null> {
     const reclamo = await this.getReclamoGeneralById(id);
-    
+
     if (!reclamo) {
       throw new Error('Reclamo not found');
     }
-    
-    // Verificar que el reclamo está en estado "en_area_responsable" o "en_produccion"
-    if (reclamo.estado !== 'en_area_responsable' && reclamo.estado !== 'en_produccion') {
-      throw new Error('El reclamo no está en estado "En Área Responsable" o "En Producción"');
+
+    // Verificar que el reclamo está en estado "en_area_responsable"
+    if (reclamo.estado !== 'en_area_responsable') {
+      throw new Error('El reclamo no está en estado "En Área Responsable"');
     }
-    
+
     // Use centralized area mapping from shared/reclamosAreas
     // Get the operative area for the user's role
     const areaUsuarioOperativa = mapToOperativeArea(
       userRole.startsWith('area_') ? userRole.replace('area_', '') : userRole
     );
-    
+
     // Map the complaint's assigned area to its operative area
     // Example: 'envase' → 'logistica', 'etiqueta' → 'produccion'
     const areaReclamoOperativa = mapToOperativeArea(reclamo.areaResponsableActual || '');
-    
+
     if (!areaUsuarioOperativa || !areaReclamoOperativa) {
       throw new Error('No se pudo determinar el área responsable');
     }
-    
+
     // Verify that the user's operative area matches the complaint's operative area
     // This allows logistica users to resolve 'envase' complaints, produccion users to resolve 'etiqueta'/'colores'
     if (areaReclamoOperativa !== areaUsuarioOperativa) {
       throw new Error('No tiene permisos para resolver este reclamo');
     }
-    
+
     // Use the original area for display purposes
     const areaUsuario = userRole.startsWith('area_') ? userRole.replace('area_', '') : userRole;
-    
+
     // Actualización condicional para prevenir race conditions
     const [updated] = await db
       .update(reclamosGenerales)
@@ -15664,12 +15664,12 @@ export class DatabaseStorage implements IStorage {
         isNull(reclamosGenerales.resolucionDescripcion) // Solo actualizar si no tiene resolución previa
       ))
       .returning();
-    
+
     // Si no se actualizó ninguna fila, retornar null
     if (!updated) {
       return null;
     }
-    
+
     // Crear las fotos de evidencia
     for (const photo of photos) {
       await db.insert(reclamosGeneralesResolucionPhotos).values({
@@ -15678,7 +15678,7 @@ export class DatabaseStorage implements IStorage {
         description: photo.description,
       });
     }
-    
+
     // Crear los documentos de evidencia
     const documentCount = documents?.length || 0;
     if (documents && documents.length > 0) {
@@ -15690,13 +15690,13 @@ export class DatabaseStorage implements IStorage {
         });
       }
     }
-    
+
     // Create historial entry
     const evidenceNotes = [];
     if (photos.length > 0) evidenceNotes.push(`${photos.length} foto(s)`);
     if (documentCount > 0) evidenceNotes.push(`${documentCount} documento(s)`);
     const evidenceText = evidenceNotes.length > 0 ? ` con ${evidenceNotes.join(' y ')} de evidencia` : '';
-    
+
     await this.createReclamoGeneralHistorial({
       reclamoId: id,
       estadoAnterior: reclamo.estado,
@@ -15739,24 +15739,24 @@ export class DatabaseStorage implements IStorage {
 
     // Ejecutar las notificaciones en paralelo
     await Promise.all(notificaciones);
-    
+
     return updated;
   }
 
   // Cerrar reclamo
   async cerrarReclamoGeneral(
-    id: string, 
-    userId: string, 
-    userName: string, 
+    id: string,
+    userId: string,
+    userName: string,
     notas?: string,
     photos?: Array<{ photoUrl: string; description?: string }>
   ): Promise<ReclamoGeneral> {
     const reclamo = await this.getReclamoGeneralById(id);
-    
+
     if (!reclamo) {
       throw new Error('Reclamo not found');
     }
-    
+
     const [updated] = await db
       .update(reclamosGenerales)
       .set({
@@ -15766,7 +15766,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(reclamosGenerales.id, id))
       .returning();
-    
+
     // Crear las fotos de evidencia si existen
     if (photos && photos.length > 0) {
       for (const photo of photos) {
@@ -15777,12 +15777,12 @@ export class DatabaseStorage implements IStorage {
         });
       }
     }
-    
+
     // Create historial entry
-    const notasConFotos = photos && photos.length > 0 
+    const notasConFotos = photos && photos.length > 0
       ? `${notas || 'Reclamo cerrado'} (${photos.length} foto(s) de evidencia)`
       : (notas || 'Reclamo cerrado');
-    
+
     await this.createReclamoGeneralHistorial({
       reclamoId: id,
       estadoAnterior: reclamo.estado,
@@ -15791,7 +15791,7 @@ export class DatabaseStorage implements IStorage {
       userName,
       notas: notasConFotos,
     });
-    
+
     return updated;
   }
 
@@ -15804,7 +15804,7 @@ export class DatabaseStorage implements IStorage {
       .insert(solicitudesMantencion)
       .values(solicitud)
       .returning();
-    
+
     // Create initial historial entry
     await this.createMantencionHistorial({
       mantencionId: newSolicitud.id,
@@ -15828,7 +15828,7 @@ export class DatabaseStorage implements IStorage {
     offset?: number;
   }): Promise<any[]> {
     const conditions = [];
-    
+
     if (filters?.solicitanteId) {
       conditions.push(eq(solicitudesMantencion.solicitanteId, filters.solicitanteId));
     }
@@ -15863,7 +15863,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     const solicitudes = await query;
-    
+
     // Add photos, historial, and resolucion photos to each solicitud
     const solicitudesWithDetails = await Promise.all(
       solicitudes.map(async (solicitud) => {
@@ -15872,7 +15872,7 @@ export class DatabaseStorage implements IStorage {
           this.getMantencionHistorial(solicitud.id),
           this.getMantencionResolucionPhotos(solicitud.id),
         ]);
-        
+
         return {
           ...solicitud,
           photos,
@@ -15881,7 +15881,7 @@ export class DatabaseStorage implements IStorage {
         };
       })
     );
-    
+
     return solicitudesWithDetails;
   }
 
@@ -15917,7 +15917,7 @@ export class DatabaseStorage implements IStorage {
       // Delete gastos de materiales asociados
       db.delete(gastosMaterialesMantencion).where(eq(gastosMaterialesMantencion.otId, id)),
     ]);
-    
+
     // Finally delete the main record
     await db.delete(solicitudesMantencion).where(eq(solicitudesMantencion.id, id));
   }
@@ -15970,16 +15970,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ===== FUNCIONES AVANZADAS DE ÓRDENES DE TRABAJO =====
-  
+
   /**
    * Pausa una orden de trabajo activa
    * Registra el motivo de la pausa y crea entrada en el historial
    */
   async pausarMantencion(
-    id: string, 
+    id: string,
     motivo: string,
     fechaProgramada: string | null | undefined,
-    userId: string, 
+    userId: string,
     userName: string
   ): Promise<SolicitudMantencion> {
     // Verificar que la OT existe y está en estado válido para pausar
@@ -15987,7 +15987,7 @@ export class DatabaseStorage implements IStorage {
     if (!mantencion) {
       throw new Error('Orden de trabajo no encontrada');
     }
-    
+
     if (mantencion.estado !== 'en_reparacion') {
       throw new Error('Solo se pueden pausar órdenes en reparación');
     }
@@ -16046,7 +16046,7 @@ export class DatabaseStorage implements IStorage {
     if (!mantencion) {
       throw new Error('Orden de trabajo no encontrada');
     }
-    
+
     if (mantencion.estado !== 'pausada') {
       throw new Error('Solo se pueden reanudar órdenes pausadas');
     }
@@ -16088,7 +16088,7 @@ export class DatabaseStorage implements IStorage {
     if (!mantencion) {
       throw new Error('Orden de trabajo no encontrada');
     }
-    
+
     // Validar que el estado actual permite iniciar trabajo
     const estadosValidos = ['pendiente', 'registrado', 'programada'];
     if (!estadosValidos.includes(mantencion.estado)) {
@@ -16098,7 +16098,7 @@ export class DatabaseStorage implements IStorage {
     // Validar permisos - incluir jefe_planta y mantencion que tienen acceso completo al módulo CMMS
     const rolesAutorizados = ['admin', 'supervisor', 'produccion', 'jefe_planta', 'mantencion'];
     const esTecnicoAsignado = mantencion.tecnicoAsignadoId === userId;
-    
+
     if (!rolesAutorizados.includes(userRole) && !esTecnicoAsignado) {
       throw new Error('No autorizado para iniciar trabajo en esta orden');
     }
@@ -16198,23 +16198,23 @@ export class DatabaseStorage implements IStorage {
 
     // Preparar datos para actualizar
     const updateData: any = {};
-    
+
     // Actualizar tipo de ejecución
     if (asignacion.tipoEjecucion !== undefined) {
       updateData.tipoEjecucion = asignacion.tipoEjecucion;
-      
+
       // Si el tipo de ejecución es 'inmediata' y el estado es 'pendiente', cambiar a 'registrado'
       if (asignacion.tipoEjecucion === 'inmediata' && mantencion.estado === 'pendiente') {
         updateData.estado = 'registrado';
       }
     }
-    
+
     // Actualizar fecha programada (CRÍTICO: siempre guardar si viene en el payload)
     if (asignacion.fechaProgramada !== undefined) {
       if (asignacion.fechaProgramada) {
         const fechaProg = new Date(asignacion.fechaProgramada);
         updateData.fechaProgramada = fechaProg;
-        
+
         // Cambio automático de estado: cualquier fecha asignada → "programada"
         const estadosQuePuedenProgramarse = ['pendiente', 'registrado', 'pausada'];
         if (estadosQuePuedenProgramarse.includes(mantencion.estado)) {
@@ -16262,7 +16262,7 @@ export class DatabaseStorage implements IStorage {
 
     // Registrar en historial
     const notas: string[] = [];
-    
+
     // Registrar tipo de ejecución si cambió
     if (asignacion.tipoEjecucion !== undefined) {
       if (asignacion.tipoEjecucion === 'inmediata') {
@@ -16271,7 +16271,7 @@ export class DatabaseStorage implements IStorage {
         notas.push('Tipo de ejecución: Programada');
       }
     }
-    
+
     // Registrar fecha programada si cambió
     if (asignacion.fechaProgramada !== undefined) {
       if (asignacion.fechaProgramada) {
@@ -16281,7 +16281,7 @@ export class DatabaseStorage implements IStorage {
         notas.push('Fecha programada removida');
       }
     }
-    
+
     if (asignacion.tipoAsignacion === 'tecnico_interno') {
       notas.push(`Asignado a técnico: ${asignacion.tecnicoAsignadoName}`);
     } else if (asignacion.tipoAsignacion === 'proveedor_externo') {
@@ -16309,7 +16309,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Combined operations
-  async getSolicitudMantencionWithDetails(id: string): Promise<(SolicitudMantencion & { 
+  async getSolicitudMantencionWithDetails(id: string): Promise<(SolicitudMantencion & {
     photos: MantencionPhoto[];
     historial: MantencionHistorial[];
     resolucionPhotos: MantencionResolucionPhoto[];
@@ -16340,7 +16340,7 @@ export class DatabaseStorage implements IStorage {
     userName: string
   ): Promise<SolicitudMantencion> {
     const solicitud = await this.getSolicitudMantencionById(id);
-    
+
     if (!solicitud) {
       throw new Error('Solicitud de mantención not found');
     }
@@ -16378,7 +16378,7 @@ export class DatabaseStorage implements IStorage {
     notas?: string
   ): Promise<SolicitudMantencion> {
     const solicitud = await this.getSolicitudMantencionById(id);
-    
+
     if (!solicitud) {
       throw new Error('Solicitud de mantención not found');
     }
@@ -16424,11 +16424,11 @@ export class DatabaseStorage implements IStorage {
     repuestosUtilizados?: string
   ): Promise<SolicitudMantencion | null> {
     const solicitud = await this.getSolicitudMantencionById(id);
-    
+
     if (!solicitud) {
       throw new Error('Solicitud de mantención not found');
     }
-    
+
     // Actualización condicional para prevenir race conditions
     const updateData: any = {
       resolucionDescripcion,
@@ -16451,12 +16451,12 @@ export class DatabaseStorage implements IStorage {
         isNull(solicitudesMantencion.resolucionDescripcion)
       ))
       .returning();
-    
+
     // Si no se actualizó ninguna fila, retornar null
     if (!updated) {
       return null;
     }
-    
+
     // Crear las fotos de evidencia de resolución
     for (const photo of photos) {
       await db.insert(mantencionResolucionPhotos).values({
@@ -16465,7 +16465,7 @@ export class DatabaseStorage implements IStorage {
         description: photo.description,
       });
     }
-    
+
     // Create historial entry
     await this.createMantencionHistorial({
       mantencionId: id,
@@ -16487,23 +16487,23 @@ export class DatabaseStorage implements IStorage {
         read: false,
       });
     }
-    
+
     return updated;
   }
 
   // Cerrar solicitud de mantención
   async cerrarMantencion(
-    id: string, 
-    userId: string, 
-    userName: string, 
+    id: string,
+    userId: string,
+    userName: string,
     notas?: string
   ): Promise<SolicitudMantencion> {
     const solicitud = await this.getSolicitudMantencionById(id);
-    
+
     if (!solicitud) {
       throw new Error('Solicitud de mantención not found');
     }
-    
+
     const [updated] = await db
       .update(solicitudesMantencion)
       .set({
@@ -16513,7 +16513,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(solicitudesMantencion.id, id))
       .returning();
-    
+
     // Create historial entry
     await this.createMantencionHistorial({
       mantencionId: id,
@@ -16523,14 +16523,14 @@ export class DatabaseStorage implements IStorage {
       userName,
       notas: notas || 'Solicitud de mantención cerrada',
     });
-    
+
     return updated;
   }
 
   // ==================================================================================
   // CMMS - SISTEMA DE GESTIÓN DE MANTENIMIENTO
   // ==================================================================================
-  
+
   // ===== EQUIPOS CRÍTICOS =====
   async createEquipoCritico(equipo: InsertEquipoCritico): Promise<EquipoCritico> {
     // Auto-generate codigo if not provided
@@ -16539,7 +16539,7 @@ export class DatabaseStorage implements IStorage {
       const namePrefix = equipo.nombre.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, '');
       equipo.codigo = `${namePrefix}-${timestamp}`;
     }
-    
+
     const [result] = await db
       .insert(equiposCriticos)
       .values(equipo)
@@ -16547,13 +16547,13 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async getEquiposCriticos(filters?: { 
-    area?: string; 
+  async getEquiposCriticos(filters?: {
+    area?: string;
     criticidad?: string;
     estadoActual?: string;
   }): Promise<EquipoCritico[]> {
     let query = db.select().from(equiposCriticos);
-    
+
     const conditions = [];
     if (filters?.area) {
       conditions.push(eq(equiposCriticos.area, filters.area));
@@ -16564,11 +16564,11 @@ export class DatabaseStorage implements IStorage {
     if (filters?.estadoActual) {
       conditions.push(eq(equiposCriticos.estadoActual, filters.estadoActual));
     }
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as any;
     }
-    
+
     return query.orderBy(desc(equiposCriticos.createdAt));
   }
 
@@ -16628,11 +16628,11 @@ export class DatabaseStorage implements IStorage {
 
   async getProveedoresMantencion(filters?: { activo?: boolean }): Promise<ProveedorMantencion[]> {
     let query = db.select().from(proveedoresMantencion);
-    
+
     if (filters?.activo !== undefined) {
       query = query.where(eq(proveedoresMantencion.activo, filters.activo)) as any;
     }
-    
+
     return query.orderBy(proveedoresMantencion.nombre);
   }
 
@@ -16668,7 +16668,7 @@ export class DatabaseStorage implements IStorage {
 
   async getPresupuestosMantencion(filters?: { anio?: number; area?: string }): Promise<PresupuestoMantencion[]> {
     let query = db.select().from(presupuestoMantencion);
-    
+
     const conditions = [];
     if (filters?.anio) {
       conditions.push(eq(presupuestoMantencion.anio, filters.anio));
@@ -16676,11 +16676,11 @@ export class DatabaseStorage implements IStorage {
     if (filters?.area) {
       conditions.push(eq(presupuestoMantencion.area, filters.area));
     }
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as any;
     }
-    
+
     return query.orderBy(presupuestoMantencion.anio, presupuestoMantencion.mes, presupuestoMantencion.area);
   }
 
@@ -16689,13 +16689,13 @@ export class DatabaseStorage implements IStorage {
       eq(presupuestoMantencion.anio, anio),
       eq(presupuestoMantencion.mes, mes)
     ];
-    
+
     if (area) {
       conditions.push(eq(presupuestoMantencion.area, area));
     } else {
       conditions.push(isNull(presupuestoMantencion.area));
     }
-    
+
     const [result] = await db
       .select()
       .from(presupuestoMantencion)
@@ -16749,14 +16749,14 @@ export class DatabaseStorage implements IStorage {
       const endDate = new Date(startDate);
       endDate.setMonth(endDate.getMonth() + 1);
       endDate.setDate(0); // Last day of the month
-      
+
       conditions.push(gte(gastosMaterialesMantencion.fecha, startDate));
       conditions.push(lte(gastosMaterialesMantencion.fecha, endDate));
     } else if (filters?.anio && !filters?.mes) {
       // Entire year
       const startDate = new Date(`${filters.anio}-01-01`);
       const endDate = new Date(`${filters.anio}-12-31`);
-      
+
       conditions.push(gte(gastosMaterialesMantencion.fecha, startDate));
       conditions.push(lte(gastosMaterialesMantencion.fecha, endDate));
     } else {
@@ -16768,9 +16768,9 @@ export class DatabaseStorage implements IStorage {
         conditions.push(lte(gastosMaterialesMantencion.fecha, new Date(filters.endDate)));
       }
     }
-    
+
     // Get total count and sum of costs
-    let aggregateQuery = db.select({ 
+    let aggregateQuery = db.select({
       count: sql<number>`count(*)`,
       costoTotal: sql<number>`COALESCE(SUM(CAST(${gastosMaterialesMantencion.costoTotal} AS DECIMAL)), 0)`
     }).from(gastosMaterialesMantencion);
@@ -16778,24 +16778,24 @@ export class DatabaseStorage implements IStorage {
       aggregateQuery = aggregateQuery.where(and(...conditions)) as any;
     }
     const [{ count: total, costoTotal: costoPeriodo }] = await aggregateQuery;
-    
+
     // Get paginated data
     let dataQuery = db.select().from(gastosMaterialesMantencion);
     if (conditions.length > 0) {
       dataQuery = dataQuery.where(and(...conditions)) as any;
     }
-    
+
     dataQuery = dataQuery.orderBy(desc(gastosMaterialesMantencion.fecha)) as any;
-    
+
     // Apply pagination if provided
     const page = filters?.page || 1;
     const pageSize = filters?.pageSize || 15;
     const offset = (page - 1) * pageSize;
-    
+
     dataQuery = (dataQuery as any).limit(pageSize).offset(offset);
-    
+
     const data = await dataQuery;
-    
+
     return {
       data,
       total,
@@ -16845,26 +16845,26 @@ export class DatabaseStorage implements IStorage {
     } | null;
   }>> {
     const conditions = [];
-    
+
     if (filters?.area) {
       conditions.push(eq(gastosMaterialesMantencion.area, filters.area));
     }
-    
+
     if (filters?.anio && filters?.mes) {
       const startDate = new Date(`${filters.anio}-${filters.mes.padStart(2, '0')}-01`);
       const endDate = new Date(startDate);
       endDate.setMonth(endDate.getMonth() + 1);
-      
+
       conditions.push(gte(gastosMaterialesMantencion.fecha, startDate));
       conditions.push(lt(gastosMaterialesMantencion.fecha, endDate));
     } else if (filters?.anio && !filters?.mes) {
       const startDate = new Date(`${filters.anio}-01-01`);
       const endDate = new Date(`${parseInt(filters.anio, 10) + 1}-01-01`);
-      
+
       conditions.push(gte(gastosMaterialesMantencion.fecha, startDate));
       conditions.push(lt(gastosMaterialesMantencion.fecha, endDate));
     }
-    
+
     let query = db
       .select({
         gasto: gastosMaterialesMantencion,
@@ -16884,15 +16884,15 @@ export class DatabaseStorage implements IStorage {
       .from(gastosMaterialesMantencion)
       .leftJoin(solicitudesMantencion, eq(gastosMaterialesMantencion.otId, solicitudesMantencion.id))
       .leftJoin(proveedoresMantencion, eq(gastosMaterialesMantencion.proveedorId, proveedoresMantencion.id));
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as any;
     }
-    
+
     query = query.orderBy(desc(gastosMaterialesMantencion.fecha)) as any;
-    
+
     const results = await query;
-    
+
     return results.map((r: any) => ({
       ...r.gasto,
       ot: r.ot?.id ? r.ot : null,
@@ -16909,12 +16909,12 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async getPlanesPreventivos(filters?: { 
+  async getPlanesPreventivos(filters?: {
     equipoId?: string;
     activo?: boolean;
   }): Promise<PlanPreventivo[]> {
     let query = db.select().from(planesPreventivos);
-    
+
     const conditions = [];
     if (filters?.equipoId) {
       conditions.push(eq(planesPreventivos.equipoId, filters.equipoId));
@@ -16922,11 +16922,11 @@ export class DatabaseStorage implements IStorage {
     if (filters?.activo !== undefined) {
       conditions.push(eq(planesPreventivos.activo, filters.activo));
     }
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as any;
     }
-    
+
     return query.orderBy(planesPreventivos.proximaEjecucion);
   }
 
@@ -16980,7 +16980,7 @@ export class DatabaseStorage implements IStorage {
     area?: string;
   }): Promise<MantencionPlanificada[]> {
     let query = db.select().from(mantencionesPlanificadas);
-    
+
     const conditions = [];
     if (filters?.anio) {
       conditions.push(eq(mantencionesPlanificadas.anio, filters.anio));
@@ -16991,11 +16991,11 @@ export class DatabaseStorage implements IStorage {
     if (filters?.area) {
       conditions.push(eq(mantencionesPlanificadas.area, filters.area));
     }
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as any;
     }
-    
+
     return query.orderBy(mantencionesPlanificadas.anio, mantencionesPlanificadas.mes);
   }
 
@@ -17028,21 +17028,21 @@ export class DatabaseStorage implements IStorage {
     // Calcular rango de fechas del mes
     const startDate = new Date(anio, mes - 1, 1);
     const endDate = new Date(anio, mes, 0, 23, 59, 59); // Último día del mes
-    
+
     const conditions = [
       gte(gastosMaterialesMantencion.fecha, startDate),
       lte(gastosMaterialesMantencion.fecha, endDate)
     ];
-    
+
     if (area) {
       conditions.push(eq(gastosMaterialesMantencion.area, area));
     }
-    
+
     const result = await db
       .select({ total: sql<string>`COALESCE(SUM(${gastosMaterialesMantencion.costoTotal}), 0)` })
       .from(gastosMaterialesMantencion)
       .where(and(...conditions));
-    
+
     return Number(result[0]?.total || 0);
   }
 
@@ -17054,11 +17054,11 @@ export class DatabaseStorage implements IStorage {
       eq(mantencionesPlanificadas.anio, anio),
       eq(mantencionesPlanificadas.mes, mes)
     ];
-    
+
     if (area) {
       conditions.push(eq(mantencionesPlanificadas.area, area));
     }
-    
+
     return db
       .select()
       .from(mantencionesPlanificadas)
@@ -17132,7 +17132,7 @@ export class DatabaseStorage implements IStorage {
       // Obtener usuario sistema para crear la OT
       const systemUser = await db.select().from(users).where(eq(users.role, 'admin')).limit(1);
       const systemUserId = systemUser[0]?.id || 'system';
-      
+
       let equipoData = null;
       let equipoNombre = plan.equipoNombre || 'Tarea General';
       let equipoCodigo: string | undefined = undefined;
@@ -17157,14 +17157,14 @@ export class DatabaseStorage implements IStorage {
           ubicacion = equipoData.ubicacion || undefined;
         }
       }
-      
+
       // Preparar descripción
-      const descripcionText = plan.descripcion 
+      const descripcionText = plan.descripcion
         ? `\n\nDescripción: ${plan.descripcion}`
         : '';
-      
+
       const tipoTarea = plan.equipoId ? 'EQUIPO' : 'TAREA GENERAL';
-      
+
       const nuevaMantencion: InsertSolicitudMantencion = {
         equipoNombre: equipoNombre,
         equipoCodigo: equipoCodigo,
@@ -17216,7 +17216,7 @@ export class DatabaseStorage implements IStorage {
         try {
           // Generar la OT
           const ot = await this.generateOTFromPlan(plan);
-          
+
           // Calcular próxima ejecución
           const nextExecution = this.calculateNextExecution(
             new Date(plan.proximaEjecucion),
@@ -17285,7 +17285,7 @@ export class DatabaseStorage implements IStorage {
     mantencionesPlanificadasCosto: number;
   }> {
     const conditions = [];
-    
+
     if (filters?.startDate) {
       conditions.push(gte(solicitudesMantencion.fechaSolicitud, new Date(filters.startDate)));
     }
@@ -17305,7 +17305,7 @@ export class DatabaseStorage implements IStorage {
     const ots = await query;
 
     const totalOTs = ots.length;
-    
+
     // Contar OTs por estado real (cada estado tiene su propia métrica)
     const otsRegistradas = ots.filter(ot => ot.estado === 'registrado').length;
     const otsProgramadas = ots.filter(ot => ot.estado === 'programada').length;
@@ -17313,17 +17313,17 @@ export class DatabaseStorage implements IStorage {
     const otsPausadas = ots.filter(ot => ot.estado === 'pausada').length;
     const otsResueltas = ots.filter(ot => ot.estado === 'resuelto').length;
     const otsCerradas = ots.filter(ot => ot.estado === 'cerrado').length;
-    
+
     // Tipo de mantención
     const preventivas = ots.filter(ot => ot.tipoMantencion === 'preventivo').length;
     const correctivas = ots.filter(ot => ot.tipoMantencion === 'correctivo').length;
 
     // Calcular MTTR (Mean Time To Repair) en horas usando fechaInicioTrabajo y fechaResolucion
-    const otsConTiempo = ots.filter(ot => 
-      ot.fechaInicioTrabajo && ot.fechaResolucion && 
+    const otsConTiempo = ots.filter(ot =>
+      ot.fechaInicioTrabajo && ot.fechaResolucion &&
       ot.fechaInicioTrabajo instanceof Date && ot.fechaResolucion instanceof Date
     );
-    
+
     let mttr = 0;
     if (otsConTiempo.length > 0) {
       const tiemposTotales = otsConTiempo.map(ot => {
@@ -17340,7 +17340,7 @@ export class DatabaseStorage implements IStorage {
     const yearFromFilter = startDateObj.getFullYear();
     const startMonth = startDateObj.getMonth() + 1; // 1-12
     const endMonth = endDateObj.getMonth() + 1; // 1-12
-    
+
     // Obtener presupuestos del año con filtro de área (solo primer registro por mes)
     const presupuestoConditions: any[] = [eq(presupuestoMantencion.anio, yearFromFilter)];
     if (filters?.area === 'global') {
@@ -17350,11 +17350,11 @@ export class DatabaseStorage implements IStorage {
       // Área específica
       presupuestoConditions.push(eq(presupuestoMantencion.area, filters.area));
     }
-    
+
     const presupuestos = await db.select()
       .from(presupuestoMantencion)
       .where(and(...presupuestoConditions));
-    
+
     // Filtrar por meses dentro del rango y agrupar por mes (solo primer registro por mes)
     const presupuestosPorMes = new Map<number, typeof presupuestos[0]>();
     for (const p of presupuestos) {
@@ -17363,16 +17363,16 @@ export class DatabaseStorage implements IStorage {
       }
     }
     const presupuestosPeriodo = Array.from(presupuestosPorMes.values());
-    
+
     // Base de presupuesto asignado
     const baseAsignado = presupuestosPeriodo.reduce((sum, p) => sum + Number(p.presupuestoAsignado), 0);
-    
+
     // Calcular Costo Ejecutado (igual que en módulo de presupuesto)
     // = presupuestoEjecutado (base) + gastos de materiales + mantenciones planificadas completadas
-    
+
     // 1. Base de presupuesto ejecutado
     const baseEjecutado = presupuestosPeriodo.reduce((sum, p) => sum + Number(p.presupuestoEjecutado), 0);
-    
+
     // 2. Gastos de materiales del periodo
     const gastosConditions: any[] = [];
     if (filters?.startDate) {
@@ -17385,42 +17385,42 @@ export class DatabaseStorage implements IStorage {
     if (filters?.area && filters.area !== 'global') {
       gastosConditions.push(eq(gastosMaterialesMantencion.area, filters.area));
     }
-    
+
     let gastosQuery = db.select().from(gastosMaterialesMantencion);
     if (gastosConditions.length > 0) {
       gastosQuery = gastosQuery.where(and(...gastosConditions)) as any;
     }
     const gastosMateriales = await gastosQuery;
     const totalGastosMateriales = gastosMateriales.reduce((sum, g) => sum + Number(g.costoTotal), 0);
-    
+
     // 3. Obtener TODAS las mantenciones planificadas del año (para calcular aprobadas y completadas)
     const mantConditionsAll: any[] = [eq(mantencionesPlanificadas.anio, yearFromFilter)];
     // Global = todas las áreas (sin filtro), de lo contrario filtrar por área específica
     if (filters?.area && filters.area !== 'global') {
       mantConditionsAll.push(eq(mantencionesPlanificadas.area, filters.area));
     }
-    
+
     const todasMantPlanificadas = await db.select()
       .from(mantencionesPlanificadas)
       .where(and(...mantConditionsAll));
-    
+
     // Filtrar mantenciones asignadas del periodo (planificado + aprobado + completado)
     const totalMantAsignadas = todasMantPlanificadas
-      .filter(m => 
-        m.mes >= startMonth && 
-        m.mes <= endMonth && 
+      .filter(m =>
+        m.mes >= startMonth &&
+        m.mes <= endMonth &&
         ['planificado', 'aprobado', 'completado'].includes(m.estado)
       )
       .reduce((sum, m) => sum + Number(m.costoEstimado), 0);
-    
+
     // Filtrar mantenciones completadas del periodo (para Costo Ejecutado)
     const totalMantCompletadas = todasMantPlanificadas
       .filter(m => m.mes >= startMonth && m.mes <= endMonth && m.estado === 'completado')
       .reduce((sum, m) => sum + Number(m.costoEstimado), 0);
-    
+
     // Costo Asignado = base + mantenciones (planificada + aprobado + completado)
     const costoPlanificado = baseAsignado + totalMantAsignadas;
-    
+
     // Costo Total Ejecutado = base + gastos + mantenciones completadas
     const costoTotal = baseEjecutado + totalGastosMateriales + totalMantCompletadas;
 
@@ -17428,25 +17428,25 @@ export class DatabaseStorage implements IStorage {
     const proveedores = await db.select().from(proveedoresMantencion).where(eq(proveedoresMantencion.activo, true));
     const planes = await db.select().from(planesPreventivos).where(eq(planesPreventivos.activo, true));
     const todosPlanes = await db.select().from(planesPreventivos);
-    
+
     // Obtener solo equipos PADRES (sin equipoPadreId = componentes)
     const equipos = await db.select().from(equiposCriticos).where(isNull(equiposCriticos.equipoPadreId));
-    
+
     // Contar planes vencidos (proximaEjecucion < hoy)
     const now = new Date();
-    const planesVencidos = todosPlanes.filter(p => 
+    const planesVencidos = todosPlanes.filter(p =>
       p.activo && p.proximaEjecucion && new Date(p.proximaEjecucion) < now
     ).length;
-    
+
     // Clasificar equipos usando el campo estadoActual directamente
     let equiposOperativos = 0;
     let equiposEnMantencion = 0;
     let equiposDetenidos = 0;
     let equiposFueraDeServicio = 0;
-    
+
     for (const equipo of equipos) {
       const estado = equipo.estadoActual || 'operativo'; // Default a operativo si no tiene estado
-      
+
       switch (estado) {
         case 'operativo':
           equiposOperativos++;
@@ -17471,11 +17471,11 @@ export class DatabaseStorage implements IStorage {
     if (filters?.area) {
       mantencionesConditions.push(eq(mantencionesPlanificadas.area, filters.area));
     }
-    
+
     const mantencionesPlan = await db.select()
       .from(mantencionesPlanificadas)
       .where(and(...mantencionesConditions));
-    
+
     const mantPlanTotal = mantencionesPlan.length;
     const mantPlanAprobadas = mantencionesPlan.filter(m => m.estado === 'aprobado').length;
     const mantPlanCosto = mantencionesPlan.reduce((sum, m) => sum + Number(m.costoEstimado), 0);
@@ -17516,7 +17516,7 @@ export class DatabaseStorage implements IStorage {
   // ==================================================================================
   // MARKETING MODULE operations
   // ==================================================================================
-  
+
   // Presupuesto Marketing operations
   async createPresupuestoMarketing(presupuesto: InsertPresupuestoMarketing): Promise<PresupuestoMarketing> {
     const [result] = await db
@@ -17548,7 +17548,7 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return result;
   }
-  
+
   // Solicitudes Marketing operations
   async createSolicitudMarketing(solicitud: InsertSolicitudMarketing): Promise<SolicitudMarketing> {
     const [result] = await db
@@ -17567,7 +17567,7 @@ export class DatabaseStorage implements IStorage {
     offset?: number;
   }): Promise<SolicitudMarketing[]> {
     const conditions = [];
-    
+
     if (filters?.mes !== undefined) {
       conditions.push(eq(solicitudesMarketing.mes, filters.mes));
     }
@@ -17580,24 +17580,24 @@ export class DatabaseStorage implements IStorage {
     if (filters?.supervisorId) {
       conditions.push(eq(solicitudesMarketing.supervisorId, filters.supervisorId));
     }
-    
+
     let query = db
       .select()
       .from(solicitudesMarketing)
       .orderBy(desc(solicitudesMarketing.fechaSolicitud));
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as any;
     }
-    
+
     if (filters?.limit) {
       query = query.limit(filters.limit) as any;
     }
-    
+
     if (filters?.offset) {
       query = query.offset(filters.offset) as any;
     }
-    
+
     return await query;
   }
 
@@ -17639,30 +17639,30 @@ export class DatabaseStorage implements IStorage {
       .delete(solicitudesMarketing)
       .where(eq(solicitudesMarketing.id, id));
   }
-  
+
   // Cambiar estado de solicitud
   async updateSolicitudMarketingEstado(id: string, nuevoEstado: string, motivoRechazo?: string, monto?: number, pdfPresupuesto?: string): Promise<SolicitudMarketing> {
     const updateData: any = {
       estado: nuevoEstado,
       updatedAt: new Date(),
     };
-    
+
     if (nuevoEstado === 'completado') {
       updateData.fechaCompletado = new Date();
     }
-    
+
     if (nuevoEstado === 'rechazado' && motivoRechazo) {
       updateData.motivoRechazo = motivoRechazo;
     }
-    
+
     if (monto !== undefined) {
       updateData.monto = monto.toString();
     }
-    
+
     if (pdfPresupuesto !== undefined) {
       updateData.pdfPresupuesto = pdfPresupuesto;
     }
-    
+
     const [result] = await db
       .update(solicitudesMarketing)
       .set(updateData)
@@ -17670,7 +17670,7 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return result;
   }
-  
+
   // Métricas de marketing
   async getMarketingMetrics(mes: number, anio: number): Promise<{
     presupuestoTotal: number;
@@ -17687,15 +17687,15 @@ export class DatabaseStorage implements IStorage {
     // Get presupuesto
     const presupuesto = await this.getPresupuestoMarketing(mes, anio);
     const presupuestoTotal = presupuesto ? parseFloat(presupuesto.presupuestoTotal as any) : 0;
-    
+
     // Get all solicitudes for this period
     const solicitudes = await this.getSolicitudesMarketing({ mes, anio });
-    
+
     // Calculate presupuesto utilizado (only completado and en_proceso)
     const presupuestoUtilizado = solicitudes
       .filter(s => s.estado === 'completado' || s.estado === 'en_proceso')
       .reduce((sum, s) => sum + parseFloat(s.monto as any), 0);
-    
+
     // Count by estado
     const solicitudesPorEstado = {
       solicitado: solicitudes.filter(s => s.estado === 'solicitado').length,
@@ -17703,7 +17703,7 @@ export class DatabaseStorage implements IStorage {
       completado: solicitudes.filter(s => s.estado === 'completado').length,
       rechazado: solicitudes.filter(s => s.estado === 'rechazado').length,
     };
-    
+
     return {
       presupuestoTotal,
       presupuestoUtilizado,
@@ -17712,7 +17712,7 @@ export class DatabaseStorage implements IStorage {
       solicitudesPorEstado,
     };
   }
-  
+
   // Solicitantes de marketing (admin, supervisor, vendedor)
   async getMarketingSolicitantes(): Promise<Array<{
     id: number;
@@ -17721,7 +17721,7 @@ export class DatabaseStorage implements IStorage {
   }>> {
     // Get users with roles: admin, supervisor, salesperson
     const allowedRoles = ['admin', 'supervisor', 'salesperson'];
-    
+
     const results = await db
       .select({
         id: users.id,
@@ -17732,7 +17732,7 @@ export class DatabaseStorage implements IStorage {
       .from(users)
       .where(inArray(users.role, allowedRoles))
       .orderBy(users.firstName, users.lastName);
-    
+
     return results.map(u => ({
       id: u.id,
       name: `${u.firstName} ${u.lastName}`,
@@ -17756,7 +17756,7 @@ export class DatabaseStorage implements IStorage {
     offset?: number;
   }): Promise<InventarioMarketing[]> {
     const conditions = [];
-    
+
     if (filters?.search) {
       conditions.push(
         or(
@@ -17766,7 +17766,7 @@ export class DatabaseStorage implements IStorage {
         )
       );
     }
-    
+
     if (filters?.estado) {
       conditions.push(eq(inventarioMarketing.estado, filters.estado));
     }
@@ -17823,7 +17823,7 @@ export class DatabaseStorage implements IStorage {
     valorTotal: number;
   }> {
     const items = await this.getInventarioMarketing({});
-    
+
     const totalItems = items.length;
     const stockBajo = items.filter(item => item.cantidad <= (item.stockMinimo || 0)).length;
     const valorTotal = items.reduce((sum, item) => {
@@ -17845,7 +17845,7 @@ export class DatabaseStorage implements IStorage {
     anio?: number;
   }): Promise<HitoMarketing[]> {
     const conditions = [];
-    
+
     if (filters?.mes && filters?.anio) {
       // Filter by month and year
       const startDate = new Date(filters.anio, filters.mes - 1, 1);
@@ -17961,7 +17961,7 @@ export class DatabaseStorage implements IStorage {
     search?: string;
   }): Promise<ProductoMonitoreo[]> {
     const conditions = [];
-    
+
     if (filters?.activo !== undefined) {
       conditions.push(eq(productosMonitoreo.activo, filters.activo));
     }
@@ -18053,7 +18053,7 @@ export class DatabaseStorage implements IStorage {
     search?: string;
   }): Promise<(PrecioCompetencia & { competidorNombre: string; productoNombre: string; productoFormato: string | null })[]> {
     const conditions = [];
-    
+
     if (filters?.productoMonitoreoId) {
       conditions.push(eq(preciosCompetencia.productoMonitoreoId, filters.productoMonitoreoId));
     }
@@ -18151,14 +18151,14 @@ export class DatabaseStorage implements IStorage {
     asignadoAIds?: string[];
   }): Promise<TareaMarketing[]> {
     const conditions = [];
-    
+
     if (filters?.mes && filters?.anio) {
       if (filters.incluirPorFechaLimite) {
         const startOfMonth = new Date(filters.anio, filters.mes - 1, 1);
         const endOfMonth = new Date(filters.anio, filters.mes, 0);
         const startStr = startOfMonth.toISOString().split('T')[0];
         const endStr = endOfMonth.toISOString().split('T')[0];
-        
+
         conditions.push(
           or(
             and(eq(tareasMarketing.mes, filters.mes), eq(tareasMarketing.anio, filters.anio)),
@@ -18180,7 +18180,7 @@ export class DatabaseStorage implements IStorage {
         conditions.push(eq(tareasMarketing.anio, filters.anio));
       }
     }
-    
+
     if (filters?.estado) {
       conditions.push(eq(tareasMarketing.estado, filters.estado));
     }
@@ -18229,12 +18229,12 @@ export class DatabaseStorage implements IStorage {
       ...updates,
       updatedAt: new Date(),
     };
-    
+
     // Si se está marcando como completado, registrar la fecha
     if (updates.estado === 'completado') {
       updateData.completadoEn = new Date();
     }
-    
+
     const [result] = await db
       .update(tareasMarketing)
       .set(updateData)
@@ -18254,7 +18254,7 @@ export class DatabaseStorage implements IStorage {
     if (!tarea) {
       throw new Error('Tarea no encontrada');
     }
-    
+
     // Ciclo de estados: pendiente -> en_proceso -> completado
     let nuevoEstado = 'pendiente';
     if (tarea.estado === 'pendiente') {
@@ -18262,14 +18262,14 @@ export class DatabaseStorage implements IStorage {
     } else if (tarea.estado === 'en_proceso') {
       nuevoEstado = 'completado';
     }
-    
+
     return this.updateTareaMarketing(id, { estado: nuevoEstado });
   }
 
   // ==================================================================================
   // INVENTORY operations
   // ==================================================================================
-  
+
   async getInventory(filters?: {
     search?: string;
     warehouse?: string;
@@ -18289,9 +18289,9 @@ export class DatabaseStorage implements IStorage {
       .from(productStock)
       .leftJoin(products, eq(productStock.productSku, products.kopr))
       .leftJoin(warehouses, eq(productStock.warehouseCode, warehouses.code));
-    
+
     const conditions = [];
-    
+
     if (filters?.search) {
       const searchTerm = `%${filters.search.toLowerCase()}%`;
       conditions.push(
@@ -18301,17 +18301,17 @@ export class DatabaseStorage implements IStorage {
         )
       );
     }
-    
+
     if (filters?.warehouse) {
       conditions.push(eq(productStock.warehouseCode, filters.warehouse));
     }
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as any;
     }
-    
+
     const results = await query.orderBy(asc(productStock.productSku));
-    
+
     return results.map(row => ({
       ...row,
       quantity: parseFloat(row.quantity as any) || 0,
@@ -18319,7 +18319,7 @@ export class DatabaseStorage implements IStorage {
       availableQuantity: parseFloat(row.availableQuantity as any) || 0,
     }));
   }
-  
+
   async getInventorySummary(filters?: {
     search?: string;
     warehouse?: string;
@@ -18330,12 +18330,12 @@ export class DatabaseStorage implements IStorage {
     lowStock: number;
   }> {
     const inventory = await this.getInventory(filters);
-    
+
     const totalProducts = inventory.length;
     const totalQuantity = inventory.reduce((sum, item) => sum + item.quantity, 0);
     const totalAvailable = inventory.reduce((sum, item) => sum + item.availableQuantity, 0);
     const lowStock = inventory.filter(item => item.availableQuantity < 10 && item.availableQuantity > 0).length;
-    
+
     return {
       totalProducts,
       totalQuantity,
@@ -18343,7 +18343,7 @@ export class DatabaseStorage implements IStorage {
       lowStock,
     };
   }
-  
+
   async getWarehouses(branch?: string): Promise<{ code: string; name: string }[]> {
     try {
       // If branch is specified, filter warehouses from PostgreSQL inventory
@@ -18440,10 +18440,10 @@ export class DatabaseStorage implements IStorage {
     // Create cache key from filters (sorted to ensure consistency)
     const cacheKey = JSON.stringify(filters || {}, Object.keys(filters || {}).sort());
     const now = Date.now();
-    
+
     // Get or create cache entry for this filter key
     let cacheEntry = this.inventoryCacheMap.get(cacheKey);
-    
+
     // Check if cache is valid (fresh data)
     if (cacheEntry && cacheEntry.data) {
       const cacheAge = now - cacheEntry.timestamp;
@@ -18454,21 +18454,21 @@ export class DatabaseStorage implements IStorage {
         console.log(`⏰ Cache expired for filters ${cacheKey.substring(0, 50)}... (age: ${Math.round(cacheAge / 1000)}s)`);
       }
     }
-    
+
     // If a query with these exact filters is already in progress, wait for it
     if (cacheEntry?.inFlightPromise) {
       console.log(`⏳ Inventory query with filters ${cacheKey.substring(0, 50)}... already in progress, waiting...`);
       return await cacheEntry.inFlightPromise;
     }
-    
+
     // Start new query with mutex for this specific filter key
     console.log(`🔄 Inventory cache MISS for filters ${cacheKey.substring(0, 50)}..., fetching fresh data`);
-    
+
     const queryPromise = (async () => {
       try {
         // Build where conditions
         const conditions = [eq(inventoryProducts.activo, true)];
-        
+
         if (filters?.search) {
           conditions.push(
             or(
@@ -18511,16 +18511,16 @@ export class DatabaseStorage implements IStorage {
           totalValue: parseFloat(item.valorInventario?.toString() || '0'),
           lastUpdated: item.ultimaSincronizacion || new Date(),
         }));
-        
+
         // Update cache for this filter key
         this.inventoryCacheMap.set(cacheKey, {
           data: result,
           timestamp: Date.now(),
           inFlightPromise: null,
         });
-        
+
         console.log(`✅ Inventory fetched successfully (${result.length} items), cache updated for filters ${cacheKey.substring(0, 50)}...`);
-        
+
         return result;
       } catch (error: any) {
         console.error('Error fetching inventory from PostgreSQL:', error.message);
@@ -18533,7 +18533,7 @@ export class DatabaseStorage implements IStorage {
         }
       }
     })();
-    
+
     // Store the in-flight promise for this filter key
     if (!cacheEntry) {
       this.inventoryCacheMap.set(cacheKey, {
@@ -18544,7 +18544,7 @@ export class DatabaseStorage implements IStorage {
     } else {
       cacheEntry.inFlightPromise = queryPromise;
     }
-    
+
     return await queryPromise;
   }
 
@@ -18653,22 +18653,22 @@ export class DatabaseStorage implements IStorage {
     lowStock: number;
   }> {
     let inventory = await this.getInventoryWithPrices(filters);
-    
+
     // Apply client-side filters
     if (filters?.hideNoStock) {
       inventory = inventory.filter(item => item.availableQuantity > 0);
     }
-    
+
     if (filters?.hideZZProducts) {
       inventory = inventory.filter(item => !item.productSku?.toUpperCase().startsWith('ZZ'));
     }
-    
+
     const totalProducts = inventory.length;
     const totalQuantity = inventory.reduce((sum, item) => sum + item.quantity, 0);
     const totalAvailable = inventory.reduce((sum, item) => sum + item.availableQuantity, 0);
     const totalValue = inventory.reduce((sum, item) => sum + (item.totalValue || 0), 0);
     const lowStock = inventory.filter(item => item.availableQuantity < 10 && item.availableQuantity > 0).length;
-    
+
     return {
       totalProducts,
       totalQuantity,
@@ -18832,7 +18832,7 @@ export class DatabaseStorage implements IStorage {
           const precioMedio = row.precioMedio ? parseFloat(row.precioMedio) : null;
 
           // Calculate inventory value using UD1 (stock1)
-          const valorInventario = precioMedio && stock1 
+          const valorInventario = precioMedio && stock1
             ? parseFloat((stock1 * precioMedio).toFixed(2))
             : null;
 
@@ -18890,7 +18890,7 @@ export class DatabaseStorage implements IStorage {
         productsDeactivated: 0,
         totalProcessed: recordsInserted,
         duration,
-        summary: { 
+        summary: {
           erpRecordCount: erpInventory.length,
           recordsInserted,
           validationErrors: validationErrors.slice(0, 50),
@@ -18976,7 +18976,7 @@ export class DatabaseStorage implements IStorage {
         clearTimeout(timeoutHandle);
         timeoutHandle = null;
       }
-      
+
       // Always release the sync lock, regardless of success or failure
       this.syncInProgress = false;
     }
@@ -18988,7 +18988,7 @@ export class DatabaseStorage implements IStorage {
       .from(inventorySyncLog)
       .orderBy(desc(inventorySyncLog.createdAt))
       .limit(1);
-    
+
     return lastSync || null;
   }
 
@@ -19003,7 +19003,7 @@ export class DatabaseStorage implements IStorage {
   // ==================================================================================
   // SALES ETL SYNCHRONIZATION - SQL Server to PostgreSQL
   // ==================================================================================
-  
+
   private salesSyncInProgress = false;
 
   async syncSalesFromERP(
@@ -19454,7 +19454,7 @@ export class DatabaseStorage implements IStorage {
       .from(salesEtlSyncLog)
       .orderBy(desc(salesEtlSyncLog.createdAt))
       .limit(1);
-    
+
     return lastSync || null;
   }
 
@@ -19662,13 +19662,13 @@ export class DatabaseStorage implements IStorage {
       .select({ segmentCode: segmentSupervisors.segmentCode })
       .from(segmentSupervisors)
       .where(eq(segmentSupervisors.supervisorId, supervisorId));
-    
+
     const segmentCodes = supervisorSegments.map(s => s.segmentCode);
-    
+
     if (segmentCodes.length === 0) {
       return [];
     }
-    
+
     // Obtener reembolsos pendientes de supervisor para esos segmentos
     const result = await db
       .select()
@@ -19681,7 +19681,7 @@ export class DatabaseStorage implements IStorage {
         )
       )
       .orderBy(desc(gastosEmpresariales.createdAt));
-    
+
     return result;
   }
 
@@ -19696,7 +19696,7 @@ export class DatabaseStorage implements IStorage {
         )
       )
       .orderBy(desc(gastosEmpresariales.createdAt));
-    
+
     return result;
   }
 
@@ -19738,7 +19738,7 @@ export class DatabaseStorage implements IStorage {
     const gastos = await query;
 
     const count = gastos.length;
-    
+
     const totalPendiente = gastos
       .filter(g => g.estado === 'pendiente')
       .reduce((sum, g) => sum + parseFloat(g.monto as any || '0'), 0);
@@ -19974,7 +19974,7 @@ export class DatabaseStorage implements IStorage {
 
   async createFundAllocation(allocation: InsertFundAllocation): Promise<FundAllocation> {
     const [newAllocation] = await db.insert(fundAllocations).values(allocation).returning();
-    
+
     // Crear movimiento inicial de asignación
     await db.insert(fundMovements).values({
       allocationId: newAllocation.id,
@@ -19983,7 +19983,7 @@ export class DatabaseStorage implements IStorage {
       descripcion: `Asignación inicial de fondo: ${allocation.nombre}`,
       creadoPorId: allocation.assignedById,
     });
-    
+
     return newAllocation;
   }
 
@@ -20053,18 +20053,18 @@ export class DatabaseStorage implements IStorage {
     }
 
     const results = await query;
-    
+
     return results.map(r => {
       const assignedByName = r.assignedByFirstName && r.assignedByLastName
         ? `${r.assignedByFirstName} ${r.assignedByLastName}`
         : r.assignedByFirstName || r.assignedByLastName || (r.assignedByEmail ? r.assignedByEmail.split('@')[0] : undefined);
-      
+
       const assignedToName = r.assignedToFirstName && r.assignedToLastName
         ? `${r.assignedToFirstName} ${r.assignedToLastName}`
         : r.assignedToFirstName || r.assignedToLastName || (r.assignedToEmail ? r.assignedToEmail.split('@')[0] : undefined);
 
       const { assignedByFirstName, assignedByLastName, assignedByEmail, assignedToFirstName, assignedToLastName, assignedToEmail, ...fundData } = r;
-      
+
       return {
         ...fundData,
         assignedByName,
@@ -20099,8 +20099,8 @@ export class DatabaseStorage implements IStorage {
   async approveFundAllocation(id: string, comprobanteUrl: string, aprobadoPorId: string, comprobantePreviewUrl?: string | null): Promise<FundAllocation> {
     const [approved] = await db
       .update(fundAllocations)
-      .set({ 
-        estado: 'activo', 
+      .set({
+        estado: 'activo',
         estadoAprobacion: 'aprobado',
         comprobanteUrl,
         comprobantePreviewUrl: comprobantePreviewUrl || null,
@@ -20108,7 +20108,7 @@ export class DatabaseStorage implements IStorage {
         rrhhAprobadorId: aprobadoPorId,
         fechaAprobacion: new Date(),
         fechaAprobacionRrhh: new Date(),
-        updatedAt: new Date() 
+        updatedAt: new Date()
       })
       .where(eq(fundAllocations.id, id))
       .returning();
@@ -20118,13 +20118,13 @@ export class DatabaseStorage implements IStorage {
   async rejectFundAllocation(id: string, motivoRechazo: string, rechazadoPorId: string): Promise<FundAllocation> {
     const [rejected] = await db
       .update(fundAllocations)
-      .set({ 
-        estado: 'rechazado', 
+      .set({
+        estado: 'rechazado',
         estadoAprobacion: 'rechazado',
         motivoRechazo,
         aprobadoPorId: rechazadoPorId,
         fechaAprobacion: new Date(),
-        updatedAt: new Date() 
+        updatedAt: new Date()
       })
       .where(eq(fundAllocations.id, id))
       .returning();
@@ -20278,12 +20278,12 @@ export class DatabaseStorage implements IStorage {
     if (segmentCode) {
       conditions.push(eq(segmentSupervisors.segmentCode, segmentCode));
     }
-    
+
     let query = db.select().from(segmentSupervisors);
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as any;
     }
-    
+
     return await query;
   }
 
@@ -20302,9 +20302,9 @@ export class DatabaseStorage implements IStorage {
       .select({ segmentCode: segmentSupervisors.segmentCode })
       .from(segmentSupervisors)
       .where(eq(segmentSupervisors.supervisorUserId, supervisorId));
-    
+
     const segmentCodes = supervisorSegments.map(s => s.segmentCode);
-    
+
     if (segmentCodes.length === 0) {
       return [];
     }
@@ -20320,7 +20320,7 @@ export class DatabaseStorage implements IStorage {
         )
       )
       .orderBy(desc(fundAllocations.createdAt));
-    
+
     return allocations;
   }
 
@@ -20330,7 +20330,7 @@ export class DatabaseStorage implements IStorage {
       .from(fundAllocations)
       .where(eq(fundAllocations.estadoAprobacion, 'pendiente_rrhh'))
       .orderBy(desc(fundAllocations.createdAt));
-    
+
     return allocations;
   }
 
@@ -20366,7 +20366,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(fundAllocations.id, allocationId))
       .returning();
-    
+
     return updated;
   }
 
@@ -20404,7 +20404,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(fundAllocations.id, allocationId))
       .returning();
-    
+
     return updated;
   }
 
@@ -20453,7 +20453,7 @@ export class DatabaseStorage implements IStorage {
       descripcion: 'Asignación inicial de fondos (aprobado por RRHH)',
       creadoPorId: rrhhId,
     });
-    
+
     return updated;
   }
 
@@ -20491,7 +20491,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(fundAllocations.id, allocationId))
       .returning();
-    
+
     return updated;
   }
 
@@ -20501,7 +20501,7 @@ export class DatabaseStorage implements IStorage {
       .from(fundApprovalHistory)
       .where(eq(fundApprovalHistory.fundAllocationId, allocationId))
       .orderBy(desc(fundApprovalHistory.createdAt));
-    
+
     return history;
   }
 
@@ -20522,18 +20522,18 @@ export class DatabaseStorage implements IStorage {
     comentario: string;
   }): Promise<{ allocation: FundAllocation; history: any }> {
     const { allocationId, performedById, performedByName, rechargeMode, rechargeAmount, newFechaInicio, newFechaTermino, comentario } = params;
-    
+
     // 1. Obtener el fondo actual
     const allocation = await this.getFundAllocationById(allocationId);
     if (!allocation) {
       throw new Error('Fondo no encontrado');
     }
-    
+
     // 2. Verificar que el fondo esté aprobado
     if (allocation.estadoAprobacion !== 'aprobado') {
       throw new Error('Solo se pueden recargar fondos aprobados');
     }
-    
+
     // 3. Calcular el monto gastado (gastos no rechazados asociados a este fondo)
     const expensesResult = await db
       .select({ total: sql<string>`COALESCE(SUM(monto), 0)` })
@@ -20545,7 +20545,7 @@ export class DatabaseStorage implements IStorage {
         )
       );
     const totalGastado = parseFloat(expensesResult[0]?.total || '0');
-    
+
     // 4. Calcular el monto de recarga
     let deltaRecarga = 0;
     if (rechargeMode === 'gastado') {
@@ -20553,13 +20553,13 @@ export class DatabaseStorage implements IStorage {
     } else if (rechargeAmount !== undefined) {
       deltaRecarga = rechargeAmount;
     }
-    
+
     // 5. Calcular valores previos y nuevos
     const prevMontoInicial = parseFloat(String(allocation.montoInicial || '0'));
     const prevSaldoDisponible = prevMontoInicial - totalGastado;
     const newMontoInicial = prevMontoInicial + deltaRecarga;
     const newSaldoDisponible = newMontoInicial - totalGastado;
-    
+
     // 6. Crear registro de historial
     const historyData = {
       fundAllocationId: allocationId,
@@ -20577,28 +20577,28 @@ export class DatabaseStorage implements IStorage {
       newFechaTermino: newFechaTermino || allocation.fechaTermino || null,
       deltaRecarga: String(deltaRecarga),
     };
-    
+
     const [newHistory] = await db.insert(fundAllocationRechargeHistory).values(historyData).returning();
-    
+
     // 7. Actualizar el fondo
     const updateData: any = {
       montoInicial: String(newMontoInicial),
       updatedAt: new Date(),
     };
-    
+
     if (newFechaInicio) {
       updateData.fechaInicio = newFechaInicio;
     }
     if (newFechaTermino) {
       updateData.fechaTermino = newFechaTermino;
     }
-    
+
     const [updatedAllocation] = await db
       .update(fundAllocations)
       .set(updateData)
       .where(eq(fundAllocations.id, allocationId))
       .returning();
-    
+
     return {
       allocation: updatedAllocation,
       history: newHistory
@@ -20611,14 +20611,14 @@ export class DatabaseStorage implements IStorage {
       .from(fundAllocationRechargeHistory)
       .where(eq(fundAllocationRechargeHistory.fundAllocationId, allocationId))
       .orderBy(desc(fundAllocationRechargeHistory.createdAt));
-    
+
     return history;
   }
 
   // ==================================================================================
   // PROMESAS DE COMPRA operations
   // ==================================================================================
-  
+
   async createPromesaCompra(promesa: InsertPromesaCompra): Promise<PromesaCompra> {
     const [newPromesa] = await db.insert(promesasCompra).values(promesa).returning();
     return newPromesa;
@@ -20704,7 +20704,7 @@ export class DatabaseStorage implements IStorage {
     if (filters?.vendedorId) {
       conditions.push(eq(promesasCompra.vendedorId, filters.vendedorId));
     }
-    
+
     // Multiple vendedorIds filter (for supervisor segment filtering)
     if (filters?.vendedorIds && filters.vendedorIds.length > 0 && !filters?.vendedorId) {
       conditions.push(inArray(promesasCompra.vendedorId, filters.vendedorIds));
@@ -20779,7 +20779,7 @@ export class DatabaseStorage implements IStorage {
     const nvvMap = new Map<string, number>();
     if (clienteSemanas.length > 0) {
       // Build a single query with all cliente/fecha combinations
-      const nvvConditions = clienteSemanas.map(cs => 
+      const nvvConditions = clienteSemanas.map(cs =>
         sql`(nokoen = ${cs.nombre} AND feemli >= ${cs.fechaInicio} AND feemli <= ${cs.fechaFin})`
       );
 
@@ -20831,7 +20831,7 @@ export class DatabaseStorage implements IStorage {
       // Si hay ventas reales ingresadas manualmente, usar ese valor
       if (promesa.ventasRealesManual !== null && promesa.ventasRealesManual !== undefined) {
         ventasReales = parseFloat(promesa.ventasRealesManual as any);
-      } 
+      }
       // Para clientes potenciales (PROSPECTO), no hay ventas reales automáticas
       else if (promesa.clienteTipo === 'potencial' || promesa.clienteId === 'PROSPECTO') {
         ventasReales = 0;
@@ -20884,7 +20884,7 @@ export class DatabaseStorage implements IStorage {
       `);
       return result.rows[0];
     }
-    
+
     const result = await db.execute(sql`
       SELECT id, etl_name, start_time, status, period, watermark_date
       FROM ventas.etl_execution_log
@@ -20893,14 +20893,14 @@ export class DatabaseStorage implements IStorage {
       ORDER BY start_time DESC
       LIMIT 1
     `);
-    
+
     return result.rows[0];
   }
 
   async cancelETLExecution(executionId: string, cancelledBy: string, etlName?: string): Promise<void> {
     const now = new Date();
     const errorMessage = `Proceso cancelado manualmente por ${cancelledBy} el ${now.toLocaleString('es-CL')}`;
-    
+
     if (etlName === 'nvv') {
       await db.execute(sql`
         UPDATE nvv.nvv_sync_log
@@ -20913,7 +20913,7 @@ export class DatabaseStorage implements IStorage {
       `);
       return;
     }
-    
+
     await db.execute(sql`
       UPDATE ventas.etl_execution_log
       SET 
@@ -20931,7 +20931,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(salesEtlSyncLog.status, 'success'))
       .orderBy(desc(salesEtlSyncLog.completedAt))
       .limit(1);
-    
+
     return result[0]?.endDate || null;
   }
 
@@ -20947,7 +20947,7 @@ export class DatabaseStorage implements IStorage {
   }): Promise<CrmLead[]> {
     let query = db.select().from(crmLeads);
     const conditions = [];
-    
+
     if (filters?.salespersonId) {
       conditions.push(eq(crmLeads.salespersonId, filters.salespersonId));
     }
@@ -20960,11 +20960,11 @@ export class DatabaseStorage implements IStorage {
     if (filters?.stage) {
       conditions.push(eq(crmLeads.stage, filters.stage));
     }
-    
+
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as any;
     }
-    
+
     const results = await query.orderBy(desc(crmLeads.createdAt));
     return results;
   }
@@ -20976,13 +20976,13 @@ export class DatabaseStorage implements IStorage {
 
   async createLead(lead: InsertCrmLead): Promise<CrmLead> {
     const [newLead] = await db.insert(crmLeads).values(lead).returning();
-    
+
     // Notificar a admins y supervisors sobre nuevo lead
     const adminsAndSupervisors = await db
       .select({ id: users.id })
       .from(users)
       .where(or(eq(users.role, 'admin'), eq(users.role, 'supervisor')));
-    
+
     const notificationPromises = adminsAndSupervisors.map(user =>
       this.createNotification({
         userId: user.id,
@@ -20993,25 +20993,25 @@ export class DatabaseStorage implements IStorage {
         read: false,
       })
     );
-    
+
     await Promise.all(notificationPromises);
-    
+
     return newLead;
   }
 
   async updateLead(id: string, updates: Partial<InsertCrmLead>): Promise<CrmLead | undefined> {
     const oldLead = await db.select().from(crmLeads).where(eq(crmLeads.id, id)).limit(1);
-    
+
     const [updatedLead] = await db
       .update(crmLeads)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(crmLeads.id, id))
       .returning();
-    
+
     // Notificar si cambió la etapa o el assignee
     if (oldLead[0] && (updates.stageId !== undefined || updates.assignedTo !== undefined)) {
       const notificationPromises = [];
-      
+
       // Notificar al asignado si cambió
       if (updates.assignedTo && updates.assignedTo !== oldLead[0].assignedTo) {
         notificationPromises.push(
@@ -21025,7 +21025,7 @@ export class DatabaseStorage implements IStorage {
           })
         );
       }
-      
+
       // Notificar al asignado actual si cambió la etapa
       if (updates.stageId && updates.stageId !== oldLead[0].stageId && updatedLead.assignedTo) {
         notificationPromises.push(
@@ -21039,10 +21039,10 @@ export class DatabaseStorage implements IStorage {
           })
         );
       }
-      
+
       await Promise.all(notificationPromises);
     }
-    
+
     return updatedLead;
   }
 
@@ -21061,7 +21061,7 @@ export class DatabaseStorage implements IStorage {
     agingBuckets: { bucket: string; count: number }[];
   }> {
     const conditions: any[] = [];
-    
+
     if (filters?.salespersonId) {
       conditions.push(eq(crmLeads.salespersonId, filters.salespersonId));
     }
@@ -21085,7 +21085,7 @@ export class DatabaseStorage implements IStorage {
     const totalLeads = allLeads.length;
     const closedLeads = allLeads.filter(l => closedStages.includes(l.stage || '')).length;
     const conversionRate = totalLeads > 0 ? Math.round((closedLeads / totalLeads) * 100) : 0;
-    
+
     // Average days to close (for closed leads)
     const closedLeadsWithDates = allLeads.filter(l => closedStages.includes(l.stage || '') && l.createdAt && l.updatedAt);
     let avgDaysToClose = 0;
@@ -21130,19 +21130,19 @@ export class DatabaseStorage implements IStorage {
       const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
       const monthLabel = monthDate.toLocaleDateString('es-CL', { month: 'short', year: '2-digit' });
-      
+
       const newLeads = allLeads.filter(l => {
         if (!l.createdAt) return false;
         const created = new Date(l.createdAt);
         return created >= monthDate && created <= monthEnd;
       }).length;
-      
+
       const closures = allLeads.filter(l => {
         if (!l.updatedAt || !closedStages.includes(l.stage || '')) return false;
         const updated = new Date(l.updatedAt);
         return updated >= monthDate && updated <= monthEnd;
       }).length;
-      
+
       leadsTimeline.push({ month: monthLabel, newLeads, closures });
     }
 
@@ -21154,7 +21154,7 @@ export class DatabaseStorage implements IStorage {
       { bucket: '31-60 días', count: 0 },
       { bucket: '+60 días', count: 0 },
     ];
-    
+
     allLeads.filter(l => !closedStages.includes(l.stage || '') && l.stage !== 'perdido').forEach(lead => {
       if (!lead.createdAt) return;
       const days = Math.ceil((now.getTime() - new Date(lead.createdAt).getTime()) / (1000 * 60 * 60 * 24));
@@ -21257,7 +21257,7 @@ export class DatabaseStorage implements IStorage {
     byStage: Array<{ stage: string; count: number }>;
   }> {
     const conditions = [];
-    
+
     if (filters?.salespersonId) {
       conditions.push(eq(crmLeads.salespersonId, filters.salespersonId));
     }
@@ -21270,7 +21270,7 @@ export class DatabaseStorage implements IStorage {
     if (filters?.endDate) {
       conditions.push(lte(crmLeads.createdAt, filters.endDate));
     }
-    
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Get total leads
@@ -21278,36 +21278,36 @@ export class DatabaseStorage implements IStorage {
       .select({ count: sql<number>`count(*)` })
       .from(crmLeads)
       .where(whereClause);
-    
+
     // Get new leads (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const newLeadsConditions = [...(conditions || [])];
     newLeadsConditions.push(gte(crmLeads.createdAt, thirtyDaysAgo.toISOString()));
-    
+
     const newLeadsResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(crmLeads)
       .where(and(...newLeadsConditions));
-    
+
     // Get calls count
     const callsConditions = [...(conditions || [])];
     callsConditions.push(eq(crmLeads.hasCall, true));
-    
+
     const callsResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(crmLeads)
       .where(and(...callsConditions));
-    
+
     // Get whatsapp count
     const whatsappConditions = [...(conditions || [])];
     whatsappConditions.push(eq(crmLeads.hasWhatsapp, true));
-    
+
     const whatsappResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(crmLeads)
       .where(and(...whatsappConditions));
-    
+
     // Get by stage
     const byStageResult = await db
       .select({
@@ -21339,7 +21339,7 @@ export class DatabaseStorage implements IStorage {
       // Detectar clientes con última compra >45 días pero <354 días
       const fortyFiveDaysAgo = new Date();
       fortyFiveDaysAgo.setDate(fortyFiveDaysAgo.getDate() - 45);
-      
+
       // Cambiar de 365 a 354 días según requerimiento
       const threeHundredFiftyFourDaysAgo = new Date();
       threeHundredFiftyFourDaysAgo.setDate(threeHundredFiftyFourDaysAgo.getDate() - 354);
@@ -21349,7 +21349,7 @@ export class DatabaseStorage implements IStorage {
       // Agrupar solo por cliente (nokoen) para contar todas sus ventas, no por vendedor/segmento
       const threeHundredFiftyFourDaysAgoStr = threeHundredFiftyFourDaysAgo.toISOString().split('T')[0];
       const fortyFiveDaysAgoStr = fortyFiveDaysAgo.toISOString().split('T')[0];
-      
+
       const inactiveClientsQuery = await db.execute(sql`
         WITH client_stats AS (
           SELECT 
@@ -21389,7 +21389,7 @@ export class DatabaseStorage implements IStorage {
       // UPSERT con ON CONFLICT para idempotencia
       // Primero, eliminar alertas de clientes que ya no están inactivos (pasaron más de 365 días o compraron recientemente)
       const currentKoens = inactiveClients.map(c => c.client_koen).filter(Boolean);
-      
+
       if (currentKoens.length > 0) {
         await db
           .delete(clientesInactivos)
@@ -21415,7 +21415,7 @@ export class DatabaseStorage implements IStorage {
 
         if (salesperson.length > 0) {
           salespersonId = salesperson[0].id;
-          
+
           // Si tiene vendedor, buscar su supervisor
           if (salesperson[0].supervisorId) {
             const supervisor = await db
@@ -21423,7 +21423,7 @@ export class DatabaseStorage implements IStorage {
               .from(salespeopleUsers)
               .where(eq(salespeopleUsers.id, salesperson[0].supervisorId))
               .limit(1);
-            
+
             if (supervisor.length > 0) {
               supervisorId = supervisor[0].id;
               supervisorName = supervisor[0].salespersonName;
@@ -21509,7 +21509,7 @@ export class DatabaseStorage implements IStorage {
   }): Promise<ClienteInactivo[]> {
     try {
       const conditions = [];
-      
+
       // No mostrar clientes ya añadidos al CRM
       conditions.push(eq(clientesInactivos.addedToCrm, false));
 
@@ -21534,9 +21534,9 @@ export class DatabaseStorage implements IStorage {
       const crmClientNames = await db
         .selectDistinct({ clientName: crmLeads.clientName })
         .from(crmLeads);
-      
+
       const crmClientNameSet = new Set(crmClientNames.map(c => c.clientName.toLowerCase().trim()));
-      
+
       // Solo buscar si hay clientes en el CRM
       if (crmClientNameSet.size === 0) {
         return [];
@@ -21549,7 +21549,7 @@ export class DatabaseStorage implements IStorage {
         .orderBy(desc(clientesInactivos.daysSinceLastPurchase));
 
       // Filtrar solo los clientes cuyo nombre existe en el CRM
-      const filteredResults = results.filter(client => 
+      const filteredResults = results.filter(client =>
         crmClientNameSet.has(client.clientName.toLowerCase().trim())
       );
 
@@ -21595,7 +21595,7 @@ export class DatabaseStorage implements IStorage {
         // 2. Mark inactive client as added to CRM
         const updateResult = await tx
           .update(clientesInactivos)
-          .set({ 
+          .set({
             addedToCrm: true,
             crmLeadId: newLead.id,
             updatedAt: new Date().toISOString()
@@ -21660,10 +21660,10 @@ export class DatabaseStorage implements IStorage {
   async getClientesRecurrentes(userId: string, role: string): Promise<any[]> {
     try {
       const conditions = [];
-      
+
       // Filtrar por clientType = 'recurrente' (clientes que ya compraron)
       conditions.push(eq(crmLeads.clientType, 'recurrente'));
-      
+
       // Filtrado por rol
       if (role === 'salesperson') {
         conditions.push(eq(crmLeads.salespersonId, userId));
@@ -21671,20 +21671,20 @@ export class DatabaseStorage implements IStorage {
         conditions.push(eq(crmLeads.supervisorId, userId));
       }
       // Admin ve todos
-      
+
       const results = await db
         .select()
         .from(crmLeads)
         .where(and(...conditions))
         .orderBy(desc(crmLeads.updatedAt));
-      
+
       // Parsear notas del campo notes (formato: [fecha] Usuario: contenido\n\n[fecha] Usuario: contenido)
       const parseNotes = (notesText: string | null): any[] => {
         if (!notesText) return [];
-        
+
         // Dividir por doble salto de línea (separador entre notas)
         const noteEntries = notesText.split('\n\n').filter(entry => entry.trim());
-        
+
         return noteEntries.map((entry, index) => {
           // Intentar parsear formato [fecha] Usuario: contenido
           const match = entry.match(/^\[([^\]]+)\]\s*([^:]+):\s*(.+)$/s);
@@ -21709,12 +21709,12 @@ export class DatabaseStorage implements IStorage {
       const twelveMonthsAgo = new Date();
       twelveMonthsAgo.setMonth(now.getMonth() - 12);
       const startDate12m = twelveMonthsAgo.toISOString().split('T')[0];
-      
+
       // Fetch purchase metrics for all client names in results
       const clientNames = results.map(r => r.clientName).filter(Boolean);
-      
+
       let purchaseMetrics: Record<string, any> = {};
-      
+
       if (clientNames.length > 0) {
         // Get purchase stats from fact_ventas for last 12 months
         const metricsResults = await db
@@ -21732,14 +21732,14 @@ export class DatabaseStorage implements IStorage {
             sql`${factVentas.tido} != 'GDV'`
           ))
           .groupBy(factVentas.nokoen);
-        
+
         // Build metrics lookup
         for (const m of metricsResults) {
           const lastPurchase = m.lastPurchaseDate ? new Date(m.lastPurchaseDate) : null;
-          const daysSinceLastPurchase = lastPurchase 
+          const daysSinceLastPurchase = lastPurchase
             ? Math.floor((now.getTime() - lastPurchase.getTime()) / (1000 * 60 * 60 * 24))
             : null;
-          
+
           purchaseMetrics[m.clientName || ''] = {
             purchaseCount: Number(m.purchaseCount) || 0,
             totalAmount: Number(m.totalAmount) || 0,
@@ -21749,7 +21749,7 @@ export class DatabaseStorage implements IStorage {
           };
         }
       }
-      
+
       const clientesConNotas = results.map(lead => {
         const metrics = purchaseMetrics[lead.clientName] || {};
         return {
@@ -21768,10 +21768,10 @@ export class DatabaseStorage implements IStorage {
           avgTicket: metrics.avgTicket || 0,
         };
       });
-      
+
       // Sort by purchase count descending (most active first)
       clientesConNotas.sort((a, b) => (b.purchaseCount || 0) - (a.purchaseCount || 0));
-      
+
       return clientesConNotas;
     } catch (error: any) {
       console.error('Error getting clientes recurrentes:', error.message);
@@ -21787,33 +21787,33 @@ export class DatabaseStorage implements IStorage {
         .from(crmLeads)
         .where(eq(crmLeads.id, clientId))
         .limit(1);
-      
+
       if (!lead) {
         throw new Error('Cliente no encontrado');
       }
-      
+
       // Agregar la nueva nota al campo notes (formato: [fecha] Usuario: nota)
       const timestamp = new Date().toISOString();
-      const formattedNote = `[${new Date().toLocaleDateString('es-CL', { 
-        day: '2-digit', 
-        month: 'short', 
+      const formattedNote = `[${new Date().toLocaleDateString('es-CL', {
+        day: '2-digit',
+        month: 'short',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
       })}] ${userName}: ${note}`;
-      
-      const updatedNotes = lead.notes 
+
+      const updatedNotes = lead.notes
         ? `${formattedNote}\n\n${lead.notes}`
         : formattedNote;
-      
+
       await db
         .update(crmLeads)
-        .set({ 
+        .set({
           notes: updatedNotes,
           updatedAt: new Date()
         })
         .where(eq(crmLeads.id, clientId));
-      
+
       return { success: true, note: formattedNote };
     } catch (error: any) {
       console.error('Error adding cliente recurrente note:', error.message);
@@ -21849,12 +21849,12 @@ export class DatabaseStorage implements IStorage {
             eq(salespeopleUsers.role, 'salesperson'),
             eq(salespeopleUsers.isActive, true)
           ));
-        
+
         const salespersonNames = supervisedSalespeople.map(sp => sp.salespersonName);
         if (salespersonName) {
           salespersonNames.push(salespersonName);
         }
-        
+
         if (salespersonNames.length > 0) {
           conditions.push(sql`UPPER(${factVentas.nokofu}) IN (${sql.join(salespersonNames.map(n => sql`UPPER(${n})`), sql`, `)})`);
         }
@@ -22136,7 +22136,7 @@ export class DatabaseStorage implements IStorage {
 
   async getApiKeys(createdBy?: string): Promise<ApiKey[]> {
     const conditions = [];
-    
+
     if (createdBy) {
       conditions.push(eq(apiKeys.createdBy, createdBy));
     }
@@ -22302,7 +22302,7 @@ export class DatabaseStorage implements IStorage {
 
       // Add year filter if provided
       if (filters?.years && filters.years.length > 0) {
-        const yearConditions = filters.years.map(year => 
+        const yearConditions = filters.years.map(year =>
           sql`EXTRACT(YEAR FROM ${factVentas.feemdo})::int = ${year}`
         );
         salesConditions.push(or(...yearConditions)!);
@@ -22355,7 +22355,7 @@ export class DatabaseStorage implements IStorage {
               .filter(s => s.clientName === clientName)
               .map(s => s.year)
           );
-          
+
           // Check if client has sales in ALL selected years
           return filters.years!.every(year => clientYears.has(year));
         });
@@ -22407,7 +22407,7 @@ export class DatabaseStorage implements IStorage {
 
       // Filter by paginated clients
       if (paginatedClients.length > 0) {
-        const clientConditions = paginatedClients.map(client => 
+        const clientConditions = paginatedClients.map(client =>
           sql`${factVentas.nokoen} = ${client}`
         );
         monthlySalesConditions.push(or(...clientConditions)!);
@@ -22415,7 +22415,7 @@ export class DatabaseStorage implements IStorage {
 
       // Add year filter
       if (filters?.years && filters.years.length > 0) {
-        const yearConditions = filters.years.map(year => 
+        const yearConditions = filters.years.map(year =>
           sql`EXTRACT(YEAR FROM ${factVentas.feemdo})::int = ${year}`
         );
         monthlySalesConditions.push(or(...yearConditions)!);
@@ -22423,7 +22423,7 @@ export class DatabaseStorage implements IStorage {
 
       // Add month filter if provided
       if (filters?.months && filters.months.length > 0) {
-        const monthConditions = filters.months.map(month => 
+        const monthConditions = filters.months.map(month =>
           sql`EXTRACT(MONTH FROM ${factVentas.feemdo})::int = ${month}`
         );
         monthlySalesConditions.push(or(...monthConditions)!);
@@ -22579,7 +22579,7 @@ export class DatabaseStorage implements IStorage {
         .orderBy(factVentas.nokofu);
 
       const names = salespeopleNames.map(r => r.name!).filter(Boolean);
-      
+
       if (names.length === 0) {
         return [];
       }
@@ -22641,19 +22641,19 @@ export class DatabaseStorage implements IStorage {
       eq(proyeccionesVentas.salespersonCode, proyeccion.salespersonCode),
       eq(proyeccionesVentas.clientCode, proyeccion.clientCode),
     ];
-    
+
     if (proyeccion.month) {
       conditions.push(eq(proyeccionesVentas.month, proyeccion.month));
     } else {
       conditions.push(isNull(proyeccionesVentas.month));
     }
-    
+
     const existing = await db
       .select()
       .from(proyeccionesVentas)
       .where(and(...conditions))
       .limit(1);
-    
+
     if (existing.length > 0) {
       // Update existing projection
       const [result] = await db
@@ -22667,7 +22667,7 @@ export class DatabaseStorage implements IStorage {
         })
         .where(eq(proyeccionesVentas.id, existing[0].id))
         .returning();
-      
+
       return result;
     } else {
       // Insert new projection
@@ -22678,7 +22678,7 @@ export class DatabaseStorage implements IStorage {
           updatedAt: new Date(),
         })
         .returning();
-      
+
       return result;
     }
   }
@@ -22691,11 +22691,11 @@ export class DatabaseStorage implements IStorage {
   }): Promise<ProyeccionVenta[]> {
     // Build conditions for the query
     const conditions = [];
-    
+
     if (filters?.years && filters.years.length > 0) {
       conditions.push(inArray(proyeccionesVentas.year, filters.years));
     }
-    
+
     // When filtering by months, include BOTH monthly projections AND annual projections (month=null)
     if (filters?.months && filters.months.length > 0) {
       conditions.push(
@@ -22729,7 +22729,7 @@ export class DatabaseStorage implements IStorage {
       .from(proyeccionesVentas)
       .where(eq(proyeccionesVentas.id, id))
       .limit(1);
-    
+
     return result;
   }
 
@@ -22746,10 +22746,10 @@ export class DatabaseStorage implements IStorage {
   async checkAndNotifyLowStock(): Promise<void> {
     try {
       console.log('[NOTIF] Iniciando verificación de stock bajo...');
-      
+
       // Verificar si la tabla productStock existe consultando primero
       console.log('[NOTIF] Verificando existencia de tabla productStock...');
-      
+
       let lowStockProducts;
       try {
         // Obtener todos los productos con stock bajo (stock < minStock)
@@ -22770,7 +22770,7 @@ export class DatabaseStorage implements IStorage {
               sql`${productStock.currentStock} < ${productStock.minStock}`
             )
           );
-        
+
         console.log(`[NOTIF] Query completada. Tipo: ${typeof lowStockProducts}, Array: ${Array.isArray(lowStockProducts)}, Length: ${lowStockProducts?.length}`);
       } catch (queryError: any) {
         console.error('[NOTIF] Error en query de stock bajo:', queryError.message);
@@ -22854,17 +22854,17 @@ export class DatabaseStorage implements IStorage {
       }
 
       await Promise.all(notificationPromises);
-      
+
       console.log(`[NOTIF] Stock bajo: ${lowStockProducts.length} productos, ${Object.keys(stockByWarehouse).length} bodegas notificadas`);
     } catch (error: any) {
       console.error('[NOTIF] Error checking low stock:', error.message);
     }
   }
 
-  async notifyNewSale(saleData: { 
-    clientName: string; 
-    amount: number; 
-    salesperson: string; 
+  async notifyNewSale(saleData: {
+    clientName: string;
+    amount: number;
+    salesperson: string;
     documentNumber: string;
   }): Promise<void> {
     try {
@@ -22903,7 +22903,7 @@ export class DatabaseStorage implements IStorage {
 
   async getVendorNamesMap(): Promise<Map<string, string>> {
     const now = Date.now();
-    
+
     // Return cached data if still valid
     if (this.vendorNamesCache && (now - this.vendorNamesCacheTime < this.VENDOR_CACHE_TTL)) {
       console.log(`[NVV MAPPING] Using cached TABFU mappings (${this.vendorNamesCache.size} entries)`);
@@ -22913,7 +22913,7 @@ export class DatabaseStorage implements IStorage {
     // Fetch fresh data from SQL Server
     const kofulidoToNameMap = new Map<string, string>();
     let pool: mssql.ConnectionPool | undefined;
-    
+
     try {
       pool = await mssql.connect({
         server: process.env.SQL_SERVER_HOST || '',
@@ -22933,28 +22933,28 @@ export class DatabaseStorage implements IStorage {
         FROM dbo.TABFU 
         WHERE NOKOFU IS NOT NULL AND NOKOFU != ''
       `);
-      
+
       result.recordset.forEach(row => {
         if (row.KOFU && row.NOKOFU) {
           kofulidoToNameMap.set(row.KOFU.trim(), row.NOKOFU.trim());
         }
       });
-      
+
       // Update cache
       this.vendorNamesCache = kofulidoToNameMap;
       this.vendorNamesCacheTime = now;
-      
+
       console.log(`[NVV MAPPING] Fetched and cached ${kofulidoToNameMap.size} salesperson mappings from SQL Server TABFU`);
     } catch (error) {
       console.error('[NVV MAPPING] Error fetching from SQL Server TABFU:', error);
-      
+
       // If cache exists, use it as fallback
       if (this.vendorNamesCache) {
         const cacheAge = Math.round((now - this.vendorNamesCacheTime) / 1000 / 60);
         console.log(`[NVV MAPPING] Using stale cache as fallback (${this.vendorNamesCache.size} entries, ${cacheAge} minutes old)`);
         return this.vendorNamesCache;
       }
-      
+
       console.warn('[NVV MAPPING] No cache available - using empty mapping (vendor codes will be displayed as-is)');
     } finally {
       // Always close the pool to prevent connection leaks
@@ -22966,7 +22966,7 @@ export class DatabaseStorage implements IStorage {
         }
       }
     }
-    
+
     return kofulidoToNameMap;
   }
 
@@ -22978,7 +22978,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(gdvSyncLog.startTime))
       .limit(limit)
       .offset(offset);
-    
+
     return history;
   }
 
@@ -22996,14 +22996,14 @@ export class DatabaseStorage implements IStorage {
       const now = new Date();
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const dateFilter = firstDayOfMonth.toISOString().split('T')[0];
-      
+
       const conditions: string[] = [];
-      
+
       // Solo mostrar GDV pendientes (líneas abiertas con cantidad pendiente)
       conditions.push(`(eslido IS NULL OR eslido = '')`);
       conditions.push(`cantidad_pendiente = true`);
       conditions.push(`feemdo >= '${dateFilter}'`); // Solo mes actual
-      
+
       if (filters?.startDate) {
         conditions.push(`feemdo >= '${filters.startDate}'`);
       }
@@ -23013,7 +23013,7 @@ export class DatabaseStorage implements IStorage {
       if (filters?.sucursales && filters.sucursales.length > 0) {
         conditions.push(`sudo IN (${filters.sucursales.join(',')})`);
       }
-      
+
       const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
       const query = sql.raw(`
@@ -23027,7 +23027,7 @@ export class DatabaseStorage implements IStorage {
 
       const result = await db.execute(query);
       const row = result.rows[0] as any;
-      
+
       return {
         totalGdvPendientes: Number(row?.total_documentos || 0),
         montoPendiente: Number(row?.monto_pendiente || 0),
@@ -23054,21 +23054,21 @@ export class DatabaseStorage implements IStorage {
       const now = new Date();
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const dateFilter = firstDayOfMonth.toISOString().split('T')[0];
-      
+
       const conditions: string[] = [];
-      
+
       // Solo mostrar GDV pendientes (líneas abiertas con cantidad pendiente)
       conditions.push(`(eslido IS NULL OR eslido = '')`);
       conditions.push(`cantidad_pendiente = true`);
       conditions.push(`feemdo >= '${dateFilter}'`); // Solo mes actual
-      
+
       if (filters?.startDate) {
         conditions.push(`feemdo >= '${filters.startDate}'`);
       }
       if (filters?.endDate) {
         conditions.push(`feemdo <= '${filters.endDate}'`);
       }
-      
+
       const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
       const query = sql.raw(`
@@ -23113,7 +23113,7 @@ export class DatabaseStorage implements IStorage {
       const now = new Date();
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const dateFilter = firstDayOfMonth.toISOString().split('T')[0];
-      
+
       const query = sql.raw(`
         SELECT 
           COALESCE(nudo::text, '') as numero_guia,
@@ -23163,7 +23163,7 @@ export class DatabaseStorage implements IStorage {
       const now = new Date();
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const dateFilter = firstDayOfMonth.toISOString().split('T')[0];
-      
+
       const query = sql.raw(`
         SELECT 
           COALESCE(nudo::text, '') as numero_guia,
@@ -23208,7 +23208,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(nvvSyncLog.startTime))
       .limit(limit)
       .offset(offset);
-    
+
     return history;
   }
 
@@ -23304,7 +23304,7 @@ export class DatabaseStorage implements IStorage {
     }).from(factNvv);
 
     const conditions = [];
-    
+
     if (filters?.startDate) {
       conditions.push(sql`${factNvv.feemdo} >= ${filters.startDate}`);
     }
@@ -23340,7 +23340,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     const result = await query;
-    
+
     return {
       totalNvv: Number(result[0]?.total || 0),
       totalAbiertas: Number(result[0]?.abiertas || 0),
@@ -23379,7 +23379,7 @@ export class DatabaseStorage implements IStorage {
     }).from(factNvv);
 
     const conditions = [];
-    
+
     if (filters?.startDate) {
       conditions.push(sql`${factNvv.feemdo} >= ${filters.startDate}`);
     }
@@ -23456,7 +23456,7 @@ export class DatabaseStorage implements IStorage {
     }).from(factNvv);
 
     const conditions = [];
-    
+
     if (filters?.startDate) {
       conditions.push(sql`${factNvv.feemdo} >= ${filters.startDate}`);
     }
@@ -23533,7 +23533,7 @@ export class DatabaseStorage implements IStorage {
     }).from(factNvv);
 
     const conditions = [];
-    
+
     if (filters?.startDate) {
       conditions.push(sql`${factNvv.feemdo} >= ${filters.startDate}`);
     }
@@ -23610,7 +23610,7 @@ export class DatabaseStorage implements IStorage {
     }).from(factNvv);
 
     const conditions = [];
-    
+
     if (filters?.startDate) {
       conditions.push(sql`${factNvv.feemdo} >= ${filters.startDate}`);
     }
@@ -23683,7 +23683,7 @@ export class DatabaseStorage implements IStorage {
     total: number;
   }> {
     const conditions = [];
-    
+
     if (filters?.startDate) {
       conditions.push(sql`${factNvv.feemdo} >= ${filters.startDate}`);
     }
@@ -23857,11 +23857,11 @@ export class DatabaseStorage implements IStorage {
       .from(seoPositionHistory)
       .where(eq(seoPositionHistory.keywordId, keywordId))
       .orderBy(desc(seoPositionHistory.fechaConsulta));
-    
+
     if (limit) {
       query = query.limit(limit) as typeof query;
     }
-    
+
     return await query;
   }
 
@@ -23870,7 +23870,7 @@ export class DatabaseStorage implements IStorage {
       .insert(seoPositionHistory)
       .values(data)
       .returning();
-    
+
     // Update keyword with last position
     await db
       .update(seoKeywords)
@@ -23879,7 +23879,7 @@ export class DatabaseStorage implements IStorage {
         ultimaConsulta: new Date(),
       })
       .where(eq(seoKeywords.id, data.keywordId));
-    
+
     return result[0];
   }
 
@@ -23988,7 +23988,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(loyaltyTiers)
       .where(eq(loyaltyTiers.id, tierId));
-    
+
     if (!tier) return [];
 
     // Calculate date 90 days ago (or tier's period)
@@ -24007,8 +24007,8 @@ export class DatabaseStorage implements IStorage {
     // Find the tier's range (min and max)
     const tierIndex = allTiers.findIndex(t => t.id === tierId);
     const minAmount = Number(tier.montoMinimo);
-    const maxAmount = tierIndex < allTiers.length - 1 
-      ? Number(allTiers[tierIndex + 1].montoMinimo) 
+    const maxAmount = tierIndex < allTiers.length - 1
+      ? Number(allTiers[tierIndex + 1].montoMinimo)
       : null; // No max for highest tier
 
     // Get clients with their sales in the period - using factVentas (ETL data)
@@ -24030,9 +24030,9 @@ export class DatabaseStorage implements IStorage {
       .having(
         maxAmount
           ? and(
-              sql`COALESCE(SUM(${factVentas.vaneli}), 0) >= ${minAmount}`,
-              sql`COALESCE(SUM(${factVentas.vaneli}), 0) < ${maxAmount}`
-            )
+            sql`COALESCE(SUM(${factVentas.vaneli}), 0) >= ${minAmount}`,
+            sql`COALESCE(SUM(${factVentas.vaneli}), 0) < ${maxAmount}`
+          )
           : sql`COALESCE(SUM(${factVentas.vaneli}), 0) >= ${minAmount}`
       )
       .orderBy(sql`COALESCE(SUM(${factVentas.vaneli}), 0) DESC`);
@@ -24138,7 +24138,7 @@ export class DatabaseStorage implements IStorage {
 
   async saveWhatsAppConfig(config: { phoneNumberId: string; businessAccountId: string; accessToken: string; webhookVerifyToken: string }): Promise<void> {
     const existing = await this.getWhatsAppConfig();
-    
+
     if (existing) {
       await db.update(whatsappConfig)
         .set({
