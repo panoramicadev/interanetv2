@@ -15321,11 +15321,18 @@ export class DatabaseStorage implements IStorage {
 
     // Determinar nuevo estado según si procede o no y el área responsable
     // Si procede y es laboratorio: pasa a en_laboratorio
+    // Si procede y es produccion: pasa a en_produccion
     // Si procede y es otra área: pasa a en_area_responsable
     // Si no procede: se mantiene en en_revision_tecnica para revisión posterior
     let nuevoEstado: string;
     if (procede) {
-      nuevoEstado = areaResponsable === 'laboratorio' ? 'en_laboratorio' : 'en_area_responsable';
+      if (areaResponsable === 'laboratorio') {
+        nuevoEstado = 'en_laboratorio';
+      } else if (areaResponsable === 'produccion') {
+        nuevoEstado = 'en_produccion';
+      } else {
+        nuevoEstado = 'en_area_responsable';
+      }
     } else {
       nuevoEstado = 'en_revision_tecnica';
     }

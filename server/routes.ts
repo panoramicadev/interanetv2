@@ -11265,6 +11265,9 @@ export function registerRoutes(app: Express): Server {
         const areaAsignadaInicial = req.body.areaAsignadaInicial;
         if (areaAsignadaInicial === 'laboratorio') {
           estadoInicial = 'en_laboratorio';
+        } else if (areaAsignadaInicial === 'produccion') {
+          estadoInicial = 'en_produccion';
+          areaResponsableActual = areaAsignadaInicial;
         } else {
           estadoInicial = 'en_area_responsable';
           areaResponsableActual = areaAsignadaInicial;
@@ -11643,10 +11646,11 @@ export function registerRoutes(app: Express): Server {
       // Definir roles organizacionales permitidos
       const organizationalRoles = ['produccion', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
       
-      // Validar que el usuario tiene rol de área, laboratorio, o rol organizacional
+      // Validar que el usuario tiene rol de área, laboratorio, jefe_planta, o rol organizacional
       const isAreaRole = user.role && (
         user.role.startsWith('area_') || 
         user.role === 'laboratorio' ||
+        user.role === 'jefe_planta' ||
         organizationalRoles.includes(user.role)
       );
       if (!isAreaRole) {
@@ -16174,12 +16178,10 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         return res.status(400).json({ message: 'Este gasto no está pendiente de aprobación de RRHH' });
       }
       
-      const { comprobanteUrl, comentario } = req.body;
-      if (gasto.fundingMode !== 'con_fondo' && !comprobanteUrl) {
-        return res.status(400).json({ message: 'El comprobante de transferencia es requerido para reembolsos' });
-      }
+      const { comentario } = req.body;
+      const comprobanteUrl = gasto.archivoUrl || null;
       
-      const result = await storage.aprobarReembolsoRrhh(req.params.id, user.id, comprobanteUrl || null, comentario);
+      const result = await storage.aprobarReembolsoRrhh(req.params.id, user.id, comprobanteUrl, comentario);
       
       if (gasto.fundingMode === 'con_fondo' && gasto.fundAllocationId) {
         try {
@@ -16683,10 +16685,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         return res.status(400).json({ message: 'El segmento es requerido para solicitar fondos' });
       }
       
-      // All fund allocations now go directly to RRHH approval (supervisor step removed)
-      const initialApprovalState = 'pendiente_rrhh';
-      const supervisorAprobadorId: string | null = null;
-      const fechaAprobacionSupervisor: Date | null = null;
+      // All fund allocations go directly to RRHH approval (supervisor step removed)
       
       // Create fund allocation with multi-level approval flow
       const allocation = await storage.createFundAllocation({
@@ -16696,65 +16695,38 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         assignedToId: user.id,
         assignedById: user.id, // Self-requested
         estado: 'solicitud',
-        estadoAprobacion: initialApprovalState,
+        estadoAprobacion: 'pendiente_rrhh',
         segmentCode: segmentCode,
         fechaInicio: new Date().toISOString().split('T')[0],
         fechaTermino: fechaTermino || null,
         centroCostos: centroCostos || null,
         motivo: motivo || null,
-        supervisorAprobadorId: supervisorAprobadorId,
-        fechaAprobacionSupervisor: fechaAprobacionSupervisor,
-        comentarioSupervisor: requesterIsSupervisor ? 'Auto-aprobado (solicitud del supervisor)' : null,
+        supervisorAprobadorId: null,
+        fechaAprobacionSupervisor: null,
+        comentarioSupervisor: null,
       });
       
-      // Notify based on approval state
-      if (initialApprovalState === 'pendiente_rrhh') {
-        // Notify RRHH users directly (supervisor auto-approved or no supervisor assigned)
-        try {
-          const { db } = await import('./db');
-          const { users } = await import('../shared/schema');
-          const { or, eq } = await import('drizzle-orm');
-          
-          const rrhhUsers = await db.select({ id: users.id, role: users.role })
-            .from(users)
-            .where(or(eq(users.role, 'recursos_humanos'), eq(users.role, 'admin')));
-          
-          const notificationTitle = requesterIsSupervisor 
-            ? 'Nueva solicitud de fondos (supervisor)' 
-            : 'Nueva solicitud de fondos (sin supervisor)';
-          const notificationMessage = requesterIsSupervisor
-            ? `${user.fullName || user.username} (supervisor) ha solicitado fondos por $${Number(monto).toLocaleString('es-CL')} - Requiere aprobación de RRHH`
-            : `${user.fullName || user.username} ha solicitado fondos por $${Number(monto).toLocaleString('es-CL')} - Requiere aprobación directa de RRHH`;
-          
-          for (const rrhhUser of rrhhUsers) {
-            await storage.createNotification({
-              userId: rrhhUser.id,
-              type: 'fund_request',
-              title: notificationTitle,
-              message: notificationMessage,
-              priority: 'high',
-              metadata: { allocationId: allocation.id },
-            });
-          }
-        } catch (notifError) {
-          console.error('Error sending notification to RRHH:', notifError);
+      try {
+        const { db } = await import('./db');
+        const { users } = await import('../shared/schema');
+        const { or, eq } = await import('drizzle-orm');
+        
+        const rrhhUsers = await db.select({ id: users.id, role: users.role })
+          .from(users)
+          .where(or(eq(users.role, 'recursos_humanos'), eq(users.role, 'admin')));
+        
+        for (const rrhhUser of rrhhUsers) {
+          await storage.createNotification({
+            userId: rrhhUser.id,
+            type: 'fund_request',
+            title: 'Nueva solicitud de fondos',
+            message: `${user.fullName || user.username} ha solicitado fondos por $${Number(monto).toLocaleString('es-CL')} - Requiere aprobación de RRHH`,
+            priority: 'high',
+            metadata: { allocationId: allocation.id },
+          });
         }
-      } else {
-        // Notify supervisors (normal flow)
-        for (const sup of segmentSupervisors) {
-          try {
-            await storage.createNotification({
-              userId: sup.supervisorUserId,
-              type: 'fund_request',
-              title: 'Nueva solicitud de fondos',
-              message: `${user.fullName || user.username} ha solicitado fondos por $${Number(monto).toLocaleString('es-CL')}`,
-              priority: 'high',
-              metadata: { allocationId: allocation.id },
-            });
-          } catch (notifError) {
-            console.error('Error sending notification to supervisor:', notifError);
-          }
-        }
+      } catch (notifError) {
+        console.error('Error sending notification to RRHH:', notifError);
       }
       
       res.status(201).json(allocation);
@@ -16772,7 +16744,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.get('/api/segment-supervisors', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (!['admin', 'rrhh'].includes(user.role)) {
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
       
@@ -16788,7 +16760,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/segment-supervisors', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (!['admin', 'rrhh'].includes(user.role)) {
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
       
@@ -16808,7 +16780,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.delete('/api/segment-supervisors/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (!['admin', 'rrhh'].includes(user.role)) {
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
       
@@ -16838,7 +16810,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.get('/api/fund-allocations/pending/rrhh', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (!['rrhh', 'admin'].includes(user.role)) {
+      if (!['recursos_humanos', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
       
@@ -16869,7 +16841,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         
         const rrhhUsers = await db.select({ id: users.id, role: users.role })
           .from(users)
-          .where(or(eq(users.role, 'rrhh'), eq(users.role, 'admin')));
+          .where(or(eq(users.role, 'recursos_humanos'), eq(users.role, 'admin')));
         
         for (const rrhhUser of rrhhUsers) {
           await storage.createNotification({
@@ -16930,7 +16902,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/fund-allocations/:id/rrhh-approve', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (!['rrhh', 'admin'].includes(user.role)) {
+      if (!['recursos_humanos', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
       
@@ -16965,7 +16937,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/fund-allocations/:id/rrhh-reject', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      if (!['rrhh', 'admin'].includes(user.role)) {
+      if (!['recursos_humanos', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
       
