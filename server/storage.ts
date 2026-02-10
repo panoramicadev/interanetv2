@@ -15321,11 +15321,18 @@ export class DatabaseStorage implements IStorage {
     
     // Determinar nuevo estado según si procede o no y el área responsable
     // Si procede y es laboratorio: pasa a en_laboratorio
+    // Si procede y es produccion: pasa a en_produccion
     // Si procede y es otra área: pasa a en_area_responsable
     // Si no procede: se mantiene en en_revision_tecnica para revisión posterior
     let nuevoEstado: string;
     if (procede) {
-      nuevoEstado = areaResponsable === 'laboratorio' ? 'en_laboratorio' : 'en_area_responsable';
+      if (areaResponsable === 'laboratorio') {
+        nuevoEstado = 'en_laboratorio';
+      } else if (areaResponsable === 'produccion') {
+        nuevoEstado = 'en_produccion';
+      } else {
+        nuevoEstado = 'en_area_responsable';
+      }
     } else {
       nuevoEstado = 'en_revision_tecnica';
     }
@@ -15613,9 +15620,9 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Reclamo not found');
     }
     
-    // Verificar que el reclamo está en estado "en_area_responsable"
-    if (reclamo.estado !== 'en_area_responsable') {
-      throw new Error('El reclamo no está en estado "En Área Responsable"');
+    // Verificar que el reclamo está en estado "en_area_responsable" o "en_produccion"
+    if (reclamo.estado !== 'en_area_responsable' && reclamo.estado !== 'en_produccion') {
+      throw new Error('El reclamo no está en estado "En Área Responsable" o "En Producción"');
     }
     
     // Use centralized area mapping from shared/reclamosAreas
