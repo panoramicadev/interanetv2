@@ -768,6 +768,25 @@ export async function runProductionMigrations() {
   }
 }
 
+export async function fixReclamosProduccionEstado(): Promise<number> {
+  try {
+    const result = await db.execute(sql`
+      UPDATE reclamos_generales 
+      SET estado = 'en_produccion', updated_at = NOW()
+      WHERE area_responsable_actual = 'produccion' 
+        AND estado = 'en_area_responsable'
+    `);
+    const count = (result as any).rowCount || 0;
+    if (count > 0) {
+      console.log(`🔧 Corregidos ${count} reclamos de producción: en_area_responsable → en_produccion`);
+    }
+    return count;
+  } catch (error: any) {
+    console.error('Error corrigiendo estados de reclamos de producción:', error.message);
+    return 0;
+  }
+}
+
 export async function syncMissingFundMovements(): Promise<{ synced: number; errors: number }> {
   let synced = 0;
   let errors = 0;

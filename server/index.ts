@@ -6,7 +6,7 @@ import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
 import { executeNVVETL } from "./etl-nvv";
 import { storage } from "./storage";
 import { startHealthMonitor } from "./etl-health-monitor";
-import { runProductionMigrations, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, bootstrapDatabase, syncMissingFundMovements } from "./migrations";
+import { runProductionMigrations, migrateProductImageUrls, uploadLocalImagesToObjectStorage, populateProductFamilyAndColor, bootstrapDatabase, syncMissingFundMovements, fixReclamosProduccionEstado } from "./migrations";
 import { startDailySalesReportScheduler } from "./daily-sales-report";
 
 const app = express();
@@ -143,6 +143,13 @@ async function initializeBackgroundServices() {
     }
   } catch (error: any) {
     console.error('⚠️ Error al sincronizar movimientos de fondos:', error.message);
+  }
+
+  // Corregir reclamos de producción con estado incorrecto
+  try {
+    await fixReclamosProduccionEstado();
+  } catch (error: any) {
+    console.error('⚠️ Error al corregir estados de reclamos:', error.message);
   }
 
   // Inicializar catálogos públicos para todos los vendedores

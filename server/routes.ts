@@ -11265,6 +11265,9 @@ export function registerRoutes(app: Express): Server {
         const areaAsignadaInicial = req.body.areaAsignadaInicial;
         if (areaAsignadaInicial === 'laboratorio') {
           estadoInicial = 'en_laboratorio';
+        } else if (areaAsignadaInicial === 'produccion') {
+          estadoInicial = 'en_produccion';
+          areaResponsableActual = areaAsignadaInicial;
         } else {
           estadoInicial = 'en_area_responsable';
           areaResponsableActual = areaAsignadaInicial;
@@ -11643,10 +11646,11 @@ export function registerRoutes(app: Express): Server {
       // Definir roles organizacionales permitidos
       const organizationalRoles = ['produccion', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
       
-      // Validar que el usuario tiene rol de área, laboratorio, o rol organizacional
+      // Validar que el usuario tiene rol de área, laboratorio, jefe_planta, o rol organizacional
       const isAreaRole = user.role && (
         user.role.startsWith('area_') || 
         user.role === 'laboratorio' ||
+        user.role === 'jefe_planta' ||
         organizationalRoles.includes(user.role)
       );
       if (!isAreaRole) {

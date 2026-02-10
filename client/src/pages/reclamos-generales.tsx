@@ -1179,8 +1179,12 @@ export default function ReclamosGeneralesPage() {
             r.estado === 'en_laboratorio' || 
             (r.areaResponsableActual === userArea && r.estado === 'en_area_responsable')
           );
+        } else if (user?.role === 'jefe_planta' || user?.role === 'produccion' || user?.role === 'area_produccion') {
+          return reclamos.filter(r => 
+            r.estado === 'en_produccion' || 
+            (r.areaResponsableActual === 'produccion' && r.estado === 'en_area_responsable')
+          );
         } else if (user?.role?.startsWith('area_') || (user?.role && organizationalRoles.includes(user.role))) {
-          // Area roles and organizational roles: reclamos where areaResponsableActual matches and estado === "en_area_responsable"
           const userArea = getUserArea();
           return reclamos.filter(r => 
             r.areaResponsableActual === userArea && r.estado === 'en_area_responsable'
@@ -1564,10 +1568,11 @@ export default function ReclamosGeneralesPage() {
                                     </>
                                   )}
 
-                                  {/* Opciones para Laboratorio y Áreas Responsables */}
+                                  {/* Opciones para Laboratorio, Producción y Áreas Responsables */}
                                   {((user?.role === 'laboratorio' && reclamo.estado === 'en_laboratorio') || 
                                     (user?.role?.startsWith('area_') && reclamo.estado === 'en_area_responsable') ||
-                                    (organizationalRoles.includes(user?.role || '') && reclamo.estado === 'en_area_responsable')) && (
+                                    (organizationalRoles.includes(user?.role || '') && reclamo.estado === 'en_area_responsable') ||
+                                    ((user?.role === 'jefe_planta' || user?.role === 'produccion' || user?.role === 'area_produccion') && reclamo.estado === 'en_produccion')) && (
                                     <>
                                       <DropdownMenuItem
                                         onClick={() => {
@@ -2027,7 +2032,8 @@ export default function ReclamosGeneralesPage() {
             <DialogTitle>Detalle del Reclamo</DialogTitle>
             {/* Botón para laboratorio y áreas responsables debajo del título */}
             {((user?.role === 'laboratorio' && reclamoDetails && reclamoDetails.estado === 'en_laboratorio') ||
-              ((user?.role?.startsWith('area_') || (user?.role && organizationalRoles.includes(user.role))) && reclamoDetails && reclamoDetails.estado === 'en_area_responsable')) && (
+              ((user?.role?.startsWith('area_') || (user?.role && organizationalRoles.includes(user.role))) && reclamoDetails && reclamoDetails.estado === 'en_area_responsable') ||
+              ((user?.role === 'jefe_planta' || user?.role === 'produccion' || user?.role === 'area_produccion') && reclamoDetails && reclamoDetails.estado === 'en_produccion')) && (
               <Button
                 onClick={() => {
                   if (reclamoDetails.informeLaboratorio) {
