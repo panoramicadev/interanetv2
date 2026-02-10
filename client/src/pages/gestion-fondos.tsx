@@ -125,7 +125,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
 
   const canManageFunds = user?.role === 'admin' || user?.role === 'recursos_humanos';
   const isSupervisor = user?.role === 'supervisor';
-  const isRRHH = user?.role === 'admin' || user?.role === 'recursos_humanos' || user?.role === 'rrhh';
+  const isRRHH = user?.role === 'admin' || user?.role === 'recursos_humanos';
 
   // Fetch fund allocations
   const { data: allocations = [], isLoading: isLoadingAllocations } = useQuery<FundAllocation[]>({

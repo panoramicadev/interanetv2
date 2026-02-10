@@ -767,3 +767,101 @@ export async function runProductionMigrations() {
     throw error;
   }
 }
+
+export async function fixReclamosProduccionEstado(): Promise<number> {
+  try {
+    const result = await db.execute(sql`
+      UPDATE reclamos_generales 
+      SET estado = 'en_produccion', updated_at = NOW()
+      WHERE area_responsable_actual = 'produccion' 
+        AND estado = 'en_area_responsable'
+    `);
+    const count = (result as any).rowCount || 0;
+    if (count > 0) {
+      console.log(`🔧 Corregidos ${count} reclamos de producción: en_area_responsable → en_produccion`);
+    }
+    return count;
+  } catch (error: any) {
+    console.error('Error corrigiendo estados de reclamos de producción:', error.message);
+    return 0;
+  }
+}
+
+export async function syncMissingFundMovements(): Promise<{ synced: number; errors: number }> {
+  let synced = 0;
+  let errors = 0;
+
+  try {
+    const rows = await db.execute(sql`
+      SELECT ge.id, ge.monto, ge.estado, ge.descripcion, ge.categoria,
+             ge.fund_allocation_id,
+             ge.user_id,
+             ge.created_at
+      FROM gastos_empresariales ge
+      INNER JOIN fund_allocations fa ON fa.id = ge.fund_allocation_id
+      WHERE ge.fund_allocation_id IS NOT NULL
+        AND ge.estado IN ('aprobado', 'rechazado', 'pendiente_rrhh', 'pendiente_supervisor')
+        AND NOT EXISTS (
+          SELECT 1 FROM fund_movements fm WHERE fm.gasto_id = ge.id
+        )
+      ORDER BY ge.created_at ASC
+    `);
+
+    const expenses = rows.rows as any[];
+
+    if (expenses.length === 0) {
+      console.log('✅ Todos los movimientos de fondos están sincronizados');
+      return { synced: 0, errors: 0 };
+    }
+
+    console.log(`📊 Encontrados ${expenses.length} gastos con fondo sin movimiento registrado`);
+
+    for (const expense of expenses) {
+      try {
+        let tipoMovimiento: string;
+        let descripcionMov: string;
+
+        if (expense.estado === 'aprobado') {
+          tipoMovimiento = 'gasto_aprobado';
+          descripcionMov = `Movimiento sincronizado desde gasto histórico: ${expense.descripcion || expense.categoria}`;
+        } else if (expense.estado === 'rechazado') {
+          tipoMovimiento = 'gasto_rechazado';
+          descripcionMov = `Movimiento sincronizado desde gasto histórico rechazado: ${expense.descripcion || expense.categoria}`;
+        } else {
+          tipoMovimiento = 'gasto_pendiente';
+          descripcionMov = `Movimiento sincronizado desde gasto pendiente: ${expense.descripcion || expense.categoria}`;
+        }
+
+        const montoValue = tipoMovimiento === 'gasto_rechazado'
+          ? `${Math.abs(parseFloat(expense.monto))}`
+          : `-${Math.abs(parseFloat(expense.monto))}`;
+
+        await db.execute(sql`
+          INSERT INTO fund_movements (id, allocation_id, tipo_movimiento, monto, descripcion, gasto_id, creado_por_id, created_at)
+          VALUES (
+            gen_random_uuid(),
+            ${expense.fund_allocation_id},
+            ${tipoMovimiento},
+            ${montoValue},
+            ${descripcionMov},
+            ${expense.id},
+            ${expense.user_id},
+            ${expense.created_at}
+          )
+        `);
+
+        synced++;
+        console.log(`  ✅ Sincronizado: ${expense.descripcion || expense.categoria} (${tipoMovimiento})`);
+      } catch (err: any) {
+        errors++;
+        console.error(`  ❌ Error sincronizando gasto ${expense.id}:`, err.message);
+      }
+    }
+
+    console.log(`📊 Sincronización completada: ${synced} sincronizados, ${errors} errores`);
+  } catch (error: any) {
+    console.error('❌ Error en sincronización de movimientos de fondos:', error.message);
+  }
+
+  return { synced, errors };
+}

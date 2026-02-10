@@ -142,7 +142,6 @@ export default function GastosEmpresariales() {
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [showRejectionDialog, setShowRejectionDialog] = useState(false);
   const [comentarioRechazo, setComentarioRechazo] = useState("");
-  const [comprobanteUrl, setComprobanteUrl] = useState("");
   const [showSolicitarFondoDialog, setShowSolicitarFondoDialog] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [activeMainTab, setActiveMainTab] = useState("rendicion");
@@ -270,7 +269,7 @@ export default function GastosEmpresariales() {
   });
 
   // Fetch fondos activos del usuario para mostrar barras de progreso
-  const canViewAllFunds = user?.role === 'admin' || user?.role === 'rrhh' || user?.role === 'recursos_humanos';
+  const canViewAllFunds = user?.role === 'admin' || user?.role === 'recursos_humanos';
   const { data: userFundAllocations = [] } = useQuery<FundAllocation[]>({
     queryKey: ['/api/fund-allocations', 'active', user?.id, canViewAllFunds],
     queryFn: async () => {
@@ -288,15 +287,8 @@ export default function GastosEmpresariales() {
     enabled: !!user?.id,
   });
 
-  // Calcular uso de cada fondo basado en gastos asociados
-  const getFundUsage = (fundId: string) => {
-    const fundGastos = gastos.filter(g => g.fundAllocationId === fundId && g.estado !== 'rechazado');
-    const totalUsado = fundGastos.reduce((sum, g) => sum + parseFloat(g.monto || '0'), 0);
-    return totalUsado;
-  };
-
   // Fetch pending RRHH approvals count (for RRHH badge)
-  const isRRHH = user?.role === 'recursos_humanos' || user?.role === 'rrhh' || user?.role === 'admin';
+  const isRRHH = user?.role === 'recursos_humanos' || user?.role === 'admin';
   const { data: pendingRRHHAllocations = [] } = useQuery<FundAllocation[]>({
     queryKey: ['/api/fund-allocations/pending/rrhh'],
     enabled: isRRHH,
@@ -307,14 +299,11 @@ export default function GastosEmpresariales() {
 
   // Aprobar mutation - determina el endpoint correcto según el tipo de gasto y rol
   const aprobarMutation = useMutation({
-    mutationFn: async ({ gasto, comprobanteUrl }: { gasto: GastoEmpresarial; comprobanteUrl?: string }) => {
+    mutationFn: async ({ gasto }: { gasto: GastoEmpresarial }) => {
       if (['pendiente_rrhh', 'pendiente_supervisor'].includes(gasto.estadoAprobacion || '')) {
-        if (gasto.fundingMode === 'reembolso' && !comprobanteUrl) {
-          throw new Error('El comprobante de transferencia es requerido');
-        }
         return apiRequest(`/api/gastos-empresariales/${gasto.id}/rrhh-approve`, {
           method: 'POST',
-          data: { comprobanteUrl }
+          data: {}
         });
       }
       return apiRequest(`/api/gastos-empresariales/${gasto.id}/aprobar`, {
@@ -333,7 +322,6 @@ export default function GastosEmpresariales() {
       });
       setShowApprovalDialog(false);
       setSelectedGasto(null);
-      setComprobanteUrl("");
     },
     onError: (error: any) => {
       toast({
@@ -536,8 +524,8 @@ export default function GastosEmpresariales() {
                       <div className="flex flex-col gap-3 w-full">
                         {userFundAllocations.map((fund) => {
                           const montoInicial = parseFloat(fund.montoInicial || '0');
-                          const montoUsado = fund.montoUsado ? parseFloat(fund.montoUsado) : getFundUsage(fund.id);
-                          const saldoDisponible = montoInicial - montoUsado;
+                          const saldoDisponible = fund.saldoDisponible != null ? parseFloat(String(fund.saldoDisponible)) : montoInicial;
+                          const montoUsado = montoInicial - saldoDisponible;
                           const porcentajeUsado = montoInicial > 0 ? (montoUsado / montoInicial) * 100 : 0;
                           const isOverBudget = porcentajeUsado > 100;
                           
@@ -1035,7 +1023,6 @@ export default function GastosEmpresariales() {
       {/* Approval Dialog */}
       <Dialog open={showApprovalDialog} onOpenChange={(open) => {
         setShowApprovalDialog(open);
-        if (!open) setComprobanteUrl("");
       }}>
         <DialogContent>
           <DialogHeader>
@@ -1049,26 +1036,16 @@ export default function GastosEmpresariales() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-4">
-            {selectedGasto?.fundingMode === 'reembolso' && ['pendiente_rrhh', 'pendiente_supervisor'].includes(selectedGasto?.estadoAprobacion || '') && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Comprobante de Transferencia *</label>
-                <Input
-                  placeholder="URL del comprobante de transferencia"
-                  value={comprobanteUrl}
-                  onChange={(e) => setComprobanteUrl(e.target.value)}
-                  data-testid="input-comprobante-url"
-                />
-                <p className="text-xs text-gray-500">
-                  Ingrese la URL del comprobante de la transferencia realizada al beneficiario.
-                </p>
-              </div>
+            {selectedGasto?.archivoUrl && (
+              <p className="text-sm text-muted-foreground">
+                El comprobante adjunto al gasto se asignará automáticamente.
+              </p>
             )}
             <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
                 onClick={() => {
                   setShowApprovalDialog(false);
-                  setComprobanteUrl("");
                 }}
                 data-testid="button-cancel-approve"
               >
@@ -1078,17 +1055,11 @@ export default function GastosEmpresariales() {
                 onClick={() => {
                   if (selectedGasto) {
                     aprobarMutation.mutate({ 
-                      gasto: selectedGasto, 
-                      comprobanteUrl: comprobanteUrl || undefined 
+                      gasto: selectedGasto
                     });
                   }
                 }}
-                disabled={
-                  aprobarMutation.isPending || 
-                  (selectedGasto?.fundingMode === 'reembolso' && 
-                   ['pendiente_rrhh', 'pendiente_supervisor'].includes(selectedGasto?.estadoAprobacion || '') && 
-                   !comprobanteUrl.trim())
-                }
+                disabled={aprobarMutation.isPending}
                 data-testid="button-confirm-approve"
               >
                 {aprobarMutation.isPending ? 'Aprobando...' : 'Aprobar'}
