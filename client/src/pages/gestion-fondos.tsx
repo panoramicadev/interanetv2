@@ -744,7 +744,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                       >
                         Ver
                       </Button>
-                      {canManageFunds && fondo.estadoAprobacion === 'aprobado' && (
+                      {canManageFunds && (fondo.estadoAprobacion === 'aprobado' || fondo.estado === 'cerrado') && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -1857,9 +1857,9 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-sm text-blue-800">
-                  Al recargar, el monto gastado se agregará al monto inicial del fondo, 
-                  dejando el saldo disponible igual al monto inicial actualizado. 
-                  Esta acción queda registrada en el historial.
+                  {selectedAllocation?.estado === 'cerrado'
+                    ? 'Este fondo está cerrado. Al recargar, se reactivará automáticamente con el monto recargado y las nuevas fechas asignadas. Esta acción queda registrada en el historial.'
+                    : 'Al recargar, el monto gastado se agregará al monto inicial del fondo, dejando el saldo disponible igual al monto inicial actualizado. Esta acción queda registrada en el historial.'}
                 </p>
               </div>
             </div>

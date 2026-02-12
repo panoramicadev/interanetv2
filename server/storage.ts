@@ -20529,9 +20529,9 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Fondo no encontrado');
     }
 
-    // 2. Verificar que el fondo esté aprobado
-    if (allocation.estadoAprobacion !== 'aprobado') {
-      throw new Error('Solo se pueden recargar fondos aprobados');
+    // 2. Verificar que el fondo esté aprobado o cerrado
+    if (allocation.estadoAprobacion !== 'aprobado' && allocation.estado !== 'cerrado') {
+      throw new Error('Solo se pueden recargar fondos aprobados o cerrados');
     }
 
     // 3. Calcular el monto gastado (gastos no rechazados asociados a este fondo)
@@ -20585,6 +20585,11 @@ export class DatabaseStorage implements IStorage {
       montoInicial: String(newMontoInicial),
       updatedAt: new Date(),
     };
+
+    if (allocation.estado === 'cerrado') {
+      updateData.estado = 'activo';
+      updateData.estadoAprobacion = 'aprobado';
+    }
 
     if (newFechaInicio) {
       updateData.fechaInicio = newFechaInicio;
