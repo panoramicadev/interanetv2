@@ -778,7 +778,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                       >
                         Ver
                       </Button>
-                      {canManageFunds && (fondo.estadoAprobacion === 'aprobado' || fondo.estado === 'cerrado') && (
+                      {canManageFunds && (fondo.estadoAprobacion === 'aprobado' || fondo.estado === 'activo' || fondo.estado === 'cerrado') && (
                         <>
                           <Button
                             size="sm"
@@ -1975,44 +1975,73 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
             </DialogDescription>
           </DialogHeader>
 
-          {selectedAllocation && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Monto Inicial ($)
-                </label>
-                <Input
-                  type="number"
-                  value={editMontoInicial}
-                  onChange={(e) => setEditMontoInicial(e.target.value)}
-                  placeholder="Ej: 500000"
-                />
-              </div>
+          {selectedAllocation && (() => {
+            const currentMonto = parseFloat(String(selectedAllocation.montoInicial || 0));
+            const newMonto = parseFloat(editMontoInicial || '0');
+            const diff = newMonto - currentMonto;
+            const currentSaldo = selectedAllocation.saldoDisponible || 0;
+            const projectedSaldo = currentSaldo + diff;
+            return (
+              <div className="space-y-4">
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Monto Inicial Actual:</span>
+                    <span className="font-medium">{formatCurrency(currentMonto)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Saldo Disponible Actual:</span>
+                    <span className="font-medium text-green-600">{formatCurrency(currentSaldo)}</span>
+                  </div>
+                  {diff !== 0 && (
+                    <div className="flex justify-between border-t pt-2">
+                      <span className="text-gray-600">Saldo Proyectado:</span>
+                      <span className={`font-bold ${projectedSaldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatCurrency(Math.max(0, projectedSaldo))}
+                        {diff > 0 ? ` (+${formatCurrency(diff)})` : ` (${formatCurrency(diff)})`}
+                      </span>
+                    </div>
+                  )}
+                </div>
 
-              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fecha Inicio
+                    Nuevo Monto Inicial ($)
                   </label>
                   <Input
-                    type="date"
-                    value={editFechaInicio}
-                    onChange={(e) => setEditFechaInicio(e.target.value)}
+                    type="number"
+                    value={editMontoInicial}
+                    onChange={(e) => setEditMontoInicial(e.target.value)}
+                    placeholder="Ej: 500000"
+                    min="0"
+                    step="1"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fecha Término
-                  </label>
-                  <Input
-                    type="date"
-                    value={editFechaTermino}
-                    onChange={(e) => setEditFechaTermino(e.target.value)}
-                  />
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Fecha Inicio
+                    </label>
+                    <Input
+                      type="date"
+                      value={editFechaInicio}
+                      onChange={(e) => setEditFechaInicio(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Fecha Término
+                    </label>
+                    <Input
+                      type="date"
+                      value={editFechaTermino}
+                      onChange={(e) => setEditFechaTermino(e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
