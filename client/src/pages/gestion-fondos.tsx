@@ -375,7 +375,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
 
   const editFundMutation = useMutation({
     mutationFn: async (data: { allocationId: string; montoInicial?: string; fechaInicio?: string; fechaTermino?: string }) => {
-      return apiRequest(`/api/fund-allocations/${data.allocationId}`, {
+      const res = await apiRequest(`/api/fund-allocations/${data.allocationId}`, {
         method: 'PATCH',
         data: {
           montoInicial: data.montoInicial,
@@ -383,11 +383,14 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
           fechaTermino: data.fechaTermino || undefined,
         },
       });
+      return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (responseData: any) => {
+      const newMonto = parseFloat(String(responseData.montoInicial || 0));
+      const newSaldo = responseData.saldoDisponible || 0;
       toast({
         title: "Fondo actualizado",
-        description: "El fondo ha sido actualizado exitosamente.",
+        description: `Monto Inicial: ${formatCurrency(newMonto)} | Saldo Disponible: ${formatCurrency(newSaldo)}`,
       });
       queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations'] });
       queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations/summary/global'] });
@@ -685,6 +688,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
               <TableHead className="min-w-[150px]">Asignado a</TableHead>
               <TableHead className="min-w-[150px]">Nombre del Fondo</TableHead>
               <TableHead className="text-right">Monto Inicial</TableHead>
+              <TableHead className="text-right">Gastado</TableHead>
               <TableHead className="text-right">Saldo Disponible</TableHead>
               <TableHead className="min-w-[100px]">Estado</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
@@ -693,13 +697,13 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                   Cargando asignaciones...
                 </TableCell>
               </TableRow>
             ) : filteredFondos.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                   No hay asignaciones de fondos registradas
                 </TableCell>
               </TableRow>
@@ -730,6 +734,11 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                   </TableCell>
                   <TableCell className="text-right font-semibold">
                     {formatCurrency(fondo.montoInicial || 0)}
+                  </TableCell>
+                  <TableCell className="text-right font-semibold text-red-500">
+                    {formatCurrency(
+                      Math.max(0, parseFloat(String(fondo.montoInicial || 0)) - (fondo.saldoDisponible || 0))
+                    )}
                   </TableCell>
                   <TableCell className="text-right font-semibold text-green-600">
                     {formatCurrency(fondo.saldoDisponible || 0)}
