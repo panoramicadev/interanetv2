@@ -16506,8 +16506,11 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       }
 
       const updateData: any = {};
-      if (req.body.montoInicial !== undefined && req.body.montoInicial !== null && req.body.montoInicial !== '') {
-        updateData.montoInicial = String(parseFloat(String(req.body.montoInicial)));
+      const newMonto = (req.body.montoInicial !== undefined && req.body.montoInicial !== null && req.body.montoInicial !== '')
+        ? parseFloat(String(req.body.montoInicial))
+        : null;
+      if (newMonto !== null) {
+        updateData.montoInicial = String(newMonto);
       }
       if (req.body.fechaInicio !== undefined) updateData.fechaInicio = req.body.fechaInicio;
       if (req.body.fechaTermino !== undefined) updateData.fechaTermino = req.body.fechaTermino;
@@ -16519,11 +16522,30 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         updateData.estadoAprobacion = 'aprobado';
       }
 
-      console.log(`[FUND-EDIT] Fund ${req.params.id}: before montoInicial=${current.montoInicial}, update:`, updateData);
+      const oldBalance = await storage.getFundAllocationBalance(req.params.id);
+      console.log(`[FUND-EDIT] Fund ${req.params.id}: before montoInicial=${current.montoInicial}, balance:`, oldBalance);
+
       const updated = await storage.updateFundAllocation(req.params.id, updateData);
-      const balance = await storage.getFundAllocationBalance(req.params.id);
-      console.log(`[FUND-EDIT] Fund ${req.params.id}: after montoInicial=${updated.montoInicial}, balance:`, balance);
-      res.json({ ...updated, ...balance });
+
+      if (newMonto !== null) {
+        const balanceAfterUpdate = await storage.getFundAllocationBalance(req.params.id);
+        const resetAdjustment = newMonto - balanceAfterUpdate.saldoDisponible;
+        if (Math.abs(resetAdjustment) > 0.01) {
+          const oldMontoNum = parseFloat(String(current.montoInicial || 0));
+          await storage.createFundMovement({
+            allocationId: req.params.id,
+            tipoMovimiento: 'ajuste',
+            monto: String(resetAdjustment),
+            descripcion: `Edición de fondo: monto inicial cambiado de $${oldMontoNum.toLocaleString('es-CL')} a $${newMonto.toLocaleString('es-CL')}. Saldo reiniciado a $${newMonto.toLocaleString('es-CL')}.`,
+            creadoPorId: user.id,
+          });
+          console.log(`[FUND-EDIT] Created adjustment movement of ${resetAdjustment} to reset saldo to ${newMonto}`);
+        }
+      }
+
+      const finalBalance = await storage.getFundAllocationBalance(req.params.id);
+      console.log(`[FUND-EDIT] Fund ${req.params.id}: after montoInicial=${updated.montoInicial}, finalBalance:`, finalBalance);
+      res.json({ ...updated, ...finalBalance });
     } catch (error: any) {
       res.status(500).json({ message: 'Error al actualizar asignación', error: error.message });
     }
