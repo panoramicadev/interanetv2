@@ -16499,9 +16499,27 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
-      const updated = await storage.updateFundAllocation(req.params.id, req.body);
-      res.json(updated);
+
+      const current = await storage.getFundAllocationById(req.params.id);
+      if (!current) {
+        return res.status(404).json({ message: 'Fondo no encontrado' });
+      }
+
+      const updateData: any = {};
+      if (req.body.montoInicial !== undefined) updateData.montoInicial = String(req.body.montoInicial);
+      if (req.body.fechaInicio !== undefined) updateData.fechaInicio = req.body.fechaInicio;
+      if (req.body.fechaTermino !== undefined) updateData.fechaTermino = req.body.fechaTermino;
+      if (req.body.nombre !== undefined) updateData.nombre = req.body.nombre;
+      if (req.body.motivo !== undefined) updateData.motivo = req.body.motivo;
+
+      if (current.estado === 'cerrado') {
+        updateData.estado = 'activo';
+        updateData.estadoAprobacion = 'aprobado';
+      }
+
+      const updated = await storage.updateFundAllocation(req.params.id, updateData);
+      const balance = await storage.getFundAllocationBalance(req.params.id);
+      res.json({ ...updated, ...balance });
     } catch (error: any) {
       res.status(500).json({ message: 'Error al actualizar asignación', error: error.message });
     }

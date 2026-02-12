@@ -49,7 +49,7 @@ import {
 } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Plus, Search, HandCoins, Upload, Loader2, Check, X, Eye, Trash2 } from "lucide-react";
+import { Plus, Search, HandCoins, Upload, Loader2, Check, X, Eye, Trash2, Pencil } from "lucide-react";
 import GastosFilterBar from "@/components/gastos-filter-bar";
 
 const crearFondoSchema = z.object({
@@ -122,6 +122,10 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
   const [rechargeComment, setRechargeComment] = useState("");
   const [rechargeNewFechaInicio, setRechargeNewFechaInicio] = useState("");
   const [rechargeNewFechaTermino, setRechargeNewFechaTermino] = useState("");
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editMontoInicial, setEditMontoInicial] = useState("");
+  const [editFechaInicio, setEditFechaInicio] = useState("");
+  const [editFechaTermino, setEditFechaTermino] = useState("");
 
   const canManageFunds = user?.role === 'admin' || user?.role === 'recursos_humanos';
   const isSupervisor = user?.role === 'supervisor';
@@ -364,6 +368,36 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
       toast({
         title: "Error",
         description: error.message || "No se pudo recargar el fondo.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const editFundMutation = useMutation({
+    mutationFn: async (data: { allocationId: string; montoInicial?: string; fechaInicio?: string; fechaTermino?: string }) => {
+      return apiRequest(`/api/fund-allocations/${data.allocationId}`, {
+        method: 'PATCH',
+        data: {
+          montoInicial: data.montoInicial,
+          fechaInicio: data.fechaInicio || undefined,
+          fechaTermino: data.fechaTermino || undefined,
+        },
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Fondo actualizado",
+        description: "El fondo ha sido actualizado exitosamente.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations/summary/global'] });
+      setShowEditDialog(false);
+      setSelectedAllocation(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo actualizar el fondo.",
         variant: "destructive",
       });
     },
@@ -745,19 +779,36 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                         Ver
                       </Button>
                       {canManageFunds && (fondo.estadoAprobacion === 'aprobado' || fondo.estado === 'cerrado') && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-blue-600 border-blue-300 hover:bg-blue-50"
-                          data-testid={`button-recharge-${fondo.id}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedAllocation(fondo);
-                            setShowRechargeDialog(true);
-                          }}
-                        >
-                          Recargar
-                        </Button>
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                            data-testid={`button-recharge-${fondo.id}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedAllocation(fondo);
+                              setShowRechargeDialog(true);
+                            }}
+                          >
+                            Recargar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-amber-600 border-amber-300 hover:bg-amber-50"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedAllocation(fondo);
+                              setEditMontoInicial(fondo.montoInicial?.toString() || "");
+                              setEditFechaInicio((fondo as any).fechaInicio || (fondo as any).fecha_inicio || "");
+                              setEditFechaTermino((fondo as any).fechaTermino || (fondo as any).fecha_termino || "");
+                              setShowEditDialog(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </>
                       )}
                       {user?.role === 'admin' && (
                         <Button
@@ -1890,6 +1941,104 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                 </>
               ) : (
                 'Confirmar Recarga'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de edición de fondo */}
+      <Dialog open={showEditDialog} onOpenChange={(open) => {
+        setShowEditDialog(open);
+        if (!open) {
+          setEditMontoInicial("");
+          setEditFechaInicio("");
+          setEditFechaTermino("");
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <Pencil className="h-5 w-5" />
+              Editar Fondo
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Editar el fondo de{' '}
+              <span className="font-bold">
+                {selectedAllocation ? getAssigneeName(selectedAllocation.assignedToId) : 'Usuario'}
+              </span>.
+              {selectedAllocation?.estado === 'cerrado' && (
+                <span className="block mt-1 text-amber-600 font-medium">
+                  Este fondo está cerrado. Al guardar cambios, se reactivará automáticamente.
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedAllocation && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Monto Inicial ($)
+                </label>
+                <Input
+                  type="number"
+                  value={editMontoInicial}
+                  onChange={(e) => setEditMontoInicial(e.target.value)}
+                  placeholder="Ej: 500000"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fecha Inicio
+                  </label>
+                  <Input
+                    type="date"
+                    value={editFechaInicio}
+                    onChange={(e) => setEditFechaInicio(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fecha Término
+                  </label>
+                  <Input
+                    type="date"
+                    value={editFechaTermino}
+                    onChange={(e) => setEditFechaTermino(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedAllocation && editMontoInicial) {
+                  editFundMutation.mutate({
+                    allocationId: selectedAllocation.id,
+                    montoInicial: editMontoInicial,
+                    fechaInicio: editFechaInicio || undefined,
+                    fechaTermino: editFechaTermino || undefined,
+                  });
+                }
+              }}
+              disabled={editFundMutation.isPending || !editMontoInicial}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              {editFundMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                'Guardar Cambios'
               )}
             </Button>
           </DialogFooter>
