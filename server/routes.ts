@@ -16506,7 +16506,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       }
 
       const updateData: any = {};
-      if (req.body.montoInicial !== undefined) updateData.montoInicial = String(req.body.montoInicial);
+      if (req.body.montoInicial !== undefined && req.body.montoInicial !== null && req.body.montoInicial !== '') {
+        updateData.montoInicial = String(parseFloat(String(req.body.montoInicial)));
+      }
       if (req.body.fechaInicio !== undefined) updateData.fechaInicio = req.body.fechaInicio;
       if (req.body.fechaTermino !== undefined) updateData.fechaTermino = req.body.fechaTermino;
       if (req.body.nombre !== undefined) updateData.nombre = req.body.nombre;
@@ -16517,8 +16519,10 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         updateData.estadoAprobacion = 'aprobado';
       }
 
+      console.log(`[FUND-EDIT] Fund ${req.params.id}: before montoInicial=${current.montoInicial}, update:`, updateData);
       const updated = await storage.updateFundAllocation(req.params.id, updateData);
       const balance = await storage.getFundAllocationBalance(req.params.id);
+      console.log(`[FUND-EDIT] Fund ${req.params.id}: after montoInicial=${updated.montoInicial}, balance:`, balance);
       res.json({ ...updated, ...balance });
     } catch (error: any) {
       res.status(500).json({ message: 'Error al actualizar asignación', error: error.message });
