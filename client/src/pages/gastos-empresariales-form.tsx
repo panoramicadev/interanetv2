@@ -59,6 +59,7 @@ interface FundAllocation {
   nombre: string;
   montoInicial: string | number;
   montoUsado?: string | number;
+  saldoDisponible?: number;
 }
 
 type FormValues = z.infer<typeof formSchema>;
@@ -695,9 +696,9 @@ export default function GastosEmpresarialesForm() {
                                 const selectedFund = userFunds.find(f => f.id === field.value);
                                 if (!selectedFund) return null;
                                 const montoGasto = parseFloat(form.getValues('monto') || '0');
-                                const montoInicial = parseFloat(String(selectedFund.montoInicial || 0));
-                                const montoUsado = selectedFund.montoUsado ? parseFloat(String(selectedFund.montoUsado)) : getFundUsage(selectedFund.id);
-                                const saldoActual = montoInicial - montoUsado;
+                                const saldoActual = selectedFund.saldoDisponible != null
+                                  ? parseFloat(String(selectedFund.saldoDisponible))
+                                  : parseFloat(String(selectedFund.montoInicial || 0)) - (selectedFund.montoUsado ? parseFloat(String(selectedFund.montoUsado)) : getFundUsage(selectedFund.id));
                                 const nuevoSaldo = saldoActual - montoGasto;
                                 return (
                                   <>
