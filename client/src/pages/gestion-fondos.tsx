@@ -1978,9 +1978,8 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
           {selectedAllocation && (() => {
             const currentMonto = parseFloat(String(selectedAllocation.montoInicial || 0));
             const newMonto = parseFloat(editMontoInicial || '0');
-            const diff = newMonto - currentMonto;
             const currentSaldo = selectedAllocation.saldoDisponible || 0;
-            const projectedSaldo = currentSaldo + diff;
+            const montoChanged = Math.abs(newMonto - currentMonto) > 0.01;
             return (
               <div className="space-y-4">
                 <div className="bg-gray-50 rounded-lg p-4 space-y-2">
@@ -1992,16 +1991,22 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
                     <span className="text-gray-600">Saldo Disponible Actual:</span>
                     <span className="font-medium text-green-600">{formatCurrency(currentSaldo)}</span>
                   </div>
-                  {diff !== 0 && (
+                  {montoChanged && (
                     <div className="flex justify-between border-t pt-2">
-                      <span className="text-gray-600">Saldo Proyectado:</span>
-                      <span className={`font-bold ${projectedSaldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {formatCurrency(Math.max(0, projectedSaldo))}
-                        {diff > 0 ? ` (+${formatCurrency(diff)})` : ` (${formatCurrency(diff)})`}
+                      <span className="text-gray-600">Nuevo Saldo Disponible:</span>
+                      <span className="font-bold text-amber-600">
+                        {formatCurrency(newMonto)}
                       </span>
                     </div>
                   )}
                 </div>
+                {montoChanged && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <p className="text-sm text-amber-800">
+                      Al cambiar el monto inicial, el saldo disponible se reiniciará a {formatCurrency(newMonto)}. Se creará un movimiento de ajuste con trazabilidad completa.
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
