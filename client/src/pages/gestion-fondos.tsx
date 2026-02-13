@@ -83,11 +83,15 @@ interface FundAllocation {
   assignedById: string;
   estado: string;
   fechaInicio?: string;
+  fechaTermino?: string;
   fechaFin?: string;
   createdAt: string;
   saldoDisponible?: number;
   totalComprometido?: number;
   totalAprobado?: number;
+  estadoAprobacion?: string;
+  supervisorAprobadorId?: string;
+  rrhhAprobadorId?: string;
 }
 
 export default function GestionFondos({ embedded = false }: GestionFondosProps) {
@@ -667,8 +671,17 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
       assigneeName.toLowerCase().includes(searchTerm.toLowerCase());
 
     const { fechaDesde, fechaHasta } = getDateRange(mes, anio);
-    const fondoDate = new Date(fondo.createdAt);
-    const matchesDate = fondoDate >= fechaDesde && fondoDate <= fechaHasta;
+    const fondoInicio = fondo.fechaInicio;
+    const fondoTermino = fondo.fechaTermino;
+    let matchesDate = false;
+    if (fondoInicio && fondoTermino) {
+      const inicio = new Date(fondoInicio + 'T00:00:00');
+      const termino = new Date(fondoTermino + 'T23:59:59');
+      matchesDate = inicio <= fechaHasta && termino >= fechaDesde;
+    } else {
+      const fondoDate = new Date(fondo.createdAt);
+      matchesDate = fondoDate >= fechaDesde && fondoDate <= fechaHasta;
+    }
 
     const matchesUser = usuarioFilter === 'todos' || fondo.assignedToId === usuarioFilter;
 
