@@ -55,9 +55,15 @@ function dbLog(level: 'info' | 'warn' | 'error', message: string, error?: any) {
 // Health check function for monitoring
 export async function checkDbHealth(): Promise<{ connected: boolean; attempts: number; lastError?: string }> {
   try {
-    const client = await pool.connect();
-    await client.query('SELECT 1');
-    client.release();
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('Health check timeout (5s)')), 5000)
+    );
+    const queryPromise = (async () => {
+      const client = await pool.connect();
+      await client.query('SELECT 1');
+      client.release();
+    })();
+    await Promise.race([queryPromise, timeoutPromise]);
     return { connected: true, attempts: connectionAttempts };
   } catch (error: any) {
     connectionAttempts++;
