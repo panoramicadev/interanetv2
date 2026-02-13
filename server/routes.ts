@@ -638,9 +638,10 @@ export function registerRoutes(app: Express): Server {
       dataQualityWarnings.push('Error verificando calidad de datos');
     }
     
-    // Overall system health
-    const systemHealthy = dbHealth.connected && etlHealthy && breakerHealthy && dataQualityHealthy;
-    const systemStatus = systemHealthy ? 'healthy' : 'degraded';
+    // Overall system health - only DB connectivity is critical for health check
+    const systemHealthy = dbHealth.connected;
+    const allServicesHealthy = dbHealth.connected && etlHealthy && breakerHealthy && dataQualityHealthy;
+    const systemStatus = allServicesHealthy ? 'healthy' : (systemHealthy ? 'degraded' : 'unhealthy');
     
     const health = {
       status: systemStatus,
@@ -673,7 +674,8 @@ export function registerRoutes(app: Express): Server {
       }
     };
     
-    // Return 503 if system is degraded, 200 if healthy
+    // Only return 503 if database is completely unreachable
+    // ETL/circuit breaker/data quality issues are reported but don't fail the health check
     res.status(systemHealthy ? 200 : 503).json(health);
   }));
 
