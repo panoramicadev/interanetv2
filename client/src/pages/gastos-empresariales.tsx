@@ -45,7 +45,7 @@ import {
 } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Search, Download, Check, X, Trash2, Eye, BarChart3, FileText, ExternalLink, Banknote, HandCoins, Upload, Loader2, Wallet, ChevronDown } from "lucide-react";
+import { Plus, Search, Download, Check, X, Trash2, Eye, BarChart3, FileText, ExternalLink, Banknote, HandCoins, Upload, Loader2, Wallet, ChevronDown, Pencil, Calendar } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -145,6 +145,8 @@ export default function GastosEmpresariales() {
   const [showSolicitarFondoDialog, setShowSolicitarFondoDialog] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [activeMainTab, setActiveMainTab] = useState("rendicion");
+  const [showEditFechaDialog, setShowEditFechaDialog] = useState(false);
+  const [editFechaValue, setEditFechaValue] = useState("");
 
   // Get salesperson's assigned segment (if any)
   const userAssignedSegment = (user as any)?.assignedSegment || null;
@@ -268,6 +270,19 @@ export default function GastosEmpresariales() {
     }
   });
 
+  const targetUserId = usuarioFilter !== 'todos' ? usuarioFilter : user?.id;
+  const { data: mesesConGastos = [] } = useQuery<Array<{mes: number, anio: number, cantidad: number, total: number}>>({
+    queryKey: ['/api/gastos-empresariales/analytics/meses-con-gastos', targetUserId],
+    queryFn: async () => {
+      const response = await fetch(`/api/gastos-empresariales/analytics/meses-con-gastos?userId=${targetUserId}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: !!targetUserId,
+  });
+
   // Fetch fondos activos del usuario para mostrar barras de progreso
   const canViewAllFunds = user?.role === 'admin' || user?.role === 'recursos_humanos';
   const { data: userFundAllocations = [] } = useQuery<FundAllocation[]>({
@@ -364,6 +379,32 @@ export default function GastosEmpresariales() {
       toast({
         title: "Error",
         description: "No se pudo rechazar el gasto",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const editFechaMutation = useMutation({
+    mutationFn: async ({ id, fechaEmision }: { id: string; fechaEmision: string }) => {
+      return apiRequest(`/api/gastos-empresariales/${id}/fecha-emision`, {
+        method: 'PATCH',
+        data: { fechaEmision },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics'] });
+      setShowEditFechaDialog(false);
+      setSelectedGasto(null);
+      toast({
+        title: "Fecha actualizada",
+        description: "La fecha de emisión ha sido corregida exitosamente",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar la fecha de emisión",
         variant: "destructive",
       });
     }
@@ -660,8 +701,29 @@ export default function GastosEmpresariales() {
                   </TableRow>
                 ) : filteredGastos.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
-                      No se encontraron gastos
+                    <TableCell colSpan={8} className="text-center py-8">
+                      <div className="text-gray-500 space-y-2">
+                        <p>No se encontraron gastos en {['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][parseInt(mes)]} {anio}</p>
+                        {mesesConGastos.length > 0 && (
+                          <div className="text-xs">
+                            <p className="text-gray-400 mb-1">Meses con gastos registrados:</p>
+                            <div className="flex flex-wrap justify-center gap-1">
+                              {mesesConGastos.slice(0, 6).map(m => (
+                                <button
+                                  key={`${m.anio}-${m.mes}`}
+                                  className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
+                                  onClick={() => {
+                                    setMes(m.mes.toString());
+                                    setAnio(m.anio.toString());
+                                  }}
+                                >
+                                  {['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][m.mes]} {m.anio} ({m.cantidad})
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -676,7 +738,14 @@ export default function GastosEmpresariales() {
                       }}
                     >
                       <TableCell className="text-sm">
-                        {format(new Date(gasto.createdAt), 'dd/MM/yyyy', { locale: es })}
+                        {gasto.fechaEmision 
+                          ? (() => {
+                              const match = gasto.fechaEmision!.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                              if (match) return format(new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3])), 'dd/MM/yyyy', { locale: es });
+                              return format(new Date(gasto.fechaEmision!), 'dd/MM/yyyy', { locale: es });
+                            })()
+                          : format(new Date(gasto.createdAt), 'dd/MM/yyyy', { locale: es })
+                        }
                       </TableCell>
                       <TableCell className="text-sm font-medium">
                         {getColaboradorName(gasto.userId)}
@@ -750,6 +819,22 @@ export default function GastosEmpresariales() {
                               data-testid={`button-audit-${gasto.id}`}
                             >
                               <X className="h-4 w-4 text-orange-600" />
+                            </Button>
+                          )}
+                          {['admin', 'recursos_humanos'].includes(user?.role || '') && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedGasto(gasto);
+                                setEditFechaValue(gasto.fechaEmision || '');
+                                setShowEditFechaDialog(true);
+                              }}
+                              title="Editar fecha de emisión"
+                              data-testid={`button-edit-fecha-${gasto.id}`}
+                            >
+                              <Pencil className="h-4 w-4 text-blue-600" />
                             </Button>
                           )}
                           {canDelete(gasto) && (
@@ -1331,6 +1416,59 @@ export default function GastosEmpresariales() {
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+      {/* Edit FechaEmision Dialog */}
+      <Dialog open={showEditFechaDialog} onOpenChange={setShowEditFechaDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-blue-600" />
+              Corregir Fecha de Emisión
+            </DialogTitle>
+            <DialogDescription>
+              Modifica la fecha de emisión de este gasto. Esto corrige errores de lectura automática (OCR).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {selectedGasto && (
+              <div className="text-sm text-gray-600 bg-gray-50 rounded-md p-3 space-y-1">
+                <p><span className="font-medium">Gasto:</span> {selectedGasto.descripcion}</p>
+                <p><span className="font-medium">Monto:</span> {formatCurrency(selectedGasto.monto)}</p>
+                <p><span className="font-medium">Fecha actual:</span> {selectedGasto.fechaEmision || 'Sin fecha'}</p>
+              </div>
+            )}
+            <div>
+              <label className="block text-sm font-medium mb-1.5">Nueva fecha de emisión</label>
+              <Input
+                type="date"
+                value={editFechaValue}
+                onChange={(e) => setEditFechaValue(e.target.value)}
+                data-testid="input-edit-fecha"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowEditFechaDialog(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => {
+                  if (selectedGasto && editFechaValue) {
+                    editFechaMutation.mutate({
+                      id: selectedGasto.id,
+                      fechaEmision: editFechaValue,
+                    });
+                  }
+                }}
+                disabled={editFechaMutation.isPending || !editFechaValue}
+              >
+                {editFechaMutation.isPending ? 'Guardando...' : 'Guardar'}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </>

@@ -29,6 +29,7 @@ import {
   insertHitoMarketingSchema, 
   nvvPendingSales, 
   factVentas,
+  gastosEmpresariales,
   // CMMS tables
   mantencionesPlanificadas,
   solicitudesMantencion,
@@ -15849,6 +15850,14 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         ...req.body,
         userId: targetUserId,
       });
+
+      if (user.role === 'salesperson' && validated.fechaEmision) {
+        const emisionDate = new Date(validated.fechaEmision + 'T12:00:00');
+        const now = new Date();
+        if (emisionDate.getMonth() !== now.getMonth() || emisionDate.getFullYear() !== now.getFullYear()) {
+          return res.status(400).json({ message: 'La fecha de emisión debe estar dentro del mes calendario actual' });
+        }
+      }
       
       const isConFondo = validated.fundingMode === 'con_fondo' && validated.fundAllocationId;
       if (isConFondo) {
@@ -16036,6 +16045,31 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       res.json(gasto);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al rechazar gasto', error: error.message });
+    }
+  }));
+
+  app.patch('/api/gastos-empresariales/:id/fecha-emision', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'Solo admin o recursos humanos pueden editar la fecha de emisión' });
+      }
+
+      const { fechaEmision } = req.body;
+      if (!fechaEmision || !/^\d{4}-\d{2}-\d{2}$/.test(fechaEmision)) {
+        return res.status(400).json({ message: 'Fecha de emisión inválida. Formato esperado: YYYY-MM-DD' });
+      }
+
+      const testDate = new Date(fechaEmision + 'T12:00:00');
+      if (isNaN(testDate.getTime())) {
+        return res.status(400).json({ message: 'Fecha de emisión inválida' });
+      }
+
+      const gasto = await storage.updateGastoEmpresarial(req.params.id, { fechaEmision });
+      res.json(gasto);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar fecha de emisión', error: error.message });
     }
   }));
 
@@ -16336,6 +16370,48 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       res.json(data);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener datos por categoría', error: error.message });
+    }
+  }));
+
+  // Get months where a specific user has expenses (for smart navigation)
+  app.get('/api/gastos-empresariales/analytics/meses-con-gastos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      let { userId } = req.query;
+      if (!userId) {
+        return res.status(400).json({ message: 'userId es requerido' });
+      }
+      
+      if (user.role === 'salesperson' && userId !== user.id) {
+        userId = user.id;
+      }
+      
+      const results = await db
+        .select({
+          mes: sql<number>`EXTRACT(MONTH FROM COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}))`,
+          anio: sql<number>`EXTRACT(YEAR FROM COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}))`,
+          cantidad: sql<number>`COUNT(*)`,
+          total: sql<number>`SUM(${gastosEmpresariales.monto})`,
+        })
+        .from(gastosEmpresariales)
+        .where(eq(gastosEmpresariales.userId, userId))
+        .groupBy(
+          sql`EXTRACT(MONTH FROM COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}))`,
+          sql`EXTRACT(YEAR FROM COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}))`
+        )
+        .orderBy(
+          desc(sql`EXTRACT(YEAR FROM COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}))`),
+          desc(sql`EXTRACT(MONTH FROM COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}))`)
+        );
+      
+      res.json(results.map(r => ({
+        mes: parseInt(r.mes as any),
+        anio: parseInt(r.anio as any),
+        cantidad: parseInt(r.cantidad as any),
+        total: parseFloat(r.total as any) || 0,
+      })));
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener meses', error: error.message });
     }
   }));
 
