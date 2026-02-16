@@ -19833,9 +19833,6 @@ export class DatabaseStorage implements IStorage {
       );
     }
 
-    // Only count approved expenses for analytics
-    conditions.push(eq(gastosEmpresariales.estado, 'aprobado'));
-
     const results = await db
       .select({
         userId: gastosEmpresariales.userId,
@@ -19946,18 +19943,15 @@ export class DatabaseStorage implements IStorage {
       );
     }
 
-    // Only count approved expenses for analytics
-    conditions.push(eq(gastosEmpresariales.estado, 'aprobado'));
-
     const results = await db
       .select({
-        dia: sql<string>`TO_CHAR(${gastosEmpresariales.createdAt}, 'YYYY-MM-DD')`,
+        dia: sql<string>`TO_CHAR(COALESCE(${gastosEmpresariales.fechaEmision}::timestamp, ${gastosEmpresariales.createdAt}), 'YYYY-MM-DD')`,
         total: sql<number>`SUM(${gastosEmpresariales.monto})`,
         cantidad: sql<number>`COUNT(*)`,
       })
       .from(gastosEmpresariales)
       .where(and(...conditions))
-      .groupBy(sql`TO_CHAR(${gastosEmpresariales.createdAt}, 'YYYY-MM-DD')`)
+      .groupBy(sql`TO_CHAR(COALESCE(${gastosEmpresariales.fechaEmision}::timestamp, ${gastosEmpresariales.createdAt}), 'YYYY-MM-DD')`)
       .orderBy(sql`SUM(${gastosEmpresariales.monto}) DESC`)
       .limit(10); // Top 10 días más gastados
 
