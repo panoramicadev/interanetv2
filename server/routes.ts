@@ -24,6 +24,7 @@ import {
   insertClientSchema, 
   insertGastoEmpresarialSchema,
   insertFundAllocationSchema,
+  insertFundRecurringConfigSchema,
   fundMovements,
   insertPromesaCompraSchema, 
   insertHitoMarketingSchema, 
@@ -17187,6 +17188,107 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       res.json(history);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener historial de recargas', error: error.message });
+    }
+  }));
+
+  // ==================================================================================
+  // FONDOS RECURRENTES ROUTES
+  // ==================================================================================
+
+  app.post('/api/fund-recurring-configs', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'Solo Admin o RRHH pueden crear fondos recurrentes' });
+      }
+      const validated = insertFundRecurringConfigSchema.parse({
+        ...req.body,
+        assignedById: user.id,
+      });
+      const config = await storage.createFundRecurringConfig(validated);
+      await storage.processRecurringFunds();
+      res.status(201).json(config);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Error al crear fondo recurrente', error: error.message });
+    }
+  }));
+
+  app.get('/api/fund-recurring-configs', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      const configs = await storage.getFundRecurringConfigs();
+      res.json(configs);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener fondos recurrentes', error: error.message });
+    }
+  }));
+
+  app.patch('/api/fund-recurring-configs/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      const { nombre, montoMensual } = req.body;
+      const updates: any = {};
+      if (nombre) updates.nombre = nombre;
+      if (montoMensual) updates.montoMensual = montoMensual;
+      const updated = await storage.updateFundRecurringConfig(req.params.id, updates);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar fondo recurrente', error: error.message });
+    }
+  }));
+
+  app.post('/api/fund-recurring-configs/:id/toggle', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      const config = await storage.getFundRecurringConfigById(req.params.id);
+      if (!config) {
+        return res.status(404).json({ message: 'Configuración no encontrada' });
+      }
+      const updated = await storage.toggleFundRecurringConfig(req.params.id, !config.isActive);
+      if (updated.isActive) {
+        await storage.processRecurringFunds();
+      }
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al cambiar estado', error: error.message });
+    }
+  }));
+
+  app.delete('/api/fund-recurring-configs/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      await storage.deleteFundRecurringConfig(req.params.id);
+      res.json({ message: 'Fondo recurrente eliminado' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar fondo recurrente', error: error.message });
+    }
+  }));
+
+  app.post('/api/fund-recurring-configs/process', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      const result = await storage.processRecurringFunds();
+      res.json({ message: 'Procesamiento completado', ...result });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al procesar fondos recurrentes', error: error.message });
     }
   }));
 

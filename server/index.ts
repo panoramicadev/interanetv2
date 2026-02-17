@@ -345,5 +345,34 @@ async function initializeBackgroundServices() {
     console.error('Failed to initialize daily sales report scheduler:', error.message);
   }
   
+  // Start recurring funds scheduler (checks every 6 hours)
+  try {
+    const RECURRING_FUNDS_INTERVAL = 6 * 60 * 60 * 1000;
+    
+    setTimeout(async () => {
+      try {
+        log('🔄 Running initial recurring funds check on startup...');
+        const result = await storage.processRecurringFunds();
+        log(`✅ Recurring funds check completed - ${result.created} created, ${result.closed} closed`);
+      } catch (error: any) {
+        console.error('Initial recurring funds check failed:', error.message);
+      }
+    }, 60000);
+    
+    setInterval(async () => {
+      try {
+        log('🔄 Running scheduled recurring funds check...');
+        const result = await storage.processRecurringFunds();
+        log(`✅ Recurring funds check completed - ${result.created} created, ${result.closed} closed`);
+      } catch (error: any) {
+        console.error('Scheduled recurring funds check failed:', error.message);
+      }
+    }, RECURRING_FUNDS_INTERVAL);
+    
+    log('🔄 Recurring funds scheduler initialized (runs every 6 hours)');
+  } catch (error: any) {
+    console.error('Failed to initialize recurring funds scheduler:', error.message);
+  }
+
   log('✅ Background services initialization completed');
 }

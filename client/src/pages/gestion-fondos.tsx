@@ -188,6 +188,123 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
     queryKey: ['/api/users/salespeople'],
   });
 
+  // Recurring fund configs
+  const [showRecurringDialog, setShowRecurringDialog] = useState(false);
+  const [editingRecurring, setEditingRecurring] = useState<any>(null);
+  const [recurringNombre, setRecurringNombre] = useState("");
+  const [recurringMonto, setRecurringMonto] = useState("");
+  const [recurringUsuario, setRecurringUsuario] = useState("");
+
+  const { data: recurringConfigs = [], isLoading: isLoadingRecurring } = useQuery<any[]>({
+    queryKey: ['/api/fund-recurring-configs'],
+    queryFn: async () => {
+      const response = await fetch('/api/fund-recurring-configs', { credentials: 'include' });
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: canManageFunds,
+  });
+
+  const createRecurringMutation = useMutation({
+    mutationFn: async (data: { nombre: string; montoMensual: string; assignedToId: string }) => {
+      return apiRequest('POST', '/api/fund-recurring-configs', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-recurring-configs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations'] });
+      setShowRecurringDialog(false);
+      resetRecurringForm();
+      toast({ title: "Fondo recurrente creado", description: "Se creará automáticamente cada mes" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateRecurringMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      return apiRequest('PATCH', `/api/fund-recurring-configs/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-recurring-configs'] });
+      setShowRecurringDialog(false);
+      setEditingRecurring(null);
+      resetRecurringForm();
+      toast({ title: "Fondo recurrente actualizado" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const toggleRecurringMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest('POST', `/api/fund-recurring-configs/${id}/toggle`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-recurring-configs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations'] });
+      toast({ title: "Estado actualizado" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteRecurringMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest('DELETE', `/api/fund-recurring-configs/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-recurring-configs'] });
+      toast({ title: "Fondo recurrente eliminado" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const processRecurringMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('POST', '/api/fund-recurring-configs/process', {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-recurring-configs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations'] });
+      toast({ title: "Fondos procesados", description: "Los fondos recurrentes han sido procesados" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const resetRecurringForm = () => {
+    setRecurringNombre("");
+    setRecurringMonto("");
+    setRecurringUsuario("");
+    setEditingRecurring(null);
+  };
+
+  const handleSaveRecurring = () => {
+    if (!recurringNombre || !recurringMonto || (!editingRecurring && !recurringUsuario)) {
+      toast({ title: "Complete todos los campos", variant: "destructive" });
+      return;
+    }
+    if (editingRecurring) {
+      updateRecurringMutation.mutate({ id: editingRecurring.id, data: { nombre: recurringNombre, montoMensual: recurringMonto } });
+    } else {
+      createRecurringMutation.mutate({ nombre: recurringNombre, montoMensual: recurringMonto, assignedToId: recurringUsuario });
+    }
+  };
+
+  const handleEditRecurring = (config: any) => {
+    setEditingRecurring(config);
+    setRecurringNombre(config.nombre);
+    setRecurringMonto(config.montoMensual);
+    setRecurringUsuario(config.assignedToId);
+    setShowRecurringDialog(true);
+  };
+
   const isLoading = isLoadingAllocations;
   const fondos = allocations;
 
@@ -979,10 +1096,11 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="flex w-full h-auto justify-start overflow-x-auto overflow-y-hidden whitespace-nowrap pb-2 lg:pb-1 lg:grid lg:w-auto lg:grid-cols-3">
+          <TabsList className={`flex w-full h-auto justify-start overflow-x-auto overflow-y-hidden whitespace-nowrap pb-2 lg:pb-1 lg:grid lg:w-auto ${canManageFunds ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
             <TabsTrigger value="asignaciones" data-testid="tab-asignaciones" className="flex-shrink-0">Asignaciones</TabsTrigger>
             <TabsTrigger value="activos" data-testid="tab-activos" className="flex-shrink-0">Activos</TabsTrigger>
             <TabsTrigger value="cerrados" data-testid="tab-cerrados" className="flex-shrink-0">Cerrados</TabsTrigger>
+            {canManageFunds && <TabsTrigger value="recurrentes" data-testid="tab-recurrentes" className="flex-shrink-0">Recurrentes</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="asignaciones" className="mt-4">
@@ -994,8 +1112,171 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
           <TabsContent value="cerrados" className="mt-4">
             {renderTable()}
           </TabsContent>
+
+          {canManageFunds && (
+            <TabsContent value="recurrentes" className="mt-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Fondos Recurrentes</h3>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => processRecurringMutation.mutate()}
+                    disabled={processRecurringMutation.isPending}
+                  >
+                    {processRecurringMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                    Procesar Ahora
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => { resetRecurringForm(); setShowRecurringDialog(true); }}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Nuevo Recurrente
+                  </Button>
+                </div>
+              </div>
+
+              {isLoadingRecurring ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                </div>
+              ) : recurringConfigs.length === 0 ? (
+                <Card className="p-8 text-center text-gray-500">
+                  No hay fondos recurrentes configurados
+                </Card>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nombre</TableHead>
+                        <TableHead>Asignado a</TableHead>
+                        <TableHead className="text-right">Monto Mensual</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead>Último Procesado</TableHead>
+                        <TableHead className="text-right">Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {recurringConfigs.map((config: any) => {
+                        const assignedUser = salespeople.find((s: any) => String(s.id) === String(config.assignedToId));
+                        return (
+                          <TableRow key={config.id}>
+                            <TableCell className="font-medium">{config.nombre}</TableCell>
+                            <TableCell>{assignedUser?.name || assignedUser?.username || `ID: ${config.assignedToId}`}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(Number(config.montoMensual))}</TableCell>
+                            <TableCell>
+                              <Badge variant={config.isActive ? "default" : "secondary"}>
+                                {config.isActive ? "Activo" : "Inactivo"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{config.lastProcessedMonth || "—"}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditRecurring(config)}
+                                  title="Editar"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => toggleRecurringMutation.mutate(config.id)}
+                                  title={config.isActive ? "Desactivar" : "Activar"}
+                                >
+                                  {config.isActive ? <X className="h-4 w-4 text-red-500" /> : <Check className="h-4 w-4 text-green-500" />}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (window.confirm('¿Eliminar este fondo recurrente?')) {
+                                      deleteRecurringMutation.mutate(config.id);
+                                    }
+                                  }}
+                                  title="Eliminar"
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </TabsContent>
+          )}
         </Tabs>
       </div>
+
+      {/* Dialog Fondo Recurrente */}
+      <Dialog open={showRecurringDialog} onOpenChange={(open) => { if (!open) resetRecurringForm(); setShowRecurringDialog(open); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingRecurring ? 'Editar' : 'Crear'} Fondo Recurrente</DialogTitle>
+            <DialogDescription>
+              {editingRecurring ? 'Modifica el nombre o monto mensual.' : 'Asigna un monto fijo mensual que se renueva automáticamente.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Nombre del Fondo</label>
+              <Input
+                value={recurringNombre}
+                onChange={(e) => setRecurringNombre(e.target.value)}
+                placeholder="Ej: Viáticos mensuales"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Monto Mensual ($)</label>
+              <Input
+                type="number"
+                value={recurringMonto}
+                onChange={(e) => setRecurringMonto(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+            {!editingRecurring && (
+              <div>
+                <label className="text-sm font-medium">Asignar a</label>
+                <Select value={recurringUsuario} onValueChange={setRecurringUsuario}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar usuario" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {salespeople.map((sp: any) => (
+                      <SelectItem key={sp.id} value={String(sp.id)}>
+                        {sp.name || sp.username}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { resetRecurringForm(); setShowRecurringDialog(false); }}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveRecurring}
+              disabled={createRecurringMutation.isPending || updateRecurringMutation.isPending}
+            >
+              {(createRecurringMutation.isPending || updateRecurringMutation.isPending) && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+              {editingRecurring ? 'Guardar' : 'Crear'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog Asignar Fondo */}
       <Dialog open={showCrearFondoDialog} onOpenChange={setShowCrearFondoDialog}>
