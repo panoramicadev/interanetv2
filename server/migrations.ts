@@ -422,6 +422,25 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE precios_competencia ADD COLUMN IF NOT EXISTS precio_ferreteria NUMERIC(15, 2)`);
     await db.execute(sql`ALTER TABLE precios_competencia ADD COLUMN IF NOT EXISTS precio_construccion NUMERIC(15, 2)`);
     
+    // Tabla de fondos recurrentes
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS fund_recurring_configs (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        assigned_to_id VARCHAR NOT NULL,
+        assigned_by_id VARCHAR NOT NULL,
+        nombre VARCHAR(255) NOT NULL,
+        monto_mensual NUMERIC(15, 2) NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        last_processed_month VARCHAR(7),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_fund_recurring_assigned_to" ON fund_recurring_configs (assigned_to_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_fund_recurring_active" ON fund_recurring_configs (is_active)`);
+    await db.execute(sql`ALTER TABLE fund_allocations ADD COLUMN IF NOT EXISTS recurring_config_id VARCHAR`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_fund_allocations_recurring_config" ON fund_allocations (recurring_config_id)`);
+
     console.log('✅ Bootstrap de base de datos completado');
     
   } catch (error: any) {

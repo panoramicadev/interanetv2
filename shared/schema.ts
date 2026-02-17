@@ -4655,6 +4655,7 @@ export const fundAllocations = pgTable("fund_allocations", {
   rrhhAprobadorId: varchar("rrhh_aprobador_id"), // RRHH que aprueba/rechaza
   fechaAprobacionRrhh: timestamp("fecha_aprobacion_rrhh"),
   comentarioRrhh: text("comentario_rrhh"),
+  recurringConfigId: varchar("recurring_config_id"), // FK a fund_recurring_configs (null = fondo manual)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -4662,7 +4663,39 @@ export const fundAllocations = pgTable("fund_allocations", {
   estadoIdx: index("IDX_fund_allocations_estado").on(table.estado),
   estadoAprobacionIdx: index("IDX_fund_allocations_estado_aprobacion").on(table.estadoAprobacion),
   segmentIdx: index("IDX_fund_allocations_segment").on(table.segmentCode),
+  recurringConfigIdx: index("IDX_fund_allocations_recurring_config").on(table.recurringConfigId),
 }));
+
+// Configuraciones de fondos recurrentes mensuales
+export const fundRecurringConfigs = pgTable("fund_recurring_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  assignedToId: varchar("assigned_to_id").notNull(),
+  assignedById: varchar("assigned_by_id").notNull(),
+  nombre: varchar("nombre", { length: 255 }).notNull(),
+  montoMensual: numeric("monto_mensual", { precision: 15, scale: 2 }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  lastProcessedMonth: varchar("last_processed_month", { length: 7 }), // formato YYYY-MM
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  assignedToIdx: index("IDX_fund_recurring_assigned_to").on(table.assignedToId),
+  isActiveIdx: index("IDX_fund_recurring_active").on(table.isActive),
+}));
+
+export type FundRecurringConfig = typeof fundRecurringConfigs.$inferSelect;
+export type InsertFundRecurringConfig = typeof fundRecurringConfigs.$inferInsert;
+
+export const insertFundRecurringConfigSchema = createInsertSchema(fundRecurringConfigs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastProcessedMonth: true,
+}).extend({
+  montoMensual: z.string().or(z.number()).transform(val => typeof val === 'string' ? parseFloat(val) : val),
+  nombre: z.string().min(1, "El nombre es requerido"),
+  assignedToId: z.string().min(1, "El beneficiario es requerido"),
+  assignedById: z.string().min(1, "El usuario asignador es requerido"),
+});
 
 // Libro mayor de movimientos de fondos (trazabilidad completa)
 export const fundMovements = pgTable("fund_movements", {
@@ -4707,6 +4740,7 @@ export const insertFundAllocationSchema = createInsertSchema(fundAllocations).om
   estado: z.enum(["solicitud", "pendiente_aprobacion", "activo", "cerrado", "rechazado"]).default("solicitud"),
   segmentCode: z.string().optional().nullable(),
   estadoAprobacion: z.enum(["pendiente_supervisor", "pendiente_rrhh", "aprobado", "rechazado"]).default("pendiente_rrhh"),
+  recurringConfigId: z.string().optional().nullable(),
 });
 
 // Schema para aprobación de supervisor

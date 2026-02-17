@@ -244,6 +244,10 @@ import {
   type FundApprovalHistory,
   type InsertFundApprovalHistory,
   type FundAllocationRechargeHistory,
+  // Fondos recurrentes
+  fundRecurringConfigs,
+  type FundRecurringConfig,
+  type InsertFundRecurringConfig,
   // Promesas de compra
   promesasCompra,
   type PromesaCompra,
@@ -1887,6 +1891,17 @@ export interface IStorage {
     comentario: string;
   }): Promise<{ allocation: FundAllocation; history: any }>;
   getFundRechargeHistory(allocationId: string): Promise<any[]>;
+
+  // ==================================================================================
+  // FONDOS RECURRENTES operations
+  // ==================================================================================
+  createFundRecurringConfig(config: InsertFundRecurringConfig): Promise<FundRecurringConfig>;
+  getFundRecurringConfigs(): Promise<(FundRecurringConfig & { assignedToName?: string; assignedByName?: string })[]>;
+  getFundRecurringConfigById(id: string): Promise<FundRecurringConfig | undefined>;
+  updateFundRecurringConfig(id: string, updates: Partial<InsertFundRecurringConfig>): Promise<FundRecurringConfig>;
+  toggleFundRecurringConfig(id: string, isActive: boolean): Promise<FundRecurringConfig>;
+  deleteFundRecurringConfig(id: string): Promise<void>;
+  processRecurringFunds(): Promise<{ created: number; closed: number }>;
 
   // ==================================================================================
   // PROMESAS DE COMPRA operations
@@ -20612,6 +20627,132 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(fundAllocationRechargeHistory.createdAt));
 
     return history;
+  }
+
+  // ==================================================================================
+  // FONDOS RECURRENTES operations
+  // ==================================================================================
+
+  async createFundRecurringConfig(config: InsertFundRecurringConfig): Promise<FundRecurringConfig> {
+    const [newConfig] = await db.insert(fundRecurringConfigs).values(config).returning();
+    return newConfig;
+  }
+
+  async getFundRecurringConfigs(): Promise<(FundRecurringConfig & { assignedToName?: string; assignedByName?: string })[]> {
+    const assignedByUser = aliasedTable(users, 'assigned_by_user');
+    const assignedToUser = aliasedTable(users, 'assigned_to_user');
+
+    const results = await db
+      .select({
+        ...getTableColumns(fundRecurringConfigs),
+        assignedToFirstName: assignedToUser.firstName,
+        assignedToLastName: assignedToUser.lastName,
+        assignedToEmail: assignedToUser.email,
+        assignedByFirstName: assignedByUser.firstName,
+        assignedByLastName: assignedByUser.lastName,
+      })
+      .from(fundRecurringConfigs)
+      .leftJoin(assignedToUser, eq(fundRecurringConfigs.assignedToId, assignedToUser.id))
+      .leftJoin(assignedByUser, eq(fundRecurringConfigs.assignedById, assignedByUser.id))
+      .orderBy(desc(fundRecurringConfigs.createdAt));
+
+    return results.map((r: any) => ({
+      ...r,
+      assignedToName: r.assignedToFirstName ? `${r.assignedToFirstName} ${r.assignedToLastName || ''}`.trim() : r.assignedToEmail,
+      assignedByName: r.assignedByFirstName ? `${r.assignedByFirstName} ${r.assignedByLastName || ''}`.trim() : undefined,
+    }));
+  }
+
+  async getFundRecurringConfigById(id: string): Promise<FundRecurringConfig | undefined> {
+    const [config] = await db.select().from(fundRecurringConfigs).where(eq(fundRecurringConfigs.id, id));
+    return config;
+  }
+
+  async updateFundRecurringConfig(id: string, updates: Partial<InsertFundRecurringConfig>): Promise<FundRecurringConfig> {
+    const [updated] = await db
+      .update(fundRecurringConfigs)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(fundRecurringConfigs.id, id))
+      .returning();
+    return updated;
+  }
+
+  async toggleFundRecurringConfig(id: string, isActive: boolean): Promise<FundRecurringConfig> {
+    const [updated] = await db
+      .update(fundRecurringConfigs)
+      .set({ isActive, updatedAt: new Date() })
+      .where(eq(fundRecurringConfigs.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteFundRecurringConfig(id: string): Promise<void> {
+    await db.delete(fundRecurringConfigs).where(eq(fundRecurringConfigs.id, id));
+  }
+
+  async processRecurringFunds(): Promise<{ created: number; closed: number }> {
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const monthStart = new Date(year, month, 1);
+    const monthEnd = new Date(year, month + 1, 0);
+    const monthStartStr = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    const monthEndStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(monthEnd.getDate()).padStart(2, '0')}`;
+
+    const activeConfigs = await db.select().from(fundRecurringConfigs)
+      .where(eq(fundRecurringConfigs.isActive, true));
+
+    let created = 0;
+    let closed = 0;
+
+    for (const config of activeConfigs) {
+      if (config.lastProcessedMonth === currentMonth) {
+        continue;
+      }
+
+      const existingAllocations = await db.select().from(fundAllocations)
+        .where(and(
+          eq(fundAllocations.recurringConfigId, config.id),
+          eq(fundAllocations.estado, 'activo')
+        ));
+
+      for (const oldAlloc of existingAllocations) {
+        await db.update(fundAllocations)
+          .set({ estado: 'cerrado', updatedAt: new Date() })
+          .where(eq(fundAllocations.id, oldAlloc.id));
+
+        await db.insert(fundMovements).values({
+          allocationId: oldAlloc.id,
+          tipoMovimiento: 'cierre_recurrente',
+          monto: '0',
+          descripcion: `Cierre automático de fondo recurrente al finalizar el mes`,
+          creadoPorId: config.assignedById,
+        });
+        closed++;
+      }
+
+      const newAllocation = await this.createFundAllocation({
+        assignedToId: config.assignedToId,
+        assignedById: config.assignedById,
+        nombre: `${config.nombre} - ${currentMonth}`,
+        montoInicial: config.montoMensual as any,
+        fechaInicio: monthStart,
+        fechaTermino: monthEnd,
+        estado: 'activo',
+        estadoAprobacion: 'aprobado',
+        recurringConfigId: config.id,
+      });
+      created++;
+
+      await db.update(fundRecurringConfigs)
+        .set({ lastProcessedMonth: currentMonth, updatedAt: new Date() })
+        .where(eq(fundRecurringConfigs.id, config.id));
+
+      console.log(`🔄 Fondo recurrente procesado: ${config.nombre} -> ${newAllocation.id} (${currentMonth})`);
+    }
+
+    return { created, closed };
   }
 
   // ==================================================================================
