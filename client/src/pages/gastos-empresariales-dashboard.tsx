@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useFilter } from "@/contexts/FilterContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -232,14 +233,15 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
-  const currentMonth = new Date().getMonth() + 1;
+  const { gastosFilter, updateGastosFilter } = useFilter();
+  const mes = gastosFilter.mes;
+  const anio = gastosFilter.anio;
+  const usuarioFilter = gastosFilter.usuarioFilter;
+  const setMes = (v: string) => updateGastosFilter({ mes: v });
+  const setAnio = (v: string) => updateGastosFilter({ anio: v });
+  const setUsuarioFilter = (v: string) => updateGastosFilter({ usuarioFilter: v });
   
   const canExport = user?.role && !['salesperson', 'Salesperson', 'Vendedor', 'vendedor'].includes(user.role);
-  const currentYear = new Date().getFullYear();
-  
-  const [mes, setMes] = useState(currentMonth.toString());
-  const [anio, setAnio] = useState(currentYear.toString());
-  const [usuarioFilter, setUsuarioFilter] = useState("todos");
   const [estadoFilter, setEstadoFilter] = useState("todos");
   const [categoriaFilter, setCategoriaFilter] = useState("todos");
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
