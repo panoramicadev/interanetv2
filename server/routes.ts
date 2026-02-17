@@ -16073,6 +16073,52 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     }
   }));
 
+  app.patch('/api/gastos-empresariales/:id/editar', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+
+      if (!['admin', 'recursos_humanos'].includes(user.role)) {
+        return res.status(403).json({ message: 'Solo admin o recursos humanos pueden editar gastos' });
+      }
+
+      const existing = await storage.getGastoEmpresarialById(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ message: 'Gasto no encontrado' });
+      }
+
+      const allowedFields = ['monto', 'descripcion', 'categoria', 'tipoDocumento', 'proveedor', 'rutProveedor', 'numeroDocumento', 'fechaEmision', 'ruta', 'clientes', 'ciudad'];
+      const updates: any = {};
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined && req.body[field] !== '') {
+          updates[field] = req.body[field];
+        } else if (req.body[field] === '' && !['monto', 'descripcion', 'categoria'].includes(field)) {
+          updates[field] = null;
+        }
+      }
+
+      if (updates.fechaEmision && !/^\d{4}-\d{2}-\d{2}$/.test(updates.fechaEmision)) {
+        return res.status(400).json({ message: 'Fecha de emisión inválida. Formato: YYYY-MM-DD' });
+      }
+
+      if (req.body.createdAt) {
+        const newCreatedAt = new Date(req.body.createdAt);
+        if (isNaN(newCreatedAt.getTime())) {
+          return res.status(400).json({ message: 'Fecha de creación inválida' });
+        }
+        updates.createdAt = newCreatedAt;
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: 'No se proporcionaron campos para editar' });
+      }
+
+      const gasto = await storage.updateGastoEmpresarial(req.params.id, updates);
+      res.json(gasto);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al editar gasto', error: error.message });
+    }
+  }));
+
   // ==================================================================================
   // FLUJO DE APROBACIÓN DE DOS NIVELES PARA REEMBOLSOS
   // ==================================================================================

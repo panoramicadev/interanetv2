@@ -146,7 +146,7 @@ export default function GastosEmpresariales() {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [activeMainTab, setActiveMainTab] = useState("rendicion");
   const [showEditFechaDialog, setShowEditFechaDialog] = useState(false);
-  const [editFechaValue, setEditFechaValue] = useState("");
+  const [editFormData, setEditFormData] = useState<Record<string, string>>({});
 
   // Get salesperson's assigned segment (if any)
   const userAssignedSegment = (user as any)?.assignedSegment || null;
@@ -384,27 +384,32 @@ export default function GastosEmpresariales() {
     }
   });
 
-  const editFechaMutation = useMutation({
-    mutationFn: async ({ id, fechaEmision }: { id: string; fechaEmision: string }) => {
-      return apiRequest(`/api/gastos-empresariales/${id}/fecha-emision`, {
+  const editGastoMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, any> }) => {
+      return apiRequest(`/api/gastos-empresariales/${id}/editar`, {
         method: 'PATCH',
-        data: { fechaEmision },
+        data,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics/usuarios'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics/por-usuario'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics/por-dia'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics/por-categoria'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics/meses-con-gastos'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gastos-empresariales/analytics/summary'] });
       setShowEditFechaDialog(false);
       setSelectedGasto(null);
       toast({
-        title: "Fecha actualizada",
-        description: "La fecha de emisión ha sido corregida exitosamente",
+        title: "Gasto actualizado",
+        description: "Los datos del gasto han sido actualizados correctamente",
       });
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "No se pudo actualizar la fecha de emisión",
+        description: "No se pudo actualizar el gasto",
         variant: "destructive",
       });
     }
@@ -828,11 +833,25 @@ export default function GastosEmpresariales() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedGasto(gasto);
-                                setEditFechaValue(gasto.fechaEmision || '');
+                                const createdDate = gasto.createdAt ? new Date(gasto.createdAt) : new Date();
+                                setEditFormData({
+                                  monto: gasto.monto || '',
+                                  descripcion: gasto.descripcion || '',
+                                  categoria: gasto.categoria || '',
+                                  tipoDocumento: gasto.tipoDocumento || '',
+                                  proveedor: gasto.proveedor || '',
+                                  rutProveedor: gasto.rutProveedor || '',
+                                  numeroDocumento: gasto.numeroDocumento || '',
+                                  fechaEmision: gasto.fechaEmision || '',
+                                  ruta: (gasto as any).ruta || '',
+                                  clientes: (gasto as any).clientes || '',
+                                  ciudad: (gasto as any).ciudad || '',
+                                  createdAt: `${createdDate.getFullYear()}-${String(createdDate.getMonth()+1).padStart(2,'0')}-${String(createdDate.getDate()).padStart(2,'0')}T${String(createdDate.getHours()).padStart(2,'0')}:${String(createdDate.getMinutes()).padStart(2,'0')}`,
+                                });
                                 setShowEditFechaDialog(true);
                               }}
-                              title="Editar fecha de emisión"
-                              data-testid={`button-edit-fecha-${gasto.id}`}
+                              title="Editar gasto"
+                              data-testid={`button-edit-gasto-${gasto.id}`}
                             >
                               <Pencil className="h-4 w-4 text-blue-600" />
                             </Button>
@@ -1070,10 +1089,38 @@ export default function GastosEmpresariales() {
               )}
 
               {/* Actions */}
-              {canApproveReject && selectedGasto.estado === 'pendiente' && (
-                <>
-                  <Separator />
-                  <div className="flex justify-end gap-2">
+              <Separator />
+              <div className="flex justify-end gap-2">
+                {['admin', 'recursos_humanos'].includes(user?.role || '') && (
+                  <Button
+                    variant="outline"
+                    className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                    onClick={() => {
+                      const createdDate = selectedGasto.createdAt ? new Date(selectedGasto.createdAt) : new Date();
+                      setEditFormData({
+                        monto: selectedGasto.monto || '',
+                        descripcion: selectedGasto.descripcion || '',
+                        categoria: selectedGasto.categoria || '',
+                        tipoDocumento: selectedGasto.tipoDocumento || '',
+                        proveedor: selectedGasto.proveedor || '',
+                        rutProveedor: selectedGasto.rutProveedor || '',
+                        numeroDocumento: selectedGasto.numeroDocumento || '',
+                        fechaEmision: selectedGasto.fechaEmision || '',
+                        ruta: (selectedGasto as any).ruta || '',
+                        clientes: (selectedGasto as any).clientes || '',
+                        ciudad: (selectedGasto as any).ciudad || '',
+                        createdAt: `${createdDate.getFullYear()}-${String(createdDate.getMonth()+1).padStart(2,'0')}-${String(createdDate.getDate()).padStart(2,'0')}T${String(createdDate.getHours()).padStart(2,'0')}:${String(createdDate.getMinutes()).padStart(2,'0')}`,
+                      });
+                      setShowDetailDialog(false);
+                      setShowEditFechaDialog(true);
+                    }}
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Editar
+                  </Button>
+                )}
+                {canApproveReject && selectedGasto.estado === 'pendiente' && (
+                  <>
                     <Button
                       variant="outline"
                       className="text-red-600 border-red-200 hover:bg-red-50"
@@ -1097,9 +1144,9 @@ export default function GastosEmpresariales() {
                       <Check className="h-4 w-4 mr-2" />
                       Aprobar
                     </Button>
-                  </div>
-                </>
-              )}
+                  </>
+                )}
+              </div>
 
             </div>
           )}
@@ -1418,36 +1465,147 @@ export default function GastosEmpresariales() {
           </Form>
         </DialogContent>
       </Dialog>
-      {/* Edit FechaEmision Dialog */}
+      {/* Edit Gasto Dialog - Full edit for admin/RRHH */}
       <Dialog open={showEditFechaDialog} onOpenChange={setShowEditFechaDialog}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-blue-600" />
-              Corregir Fecha de Emisión
+              <Pencil className="h-5 w-5 text-blue-600" />
+              Editar Gasto
             </DialogTitle>
             <DialogDescription>
-              Modifica la fecha de emisión de este gasto. Esto corrige errores de lectura automática (OCR).
+              Modifica los datos del gasto. Puedes cambiar fechas, montos y detalles.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
-            {selectedGasto && (
-              <div className="text-sm text-gray-600 bg-gray-50 rounded-md p-3 space-y-1">
-                <p><span className="font-medium">Gasto:</span> {selectedGasto.descripcion}</p>
-                <p><span className="font-medium">Monto:</span> {formatCurrency(selectedGasto.monto)}</p>
-                <p><span className="font-medium">Fecha actual:</span> {selectedGasto.fechaEmision || 'Sin fecha'}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Fecha de Creación</label>
+                <Input
+                  type="datetime-local"
+                  value={editFormData.createdAt || ''}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, createdAt: e.target.value }))}
+                />
               </div>
-            )}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Fecha de Emisión</label>
+                <Input
+                  type="date"
+                  value={editFormData.fechaEmision || ''}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, fechaEmision: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Monto (CLP)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-gray-500">$</span>
+                  <Input
+                    type="number"
+                    className="pl-7"
+                    value={editFormData.monto || ''}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, monto: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Categoría</label>
+                <Select
+                  value={editFormData.categoria || ''}
+                  onValueChange={(val) => setEditFormData(prev => ({ ...prev, categoria: val }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Categoría" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Combustibles">Combustibles</SelectItem>
+                    <SelectItem value="Colación">Colación</SelectItem>
+                    <SelectItem value="Gestión Ventas">Gestión Ventas</SelectItem>
+                    <SelectItem value="Otros">Otros</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div>
-              <label className="block text-sm font-medium mb-1.5">Nueva fecha de emisión</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Descripción</label>
               <Input
-                type="date"
-                value={editFechaValue}
-                onChange={(e) => setEditFechaValue(e.target.value)}
-                data-testid="input-edit-fecha"
+                value={editFormData.descripcion || ''}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, descripcion: e.target.value }))}
               />
             </div>
-            <div className="flex justify-end gap-2">
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Proveedor</label>
+                <Input
+                  value={editFormData.proveedor || ''}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, proveedor: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">RUT Proveedor</label>
+                <Input
+                  value={editFormData.rutProveedor || ''}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, rutProveedor: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Tipo de Documento</label>
+                <Select
+                  value={editFormData.tipoDocumento || ''}
+                  onValueChange={(val) => setEditFormData(prev => ({ ...prev, tipoDocumento: val }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Tipo documento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Boleta">Boleta</SelectItem>
+                    <SelectItem value="Factura">Factura</SelectItem>
+                    <SelectItem value="Recibo">Recibo</SelectItem>
+                    <SelectItem value="Otro">Otro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">N° Documento</label>
+                <Input
+                  value={editFormData.numeroDocumento || ''}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, numeroDocumento: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Ruta</label>
+                <Input
+                  value={editFormData.ruta || ''}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, ruta: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Cliente(s)</label>
+                <Input
+                  value={editFormData.clientes || ''}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, clientes: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Ciudad</label>
+                <Input
+                  value={editFormData.ciudad || ''}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, ciudad: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
               <Button
                 variant="outline"
                 onClick={() => setShowEditFechaDialog(false)}
@@ -1456,16 +1614,21 @@ export default function GastosEmpresariales() {
               </Button>
               <Button
                 onClick={() => {
-                  if (selectedGasto && editFechaValue) {
-                    editFechaMutation.mutate({
+                  if (selectedGasto) {
+                    editGastoMutation.mutate({
                       id: selectedGasto.id,
-                      fechaEmision: editFechaValue,
+                      data: editFormData,
                     });
                   }
                 }}
-                disabled={editFechaMutation.isPending || !editFechaValue}
+                disabled={editGastoMutation.isPending}
               >
-                {editFechaMutation.isPending ? 'Guardando...' : 'Guardar'}
+                {editGastoMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Guardando...
+                  </>
+                ) : 'Guardar Cambios'}
               </Button>
             </div>
           </div>
