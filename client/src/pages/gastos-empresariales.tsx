@@ -855,7 +855,7 @@ export default function GastosEmpresariales() {
                             </>
                           )}
                           {/* RRHH puede auditar gastos con fondos asignados ya aprobados */}
-                          {user?.role === 'recursos_humanos' && gasto.fundingMode === 'con_fondo' && gasto.estado === 'aprobado' && (
+                          {user?.role === 'recursos_humanos' && gasto.fundingMode === 'con_fondo' && gasto.estado === 'aprobado' && !['pendiente_rrhh', 'pendiente_supervisor'].includes(gasto.estadoAprobacion || '') && (
                             <Button
                               size="sm"
                               variant="ghost"
