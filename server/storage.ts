@@ -20638,7 +20638,7 @@ export class DatabaseStorage implements IStorage {
     return newConfig;
   }
 
-  async getFundRecurringConfigs(): Promise<(FundRecurringConfig & { assignedToName?: string; assignedByName?: string })[]> {
+  async getFundRecurringConfigs(): Promise<(FundRecurringConfig & { assignedToName?: string; assignedByName?: string; currentMonthStatus?: string })[]> {
     const assignedByUser = aliasedTable(users, 'assigned_by_user');
     const assignedToUser = aliasedTable(users, 'assigned_to_user');
 
@@ -20656,11 +20656,51 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(assignedByUser, eq(fundRecurringConfigs.assignedById, assignedByUser.id))
       .orderBy(desc(fundRecurringConfigs.createdAt));
 
-    return results.map((r: any) => ({
-      ...r,
-      assignedToName: r.assignedToFirstName ? `${r.assignedToFirstName} ${r.assignedToLastName || ''}`.trim() : r.assignedToEmail,
-      assignedByName: r.assignedByFirstName ? `${r.assignedByFirstName} ${r.assignedByLastName || ''}`.trim() : undefined,
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    const enriched = await Promise.all(results.map(async (r: any) => {
+      let currentMonthStatus = 'sin_procesar';
+      if (r.lastProcessedMonth === currentMonth) {
+        const currentAllocs = await db.select({ estadoAprobacion: fundAllocations.estadoAprobacion, estado: fundAllocations.estado })
+          .from(fundAllocations)
+          .where(and(
+            eq(fundAllocations.recurringConfigId, r.id),
+            sql`to_char(${fundAllocations.createdAt}, 'YYYY-MM') = ${currentMonth}`
+          ))
+          .limit(1);
+        if (currentAllocs.length > 0) {
+          const alloc = currentAllocs[0];
+          if (alloc.estadoAprobacion === 'pendiente_rrhh') {
+            currentMonthStatus = 'pendiente_transferencia';
+          } else if (alloc.estadoAprobacion === 'aprobado' && alloc.estado === 'activo') {
+            currentMonthStatus = 'activo';
+          } else if (alloc.estado === 'cerrado') {
+            currentMonthStatus = 'cerrado';
+          } else {
+            currentMonthStatus = alloc.estadoAprobacion || 'desconocido';
+          }
+        }
+      }
+
+      let assignedToName = r.assignedToFirstName ? `${r.assignedToFirstName} ${r.assignedToLastName || ''}`.trim() : r.assignedToEmail;
+      if (!assignedToName) {
+        const spUser = await db.select({ salespersonName: salespeopleUsers.salespersonName })
+          .from(salespeopleUsers)
+          .where(eq(salespeopleUsers.id, r.assignedToId))
+          .limit(1);
+        if (spUser.length > 0) assignedToName = spUser[0].salespersonName;
+      }
+
+      return {
+        ...r,
+        assignedToName: assignedToName || undefined,
+        assignedByName: r.assignedByFirstName ? `${r.assignedByFirstName} ${r.assignedByLastName || ''}`.trim() : undefined,
+        currentMonthStatus,
+      };
     }));
+
+    return enriched;
   }
 
   async getFundRecurringConfigById(id: string): Promise<FundRecurringConfig | undefined> {
@@ -20714,7 +20754,7 @@ export class DatabaseStorage implements IStorage {
       const existingAllocations = await db.select().from(fundAllocations)
         .where(and(
           eq(fundAllocations.recurringConfigId, config.id),
-          eq(fundAllocations.estado, 'activo')
+          inArray(fundAllocations.estado, ['activo', 'pendiente'])
         ));
 
       for (const oldAlloc of existingAllocations) {
@@ -20739,8 +20779,8 @@ export class DatabaseStorage implements IStorage {
         montoInicial: config.montoMensual as any,
         fechaInicio: monthStart,
         fechaTermino: monthEnd,
-        estado: 'activo',
-        estadoAprobacion: 'aprobado',
+        estado: 'pendiente',
+        estadoAprobacion: 'pendiente_rrhh',
         recurringConfigId: config.id,
       });
       created++;

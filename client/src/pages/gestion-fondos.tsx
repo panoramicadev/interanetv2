@@ -1153,7 +1153,8 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
                         <TableHead>Nombre</TableHead>
                         <TableHead>Asignado a</TableHead>
                         <TableHead className="text-right">Monto Mensual</TableHead>
-                        <TableHead>Estado</TableHead>
+                        <TableHead>Config</TableHead>
+                        <TableHead>Estado Mes Actual</TableHead>
                         <TableHead>Último Procesado</TableHead>
                         <TableHead className="text-right">Acciones</TableHead>
                       </TableRow>
@@ -1170,6 +1171,24 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
                               <Badge variant={config.isActive ? "default" : "secondary"}>
                                 {config.isActive ? "Activo" : "Inactivo"}
                               </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {config.currentMonthStatus === 'pendiente_transferencia' && (
+                                <Badge variant="outline" className="border-yellow-400 text-yellow-700 bg-yellow-50">
+                                  Esperando Transferencia
+                                </Badge>
+                              )}
+                              {config.currentMonthStatus === 'activo' && (
+                                <Badge variant="default" className="bg-green-600">
+                                  Habilitado
+                                </Badge>
+                              )}
+                              {config.currentMonthStatus === 'cerrado' && (
+                                <Badge variant="secondary">Cerrado</Badge>
+                              )}
+                              {config.currentMonthStatus === 'sin_procesar' && (
+                                <Badge variant="outline" className="text-gray-400">Sin procesar</Badge>
+                              )}
                             </TableCell>
                             <TableCell>{config.lastProcessedMonth || "—"}</TableCell>
                             <TableCell className="text-right">
