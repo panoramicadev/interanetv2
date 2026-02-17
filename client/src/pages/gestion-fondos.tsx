@@ -1164,7 +1164,7 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
                         return (
                           <TableRow key={config.id}>
                             <TableCell className="font-medium">{config.nombre}</TableCell>
-                            <TableCell>{assignedUser?.name || assignedUser?.username || `ID: ${config.assignedToId}`}</TableCell>
+                            <TableCell>{assignedUser?.salespersonName || assignedUser?.username || config.assignedToName || `ID: ${config.assignedToId}`}</TableCell>
                             <TableCell className="text-right">{formatCurrency(Number(config.montoMensual))}</TableCell>
                             <TableCell>
                               <Badge variant={config.isActive ? "default" : "secondary"}>
@@ -1254,7 +1254,7 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
                   <SelectContent>
                     {salespeople.map((sp: any) => (
                       <SelectItem key={sp.id} value={String(sp.id)}>
-                        {sp.name || sp.username}
+                        {sp.salespersonName || sp.username || sp.email}
                       </SelectItem>
                     ))}
                   </SelectContent>
