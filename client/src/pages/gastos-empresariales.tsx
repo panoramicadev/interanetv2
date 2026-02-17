@@ -526,6 +526,17 @@ export default function GastosEmpresariales() {
             </TabsTrigger>
           </TabsList>
 
+          <div className="sticky top-0 z-10 bg-white pt-3 pb-1">
+            <GastosFilterBar
+              mes={mes}
+              setMes={setMes}
+              anio={anio}
+              setAnio={setAnio}
+              usuarioFilter={usuarioFilter}
+              setUsuarioFilter={setUsuarioFilter}
+            />
+          </div>
+
           <TabsContent value="dashboard" className="mt-4">
             <GastosEmpresarialesDashboard embedded={true} />
           </TabsContent>
@@ -637,15 +648,6 @@ export default function GastosEmpresariales() {
                 </Card>
               </Collapsible>
             )}
-
-            <GastosFilterBar
-              mes={mes}
-              setMes={setMes}
-              anio={anio}
-              setAnio={setAnio}
-              usuarioFilter={usuarioFilter}
-              setUsuarioFilter={setUsuarioFilter}
-            />
 
             {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4">
