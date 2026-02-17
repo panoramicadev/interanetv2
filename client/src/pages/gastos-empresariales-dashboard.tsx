@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useFilter } from "@/contexts/FilterContext";
@@ -225,11 +225,21 @@ const CATEGORY_COLORS = [
   COLORS.danger,
 ];
 
-interface DashboardProps {
-  embedded?: boolean;
+export interface DashboardExportHandle {
+  handleExportPDF: () => void;
+  handleExportCSV: () => void;
+  canExport: boolean;
+  hasData: boolean;
+  isGeneratingPDF: boolean;
+  isLoadingUsers: boolean;
 }
 
-export default function GastosEmpresarialesDashboard({ embedded = false }: DashboardProps) {
+interface DashboardProps {
+  embedded?: boolean;
+  onReady?: () => void;
+}
+
+const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, DashboardProps>(function GastosEmpresarialesDashboard({ embedded = false, onReady }, ref) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -1401,6 +1411,19 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
 
   const hasData = (summary?.count || 0) > 0 || fondosData.length > 0 || gastosRecientes.length > 0;
 
+  useImperativeHandle(ref, () => ({
+    handleExportPDF,
+    handleExportCSV,
+    canExport: !!canExport,
+    hasData,
+    isGeneratingPDF,
+    isLoadingUsers,
+  }), [handleExportPDF, handleExportCSV, canExport, hasData, isGeneratingPDF, isLoadingUsers]);
+
+  useEffect(() => {
+    if (onReady) onReady();
+  }, [canExport, hasData, isGeneratingPDF, isLoadingUsers]);
+
   return (
     <div className={embedded ? "space-y-6" : "p-4 sm:p-6 lg:p-8 space-y-6"}>
       {!embedded && (
@@ -1452,33 +1475,6 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
         </div>
       )}
 
-      {embedded && canExport && (
-        <div className="flex gap-2 justify-end">
-          <Button 
-            onClick={handleExportPDF}
-            variant="default"
-            disabled={!hasData || isGeneratingPDF || isLoadingUsers}
-            title={isLoadingUsers ? 'Cargando datos de usuarios...' : undefined}
-            data-testid="button-export-pdf"
-          >
-            {isGeneratingPDF || isLoadingUsers ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <FileText className="h-4 w-4 mr-2" />
-            )}
-            {isGeneratingPDF ? 'Generando...' : isLoadingUsers ? 'Cargando...' : 'Exportar PDF'}
-          </Button>
-          <Button 
-            onClick={handleExportCSV}
-            variant="outline"
-            disabled={!hasData}
-            data-testid="button-export-csv"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Exportar CSV
-          </Button>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-l-4 border-l-blue-500">
@@ -1677,4 +1673,6 @@ export default function GastosEmpresarialesDashboard({ embedded = false }: Dashb
       </div>
     </div>
   );
-}
+});
+
+export default GastosEmpresarialesDashboard;

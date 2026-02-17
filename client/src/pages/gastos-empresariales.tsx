@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -58,7 +58,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Link } from "wouter";
 import { Separator } from "@/components/ui/separator";
 import GestionFondosContent from "./gestion-fondos";
-import GastosEmpresarialesDashboard from "./gastos-empresariales-dashboard";
+import GastosEmpresarialesDashboard, { type DashboardExportHandle } from "./gastos-empresariales-dashboard";
 import GastosFilterBar from "@/components/gastos-filter-bar";
 
 const solicitarFondoSchema = z.object({
@@ -149,6 +149,8 @@ export default function GastosEmpresariales() {
   const [showCrearFondoDialog, setShowCrearFondoDialog] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [activeMainTab, setActiveMainTab] = useState("rendicion");
+  const dashboardRef = useRef<DashboardExportHandle>(null);
+  const [, forceUpdate] = useState(0);
   const [showEditFechaDialog, setShowEditFechaDialog] = useState(false);
   const [editFormData, setEditFormData] = useState<Record<string, string>>({});
 
@@ -537,6 +539,33 @@ export default function GastosEmpresariales() {
               setUsuarioFilter={setUsuarioFilter}
               actions={
                 <>
+                  {activeMainTab === 'dashboard' && dashboardRef.current?.canExport && (
+                    <>
+                      <Button 
+                        size="sm"
+                        onClick={() => dashboardRef.current?.handleExportPDF()}
+                        disabled={!dashboardRef.current?.hasData || dashboardRef.current?.isGeneratingPDF || dashboardRef.current?.isLoadingUsers}
+                        data-testid="button-export-pdf"
+                      >
+                        {dashboardRef.current?.isGeneratingPDF || dashboardRef.current?.isLoadingUsers ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <FileText className="h-4 w-4 mr-2" />
+                        )}
+                        {dashboardRef.current?.isGeneratingPDF ? 'Generando...' : dashboardRef.current?.isLoadingUsers ? 'Cargando...' : 'Exportar PDF'}
+                      </Button>
+                      <Button 
+                        size="sm"
+                        variant="outline"
+                        onClick={() => dashboardRef.current?.handleExportCSV()}
+                        disabled={!dashboardRef.current?.hasData}
+                        data-testid="button-export-csv"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Exportar CSV
+                      </Button>
+                    </>
+                  )}
                   {activeMainTab === 'rendicion' && (
                     <>
                       <Button 
@@ -574,7 +603,7 @@ export default function GastosEmpresariales() {
           </div>
 
           <TabsContent value="dashboard" className="mt-4">
-            <GastosEmpresarialesDashboard embedded={true} />
+            <GastosEmpresarialesDashboard ref={dashboardRef} embedded={true} onReady={() => forceUpdate(n => n + 1)} />
           </TabsContent>
 
           <TabsContent value="rendicion" className="mt-4 space-y-4">
