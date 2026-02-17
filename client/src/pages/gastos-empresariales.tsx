@@ -891,6 +891,8 @@ export default function GastosEmpresariales() {
                                   ruta: (gasto as any).ruta || '',
                                   clientes: (gasto as any).clientes || '',
                                   ciudad: (gasto as any).ciudad || '',
+                                  fundingMode: gasto.fundingMode || 'reembolso',
+                                  fundAllocationId: gasto.fundAllocationId || '',
                                   createdAt: `${createdDate.getFullYear()}-${String(createdDate.getMonth()+1).padStart(2,'0')}-${String(createdDate.getDate()).padStart(2,'0')}T${String(createdDate.getHours()).padStart(2,'0')}:${String(createdDate.getMinutes()).padStart(2,'0')}`,
                                 });
                                 setShowEditFechaDialog(true);
@@ -1159,6 +1161,8 @@ export default function GastosEmpresariales() {
                         ruta: (selectedGasto as any).ruta || '',
                         clientes: (selectedGasto as any).clientes || '',
                         ciudad: (selectedGasto as any).ciudad || '',
+                        fundingMode: selectedGasto.fundingMode || 'reembolso',
+                        fundAllocationId: selectedGasto.fundAllocationId || '',
                         createdAt: `${createdDate.getFullYear()}-${String(createdDate.getMonth()+1).padStart(2,'0')}-${String(createdDate.getDate()).padStart(2,'0')}T${String(createdDate.getHours()).padStart(2,'0')}:${String(createdDate.getMinutes()).padStart(2,'0')}`,
                       });
                       setShowDetailDialog(false);
@@ -1545,6 +1549,50 @@ export default function GastosEmpresariales() {
                   onChange={(e) => setEditFormData(prev => ({ ...prev, fechaEmision: e.target.value }))}
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Tipo de Gasto</label>
+                <Select
+                  value={editFormData.fundingMode || 'reembolso'}
+                  onValueChange={(val) => {
+                    setEditFormData(prev => ({
+                      ...prev,
+                      fundingMode: val,
+                      fundAllocationId: val === 'reembolso' ? '' : prev.fundAllocationId,
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Tipo de gasto" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="reembolso">Reembolso</SelectItem>
+                    <SelectItem value="con_fondo">Con Fondos Asignados</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {editFormData.fundingMode === 'con_fondo' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Fondo Asignado</label>
+                  <Select
+                    value={editFormData.fundAllocationId || ''}
+                    onValueChange={(val) => setEditFormData(prev => ({ ...prev, fundAllocationId: val }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar fondo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {userFundAllocations.map((fund: any) => (
+                        <SelectItem key={fund.id} value={fund.id}>
+                          {fund.nombre} ({formatCurrency(fund.saldoDisponible || 0)} disponible)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
