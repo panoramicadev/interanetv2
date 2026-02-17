@@ -16434,20 +16434,20 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       
       const results = await db
         .select({
-          mes: sql<number>`EXTRACT(MONTH FROM COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}))`,
-          anio: sql<number>`EXTRACT(YEAR FROM COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}))`,
+          mes: sql<number>`EXTRACT(MONTH FROM ${gastosEmpresariales.createdAt})`,
+          anio: sql<number>`EXTRACT(YEAR FROM ${gastosEmpresariales.createdAt})`,
           cantidad: sql<number>`COUNT(*)`,
           total: sql<number>`SUM(${gastosEmpresariales.monto})`,
         })
         .from(gastosEmpresariales)
         .where(eq(gastosEmpresariales.userId, userId))
         .groupBy(
-          sql`EXTRACT(MONTH FROM COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}))`,
-          sql`EXTRACT(YEAR FROM COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}))`
+          sql`EXTRACT(MONTH FROM ${gastosEmpresariales.createdAt})`,
+          sql`EXTRACT(YEAR FROM ${gastosEmpresariales.createdAt})`
         )
         .orderBy(
-          desc(sql`EXTRACT(YEAR FROM COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}))`),
-          desc(sql`EXTRACT(MONTH FROM COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}))`)
+          desc(sql`EXTRACT(YEAR FROM ${gastosEmpresariales.createdAt})`),
+          desc(sql`EXTRACT(MONTH FROM ${gastosEmpresariales.createdAt})`)
         );
       
       res.json(results.map(r => ({

@@ -19501,13 +19501,13 @@ export class DatabaseStorage implements IStorage {
 
     if (filters?.fechaDesde) {
       conditions.push(
-        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) >= ${new Date(filters.fechaDesde)}`
+        sql`${gastosEmpresariales.createdAt} >= ${new Date(filters.fechaDesde)}`
       );
     }
 
     if (filters?.fechaHasta) {
       conditions.push(
-        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) <= ${new Date(filters.fechaHasta)}`
+        sql`${gastosEmpresariales.createdAt} <= ${new Date(filters.fechaHasta)}`
       );
     }
 
@@ -19722,10 +19722,10 @@ export class DatabaseStorage implements IStorage {
       const startDate = new Date(filters.anio, filters.mes - 1, 1);
       const endDate = new Date(filters.anio, filters.mes, 0, 23, 59, 59);
       conditions.push(
-        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) >= ${startDate}`
+        sql`${gastosEmpresariales.createdAt} >= ${startDate}`
       );
       conditions.push(
-        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) <= ${endDate}`
+        sql`${gastosEmpresariales.createdAt} <= ${endDate}`
       );
     }
 
@@ -19787,10 +19787,10 @@ export class DatabaseStorage implements IStorage {
       const startDate = new Date(filters.anio, filters.mes - 1, 1);
       const endDate = new Date(filters.anio, filters.mes, 0, 23, 59, 59);
       conditions.push(
-        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) >= ${startDate}`
+        sql`${gastosEmpresariales.createdAt} >= ${startDate}`
       );
       conditions.push(
-        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) <= ${endDate}`
+        sql`${gastosEmpresariales.createdAt} <= ${endDate}`
       );
     }
 
@@ -19826,10 +19826,10 @@ export class DatabaseStorage implements IStorage {
       const startDate = new Date(filters.anio, filters.mes - 1, 1);
       const endDate = new Date(filters.anio, filters.mes, 0, 23, 59, 59);
       conditions.push(
-        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) >= ${startDate}`
+        sql`${gastosEmpresariales.createdAt} >= ${startDate}`
       );
       conditions.push(
-        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) <= ${endDate}`
+        sql`${gastosEmpresariales.createdAt} <= ${endDate}`
       );
     }
 
@@ -19936,22 +19936,22 @@ export class DatabaseStorage implements IStorage {
       const startDate = new Date(filters.anio, filters.mes - 1, 1);
       const endDate = new Date(filters.anio, filters.mes, 0, 23, 59, 59);
       conditions.push(
-        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) >= ${startDate}`
+        sql`${gastosEmpresariales.createdAt} >= ${startDate}`
       );
       conditions.push(
-        sql`COALESCE(${gastosEmpresariales.fechaEmision}, ${gastosEmpresariales.createdAt}) <= ${endDate}`
+        sql`${gastosEmpresariales.createdAt} <= ${endDate}`
       );
     }
 
     const results = await db
       .select({
-        dia: sql<string>`TO_CHAR(COALESCE(${gastosEmpresariales.fechaEmision}::timestamp, ${gastosEmpresariales.createdAt}), 'YYYY-MM-DD')`,
+        dia: sql<string>`TO_CHAR(${gastosEmpresariales.createdAt}, 'YYYY-MM-DD')`,
         total: sql<number>`SUM(${gastosEmpresariales.monto})`,
         cantidad: sql<number>`COUNT(*)`,
       })
       .from(gastosEmpresariales)
       .where(and(...conditions))
-      .groupBy(sql`TO_CHAR(COALESCE(${gastosEmpresariales.fechaEmision}::timestamp, ${gastosEmpresariales.createdAt}), 'YYYY-MM-DD')`)
+      .groupBy(sql`TO_CHAR(${gastosEmpresariales.createdAt}, 'YYYY-MM-DD')`)
       .orderBy(sql`SUM(${gastosEmpresariales.monto}) DESC`)
       .limit(10); // Top 10 días más gastados
 
