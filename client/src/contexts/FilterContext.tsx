@@ -16,11 +16,20 @@ export interface GlobalFilter {
   value: string;
 }
 
+export interface GastosFilter {
+  mes: string;
+  anio: string;
+  usuarioFilter: string;
+}
+
 interface FilterContextType {
   selection: YearMonthSelection;
   setSelection: (selection: YearMonthSelection) => void;
   globalFilter: GlobalFilter;
   setGlobalFilter: (filter: GlobalFilter) => void;
+  gastosFilter: GastosFilter;
+  setGastosFilter: (filter: GastosFilter) => void;
+  updateGastosFilter: (partial: Partial<GastosFilter>) => void;
   resetFilters: () => void;
 }
 
@@ -39,6 +48,16 @@ const getDefaultSelection = (): YearMonthSelection => {
 
 const STORAGE_KEY_SELECTION = "dashboard_filter_selection";
 const STORAGE_KEY_GLOBAL_FILTER = "dashboard_global_filter";
+const STORAGE_KEY_GASTOS_FILTER = "gastos_filter";
+
+const getDefaultGastosFilter = (): GastosFilter => {
+  const now = new Date();
+  return {
+    mes: (now.getMonth() + 1).toString(),
+    anio: now.getFullYear().toString(),
+    usuarioFilter: "todos",
+  };
+};
 
 export function FilterProvider({ children }: { children: ReactNode }) {
   // Initialize from localStorage or defaults
@@ -82,6 +101,18 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     return { type: "all", value: "" };
   });
 
+  const [gastosFilter, setGastosFilterState] = useState<GastosFilter>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_GASTOS_FILTER);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error("Error loading gastos filter from localStorage:", e);
+    }
+    return getDefaultGastosFilter();
+  });
+
   // Persist to localStorage whenever selection changes
   useEffect(() => {
     console.log("💾 [FilterContext] selection changed, saving to localStorage:", selection);
@@ -100,6 +131,14 @@ export function FilterProvider({ children }: { children: ReactNode }) {
       console.error("Error saving global filter to localStorage:", e);
     }
   }, [globalFilter]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_GASTOS_FILTER, JSON.stringify(gastosFilter));
+    } catch (e) {
+      console.error("Error saving gastos filter to localStorage:", e);
+    }
+  }, [gastosFilter]);
 
   const setSelection = (newSelection: YearMonthSelection) => {
     console.log("🔧 [FilterContext] setSelection called:", {
@@ -123,9 +162,18 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     setGlobalFilterState(filter);
   };
 
+  const setGastosFilter = (filter: GastosFilter) => {
+    setGastosFilterState(filter);
+  };
+
+  const updateGastosFilter = (partial: Partial<GastosFilter>) => {
+    setGastosFilterState(prev => ({ ...prev, ...partial }));
+  };
+
   const resetFilters = () => {
     setSelectionState(getDefaultSelection());
     setGlobalFilterState({ type: "all", value: "" });
+    setGastosFilterState(getDefaultGastosFilter());
   };
 
   return (
@@ -135,6 +183,9 @@ export function FilterProvider({ children }: { children: ReactNode }) {
         setSelection,
         globalFilter,
         setGlobalFilter,
+        gastosFilter,
+        setGastosFilter,
+        updateGastosFilter,
         resetFilters
       }}
     >

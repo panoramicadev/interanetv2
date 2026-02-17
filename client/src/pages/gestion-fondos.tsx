@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useFilter } from "@/contexts/FilterContext";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -97,11 +98,13 @@ interface FundAllocation {
 export default function GestionFondos({ embedded = false }: GestionFondosProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const currentMonth = new Date().getMonth() + 1;
-  const currentYear = new Date().getFullYear();
-  const [mes, setMes] = useState(currentMonth.toString());
-  const [anio, setAnio] = useState(currentYear.toString());
-  const [usuarioFilter, setUsuarioFilter] = useState("todos");
+  const { gastosFilter, updateGastosFilter } = useFilter();
+  const mes = gastosFilter.mes;
+  const anio = gastosFilter.anio;
+  const usuarioFilter = gastosFilter.usuarioFilter;
+  const setMes = (v: string) => updateGastosFilter({ mes: v });
+  const setAnio = (v: string) => updateGastosFilter({ anio: v });
+  const setUsuarioFilter = (v: string) => updateGastosFilter({ usuarioFilter: v });
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("asignaciones");
   const [showCrearFondoDialog, setShowCrearFondoDialog] = useState(false);

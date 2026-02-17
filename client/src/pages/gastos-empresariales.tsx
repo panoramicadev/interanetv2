@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/hooks/useAuth";
+import { useFilter } from "@/contexts/FilterContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
@@ -129,11 +130,13 @@ interface FundAllocation {
 export default function GastosEmpresariales() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const currentMonth = new Date().getMonth() + 1;
-  const currentYear = new Date().getFullYear();
-  const [mes, setMes] = useState(currentMonth.toString());
-  const [anio, setAnio] = useState(currentYear.toString());
-  const [usuarioFilter, setUsuarioFilter] = useState("todos");
+  const { gastosFilter, updateGastosFilter } = useFilter();
+  const mes = gastosFilter.mes;
+  const anio = gastosFilter.anio;
+  const usuarioFilter = gastosFilter.usuarioFilter;
+  const setMes = (v: string) => updateGastosFilter({ mes: v });
+  const setAnio = (v: string) => updateGastosFilter({ anio: v });
+  const setUsuarioFilter = (v: string) => updateGastosFilter({ usuarioFilter: v });
   const [searchTerm, setSearchTerm] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<string>("all");
   const [categoriaFilter, setCategoriaFilter] = useState<string>("all");
