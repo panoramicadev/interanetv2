@@ -1496,7 +1496,9 @@ export default function GastosEmpresariales() {
                       <SelectValue placeholder="Seleccionar fondo" />
                     </SelectTrigger>
                     <SelectContent>
-                      {userFundAllocations.map((fund: any) => (
+                      {userFundAllocations
+                        .filter((fund: any) => selectedGasto && fund.assignedToId === selectedGasto.userId)
+                        .map((fund: any) => (
                         <SelectItem key={fund.id} value={fund.id}>
                           {fund.nombre} ({formatCurrency(fund.saldoDisponible || 0)} disponible)
                         </SelectItem>
