@@ -930,19 +930,6 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-blue-600 border-blue-300 hover:bg-blue-50"
-                            data-testid={`button-recharge-${fondo.id}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedAllocation(fondo);
-                              setShowRechargeDialog(true);
-                            }}
-                          >
-                            Recargar
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
                             className="text-amber-600 border-amber-300 hover:bg-amber-50"
                             onClick={(e) => {
                               e.stopPropagation();
