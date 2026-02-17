@@ -16087,7 +16087,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         return res.status(404).json({ message: 'Gasto no encontrado' });
       }
 
-      const allowedFields = ['monto', 'descripcion', 'categoria', 'tipoDocumento', 'proveedor', 'rutProveedor', 'numeroDocumento', 'fechaEmision', 'ruta', 'clientes', 'ciudad'];
+      const allowedFields = ['monto', 'descripcion', 'categoria', 'tipoDocumento', 'proveedor', 'rutProveedor', 'numeroDocumento', 'fechaEmision', 'ruta', 'clientes', 'ciudad', 'fundingMode', 'fundAllocationId'];
       const updates: any = {};
       for (const field of allowedFields) {
         if (req.body[field] !== undefined && req.body[field] !== '') {
@@ -16095,6 +16095,10 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         } else if (req.body[field] === '' && !['monto', 'descripcion', 'categoria'].includes(field)) {
           updates[field] = null;
         }
+      }
+
+      if (updates.fundingMode === 'reembolso') {
+        updates.fundAllocationId = null;
       }
 
       if (updates.fechaEmision && !/^\d{4}-\d{2}-\d{2}$/.test(updates.fechaEmision)) {
