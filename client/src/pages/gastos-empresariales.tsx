@@ -743,14 +743,7 @@ export default function GastosEmpresariales() {
                       }}
                     >
                       <TableCell className="text-sm">
-                        {gasto.fechaEmision 
-                          ? (() => {
-                              const match = gasto.fechaEmision!.match(/^(\d{4})-(\d{2})-(\d{2})/);
-                              if (match) return format(new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3])), 'dd/MM/yyyy', { locale: es });
-                              return format(new Date(gasto.fechaEmision!), 'dd/MM/yyyy', { locale: es });
-                            })()
-                          : format(new Date(gasto.createdAt), 'dd/MM/yyyy', { locale: es })
-                        }
+                        {format(new Date(gasto.createdAt), 'dd/MM/yyyy', { locale: es })}
                       </TableCell>
                       <TableCell className="text-sm font-medium">
                         {getColaboradorName(gasto.userId)}

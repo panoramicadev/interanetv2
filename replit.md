@@ -34,7 +34,8 @@ Preferred communication style: Simple, everyday language.
 - **Public Salesperson Catalog**: Enables salespeople to have public catalog pages for product browsing and quote requests without authentication.
 - **Shopify-Style Product Management**: Supports hierarchical product → options → variants structure.
 - **Multi-Level Fund Approval System**: A two-tier approval workflow for fund requests (Salesperson -> Supervisor -> RRHH) with state tracking and notifications. This system was simplified to a single RRHH approval step for expenses.
-- **Expense Management Module**: Features an RRHH-only approval workflow, automatic assignment of uploaded photos as payment vouchers, required photo for `reembolso` expenses, and enhanced supervisor permissions. All expense filtering now uses `COALESCE(fechaEmision, createdAt)` for accuracy. Editable `fechaEmision` for admin/RRHH.
+- **Expense Management Module**: Features an RRHH-only approval workflow, automatic assignment of uploaded photos as payment vouchers, required photo for `reembolso` expenses, and enhanced supervisor permissions. Editable `fechaEmision` for admin/RRHH.
+- **Expense Month Assignment**: All expense filtering uses `createdAt` as the authoritative date for month assignment. The `fechaEmision` is the receipt/document date, while `createdAt` determines which reporting month the expense belongs to. Admin/RRHH can edit `createdAt` to reassign expenses to different months.
 - **Reusable Filter Component**: Centralized `gastos-filter-bar.tsx` component for filtering expenses across dashboards.
 - **PDF Report Generation**: Includes image normalization via a secure backend endpoint to correct EXIF orientation issues in generated PDFs.
 
