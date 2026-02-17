@@ -212,9 +212,11 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/fund-recurring-configs'] });
       queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations/pending/rrhh'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations/summary/global'] });
       setShowRecurringDialog(false);
       resetRecurringForm();
-      toast({ title: "Fondo recurrente creado", description: "Se creará automáticamente cada mes" });
+      toast({ title: "Fondo recurrente creado", description: "Pendiente de aprobación con transferencia" });
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -244,6 +246,8 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/fund-recurring-configs'] });
       queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations/pending/rrhh'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations/summary/global'] });
       toast({ title: "Estado actualizado" });
     },
     onError: (error: any) => {
@@ -271,6 +275,8 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/fund-recurring-configs'] });
       queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations/pending/rrhh'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fund-allocations/summary/global'] });
       toast({ title: "Fondos procesados", description: "Los fondos recurrentes han sido procesados" });
     },
     onError: (error: any) => {
