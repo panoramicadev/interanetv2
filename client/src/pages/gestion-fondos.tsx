@@ -822,6 +822,24 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
     return matchesSearch && matchesDate && matchesUser;
   });
 
+  const getTabFondos = () => {
+    if (activeTab === 'activos') {
+      return filteredFondos.filter((f: FundAllocation) => f.estado === 'activo');
+    }
+    if (activeTab === 'cerrados') {
+      return filteredFondos.filter((f: FundAllocation) => f.estado === 'cerrado');
+    }
+    return filteredFondos;
+  };
+
+  const tabFondos = getTabFondos();
+
+  const emptyMessages: Record<string, string> = {
+    asignaciones: 'No hay asignaciones de fondos registradas',
+    activos: 'No hay fondos activos en el período seleccionado',
+    cerrados: 'No hay fondos cerrados en el período seleccionado',
+  };
+
   const renderTable = () => (
     <div className="bg-white rounded-lg shadow overflow-hidden">
       <div className="overflow-x-auto">
@@ -844,14 +862,14 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
                   Cargando asignaciones...
                 </TableCell>
               </TableRow>
-            ) : filteredFondos.length === 0 ? (
+            ) : tabFondos.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8 text-gray-500">
-                  No hay asignaciones de fondos registradas
+                  {emptyMessages[activeTab] || 'No hay fondos registrados'}
                 </TableCell>
               </TableRow>
             ) : (
-              filteredFondos.map((fondo: FundAllocation) => (
+              tabFondos.map((fondo: FundAllocation) => (
                 <TableRow 
                   key={fondo.id} 
                   data-testid={`row-fondo-${fondo.id}`}
@@ -1090,9 +1108,9 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className={`flex w-full h-auto justify-start overflow-x-auto overflow-y-hidden whitespace-nowrap pb-2 lg:pb-1 lg:grid lg:w-auto ${canManageFunds ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
-            <TabsTrigger value="asignaciones" data-testid="tab-asignaciones" className="flex-shrink-0">Asignaciones</TabsTrigger>
-            <TabsTrigger value="activos" data-testid="tab-activos" className="flex-shrink-0">Activos</TabsTrigger>
-            <TabsTrigger value="cerrados" data-testid="tab-cerrados" className="flex-shrink-0">Cerrados</TabsTrigger>
+            <TabsTrigger value="asignaciones" data-testid="tab-asignaciones" className="flex-shrink-0">Asignaciones ({filteredFondos.length})</TabsTrigger>
+            <TabsTrigger value="activos" data-testid="tab-activos" className="flex-shrink-0">Activos ({filteredFondos.filter((f: FundAllocation) => f.estado === 'activo').length})</TabsTrigger>
+            <TabsTrigger value="cerrados" data-testid="tab-cerrados" className="flex-shrink-0">Cerrados ({filteredFondos.filter((f: FundAllocation) => f.estado === 'cerrado').length})</TabsTrigger>
             {canManageFunds && <TabsTrigger value="recurrentes" data-testid="tab-recurrentes" className="flex-shrink-0">Recurrentes</TabsTrigger>}
           </TabsList>
 
