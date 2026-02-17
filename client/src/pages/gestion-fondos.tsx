@@ -73,6 +73,9 @@ type SolicitarFondoFormData = z.infer<typeof solicitarFondoSchema>;
 
 interface GestionFondosProps {
   embedded?: boolean;
+  hideTopActions?: boolean;
+  externalCreateFundOpen?: boolean;
+  onExternalCreateFundClose?: () => void;
 }
 
 interface FundAllocation {
@@ -95,7 +98,7 @@ interface FundAllocation {
   rrhhAprobadorId?: string;
 }
 
-export default function GestionFondos({ embedded = false }: GestionFondosProps) {
+export default function GestionFondos({ embedded = false, hideTopActions = false, externalCreateFundOpen, onExternalCreateFundClose }: GestionFondosProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const { gastosFilter, updateGastosFilter } = useFilter();
@@ -107,7 +110,12 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
   const setUsuarioFilter = (v: string) => updateGastosFilter({ usuarioFilter: v });
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("asignaciones");
-  const [showCrearFondoDialog, setShowCrearFondoDialog] = useState(false);
+  const [showCrearFondoDialogInternal, setShowCrearFondoDialogInternal] = useState(false);
+  const showCrearFondoDialog = externalCreateFundOpen || showCrearFondoDialogInternal;
+  const setShowCrearFondoDialog = (open: boolean) => {
+    if (!open && onExternalCreateFundClose) onExternalCreateFundClose();
+    setShowCrearFondoDialogInternal(open);
+  };
   const [showSolicitarFondoDialog, setShowSolicitarFondoDialog] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [selectedAllocation, setSelectedAllocation] = useState<FundAllocation | null>(null);
@@ -863,7 +871,7 @@ export default function GestionFondos({ embedded = false }: GestionFondosProps) 
               <p className="text-sm text-gray-500 mt-1">Administra solicitudes y asignación de fondos</p>
             </div>
           )}
-          {canManageFunds && (
+          {canManageFunds && !hideTopActions && (
             <div className={`${embedded ? 'ml-auto' : ''}`}>
               <Button 
                 className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-md" 

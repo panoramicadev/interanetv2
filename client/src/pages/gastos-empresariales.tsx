@@ -146,6 +146,7 @@ export default function GastosEmpresariales() {
   const [showRejectionDialog, setShowRejectionDialog] = useState(false);
   const [comentarioRechazo, setComentarioRechazo] = useState("");
   const [showSolicitarFondoDialog, setShowSolicitarFondoDialog] = useState(false);
+  const [showCrearFondoDialog, setShowCrearFondoDialog] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [activeMainTab, setActiveMainTab] = useState("rendicion");
   const [showEditFechaDialog, setShowEditFechaDialog] = useState(false);
@@ -534,6 +535,41 @@ export default function GastosEmpresariales() {
               setAnio={setAnio}
               usuarioFilter={usuarioFilter}
               setUsuarioFilter={setUsuarioFilter}
+              actions={
+                <>
+                  {activeMainTab === 'rendicion' && (
+                    <>
+                      <Button 
+                        variant="secondary"
+                        size="sm"
+                        className="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200" 
+                        data-testid="button-solicitar-fondo"
+                        onClick={() => setShowSolicitarFondoDialog(true)}
+                      >
+                        <HandCoins className="h-4 w-4 mr-2" />
+                        Solicitar Fondo
+                      </Button>
+                      <Link href="/gastos-empresariales/nuevo">
+                        <Button size="sm" data-testid="button-add-gasto">
+                          <Plus className="h-4 w-4 mr-2" />
+                          Añadir Gasto
+                        </Button>
+                      </Link>
+                    </>
+                  )}
+                  {activeMainTab === 'fondos' && (user?.role === 'admin' || user?.role === 'recursos_humanos') && (
+                    <Button 
+                      size="sm"
+                      className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800" 
+                      data-testid="button-crear-fondo-top"
+                      onClick={() => setShowCrearFondoDialog(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Asignar Fondo
+                    </Button>
+                  )}
+                </>
+              }
             />
           </div>
 
@@ -542,24 +578,6 @@ export default function GastosEmpresariales() {
           </TabsContent>
 
           <TabsContent value="rendicion" className="mt-4 space-y-4">
-            {/* Action buttons for Rendición */}
-            <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
-              <Button 
-                variant="secondary"
-                className="w-full sm:w-auto bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200" 
-                data-testid="button-solicitar-fondo"
-                onClick={() => setShowSolicitarFondoDialog(true)}
-              >
-                <HandCoins className="h-4 w-4 mr-2" />
-                Solicitar Fondo
-              </Button>
-              <Link href="/gastos-empresariales/nuevo" className="w-full sm:w-auto">
-                <Button className="w-full" data-testid="button-add-gasto">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Añadir Gasto
-                </Button>
-              </Link>
-            </div>
 
             {/* Fondos Asignados con barras de progreso - Collapsible */}
             {userFundAllocations.length > 0 && (
@@ -893,7 +911,12 @@ export default function GastosEmpresariales() {
           </TabsContent>
 
           <TabsContent value="fondos" className="mt-4">
-            <GestionFondosContent embedded={true} />
+            <GestionFondosContent 
+              embedded={true} 
+              hideTopActions={true}
+              externalCreateFundOpen={showCrearFondoDialog}
+              onExternalCreateFundClose={() => setShowCrearFondoDialog(false)}
+            />
           </TabsContent>
         </Tabs>
       </div>
