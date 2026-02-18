@@ -16787,8 +16787,8 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       
-      if (user.role !== 'admin') {
-        return res.status(403).json({ message: 'Solo administradores pueden eliminar fondos' });
+      if (user.role !== 'admin' && user.role !== 'recursos_humanos') {
+        return res.status(403).json({ message: 'Solo administradores y RRHH pueden eliminar fondos' });
       }
       
       const allocation = await storage.getFundAllocationById(req.params.id);

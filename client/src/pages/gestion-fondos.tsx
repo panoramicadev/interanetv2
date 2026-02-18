@@ -167,22 +167,6 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
     enabled: isRRHH,
   });
 
-  // Fetch summary
-  const { data: summary } = useQuery<{
-    totalAsignado: number;
-    totalComprometido: number;
-    totalAprobado: number;
-    saldoDisponible: number;
-    asignacionesActivas: number;
-  }>({
-    queryKey: ['/api/fund-allocations/summary/global'],
-    queryFn: async () => {
-      const response = await fetch('/api/fund-allocations/summary/global', { credentials: 'include' });
-      if (!response.ok) return { totalAsignado: 0, totalComprometido: 0, totalAprobado: 0, saldoDisponible: 0, asignacionesActivas: 0 };
-      return response.json();
-    },
-  });
-
   // Fetch salespeople for assignment
   const { data: salespeople = [] } = useQuery<any[]>({
     queryKey: ['/api/users/salespeople'],
@@ -962,7 +946,7 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
                           </Button>
                         </>
                       )}
-                      {user?.role === 'admin' && (
+                      {(user?.role === 'admin' || user?.role === 'recursos_humanos') && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -1026,27 +1010,37 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
           </div>
         </div>
 
-        {/* Summary Cards */}
-        {summary && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <Card className="p-4">
-              <div className="text-sm text-gray-500">Total Asignado</div>
-              <div className="text-xl font-bold text-blue-600">{formatCurrency(summary.totalAsignado || 0)}</div>
-            </Card>
-            <Card className="p-4">
-              <div className="text-sm text-gray-500">Comprometido</div>
-              <div className="text-xl font-bold text-yellow-600">{formatCurrency(summary.totalComprometido || 0)}</div>
-            </Card>
-            <Card className="p-4">
-              <div className="text-sm text-gray-500">Aprobado</div>
-              <div className="text-xl font-bold text-purple-600">{formatCurrency(summary.totalAprobado || 0)}</div>
-            </Card>
-            <Card className="p-4">
-              <div className="text-sm text-gray-500">Disponible</div>
-              <div className="text-xl font-bold text-green-600">{formatCurrency(summary.saldoDisponible || 0)}</div>
-            </Card>
-          </div>
-        )}
+        {/* Summary Cards - computed from filtered funds */}
+        {(() => {
+          const filteredSummary = filteredFondos.reduce((acc, f) => {
+            const monto = parseFloat(f.montoInicial || '0');
+            acc.totalAsignado += monto;
+            acc.totalComprometido += (f.totalComprometido || 0);
+            acc.totalAprobado += (f.totalAprobado || 0);
+            acc.saldoDisponible += (f.saldoDisponible ?? monto);
+            return acc;
+          }, { totalAsignado: 0, totalComprometido: 0, totalAprobado: 0, saldoDisponible: 0 });
+          return (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <Card className="p-4">
+                <div className="text-sm text-gray-500">Total Asignado</div>
+                <div className="text-xl font-bold text-blue-600">{formatCurrency(filteredSummary.totalAsignado)}</div>
+              </Card>
+              <Card className="p-4">
+                <div className="text-sm text-gray-500">Comprometido</div>
+                <div className="text-xl font-bold text-yellow-600">{formatCurrency(filteredSummary.totalComprometido)}</div>
+              </Card>
+              <Card className="p-4">
+                <div className="text-sm text-gray-500">Aprobado</div>
+                <div className="text-xl font-bold text-purple-600">{formatCurrency(filteredSummary.totalAprobado)}</div>
+              </Card>
+              <Card className="p-4">
+                <div className="text-sm text-gray-500">Disponible</div>
+                <div className="text-xl font-bold text-green-600">{formatCurrency(filteredSummary.saldoDisponible)}</div>
+              </Card>
+            </div>
+          );
+        })()}
 
         {/* RRHH Pending Approvals Section */}
         {isRRHH && pendingRRHHApprovals.length > 0 && (
