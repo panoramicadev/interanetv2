@@ -927,7 +927,7 @@ export default function GestionFondos({ embedded = false, hideTopActions = false
                       >
                         Ver
                       </Button>
-                      {canManageFunds && (fondo.estadoAprobacion === 'aprobado' || fondo.estado === 'activo' || fondo.estado === 'cerrado') && (
+                      {canManageFunds && (fondo.estadoAprobacion === 'aprobado' || fondo.estadoAprobacion === 'pendiente_rrhh' || fondo.estado === 'activo' || fondo.estado === 'cerrado' || fondo.estado === 'pendiente_rrhh') && (
                         <>
                           <Button
                             size="sm"
