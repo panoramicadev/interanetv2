@@ -15,12 +15,14 @@ interface SalesMetrics {
   totalUnits: number;
   activeCustomers: number;
   gdvSales: number;
+  newClients?: number;
   previousMonthSales?: number;
   previousMonthTransactions?: number;
   previousMonthOrders?: number;
   previousMonthUnits?: number;
   previousMonthCustomers?: number;
   previousMonthGdvSales?: number;
+  previousNewClients?: number;
 }
 
 interface NvvMetrics {
@@ -502,6 +504,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
   const salesChange = calculateChange(metrics?.totalSales || 0, metrics?.previousMonthSales);
   const unitsChange = calculateChange(metrics?.totalUnits || 0, metrics?.previousMonthUnits);
+  const newClientsChange = calculateChange(metrics?.newClients || 0, metrics?.previousNewClients !== undefined && metrics?.previousNewClients !== null ? metrics.previousNewClients : undefined);
 
   // Calculate year-over-year change for yearly totals (YTD comparison)
   const currentYearTotal = yearlyTotals?.currentYearTotal || 0;
@@ -551,9 +554,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     yearlyTotals?.isYTD
   );
 
-  // Calculate comparison changes
   const salesComparison = calculateComparisonChange(metrics?.totalSales || 0, comparisonMetrics?.totalSales, true);
-  const unitsComparison = calculateComparisonChange(metrics?.totalUnits || 0, comparisonMetrics?.totalUnits, false);
 
   const kpis = [
     {
@@ -579,15 +580,15 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       testId: "kpi-yearly-total"
     },
     {
-      title: "Unidades Vendidas",
-      value: formatNumber(metrics?.totalUnits || 0),
-      change: unitsChange,
-      changeColor: unitsChange.color,
-      comparison: unitsComparison,
-      icon: Package,
-      bgColor: "bg-orange-100 dark:bg-orange-900/20",
-      iconColor: "text-orange-600",
-      testId: "kpi-units"
+      title: "Clientes Nuevos",
+      value: formatNumber(metrics?.newClients || 0),
+      change: newClientsChange,
+      changeColor: newClientsChange.color,
+      comparison: null,
+      icon: Users,
+      bgColor: "bg-purple-100 dark:bg-purple-900/20",
+      iconColor: "text-purple-600",
+      testId: "kpi-new-clients"
     },
   ];
 
@@ -664,10 +665,15 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     );
   };
 
-  // Renderizar tarjeta personalizada para Unidades Vendidas
-  const renderUnitsCard = (kpi: any) => {
-    const totalOrders = metrics?.totalOrders || 0;
+  const renderNewClientsCard = (kpi: any) => {
     const totalCustomers = metrics?.activeCustomers || 0;
+    const totalUnits = metrics?.totalUnits || 0;
+    const totalOrders = metrics?.totalOrders || 0;
+    const prevNewClients = metrics?.previousNewClients;
+    const currentNew = metrics?.newClients || 0;
+
+    const newClientsDiff = prevNewClients !== undefined ? currentNew - prevNewClients : null;
+    const diffSign = newClientsDiff !== null && newClientsDiff >= 0 ? '+' : '';
 
     return (
       <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden">
@@ -684,15 +690,15 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               {kpi.value}
             </p>
             <div className="flex flex-col gap-0.5">
-              <div className="flex items-baseline gap-2 flex-wrap">
-                {kpi.comparison && (
-                  <span className={`text-xs sm:text-sm font-semibold ${kpi.comparison.color}`}>
-                    {kpi.comparison.text}
-                  </span>
-                )}
+              <div className="flex items-baseline gap-1.5 flex-wrap">
                 {kpi.change.percentage !== "Sin datos previos" && (
                   <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
-                    {kpi.comparison ? `(${kpi.change.percentage})` : kpi.change.percentage}
+                    {kpi.change.percentage}
+                  </span>
+                )}
+                {newClientsDiff !== null && (
+                  <span className={`text-xs sm:text-sm font-semibold ${newClientsDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {diffSign}{formatNumber(newClientsDiff)}
                   </span>
                 )}
                 {kpi.change.percentage === "Sin datos previos" && (
@@ -708,11 +714,16 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               )}
             </div>
             <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                {formatNumber(totalOrders)} {totalOrders === 1 ? 'orden' : 'órdenes'}
-              </p>
-              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                {formatNumber(totalCustomers)} {totalCustomers === 1 ? 'cliente' : 'clientes'}
+              <div className="grid grid-cols-2 gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
+                <span className="truncate" title={`${formatNumber(totalCustomers)} clientes totales`}>
+                  {formatNumber(totalCustomers)} clientes totales
+                </span>
+                <span className="truncate" title={`${formatNumber(totalOrders)} órdenes`}>
+                  {formatNumber(totalOrders)} órdenes
+                </span>
+              </div>
+              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate" title={`${formatNumber(totalUnits)} unidades vendidas`}>
+                {formatNumber(totalUnits)} unidades vendidas
               </p>
             </div>
           </div>
@@ -783,13 +794,12 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
       {kpis.map((kpi) => {
-        // Renderizar tarjetas especiales
         if (kpi.title === "Ventas Totales") {
           return renderSalesCard(kpi);
         } else if (kpi.title === "Total Acumulado del Año") {
           return renderYearlyCard(kpi);
-        } else if (kpi.title === "Unidades Vendidas") {
-          return renderUnitsCard(kpi);
+        } else if (kpi.title === "Clientes Nuevos") {
+          return renderNewClientsCard(kpi);
         }
 
         // Fallback para otras tarjetas (no debería llegar aquí)
