@@ -806,6 +806,32 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  app.get('/api/sales/new-clients', requireCommercialAccess, async (req, res) => {
+    try {
+      const { period, filterType, salesperson, segment, client } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      const startDate = dateRange.startDate;
+      const endDate = dateRange.endDate;
+
+      if (!startDate || !endDate) {
+        return res.status(400).json({ message: "Missing required date parameters" });
+      }
+
+      const newClients = await storage.getNewClientsList({
+        startDate,
+        endDate,
+        salesperson: salesperson as string,
+        segment: segment as string,
+        client: client as string,
+      });
+
+      res.json(newClients);
+    } catch (error) {
+      console.error("Error fetching new clients list:", error);
+      res.status(500).json({ message: "Failed to fetch new clients list" });
+    }
+  });
+
   // Available periods endpoint - returns months and years with actual data
   app.get('/api/sales/available-periods', requireCommercialAccess, async (req, res) => {
     try {
