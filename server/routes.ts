@@ -766,16 +766,35 @@ export function registerRoutes(app: Express): Server {
       console.log(`[DEBUG] Métricas actuales: Ventas=${metrics.totalSales}, Transacciones=${metrics.totalTransactions}`);
       console.log(`[DEBUG] Métricas año anterior: Ventas=${previousMetrics.totalSales}, Transacciones=${previousMetrics.totalTransactions}`);
       
-      // Add previous year data for comparison (year-over-year) - only include if there's actual transaction data
-      // This ensures we show "Sin datos previos" when there were no transactions in the previous year period
+      const commonFilters = {
+        salesperson: salesperson as string,
+        segment: segment as string,
+        client: client as string,
+      };
+
+      const [newClients, previousNewClients] = await Promise.all([
+        storage.getNewClientsCount({
+          startDate: currentStartDate,
+          endDate: currentEndDate,
+          ...commonFilters,
+        }),
+        storage.getNewClientsCount({
+          startDate: previousStartFormatted,
+          endDate: previousEndFormatted,
+          ...commonFilters,
+        }),
+      ]);
+
       const metricsWithComparison = {
         ...metrics,
+        newClients,
         previousMonthSales: previousMetrics.totalTransactions > 0 ? previousMetrics.totalSales : undefined,
         previousMonthTransactions: previousMetrics.totalTransactions > 0 ? previousMetrics.totalTransactions : undefined,
         previousMonthOrders: previousMetrics.totalOrders > 0 ? previousMetrics.totalOrders : undefined,
         previousMonthUnits: previousMetrics.totalTransactions > 0 ? previousMetrics.totalUnits : undefined,
         previousMonthCustomers: previousMetrics.totalTransactions > 0 ? previousMetrics.activeCustomers : undefined,
         previousMonthGdvSales: previousMetrics.totalTransactions > 0 ? previousMetrics.gdvSales : undefined,
+        previousNewClients,
       };
       
       console.log(`[DEBUG] Datos enviados al frontend:`, JSON.stringify(metricsWithComparison, null, 2));

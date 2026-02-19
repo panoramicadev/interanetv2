@@ -416,6 +416,13 @@ export interface IStorage {
     activeCustomers: number;
     gdvSales: number;
   }>;
+  getNewClientsCount(filters: {
+    startDate: string;
+    endDate: string;
+    salesperson?: string;
+    segment?: string;
+    client?: string;
+  }): Promise<number>;
   getTopSalespeople(limit?: number, startDate?: string, endDate?: string, segment?: string, client?: string, product?: string): Promise<{
     items: Array<{
       salesperson: string;
@@ -2555,6 +2562,36 @@ export class DatabaseStorage implements IStorage {
       activeCustomers: Number(metrics.activeCustomers),
       gdvSales: Number(metrics.gdvSales),
     };
+  }
+
+  async getNewClientsCount(filters: {
+    startDate: string;
+    endDate: string;
+    salesperson?: string;
+    segment?: string;
+    client?: string;
+  }): Promise<number> {
+    const { startDate, endDate, salesperson, segment, client } = filters;
+
+    const result = await db.execute(sql`
+      SELECT COUNT(DISTINCT fv."nokoen") as new_clients
+      FROM fact_ventas fv
+      WHERE fv."feemdo" >= ${startDate}::date
+        AND fv."feemdo" <= ${endDate}::date
+        AND fv."tido" != 'GDV'
+        ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
+        ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
+        ${client ? sql`AND fv."nokoen" = ${client}` : sql``}
+        AND NOT EXISTS (
+          SELECT 1 FROM fact_ventas fv2
+          WHERE fv2."nokoen" = fv."nokoen"
+            AND fv2."feemdo" < ${startDate}::date
+            AND fv2."tido" != 'GDV'
+            ${salesperson ? sql`AND fv2."nokofu" = ${salesperson}` : sql``}
+        )
+    `);
+
+    return Number(result.rows[0]?.new_clients || 0);
   }
 
   // Get global GDV pending (no date filters) - all GDV where esdo IS NULL or esdo != 'C'
