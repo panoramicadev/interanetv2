@@ -38,6 +38,7 @@ Preferred communication style: Simple, everyday language.
 - **Expense Month Assignment**: All expense filtering uses `createdAt` as the authoritative date for month assignment. The `fechaEmision` is the receipt/document date, while `createdAt` determines which reporting month the expense belongs to. Admin/RRHH can edit `createdAt` to reassign expenses to different months.
 - **Reusable Filter Component**: Centralized `gastos-filter-bar.tsx` component for filtering expenses across dashboards.
 - **PDF Report Generation**: Includes image normalization via a secure backend endpoint to correct EXIF orientation issues in generated PDFs.
+- **Dashboard KPI Cards**: Three main KPIs: "Ventas Totales" (with NVV/GDV combined), "Total Acumulado del Año" (with best year), and "Clientes Nuevos" (new clients with YoY comparison, showing total clients/orders/units as secondary info). New clients are defined as clients whose first-ever purchase (excluding GDV) falls within the selected period, with salesperson-scoped filter for per-salesperson views.
 
 ## External Dependencies
 
