@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target, Eye, Building, Home, Download, Search, X, UserPlus, RefreshCw, Package, Menu, Database, Filter } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target, Eye, Building, Home, Download, Search, X, UserPlus, RefreshCw, Package, Menu, Database, Filter, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerTrigger, DrawerFooter } from "@/components/ui/drawer";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format, parse, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { useFilter } from "@/contexts/FilterContext";
@@ -141,6 +142,7 @@ export default function SegmentDetail({
   const [debouncedSalespersonSearch, setDebouncedSalespersonSearch] = useState("");
   const [salespersonLimit, setSalespersonLimit] = useState(10);
   const [expandedSalesperson, setExpandedSalesperson] = useState<string>("");
+  const [showNewClientsModal, setShowNewClientsModal] = useState(false);
   
   // State for products
   const [productLimit, setProductLimit] = useState(10);
@@ -546,6 +548,29 @@ export default function SegmentDetail({
     },
     enabled: !!segmentName,
     retry: 2,
+  });
+
+  interface NewClientItem {
+    clientName: string;
+    totalSales: number;
+    totalUnits: number;
+    orderCount: number;
+    firstPurchaseDate: string;
+    salesperson: string;
+  }
+
+  const { data: newClientsList, isLoading: isLoadingNewClients } = useQuery<NewClientItem[]>({
+    queryKey: ['/api/sales/new-clients', selectedPeriod, filterType, segmentName, 'segment-detail'],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      if (segmentName) params.append('segment', segmentName);
+      const res = await fetch(`/api/sales/new-clients?${params.toString()}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: showNewClientsModal && !!segmentName,
   });
 
   // Fetch NVV metrics for segment (for combined total in goals)
@@ -1196,7 +1221,10 @@ export default function SegmentDetail({
                   </div>
                 </div>
 
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                <div 
+                  className="modern-card p-3 sm:p-4 lg:p-6 hover-lift cursor-pointer ring-teal-300 hover:ring-2 transition-all"
+                  onClick={() => setShowNewClientsModal(true)}
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Recurrentes / Nuevos</p>
@@ -1211,6 +1239,7 @@ export default function SegmentDetail({
                           {formatNumber(clientRecurrence?.recurringCount || 0)} / {formatNumber(clientRecurrence?.newCount || 0)}
                         </p>
                       )}
+                      <p className="text-[9px] text-gray-400 mt-1">Click para ver detalle de nuevos</p>
                     </div>
                     <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-teal-100 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
                       <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-teal-600" />
@@ -1620,6 +1649,71 @@ export default function SegmentDetail({
             </>
           )}
         </main>
+
+        <Dialog open={showNewClientsModal} onOpenChange={setShowNewClientsModal}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5 text-teal-600" />
+                Clientes Nuevos — {segmentName}
+              </DialogTitle>
+              <p className="text-sm text-gray-500">
+                {formatNumber(newClientsList?.length || 0)} clientes nuevos — Total comprado: {formatCurrency(newClientsList?.reduce((sum, c) => sum + c.totalSales, 0) || 0)}
+              </p>
+            </DialogHeader>
+            <div className="overflow-y-auto flex-1 -mx-6 px-6">
+              {isLoadingNewClients ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-teal-500" />
+                </div>
+              ) : !newClientsList?.length ? (
+                <div className="text-center py-12 text-gray-500">
+                  <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                  <p>No hay clientes nuevos en este período para {segmentName}</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <div className="grid grid-cols-12 gap-2 px-3 py-2 text-xs font-semibold text-gray-500 uppercase border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-950">
+                    <div className="col-span-5">Cliente</div>
+                    <div className="col-span-3 text-right">Monto</div>
+                    <div className="col-span-2 text-right">Uds.</div>
+                    <div className="col-span-2 text-right">Órdenes</div>
+                  </div>
+                  {newClientsList.map((item) => (
+                    <div
+                      key={item.clientName}
+                      className="grid grid-cols-12 gap-2 px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors items-center"
+                    >
+                      <div className="col-span-5 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate" title={item.clientName}>
+                          {item.clientName}
+                        </p>
+                        <p className="text-[10px] text-gray-400 truncate" title={item.salesperson}>
+                          {item.salesperson}
+                        </p>
+                      </div>
+                      <div className="col-span-3 text-right">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {formatCurrency(item.totalSales)}
+                        </p>
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          {formatNumber(item.totalUnits)}
+                        </p>
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          {formatNumber(item.orderCount)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
