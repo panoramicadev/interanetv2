@@ -1,7 +1,7 @@
 # Sales Analytics Dashboard
 
 ## Overview
-"PANORAMICA" is a sales analytics dashboard for the Chilean market, providing comprehensive sales insights to enhance sales strategies and operational efficiency. It focuses on KPI monitoring, trend analysis, sales forecasting, and robust CRM and e-commerce integrations. The project also incorporates specialized modules for complaints, maintenance (CMMS), and technical visits, aiming to enable data-driven decision-making and streamline various business operations for a competitive advantage.
+"PANORAMICA" is a sales analytics dashboard for the Chilean market, providing comprehensive sales insights to enhance sales strategies and operational efficiency. It focuses on KPI monitoring, trend analysis, sales forecasting, and e-commerce integrations. The project also incorporates specialized modules for complaints, maintenance (CMMS), and technical visits, aiming to enable data-driven decision-making and streamline various business operations for a competitive advantage. **Note: The CRM module has been completely removed from the application (frontend routes, backend API routes, and notification hooks). Database tables are preserved for data integrity. Storage methods remain as unused dead code.**
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -19,9 +19,9 @@ Preferred communication style: Simple, everyday language.
 - **Backend**: Node.js, Express.js, TypeScript, RESTful API design.
 - **Authentication & Authorization**: Passport.js Local Strategy with bcrypt, HTTP-only cookies, CSRF protection, and a 3-layer role-based access control (RBAC) system for granular access.
 - **Data Processing**: CSV import, Replit Object Storage for files, ETL Data Warehouse with automated incremental runs, UPSERT, data mapping, real-time progress monitoring. Sales forecasting uses Holt-Winters. NVV ETL uses full synchronization.
-- **Database**: PostgreSQL (Neon serverless) with Drizzle ORM and Drizzle Kit for schema management. Includes schemas for users, sales, e-commerce, CRM, complaints, CMMS, marketing, expenses, and ETL data.
+- **Database**: PostgreSQL (Neon serverless) with Drizzle ORM and Drizzle Kit for schema management. Includes schemas for users, sales, e-commerce, complaints, CMMS, marketing, expenses, and ETL data. (CRM tables preserved but unused.)
 - **Key Features**:
-    - **Management**: Client/user management, CRM pipeline, E-commerce, Product grouping, Unified Task management, Salesperson data management.
+    - **Management**: Client/user management, E-commerce, Product grouping, Unified Task management, Salesperson data management.
     - **Sales & Finance**: Advanced sales analytics (KPIs, trends, projections), Quote management, Goal tracking, Finance module (invoices, sales notes), Weekly Purchase Promises, Manual Sales Projection.
     - **Service & Operations**: Technical visits, Complaints management (workflow, photo uploads, state machine), Maintenance management (CMMS for equipment, preventive plans, work orders, expense tracking), Inventory with real-time stock and alerts.
     - **Internal Systems**: Internal notification system, ETL monitoring with change tracking and state change auditing.
