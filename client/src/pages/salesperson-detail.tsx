@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Home, Eye, Building, ChevronDown, ChevronUp, Download, Search, X, Truck, RefreshCw, Loader2, UserPlus } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Home, Eye, Building, ChevronDown, ChevronUp, Download, Search, X, Truck, RefreshCw, Loader2, UserPlus, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,6 +20,7 @@ import SalespersonPendingGDV from "@/components/dashboard/salesperson-pending-gd
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerTrigger, DrawerFooter } from "@/components/ui/drawer";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -200,6 +201,17 @@ export default function SalespersonDetail({
   // Local state for view type
   const [selectedView, setSelectedView] = useState<"all" | "segmento" | "vendedor">("vendedor");
   const [showNewClientsModal, setShowNewClientsModal] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [localSelection, setLocalSelection] = useState(selection);
+
+  const handleDrawerOpen = () => {
+    setLocalSelection(selection);
+  };
+
+  const handleApplyFilters = () => {
+    handleSelectionChange(localSelection);
+    setIsDrawerOpen(false);
+  };
   
   // Handler for selection changes that notifies dashboard when embedded
   const handleSelectionChange = (newSelection: typeof selection) => {
@@ -1024,224 +1036,363 @@ export default function SalespersonDetail({
   return (
     <div className="min-h-screen">
       <div className="w-full">
-        {/* Header - Same as Dashboard and Segment */}
-        <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 pt-3 pb-2 sm:py-5 lg:py-6 m-2 sm:m-4 rounded-2xl shadow-sm">
-          <div className="space-y-4 w-full">
-            {/* All filters in one line */}
-            <div className="flex items-center gap-3 flex-wrap">
-              {/* Home button and Vista - Hide for salespeople */}
-              {user?.role !== 'salesperson' && (
-                <div className="flex items-center gap-2">
-                  {onBack && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={onBack}
-                      className="h-9 w-9 p-0 rounded-lg hover:bg-gray-100 transition-colors"
-                      data-testid="button-back-dashboard"
-                      title="Volver al Dashboard"
+        {/* Header */}
+        <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 pt-3 pb-2 sm:py-5 lg:py-6 m-2 sm:m-4 rounded-2xl shadow-sm relative">
+          {/* MOBILE HEADER */}
+          <div className="sm:hidden">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                {onBack && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onBack}
+                    className="h-9 px-2.5 rounded-lg border-gray-200"
+                  >
+                    <Home className="h-4 w-4 text-gray-600" />
+                  </Button>
+                )}
+                <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+                  <DrawerTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleDrawerOpen}
+                      className="h-9 px-2.5 rounded-lg border-gray-200"
                     >
-                      <Home className="h-4 w-4 text-gray-600" />
+                      <Menu className="h-4 w-4 text-gray-600" />
                     </Button>
-                  )}
-                  <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                  <span className="text-sm font-medium text-gray-700">Vista:</span>
-                  <Select 
-                    value={selectedView}
-                    onValueChange={(value: "all" | "segmento" | "vendedor") => {
-                      setSelectedView(value);
-                      if (value === "all") {
-                        setLocation('/');
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm bg-gray-50">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
-                      <SelectItem value="all">
-                        <div className="flex items-center gap-2">
-                          <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
-                          <span>Todo el dashboard</span>
+                  </DrawerTrigger>
+                  <DrawerContent className="max-h-[85vh]">
+                    <DrawerHeader className="text-center border-b pb-4 mb-6">
+                      <DrawerTitle className="text-lg font-semibold">Filtros</DrawerTitle>
+                      <DrawerDescription className="text-sm text-gray-600">
+                        Personaliza la vista del dashboard
+                      </DrawerDescription>
+                    </DrawerHeader>
+                    
+                    <div className="px-6 space-y-6 overflow-y-auto flex-1">
+                      {user?.role !== 'salesperson' && (
+                        <div className="space-y-3">
+                          <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
+                            <Eye className="h-4 w-4" />
+                            <span>Vista</span>
+                          </div>
+                          <Select 
+                            value={selectedView}
+                            onValueChange={(value: "all" | "segmento" | "vendedor") => {
+                              setSelectedView(value);
+                              if (value === "all") {
+                                setIsDrawerOpen(false);
+                                setLocation('/');
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="h-10 w-full rounded-lg border-gray-200 text-sm">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-lg border-gray-200">
+                              <SelectItem value="all">
+                                <div className="flex items-center gap-2">
+                                  <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
+                                  <span>Todo el dashboard</span>
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="vendedor">
+                                <div className="flex items-center gap-2">
+                                  <Users className="h-3.5 w-3.5 text-purple-500" />
+                                  <span>Por vendedor</span>
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="segmento">
+                                <div className="flex items-center gap-2">
+                                  <Building className="h-3.5 w-3.5 text-green-500" />
+                                  <span>Por segmento</span>
+                                </div>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
-                      </SelectItem>
-                      <SelectItem value="vendedor">
-                        <div className="flex items-center gap-2">
-                          <Users className="h-3.5 w-3.5 text-purple-500" />
-                          <span>Por vendedor</span>
+                      )}
+
+                      {selectedView === "vendedor" && allSalespeople && allSalespeople.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
+                            <Users className="h-4 w-4" />
+                            <span>Vendedor</span>
+                          </div>
+                          <Select 
+                            value={salespersonName}
+                            onValueChange={(newSalesperson) => {
+                              setIsDrawerOpen(false);
+                              if (embedded && onSalespersonChange) {
+                                onSalespersonChange(newSalesperson);
+                              } else {
+                                setLocation(`/salesperson/${encodeURIComponent(newSalesperson)}`);
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="h-10 w-full rounded-lg border-gray-200 text-sm">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto">
+                              {allSalespeople.map((sp) => (
+                                <SelectItem key={sp.salesperson} value={sp.salesperson}>
+                                  {sp.salesperson}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
-                      </SelectItem>
-                      <SelectItem value="segmento">
-                        <div className="flex items-center gap-2">
-                          <Building className="h-3.5 w-3.5 text-green-500" />
-                          <span>Por segmento</span>
+                      )}
+
+                      {selectedView === "segmento" && allSegments && allSegments.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
+                            <Building className="h-4 w-4" />
+                            <span>Segmento</span>
+                          </div>
+                          <Select 
+                            value=""
+                            onValueChange={(segment) => {
+                              setIsDrawerOpen(false);
+                              setLocation(`/segment/${encodeURIComponent(segment)}`);
+                            }}
+                          >
+                            <SelectTrigger className="h-10 w-full rounded-lg border-gray-200 text-sm">
+                              <SelectValue placeholder="Selecciona segmento" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto">
+                              {allSegments.map((segment) => (
+                                <SelectItem key={segment} value={segment}>
+                                  {segment}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+                      )}
 
-              {/* Segment selector - shown when view is segmento (hide for salespeople) */}
-              {!embedded && user?.role !== 'salesperson' && selectedView === "segmento" && allSegments && allSegments.length > 0 && (
-                <div className="flex items-center gap-2" key="segment-selector">
-                  <span className="text-sm font-medium text-gray-700">Segmento:</span>
-                  <Select 
-                    value=""
-                    onValueChange={(segment) => {
-                      setLocation(`/segment/${encodeURIComponent(segment)}`);
-                    }}
-                  >
-                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm" data-testid="select-segment">
-                      <SelectValue placeholder="Selecciona segmento" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
-                      {allSegments.map((segment) => (
-                        <SelectItem key={segment} value={segment}>
-                          {segment}
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
+                          <CalendarIcon className="h-4 w-4" />
+                          <span>Período de tiempo</span>
+                        </div>
+                        <YearMonthSelector
+                          value={localSelection}
+                          onChange={setLocalSelection}
+                        />
+                      </div>
+                    </div>
+                    
+                    <DrawerFooter className="border-t pt-4 mt-4">
+                      <Button 
+                        onClick={handleApplyFilters}
+                        className="w-full h-12 text-base font-medium rounded-xl"
+                      >
+                        Aplicar filtros
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setIsDrawerOpen(false)}
+                        className="w-full h-11 text-base rounded-xl"
+                      >
+                        Cancelar
+                      </Button>
+                    </DrawerFooter>
+                  </DrawerContent>
+                </Drawer>
+              </div>
+            </div>
+            
+            <div className="mt-2 flex flex-col gap-1.5">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg">
+                <div className="h-2 w-2 rounded-full bg-green-500 flex-shrink-0" />
+                <span className="text-xs font-medium text-green-800 truncate">
+                  Vendedor: {salespersonName}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
+                <CalendarIcon className="h-3 w-3 text-blue-600 flex-shrink-0" />
+                <span className="text-xs font-medium text-blue-800">
+                  {selection.display}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* DESKTOP HEADER */}
+          <div className="hidden sm:block">
+            <div className="space-y-4 w-full">
+              <div className="flex flex-row items-center gap-3 flex-wrap">
+                {user?.role !== 'salesperson' && (
+                  <div className="flex items-center gap-2">
+                    {onBack && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={onBack}
+                        className="h-9 w-9 p-0 rounded-lg hover:bg-gray-100 transition-colors"
+                        data-testid="button-back-dashboard"
+                        title="Volver al Dashboard"
+                      >
+                        <Home className="h-4 w-4 text-gray-600" />
+                      </Button>
+                    )}
+                    <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                    <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Vista:</span>
+                    <Select 
+                      value={selectedView}
+                      onValueChange={(value: "all" | "segmento" | "vendedor") => {
+                        setSelectedView(value);
+                        if (value === "all") {
+                          setLocation('/');
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm bg-gray-50">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
+                        <SelectItem value="all">
+                          <div className="flex items-center gap-2">
+                            <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
+                            <span>Todo el dashboard</span>
+                          </div>
                         </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Salesperson selector - shown when view is vendedor (hide for salespeople) */}
-              {!embedded && user?.role !== 'salesperson' && selectedView === "vendedor" && allSalespeople && allSalespeople.length > 0 && (
-                <div className="flex items-center gap-2" key="salesperson-selector">
-                  <span className="text-sm font-medium text-gray-700">Vendedor:</span>
-                  <Select 
-                    value={salespersonName} 
-                    onValueChange={(newSalesperson) => {
-                      setLocation(`/salesperson/${encodeURIComponent(newSalesperson)}`);
-                    }}
-                  >
-                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm" data-testid="select-salesperson">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
-                      {allSalespeople.map((sp) => (
-                        <SelectItem key={sp.salesperson} value={sp.salesperson}>
-                          {sp.salesperson}
+                        <SelectItem value="vendedor">
+                          <div className="flex items-center gap-2">
+                            <Users className="h-3.5 w-3.5 text-purple-500" />
+                            <span>Por vendedor</span>
+                          </div>
                         </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Embedded segment selector - shown when view is segmento */}
-              {embedded && selectedView === "segmento" && allSegments && allSegments.length > 0 && (
-                <div className="flex items-center gap-2" key="embedded-segment-selector">
-                  <span className="text-sm font-medium text-gray-700">Segmento:</span>
-                  <Select 
-                    value=""
-                    onValueChange={(segment) => {
-                      setLocation(`/segment/${encodeURIComponent(segment)}`);
-                    }}
-                  >
-                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm" data-testid="select-segment">
-                      <SelectValue placeholder="Selecciona segmento" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
-                      {allSegments.map((segment) => (
-                        <SelectItem key={segment} value={segment}>
-                          {segment}
+                        <SelectItem value="segmento">
+                          <div className="flex items-center gap-2">
+                            <Building className="h-3.5 w-3.5 text-green-500" />
+                            <span>Por segmento</span>
+                          </div>
                         </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
-              {/* Embedded salesperson selector - shown when view is vendedor */}
-              {embedded && selectedView === "vendedor" && onSalespersonChange && allSalespeople && (
-                <div className="flex items-center gap-2" key="embedded-salesperson-selector">
-                  <span className="text-sm font-medium text-gray-700">Vendedor:</span>
-                  <Select value={salespersonName} onValueChange={onSalespersonChange}>
-                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
-                      {allSalespeople.map((sp) => (
-                        <SelectItem key={sp.salesperson} value={sp.salesperson}>
-                          {sp.salesperson}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+                {!embedded && user?.role !== 'salesperson' && selectedView === "segmento" && allSegments && allSegments.length > 0 && (
+                  <div className="flex items-center gap-2" key="segment-selector">
+                    <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Segmento:</span>
+                    <Select 
+                      value=""
+                      onValueChange={(segment) => {
+                        setLocation(`/segment/${encodeURIComponent(segment)}`);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm" data-testid="select-segment">
+                        <SelectValue placeholder="Selecciona segmento" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
+                        {allSegments.map((segment) => (
+                          <SelectItem key={segment} value={segment}>
+                            {segment}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
-              {/* Period selector with YearMonthSelector */}
-              {!embedded && (
-                <div className="flex items-center gap-2">
-                  <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                  <span className="text-sm font-medium text-gray-700">Período:</span>
-                  <div className="h-9 px-3 rounded-lg border border-gray-200 bg-white flex items-center">
+                {!embedded && user?.role !== 'salesperson' && selectedView === "vendedor" && allSalespeople && allSalespeople.length > 0 && (
+                  <div className="flex items-center gap-2" key="salesperson-selector">
+                    <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Vendedor:</span>
+                    <Select 
+                      value={salespersonName} 
+                      onValueChange={(newSalesperson) => {
+                        setLocation(`/salesperson/${encodeURIComponent(newSalesperson)}`);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm" data-testid="select-salesperson">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
+                        {allSalespeople.map((sp) => (
+                          <SelectItem key={sp.salesperson} value={sp.salesperson}>
+                            {sp.salesperson}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {embedded && selectedView === "segmento" && allSegments && allSegments.length > 0 && (
+                  <div className="flex items-center gap-2" key="embedded-segment-selector">
+                    <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Segmento:</span>
+                    <Select 
+                      value=""
+                      onValueChange={(segment) => {
+                        setLocation(`/segment/${encodeURIComponent(segment)}`);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
+                        <SelectValue placeholder="Selecciona segmento" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
+                        {allSegments.map((segment) => (
+                          <SelectItem key={segment} value={segment}>
+                            {segment}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {embedded && selectedView === "vendedor" && onSalespersonChange && allSalespeople && (
+                  <div className="flex items-center gap-2" key="embedded-salesperson-selector">
+                    <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Vendedor:</span>
+                    <Select value={salespersonName} onValueChange={onSalespersonChange}>
+                      <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
+                        {allSalespeople.map((sp) => (
+                          <SelectItem key={sp.salesperson} value={sp.salesperson}>
+                            {sp.salesperson}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {!embedded && (
+                  <div className="flex items-center gap-2">
+                    <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                    <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Período:</span>
+                    <div className="h-9 px-3 rounded-lg border border-gray-200 bg-white flex items-center">
+                      <YearMonthSelector
+                        value={selection}
+                        onChange={(newSelection) => newSelection && handleSelectionChange(newSelection)}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {embedded && onDateFilterChange && (
+                  <div className="flex items-center gap-2">
+                    <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                    <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Período:</span>
                     <YearMonthSelector
                       value={selection}
                       onChange={(newSelection) => newSelection && handleSelectionChange(newSelection)}
                     />
                   </div>
-                </div>
-              )}
-
-              {/* Embedded period selector */}
-              {embedded && onDateFilterChange && (
-                <div className="flex items-center gap-2">
-                  <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                  <span className="text-sm font-medium text-gray-700">Período:</span>
-                  <YearMonthSelector
-                    value={selection}
-                    onChange={(newSelection) => newSelection && handleSelectionChange(newSelection)}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Display Selected Filters as chips */}
-            <div className="pt-2 border-t space-y-2">
-              <div className="text-xs font-medium text-gray-500 mb-2">Filtros activos:</div>
-              
-              <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 rounded border border-purple-200">
-                <Eye className="h-3 w-3 text-purple-600 flex-shrink-0" />
-                <div className="flex-1">
-                  <div className="text-xs font-medium text-purple-900">
-                    Vista: Por vendedor
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded border border-blue-200">
-                <CalendarIcon className="h-3 w-3 text-blue-600 flex-shrink-0" />
-                <div className="flex-1">
-                  <div className="text-xs font-medium text-blue-900">
-                    Período: {selection.display}
-                  </div>
-                  <div className="text-[10px] text-blue-700 mt-0.5">
-                    {selection.period === "full-year" && `${selection.years.length} año(s) completo(s)`}
-                    {selection.period === "month" && `Mes específico en ${selection.years.length} año(s)`}
-                    {selection.period === "months" && `${selection.months?.length} meses en ${selection.years.length} año(s)`}
-                    {selection.period === "day" && `Día específico en ${selection.years.length} año(s)`}
-                    {selection.period === "days" && `${selection.days?.length} días en ${selection.years.length} año(s)`}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded border border-green-200">
-                <div className="h-3 w-3 text-green-600 flex-shrink-0 rounded-full bg-green-200" />
-                <div className="flex-1">
-                  <div className="text-xs font-medium text-green-900">
-                    Vendedor: {salespersonName}
-                  </div>
-                </div>
+                )}
               </div>
             </div>
 
-            {/* Export CSV Button - Small and subtle in top right, hidden on mobile */}
+            {/* Export CSV Button - Desktop only */}
             {!isComparativeMode && (
-              <div className="absolute top-3 right-3 hidden sm:block">
+              <div className="absolute top-3 right-3">
                 <Button
                   variant="ghost"
                   size="sm"
