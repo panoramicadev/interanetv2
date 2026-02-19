@@ -128,36 +128,6 @@ function ClientDetailAccordion({ client, idx, salespersonName, expandedValue, on
     enabled: isExpanded && !!salespersonName && salespersonName.trim().length > 0,
   });
 
-  // Mutation to add inactive client to CRM
-  const addToCrmMutation = useMutation({
-    mutationFn: async () => {
-      if (!client.id) {
-        throw new Error("No se puede agregar al CRM: cliente sin ID");
-      }
-      
-      return await apiRequest('POST', `/api/crm/inactive-clients/${client.id}/create-lead`, {
-        stage: 'lead',
-        notes: undefined, // Use auto-generated notes
-      });
-    },
-    onSuccess: () => {
-      toast({
-        title: "Cliente agregado al CRM",
-        description: `${client.clientName} ha sido agregado como lead en el CRM`,
-      });
-      
-      // Invalidate smart notifications to refresh the list
-      queryClient.invalidateQueries({ queryKey: ['/api/sales/salesperson', salespersonName, 'smart-notifications'] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "No se pudo agregar el cliente al CRM",
-        variant: "destructive",
-      });
-    },
-  });
-
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("es-CL", {
       style: "currency",
@@ -240,30 +210,6 @@ function ClientDetailAccordion({ client, idx, salespersonName, expandedValue, on
               )}
             </div>
             
-            {/* Add to CRM button - only show if client has ID from ETL */}
-            {client.id && (
-              <div className="mt-3 pt-3 border-t sm:flex sm:justify-end">
-                <Button
-                  onClick={() => addToCrmMutation.mutate()}
-                  disabled={addToCrmMutation.isPending}
-                  size="sm"
-                  className="w-full sm:w-auto"
-                  data-testid={`button-add-to-crm-${idx}`}
-                >
-                  {addToCrmMutation.isPending ? (
-                    <>
-                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent" />
-                      Agregando...
-                    </>
-                  ) : (
-                    <>
-                      <Users className="mr-2 h-4 w-4" />
-                      Añadir al CRM
-                    </>
-                  )}
-                </Button>
-              </div>
-            )}
           </div>
         ) : (
           <p className="text-xs text-gray-500 text-center py-2">No se pudieron cargar los detalles</p>

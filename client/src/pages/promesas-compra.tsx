@@ -561,12 +561,6 @@ export default function PromesasCompraPage() {
   );
 }
 
-interface CrmLead {
-  id: string;
-  clientName: string;
-  clientCompany?: string | null;
-}
-
 // Dialog para crear promesa
 function CreatePromesaDialog({
   open,
@@ -588,26 +582,11 @@ function CreatePromesaDialog({
   const { toast } = useToast();
   const [clienteTipo, setClienteTipo] = useState<"activo" | "potencial">("activo");
   const [selectedClient, setSelectedClient] = useState<Cliente | null>(null);
-  const [selectedLead, setSelectedLead] = useState<CrmLead | null>(null);
   const [montoPrometido, setMontoPrometido] = useState("");
   const [observaciones, setObservaciones] = useState("");
   const [isManualEntry, setIsManualEntry] = useState(false);
   const [manualClienteNombre, setManualClienteNombre] = useState("");
   const [manualClienteId, setManualClienteId] = useState("");
-  const [searchLead, setSearchLead] = useState("");
-
-  // Query para leads del CRM (clientes potenciales)
-  const { data: leadsData = [] } = useQuery<CrmLead[]>({
-    queryKey: ['/api/crm/leads'],
-    enabled: clienteTipo === "potencial",
-  });
-
-  // Filtrar leads por búsqueda
-  const filteredLeads = leadsData.filter((lead) =>
-    searchLead.length >= 1 &&
-    (lead.clientName.toLowerCase().includes(searchLead.toLowerCase()) ||
-     (lead.clientCompany && lead.clientCompany.toLowerCase().includes(searchLead.toLowerCase())))
-  );
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -641,11 +620,9 @@ function CreatePromesaDialog({
 
   const resetForm = () => {
     setSelectedClient(null);
-    setSelectedLead(null);
     setMontoPrometido("");
     setObservaciones("");
     setSearchClient("");
-    setSearchLead("");
     setIsManualEntry(false);
     setManualClienteNombre("");
     setManualClienteId("");
@@ -668,15 +645,6 @@ function CreatePromesaDialog({
         toast({
           title: "Error",
           description: "Por favor seleccione un cliente y complete el monto",
-          variant: "destructive",
-        });
-        return;
-      }
-    } else if (clienteTipo === "potencial") {
-      if (!selectedLead || !montoPrometido) {
-        toast({
-          title: "Error",
-          description: "Por favor seleccione un cliente potencial y complete el monto",
           variant: "destructive",
         });
         return;
@@ -709,12 +677,9 @@ function CreatePromesaDialog({
     if (isManualEntry) {
       clienteId = manualClienteId.trim() || 'MANUAL';
       clienteNombre = manualClienteNombre.trim();
-    } else if (clienteTipo === "activo") {
+    } else {
       clienteId = selectedClient!.koen;
       clienteNombre = selectedClient!.nokoen;
-    } else {
-      clienteId = selectedLead!.id;
-      clienteNombre = selectedLead!.clientName;
     }
 
     createMutation.mutate({
@@ -746,82 +711,27 @@ function CreatePromesaDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Tipo de cliente */}
-          <div>
-            <Label className="mb-2 block">Tipo de Cliente *</Label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setClienteTipo("activo");
-                  setSelectedLead(null);
-                  setSearchLead("");
-                }}
-                className={`flex-1 p-3 rounded-lg border-2 transition-colors ${
-                  clienteTipo === "activo"
-                    ? "border-primary bg-primary/5"
-                    : "border-muted hover:border-muted-foreground/30"
-                }`}
-                data-testid="button-tipo-activo"
-              >
-                <div className="flex items-center gap-2">
-                  <div className={`w-4 h-4 rounded-full border-2 ${
-                    clienteTipo === "activo" ? "border-primary bg-primary" : "border-muted-foreground"
-                  }`}>
-                    {clienteTipo === "activo" && <div className="w-full h-full rounded-full bg-white scale-50" />}
-                  </div>
-                  <span className="font-medium">Cliente Activo</span>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setClienteTipo("potencial");
-                  setSelectedClient(null);
-                  setSearchClient("");
-                }}
-                className={`flex-1 p-3 rounded-lg border-2 transition-colors ${
-                  clienteTipo === "potencial"
-                    ? "border-primary bg-primary/5"
-                    : "border-muted hover:border-muted-foreground/30"
-                }`}
-                data-testid="button-tipo-potencial"
-              >
-                <div className="flex items-center gap-2">
-                  <div className={`w-4 h-4 rounded-full border-2 ${
-                    clienteTipo === "potencial" ? "border-primary bg-primary" : "border-muted-foreground"
-                  }`}>
-                    {clienteTipo === "potencial" && <div className="w-full h-full rounded-full bg-white scale-50" />}
-                  </div>
-                  <span className="font-medium">Cliente Potencial</span>
-                </div>
-              </button>
-            </div>
-          </div>
-
           {/* Selector de cliente */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <Label>Seleccionar Cliente *</Label>
-              {clienteTipo === "activo" && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => {
-                    setIsManualEntry(!isManualEntry);
-                    setSelectedClient(null);
-                    setSearchClient("");
-                    setManualClienteNombre("");
-                    setManualClienteId("");
-                  }}
-                  data-testid="button-toggle-manual"
-                >
-                  {isManualEntry ? 'Buscar en lista' : 'Ingreso manual'}
-                </Button>
-              )}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => {
+                  setIsManualEntry(!isManualEntry);
+                  setSelectedClient(null);
+                  setSearchClient("");
+                  setManualClienteNombre("");
+                  setManualClienteId("");
+                }}
+                data-testid="button-toggle-manual"
+              >
+                {isManualEntry ? 'Buscar en lista' : 'Ingreso manual'}
+              </Button>
             </div>
             
-            {isManualEntry && clienteTipo === "activo" ? (
+            {isManualEntry ? (
               <div className="space-y-3 mt-2">
                 <div>
                   <Label htmlFor="manualNombre">Nombre del Cliente *</Label>
@@ -847,7 +757,7 @@ function CreatePromesaDialog({
                   <p className="text-xs text-muted-foreground mt-1">Si no tiene código, se asignará automáticamente</p>
                 </div>
               </div>
-            ) : clienteTipo === "activo" && selectedClient ? (
+            ) : selectedClient ? (
               <div className="flex items-center gap-2 mt-2">
                 <div className="flex-1 p-2 border rounded bg-muted">
                   <p className="font-medium">{selectedClient.nokoen}</p>
@@ -857,7 +767,7 @@ function CreatePromesaDialog({
                   Cambiar
                 </Button>
               </div>
-            ) : clienteTipo === "activo" ? (
+            ) : (
               <>
                 <div className="relative mt-2">
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -883,51 +793,6 @@ function CreatePromesaDialog({
                       </button>
                     ))}
                   </div>
-                )}
-              </>
-            ) : selectedLead ? (
-              <div className="flex items-center gap-2 mt-2">
-                <div className="flex-1 p-2 border rounded bg-muted">
-                  <p className="font-medium">{selectedLead.clientName}</p>
-                  {selectedLead.clientCompany && (
-                    <p className="text-sm text-muted-foreground">{selectedLead.clientCompany}</p>
-                  )}
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedLead(null)}>
-                  Cambiar
-                </Button>
-              </div>
-            ) : (
-              <>
-                <div className="relative mt-2">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar cliente potencial..."
-                    value={searchLead}
-                    onChange={(e) => setSearchLead(e.target.value)}
-                    className="pl-8"
-                    data-testid="input-buscar-lead"
-                  />
-                </div>
-                {filteredLeads.length > 0 && (
-                  <div className="mt-2 max-h-48 overflow-y-auto border rounded">
-                    {filteredLeads.map((lead) => (
-                      <button
-                        key={lead.id}
-                        onClick={() => setSelectedLead(lead)}
-                        className="w-full text-left p-2 hover:bg-muted transition-colors"
-                        data-testid={`button-seleccionar-lead-${lead.id}`}
-                      >
-                        <p className="font-medium">{lead.clientName}</p>
-                        {lead.clientCompany && (
-                          <p className="text-sm text-muted-foreground">{lead.clientCompany}</p>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {searchLead.length >= 1 && filteredLeads.length === 0 && (
-                  <p className="text-sm text-muted-foreground mt-2">No se encontraron clientes potenciales</p>
                 )}
               </>
             )}

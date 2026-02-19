@@ -8,7 +8,7 @@ import {
   Settings,
   ShoppingCart,
   Palette,
-  ClipboardList,
+
   ClipboardCheck,
   CheckSquare,
   DollarSign,
@@ -73,11 +73,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "eCommerce",
       icon: ShoppingCart,
       separator: true,
-    },
-    {
-      href: "/crm",
-      label: "CRM",
-      icon: ClipboardList,
     },
     {
       href: "/tareas",
@@ -355,11 +350,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: LayoutDashboard,
     },
     {
-      href: "/crm",
-      label: "CRM",
-      icon: ClipboardList,
-    },
-    {
       href: "/tareas",
       label: "Tareas",
       icon: CheckCircle2,
@@ -503,11 +493,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/",
       label: "Dashboard",
       icon: LayoutDashboard,
-    },
-    {
-      href: "/crm",
-      label: "CRM",
-      icon: ClipboardList,
     },
     {
       href: "/tareas",

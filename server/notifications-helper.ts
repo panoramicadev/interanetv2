@@ -174,30 +174,6 @@ export async function notifyStockBajo(productName: string, stock: number, minSto
   });
 }
 
-// Notificaciones para CRM
-export async function notifyNuevoLead(clientName: string, segment: string, createdBy: string) {
-  await createAutoNotification({
-    targetType: 'departamento',
-    title: '🎯 Nuevo Lead Registrado',
-    message: `Cliente potencial: ${clientName} (${segment})`,
-    priority: 'media',
-    targetDepartment: 'Ventas',
-    actionUrl: `/crm`,
-    createdByName: `Sistema - ${createdBy}`,
-  });
-}
-
-export async function notifyLeadVenta(clientName: string, salesperson: string) {
-  await createAutoNotification({
-    targetType: 'general',
-    title: '🎉 Lead Convertido en Venta',
-    message: `${salesperson} ha cerrado venta con ${clientName}`,
-    priority: 'alta',
-    actionUrl: `/crm`,
-    createdByName: 'Sistema - CRM',
-  });
-}
-
 // Notificaciones para Marketing
 export async function notifySolicitudMarketing(titulo: string, presupuesto: number, createdBy: string) {
   await createAutoNotification({
@@ -223,17 +199,3 @@ export async function notifyVisitaTecnicaCreada(clientName: string, visitType: s
   });
 }
 
-// Notificaciones para Clientes Inactivos
-export async function notifyClientesInactivos(count: number) {
-  if (count === 0) return;
-  
-  await createAutoNotification({
-    targetType: 'departamento',
-    title: '⚠️ Alerta de Clientes Inactivos',
-    message: `Hay ${count} ${count === 1 ? 'cliente inactivo' : 'clientes inactivos'} que no han comprado en más de 30 días. Revisa la sección CRM para reactivarlos.`,
-    priority: 'alta',
-    targetDepartment: 'Ventas',
-    actionUrl: `/crm`,
-    createdByName: 'Sistema - CRM',
-  });
-}
