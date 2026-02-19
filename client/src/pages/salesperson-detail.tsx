@@ -1214,9 +1214,9 @@ export default function SalespersonDetail({
               </div>
             </div>
 
-            {/* Export CSV Button - Small and subtle in top right */}
+            {/* Export CSV Button - Small and subtle in top right, hidden on mobile */}
             {!isComparativeMode && (
-              <div className="absolute top-3 right-3">
+              <div className="absolute top-3 right-3 hidden sm:block">
                 <Button
                   variant="ghost"
                   size="sm"
