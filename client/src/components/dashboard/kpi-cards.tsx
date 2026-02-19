@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
   DollarSign, 
   ShoppingCart, 
   Package, 
-  Users 
+  Users,
+  Loader2
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -44,7 +47,18 @@ interface KPICardsProps {
   comparePeriod?: string;
 }
 
+interface NewClientItem {
+  clientName: string;
+  totalSales: number;
+  totalUnits: number;
+  orderCount: number;
+  firstPurchaseDate: string;
+  salesperson: string;
+}
+
 export default function KPICards({ selectedPeriod, filterType, segment, salesperson, client, product, comparePeriod }: KPICardsProps) {
+  const [showNewClientsModal, setShowNewClientsModal] = useState(false);
+
   // Helper function to resolve comparison periods to actual period strings
   const resolveComparisonPeriod = (comparePeriod: string, currentPeriod: string, filterType: string): string => {
     if (!comparePeriod || comparePeriod === "none") return "";
@@ -356,6 +370,22 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
+  });
+
+  const { data: newClientsList, isLoading: isLoadingNewClients } = useQuery<NewClientItem[]>({
+    queryKey: ['/api/sales/new-clients', selectedPeriod, filterType, segment, salesperson, client],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      if (segment) params.append('segment', segment);
+      if (salesperson) params.append('salesperson', salesperson);
+      if (client) params.append('client', client);
+      const res = await fetch(`/api/sales/new-clients?${params.toString()}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: showNewClientsModal,
   });
 
   const formatCurrency = (amount: number) => {
@@ -675,63 +705,136 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     const newClientsDiff = prevNewClients !== undefined ? currentNew - prevNewClients : null;
     const diffSign = newClientsDiff !== null && newClientsDiff >= 0 ? '+' : '';
 
+    const totalNewClientsSales = newClientsList?.reduce((sum, c) => sum + c.totalSales, 0) || 0;
+
     return (
-      <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex-1 mb-2 lg:mb-0 pr-12 sm:pr-16 lg:pr-0">
-            <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 sm:mb-2">
-              {kpi.title}
-            </p>
-            <p 
-              className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
-              data-testid={kpi.testId}
-              title={kpi.value}
-            >
-              {kpi.value}
-            </p>
-            <div className="flex flex-col gap-0.5">
-              <div className="flex items-baseline gap-1.5 flex-wrap">
-                {kpi.change.percentage !== "Sin datos previos" && (
-                  <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
-                    {kpi.change.percentage}
-                  </span>
-                )}
-                {newClientsDiff !== null && (
-                  <span className={`text-xs sm:text-sm font-semibold ${newClientsDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {diffSign}{formatNumber(newClientsDiff)}
-                  </span>
-                )}
-                {kpi.change.percentage === "Sin datos previos" && (
-                  <span className="text-xs sm:text-sm font-semibold text-gray-500">
-                    Sin datos previos
-                  </span>
-                )}
-              </div>
-              {kpi.change.comparisonText && (
-                <span className="text-[9px] sm:text-[10px] text-gray-500 dark:text-gray-400">
-                  {kpi.change.comparisonText}
-                </span>
-              )}
-            </div>
-            <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-              <div className="grid grid-cols-2 gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
-                <span className="truncate" title={`${formatNumber(totalCustomers)} clientes totales`}>
-                  {formatNumber(totalCustomers)} clientes totales
-                </span>
-                <span className="truncate" title={`${formatNumber(totalOrders)} órdenes`}>
-                  {formatNumber(totalOrders)} órdenes
-                </span>
-              </div>
-              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate" title={`${formatNumber(totalUnits)} unidades vendidas`}>
-                {formatNumber(totalUnits)} unidades vendidas
+      <>
+        <div 
+          key={kpi.title} 
+          className="modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden cursor-pointer ring-purple-300 hover:ring-2 transition-all"
+          onClick={() => setShowNewClientsModal(true)}
+        >
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex-1 mb-2 lg:mb-0 pr-12 sm:pr-16 lg:pr-0">
+              <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 sm:mb-2">
+                {kpi.title}
               </p>
+              <p 
+                className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
+                data-testid={kpi.testId}
+                title={kpi.value}
+              >
+                {kpi.value}
+              </p>
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-baseline gap-1.5 flex-wrap">
+                  {kpi.change.percentage !== "Sin datos previos" && (
+                    <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
+                      {kpi.change.percentage}
+                    </span>
+                  )}
+                  {newClientsDiff !== null && (
+                    <span className={`text-xs sm:text-sm font-semibold ${newClientsDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {diffSign}{formatNumber(newClientsDiff)}
+                    </span>
+                  )}
+                  {kpi.change.percentage === "Sin datos previos" && (
+                    <span className="text-xs sm:text-sm font-semibold text-gray-500">
+                      Sin datos previos
+                    </span>
+                  )}
+                </div>
+                {kpi.change.comparisonText && (
+                  <span className="text-[9px] sm:text-[10px] text-gray-500 dark:text-gray-400">
+                    {kpi.change.comparisonText}
+                  </span>
+                )}
+              </div>
+              <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                <div className="grid grid-cols-2 gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  <span className="truncate" title={`${formatNumber(totalCustomers)} clientes totales`}>
+                    {formatNumber(totalCustomers)} clientes totales
+                  </span>
+                  <span className="truncate" title={`${formatNumber(totalOrders)} órdenes`}>
+                    {formatNumber(totalOrders)} órdenes
+                  </span>
+                </div>
+                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate" title={`${formatNumber(totalUnits)} unidades vendidas`}>
+                  {formatNumber(totalUnits)} unidades vendidas
+                </p>
+              </div>
             </div>
-          </div>
-          <div className={`absolute top-3 right-3 sm:top-4 sm:right-4 lg:static lg:ml-4 w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center transition-transform hover:scale-105`}>
-            <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
+            <div className={`absolute top-3 right-3 sm:top-4 sm:right-4 lg:static lg:ml-4 w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center transition-transform hover:scale-105`}>
+              <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
+            </div>
           </div>
         </div>
-      </div>
+
+        <Dialog open={showNewClientsModal} onOpenChange={setShowNewClientsModal}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-purple-600" />
+                Clientes Nuevos del Período
+              </DialogTitle>
+              <p className="text-sm text-gray-500">
+                {formatNumber(currentNew)} clientes nuevos — Total comprado: {formatCurrency(totalNewClientsSales)}
+              </p>
+            </DialogHeader>
+            <div className="overflow-y-auto flex-1 -mx-6 px-6">
+              {isLoadingNewClients ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+                </div>
+              ) : !newClientsList?.length ? (
+                <div className="text-center py-12 text-gray-500">
+                  <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                  <p>No hay clientes nuevos en este período</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <div className="grid grid-cols-12 gap-2 px-3 py-2 text-xs font-semibold text-gray-500 uppercase border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-950">
+                    <div className="col-span-5">Cliente</div>
+                    <div className="col-span-3 text-right">Monto</div>
+                    <div className="col-span-2 text-right">Uds.</div>
+                    <div className="col-span-2 text-right">Órdenes</div>
+                  </div>
+                  {newClientsList.map((item, index) => (
+                    <div
+                      key={item.clientName}
+                      className="grid grid-cols-12 gap-2 px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors items-center"
+                    >
+                      <div className="col-span-5 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate" title={item.clientName}>
+                          {item.clientName}
+                        </p>
+                        <p className="text-[10px] text-gray-400 truncate" title={item.salesperson}>
+                          {item.salesperson}
+                        </p>
+                      </div>
+                      <div className="col-span-3 text-right">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {formatCurrency(item.totalSales)}
+                        </p>
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {formatNumber(item.totalUnits)}
+                        </p>
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {item.orderCount}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   };
 

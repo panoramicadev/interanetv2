@@ -423,6 +423,20 @@ export interface IStorage {
     segment?: string;
     client?: string;
   }): Promise<number>;
+  getNewClientsList(filters: {
+    startDate: string;
+    endDate: string;
+    salesperson?: string;
+    segment?: string;
+    client?: string;
+  }): Promise<Array<{
+    clientName: string;
+    totalSales: number;
+    totalUnits: number;
+    orderCount: number;
+    firstPurchaseDate: string;
+    salesperson: string;
+  }>>;
   getTopSalespeople(limit?: number, startDate?: string, endDate?: string, segment?: string, client?: string, product?: string): Promise<{
     items: Array<{
       salesperson: string;
@@ -2592,6 +2606,58 @@ export class DatabaseStorage implements IStorage {
     `);
 
     return Number(result.rows[0]?.new_clients || 0);
+  }
+
+  async getNewClientsList(filters: {
+    startDate: string;
+    endDate: string;
+    salesperson?: string;
+    segment?: string;
+    client?: string;
+  }): Promise<Array<{
+    clientName: string;
+    totalSales: number;
+    totalUnits: number;
+    orderCount: number;
+    firstPurchaseDate: string;
+    salesperson: string;
+  }>> {
+    const { startDate, endDate, salesperson, segment, client } = filters;
+
+    const result = await db.execute(sql`
+      SELECT 
+        fv."nokoen" as client_name,
+        SUM(fv."monto") as total_sales,
+        SUM(CASE WHEN fv."tido" = 'NCV' THEN -fv."caprco2" ELSE fv."caprco2" END) as total_units,
+        COUNT(DISTINCT fv."nudo") as order_count,
+        MIN(fv."feemdo")::text as first_purchase_date,
+        MAX(fv."nokofu") as salesperson
+      FROM ventas.fact_ventas fv
+      WHERE fv."feemdo" >= ${startDate}::date
+        AND fv."feemdo" <= ${endDate}::date
+        AND fv."tido" != 'GDV'
+        ${salesperson ? sql`AND fv."nokofu" = ${salesperson}` : sql``}
+        ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
+        ${client ? sql`AND fv."nokoen" = ${client}` : sql``}
+        AND NOT EXISTS (
+          SELECT 1 FROM ventas.fact_ventas fv2
+          WHERE fv2."nokoen" = fv."nokoen"
+            AND fv2."feemdo" < ${startDate}::date
+            AND fv2."tido" != 'GDV'
+            ${salesperson ? sql`AND fv2."nokofu" = ${salesperson}` : sql``}
+        )
+      GROUP BY fv."nokoen"
+      ORDER BY total_sales DESC
+    `);
+
+    return (result.rows as any[]).map(row => ({
+      clientName: row.client_name,
+      totalSales: Number(row.total_sales),
+      totalUnits: Number(row.total_units),
+      orderCount: Number(row.order_count),
+      firstPurchaseDate: row.first_purchase_date,
+      salesperson: row.salesperson,
+    }));
   }
 
   // Get global GDV pending (no date filters) - all GDV where esdo IS NULL or esdo != 'C'
