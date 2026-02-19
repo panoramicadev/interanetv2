@@ -243,11 +243,6 @@ async function initializeBackgroundServices() {
         const count = await storage.updateInactiveClients();
         log(`✅ Updated ${count} inactive clients alerts`);
         
-        if (count > 0) {
-          const { notifyClientesInactivos } = await import('./notifications-helper');
-          await notifyClientesInactivos(count);
-          log(`✅ Notification sent: ${count} inactive clients detected`);
-        }
       } catch (error: any) {
         console.error('Initial inactive clients update failed:', error.message);
       }
@@ -258,12 +253,6 @@ async function initializeBackgroundServices() {
         log('🔔 Running scheduled inactive clients update...');
         const count = await storage.updateInactiveClients();
         log(`✅ Updated ${count} inactive clients alerts`);
-        
-        if (count > 0) {
-          const { notifyClientesInactivos } = await import('./notifications-helper');
-          await notifyClientesInactivos(count);
-          log(`✅ Notification sent: ${count} inactive clients detected`);
-        }
       } catch (error: any) {
         console.error('Scheduled inactive clients update failed:', error.message);
       }

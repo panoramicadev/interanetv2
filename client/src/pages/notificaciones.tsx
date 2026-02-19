@@ -235,9 +235,6 @@ export default function NotificacionesPage() {
         return <Package className="w-5 h-5" />;
       case 'venta':
         return <TrendingUp className="w-5 h-5" />;
-      case 'crm_lead':
-      case 'crm_stage_change':
-        return <Users className="w-5 h-5" />;
       case 'maintenance':
       case 'mantencion_resuelta':
         return <Wrench className="w-5 h-5" />;
