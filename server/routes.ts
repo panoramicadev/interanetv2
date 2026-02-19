@@ -3695,16 +3695,8 @@ export function registerRoutes(app: Express): Server {
 
   app.get('/api/sales/projection-insight', requireCommercialAccess, async (req: any, res) => {
     try {
-      const { period, filterType, salesperson, segment, client } = req.query;
-      const dateRange = getDateRange(period as string, filterType as string);
-
-      if (!dateRange.startDate || !dateRange.endDate) {
-        return res.json({ projection: null, justification: 'Período no válido para proyección.' });
-      }
-
-      const periodStart = new Date(dateRange.startDate);
-      const periodEnd = new Date(dateRange.endDate);
-      const periodDays = Math.ceil((periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const { period, filterType, salesperson, segment, client, projectionType } = req.query;
+      const pType = (projectionType as string) || 'cierre_mes';
 
       let salespersonFilter = '';
       if (salesperson) salespersonFilter = ` AND nokofu = '${(salesperson as string).replace(/'/g, "''")}'`;
@@ -3714,150 +3706,293 @@ export function registerRoutes(app: Express): Server {
       if (client) clientFilter = ` AND nokoen = '${(client as string).replace(/'/g, "''")}'`;
 
       const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
+
+      let targetStartDate: Date;
+      let targetEndDate: Date;
+      let projectionLabel: string;
+
+      const mFullNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+      switch (pType) {
+        case 'siguiente_mes': {
+          const nextM = currentMonth + 1;
+          targetStartDate = new Date(currentYear, nextM, 1);
+          targetEndDate = new Date(currentYear, nextM + 1, 0);
+          projectionLabel = `${mFullNames[targetStartDate.getMonth()]} ${targetStartDate.getFullYear()}`;
+          break;
+        }
+        case 'cierre_semestre': {
+          const semStart = currentMonth < 6 ? 0 : 6;
+          const semesterEnd = currentMonth < 6 ? 5 : 11;
+          targetStartDate = new Date(currentYear, semStart, 1);
+          targetEndDate = new Date(currentYear, semesterEnd + 1, 0);
+          projectionLabel = semesterEnd === 5 ? `1er Semestre ${currentYear}` : `2do Semestre ${currentYear}`;
+          break;
+        }
+        case 'cierre_ano': {
+          targetStartDate = new Date(currentYear, 0, 1);
+          targetEndDate = new Date(currentYear, 11, 31);
+          projectionLabel = `Año ${currentYear}`;
+          break;
+        }
+        default: {
+          targetStartDate = new Date(currentYear, currentMonth, 1);
+          targetEndDate = new Date(currentYear, currentMonth + 1, 0);
+          projectionLabel = `${mFullNames[currentMonth]} ${currentYear}`;
+          break;
+        }
+      }
+
+      const totalDays = Math.ceil((targetEndDate.getTime() - targetStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const currentMonthStart = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0];
+      const todayStr = now.toISOString().split('T')[0];
+
+      const historyRefDate = new Date(currentYear, currentMonth, 1);
+      const histRefStr = historyRefDate.toISOString().split('T')[0];
 
       const monthlyQuery = `
         SELECT 
           TO_CHAR(feemdo::date, 'YYYY-MM') as period,
+          EXTRACT(MONTH FROM feemdo::date) as month_num,
+          EXTRACT(YEAR FROM feemdo::date) as year_num,
           SUM(CAST(vabrdo AS NUMERIC)) as total_sales,
           COUNT(DISTINCT nudo) as orders,
-          SUM(CASE WHEN tido = 'NCV' THEN -caprco2 ELSE caprco2 END) as units,
-          MIN(feemdo::date) as first_day,
-          MAX(feemdo::date) as last_day,
           COUNT(DISTINCT EXTRACT(DAY FROM feemdo::date)) as active_days
         FROM ventas.fact_ventas
-        WHERE feemdo >= ('${dateRange.startDate}'::date - INTERVAL '13 months')
-          AND feemdo < '${dateRange.startDate}'
+        WHERE feemdo >= ('${histRefStr}'::date - INTERVAL '25 months')
+          AND feemdo < '${histRefStr}'
           AND tido NOT IN ('GDV')
           AND nokofu IS NOT NULL AND nokofu != '.'
           ${salespersonFilter}${segmentFilter}${clientFilter}
-        GROUP BY TO_CHAR(feemdo::date, 'YYYY-MM')
+        GROUP BY TO_CHAR(feemdo::date, 'YYYY-MM'), EXTRACT(MONTH FROM feemdo::date), EXTRACT(YEAR FROM feemdo::date)
         ORDER BY period
       `;
 
       const monthlyResult = await db.execute(sql.raw(monthlyQuery));
       const monthlyData = (monthlyResult.rows as any[]).map(r => ({
         period: r.period,
+        monthNum: parseInt(r.month_num),
+        yearNum: parseInt(r.year_num),
         sales: parseFloat(r.total_sales) || 0,
         orders: parseInt(r.orders) || 0,
-        units: parseFloat(r.units) || 0,
         activeDays: parseInt(r.active_days) || 0,
       }));
 
       if (monthlyData.length < 3) {
-        return res.json({ projection: null, justification: 'Datos históricos insuficientes para generar una proyección confiable.' });
+        return res.json({ projection: null, projectionLabel, justification: 'Datos históricos insuficientes para generar una proyección confiable.' });
       }
 
-      const currentPeriodQuery = `
+      const currentMonthQuery = `
         SELECT 
           SUM(CAST(vabrdo AS NUMERIC)) as total_sales,
           COUNT(DISTINCT nudo) as orders,
-          SUM(CASE WHEN tido = 'NCV' THEN -caprco2 ELSE caprco2 END) as units,
           COUNT(DISTINCT EXTRACT(DAY FROM feemdo::date)) as active_days
         FROM ventas.fact_ventas
-        WHERE feemdo >= '${dateRange.startDate}'
-          AND feemdo <= '${dateRange.endDate}'
+        WHERE feemdo >= '${currentMonthStart}'
+          AND feemdo <= '${todayStr}'
           AND tido NOT IN ('GDV')
           AND nokofu IS NOT NULL AND nokofu != '.'
           ${salespersonFilter}${segmentFilter}${clientFilter}
       `;
-      const currentResult = await db.execute(sql.raw(currentPeriodQuery));
-      const currentData = currentResult.rows[0] as any;
-      const currentSales = parseFloat(currentData?.total_sales) || 0;
-      const currentActiveDays = parseInt(currentData?.active_days) || 0;
-      const currentOrders = parseInt(currentData?.orders) || 0;
+      const currentMonthResult = await db.execute(sql.raw(currentMonthQuery));
+      const cmData = currentMonthResult.rows[0] as any;
+      const currentMonthSales = parseFloat(cmData?.total_sales) || 0;
+      const currentMonthActiveDays = parseInt(cmData?.active_days) || 0;
+
+      const actualMonthsQuery = `
+        SELECT 
+          TO_CHAR(feemdo::date, 'YYYY-MM') as period,
+          EXTRACT(MONTH FROM feemdo::date) as month_num,
+          SUM(CAST(vabrdo AS NUMERIC)) as total_sales
+        FROM ventas.fact_ventas
+        WHERE feemdo >= '${targetStartDate.toISOString().split('T')[0]}'
+          AND feemdo <= '${todayStr}'
+          AND tido NOT IN ('GDV')
+          AND nokofu IS NOT NULL AND nokofu != '.'
+          ${salespersonFilter}${segmentFilter}${clientFilter}
+        GROUP BY TO_CHAR(feemdo::date, 'YYYY-MM'), EXTRACT(MONTH FROM feemdo::date)
+        ORDER BY period
+      `;
+      const actualMonthsResult = await db.execute(sql.raw(actualMonthsQuery));
+      const actualMonthsData: Record<number, number> = {};
+      let totalActualSales = 0;
+      for (const r of actualMonthsResult.rows as any[]) {
+        const mNum = parseInt(r.month_num);
+        const sales = parseFloat(r.total_sales) || 0;
+        actualMonthsData[mNum] = sales;
+        totalActualSales += sales;
+      }
 
       const last12 = monthlyData.slice(-12);
       const last6 = monthlyData.slice(-6);
-
       const avg12 = last12.reduce((s, m) => s + m.sales, 0) / last12.length;
       const avg6 = last6.reduce((s, m) => s + m.sales, 0) / last6.length;
 
-      const avgOrders12 = last12.reduce((s, m) => s + m.orders, 0) / last12.length;
-      const avgOrders6 = last6.reduce((s, m) => s + m.orders, 0) / last6.length;
+      const seasonalAvg: Record<number, { total: number; count: number }> = {};
+      for (const m of monthlyData) {
+        if (!seasonalAvg[m.monthNum]) seasonalAvg[m.monthNum] = { total: 0, count: 0 };
+        seasonalAvg[m.monthNum].total += m.sales;
+        seasonalAvg[m.monthNum].count += 1;
+      }
 
-      const trend6 = last6.length >= 2 
-        ? (last6[last6.length - 1].sales - last6[0].sales) / (last6.length - 1)
-        : 0;
-      const trend12 = last12.length >= 2
-        ? (last12[last12.length - 1].sales - last12[0].sales) / (last12.length - 1)
-        : 0;
+      const trendDirection6 = avg6 > avg12 ? 'alza' : avg6 < avg12 * 0.95 ? 'baja' : 'estable';
+      const trendMultiplier = trendDirection6 === 'alza' ? (avg6 / avg12) : trendDirection6 === 'baja' ? (avg6 / avg12) : 1;
 
-      const samePeriodLastYear = monthlyData.find(m => {
-        const [y, mo] = m.period.split('-').map(Number);
-        const pY = periodStart.getFullYear();
-        const pM = periodStart.getMonth() + 1;
-        return y === pY - 1 && mo === pM;
-      });
-
-      const isCurrentMonth = periodStart.getFullYear() === now.getFullYear() && periodStart.getMonth() === now.getMonth();
-      const isPartialPeriod = isCurrentMonth || periodEnd > now;
-      const elapsedDays = isPartialPeriod ? Math.ceil((now.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)) : periodDays;
+      const projectMonth = (monthNum: number): number => {
+        const seasonal = seasonalAvg[monthNum];
+        if (seasonal && seasonal.count >= 1) {
+          return (seasonal.total / seasonal.count) * trendMultiplier;
+        }
+        return (avg6 * 0.6 + avg12 * 0.4) * trendMultiplier;
+      };
 
       let projectedSales: number;
+      let currentSales: number;
       let methodology: string;
+      let elapsedDays: number;
+      const monthlyBreakdown: { month: string; projected: number; isActual: boolean }[] = [];
 
-      if (isPartialPeriod && currentActiveDays > 3) {
-        const dailyRate = currentSales / currentActiveDays;
-        const businessDaysInMonth = Math.round(periodDays * 0.72);
-        const runRateProjection = dailyRate * businessDaysInMonth;
+      const mNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
-        const weightedAvg = avg6 * 0.6 + avg12 * 0.4;
-        projectedSales = runRateProjection * 0.65 + weightedAvg * 0.35;
-        methodology = 'run_rate_blended';
-      } else if (!isPartialPeriod) {
-        projectedSales = currentSales;
-        methodology = 'actual';
-      } else {
-        projectedSales = avg6 * 0.6 + avg12 * 0.4;
-        methodology = 'historical_average';
+      const buildMultiMonthProjection = (rangeStart: number, rangeEnd: number) => {
+        let accumulated = 0;
+        for (let m = rangeStart; m <= rangeEnd; m++) {
+          if (m < currentMonth) {
+            const actual = actualMonthsData[m + 1] || 0;
+            accumulated += actual;
+            monthlyBreakdown.push({ month: mNames[m], projected: Math.round(actual), isActual: true });
+          } else if (m === currentMonth) {
+            if (currentMonthActiveDays > 3) {
+              const daysInM = new Date(currentYear, m + 1, 0).getDate();
+              const dailyRate = currentMonthSales / currentMonthActiveDays;
+              const proj = dailyRate * Math.round(daysInM * 0.72);
+              accumulated += proj;
+              monthlyBreakdown.push({ month: mNames[m], projected: Math.round(proj), isActual: false });
+            } else {
+              const proj = projectMonth(m + 1);
+              accumulated += proj;
+              monthlyBreakdown.push({ month: mNames[m], projected: Math.round(proj), isActual: false });
+            }
+          } else {
+            const proj = projectMonth(m + 1);
+            accumulated += proj;
+            monthlyBreakdown.push({ month: mNames[m], projected: Math.round(proj), isActual: false });
+          }
+        }
+        return accumulated;
+      };
+
+      switch (pType) {
+        case 'cierre_mes': {
+          currentSales = currentMonthSales;
+          const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+          elapsedDays = now.getDate();
+          if (currentMonthActiveDays > 3) {
+            const dailyRate = currentMonthSales / currentMonthActiveDays;
+            const businessDays = Math.round(daysInMonth * 0.72);
+            const runRate = dailyRate * businessDays;
+            const weightedAvg = avg6 * 0.6 + avg12 * 0.4;
+            projectedSales = runRate * 0.65 + weightedAvg * 0.35;
+            methodology = 'run_rate_blended';
+          } else {
+            projectedSales = projectMonth(currentMonth + 1);
+            methodology = 'historical_seasonal';
+          }
+          monthlyBreakdown.push({ month: mNames[currentMonth], projected: Math.round(projectedSales), isActual: false });
+          break;
+        }
+        case 'siguiente_mes': {
+          currentSales = 0;
+          elapsedDays = 0;
+          projectedSales = projectMonth(targetStartDate.getMonth() + 1);
+          methodology = 'historical_seasonal';
+          monthlyBreakdown.push({ month: mNames[targetStartDate.getMonth()], projected: Math.round(projectedSales), isActual: false });
+          break;
+        }
+        case 'cierre_semestre': {
+          const semStart = currentMonth < 6 ? 0 : 6;
+          const semEnd = currentMonth < 6 ? 5 : 11;
+          currentSales = totalActualSales;
+          elapsedDays = Math.ceil((now.getTime() - new Date(currentYear, semStart, 1).getTime()) / (1000 * 60 * 60 * 24));
+          projectedSales = buildMultiMonthProjection(semStart, semEnd);
+          methodology = 'seasonal_accumulated';
+          break;
+        }
+        case 'cierre_ano': {
+          currentSales = totalActualSales;
+          elapsedDays = Math.ceil((now.getTime() - new Date(currentYear, 0, 1).getTime()) / (1000 * 60 * 60 * 24));
+          projectedSales = buildMultiMonthProjection(0, 11);
+          methodology = 'seasonal_accumulated';
+          break;
+        }
+        default: {
+          projectedSales = avg6 * 0.6 + avg12 * 0.4;
+          currentSales = currentMonthSales;
+          elapsedDays = now.getDate();
+          methodology = 'historical_average';
+        }
       }
 
       const maxMonth = Math.max(...last12.map(m => m.sales));
       const minMonth = Math.min(...last12.map(m => m.sales));
       const bestMonth = last12.find(m => m.sales === maxMonth);
       const worstMonth = last12.find(m => m.sales === minMonth);
-
-      const trendDirection6 = avg6 > avg12 ? 'alza' : avg6 < avg12 * 0.95 ? 'baja' : 'estable';
       const volatility = maxMonth > 0 ? ((maxMonth - minMonth) / maxMonth * 100).toFixed(0) : '0';
 
+      const samePeriodLastYear = monthlyData.find(m => {
+        const [y, mo] = m.period.split('-').map(Number);
+        return y === currentYear - 1 && mo === currentMonth + 1;
+      });
       const yoyChange = samePeriodLastYear 
         ? ((projectedSales - samePeriodLastYear.sales) / samePeriodLastYear.sales * 100)
         : null;
 
-      const formatMonthName = (p: string) => {
+      const formatCLP = (n: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n);
+      const formatMName = (p: string) => {
         const [y, m] = p.split('-');
-        const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-        return `${months[parseInt(m) - 1]} ${y}`;
+        return `${mNames[parseInt(m) - 1]} ${y}`;
       };
 
       const factors: string[] = [];
 
-      if (methodology === 'run_rate_blended') {
-        factors.push(`Con ${currentActiveDays} días activos de venta, el ritmo actual proyecta un cierre de ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(projectedSales)}.`);
+      if (pType === 'cierre_mes' && methodology === 'run_rate_blended') {
+        factors.push(`Con ${currentMonthActiveDays} días activos de venta y un acumulado de ${formatCLP(currentMonthSales)}, el ritmo actual proyecta un cierre de ${formatCLP(projectedSales)}.`);
+      } else if (pType === 'siguiente_mes') {
+        const targetMName = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'][targetStartDate.getMonth()];
+        factors.push(`La proyección para ${targetMName} se basa en el promedio estacional de ese mes ajustado por la tendencia reciente.`);
+      } else if (pType === 'cierre_semestre') {
+        const remaining = monthlyBreakdown.filter(b => !b.isActual).length;
+        factors.push(`Se proyectan ${remaining} meses restantes del semestre usando promedios estacionales con ajuste de tendencia. Acumulado real a la fecha: ${formatCLP(currentSales)}.`);
+      } else if (pType === 'cierre_ano') {
+        const remaining = monthlyBreakdown.filter(b => !b.isActual).length;
+        factors.push(`Se proyectan ${remaining} meses restantes del año usando promedios estacionales. Acumulado real del año: ${formatCLP(currentSales)}.`);
       }
 
       if (trendDirection6 === 'alza') {
         const pctUp = ((avg6 - avg12) / avg12 * 100).toFixed(1);
-        factors.push(`La tendencia de los últimos 6 meses muestra un crecimiento del ${pctUp}% respecto al promedio de 12 meses, lo que favorece la proyección.`);
+        factors.push(`Tendencia al alza: los últimos 6 meses crecieron un ${pctUp}% respecto al promedio de 12 meses.`);
       } else if (trendDirection6 === 'baja') {
         const pctDown = ((avg12 - avg6) / avg12 * 100).toFixed(1);
-        factors.push(`Los últimos 6 meses muestran una contracción del ${pctDown}% respecto al promedio anual, lo que modera la expectativa.`);
+        factors.push(`Tendencia a la baja: los últimos 6 meses cayeron un ${pctDown}% respecto al promedio anual.`);
       } else {
-        factors.push(`Las ventas se mantienen estables entre los promedios de 6 y 12 meses, indicando un comportamiento predecible.`);
-      }
-
-      if (samePeriodLastYear) {
-        const yoyPct = yoyChange!.toFixed(1);
-        const dir = yoyChange! >= 0 ? 'superior' : 'inferior';
-        factors.push(`Comparado con ${formatMonthName(samePeriodLastYear.period)}, la proyección es un ${Math.abs(parseFloat(yoyPct))}% ${dir}.`);
+        factors.push(`Las ventas se mantienen estables entre los promedios de 6 y 12 meses.`);
       }
 
       if (bestMonth) {
-        factors.push(`El mejor mes reciente fue ${formatMonthName(bestMonth.period)} con ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(bestMonth.sales)}, y el menor fue ${formatMonthName(worstMonth!.period)} con ${new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(worstMonth!.sales)} (variación del ${volatility}%).`);
+        factors.push(`Mejor mes reciente: ${formatMName(bestMonth.period)} (${formatCLP(bestMonth.sales)}). Menor: ${formatMName(worstMonth!.period)} (${formatCLP(worstMonth!.sales)}).`);
+      }
+
+      if (samePeriodLastYear && yoyChange !== null) {
+        const dir = yoyChange >= 0 ? 'superior' : 'inferior';
+        factors.push(`${Math.abs(parseFloat(yoyChange.toFixed(1)))}% ${dir} al mismo mes del año anterior.`);
       }
 
       res.json({
         projection: Math.round(projectedSales),
+        projectionLabel,
+        projectionType: pType,
         currentSales: Math.round(currentSales),
         avg12: Math.round(avg12),
         avg6: Math.round(avg6),
@@ -3866,11 +4001,12 @@ export function registerRoutes(app: Express): Server {
         samePeriodLastYear: samePeriodLastYear ? Math.round(samePeriodLastYear.sales) : null,
         methodology,
         elapsedDays,
-        totalDays: periodDays,
-        currentActiveDays,
-        currentOrders,
+        totalDays,
+        currentActiveDays: currentMonthActiveDays,
+        currentOrders: parseInt(cmData?.orders) || 0,
         bestMonth: bestMonth ? { period: bestMonth.period, sales: Math.round(bestMonth.sales) } : null,
         worstMonth: worstMonth ? { period: worstMonth.period, sales: Math.round(worstMonth.sales) } : null,
+        monthlyBreakdown,
         justification: factors.join(' '),
         factors,
       });
