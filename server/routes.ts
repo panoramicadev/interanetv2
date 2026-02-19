@@ -3757,13 +3757,12 @@ export function registerRoutes(app: Express): Server {
           TO_CHAR(feemdo::date, 'YYYY-MM') as period,
           EXTRACT(MONTH FROM feemdo::date) as month_num,
           EXTRACT(YEAR FROM feemdo::date) as year_num,
-          SUM(CAST(vabrdo AS NUMERIC)) as total_sales,
+          SUM(CASE WHEN tido != 'GDV' THEN CAST(monto AS NUMERIC) ELSE 0 END) as total_sales,
           COUNT(DISTINCT nudo) as orders,
           COUNT(DISTINCT EXTRACT(DAY FROM feemdo::date)) as active_days
         FROM ventas.fact_ventas
         WHERE feemdo >= ('${histRefStr}'::date - INTERVAL '25 months')
           AND feemdo < '${histRefStr}'
-          AND tido NOT IN ('GDV')
           AND nokofu IS NOT NULL AND nokofu != '.'
           ${salespersonFilter}${segmentFilter}${clientFilter}
         GROUP BY TO_CHAR(feemdo::date, 'YYYY-MM'), EXTRACT(MONTH FROM feemdo::date), EXTRACT(YEAR FROM feemdo::date)
@@ -3786,13 +3785,12 @@ export function registerRoutes(app: Express): Server {
 
       const currentMonthQuery = `
         SELECT 
-          SUM(CAST(vabrdo AS NUMERIC)) as total_sales,
+          SUM(CASE WHEN tido != 'GDV' THEN CAST(monto AS NUMERIC) ELSE 0 END) as total_sales,
           COUNT(DISTINCT nudo) as orders,
           COUNT(DISTINCT EXTRACT(DAY FROM feemdo::date)) as active_days
         FROM ventas.fact_ventas
         WHERE feemdo >= '${currentMonthStart}'
           AND feemdo <= '${todayStr}'
-          AND tido NOT IN ('GDV')
           AND nokofu IS NOT NULL AND nokofu != '.'
           ${salespersonFilter}${segmentFilter}${clientFilter}
       `;
@@ -3805,11 +3803,10 @@ export function registerRoutes(app: Express): Server {
         SELECT 
           TO_CHAR(feemdo::date, 'YYYY-MM') as period,
           EXTRACT(MONTH FROM feemdo::date) as month_num,
-          SUM(CAST(vabrdo AS NUMERIC)) as total_sales
+          SUM(CASE WHEN tido != 'GDV' THEN CAST(monto AS NUMERIC) ELSE 0 END) as total_sales
         FROM ventas.fact_ventas
         WHERE feemdo >= '${targetStartDate.toISOString().split('T')[0]}'
           AND feemdo <= '${todayStr}'
-          AND tido NOT IN ('GDV')
           AND nokofu IS NOT NULL AND nokofu != '.'
           ${salespersonFilter}${segmentFilter}${clientFilter}
         GROUP BY TO_CHAR(feemdo::date, 'YYYY-MM'), EXTRACT(MONTH FROM feemdo::date)
