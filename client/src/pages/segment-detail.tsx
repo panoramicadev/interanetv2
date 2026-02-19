@@ -880,15 +880,113 @@ export default function SegmentDetail({
                   </DrawerTrigger>
                   <DrawerContent className="max-h-[85vh]">
                     <DrawerHeader className="text-center border-b pb-4 mb-6">
-                      <DrawerTitle className="text-lg font-semibold">Filtros del Segmento</DrawerTitle>
+                      <DrawerTitle className="text-lg font-semibold">Filtros</DrawerTitle>
                       <DrawerDescription className="text-sm text-gray-600">
-                        Personaliza la vista del segmento {segmentName}
+                        Personaliza la vista del dashboard
                       </DrawerDescription>
                     </DrawerHeader>
                     
                     <div className="px-6 space-y-6 overflow-y-auto flex-1">
-                      {/* Período Section */}
-                      <div className="space-y-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
+                          <Eye className="h-4 w-4" />
+                          <span>Vista</span>
+                        </div>
+                        <Select 
+                          value={selectedView}
+                          onValueChange={(value: "all" | "segmento" | "vendedor") => {
+                            setSelectedView(value);
+                            if (value === "all") {
+                              setIsDrawerOpen(false);
+                              setLocation('/');
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-10 w-full rounded-lg border-gray-200 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-lg border-gray-200">
+                            <SelectItem value="all">
+                              <div className="flex items-center gap-2">
+                                <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
+                                <span>Todo el dashboard</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="segmento">
+                              <div className="flex items-center gap-2">
+                                <Building className="h-3.5 w-3.5 text-green-500" />
+                                <span>Por segmento</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="vendedor">
+                              <div className="flex items-center gap-2">
+                                <Users className="h-3.5 w-3.5 text-purple-500" />
+                                <span>Por vendedor</span>
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {selectedView === "segmento" && allSegments && allSegments.length > 0 && segmentName && (
+                        <div className="space-y-3">
+                          <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
+                            <Building className="h-4 w-4" />
+                            <span>Segmento</span>
+                          </div>
+                          <Select 
+                            value={segmentName} 
+                            onValueChange={(newSegment) => {
+                              setIsDrawerOpen(false);
+                              if (embedded && onSegmentChange) {
+                                onSegmentChange(newSegment);
+                              } else {
+                                setLocation(`/segment/${encodeURIComponent(newSegment)}`);
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="h-10 w-full rounded-lg border-gray-200 text-sm">
+                              <SelectValue placeholder={segmentName} />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto">
+                              {allSegments.map((segment) => (
+                                <SelectItem key={segment} value={segment}>
+                                  {segment}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {selectedView === "vendedor" && allSalespeople && allSalespeople.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
+                            <Users className="h-4 w-4" />
+                            <span>Vendedor</span>
+                          </div>
+                          <Select 
+                            value=""
+                            onValueChange={(salesperson) => {
+                              setIsDrawerOpen(false);
+                              setLocation(`/salesperson/${encodeURIComponent(salesperson)}`);
+                            }}
+                          >
+                            <SelectTrigger className="h-10 w-full rounded-lg border-gray-200 text-sm">
+                              <SelectValue placeholder="Selecciona vendedor" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto">
+                              {allSalespeople.map((salesperson) => (
+                                <SelectItem key={salesperson} value={salesperson}>
+                                  {salesperson}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      <div className="space-y-3">
                         <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
                           <CalendarIcon className="h-4 w-4" />
                           <span>Período de tiempo</span>
@@ -1142,9 +1240,9 @@ export default function SegmentDetail({
               </div>
             </div>
 
-            {/* Export CSV Button - Small and subtle in top right */}
+            {/* Export CSV Button - Small and subtle in top right, hidden on mobile */}
             {!isComparativeMode && (
-              <div className="absolute top-3 right-3">
+              <div className="absolute top-3 right-3 hidden sm:block">
                 <Button
                   variant="ghost"
                   size="sm"
