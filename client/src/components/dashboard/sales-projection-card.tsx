@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { TrendingUp, TrendingDown, Minus, BarChart3, Calendar, Target, ArrowUpRight, ArrowDownRight, Activity, CalendarClock, CalendarDays, CalendarRange } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Calendar, Target, ArrowUpRight, ArrowDownRight, Activity, CalendarClock, CalendarDays, CalendarRange } from "lucide-react";
 
 type ProjectionType = 'cierre_mes' | 'siguiente_mes' | 'cierre_semestre' | 'cierre_ano';
 
@@ -107,10 +107,6 @@ export default function SalesProjectionCard({ selectedPeriod, filterType, segmen
 
   return (
     <div className="modern-card p-4 sm:p-6 relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-64 h-64 opacity-[0.03] pointer-events-none">
-        <BarChart3 className="w-full h-full" />
-      </div>
-
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/40 rounded-xl flex items-center justify-center flex-shrink-0">
