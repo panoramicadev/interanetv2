@@ -2575,7 +2575,7 @@ export class DatabaseStorage implements IStorage {
 
     const result = await db.execute(sql`
       SELECT COUNT(DISTINCT fv."nokoen") as new_clients
-      FROM fact_ventas fv
+      FROM ventas.fact_ventas fv
       WHERE fv."feemdo" >= ${startDate}::date
         AND fv."feemdo" <= ${endDate}::date
         AND fv."tido" != 'GDV'
@@ -2583,7 +2583,7 @@ export class DatabaseStorage implements IStorage {
         ${segment ? sql`AND fv."noruen" = ${segment}` : sql``}
         ${client ? sql`AND fv."nokoen" = ${client}` : sql``}
         AND NOT EXISTS (
-          SELECT 1 FROM fact_ventas fv2
+          SELECT 1 FROM ventas.fact_ventas fv2
           WHERE fv2."nokoen" = fv."nokoen"
             AND fv2."feemdo" < ${startDate}::date
             AND fv2."tido" != 'GDV'
