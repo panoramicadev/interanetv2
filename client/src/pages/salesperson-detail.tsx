@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Home, Eye, Building, ChevronDown, ChevronUp, Download, Search, X, Truck, RefreshCw, Loader2 } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Home, Eye, Building, ChevronDown, ChevronUp, Download, Search, X, Truck, RefreshCw, Loader2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,6 +19,7 @@ import SalespersonPendingNVV from "@/components/dashboard/salesperson-pending-nv
 import SalespersonPendingGDV from "@/components/dashboard/salesperson-pending-gdv";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -198,6 +199,7 @@ export default function SalespersonDetail({
   
   // Local state for view type
   const [selectedView, setSelectedView] = useState<"all" | "segmento" | "vendedor">("vendedor");
+  const [showNewClientsModal, setShowNewClientsModal] = useState(false);
   
   // Handler for selection changes that notifies dashboard when embedded
   const handleSelectionChange = (newSelection: typeof selection) => {
@@ -637,6 +639,29 @@ export default function SalespersonDetail({
       return await res.json();
     },
     enabled: !!salespersonName,
+  });
+
+  interface NewClientItem {
+    clientName: string;
+    totalSales: number;
+    totalUnits: number;
+    orderCount: number;
+    firstPurchaseDate: string;
+    salesperson: string;
+  }
+
+  const { data: newClientsList, isLoading: isLoadingNewClients } = useQuery<NewClientItem[]>({
+    queryKey: ['/api/sales/new-clients', selectedPeriod, filterType, salespersonName, 'salesperson-detail'],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      if (salespersonName) params.append('salesperson', salespersonName);
+      const res = await fetch(`/api/sales/new-clients?${params.toString()}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: showNewClientsModal && !!salespersonName,
   });
 
   // Close accordions when period or filter changes
@@ -1444,8 +1469,12 @@ export default function SalespersonDetail({
               </CardContent>
             </Card>
 
-            {/* Clientes Nuevos Card */}
-            <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-purple-50/80 to-purple-100/50" data-testid="card-clientes-nuevos">
+            {/* Clientes Nuevos Card - Clickable */}
+            <Card 
+              className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-purple-50/80 to-purple-100/50 cursor-pointer hover:shadow-md transition-shadow" 
+              data-testid="card-clientes-nuevos"
+              onClick={() => setShowNewClientsModal(true)}
+            >
               <CardContent className="pt-6 pb-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -2443,6 +2472,68 @@ export default function SalespersonDetail({
             </>
           )}
         </main>
+
+        <Dialog open={showNewClientsModal} onOpenChange={setShowNewClientsModal}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5 text-purple-600" />
+                Clientes Nuevos — {salespersonName}
+              </DialogTitle>
+              <p className="text-sm text-gray-500">
+                {formatNumber(newClientsList?.length || 0)} clientes nuevos — Total comprado: {formatCurrency(newClientsList?.reduce((sum, c) => sum + c.totalSales, 0) || 0)}
+              </p>
+            </DialogHeader>
+            <div className="overflow-y-auto flex-1 -mx-6 px-6">
+              {isLoadingNewClients ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+                </div>
+              ) : !newClientsList?.length ? (
+                <div className="text-center py-12 text-gray-500">
+                  <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                  <p>No hay clientes nuevos en este período para {salespersonName}</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <div className="grid grid-cols-12 gap-2 px-3 py-2 text-xs font-semibold text-gray-500 uppercase border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-950">
+                    <div className="col-span-5">Cliente</div>
+                    <div className="col-span-3 text-right">Monto</div>
+                    <div className="col-span-2 text-right">Uds.</div>
+                    <div className="col-span-2 text-right">Órdenes</div>
+                  </div>
+                  {newClientsList.map((item) => (
+                    <div
+                      key={item.clientName}
+                      className="grid grid-cols-12 gap-2 px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors items-center"
+                    >
+                      <div className="col-span-5 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate" title={item.clientName}>
+                          {item.clientName}
+                        </p>
+                      </div>
+                      <div className="col-span-3 text-right">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {formatCurrency(item.totalSales)}
+                        </p>
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          {formatNumber(item.totalUnits)}
+                        </p>
+                      </div>
+                      <div className="col-span-2 text-right">
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          {formatNumber(item.orderCount)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
