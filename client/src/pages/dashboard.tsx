@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useFilter } from "@/contexts/FilterContext";
 import KPICards from "@/components/dashboard/kpi-cards";
+import SalesProjectionCard from "@/components/dashboard/sales-projection-card";
 import SalesChart from "@/components/dashboard/sales-chart";
 import TopProductsChart from "@/components/dashboard/top-products-chart";
 import SegmentChart from "@/components/dashboard/segment-chart";
@@ -1821,6 +1822,14 @@ export default function Dashboard() {
                 />
               </div>
               
+              <SalesProjectionCard
+                selectedPeriod={selectedPeriod}
+                filterType={filterType}
+                segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                client={selectedClient}
+              />
+
               {/* Goals Progress Dashboard - Solo mostrar para meses completos y cuando hay metas configuradas */}
               {filterType === "month" && goalsProgress && goalsProgress.length > 0 && (
                 <CardWrapper>
