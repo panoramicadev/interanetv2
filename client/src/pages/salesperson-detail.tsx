@@ -682,8 +682,7 @@ export default function SalespersonDetail({
     setExpandedProduct(null);
   }, [selectedPeriod, filterType, selectedSegment]);
 
-  // Fetch goals for the salesperson
-  const { data: goalsData, isLoading: isLoadingGoals } = useQuery<GoalProgress[]>({
+  const { data: spGoalsData, isLoading: isLoadingSpGoals } = useQuery<GoalProgress[]>({
     queryKey: ['/api/goals/progress', selectedPeriod, 'salesperson', salespersonName],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -696,6 +695,25 @@ export default function SalespersonDetail({
     },
     enabled: !!salespersonName,
   });
+
+  const { data: globalGoalsData, isLoading: isLoadingGlobalGoals } = useQuery<GoalProgress[]>({
+    queryKey: ['/api/goals/progress', selectedPeriod, 'all-goals-detail'],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('selectedPeriod', selectedPeriod);
+      const res = await fetch(`/api/goals/progress?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+  });
+
+  const goalsData = (() => {
+    const sp = spGoalsData || [];
+    const gl = (globalGoalsData || []).filter(g => g.type === 'global');
+    const spIds = new Set(sp.map(g => g.id));
+    return [...sp, ...gl.filter(g => !spIds.has(g.id))];
+  })();
+  const isLoadingGoals = isLoadingSpGoals || isLoadingGlobalGoals;
 
   // Fetch user/salesperson ID from the name
   const { data: allUsersData } = useQuery<any[]>({

@@ -1830,8 +1830,8 @@ export default function Dashboard() {
                 client={selectedClient}
               />
 
-              {/* Goals Progress Dashboard - Solo mostrar para meses completos y cuando hay metas configuradas */}
-              {filterType === "month" && goalsProgress && goalsProgress.length > 0 && (
+              {/* Goals Progress Dashboard - Mostrar siempre para meses */}
+              {filterType === "month" && (
                 <CardWrapper>
                   <GoalsProgress 
                     globalFilter={globalFilter}
