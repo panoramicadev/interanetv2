@@ -116,11 +116,14 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
       .trim();
   };
 
+  // Filter goals based on global filter
   const filteredGoals = goalsProgress?.filter(goal => {
-    if (goal.type === 'global') return true;
+    // If we have a global filter with a specific value, show only goals matching that target
     if (globalFilter.type !== "all" && globalFilter.value) {
       return goal.type === globalFilter.type && normalize(goal.target) === normalize(globalFilter.value);
     }
+    
+    // Otherwise filter by global filter type
     if (globalFilter.type === "all") return true;
     return goal.type === globalFilter.type;
   }) || [];

@@ -407,7 +407,7 @@ export default function SalespersonDashboard() {
     enabled: !!salespersonName && !isLoadingSalespeopleFallback,
   });
 
-  const { data: salespersonGoals, isLoading: loadingSalespersonGoals } = useQuery<GoalProgress[]>({
+  const { data: goalsData, isLoading: loadingGoals } = useQuery<GoalProgress[]>({
     queryKey: ['/api/goals/progress', selectedPeriod, 'salesperson', salespersonName],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -420,27 +420,6 @@ export default function SalespersonDashboard() {
     },
     enabled: !!salespersonName && !isLoadingSalespeopleFallback,
   });
-
-  const { data: globalGoals, isLoading: loadingGlobalGoals } = useQuery<GoalProgress[]>({
-    queryKey: ['/api/goals/progress', selectedPeriod, 'all-goals'],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      params.append('selectedPeriod', selectedPeriod);
-      const res = await fetch(`/api/goals/progress?${params}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return await res.json();
-    },
-    enabled: !isLoadingSalespeopleFallback,
-  });
-
-  const goalsData = (() => {
-    const sp = salespersonGoals || [];
-    const gl = (globalGoals || []).filter(g => g.type === 'global');
-    const spIds = new Set(sp.map(g => g.id));
-    const merged = [...sp, ...gl.filter(g => !spIds.has(g.id))];
-    return merged.length > 0 ? merged : undefined;
-  })();
-  const loadingGoals = loadingSalespersonGoals || loadingGlobalGoals;
 
   const { data: segments = [], isLoading: loadingSegments } = useQuery<SalespersonSegment[]>({
     queryKey: ['/api/sales/salesperson', salespersonName, 'segments', selectedPeriod, filterType],
