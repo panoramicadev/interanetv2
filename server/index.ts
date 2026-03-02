@@ -66,26 +66,28 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "127.0.0.1",
-  }, () => {
-    log(`serving on port ${port}`);
-    log('✅ Server ready for health checks');
+  // Only start listening when NOT in Vercel serverless mode
+  if (!process.env.VERCEL) {
+    const port = parseInt(process.env.PORT || '5000', 10);
+    server.listen({
+      port,
+      host: "127.0.0.1",
+    }, () => {
+      log(`serving on port ${port}`);
+      log('✅ Server ready for health checks');
 
-    // Defer all heavy initialization to avoid blocking health checks
-    setImmediate(() => {
-      initializeBackgroundServices().catch(err => {
-        console.error('Background services initialization error:', err.message);
+      // Defer all heavy initialization to avoid blocking health checks
+      setImmediate(() => {
+        initializeBackgroundServices().catch(err => {
+          console.error('Background services initialization error:', err.message);
+        });
       });
     });
-  });
+  }
 })();
+
+// Export app for Vercel serverless
+export default app;
 
 // Background services initialization - runs after server is ready
 async function initializeBackgroundServices() {

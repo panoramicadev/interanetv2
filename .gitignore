@@ -5,4 +5,4 @@ server/public
 vite.config.ts.*
 *.tar.gz
 .env.local
-.env
+.envapi/index.mjs
