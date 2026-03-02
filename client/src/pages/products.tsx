@@ -737,26 +737,26 @@ export default function ProductsPage() {
       {/* Modern Stat Cards */}
       {!productsLoading && (
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 px-1">
-          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-shadow">
+          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-all hover:scale-[1.02] bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/50 dark:to-blue-900/30">
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Productos</p>
-                  <p className="text-2xl font-bold mt-1" data-testid="text-total-products">{products.length}</p>
+                  <p className="text-xs font-medium text-blue-600/70 dark:text-blue-400/70 uppercase tracking-wider">Total Productos</p>
+                  <p className="text-2xl font-bold mt-1 text-blue-900 dark:text-blue-100" data-testid="text-total-products">{products.length}</p>
                 </div>
-                <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-950">
+                <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-blue-500/10 dark:bg-blue-400/10 backdrop-blur-sm">
                   <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 </div>
               </div>
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-blue-600" />
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-blue-600" />
             </CardContent>
           </Card>
-          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-shadow">
+          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-all hover:scale-[1.02] bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/50 dark:to-emerald-900/30">
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Con Precio</p>
-                  <p className="text-2xl font-bold mt-1" data-testid="text-products-with-price">
+                  <p className="text-xs font-medium text-emerald-600/70 dark:text-emerald-400/70 uppercase tracking-wider">Con Precio</p>
+                  <p className="text-2xl font-bold mt-1 text-emerald-900 dark:text-emerald-100" data-testid="text-products-with-price">
                     {products.filter(p =>
                       (p.price && parseFloat(p.price) > 0) ||
                       (p.priceProduct && p.priceProduct > 0) ||
@@ -764,43 +764,43 @@ export default function ProductsPage() {
                     ).length}
                   </p>
                 </div>
-                <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-emerald-50 dark:bg-emerald-950">
+                <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-emerald-500/10 dark:bg-emerald-400/10 backdrop-blur-sm">
                   <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                 </div>
               </div>
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-emerald-600" />
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-emerald-600" />
             </CardContent>
           </Card>
-          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-shadow">
+          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-all hover:scale-[1.02] bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/50 dark:to-amber-900/30">
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Catálogo SAP</p>
-                  <p className="text-2xl font-bold mt-1" data-testid="text-total-warehouses">
+                  <p className="text-xs font-medium text-amber-600/70 dark:text-amber-400/70 uppercase tracking-wider">Catálogo SAP</p>
+                  <p className="text-2xl font-bold mt-1 text-amber-900 dark:text-amber-100" data-testid="text-total-warehouses">
                     {priceListResponse?.totalCount || 0}
                   </p>
                 </div>
-                <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-amber-50 dark:bg-amber-950">
+                <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-amber-500/10 dark:bg-amber-400/10 backdrop-blur-sm">
                   <BookOpen className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                 </div>
               </div>
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-amber-600" />
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-amber-600" />
             </CardContent>
           </Card>
-          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-shadow">
+          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-all hover:scale-[1.02] bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/50 dark:to-purple-900/30">
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">eCommerce Activos</p>
-                  <p className="text-2xl font-bold mt-1" data-testid="text-ecom-active-products">
+                  <p className="text-xs font-medium text-purple-600/70 dark:text-purple-400/70 uppercase tracking-wider">eCommerce Activos</p>
+                  <p className="text-2xl font-bold mt-1 text-purple-900 dark:text-purple-100" data-testid="text-ecom-active-products">
                     {products.filter(p => !!p.ecomActive).length}
                   </p>
                 </div>
-                <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-purple-50 dark:bg-purple-950">
+                <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-purple-500/10 dark:bg-purple-400/10 backdrop-blur-sm">
                   <ShoppingCart className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                 </div>
               </div>
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-purple-600" />
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 to-purple-600" />
             </CardContent>
           </Card>
         </div>
