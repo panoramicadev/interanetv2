@@ -69,9 +69,10 @@ app.use((req, res, next) => {
   // Only start listening when NOT in Vercel serverless mode
   if (!process.env.VERCEL) {
     const port = parseInt(process.env.PORT || '5000', 10);
+    const host = process.env.RAILWAY_ENVIRONMENT ? "0.0.0.0" : "127.0.0.1";
     server.listen({
       port,
-      host: "127.0.0.1",
+      host,
     }, () => {
       log(`serving on port ${port}`);
       log('✅ Server ready for health checks');
