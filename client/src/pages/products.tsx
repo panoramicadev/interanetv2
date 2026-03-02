@@ -920,7 +920,17 @@ export default function ProductsPage() {
                               <Badge variant="outline" className="text-xs font-normal rounded-md">{item.unidad}</Badge>
                             </TableCell>
                             <TableCell className="text-right tabular-nums font-medium">
-                              {Number(item.lista) > 0 ? `$${Number(item.lista).toLocaleString()}` : <span className="text-muted-foreground">-</span>}
+                              {(() => {
+                                const lista = Number(item.lista);
+                                if (lista > 0) return `$${lista.toLocaleString()}`;
+                                // Calculate lista from desc10 if available (desc10 = lista * 0.90)
+                                const desc10 = Number(item.desc10);
+                                if (desc10 > 0) {
+                                  const calculatedLista = Math.round(desc10 / 0.90);
+                                  return `$${calculatedLista.toLocaleString()}`;
+                                }
+                                return <span className="text-muted-foreground">-</span>;
+                              })()}
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
                               {Number(item.desc10) > 0 ? `$${Number(item.desc10).toLocaleString()}` : '-'}
