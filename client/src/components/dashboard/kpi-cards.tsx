@@ -729,7 +729,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                   )}
                 </div>
               </div>
-              {isCurrentMonth() && (
+              {(nvvTotal > 0 || gdvSales > 0) && (
                 <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 overflow-hidden">
                   <div className="grid grid-cols-2 gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
                     <span className="truncate" title={`NVV: ${formatCurrency(nvvTotal)}`}>NVV: {formatCurrency(nvvTotal)}</span>
