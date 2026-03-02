@@ -20,7 +20,7 @@ import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import panoramicaLogo from "@assets/Diseno-sin-titulo-12-1-e1733933035809_1759422274944.webp";
 import ComparativeSegmentSalespeopleTable from "@/components/dashboard/comparative-segment-salespeople-table";
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
-import SegmentPendingNVV from "@/components/dashboard/segment-pending-nvv";
+import PendingDocumentsUnified from "@/components/dashboard/pending-documents-unified";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 import TopClientsPanel from "@/components/dashboard/top-clients-panel";
 
@@ -101,41 +101,41 @@ export default function SegmentDetail({
   const { segmentName: paramSegmentName } = useParams();
   const segmentName = propSegmentName || (paramSegmentName ? decodeURIComponent(paramSegmentName) : undefined);
   const [, setLocation] = useLocation();
-  
+
   // Use global filter context
   const { selection, setSelection } = useFilter();
-  
+
   // Mobile detection
   const isMobile = useIsMobile();
-  
+
   // Mobile drawer state
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [localSelection, setLocalSelection] = useState(selection);
-  
+
   // Sync local selection when drawer opens
   const handleDrawerOpen = () => {
     setLocalSelection(selection);
   };
-  
+
   // Apply filters from drawer
   const handleApplyFilters = () => {
     setSelection(localSelection);
     setIsDrawerOpen(false);
   };
-  
+
   // Local state for view type
   const [selectedView, setSelectedView] = useState<"all" | "segmento" | "vendedor">("segmento");
-  
+
   // State for showing more clients
   const [showAllClients, setShowAllClients] = useState(false);
-  
+
   // Search state for clients
   const [isClientSearchExpanded, setIsClientSearchExpanded] = useState(false);
   const [clientSearchTerm, setClientSearchTerm] = useState("");
   const [debouncedClientSearch, setDebouncedClientSearch] = useState("");
   const [clientLimit, setClientLimit] = useState(10);
   const [expandedClient, setExpandedClient] = useState<string>("");
-  
+
   // Search state for salespeople
   const [isSalespersonSearchExpanded, setIsSalespersonSearchExpanded] = useState(false);
   const [salespersonSearchTerm, setSalespersonSearchTerm] = useState("");
@@ -143,11 +143,11 @@ export default function SegmentDetail({
   const [salespersonLimit, setSalespersonLimit] = useState(10);
   const [expandedSalesperson, setExpandedSalesperson] = useState<string>("");
   const [showNewClientsModal, setShowNewClientsModal] = useState(false);
-  
+
   // State for products
   const [productLimit, setProductLimit] = useState(10);
   const [expandedProduct, setExpandedProduct] = useState<string>("");
-  
+
   // Debounce client search
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -155,7 +155,7 @@ export default function SegmentDetail({
     }, 300);
     return () => clearTimeout(timer);
   }, [clientSearchTerm]);
-  
+
   // Debounce salesperson search
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -163,11 +163,11 @@ export default function SegmentDetail({
     }, 300);
     return () => clearTimeout(timer);
   }, [salespersonSearchTerm]);
-  
+
   // Ref to store scroll position
   const scrollPositionRef = useRef<number>(0);
   const shouldRestoreScrollRef = useRef<boolean>(false);
-  
+
   // Debug: Log cuando cambia la selección
   useEffect(() => {
     console.log("🔄 [segment-detail] useEffect - selection changed:", {
@@ -176,12 +176,12 @@ export default function SegmentDetail({
       years: selection.years,
       display: selection.display
     });
-    
+
     // Save scroll position before re-render
     scrollPositionRef.current = window.scrollY;
     shouldRestoreScrollRef.current = true;
   }, [selection]);
-  
+
   // Restore scroll position after render
   useEffect(() => {
     if (shouldRestoreScrollRef.current) {
@@ -195,19 +195,19 @@ export default function SegmentDetail({
       });
     }
   });
-  
+
   // Handler for selection changes that notifies dashboard when embedded
   const handleSelectionChange = (newSelection: typeof selection | null) => {
     if (!newSelection) return;
     console.log("🔍 [segment-detail] handleSelectionChange called:", newSelection);
     console.trace("📍 Stack trace de handleSelectionChange");
     setSelection(newSelection);
-    
+
     // NOTE: We no longer notify dashboard via onDateFilterChange when embedded
     // because segment-detail now uses FilterContext directly, which is shared with dashboard.
     // Calling onDateFilterChange would cause a second setSelection call that loses multi-period data.
   };
-  
+
   // Use dashboard props when embedded, otherwise derive from selection
   const selectedPeriod = embedded && dashboardSelectedPeriod ? dashboardSelectedPeriod : (() => {
     if ((selection.period === "month" || selection.period === "months") && selection.months && selection.months.length > 0) {
@@ -227,7 +227,7 @@ export default function SegmentDetail({
     }
     return format(new Date(), "yyyy-MM");
   })();
-  
+
   const filterType: "day" | "month" | "year" | "range" = embedded && dashboardFilterType ? dashboardFilterType : (() => {
     if (selection.period === "day" || selection.period === "days") return "day";
     if (selection.period === "month" || selection.period === "months") return "month";
@@ -235,7 +235,7 @@ export default function SegmentDetail({
     if (selection.period === "custom-range") return "range";
     return "month";
   })();
-  
+
   const selectedDate = embedded && dashboardSelectedDate ? dashboardSelectedDate : (() => {
     if ((selection.period === "day" || selection.period === "days") && selection.days && selection.days.length > 0) {
       const year = selection.years[0];
@@ -246,9 +246,9 @@ export default function SegmentDetail({
     }
     return new Date();
   })();
-  
+
   const selectedYear = embedded && dashboardSelectedYear ? dashboardSelectedYear : selection.years[0];
-  
+
   const dateRange = embedded && dashboardDateRange ? dashboardDateRange : (() => {
     if (selection.period === "custom-range" && selection.startDate && selection.endDate) {
       return { from: selection.startDate, to: selection.endDate };
@@ -287,15 +287,15 @@ export default function SegmentDetail({
       console.log("⏭️ [segment-detail] NO comparative mode, retornando array vacío");
       return [];
     }
-    
-    console.log("📊 [segment-detail] Generando períodos comparativos...", { 
+
+    console.log("📊 [segment-detail] Generando períodos comparativos...", {
       period: selection.period,
       months: selection.months,
       years: selection.years,
-      isComparativeMode 
+      isComparativeMode
     });
     const periods: Array<{ period: string; label: string; filterType: "day" | "month" | "year" }> = [];
-    
+
     // Comparativa mes-a-año: cuando hay múltiples años Y múltiples meses
     if (selection.period === "months" && selection.months && selection.months.length > 1 && selection.years.length > 1) {
       console.log("🔄 Caso: múltiples meses Y múltiples años");
@@ -354,7 +354,7 @@ export default function SegmentDetail({
         periods.push({ period, label, filterType: "year" });
       });
     }
-    
+
     console.log("✅ [segment-detail] Períodos comparativos generados:", periods);
     return periods;
   }, [selection, isComparativeMode]);
@@ -371,7 +371,7 @@ export default function SegmentDetail({
   const { data: allSegments } = useQuery<string[]>({
     queryKey: ["/api/goals/data/segments"],
   });
-  
+
   // Fetch segments with data for current period (for reference, not for dropdown)
   const { data: segmentData } = useQuery<SegmentData[]>({
     queryKey: ['/api/sales/segments', selectedPeriod, filterType],
@@ -523,12 +523,12 @@ export default function SegmentDetail({
       }
       params.append('type', 'segment');
       params.append('target', segmentName || '');
-      
+
       const url = `/api/goals/progress${params.toString() ? `?${params.toString()}` : ''}`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       const data = await res.json();
-      
+
       // Backend already filters by type and target, so just return first element
       return data && data.length > 0 ? data[0] : null;
     },
@@ -630,7 +630,7 @@ export default function SegmentDetail({
   const totalClients = clients.length;
   const totalTransactionsFromClients = clients.reduce((sum: number, client: SegmentClient) => sum + client.transactionCount, 0);
   const averageTicketFromClients = totalTransactionsFromClients > 0 ? totalSalesFromClients / totalTransactionsFromClients : 0;
-  
+
   // Salespeople KPIs
   const totalSalespeople = salespeople.length;
 
@@ -662,16 +662,16 @@ export default function SegmentDetail({
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
     const currentMonthStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
-    
+
     if (filterType === "month" && selectedPeriod.match(/^\d{4}-\d{2}$/)) {
       return selectedPeriod === currentMonthStr;
     }
-    
+
     // For day filter, check if the day is in the current month
     if (filterType === "day" && selectedPeriod.match(/^\d{4}-\d{2}-\d{2}$/)) {
       return selectedPeriod.startsWith(currentMonthStr);
     }
-    
+
     // For year filter or range, don't show NVV (only current month matters)
     return false;
   };
@@ -679,7 +679,7 @@ export default function SegmentDetail({
   // Determine which client data to display (search results or paginated list)
   const displayClients = debouncedClientSearch.length >= 2 ? clientSearchResults : clients;
   const currentClientLoading = debouncedClientSearch.length >= 2 ? isClientSearchLoading : isLoadingClients;
-  
+
   // Determine which salesperson data to display (search results or paginated list)
   const displaySalespeople = debouncedSalespersonSearch.length >= 2 ? salespersonSearchResults : salespeople;
   const currentSalespersonLoading = debouncedSalespersonSearch.length >= 2 ? isSalespersonSearchLoading : isLoadingSalespeople;
@@ -708,13 +708,13 @@ export default function SegmentDetail({
   // Export data to CSV
   const exportSegmentDataToCSV = async () => {
     const csvData = [];
-    
+
     // Add header
     csvData.push(['REPORTE DE SEGMENTO - ' + segmentName]);
     csvData.push(['Período: ' + selection.display]);
     csvData.push(['Generado: ' + format(new Date(), "dd/MM/yyyy HH:mm")]);
     csvData.push([]); // Empty row
-    
+
     // KPIs Summary
     csvData.push(['RESUMEN GENERAL']);
     csvData.push(['Total Ventas', formatCurrencyCSV(totalSales)]);
@@ -723,7 +723,7 @@ export default function SegmentDetail({
     csvData.push(['Total Transacciones', totalTransactions]);
     csvData.push(['Ticket Promedio', Math.round(averageTicket)]);
     csvData.push([]); // Empty row
-    
+
     // Clients data
     csvData.push(['CLIENTES DEL SEGMENTO']);
     csvData.push(['Cliente', 'Vendedor', 'Total Ventas', 'Transacciones', 'Ticket Promedio', 'Porcentaje']);
@@ -738,7 +738,7 @@ export default function SegmentDetail({
       ]);
     });
     csvData.push([]); // Empty row
-    
+
     // Salespeople data
     csvData.push(['VENDEDORES DEL SEGMENTO']);
     csvData.push(['Vendedor', 'Total Ventas', 'Transacciones', 'Ticket Promedio', 'Porcentaje']);
@@ -752,7 +752,7 @@ export default function SegmentDetail({
       ]);
     });
     csvData.push([]); // Empty row
-    
+
     // Monthly breakdown if year is selected
     if (filterType === 'year' && selectedPeriod) {
       try {
@@ -760,10 +760,10 @@ export default function SegmentDetail({
         const response = await fetch(`/api/sales/segment/${segmentName}/monthly-breakdown?year=${year}`, {
           credentials: 'include'
         });
-        
+
         if (response.ok) {
           const monthlyData = await response.json();
-          
+
           if (monthlyData && monthlyData.length > 0) {
             csvData.push(['DESGLOSE MENSUAL - ' + year]);
             csvData.push(['Mes', 'Total Ventas', 'Transacciones', 'Ticket Promedio']);
@@ -781,9 +781,9 @@ export default function SegmentDetail({
         console.error('Error fetching monthly breakdown:', error);
       }
     }
-    
+
     // Create CSV content
-    const csvContent = csvData.map(row => 
+    const csvContent = csvData.map(row =>
       row.map(cell => {
         // Escape commas and quotes in cell values
         const stringCell = String(cell);
@@ -793,7 +793,7 @@ export default function SegmentDetail({
         return stringCell;
       }).join(',')
     ).join('\n');
-    
+
     // Download file
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -838,18 +838,18 @@ export default function SegmentDetail({
     <div className="min-h-screen">
       <div className="w-full">
         {/* Mobile Header with Logo */}
-        {isMobile && (
+        {isMobile && !embedded && (
           <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-3 py-2.5 sticky top-0 z-50 shadow-sm">
             <div className="flex items-center justify-between">
               {/* Logo */}
               <div className="flex items-center gap-2">
-                <img 
-                  src={panoramicaLogo} 
-                  alt="Panoramica" 
+                <img
+                  src={panoramicaLogo}
+                  alt="Panoramica"
                   className="h-10 w-auto object-contain"
                 />
               </div>
-              
+
               {/* Actions: Back + Filters Menu */}
               <div className="flex items-center gap-2">
                 {/* Back Button */}
@@ -864,13 +864,13 @@ export default function SegmentDetail({
                     <Home className="h-4 w-4 text-gray-600 dark:text-gray-400" />
                   </Button>
                 )}
-                
+
                 {/* Filters Menu Button */}
                 <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
                   <DrawerTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={handleDrawerOpen}
                       className="h-9 px-2.5 rounded-lg border-gray-200 dark:border-gray-700"
                       data-testid="button-mobile-menu"
@@ -885,14 +885,14 @@ export default function SegmentDetail({
                         Personaliza la vista del dashboard
                       </DrawerDescription>
                     </DrawerHeader>
-                    
+
                     <div className="px-6 space-y-6 overflow-y-auto flex-1">
                       <div className="space-y-3">
                         <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
                           <Eye className="h-4 w-4" />
                           <span>Vista</span>
                         </div>
-                        <Select 
+                        <Select
                           value={selectedView}
                           onValueChange={(value: "all" | "segmento" | "vendedor") => {
                             setSelectedView(value);
@@ -934,8 +934,8 @@ export default function SegmentDetail({
                             <Building className="h-4 w-4" />
                             <span>Segmento</span>
                           </div>
-                          <Select 
-                            value={segmentName} 
+                          <Select
+                            value={segmentName}
                             onValueChange={(newSegment) => {
                               setIsDrawerOpen(false);
                               if (embedded && onSegmentChange) {
@@ -965,7 +965,7 @@ export default function SegmentDetail({
                             <Users className="h-4 w-4" />
                             <span>Vendedor</span>
                           </div>
-                          <Select 
+                          <Select
                             value=""
                             onValueChange={(salesperson) => {
                               setIsDrawerOpen(false);
@@ -991,24 +991,24 @@ export default function SegmentDetail({
                           <CalendarIcon className="h-4 w-4" />
                           <span>Período de tiempo</span>
                         </div>
-                        
+
                         <YearMonthSelector
                           value={localSelection}
                           onChange={setLocalSelection}
                         />
                       </div>
                     </div>
-                    
+
                     <DrawerFooter className="border-t pt-4 mt-4">
-                      <Button 
+                      <Button
                         onClick={handleApplyFilters}
                         className="w-full h-12 text-base font-medium rounded-xl"
                         data-testid="button-apply-filters"
                       >
                         Aplicar filtros
                       </Button>
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         onClick={() => setIsDrawerOpen(false)}
                         className="w-full h-11 text-base rounded-xl"
                         data-testid="button-cancel-filters"
@@ -1020,7 +1020,7 @@ export default function SegmentDetail({
                 </Drawer>
               </div>
             </div>
-            
+
             {/* Active filters badges below header */}
             <div className="mt-2 flex flex-col gap-1.5">
               {/* Segment badge */}
@@ -1030,7 +1030,7 @@ export default function SegmentDetail({
                   Segmento: {segmentName}
                 </span>
               </div>
-              
+
               {/* Period badge */}
               <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
                 <CalendarIcon className="h-3 w-3 text-blue-600 flex-shrink-0" />
@@ -1041,228 +1041,228 @@ export default function SegmentDetail({
             </div>
           </header>
         )}
-        
+
         {/* Desktop Header */}
-        {!isMobile && (
-        <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 pt-3 pb-2 sm:py-5 lg:py-6 m-2 sm:m-4 rounded-2xl shadow-sm">
-          <div className="space-y-4 w-full">
-            {/* All filters in one line */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:flex-wrap">
-              {/* Home button and Vista */}
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                {onBack && (
+        {!isMobile && !embedded && (
+          <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 pt-3 pb-2 sm:py-5 lg:py-6 m-2 sm:m-4 rounded-2xl shadow-sm">
+            <div className="space-y-4 w-full">
+              {/* All filters in one line */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:flex-wrap">
+                {/* Home button and Vista */}
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  {onBack && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={onBack}
+                      className="h-9 w-9 p-0 rounded-lg hover:bg-gray-100 transition-colors"
+                      data-testid="button-back-dashboard"
+                      title="Volver al Dashboard"
+                    >
+                      <Home className="h-4 w-4 text-gray-600" />
+                    </Button>
+                  )}
+                  <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                  <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Vista:</span>
+                  <Select
+                    value={selectedView}
+                    onValueChange={(value: "all" | "segmento" | "vendedor") => {
+                      setSelectedView(value);
+                      if (value === "all") {
+                        setLocation('/');
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-9 w-full sm:w-48 rounded-lg border-gray-200 text-sm bg-gray-50">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
+                      <SelectItem value="all">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
+                          <span>Todo el dashboard</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="segmento">
+                        <div className="flex items-center gap-2">
+                          <Building className="h-3.5 w-3.5 text-green-500" />
+                          <span>Por segmento</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="vendedor">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-3.5 w-3.5 text-purple-500" />
+                          <span>Por vendedor</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Segment selector - shown when view is segmento */}
+                {!embedded && selectedView === "segmento" && allSegments && allSegments.length > 0 && segmentName && (
+                  <div className="flex items-center gap-2 w-full sm:w-auto" key="segment-selector">
+                    <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Segmento:</span>
+                    <Select
+                      value={segmentName}
+                      onValueChange={(newSegment) => {
+                        setLocation(`/segment/${encodeURIComponent(newSegment)}`);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 w-full sm:w-56 rounded-lg border-gray-200 text-sm" data-testid="select-segment">
+                        <SelectValue placeholder={segmentName} />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
+                        {allSegments.map((segment) => (
+                          <SelectItem key={segment} value={segment}>
+                            {segment}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Salesperson selector - shown when view is vendedor */}
+                {!embedded && selectedView === "vendedor" && allSalespeople && allSalespeople.length > 0 && (
+                  <div className="flex items-center gap-2 w-full sm:w-auto" key="salesperson-selector">
+                    <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Vendedor:</span>
+                    <Select
+                      value=""
+                      onValueChange={(salesperson) => {
+                        setLocation(`/salesperson/${encodeURIComponent(salesperson)}`);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 w-full sm:w-56 rounded-lg border-gray-200 text-sm" data-testid="select-salesperson">
+                        <SelectValue placeholder="Selecciona vendedor" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
+                        {allSalespeople.map((salesperson) => (
+                          <SelectItem key={salesperson} value={salesperson}>
+                            {salesperson}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Embedded segment selector - shown when view is segmento */}
+                {embedded && selectedView === "segmento" && onSegmentChange && allSegments && allSegments.length > 0 && segmentName && (
+                  <div className="flex items-center gap-2 w-full sm:w-auto" key="embedded-segment-selector">
+                    <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Segmento:</span>
+                    <Select value={segmentName} onValueChange={onSegmentChange}>
+                      <SelectTrigger className="h-9 w-full sm:w-56 rounded-lg border-gray-200 text-sm">
+                        <SelectValue placeholder={segmentName} />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
+                        {allSegments.map((segment) => (
+                          <SelectItem key={segment} value={segment}>
+                            {segment}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Embedded salesperson selector - shown when view is vendedor */}
+                {embedded && selectedView === "vendedor" && allSalespeople && allSalespeople.length > 0 && (
+                  <div className="flex items-center gap-2 w-full sm:w-auto" key="embedded-salesperson-selector">
+                    <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Vendedor:</span>
+                    <Select
+                      value=""
+                      onValueChange={(salesperson) => {
+                        setLocation(`/salesperson/${encodeURIComponent(salesperson)}`);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 w-full sm:w-56 rounded-lg border-gray-200 text-sm" data-testid="select-salesperson">
+                        <SelectValue placeholder="Selecciona vendedor" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
+                        {allSalespeople.map((salesperson) => (
+                          <SelectItem key={salesperson} value={salesperson}>
+                            {salesperson}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Period */}
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                  <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Período:</span>
+                  <YearMonthSelector
+                    value={selection}
+                    onChange={handleSelectionChange}
+                  />
+                </div>
+              </div>
+
+              {/* Display Selected Filters as chips */}
+              <div className="pt-2 border-t space-y-2">
+                <div className="text-xs font-medium text-gray-500 mb-2">Filtros activos:</div>
+
+                <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 rounded border border-purple-200">
+                  <Eye className="h-3 w-3 text-purple-600 flex-shrink-0" />
+                  <div className="flex-1">
+                    <div className="text-xs font-medium text-purple-900">
+                      Vista: Por segmento
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded border border-blue-200">
+                  <CalendarIcon className="h-3 w-3 text-blue-600 flex-shrink-0" />
+                  <div className="flex-1">
+                    <div className="text-xs font-medium text-blue-900">
+                      Período: {selection.display}
+                    </div>
+                    <div className="text-[10px] text-blue-700 mt-0.5">
+                      {selection.period === "full-year" && `${selection.years.length} año(s) completo(s)`}
+                      {selection.period === "month" && `Mes específico en ${selection.years.length} año(s)`}
+                      {selection.period === "months" && `${selection.months?.length} meses en ${selection.years.length} año(s)`}
+                      {selection.period === "day" && `Día específico en ${selection.years.length} año(s)`}
+                      {selection.period === "days" && `${selection.days?.length} días en ${selection.years.length} año(s)`}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded border border-green-200">
+                  <div className="h-3 w-3 text-green-600 flex-shrink-0 rounded-full bg-green-200" />
+                  <div className="flex-1">
+                    <div className="text-xs font-medium text-green-900">
+                      Segmento: {segmentName}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Export CSV Button - Small and subtle in top right, hidden on mobile */}
+              {!isComparativeMode && (
+                <div className="absolute top-3 right-3 hidden sm:block">
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={onBack}
-                    className="h-9 w-9 p-0 rounded-lg hover:bg-gray-100 transition-colors"
-                    data-testid="button-back-dashboard"
-                    title="Volver al Dashboard"
+                    onClick={exportSegmentDataToCSV}
+                    disabled={isLoadingClients || isLoadingSalespeople}
+                    className="h-8 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                    data-testid="button-export-segment-csv"
+                    title="Exportar datos del segmento a CSV"
                   >
-                    <Home className="h-4 w-4 text-gray-600" />
+                    <Download className="h-3.5 w-3.5 mr-1.5" />
+                    Exportar CSV
                   </Button>
-                )}
-                <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Vista:</span>
-                <Select 
-                  value={selectedView}
-                  onValueChange={(value: "all" | "segmento" | "vendedor") => {
-                    setSelectedView(value);
-                    if (value === "all") {
-                      setLocation('/');
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-9 w-full sm:w-48 rounded-lg border-gray-200 text-sm bg-gray-50">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
-                    <SelectItem value="all">
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
-                        <span>Todo el dashboard</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="segmento">
-                      <div className="flex items-center gap-2">
-                        <Building className="h-3.5 w-3.5 text-green-500" />
-                        <span>Por segmento</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="vendedor">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-3.5 w-3.5 text-purple-500" />
-                        <span>Por vendedor</span>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Segment selector - shown when view is segmento */}
-              {!embedded && selectedView === "segmento" && allSegments && allSegments.length > 0 && segmentName && (
-                <div className="flex items-center gap-2 w-full sm:w-auto" key="segment-selector">
-                  <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Segmento:</span>
-                  <Select 
-                    value={segmentName} 
-                    onValueChange={(newSegment) => {
-                      setLocation(`/segment/${encodeURIComponent(newSegment)}`);
-                    }}
-                  >
-                    <SelectTrigger className="h-9 w-full sm:w-56 rounded-lg border-gray-200 text-sm" data-testid="select-segment">
-                      <SelectValue placeholder={segmentName} />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
-                      {allSegments.map((segment) => (
-                        <SelectItem key={segment} value={segment}>
-                          {segment}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </div>
               )}
-
-              {/* Salesperson selector - shown when view is vendedor */}
-              {!embedded && selectedView === "vendedor" && allSalespeople && allSalespeople.length > 0 && (
-                <div className="flex items-center gap-2 w-full sm:w-auto" key="salesperson-selector">
-                  <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Vendedor:</span>
-                  <Select 
-                    value=""
-                    onValueChange={(salesperson) => {
-                      setLocation(`/salesperson/${encodeURIComponent(salesperson)}`);
-                    }}
-                  >
-                    <SelectTrigger className="h-9 w-full sm:w-56 rounded-lg border-gray-200 text-sm" data-testid="select-salesperson">
-                      <SelectValue placeholder="Selecciona vendedor" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
-                      {allSalespeople.map((salesperson) => (
-                        <SelectItem key={salesperson} value={salesperson}>
-                          {salesperson}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Embedded segment selector - shown when view is segmento */}
-              {embedded && selectedView === "segmento" && onSegmentChange && allSegments && allSegments.length > 0 && segmentName && (
-                <div className="flex items-center gap-2 w-full sm:w-auto" key="embedded-segment-selector">
-                  <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Segmento:</span>
-                  <Select value={segmentName} onValueChange={onSegmentChange}>
-                    <SelectTrigger className="h-9 w-full sm:w-56 rounded-lg border-gray-200 text-sm">
-                      <SelectValue placeholder={segmentName} />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
-                      {allSegments.map((segment) => (
-                        <SelectItem key={segment} value={segment}>
-                          {segment}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Embedded salesperson selector - shown when view is vendedor */}
-              {embedded && selectedView === "vendedor" && allSalespeople && allSalespeople.length > 0 && (
-                <div className="flex items-center gap-2 w-full sm:w-auto" key="embedded-salesperson-selector">
-                  <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Vendedor:</span>
-                  <Select 
-                    value=""
-                    onValueChange={(salesperson) => {
-                      setLocation(`/salesperson/${encodeURIComponent(salesperson)}`);
-                    }}
-                  >
-                    <SelectTrigger className="h-9 w-full sm:w-56 rounded-lg border-gray-200 text-sm" data-testid="select-salesperson">
-                      <SelectValue placeholder="Selecciona vendedor" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
-                      {allSalespeople.map((salesperson) => (
-                        <SelectItem key={salesperson} value={salesperson}>
-                          {salesperson}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Period */}
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Período:</span>
-                <YearMonthSelector 
-                  value={selection}
-                  onChange={handleSelectionChange}
-                />
-              </div>
             </div>
-
-            {/* Display Selected Filters as chips */}
-            <div className="pt-2 border-t space-y-2">
-              <div className="text-xs font-medium text-gray-500 mb-2">Filtros activos:</div>
-              
-              <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 rounded border border-purple-200">
-                <Eye className="h-3 w-3 text-purple-600 flex-shrink-0" />
-                <div className="flex-1">
-                  <div className="text-xs font-medium text-purple-900">
-                    Vista: Por segmento
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded border border-blue-200">
-                <CalendarIcon className="h-3 w-3 text-blue-600 flex-shrink-0" />
-                <div className="flex-1">
-                  <div className="text-xs font-medium text-blue-900">
-                    Período: {selection.display}
-                  </div>
-                  <div className="text-[10px] text-blue-700 mt-0.5">
-                    {selection.period === "full-year" && `${selection.years.length} año(s) completo(s)`}
-                    {selection.period === "month" && `Mes específico en ${selection.years.length} año(s)`}
-                    {selection.period === "months" && `${selection.months?.length} meses en ${selection.years.length} año(s)`}
-                    {selection.period === "day" && `Día específico en ${selection.years.length} año(s)`}
-                    {selection.period === "days" && `${selection.days?.length} días en ${selection.years.length} año(s)`}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded border border-green-200">
-                <div className="h-3 w-3 text-green-600 flex-shrink-0 rounded-full bg-green-200" />
-                <div className="flex-1">
-                  <div className="text-xs font-medium text-green-900">
-                    Segmento: {segmentName}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Export CSV Button - Small and subtle in top right, hidden on mobile */}
-            {!isComparativeMode && (
-              <div className="absolute top-3 right-3 hidden sm:block">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={exportSegmentDataToCSV}
-                  disabled={isLoadingClients || isLoadingSalespeople}
-                  className="h-8 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                  data-testid="button-export-segment-csv"
-                  title="Exportar datos del segmento a CSV"
-                >
-                  <Download className="h-3.5 w-3.5 mr-1.5" />
-                  Exportar CSV
-                </Button>
-              </div>
-            )}
-          </div>
-        </header>
+          </header>
         )}
 
         {/* Main Content */}
-        <main className="p-3 sm:p-4 lg:p-6 space-y-4 lg:space-y-6">
+        <main className="px-3 sm:px-4 lg:px-6 py-4 lg:py-6 space-y-4 lg:space-y-6">
           {/* Comparative Mode Layout */}
           {(() => {
             console.log("🎬 [segment-detail] RENDER:", {
@@ -1276,13 +1276,13 @@ export default function SegmentDetail({
             <>
               {console.log("✅ Renderizando componentes comparativos")}
               {/* Comparative Segment Chart */}
-              <ComparativeSegmentTable 
+              <ComparativeSegmentTable
                 periods={comparativePeriods}
                 segment={segmentName}
               />
 
               {/* Comparative Salespeople Chart */}
-              <ComparativeSegmentSalespeopleTable 
+              <ComparativeSegmentSalespeopleTable
                 segmentName={segmentName}
                 periods={comparativePeriods}
               />
@@ -1319,7 +1319,7 @@ export default function SegmentDetail({
                   </div>
                 </div>
 
-                <div 
+                <div
                   className="modern-card p-3 sm:p-4 lg:p-6 hover-lift cursor-pointer ring-teal-300 hover:ring-2 transition-all"
                   onClick={() => setShowNewClientsModal(true)}
                 >
@@ -1378,16 +1378,15 @@ export default function SegmentDetail({
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className={`text-2xl font-bold ${
-                          goalData.percentage >= 100 ? 'text-emerald-600' : 
+                        <div className={`text-2xl font-bold ${goalData.percentage >= 100 ? 'text-emerald-600' :
                           goalData.percentage >= 70 ? 'text-amber-600' : 'text-rose-600'
-                        }`} data-testid="text-goal-percentage">
+                          }`} data-testid="text-goal-percentage">
                           {goalData.percentage.toFixed(1)}%
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400">Logrado</p>
                       </div>
                     </div>
-                    
+
                     {/* Meta y Ventas Actuales en fila */}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 rounded-xl p-3">
@@ -1403,33 +1402,31 @@ export default function SegmentDetail({
                         </p>
                       </div>
                     </div>
-                    
+
                     {/* Barra de progreso */}
                     <div className="space-y-1">
                       <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
                         <div
-                          className={`h-3 rounded-full transition-all duration-500 ${
-                            goalData.percentage >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
+                          className={`h-3 rounded-full transition-all duration-500 ${goalData.percentage >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' :
                             goalData.percentage >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
-                          }`}
+                            }`}
                           style={{ width: `${Math.min(goalData.percentage, 100)}%` }}
                         />
                       </div>
-                      
+
                       {/* Segunda barra de progreso - Total Combinado (Ventas + NVV + GDV) */}
                       {(nvvTotal > 0 || gdvTotal > 0) && (() => {
                         const combinedTotal = Number(goalData.currentSales) + nvvTotal + gdvTotal;
-                        const combinedPercentage = Number(goalData.targetAmount) > 0 
-                          ? (combinedTotal / Number(goalData.targetAmount)) * 100 
+                        const combinedPercentage = Number(goalData.targetAmount) > 0
+                          ? (combinedTotal / Number(goalData.targetAmount)) * 100
                           : 0;
                         return (
                           <div className="space-y-0.5">
                             <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
                               <div
-                                className={`h-1.5 rounded-full transition-all duration-500 ${
-                                  combinedPercentage >= 100 ? 'bg-gradient-to-r from-cyan-300 to-cyan-500' : 
+                                className={`h-1.5 rounded-full transition-all duration-500 ${combinedPercentage >= 100 ? 'bg-gradient-to-r from-cyan-300 to-cyan-500' :
                                   combinedPercentage >= 70 ? 'bg-gradient-to-r from-sky-300 to-sky-500' : 'bg-gradient-to-r from-indigo-300 to-indigo-500'
-                                }`}
+                                  }`}
                                 style={{ width: `${Math.min(combinedPercentage, 100)}%` }}
                               />
                             </div>
@@ -1437,10 +1434,9 @@ export default function SegmentDetail({
                               <p className="text-[10px] text-gray-400 dark:text-gray-500">
                                 Total Combinado: {formatCurrency(combinedTotal)}
                               </p>
-                              <p className={`text-[10px] font-medium ${
-                                combinedPercentage >= 100 ? 'text-cyan-600' : 
+                              <p className={`text-[10px] font-medium ${combinedPercentage >= 100 ? 'text-cyan-600' :
                                 combinedPercentage >= 70 ? 'text-sky-600' : 'text-indigo-600'
-                              }`}>
+                                }`}>
                                 {combinedPercentage.toFixed(1)}%
                               </p>
                             </div>
@@ -1452,298 +1448,299 @@ export default function SegmentDetail({
                 </div>
               )}
 
-          {/* NVV Pendientes - Notas de Venta Pendientes by Segment (solo en mes actual) */}
-          {segmentName && isCurrentMonth() && (
-            <SegmentPendingNVV
-              segment={segmentName}
-            />
-          )}
+              {/* Documentos Pendientes (NVV + GDV) */}
+              {segmentName && isCurrentMonth() && (
+                <PendingDocumentsUnified
+                  selectedPeriod={selectedPeriod}
+                  filterType={filterType}
+                />
+              )}
 
-          {/* Data Tables */}
-          <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:gap-6">
-            {/* Top Clients - Using dashboard component for consistent styling */}
-            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-              <TopClientsPanel
-                selectedPeriod={selectedPeriod}
-                filterType={filterType}
-                segment={segmentName}
-              />
-            </div>
+              {/* Data Tables */}
+              <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:gap-6">
+                {/* Top Clients - Using dashboard component for consistent styling */}
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                  <TopClientsPanel
+                    selectedPeriod={selectedPeriod}
+                    filterType={filterType}
+                    segment={segmentName}
+                  />
+                </div>
 
-            {/* Top Salespeople Table */}
-            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-            {!isSalespersonSearchExpanded ? (
-              <div className="flex items-center justify-between mb-3 sm:mb-4">
-                <div className="flex items-center space-x-2 sm:space-x-3">
-                  <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
-                  </div>
-                  <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Vendedores del Segmento</h2>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsSalespersonSearchExpanded(true)}
-                  className="h-8 w-8 p-0"
-                  data-testid="button-expand-salesperson-search"
-                >
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <div className="mb-3 sm:mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      type="text"
-                      placeholder="Buscar vendedor..."
-                      value={salespersonSearchTerm}
-                      onChange={(e) => setSalespersonSearchTerm(e.target.value)}
-                      className="pl-9"
-                      autoFocus
-                      data-testid="input-search-salesperson"
-                    />
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleClearSalespersonSearch}
-                    className="h-9 w-9 p-0"
-                    data-testid="button-clear-salesperson-search"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
-            
-            <div className="space-y-2">
-              {currentSalespersonLoading ? (
-                <div className="space-y-3">
-                  {[...Array(5)].map((_, i) => (
-                    <div key={i} className="animate-pulse h-12 bg-gray-200 rounded"></div>
-                  ))}
-                </div>
-              ) : debouncedSalespersonSearch.length > 0 && debouncedSalespersonSearch.length < 2 ? (
-                <p className="text-gray-500 text-center py-8 text-sm">Escribe al menos 2 caracteres para buscar</p>
-              ) : displaySalespeople.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">
-                  {debouncedSalespersonSearch ? 'No se encontraron vendedores' : 'No hay vendedores en este segmento'}
-                </p>
-              ) : (
-                <>
-                  <Accordion
-                    type="single"
-                    collapsible
-                    value={expandedSalesperson}
-                    onValueChange={setExpandedSalesperson}
-                    className="space-y-2"
-                  >
-                    {displaySalespeople.map((salesperson, index) => (
-                      <AccordionItem
-                        key={salesperson.salespersonName}
-                        value={salesperson.salespersonName}
-                        className="border rounded-lg overflow-hidden bg-purple-50/30"
-                      >
-                        <AccordionTrigger
-                          className="px-4 py-3 hover:bg-purple-50/50 hover:no-underline"
-                          data-testid={`accordion-trigger-salesperson-${index}`}
-                        >
-                          <div className="flex items-center gap-3 w-full pr-4">
-                            <div className="flex-1 min-w-0 text-left">
-                              <p className="text-sm font-medium text-gray-900 truncate">
-                                {salesperson.salespersonName}
-                              </p>
-                            </div>
-                            <div className="w-12 flex-shrink-0 text-right">
-                              <span className="text-xs text-gray-600">
-                                {salesperson.percentage.toFixed(1)}%
-                              </span>
-                            </div>
-                            <div className="w-24 sm:w-32 flex-shrink-0">
-                              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-purple-500 rounded-full transition-all duration-500"
-                                  style={{ width: `${Math.min(salesperson.percentage, 100)}%` }}
-                                ></div>
-                              </div>
-                            </div>
-                            <div className="w-28 flex-shrink-0 text-right">
-                              <span className="text-sm font-semibold text-gray-900">
-                                {formatCurrency(salesperson.totalSales)}
-                              </span>
-                            </div>
-                          </div>
-                        </AccordionTrigger>
-                        <AccordionContent className="px-4 pb-4 pt-2 bg-white">
-                          <div className="space-y-3 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Transacciones:</span>
-                              <span className="font-medium">{formatNumber(salesperson.transactionCount)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Ticket Promedio:</span>
-                              <span className="font-medium">{formatCurrency(salesperson.averageTicket)}</span>
-                            </div>
-                            
-                            {expandedSalesperson === salesperson.salespersonName && (
-                              <div className="mt-3 pt-3 border-t border-gray-100">
-                                <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Clientes</p>
-                                {isLoadingSalespersonClients ? (
-                                  <div className="space-y-2">
-                                    {[...Array(3)].map((_, i) => (
-                                      <div key={i} className="animate-pulse h-6 bg-gray-100 rounded"></div>
-                                    ))}
-                                  </div>
-                                ) : salespersonClients.length === 0 ? (
-                                  <p className="text-gray-400 text-xs">Sin clientes en este período</p>
-                                ) : (
-                                  <div className="space-y-2">
-                                    {salespersonClients.map((client, idx) => (
-                                      <div 
-                                        key={`${client.clientName}-${idx}`}
-                                        className="flex justify-between items-center py-1.5 px-2 bg-gray-50 rounded"
-                                        data-testid={`salesperson-client-${idx}`}
-                                      >
-                                        <span className="text-gray-700 truncate flex-1">{client.clientName}</span>
-                                        <span className="font-medium text-gray-900 ml-2">{formatCurrency(client.totalSales)}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    ))}
-                  </Accordion>
-                  {!debouncedSalespersonSearch && displaySalespeople.length >= salespersonLimit && (
-                    <div className="text-center pt-3">
+                {/* Top Salespeople Table */}
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                  {!isSalespersonSearchExpanded ? (
+                    <div className="flex items-center justify-between mb-3 sm:mb-4">
+                      <div className="flex items-center space-x-2 sm:space-x-3">
+                        <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                        </div>
+                        <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Vendedores del Segmento</h2>
+                      </div>
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={handleLoadMoreSalespeople}
-                        data-testid="button-load-more-salespeople"
+                        onClick={() => setIsSalespersonSearchExpanded(true)}
+                        className="h-8 w-8 p-0"
+                        data-testid="button-expand-salesperson-search"
                       >
-                        Ver más
+                        <Search className="h-4 w-4" />
                       </Button>
                     </div>
-                  )}
-                </>
-              )}
-              </div>
-            </div>
-
-            {/* Top Products Section */}
-            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-              <div className="flex items-center justify-between mb-3 sm:mb-4">
-                <div className="flex items-center space-x-2 sm:space-x-3">
-                  <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Package className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
-                  </div>
-                  <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Productos del Segmento</h2>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                {isLoadingProducts ? (
-                  <div className="space-y-3">
-                    {[...Array(5)].map((_, i) => (
-                      <div key={i} className="animate-pulse h-12 bg-gray-200 rounded"></div>
-                    ))}
-                  </div>
-                ) : products.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">No hay productos en este segmento</p>
-                ) : (
-                  <>
-                    <Accordion
-                      type="single"
-                      collapsible
-                      value={expandedProduct}
-                      onValueChange={setExpandedProduct}
-                      className="space-y-2"
-                    >
-                      {products.map((product, index) => (
-                        <AccordionItem
-                          key={product.productName}
-                          value={product.productName}
-                          className="border rounded-lg overflow-hidden bg-green-50/30"
-                        >
-                          <AccordionTrigger
-                            className="px-4 py-3 hover:bg-green-50/50 hover:no-underline"
-                            data-testid={`accordion-trigger-product-${index}`}
-                          >
-                            <div className="flex items-center gap-3 w-full pr-4">
-                              <div className="flex-1 min-w-0 text-left">
-                                <p className="text-sm font-medium text-gray-900 truncate">
-                                  {product.productName}
-                                </p>
-                              </div>
-                              <div className="w-12 flex-shrink-0 text-right">
-                                <span className="text-xs text-gray-600">
-                                  {product.percentage.toFixed(1)}%
-                                </span>
-                              </div>
-                              <div className="w-24 sm:w-32 flex-shrink-0">
-                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full bg-green-500 rounded-full transition-all duration-500"
-                                    style={{ width: `${Math.min(product.percentage, 100)}%` }}
-                                  ></div>
-                                </div>
-                              </div>
-                              <div className="w-28 flex-shrink-0 text-right">
-                                <span className="text-sm font-semibold text-gray-900">
-                                  {formatCurrency(product.totalSales)}
-                                </span>
-                              </div>
-                            </div>
-                          </AccordionTrigger>
-                          <AccordionContent className="px-4 pb-4 pt-2 bg-white">
-                            <div className="space-y-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">Cantidad Vendida:</span>
-                                <span className="font-medium">{formatNumber(product.totalQuantity)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">Transacciones:</span>
-                                <span className="font-medium">{formatNumber(product.transactionCount)}</span>
-                              </div>
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      ))}
-                    </Accordion>
-                    {products.length >= productLimit && (
-                      <div className="text-center pt-3">
+                  ) : (
+                    <div className="mb-3 sm:mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          <Input
+                            type="text"
+                            placeholder="Buscar vendedor..."
+                            value={salespersonSearchTerm}
+                            onChange={(e) => setSalespersonSearchTerm(e.target.value)}
+                            className="pl-9"
+                            autoFocus
+                            data-testid="input-search-salesperson"
+                          />
+                        </div>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setProductLimit(prev => prev + 10)}
-                          data-testid="button-load-more-products"
+                          onClick={handleClearSalespersonSearch}
+                          className="h-9 w-9 p-0"
+                          data-testid="button-clear-salesperson-search"
                         >
-                          Ver más
+                          <X className="h-4 w-4" />
                         </Button>
                       </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
+                    </div>
+                  )}
 
-          {/* Packaging Sales Metrics - Total Facturado x Unidades for this segment */}
-          {segmentName && (
-            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-              <PackagingSalesMetrics
-                selectedPeriod={selectedPeriod}
-                filterType={filterType}
-                segment={segmentName}
-              />
-            </div>
-          )}
+                  <div className="space-y-2">
+                    {currentSalespersonLoading ? (
+                      <div className="space-y-3">
+                        {[...Array(5)].map((_, i) => (
+                          <div key={i} className="animate-pulse h-12 bg-gray-200 rounded"></div>
+                        ))}
+                      </div>
+                    ) : debouncedSalespersonSearch.length > 0 && debouncedSalespersonSearch.length < 2 ? (
+                      <p className="text-gray-500 text-center py-8 text-sm">Escribe al menos 2 caracteres para buscar</p>
+                    ) : displaySalespeople.length === 0 ? (
+                      <p className="text-gray-500 text-center py-8">
+                        {debouncedSalespersonSearch ? 'No se encontraron vendedores' : 'No hay vendedores en este segmento'}
+                      </p>
+                    ) : (
+                      <>
+                        <Accordion
+                          type="single"
+                          collapsible
+                          value={expandedSalesperson}
+                          onValueChange={setExpandedSalesperson}
+                          className="space-y-2"
+                        >
+                          {displaySalespeople.map((salesperson, index) => (
+                            <AccordionItem
+                              key={salesperson.salespersonName}
+                              value={salesperson.salespersonName}
+                              className="border rounded-lg overflow-hidden bg-purple-50/30"
+                            >
+                              <AccordionTrigger
+                                className="px-4 py-3 hover:bg-purple-50/50 hover:no-underline"
+                                data-testid={`accordion-trigger-salesperson-${index}`}
+                              >
+                                <div className="flex items-center gap-3 w-full pr-4">
+                                  <div className="flex-1 min-w-0 text-left">
+                                    <p className="text-sm font-medium text-gray-900 truncate">
+                                      {salesperson.salespersonName}
+                                    </p>
+                                  </div>
+                                  <div className="w-12 flex-shrink-0 text-right">
+                                    <span className="text-xs text-gray-600">
+                                      {salesperson.percentage.toFixed(1)}%
+                                    </span>
+                                  </div>
+                                  <div className="w-24 sm:w-32 flex-shrink-0">
+                                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                      <div
+                                        className="h-full bg-purple-500 rounded-full transition-all duration-500"
+                                        style={{ width: `${Math.min(salesperson.percentage, 100)}%` }}
+                                      ></div>
+                                    </div>
+                                  </div>
+                                  <div className="w-28 flex-shrink-0 text-right">
+                                    <span className="text-sm font-semibold text-gray-900">
+                                      {formatCurrency(salesperson.totalSales)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </AccordionTrigger>
+                              <AccordionContent className="px-4 pb-4 pt-2 bg-white">
+                                <div className="space-y-3 text-sm">
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">Transacciones:</span>
+                                    <span className="font-medium">{formatNumber(salesperson.transactionCount)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">Ticket Promedio:</span>
+                                    <span className="font-medium">{formatCurrency(salesperson.averageTicket)}</span>
+                                  </div>
+
+                                  {expandedSalesperson === salesperson.salespersonName && (
+                                    <div className="mt-3 pt-3 border-t border-gray-100">
+                                      <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Clientes</p>
+                                      {isLoadingSalespersonClients ? (
+                                        <div className="space-y-2">
+                                          {[...Array(3)].map((_, i) => (
+                                            <div key={i} className="animate-pulse h-6 bg-gray-100 rounded"></div>
+                                          ))}
+                                        </div>
+                                      ) : salespersonClients.length === 0 ? (
+                                        <p className="text-gray-400 text-xs">Sin clientes en este período</p>
+                                      ) : (
+                                        <div className="space-y-2">
+                                          {salespersonClients.map((client, idx) => (
+                                            <div
+                                              key={`${client.clientName}-${idx}`}
+                                              className="flex justify-between items-center py-1.5 px-2 bg-gray-50 rounded"
+                                              data-testid={`salesperson-client-${idx}`}
+                                            >
+                                              <span className="text-gray-700 truncate flex-1">{client.clientName}</span>
+                                              <span className="font-medium text-gray-900 ml-2">{formatCurrency(client.totalSales)}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </AccordionContent>
+                            </AccordionItem>
+                          ))}
+                        </Accordion>
+                        {!debouncedSalespersonSearch && displaySalespeople.length >= salespersonLimit && (
+                          <div className="text-center pt-3">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleLoadMoreSalespeople}
+                              data-testid="button-load-more-salespeople"
+                            >
+                              Ver más
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Top Products Section */}
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                  <div className="flex items-center justify-between mb-3 sm:mb-4">
+                    <div className="flex items-center space-x-2 sm:space-x-3">
+                      <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Package className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+                      </div>
+                      <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Productos del Segmento</h2>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {isLoadingProducts ? (
+                      <div className="space-y-3">
+                        {[...Array(5)].map((_, i) => (
+                          <div key={i} className="animate-pulse h-12 bg-gray-200 rounded"></div>
+                        ))}
+                      </div>
+                    ) : products.length === 0 ? (
+                      <p className="text-gray-500 text-center py-8">No hay productos en este segmento</p>
+                    ) : (
+                      <>
+                        <Accordion
+                          type="single"
+                          collapsible
+                          value={expandedProduct}
+                          onValueChange={setExpandedProduct}
+                          className="space-y-2"
+                        >
+                          {products.map((product, index) => (
+                            <AccordionItem
+                              key={product.productName}
+                              value={product.productName}
+                              className="border rounded-lg overflow-hidden bg-green-50/30"
+                            >
+                              <AccordionTrigger
+                                className="px-4 py-3 hover:bg-green-50/50 hover:no-underline"
+                                data-testid={`accordion-trigger-product-${index}`}
+                              >
+                                <div className="flex items-center gap-3 w-full pr-4">
+                                  <div className="flex-1 min-w-0 text-left">
+                                    <p className="text-sm font-medium text-gray-900 truncate">
+                                      {product.productName}
+                                    </p>
+                                  </div>
+                                  <div className="w-12 flex-shrink-0 text-right">
+                                    <span className="text-xs text-gray-600">
+                                      {product.percentage.toFixed(1)}%
+                                    </span>
+                                  </div>
+                                  <div className="w-24 sm:w-32 flex-shrink-0">
+                                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                      <div
+                                        className="h-full bg-green-500 rounded-full transition-all duration-500"
+                                        style={{ width: `${Math.min(product.percentage, 100)}%` }}
+                                      ></div>
+                                    </div>
+                                  </div>
+                                  <div className="w-28 flex-shrink-0 text-right">
+                                    <span className="text-sm font-semibold text-gray-900">
+                                      {formatCurrency(product.totalSales)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </AccordionTrigger>
+                              <AccordionContent className="px-4 pb-4 pt-2 bg-white">
+                                <div className="space-y-2 text-sm">
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">Cantidad Vendida:</span>
+                                    <span className="font-medium">{formatNumber(product.totalQuantity)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-600">Transacciones:</span>
+                                    <span className="font-medium">{formatNumber(product.transactionCount)}</span>
+                                  </div>
+                                </div>
+                              </AccordionContent>
+                            </AccordionItem>
+                          ))}
+                        </Accordion>
+                        {products.length >= productLimit && (
+                          <div className="text-center pt-3">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setProductLimit(prev => prev + 10)}
+                              data-testid="button-load-more-products"
+                            >
+                              Ver más
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Packaging Sales Metrics - Total Facturado x Unidades for this segment */}
+              {segmentName && (
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                  <PackagingSalesMetrics
+                    selectedPeriod={selectedPeriod}
+                    filterType={filterType}
+                    segment={segmentName}
+                  />
+                </div>
+              )}
             </>
           )}
         </main>

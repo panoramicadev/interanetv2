@@ -42,15 +42,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3 } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video } from "lucide-react";
 import AdsAnalyticsPage from "./ads-analytics";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import { formatDateForAPI, parseDateFromAPI } from "@/lib/dateUtils";
+
+import CreatividadesMarketing from "./marketing/creatividades-marketing";
 
 interface SolicitudMarketing {
   id: string;
@@ -160,314 +163,249 @@ export default function Marketing() {
     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
   ];
 
-  const estadosConfig = {
-    solicitado: { label: "Solicitado", color: "bg-blue-500", icon: Clock },
-    en_proceso: { label: "En Proceso", color: "bg-yellow-500", icon: TrendingUp },
-    completado: { label: "Completado", color: "bg-green-500", icon: CheckCircle },
-    rechazado: { label: "Rechazado", color: "bg-red-500", icon: XCircle },
-  };
+  const isAdmin = user.role === 'admin' || user.role === 'supervisor';
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold" data-testid="text-page-title">Marketing</h1>
-        <p className="text-muted-foreground">Gestión de presupuesto, solicitudes e inventario de marketing</p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/20">
+      <div className="container mx-auto px-4 py-8 space-y-6">
 
-      {/* Tabs */}
-      <Tabs defaultValue="solicitudes" className="w-full">
-        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-          <TabsList className={`inline-flex w-max sm:w-full h-auto gap-1 ${user.role === 'salesperson' ? 'sm:grid sm:grid-cols-2' : 'sm:grid sm:grid-cols-8'}`}>
-            <TabsTrigger value="solicitudes" data-testid="tab-solicitudes" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
-              <FileText className="h-4 w-4" />
-              <span>Solicitudes</span>
-            </TabsTrigger>
-            <TabsTrigger value="inventario" data-testid="tab-inventario" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
-              <Package className="h-4 w-4" />
-              <span>Inventario</span>
-            </TabsTrigger>
-            {(user.role === 'admin' || user.role === 'supervisor') && (
-              <TabsTrigger value="tareas" data-testid="tab-tareas" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
-                <ClipboardList className="h-4 w-4" />
-                <span>Tareas</span>
-              </TabsTrigger>
-            )}
-            {(user.role === 'admin' || user.role === 'supervisor') && (
-              <TabsTrigger value="calendario" data-testid="tab-calendario" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
-                <Calendar className="h-4 w-4" />
-                <span>Calendario</span>
-              </TabsTrigger>
-            )}
-            {(user.role === 'admin' || user.role === 'supervisor') && (
-              <TabsTrigger value="competencia" data-testid="tab-competencia" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
-                <Target className="h-4 w-4" />
-                <span>Competencia</span>
-              </TabsTrigger>
-            )}
-            {(user.role === 'admin' || user.role === 'supervisor') && (
-              <TabsTrigger value="presupuesto" data-testid="tab-presupuesto" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
-                <DollarSign className="h-4 w-4" />
-                <span>Presupuesto</span>
-              </TabsTrigger>
-            )}
-            {(user.role === 'admin' || user.role === 'supervisor') && (
-              <TabsTrigger value="seo" data-testid="tab-seo" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
-                <TrendingUp className="h-4 w-4" />
-                <span className="hidden sm:inline">Posicionamiento</span>
-                <span className="sm:hidden">SEO</span>
-              </TabsTrigger>
-            )}
-            {(user.role === 'admin' || user.role === 'supervisor') && (
-              <TabsTrigger value="ads" data-testid="tab-ads" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 px-3 text-xs sm:text-sm whitespace-nowrap">
-                <BarChart3 className="h-4 w-4" />
-                <span className="hidden sm:inline">Ads Analytics</span>
-                <span className="sm:hidden">Ads</span>
-              </TabsTrigger>
-            )}
-          </TabsList>
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+              <TrendingUp className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white" data-testid="text-page-title">
+                Marketing
+              </h1>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Gestión de presupuesto, solicitudes e inventario de marketing</p>
+            </div>
+          </div>
         </div>
 
-        {/* Tab: Solicitudes */}
-        <TabsContent value="solicitudes" className="space-y-6">
-          <div className="flex flex-col sm:flex-row justify-end gap-2">
-            <Button 
-              onClick={() => setSolicitudDialogOpen(true)}
-              data-testid="button-nueva-solicitud"
-              className="w-full sm:w-auto"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Nueva Solicitud
-            </Button>
+        {/* 4 Tabs */}
+        <Tabs defaultValue="dashboard" className="w-full">
+          <div>
+            <TabsList className="flex w-full gap-1 h-auto p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+              {isAdmin && (
+                <TabsTrigger
+                  value="dashboard"
+                  data-testid="tab-dashboard"
+                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+                >
+                  <BarChart3 className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">Dashboard</span>
+                </TabsTrigger>
+              )}
+
+              <TabsTrigger
+                value="solicitudes"
+                data-testid="tab-solicitudes"
+                className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+              >
+                <FileText className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:inline">Solicitudes</span>
+              </TabsTrigger>
+
+              {isAdmin && (
+                <TabsTrigger
+                  value="calendario"
+                  data-testid="tab-calendario"
+                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+                >
+                  <Calendar className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">Calendario</span>
+                </TabsTrigger>
+              )}
+
+              <TabsTrigger
+                value="inventario"
+                data-testid="tab-inventario"
+                className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+              >
+                <Package className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:inline">Inventario</span>
+              </TabsTrigger>
+            </TabsList>
           </div>
 
-          {/* Period Selector */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Seleccionar Período</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <Label>Mes</Label>
-                  <Select
-                    value={selectedMes.toString()}
-                    onValueChange={(value) => setSelectedMes(parseInt(value))}
-                  >
-                    <SelectTrigger data-testid="select-mes">
-                      <SelectValue />
-                    </SelectTrigger>
+          {/* Tab: Dashboard (Métricas + Presupuesto) */}
+          {isAdmin && (
+            <TabsContent value="dashboard" className="space-y-6">
+              {/* Period selector */}
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="flex-1 min-w-[140px]">
+                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Mes</Label>
+                  <Select value={selectedMes.toString()} onValueChange={(v) => setSelectedMes(parseInt(v))}>
+                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {mesesNombres.map((mes, index) => (
-                        <SelectItem key={index + 1} value={(index + 1).toString()}>
-                          {mes}
-                        </SelectItem>
+                      {mesesNombres.map((mes, i) => (
+                        <SelectItem key={i + 1} value={(i + 1).toString()}>{mes}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex-1">
-                  <Label>Año</Label>
-                  <Select
-                    value={selectedAnio.toString()}
-                    onValueChange={(value) => setSelectedAnio(parseInt(value))}
-                  >
-                    <SelectTrigger data-testid="select-anio">
-                      <SelectValue />
-                    </SelectTrigger>
+                <div className="flex-1 min-w-[100px]">
+                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Año</Label>
+                  <Select value={selectedAnio.toString()} onValueChange={(v) => setSelectedAnio(parseInt(v))}>
+                    <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {[2024, 2025, 2026].map((anio) => (
-                        <SelectItem key={anio} value={anio.toString()}>
-                          {anio}
-                        </SelectItem>
+                      {[2024, 2025, 2026].map((a) => (
+                        <SelectItem key={a} value={a.toString()}>{a}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
+                {user.role === 'admin' && (
+                  <Button
+                    onClick={() => setPresupuestoDialogOpen(true)}
+                    className="rounded-xl bg-indigo-600 hover:bg-indigo-700"
+                    data-testid="button-config-presupuesto"
+                  >
+                    <DollarSign className="mr-2 h-4 w-4" />
+                    Configurar Presupuesto
+                  </Button>
+                )}
               </div>
-            </CardContent>
-          </Card>
 
-          <SolicitudesList
-            mes={selectedMes}
-            anio={selectedAnio}
-            selectedEstado={selectedEstado}
-            onEstadoChange={setSelectedEstado}
-            onEditEstado={(solicitud) => {
-              setSelectedSolicitud(solicitud);
-              setEstadoDialogOpen(true);
-            }}
-            onEdit={(solicitud) => {
-              setSelectedSolicitud(solicitud);
-              setEditDialogOpen(true);
-            }}
-            onDelete={(solicitud) => {
-              setSelectedSolicitud(solicitud);
-              setDeleteDialogOpen(true);
-            }}
-            onView={(solicitud) => {
-              setSelectedSolicitud(solicitud);
-              setViewDialogOpen(true);
-            }}
-            userRole={user.role}
-          />
-        </TabsContent>
+              <MetricsDashboard mes={selectedMes} anio={selectedAnio} />
 
-        {/* Tab: Inventario */}
-        <TabsContent value="inventario" className="space-y-6">
-          <InventarioMarketing userRole={user.role} />
-        </TabsContent>
+              {/* Creatividades section in dashboard */}
+              <CreatividadesMarketing
+                mes={selectedMes}
+                anio={selectedAnio}
+                userRole={user.role}
+              />
 
-        {/* Tab: Tareas */}
-        <TabsContent value="tareas" className="space-y-6">
-          <TareasMarketing 
-            mes={selectedMes} 
-            anio={selectedAnio} 
-            userRole={user.role}
-          />
-        </TabsContent>
+              {/* Tareas rápidas */}
+              <TareasMarketing
+                mes={selectedMes}
+                anio={selectedAnio}
+                userRole={user.role}
+              />
+            </TabsContent>
+          )}
 
-        {/* Tab: Calendario */}
-        <TabsContent value="calendario" className="space-y-6">
-          <CalendarioHitos 
-            mes={selectedMes} 
-            anio={selectedAnio} 
-            userRole={user.role}
-            onMesChange={setSelectedMes}
-            onAnioChange={setSelectedAnio}
-          />
-        </TabsContent>
-
-        {/* Tab: Precios de Competencia */}
-        {(user.role === 'admin' || user.role === 'supervisor') && (
-          <TabsContent value="competencia" className="space-y-6">
-            <PreciosCompetencia userRole={user.role} />
-          </TabsContent>
-        )}
-
-        {/* Tab: Presupuesto (solo admin y supervisor) */}
-        {(user.role === 'admin' || user.role === 'supervisor') && (
-          <TabsContent value="presupuesto" className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <h2 className="text-2xl font-bold">Presupuesto de Marketing</h2>
-                <p className="text-muted-foreground">Gestión y seguimiento del presupuesto mensual</p>
+          {/* Tab: Solicitudes */}
+          <TabsContent value="solicitudes" className="space-y-6">
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="flex-1 min-w-[140px]">
+                <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Mes</Label>
+                <Select value={selectedMes.toString()} onValueChange={(v) => setSelectedMes(parseInt(v))}>
+                  <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {mesesNombres.map((mes, i) => (
+                      <SelectItem key={i + 1} value={(i + 1).toString()}>{mes}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              {user.role === 'admin' && (
-                <Button 
-                  onClick={() => setPresupuestoDialogOpen(true)}
-                  data-testid="button-config-presupuesto"
-                >
-                  <DollarSign className="mr-2 h-4 w-4" />
-                  Configurar Presupuesto
-                </Button>
-              )}
+              <div className="flex-1 min-w-[100px]">
+                <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Año</Label>
+                <Select value={selectedAnio.toString()} onValueChange={(v) => setSelectedAnio(parseInt(v))}>
+                  <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[2024, 2025, 2026].map((a) => (
+                      <SelectItem key={a} value={a.toString()}>{a}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                onClick={() => setSolicitudDialogOpen(true)}
+                data-testid="button-nueva-solicitud"
+                className="rounded-xl bg-indigo-600 hover:bg-indigo-700"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Nueva Solicitud
+              </Button>
             </div>
 
-            {/* Period Selector for Budget */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Seleccionar Período</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-4">
-                  <div className="flex-1">
-                    <Label>Mes</Label>
-                    <Select
-                      value={selectedMes.toString()}
-                      onValueChange={(value) => setSelectedMes(parseInt(value))}
-                    >
-                      <SelectTrigger data-testid="select-mes-presupuesto">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {mesesNombres.map((mes, index) => (
-                          <SelectItem key={index + 1} value={(index + 1).toString()}>
-                            {mes}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex-1">
-                    <Label>Año</Label>
-                    <Select
-                      value={selectedAnio.toString()}
-                      onValueChange={(value) => setSelectedAnio(parseInt(value))}
-                    >
-                      <SelectTrigger data-testid="select-anio-presupuesto">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[2024, 2025, 2026].map((anio) => (
-                          <SelectItem key={anio} value={anio.toString()}>
-                            {anio}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <MetricsDashboard mes={selectedMes} anio={selectedAnio} />
+            <SolicitudesList
+              mes={selectedMes}
+              anio={selectedAnio}
+              selectedEstado={selectedEstado}
+              onEstadoChange={setSelectedEstado}
+              onEditEstado={(solicitud) => {
+                setSelectedSolicitud(solicitud);
+                setEstadoDialogOpen(true);
+              }}
+              onEdit={(solicitud) => {
+                setSelectedSolicitud(solicitud);
+                setEditDialogOpen(true);
+              }}
+              onDelete={(solicitud) => {
+                setSelectedSolicitud(solicitud);
+                setDeleteDialogOpen(true);
+              }}
+              onView={(solicitud) => {
+                setSelectedSolicitud(solicitud);
+                setViewDialogOpen(true);
+              }}
+              userRole={user.role}
+            />
           </TabsContent>
-        )}
 
-        {/* Tab: Posicionamiento Web (solo admin y supervisor) */}
-        {(user.role === 'admin' || user.role === 'supervisor') && (
-          <TabsContent value="seo" className="space-y-6">
-            <SeoTracking />
+          {/* Tab: Calendario (Hitos + Tareas + Creatividades) */}
+          {isAdmin && (
+            <TabsContent value="calendario" className="space-y-6">
+              <CalendarioHitos
+                mes={selectedMes}
+                anio={selectedAnio}
+                userRole={user.role}
+                onMesChange={setSelectedMes}
+                onAnioChange={setSelectedAnio}
+              />
+            </TabsContent>
+          )}
+
+          {/* Tab: Inventario */}
+          <TabsContent value="inventario" className="space-y-6">
+            <InventarioMarketing userRole={user.role} />
           </TabsContent>
-        )}
-        
-        {(user.role === 'admin' || user.role === 'supervisor') && (
-          <TabsContent value="ads" className="space-y-6">
-            <AdsAnalyticsPage />
-          </TabsContent>
-        )}
-      </Tabs>
+        </Tabs>
 
-      {/* Dialogs */}
-      <PresupuestoDialog
-        open={presupuestoDialogOpen}
-        onOpenChange={setPresupuestoDialogOpen}
-        mes={selectedMes}
-        anio={selectedAnio}
-      />
+        {/* Dialogs */}
+        <PresupuestoDialog
+          open={presupuestoDialogOpen}
+          onOpenChange={setPresupuestoDialogOpen}
+          mes={selectedMes}
+          anio={selectedAnio}
+        />
 
-      <SolicitudDialog
-        open={solicitudDialogOpen}
-        onOpenChange={setSolicitudDialogOpen}
-        mes={selectedMes}
-        anio={selectedAnio}
-      />
+        <SolicitudDialog
+          open={solicitudDialogOpen}
+          onOpenChange={setSolicitudDialogOpen}
+          mes={selectedMes}
+          anio={selectedAnio}
+        />
 
-      <EstadoDialog
-        open={estadoDialogOpen}
-        onOpenChange={setEstadoDialogOpen}
-        solicitud={selectedSolicitud}
-      />
+        <EstadoDialog
+          open={estadoDialogOpen}
+          onOpenChange={setEstadoDialogOpen}
+          solicitud={selectedSolicitud}
+        />
 
-      <EditSolicitudDialog
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-        solicitud={selectedSolicitud}
-      />
+        <EditSolicitudDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          solicitud={selectedSolicitud}
+        />
 
-      <DeleteSolicitudDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        solicitud={selectedSolicitud}
-      />
+        <DeleteSolicitudDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          solicitud={selectedSolicitud}
+        />
 
-      <ViewSolicitudDialog
-        open={viewDialogOpen}
-        onOpenChange={setViewDialogOpen}
-        solicitud={selectedSolicitud}
-        userRole={user.role}
-      />
+        <ViewSolicitudDialog
+          open={viewDialogOpen}
+          onOpenChange={setViewDialogOpen}
+          solicitud={selectedSolicitud}
+          userRole={user.role}
+        />
+      </div>
     </div>
   );
 }
@@ -537,11 +475,10 @@ function MetricsDashboard({ mes, anio }: { mes: number; anio: number }) {
           <div className="mt-2">
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
-                className={`h-2 rounded-full ${
-                  presupuestoUtilizadoPct > 90 ? 'bg-red-500' : 
-                  presupuestoUtilizadoPct > 70 ? 'bg-yellow-500' : 
-                  'bg-green-500'
-                }`}
+                className={`h-2 rounded-full ${presupuestoUtilizadoPct > 90 ? 'bg-red-500' :
+                  presupuestoUtilizadoPct > 70 ? 'bg-yellow-500' :
+                    'bg-green-500'
+                  }`}
                 style={{ width: `${Math.min(presupuestoUtilizadoPct, 100)}%` }}
               />
             </div>
@@ -660,7 +597,7 @@ function SolicitudesList({
       if (selectedEstado !== 'todos') {
         params.append('estado', selectedEstado);
       }
-      
+
       const response = await fetch(`/api/marketing/solicitudes?${params}`, {
         credentials: 'include'
       });
@@ -722,8 +659,8 @@ function SolicitudesList({
                 </TableHeader>
                 <TableBody>
                   {solicitudes.map((solicitud) => (
-                    <TableRow 
-                      key={solicitud.id} 
+                    <TableRow
+                      key={solicitud.id}
                       data-testid={`row-solicitud-${solicitud.id}`}
                       className="cursor-pointer"
                       onClick={() => onView(solicitud)}
@@ -731,7 +668,7 @@ function SolicitudesList({
                       <TableCell className="font-medium">{solicitud.titulo}</TableCell>
                       <TableCell>{solicitud.supervisorName}</TableCell>
                       <TableCell>
-                        {solicitud.monto 
+                        {solicitud.monto
                           ? `$${parseFloat(solicitud.monto).toLocaleString('es-CL')}`
                           : <span className="text-muted-foreground italic">Pendiente</span>
                         }
@@ -740,8 +677,8 @@ function SolicitudesList({
                         <Badge
                           className={
                             solicitud.urgencia === 'alta' ? 'bg-red-500 text-white hover:bg-red-600' :
-                            solicitud.urgencia === 'media' ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
-                            'bg-green-500 text-white hover:bg-green-600'
+                              solicitud.urgencia === 'media' ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
+                                'bg-green-500 text-white hover:bg-green-600'
                           }
                           data-testid={`badge-urgencia-${solicitud.id}`}
                         >
@@ -754,8 +691,8 @@ function SolicitudesList({
                         <Badge
                           className={
                             solicitud.estado === 'rechazado' ? 'bg-red-500 text-white hover:bg-red-600' :
-                            solicitud.estado === 'completado' ? 'bg-green-500 text-white hover:bg-green-600' :
-                            'bg-yellow-500 text-white hover:bg-yellow-600'
+                              solicitud.estado === 'completado' ? 'bg-green-500 text-white hover:bg-green-600' :
+                                'bg-yellow-500 text-white hover:bg-yellow-600'
                           }
                         >
                           {solicitud.estado === 'solicitado' && 'Solicitado'}
@@ -833,8 +770,8 @@ function SolicitudesList({
             {/* Mobile Cards */}
             <div className="md:hidden space-y-4">
               {solicitudes.map((solicitud) => (
-                <Card 
-                  key={solicitud.id} 
+                <Card
+                  key={solicitud.id}
                   data-testid={`card-solicitud-${solicitud.id}`}
                   className="cursor-pointer hover:bg-accent/50 transition-colors"
                   onClick={() => onView(solicitud)}
@@ -846,8 +783,8 @@ function SolicitudesList({
                         <Badge
                           className={
                             solicitud.estado === 'rechazado' ? 'bg-red-500 text-white hover:bg-red-600' :
-                            solicitud.estado === 'completado' ? 'bg-green-500 text-white hover:bg-green-600' :
-                            'bg-yellow-500 text-white hover:bg-yellow-600'
+                              solicitud.estado === 'completado' ? 'bg-green-500 text-white hover:bg-green-600' :
+                                'bg-yellow-500 text-white hover:bg-yellow-600'
                           }
                         >
                           {solicitud.estado === 'solicitado' && 'Solicitado'}
@@ -856,7 +793,7 @@ function SolicitudesList({
                           {solicitud.estado === 'rechazado' && 'Rechazado'}
                         </Badge>
                       </div>
-                      
+
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Supervisor:</span>
@@ -865,7 +802,7 @@ function SolicitudesList({
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Monto:</span>
                           <span className="font-medium">
-                            {solicitud.monto 
+                            {solicitud.monto
                               ? `$${parseFloat(solicitud.monto).toLocaleString('es-CL')}`
                               : <span className="text-muted-foreground italic">Pendiente</span>
                             }
@@ -876,8 +813,8 @@ function SolicitudesList({
                           <Badge
                             className={
                               solicitud.urgencia === 'alta' ? 'bg-red-500 text-white hover:bg-red-600' :
-                              solicitud.urgencia === 'media' ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
-                              'bg-green-500 text-white hover:bg-green-600'
+                                solicitud.urgencia === 'media' ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
+                                  'bg-green-500 text-white hover:bg-green-600'
                             }
                             data-testid={`badge-urgencia-mobile-${solicitud.id}`}
                           >
@@ -1200,17 +1137,17 @@ function SolicitudDialog({
   const uploadImage = async (solicitudId: string, file: File) => {
     const formData = new FormData();
     formData.append('imagen', file);
-    
+
     const response = await fetch(`/api/marketing/solicitudes/${solicitudId}/imagen`, {
       method: 'POST',
       body: formData,
       credentials: 'include',
     });
-    
+
     if (!response.ok) {
       throw new Error('Error al subir imagen');
     }
-    
+
     return await response.json();
   };
 
@@ -1226,12 +1163,12 @@ function SolicitudDialog({
           setIsUploading(true);
           await uploadImage(response.id, imagenReferencia);
         }
-        
+
         queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
         queryClient.invalidateQueries({ queryKey: ['/api/marketing/metrics'] });
         toast({
           title: "Solicitud creada",
-          description: imagenReferencia 
+          description: imagenReferencia
             ? "La solicitud ha sido enviada con la imagen de referencia"
             : "La solicitud ha sido enviada correctamente",
         });
@@ -1312,184 +1249,184 @@ function SolicitudDialog({
         </DialogHeader>
         <div className="flex-1 overflow-y-auto pr-2">
           <div className="space-y-4 py-4">
-          <div>
-            <Label htmlFor="titulo">Título*</Label>
-            <Input
-              id="titulo"
-              placeholder="Ej: Campaña publicitaria digital"
-              value={titulo}
-              onChange={(e) => setTitulo(e.target.value)}
-              data-testid="input-titulo"
-            />
-          </div>
-          <div>
-            <Label htmlFor="descripcion">Descripción*</Label>
-            <Textarea
-              id="descripcion"
-              placeholder="Describa la solicitud en detalle"
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-              rows={4}
-              data-testid="input-descripcion"
-            />
-          </div>
-          <div>
-            <Label htmlFor="urgencia">Nivel de Urgencia*</Label>
-            <Select value={urgencia} onValueChange={setUrgencia}>
-              <SelectTrigger data-testid="select-urgencia">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="baja" data-testid="option-urgencia-baja">
-                  Normal
-                </SelectItem>
-                <SelectItem value="media" data-testid="option-urgencia-media">
-                  Media
-                </SelectItem>
-                <SelectItem value="alta" data-testid="option-urgencia-alta">
-                  Alta
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground mt-1">
-              Máximo 3 solicitudes con urgencia alta activas por usuario
-            </p>
-          </div>
-          <div>
-            <Label htmlFor="solicitante">Solicitante*</Label>
-            <Select 
-              value={selectedSolicitanteId} 
-              onValueChange={setSelectedSolicitanteId}
-              disabled={user?.role !== 'admin'}
-            >
-              <SelectTrigger data-testid="select-solicitante">
-                <SelectValue placeholder="Seleccione un solicitante" />
-              </SelectTrigger>
-              <SelectContent>
-                {user?.role === 'admin' ? (
-                  // Admin puede ver y seleccionar todos los solicitantes
-                  solicitantes.map((solicitante: any) => (
-                    <SelectItem key={solicitante.id} value={solicitante.id.toString()} data-testid={`option-solicitante-${solicitante.id}`}>
-                      {solicitante.name} ({solicitante.role === 'admin' ? 'Administrador' : solicitante.role === 'supervisor' ? 'Supervisor' : 'Vendedor'})
-                    </SelectItem>
-                  ))
-                ) : (
-                  // Supervisor/Vendedor solo puede ver su propio nombre
-                  <SelectItem value={user?.id?.toString() || ""} data-testid={`option-solicitante-${user?.id}`}>
-                    {user?.firstName} {user?.lastName}
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground mt-1">
-              {user?.role === 'admin' 
-                ? "Seleccione quién realiza la solicitud" 
-                : "La solicitud será registrada a su nombre"}
-            </p>
-          </div>
-          <div>
-            <Label htmlFor="fechaEntrega">Fecha de Entrega Esperada</Label>
-            <Input
-              id="fechaEntrega"
-              type="date"
-              value={fechaEntrega}
-              onChange={(e) => setFechaEntrega(e.target.value)}
-              data-testid="input-fecha-entrega"
-            />
-          </div>
-          <div>
-            <Label htmlFor="imagenReferencia">Imagen de Referencia (Opcional)</Label>
-            <div className="space-y-2">
+            <div>
+              <Label htmlFor="titulo">Título*</Label>
               <Input
-                id="imagenReferencia"
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                data-testid="input-imagen-referencia"
-                className="cursor-pointer"
+                id="titulo"
+                placeholder="Ej: Campaña publicitaria digital"
+                value={titulo}
+                onChange={(e) => setTitulo(e.target.value)}
+                data-testid="input-titulo"
               />
-              {imagenPreview && (
-                <div className="relative w-full max-w-xs">
-                  <img 
-                    src={imagenPreview} 
-                    alt="Vista previa" 
-                    className="w-full h-auto rounded-md border"
+            </div>
+            <div>
+              <Label htmlFor="descripcion">Descripción*</Label>
+              <Textarea
+                id="descripcion"
+                placeholder="Describa la solicitud en detalle"
+                value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                rows={4}
+                data-testid="input-descripcion"
+              />
+            </div>
+            <div>
+              <Label htmlFor="urgencia">Nivel de Urgencia*</Label>
+              <Select value={urgencia} onValueChange={setUrgencia}>
+                <SelectTrigger data-testid="select-urgencia">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="baja" data-testid="option-urgencia-baja">
+                    Normal
+                  </SelectItem>
+                  <SelectItem value="media" data-testid="option-urgencia-media">
+                    Media
+                  </SelectItem>
+                  <SelectItem value="alta" data-testid="option-urgencia-alta">
+                    Alta
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Máximo 3 solicitudes con urgencia alta activas por usuario
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="solicitante">Solicitante*</Label>
+              <Select
+                value={selectedSolicitanteId}
+                onValueChange={setSelectedSolicitanteId}
+                disabled={user?.role !== 'admin'}
+              >
+                <SelectTrigger data-testid="select-solicitante">
+                  <SelectValue placeholder="Seleccione un solicitante" />
+                </SelectTrigger>
+                <SelectContent>
+                  {user?.role === 'admin' ? (
+                    // Admin puede ver y seleccionar todos los solicitantes
+                    solicitantes.map((solicitante: any) => (
+                      <SelectItem key={solicitante.id} value={solicitante.id.toString()} data-testid={`option-solicitante-${solicitante.id}`}>
+                        {solicitante.name} ({solicitante.role === 'admin' ? 'Administrador' : solicitante.role === 'supervisor' ? 'Supervisor' : 'Vendedor'})
+                      </SelectItem>
+                    ))
+                  ) : (
+                    // Supervisor/Vendedor solo puede ver su propio nombre
+                    <SelectItem value={user?.id?.toString() || ""} data-testid={`option-solicitante-${user?.id}`}>
+                      {user?.firstName} {user?.lastName}
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                {user?.role === 'admin'
+                  ? "Seleccione quién realiza la solicitud"
+                  : "La solicitud será registrada a su nombre"}
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="fechaEntrega">Fecha de Entrega Esperada</Label>
+              <Input
+                id="fechaEntrega"
+                type="date"
+                value={fechaEntrega}
+                onChange={(e) => setFechaEntrega(e.target.value)}
+                data-testid="input-fecha-entrega"
+              />
+            </div>
+            <div>
+              <Label htmlFor="imagenReferencia">Imagen de Referencia (Opcional)</Label>
+              <div className="space-y-2">
+                <Input
+                  id="imagenReferencia"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  data-testid="input-imagen-referencia"
+                  className="cursor-pointer"
+                />
+                {imagenPreview && (
+                  <div className="relative w-full max-w-xs">
+                    <img
+                      src={imagenPreview}
+                      alt="Vista previa"
+                      className="w-full h-auto rounded-md border"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="absolute top-1 right-1"
+                      onClick={() => {
+                        setImagenReferencia(null);
+                        setImagenPreview(null);
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Puede subir una imagen de referencia con detalles de la solicitud
+                </p>
+              </div>
+            </div>
+            <div>
+              <Label>Pasos / Checklist (Opcional)</Label>
+              <div className="space-y-2 mt-2">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Ej: Diseño, Impresión, Cotización..."
+                    value={nuevoPaso}
+                    onChange={(e) => setNuevoPaso(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (nuevoPaso.trim()) {
+                          setPasos([...pasos, { nombre: nuevoPaso.trim(), completado: false, orden: pasos.length }]);
+                          setNuevoPaso("");
+                        }
+                      }
+                    }}
+                    data-testid="input-nuevo-paso"
                   />
                   <Button
                     type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute top-1 right-1"
+                    variant="outline"
                     onClick={() => {
-                      setImagenReferencia(null);
-                      setImagenPreview(null);
-                    }}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Puede subir una imagen de referencia con detalles de la solicitud
-              </p>
-            </div>
-          </div>
-          <div>
-            <Label>Pasos / Checklist (Opcional)</Label>
-            <div className="space-y-2 mt-2">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Ej: Diseño, Impresión, Cotización..."
-                  value={nuevoPaso}
-                  onChange={(e) => setNuevoPaso(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
                       if (nuevoPaso.trim()) {
                         setPasos([...pasos, { nombre: nuevoPaso.trim(), completado: false, orden: pasos.length }]);
                         setNuevoPaso("");
                       }
-                    }
-                  }}
-                  data-testid="input-nuevo-paso"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    if (nuevoPaso.trim()) {
-                      setPasos([...pasos, { nombre: nuevoPaso.trim(), completado: false, orden: pasos.length }]);
-                      setNuevoPaso("");
-                    }
-                  }}
-                  data-testid="button-agregar-paso"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              {pasos.length > 0 && (
-                <div className="border rounded-md p-2 space-y-1">
-                  {pasos.map((paso, index) => (
-                    <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
-                      <span className="text-sm">{paso.nombre}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setPasos(pasos.filter((_, i) => i !== index))}
-                        data-testid={`button-eliminar-paso-${index}`}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                    }}
+                    data-testid="button-agregar-paso"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
                 </div>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Agregue pasos o tareas que se deben completar para esta solicitud
-              </p>
+                {pasos.length > 0 && (
+                  <div className="border rounded-md p-2 space-y-1">
+                    {pasos.map((paso, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
+                        <span className="text-sm">{paso.nombre}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setPasos(pasos.filter((_, i) => i !== index))}
+                          data-testid={`button-eliminar-paso-${index}`}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Agregue pasos o tareas que se deben completar para esta solicitud
+                </p>
+              </div>
             </div>
-          </div>
           </div>
         </div>
         <DialogFooter>
@@ -1765,17 +1702,17 @@ function EditSolicitudDialog({
   const uploadEditImage = async (solicitudId: string, file: File) => {
     const formData = new FormData();
     formData.append('imagen', file);
-    
+
     const response = await fetch(`/api/marketing/solicitudes/${solicitudId}/imagen`, {
       method: 'POST',
       body: formData,
       credentials: 'include',
     });
-    
+
     if (!response.ok) {
       throw new Error('Error al subir imagen');
     }
-    
+
     return await response.json();
   };
 
@@ -1790,12 +1727,12 @@ function EditSolicitudDialog({
           setIsUploading(true);
           await uploadEditImage(solicitud.id, imagenReferencia);
         }
-        
+
         queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
         queryClient.invalidateQueries({ queryKey: ['/api/marketing/metrics'] });
         toast({
           title: "Solicitud actualizada",
-          description: imagenReferencia 
+          description: imagenReferencia
             ? "Los cambios y la nueva imagen han sido guardados"
             : "Los cambios han sido guardados correctamente",
         });
@@ -1852,179 +1789,179 @@ function EditSolicitudDialog({
         </DialogHeader>
         <div className="flex-1 overflow-y-auto pr-2">
           <div className="space-y-4 py-4">
-          <div>
-            <Label htmlFor="edit-titulo">Título*</Label>
-            <Input
-              id="edit-titulo"
-              placeholder="Ej: Campaña publicitaria redes sociales"
-              value={titulo}
-              onChange={(e) => setTitulo(e.target.value)}
-              data-testid="input-edit-titulo"
-            />
-          </div>
-          <div>
-            <Label htmlFor="edit-descripcion">Descripción*</Label>
-            <Textarea
-              id="edit-descripcion"
-              placeholder="Describa los detalles de la solicitud..."
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-              rows={4}
-              data-testid="input-edit-descripcion"
-            />
-          </div>
-          <div>
-            <Label htmlFor="edit-urgencia">Nivel de Urgencia*</Label>
-            <Select value={urgencia} onValueChange={setUrgencia}>
-              <SelectTrigger data-testid="select-edit-urgencia">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="baja" data-testid="option-edit-urgencia-baja">
-                  Normal
-                </SelectItem>
-                <SelectItem value="media" data-testid="option-edit-urgencia-media">
-                  Media
-                </SelectItem>
-                <SelectItem value="alta" data-testid="option-edit-urgencia-alta">
-                  Alta
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground mt-1">
-              Máximo 3 solicitudes con urgencia alta activas por usuario
-            </p>
-          </div>
-          <div>
-            <Label htmlFor="edit-fechaEntrega">Fecha de Entrega Esperada</Label>
-            <Input
-              id="edit-fechaEntrega"
-              type="date"
-              value={fechaEntrega}
-              onChange={(e) => setFechaEntrega(e.target.value)}
-              data-testid="input-edit-fecha-entrega"
-            />
-          </div>
-          <div>
-            <Label htmlFor="edit-imagenReferencia">Imagen de Referencia</Label>
-            <div className="space-y-2">
-              {imagenExistente && !imagenPreview && (
-                <div className="relative w-full max-w-xs">
-                  <img 
-                    src={imagenExistente} 
-                    alt="Imagen actual" 
-                    className="w-full h-auto rounded-md border"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">Imagen actual</p>
-                </div>
-              )}
+            <div>
+              <Label htmlFor="edit-titulo">Título*</Label>
               <Input
-                id="edit-imagenReferencia"
-                type="file"
-                accept="image/*"
-                onChange={handleEditImageChange}
-                data-testid="input-edit-imagen-referencia"
-                className="cursor-pointer"
+                id="edit-titulo"
+                placeholder="Ej: Campaña publicitaria redes sociales"
+                value={titulo}
+                onChange={(e) => setTitulo(e.target.value)}
+                data-testid="input-edit-titulo"
               />
-              {imagenPreview && (
-                <div className="relative w-full max-w-xs">
-                  <img 
-                    src={imagenPreview} 
-                    alt="Vista previa nueva imagen" 
-                    className="w-full h-auto rounded-md border"
+            </div>
+            <div>
+              <Label htmlFor="edit-descripcion">Descripción*</Label>
+              <Textarea
+                id="edit-descripcion"
+                placeholder="Describa los detalles de la solicitud..."
+                value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                rows={4}
+                data-testid="input-edit-descripcion"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-urgencia">Nivel de Urgencia*</Label>
+              <Select value={urgencia} onValueChange={setUrgencia}>
+                <SelectTrigger data-testid="select-edit-urgencia">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="baja" data-testid="option-edit-urgencia-baja">
+                    Normal
+                  </SelectItem>
+                  <SelectItem value="media" data-testid="option-edit-urgencia-media">
+                    Media
+                  </SelectItem>
+                  <SelectItem value="alta" data-testid="option-edit-urgencia-alta">
+                    Alta
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Máximo 3 solicitudes con urgencia alta activas por usuario
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="edit-fechaEntrega">Fecha de Entrega Esperada</Label>
+              <Input
+                id="edit-fechaEntrega"
+                type="date"
+                value={fechaEntrega}
+                onChange={(e) => setFechaEntrega(e.target.value)}
+                data-testid="input-edit-fecha-entrega"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-imagenReferencia">Imagen de Referencia</Label>
+              <div className="space-y-2">
+                {imagenExistente && !imagenPreview && (
+                  <div className="relative w-full max-w-xs">
+                    <img
+                      src={imagenExistente}
+                      alt="Imagen actual"
+                      className="w-full h-auto rounded-md border"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Imagen actual</p>
+                  </div>
+                )}
+                <Input
+                  id="edit-imagenReferencia"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleEditImageChange}
+                  data-testid="input-edit-imagen-referencia"
+                  className="cursor-pointer"
+                />
+                {imagenPreview && (
+                  <div className="relative w-full max-w-xs">
+                    <img
+                      src={imagenPreview}
+                      alt="Vista previa nueva imagen"
+                      className="w-full h-auto rounded-md border"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="absolute top-1 right-1"
+                      onClick={() => {
+                        setImagenReferencia(null);
+                        setImagenPreview(null);
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                    <p className="text-xs text-green-600 mt-1">Nueva imagen a subir</p>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {imagenExistente ? 'Suba una nueva imagen para reemplazar la actual' : 'Puede subir una imagen de referencia'}
+                </p>
+              </div>
+            </div>
+            {user?.role === 'admin' && (
+              <div>
+                <Label htmlFor="edit-monto">Precio / Monto Estimado (CLP)</Label>
+                <Input
+                  id="edit-monto"
+                  type="number"
+                  placeholder="Ej: 500000"
+                  value={monto}
+                  onChange={(e) => setMonto(e.target.value)}
+                  data-testid="input-edit-monto"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Solo el administrador puede modificar este campo
+                </p>
+              </div>
+            )}
+            <div>
+              <Label>Pasos / Checklist</Label>
+              <div className="space-y-2 mt-2">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Ej: Diseño, Impresión, Cotización..."
+                    value={nuevoPaso}
+                    onChange={(e) => setNuevoPaso(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (nuevoPaso.trim()) {
+                          setPasos([...pasos, { nombre: nuevoPaso.trim(), completado: false, orden: pasos.length }]);
+                          setNuevoPaso("");
+                        }
+                      }
+                    }}
+                    data-testid="input-edit-nuevo-paso"
                   />
                   <Button
                     type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute top-1 right-1"
+                    variant="outline"
                     onClick={() => {
-                      setImagenReferencia(null);
-                      setImagenPreview(null);
-                    }}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                  <p className="text-xs text-green-600 mt-1">Nueva imagen a subir</p>
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground">
-                {imagenExistente ? 'Suba una nueva imagen para reemplazar la actual' : 'Puede subir una imagen de referencia'}
-              </p>
-            </div>
-          </div>
-          {user?.role === 'admin' && (
-            <div>
-              <Label htmlFor="edit-monto">Precio / Monto Estimado (CLP)</Label>
-              <Input
-                id="edit-monto"
-                type="number"
-                placeholder="Ej: 500000"
-                value={monto}
-                onChange={(e) => setMonto(e.target.value)}
-                data-testid="input-edit-monto"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Solo el administrador puede modificar este campo
-              </p>
-            </div>
-          )}
-          <div>
-            <Label>Pasos / Checklist</Label>
-            <div className="space-y-2 mt-2">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Ej: Diseño, Impresión, Cotización..."
-                  value={nuevoPaso}
-                  onChange={(e) => setNuevoPaso(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
                       if (nuevoPaso.trim()) {
                         setPasos([...pasos, { nombre: nuevoPaso.trim(), completado: false, orden: pasos.length }]);
                         setNuevoPaso("");
                       }
-                    }
-                  }}
-                  data-testid="input-edit-nuevo-paso"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    if (nuevoPaso.trim()) {
-                      setPasos([...pasos, { nombre: nuevoPaso.trim(), completado: false, orden: pasos.length }]);
-                      setNuevoPaso("");
-                    }
-                  }}
-                  data-testid="button-edit-agregar-paso"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              {pasos.length > 0 && (
-                <div className="border rounded-md p-2 space-y-1">
-                  {pasos.map((paso, index) => (
-                    <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
-                      <span className="text-sm">{paso.nombre}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setPasos(pasos.filter((_, i) => i !== index))}
-                        data-testid={`button-edit-eliminar-paso-${index}`}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                    }}
+                    data-testid="button-edit-agregar-paso"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
                 </div>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Agregue o elimine pasos según sea necesario
-              </p>
+                {pasos.length > 0 && (
+                  <div className="border rounded-md p-2 space-y-1">
+                    {pasos.map((paso, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
+                        <span className="text-sm">{paso.nombre}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setPasos(pasos.filter((_, i) => i !== index))}
+                          data-testid={`button-edit-eliminar-paso-${index}`}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Agregue o elimine pasos según sea necesario
+                </p>
+              </div>
             </div>
-          </div>
           </div>
         </div>
         <DialogFooter>
@@ -2231,8 +2168,8 @@ function ViewSolicitudDialog({
                     <Badge
                       className={
                         solicitud.urgencia === 'alta' ? 'bg-red-500 text-white' :
-                        solicitud.urgencia === 'media' ? 'bg-yellow-500 text-white' :
-                        'bg-green-500 text-white'
+                          solicitud.urgencia === 'media' ? 'bg-yellow-500 text-white' :
+                            'bg-green-500 text-white'
                       }
                     >
                       {solicitud.urgencia === 'alta' && 'Alta'}
@@ -2249,8 +2186,8 @@ function ViewSolicitudDialog({
                     <Badge
                       className={
                         solicitud.estado === 'rechazado' ? 'bg-red-500 text-white' :
-                        solicitud.estado === 'completado' ? 'bg-green-500 text-white' :
-                        'bg-yellow-500 text-white'
+                          solicitud.estado === 'completado' ? 'bg-green-500 text-white' :
+                            'bg-yellow-500 text-white'
                       }
                     >
                       {solicitud.estado === 'solicitado' && 'Solicitado'}
@@ -2265,7 +2202,7 @@ function ViewSolicitudDialog({
                 <div>
                   <Label className="text-muted-foreground text-sm">Monto</Label>
                   <p className="text-base mt-1">
-                    {solicitud.monto 
+                    {solicitud.monto
                       ? `$${parseFloat(solicitud.monto).toLocaleString('es-CL')}`
                       : <span className="text-muted-foreground italic">Pendiente</span>
                     }
@@ -2296,14 +2233,14 @@ function ViewSolicitudDialog({
                 <div>
                   <Label className="text-muted-foreground text-sm">Imagen de Referencia</Label>
                   <div className="mt-2">
-                    <a 
-                      href={solicitud.urlReferencia} 
-                      target="_blank" 
+                    <a
+                      href={solicitud.urlReferencia}
+                      target="_blank"
                       rel="noopener noreferrer"
                     >
-                      <img 
-                        src={solicitud.urlReferencia} 
-                        alt="Imagen de referencia" 
+                      <img
+                        src={solicitud.urlReferencia}
+                        alt="Imagen de referencia"
                         className="max-w-full max-h-64 rounded-lg border shadow-sm hover:shadow-md transition-shadow cursor-pointer"
                         data-testid="img-referencia"
                       />
@@ -2618,7 +2555,7 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
                         </TableCell>
                         <TableCell>{item.ubicacion || '-'}</TableCell>
                         <TableCell>
-                          {item.costoUnitario 
+                          {item.costoUnitario
                             ? `$${parseFloat(item.costoUnitario).toLocaleString('es-CL')}`
                             : '-'}
                         </TableCell>
@@ -2668,11 +2605,11 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
                             {estadoConfig[item.estado as keyof typeof estadoConfig]?.label}
                           </Badge>
                         </div>
-                        
+
                         {item.descripcion && (
                           <p className="text-sm text-muted-foreground">{item.descripcion}</p>
                         )}
-                        
+
                         <div className="space-y-2 text-sm">
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Cantidad:</span>
@@ -2690,7 +2627,7 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Costo Unitario:</span>
                             <span className="font-medium">
-                              {item.costoUnitario 
+                              {item.costoUnitario
                                 ? `$${parseFloat(item.costoUnitario).toLocaleString('es-CL')}`
                                 : '-'}
                             </span>
@@ -2774,7 +2711,7 @@ function InventarioDialog({
       queryClient.invalidateQueries({ queryKey: ['/api/marketing/inventario/summary'] });
       toast({
         title: item ? "Item actualizado" : "Item creado",
-        description: item 
+        description: item
           ? "El item ha sido actualizado correctamente"
           : "El item ha sido creado correctamente",
       });
@@ -2851,7 +2788,7 @@ function InventarioDialog({
         <DialogHeader>
           <DialogTitle>{item ? "Editar Item" : "Nuevo Item"}</DialogTitle>
           <DialogDescription>
-            {item 
+            {item
               ? "Actualice la información del item de inventario"
               : "Complete la información del nuevo item de inventario"}
           </DialogDescription>
@@ -2993,14 +2930,14 @@ function InventarioDialog({
   );
 }
 // Tareas Marketing Component
-function TareasMarketing({ 
-  mes, 
-  anio, 
-  userRole 
-}: { 
-  mes: number; 
-  anio: number; 
-  userRole: string; 
+function TareasMarketing({
+  mes,
+  anio,
+  userRole
+}: {
+  mes: number;
+  anio: number;
+  userRole: string;
 }) {
   const { toast } = useToast();
   const [tareaDialogOpen, setTareaDialogOpen] = useState(false);
@@ -3054,8 +2991,8 @@ function TareasMarketing({
     },
   });
 
-  const tareasFiltradas = filtroEstado === "todos" 
-    ? tareas 
+  const tareasFiltradas = filtroEstado === "todos"
+    ? tareas
     : tareas.filter(t => t.estado === filtroEstado);
 
   const estadoConfig = {
@@ -3099,7 +3036,7 @@ function TareasMarketing({
             </SelectContent>
           </Select>
         </div>
-        
+
         {(userRole === 'admin' || userRole === 'supervisor') && (
           <Button onClick={() => { setSelectedTarea(null); setTareaDialogOpen(true); }} data-testid="button-nueva-tarea">
             <Plus className="h-4 w-4 mr-2" />
@@ -3123,7 +3060,7 @@ function TareasMarketing({
             const config = estadoConfig[tarea.estado];
             const prioridadCfg = prioridadConfig[tarea.prioridad];
             const IconEstado = config.icon;
-            
+
             return (
               <Card key={tarea.id} className="hover:shadow-md transition-shadow" data-testid={`card-tarea-${tarea.id}`}>
                 <CardContent className="p-4">
@@ -3136,7 +3073,7 @@ function TareasMarketing({
                     >
                       <IconEstado className="h-4 w-4" />
                     </button>
-                    
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <div>
@@ -3149,7 +3086,7 @@ function TareasMarketing({
                             </p>
                           )}
                         </div>
-                        
+
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <Badge className={prioridadCfg.color}>
                             {prioridadCfg.label}
@@ -3159,7 +3096,7 @@ function TareasMarketing({
                           </Badge>
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
                         {tarea.fechaLimite && (
                           <span className="flex items-center gap-1">
@@ -3331,7 +3268,7 @@ function TareaDialog({
             {tarea ? 'Modifique los detalles de la tarea' : 'Complete los campos para crear una nueva tarea'}
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="space-y-4 py-4">
           <div>
             <Label htmlFor="titulo-tarea">Título*</Label>
@@ -3413,15 +3350,15 @@ function TareaDialog({
 }
 
 // Calendario Component
-function CalendarioHitos({ 
-  mes, 
-  anio, 
+function CalendarioHitos({
+  mes,
+  anio,
   userRole,
   onMesChange,
   onAnioChange
-}: { 
-  mes: number; 
-  anio: number; 
+}: {
+  mes: number;
+  anio: number;
   userRole: string;
   onMesChange: (mes: number) => void;
   onAnioChange: (anio: number) => void;
@@ -3481,7 +3418,20 @@ function CalendarioHitos({
     },
   });
 
-  const isLoading = hitosLoading || tareasLoading;
+  const { data: creatividades, isLoading: creatividadesLoading } = useQuery<CreatividadMarketing[]>({
+    queryKey: ['/api/marketing/creatividades', mes, anio, 'calendario'],
+    queryFn: async () => {
+      const response = await fetch(`/api/marketing/creatividades?mes=${mes}&anio=${anio}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error('Error al cargar creatividades');
+      }
+      return response.json();
+    },
+  });
+
+  const isLoading = hitosLoading || tareasLoading || creatividadesLoading;
 
   const currentMonth = new Date(anio, mes - 1, 1);
   const monthStart = startOfMonth(currentMonth);
@@ -3524,6 +3474,15 @@ function CalendarioHitos({
     });
   };
 
+  const getCreatividadesForDay = (day: Date) => {
+    if (!creatividades) return [];
+    return creatividades.filter(creatividad => {
+      if (!creatividad.fechaPublicacion) return false;
+      const creatividadDate = parseDateFromAPI(creatividad.fechaPublicacion);
+      return creatividadDate && isSameDay(creatividadDate, day);
+    });
+  };
+
   const tipoColors = {
     general: 'bg-blue-500',
     campaña: 'bg-purple-500',
@@ -3535,6 +3494,14 @@ function CalendarioHitos({
     pendiente: 'bg-orange-500',
     en_proceso: 'bg-yellow-500',
     completado: 'bg-emerald-600',
+  };
+
+  const creatividadEstadoColors = {
+    planificacion: 'bg-slate-400',
+    grabacion: 'bg-yellow-500',
+    edicion: 'bg-blue-400',
+    completado: 'bg-emerald-500',
+    publicado: 'bg-fuchsia-600',
   };
 
   return (
@@ -3566,7 +3533,7 @@ function CalendarioHitos({
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-            
+
             {/* Botones de acción */}
             <div className="flex gap-2 justify-end">
               <Button
@@ -3624,6 +3591,10 @@ function CalendarioHitos({
                   <ClipboardList className="w-3 h-3 sm:w-4 sm:h-4 text-orange-500" />
                   <span>Tareas</span>
                 </div>
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <Video className="w-3 h-3 sm:w-4 sm:h-4 text-fuchsia-600" />
+                  <span>Creatividades</span>
+                </div>
               </div>
 
               {/* Calendar Grid */}
@@ -3644,17 +3615,17 @@ function CalendarioHitos({
                 {daysInMonth.map((day) => {
                   const dayHitos = getHitosForDay(day);
                   const dayTareas = getTareasForDay(day);
+                  const dayCreatividades = getCreatividadesForDay(day);
                   const isToday = isSameDay(day, new Date());
-                  const totalItems = dayHitos.length + dayTareas.length;
-                  const maxVisible = 2;
+                  const totalItems = dayHitos.length + dayTareas.length + dayCreatividades.length;
+                  const maxVisible = 3;
                   let itemsShown = 0;
 
                   return (
                     <div
                       key={day.toISOString()}
-                      className={`min-h-[60px] sm:min-h-[100px] border rounded-lg p-1 sm:p-2 cursor-pointer hover:bg-muted/50 transition-colors ${
-                        isToday ? 'border-primary border-2' : 'border-border'
-                      }`}
+                      className={`min-h-[60px] sm:min-h-[100px] border rounded-lg p-1 sm:p-2 cursor-pointer hover:bg-muted/50 transition-colors ${isToday ? 'border-primary border-2' : 'border-border'
+                        }`}
                       onClick={() => handleDayClick(day)}
                       data-testid={`calendar-day-${format(day, 'yyyy-MM-dd')}`}
                     >
@@ -3679,18 +3650,33 @@ function CalendarioHitos({
                           );
                         })}
                         {/* Mostrar tareas (solo si hay espacio después de los hitos) */}
-                        {dayTareas.slice(0, Math.max(0, maxVisible - dayHitos.length)).map((tarea) => {
+                        {dayTareas.slice(0, Math.max(0, maxVisible - itemsShown)).map((tarea) => {
                           itemsShown++;
                           return (
                             <div
                               key={`tarea-${tarea.id}`}
-                              className={`text-[8px] sm:text-xs p-0.5 sm:p-1 rounded truncate cursor-pointer ${tareaEstadoColors[tarea.estado]} text-white flex items-center gap-0.5 sm:gap-1`}
+                              className={`text-[8px] sm:text-xs p-0.5 sm:p-1 rounded truncate cursor-pointer ${tareaEstadoColors[tarea.estado as keyof typeof tareaEstadoColors]} text-white flex items-center gap-0.5 sm:gap-1`}
                               onClick={(e) => e.stopPropagation()}
                               title={`Tarea: ${tarea.titulo}`}
                               data-testid={`tarea-cal-${tarea.id}`}
                             >
                               <ClipboardList className="h-2 w-2 sm:h-3 sm:w-3 flex-shrink-0" />
                               <span className="truncate">{tarea.titulo}</span>
+                            </div>
+                          );
+                        })}
+                        {/* Mostrar creatividades (solo si hay espacio) */}
+                        {dayCreatividades.slice(0, Math.max(0, maxVisible - itemsShown)).map((creatividad) => {
+                          itemsShown++;
+                          return (
+                            <div
+                              key={`creatividad-${creatividad.id}`}
+                              className={`text-[8px] sm:text-xs p-0.5 sm:p-1 rounded truncate cursor-pointer ${creatividadEstadoColors[creatividad.estado as keyof typeof creatividadEstadoColors]} text-white flex items-center gap-0.5 sm:gap-1`}
+                              onClick={(e) => e.stopPropagation()}
+                              title={`Creatividad: ${creatividad.titulo}`}
+                            >
+                              <Video className="h-2 w-2 sm:h-3 sm:w-3 flex-shrink-0" />
+                              <span className="truncate">{creatividad.titulo}</span>
                             </div>
                           );
                         })}
@@ -3890,15 +3876,13 @@ function HitoDialog({
           </div>
 
           {/* Marcar como completado - Card destacado */}
-          <div className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
-            completado 
-              ? 'bg-green-50 border-green-500' 
-              : 'bg-gray-50 border-gray-200'
-          }`}>
+          <div className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${completado
+            ? 'bg-green-50 border-green-500'
+            : 'bg-gray-50 border-gray-200'
+            }`}>
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-full ${
-                completado ? 'bg-green-500' : 'bg-gray-400'
-              }`}>
+              <div className={`p-2 rounded-full ${completado ? 'bg-green-500' : 'bg-gray-400'
+                }`}>
                 <CheckSquare className="h-5 w-5 text-white" />
               </div>
               <div>
@@ -3968,7 +3952,7 @@ function HitoDialog({
               </Button>
             )}
           </div>
-          
+
           {/* Botones principales */}
           <div className="flex gap-2 w-full sm:w-auto">
             <Button
@@ -4286,8 +4270,8 @@ function SeoTracking() {
                 {selectedCampaign && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button 
-                        variant="destructive" 
+                      <Button
+                        variant="destructive"
                         size="icon"
                         data-testid="button-eliminar-campana"
                       >
@@ -4893,7 +4877,7 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
           <p className="text-muted-foreground">Monitorea precios de productos propios vs competencia</p>
         </div>
         <div className="flex gap-2">
-          <Button 
+          <Button
             variant="outline"
             onClick={() => {
               setEditingCompetidor(null);
@@ -4905,7 +4889,7 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
             <Target className="mr-2 h-4 w-4" />
             Competidores
           </Button>
-          <Button 
+          <Button
             onClick={() => {
               setEditingProducto(null);
               setNuevoProducto({ nombreProducto: "", precioListaGL: "", precioLista14: "", precioListaBalde4: "", precioListaBalde5: "" });
@@ -4950,9 +4934,8 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
                   {filteredProductos.map((p) => (
                     <div
                       key={p.id}
-                      className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                        selectedProducto?.id === p.id ? "border-primary bg-primary/5" : "hover:bg-muted"
-                      }`}
+                      className={`p-3 rounded-lg border cursor-pointer transition-colors ${selectedProducto?.id === p.id ? "border-primary bg-primary/5" : "hover:bg-muted"
+                        }`}
                       onClick={() => setSelectedProducto(p)}
                       data-testid={`card-producto-${p.id}`}
                     >
@@ -5030,9 +5013,9 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
               ) : (
                 <div className="flex flex-wrap gap-1">
                   {competidores.map((c) => (
-                    <Badge 
-                      key={c.id} 
-                      variant="secondary" 
+                    <Badge
+                      key={c.id}
+                      variant="secondary"
                       className="cursor-pointer hover:bg-secondary/80"
                       onClick={() => handleEditCompetidor(c)}
                     >
@@ -5081,36 +5064,36 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
                 ) : (
                   <div className="space-y-4">
                     <div className="flex gap-2 flex-wrap">
-                      <Button 
-                        variant={filtroFormato === "TODOS" ? "default" : "outline"} 
+                      <Button
+                        variant={filtroFormato === "TODOS" ? "default" : "outline"}
                         size="sm"
                         onClick={() => setFiltroFormato("TODOS")}
                       >
                         Todos
                       </Button>
-                      <Button 
-                        variant={filtroFormato === "GL" ? "default" : "outline"} 
+                      <Button
+                        variant={filtroFormato === "GL" ? "default" : "outline"}
                         size="sm"
                         onClick={() => setFiltroFormato("GL")}
                       >
                         Galón
                       </Button>
-                      <Button 
-                        variant={filtroFormato === "14" ? "default" : "outline"} 
+                      <Button
+                        variant={filtroFormato === "14" ? "default" : "outline"}
                         size="sm"
                         onClick={() => setFiltroFormato("14")}
                       >
                         1/4 Galón
                       </Button>
-                      <Button 
-                        variant={filtroFormato === "BALDE4" ? "default" : "outline"} 
+                      <Button
+                        variant={filtroFormato === "BALDE4" ? "default" : "outline"}
                         size="sm"
                         onClick={() => setFiltroFormato("BALDE4")}
                       >
                         Balde 4GL
                       </Button>
-                      <Button 
-                        variant={filtroFormato === "BALDE5" ? "default" : "outline"} 
+                      <Button
+                        variant={filtroFormato === "BALDE5" ? "default" : "outline"}
                         size="sm"
                         onClick={() => setFiltroFormato("BALDE5")}
                       >
@@ -5133,70 +5116,70 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
                         {preciosProducto
                           .filter(p => filtroFormato === "TODOS" || p.formato === filtroFormato)
                           .map((p) => {
-                          const formatoLabel = p.formato === "GL" ? "Galón" : p.formato === "14" ? "1/4 Galón" : p.formato === "BALDE4" ? "Balde 4GL" : p.formato === "BALDE5" ? "Balde 5GL" : p.formato || "-";
-                          return (
-                            <TableRow key={p.id} data-testid={`row-precio-${p.id}`}>
-                              <TableCell>
-                                <Badge variant="outline">{p.competidorNombre}</Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="secondary">{formatoLabel}</Badge>
-                              </TableCell>
-                              <TableCell className="text-right font-medium">
-                                {formatPrice(p.precioWeb)}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {formatPrice(p.precioFerreteria)}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {formatPrice(p.precioConstruccion)}
-                              </TableCell>
-                              <TableCell>
-                                {format(new Date(p.fechaRegistro), "dd/MM/yyyy", { locale: es })}
-                                {p.urlReferencia && (
-                                  <a 
-                                    href={p.urlReferencia} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="ml-2 inline-flex items-center text-blue-500 hover:text-blue-700"
-                                  >
-                                    <ExternalLink className="h-3 w-3" />
-                                  </a>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {(userRole === 'admin' || userRole === 'supervisor') && (
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="text-red-500 hover:text-red-700"
-                                        data-testid={`button-delete-precio-${p.id}`}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>Eliminar Precio</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          ¿Eliminar este registro de precio?
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => deletePrecioMutation.mutate(p.id)}>
-                                          Eliminar
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
+                            const formatoLabel = p.formato === "GL" ? "Galón" : p.formato === "14" ? "1/4 Galón" : p.formato === "BALDE4" ? "Balde 4GL" : p.formato === "BALDE5" ? "Balde 5GL" : p.formato || "-";
+                            return (
+                              <TableRow key={p.id} data-testid={`row-precio-${p.id}`}>
+                                <TableCell>
+                                  <Badge variant="outline">{p.competidorNombre}</Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="secondary">{formatoLabel}</Badge>
+                                </TableCell>
+                                <TableCell className="text-right font-medium">
+                                  {formatPrice(p.precioWeb)}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {formatPrice(p.precioFerreteria)}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {formatPrice(p.precioConstruccion)}
+                                </TableCell>
+                                <TableCell>
+                                  {format(new Date(p.fechaRegistro), "dd/MM/yyyy", { locale: es })}
+                                  {p.urlReferencia && (
+                                    <a
+                                      href={p.urlReferencia}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="ml-2 inline-flex items-center text-blue-500 hover:text-blue-700"
+                                    >
+                                      <ExternalLink className="h-3 w-3" />
+                                    </a>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {(userRole === 'admin' || userRole === 'supervisor') && (
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="text-red-500 hover:text-red-700"
+                                          data-testid={`button-delete-precio-${p.id}`}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Eliminar Precio</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            ¿Eliminar este registro de precio?
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                          <AlertDialogAction onClick={() => deletePrecioMutation.mutate(p.id)}>
+                                            Eliminar
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
                       </TableBody>
                     </Table>
                   </div>
@@ -5280,7 +5263,7 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
             <Button variant="outline" onClick={() => setProductoDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button 
+            <Button
               onClick={handleSaveProducto}
               disabled={createProductoMutation.isPending || updateProductoMutation.isPending}
               data-testid="button-guardar-producto"
@@ -5311,8 +5294,8 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
               <div>
                 <Label>Competidor *</Label>
                 <div className="flex gap-2">
-                  <Select 
-                    value={nuevoPrecio.competidorId} 
+                  <Select
+                    value={nuevoPrecio.competidorId}
                     onValueChange={(v) => setNuevoPrecio({ ...nuevoPrecio, competidorId: v })}
                   >
                     <SelectTrigger data-testid="select-precio-competidor" className="flex-1">
@@ -5324,9 +5307,9 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
+                  <Button
+                    type="button"
+                    variant="outline"
                     size="icon"
                     onClick={() => setCompetidorDialogOpen(true)}
                     title="Agregar nuevo competidor"
@@ -5338,8 +5321,8 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
               </div>
               <div>
                 <Label>Formato *</Label>
-                <Select 
-                  value={nuevoPrecio.formato} 
+                <Select
+                  value={nuevoPrecio.formato}
                   onValueChange={(v: "GL" | "14" | "BALDE4" | "BALDE5") => setNuevoPrecio({ ...nuevoPrecio, formato: v })}
                 >
                   <SelectTrigger data-testid="select-precio-formato">
@@ -5410,7 +5393,7 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
             <Button variant="outline" onClick={() => setPrecioDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button 
+            <Button
               onClick={handleSavePrecio}
               disabled={createPrecioMutation.isPending}
               data-testid="button-guardar-precio"
@@ -5459,7 +5442,7 @@ function PreciosCompetencia({ userRole }: { userRole: string }) {
             <Button variant="outline" onClick={() => setCompetidorDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button 
+            <Button
               onClick={handleSaveCompetidor}
               disabled={createCompetidorMutation.isPending || updateCompetidorMutation.isPending}
               data-testid="button-guardar-competidor"

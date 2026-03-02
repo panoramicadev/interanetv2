@@ -14,10 +14,47 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2, Globe, ShoppingCart, Tags, Image, Settings, Link, Palette } from "lucide-react";
+import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2, Globe, ShoppingCart, Tags, Image, Settings, Link, Palette, BarChart3, Layers, ChevronLeft, ChevronRight, ExternalLink, RefreshCw, BookOpen } from "lucide-react";
+import { PriceList } from "@shared/schema";
+import GroupedCatalog from "@/components/grouped-catalog";
 
 interface Product {
+  id: string;
+  kopr: string; // Product code (primary key)
+  sku: string; // Legacy compatibility
+  name: string;
+  category: string;
+  price: string;
+  priceOffer?: number;
+  active: boolean;
+  totalStock: number;
+  showInStore?: boolean;
+  // eCommerce specific fields
+  ecomActive?: boolean;
+  ecomPrice?: number;
+  ecomPriceOffer?: number;
+  ecomCategory?: string;
+  ecomTags?: string[];
+  ecomSlug?: string;
+  ecomImages?: Array<{ id: string; url: string; alt: string; primary: boolean }>;
+  ecomSeoTitle?: string;
+  ecomSeoDescription?: string;
+  ecomOgImage?: string;
+  // Legacy or other fields used in code
+  seoTitle?: string;
+  seoDescription?: string;
+  ogImageUrl?: string;
+  // Dynamic fields
+  priceProduct?: number;
+  pricePerUnit?: number;
+  slug?: string;
+  tags?: string[];
+  images?: any[];
+}
+
+interface WarehouseSummary {
   id: string;
   kopr: string; // Product code (primary key)
   sku: string; // Legacy compatibility
@@ -32,7 +69,7 @@ interface Product {
   priceProduct?: number; // Regular product price
   priceOffer?: number; // Offer price
   showInStore?: boolean;
-  
+
   // eCommerce fields
   slug?: string; // SEO-friendly URL slug
   ecomActive: boolean; // Show in eCommerce store
@@ -49,7 +86,7 @@ interface Product {
   seoTitle?: string; // SEO title for product page
   seoDescription?: string; // SEO description for product page
   ogImageUrl?: string; // Open Graph image URL
-  
+
   active: boolean;
   totalStock?: number;
   warehouses?: string[];
@@ -102,13 +139,21 @@ export default function ProductsPage() {
   const [showPriceDialog, setShowPriceDialog] = useState(false);
   const [showStockDialog, setShowStockDialog] = useState(false);
   const [showEcomDialog, setShowEcomDialog] = useState(false);
-  const [activeTab, setActiveTab] = useState("products");
-  
+  const [activeTab, setActiveTab] = useState("sap");
+  const [activeSegment, setActiveSegment] = useState("FERRETERIAS");
+
+  // Price List State (for SAP tab)
+  const [priceListSearch, setPriceListSearch] = useState("");
+  const [selectedUnidadPrice, setSelectedUnidadPrice] = useState<string>("");
+  const [selectedColorPrice, setSelectedColorPrice] = useState<string>("");
+  const [priceListPage, setPriceListPage] = useState(0);
+  const itemsPerPage = 50;
+
   // eCommerce form state
   const [ecomSlug, setEcomSlug] = useState("");
   const [ecomCategory, setEcomCategory] = useState("");
   const [ecomTags, setEcomTags] = useState<string[]>([]);
-  const [ecomImages, setEcomImages] = useState<Array<{id: string; url: string; alt: string; primary: boolean; sort: number}>>([]); 
+  const [ecomImages, setEcomImages] = useState<Array<{ id: string; url: string; alt: string; primary: boolean; sort: number }>>([]);
   const [ecomSeoTitle, setEcomSeoTitle] = useState("");
   const [ecomSeoDescription, setEcomSeoDescription] = useState("");
   const [ecomOgImage, setEcomOgImage] = useState("");
@@ -116,7 +161,7 @@ export default function ProductsPage() {
   const [ecomActiveValue, setEcomActiveValue] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState("");
   const [newImageAlt, setNewImageAlt] = useState("");
-  
+
   const { toast } = useToast();
   const { user, isAuthenticated, isLoading } = useAuth();
   const queryClient = useQueryClient();
@@ -145,9 +190,18 @@ export default function ProductsPage() {
       if (filterActive !== 'all') params.append('active', (filterActive === 'true').toString());
       if (filterEcomActive !== 'all') params.append('ecomActive', (filterEcomActive === 'true').toString());
       if (filterCategory !== 'all') params.append('category', filterCategory);
-      
+
       const response = await apiRequest('GET', `/api/ecommerce/products?${params.toString()}`);
       return await response.json() as Product[];
+    }
+  });
+
+  // Fetch segment prices
+  const { data: segmentPrices = [], isLoading: segmentPricesLoading } = useQuery<any[]>({
+    queryKey: ['/api/segment-prices', activeSegment],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/segment-prices/${activeSegment}`);
+      return await response.json();
     }
   });
 
@@ -160,6 +214,31 @@ export default function ProductsPage() {
     }
   });
 
+  // Fetch Price List (Commercial/SAP)
+  const { data: priceListResponse, isLoading: priceListLoading } = useQuery<{ items: PriceList[], totalCount: number, hasMore: boolean }>({
+    queryKey: ['/api/price-list', { search: priceListSearch, unidad: selectedUnidadPrice, color: selectedColorPrice, limit: itemsPerPage, offset: priceListPage * itemsPerPage }],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        search: priceListSearch,
+        limit: itemsPerPage.toString(),
+        offset: (priceListPage * itemsPerPage).toString()
+      });
+      if (selectedUnidadPrice) params.set('unidad', selectedUnidadPrice);
+      if (selectedColorPrice) params.set('color', selectedColorPrice);
+      const response = await apiRequest('GET', `/api/price-list?${params}`);
+      return response.json();
+    },
+  });
+
+  const { data: availableUnits = [] } = useQuery<string[]>({
+    queryKey: ["/api/price-list/units"],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/price-list/units');
+      return await response.json() as string[];
+    },
+  });
+
+  const priceList = priceListResponse?.items || [];
 
   // Update price mutation
   const updatePriceMutation = useMutation({
@@ -170,19 +249,19 @@ export default function ProductsPage() {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify({ 
-          price, 
-          offerPrice, 
-          showInStore, 
-          reason 
+        body: JSON.stringify({
+          price,
+          offerPrice,
+          showInStore,
+          reason
         })
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to update price');
       }
-      
+
       return response.json();
     },
     onSuccess: () => {
@@ -216,7 +295,7 @@ export default function ProductsPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/products'] });
       setShowImportDialog(false);
       setImportFile(null);
-      
+
       toast({
         title: "Importación completada",
         description: `Se procesaron ${data.result.processedProducts} productos. ${data.result.newProducts} nuevos productos creados.`,
@@ -298,38 +377,38 @@ export default function ProductsPage() {
       const sku = product.sku?.toLowerCase() || "";
       const name = product.name?.toLowerCase() || "";
       const kopr = product.kopr?.toLowerCase() || "";
-      if (!sku.includes(searchLower) && 
-          !name.includes(searchLower) &&
-          !kopr.includes(searchLower)) {
+      if (!sku.includes(searchLower) &&
+        !name.includes(searchLower) &&
+        !kopr.includes(searchLower)) {
         return false;
       }
     }
-    
+
     // Active filter
     if (filterActive !== 'all') {
       if (filterActive === 'true' && !product.active) return false;
       if (filterActive === 'false' && product.active) return false;
     }
-    
+
     // eCommerce Active filter
     if (filterEcomActive !== 'all') {
       const isEcomActive = !!product.ecomActive;
       if (filterEcomActive === 'true' && !isEcomActive) return false;
       if (filterEcomActive === 'false' && isEcomActive) return false;
     }
-    
+
     // Category filter
     if (filterCategory !== 'all') {
       if (!product.category || product.category !== filterCategory) return false;
     }
-    
-    
+
+
     return true;
   });
 
   const handlePriceUpdate = () => {
     if (!selectedProduct || !newPrice) return;
-    
+
     updatePriceMutation.mutate({
       sku: selectedProduct.kopr || selectedProduct.sku, // Use kopr if available, fallback to sku
       price: parseFloat(newPrice),
@@ -368,7 +447,7 @@ export default function ProductsPage() {
 
   const handleEcommerceUpdate = () => {
     if (!selectedProduct) return;
-    
+
     const ecommerceData = {
       slug: ecomSlug,
       category: ecomCategory,
@@ -380,7 +459,7 @@ export default function ProductsPage() {
       ecomPrice: ecomPriceValue ? parseFloat(ecomPriceValue) : undefined,
       ecomActive: ecomActiveValue
     };
-    
+
     updateEcommerceMutation.mutate({
       kopr: selectedProduct.kopr,
       ecommerce: ecommerceData
@@ -393,7 +472,7 @@ export default function ProductsPage() {
 
   const validateSlug = async (slug: string, excludeKopr?: string) => {
     if (!slug.trim()) return { available: false, message: 'Slug is required' };
-    
+
     try {
       const result = await validateSlugMutation.mutateAsync({ slug, excludeKopr });
       return result;
@@ -404,7 +483,7 @@ export default function ProductsPage() {
 
   const addImageToProduct = () => {
     if (!newImageUrl || !newImageAlt) return;
-    
+
     const newImage = {
       id: Date.now().toString(),
       url: newImageUrl,
@@ -412,7 +491,7 @@ export default function ProductsPage() {
       primary: ecomImages.length === 0, // First image is primary by default
       sort: ecomImages.length
     };
-    
+
     setEcomImages([...ecomImages, newImage]);
     setNewImageUrl("");
     setNewImageAlt("");
@@ -462,7 +541,7 @@ export default function ProductsPage() {
     const firstLine = csvText.split('\n')[0];
     const commaCount = (firstLine.match(/,/g) || []).length;
     const semicolonCount = (firstLine.match(/;/g) || []).length;
-    
+
     const separator = semicolonCount > commaCount ? ';' : ',';
     console.log(`🔍 Separador detectado: "${separator}" (comas: ${commaCount}, punto y coma: ${semicolonCount})`);
     return separator;
@@ -472,10 +551,10 @@ export default function ProductsPage() {
     const result: string[] = [];
     let current = '';
     let inQuotes = false;
-    
+
     for (let i = 0; i < line.length; i++) {
       const char = line[i];
-      
+
       if (char === '"') {
         inQuotes = !inQuotes;
       } else if (char === separator && !inQuotes) {
@@ -485,7 +564,7 @@ export default function ProductsPage() {
         current += char;
       }
     }
-    
+
     result.push(current.trim());
     return result;
   };
@@ -498,16 +577,16 @@ export default function ProductsPage() {
 
     // Auto-detect separator
     const separator = detectSeparator(csvText);
-    
+
     const headers = parseCSVLine(lines[0], separator);
     console.log('🔍 Headers detectados:', headers);
     console.log('🔍 Total filas de datos:', lines.length - 1);
-    
+
     const products = [];
 
     for (let i = 1; i < lines.length; i++) {
       const values = parseCSVLine(lines[i], separator);
-      
+
       if (values.length !== headers.length) {
         console.warn(`⚠️ Fila ${i + 1}: ${values.length} valores vs ${headers.length} headers. Saltando.`);
         continue;
@@ -541,7 +620,7 @@ export default function ProductsPage() {
     try {
       const csvText = await importFile.text();
       const parsedData = parseProductCSV(csvText);
-      
+
       if (parsedData.length === 0) {
         toast({
           title: "Error",
@@ -589,330 +668,512 @@ export default function ProductsPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Gestión de Productos</h1>
-          <p className="text-muted-foreground">
-            Administra el catálogo de productos, precios y stock por bodega
-          </p>
-        </div>
-        
-        <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-          <DialogTrigger asChild>
-            <Button className="flex items-center gap-2" data-testid="button-import-csv">
-              <Upload className="h-4 w-4" />
-              Importar CSV
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Importar Productos desde CSV</DialogTitle>
-              <DialogDescription>
-                Selecciona un archivo CSV con la estructura de stock para actualizar productos y inventario.
-                Los precios existentes se preservarán.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="csv-file">Archivo CSV</Label>
-                <Input
-                  id="csv-file"
-                  type="file"
-                  accept=".csv"
-                  onChange={handleFileUpload}
-                  data-testid="input-csv-file"
-                />
+    <div className="space-y-6">
+      {/* Modern Header with Gradient */}
+      <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 md:p-8 text-white">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-40" />
+        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-white/10 backdrop-blur-sm">
+                <Package className="h-5 w-5 text-orange-400" />
               </div>
-              {importFile && (
-                <div className="text-sm text-muted-foreground">
-                  Archivo seleccionado: {importFile.name}
-                </div>
-              )}
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setShowImportDialog(false)}>
-                  Cancelar
-                </Button>
-                <Button 
-                  onClick={handleImport} 
-                  disabled={!importFile || importMutation.isPending}
-                  data-testid="button-confirm-import"
-                >
-                  {importMutation.isPending ? "Importando..." : "Importar"}
-                </Button>
-              </div>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Gestión de Productos</h1>
             </div>
-          </DialogContent>
-        </Dialog>
+            <p className="text-slate-300 text-sm md:text-base">
+              Administra el catálogo de productos, precios y stock por bodega
+            </p>
+          </div>
+
+          <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20 gap-2" data-testid="button-import-csv">
+                <Upload className="h-4 w-4" />
+                Importar CSV
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Importar Productos desde CSV</DialogTitle>
+                <DialogDescription>
+                  Selecciona un archivo CSV con la estructura de stock para actualizar productos y inventario.
+                  Los precios existentes se preservarán.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="csv-file">Archivo CSV</Label>
+                  <Input
+                    id="csv-file"
+                    type="file"
+                    accept=".csv"
+                    onChange={handleFileUpload}
+                    data-testid="input-csv-file"
+                  />
+                </div>
+                {importFile && (
+                  <div className="text-sm text-muted-foreground">
+                    Archivo seleccionado: {importFile.name}
+                  </div>
+                )}
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setShowImportDialog(false)}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleImport}
+                    disabled={!importFile || importMutation.isPending}
+                    data-testid="button-confirm-import"
+                  >
+                    {importMutation.isPending ? "Importando..." : "Importar"}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
-      {/* Estadísticas rápidas */}
+      {/* Modern Stat Cards */}
       {!productsLoading && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Productos</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-total-products">
-                {products.length}
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 px-1">
+          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Productos</p>
+                  <p className="text-2xl font-bold mt-1" data-testid="text-total-products">{products.length}</p>
+                </div>
+                <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-950">
+                  <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                </div>
               </div>
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-blue-600" />
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Con Precio</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-products-with-price">
-                {products.filter(p => 
-                  (p.price && parseFloat(p.price) > 0) ||
-                  (p.priceProduct && p.priceProduct > 0) ||
-                  (p.ecomPrice && p.ecomPrice > 0)
-                ).length}
+          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Con Precio</p>
+                  <p className="text-2xl font-bold mt-1" data-testid="text-products-with-price">
+                    {products.filter(p =>
+                      (p.price && parseFloat(p.price) > 0) ||
+                      (p.priceProduct && p.priceProduct > 0) ||
+                      (p.ecomPrice && p.ecomPrice > 0)
+                    ).length}
+                  </p>
+                </div>
+                <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-emerald-50 dark:bg-emerald-950">
+                  <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                </div>
               </div>
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-emerald-600" />
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Bodegas</CardTitle>
-              <Warehouse className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-total-warehouses">
-                {/* Warehouse functionality removed - showing placeholder */}
-                0
+          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Catálogo SAP</p>
+                  <p className="text-2xl font-bold mt-1" data-testid="text-total-warehouses">
+                    {priceListResponse?.totalCount || 0}
+                  </p>
+                </div>
+                <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-amber-50 dark:bg-amber-950">
+                  <BookOpen className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                </div>
               </div>
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-amber-600" />
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">eCommerce Activos</CardTitle>
-              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-ecom-active-products">
-                {products.filter(p => !!p.ecomActive).length}
+          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">eCommerce Activos</p>
+                  <p className="text-2xl font-bold mt-1" data-testid="text-ecom-active-products">
+                    {products.filter(p => !!p.ecomActive).length}
+                  </p>
+                </div>
+                <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-purple-50 dark:bg-purple-950">
+                  <ShoppingCart className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                </div>
               </div>
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-purple-600" />
             </CardContent>
           </Card>
         </div>
       )}
 
-      {/* Tabs para diferentes vistas */}
+      {/* Modern Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="products">Productos</TabsTrigger>
-          <TabsTrigger value="warehouses">Stock por Bodega</TabsTrigger>
-          <TabsTrigger value="skus">SKUs Disponibles</TabsTrigger>
+        <TabsList className="w-full flex h-auto p-1 bg-muted/50 rounded-xl gap-1">
+          <TabsTrigger value="sap" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
+            <BarChart3 className="h-4 w-4" />
+            <span className="hidden sm:inline">Catálogo SAP</span>
+            <span className="sm:hidden">SAP</span>
+          </TabsTrigger>
+          <TabsTrigger value="grouped" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
+            <Layers className="h-4 w-4" />
+            <span className="hidden sm:inline">Catálogo Agrupado</span>
+            <span className="sm:hidden">Agrupado</span>
+          </TabsTrigger>
+          <TabsTrigger value="products" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
+            <Globe className="h-4 w-4" />
+            <span className="hidden sm:inline">eCommerce</span>
+            <span className="sm:hidden">eCom</span>
+          </TabsTrigger>
+          <TabsTrigger value="warehouses" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
+            <Warehouse className="h-4 w-4" />
+            <span className="hidden sm:inline">Stock por Bodega</span>
+            <span className="sm:hidden">Stock</span>
+          </TabsTrigger>
+          <TabsTrigger value="skus" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
+            <Tags className="h-4 w-4" />
+            <span className="hidden sm:inline">SKUs Totales</span>
+            <span className="sm:hidden">SKUs</span>
+          </TabsTrigger>
         </TabsList>
 
-        {/* Tab de Productos */}
-        <TabsContent value="products" className="space-y-4">
-          {/* Filtros y búsqueda */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="flex-1">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Buscar por SKU, KOPR o nombre del producto..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10"
-                        data-testid="input-search-products"
-                      />
-                    </div>
-                  </div>
-                  <Select value={filterActive} onValueChange={setFilterActive}>
-                    <SelectTrigger className="w-[180px]" data-testid="select-filter-active">
-                      <SelectValue placeholder="Estado" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="true">Activos</SelectItem>
-                      <SelectItem value="false">Inactivos</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={filterPrices} onValueChange={setFilterPrices}>
-                    <SelectTrigger className="w-[180px]" data-testid="select-filter-prices">
-                      <SelectValue placeholder="Precios" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="true">Con precio</SelectItem>
-                      <SelectItem value="false">Sin precio</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <Select value={filterEcomActive} onValueChange={setFilterEcomActive}>
-                    <SelectTrigger className="w-[200px]" data-testid="select-filter-ecom-active">
-                      <SelectValue placeholder="eCommerce" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="true">eCommerce Activo</SelectItem>
-                      <SelectItem value="false">eCommerce Inactivo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={filterCategory} onValueChange={setFilterCategory}>
-                    <SelectTrigger className="w-[200px]" data-testid="select-filter-category">
-                      <SelectValue placeholder="Categoría" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas las categorías</SelectItem>
-                      {uniqueCategories.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+        {/* Tab de Catálogo SAP (Lista de Precios Comercial) */}
+        <TabsContent value="sap" className="space-y-4 mt-4">
+          {/* Search & Filters */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar en SAP (código o producto)..."
+                value={priceListSearch}
+                onChange={(e) => {
+                  setPriceListSearch(e.target.value);
+                  setPriceListPage(0);
+                }}
+                className="pl-10 h-11 rounded-xl border-muted bg-muted/30 focus:bg-background transition-colors"
+              />
+            </div>
+            <Select
+              value={selectedUnidadPrice}
+              onValueChange={(v) => {
+                setSelectedUnidadPrice(v === "all" ? "" : v);
+                setPriceListPage(0);
+              }}
+            >
+              <SelectTrigger className="w-[200px] h-11 rounded-xl border-muted">
+                <SelectValue placeholder="Formato / Unidad" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los formatos</SelectItem>
+                {availableUnits.map(unit => (
+                  <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Price Table */}
+          <Card className="border-0 shadow-sm rounded-xl overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 bg-muted/30 border-b px-6 py-4">
+              <div>
+                <CardTitle className="text-lg">Catálogo de Precios Comerciales</CardTitle>
+                <CardDescription className="mt-0.5">Información sincronizada con el tomador de pedidos</CardDescription>
               </div>
+              <Button variant="outline" size="sm" className="rounded-lg gap-1.5" onClick={() => setLocation('/lista-precios')}>
+                <ExternalLink className="h-3.5 w-3.5" />
+                Ver completo
+              </Button>
+            </CardHeader>
+            <CardContent className="p-0">
+              {priceListLoading ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                  <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+                  <p className="text-sm text-muted-foreground">Cargando datos de SAP...</p>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/20 hover:bg-muted/20">
+                          <TableHead className="font-semibold text-xs uppercase tracking-wider">Código</TableHead>
+                          <TableHead className="font-semibold text-xs uppercase tracking-wider">Producto</TableHead>
+                          <TableHead className="font-semibold text-xs uppercase tracking-wider">Unidad</TableHead>
+                          <TableHead className="text-right font-semibold text-xs uppercase tracking-wider">Lista</TableHead>
+                          <TableHead className="text-right font-semibold text-xs uppercase tracking-wider">Desc. 10%</TableHead>
+                          <TableHead className="text-right font-semibold text-xs uppercase tracking-wider">10%+5%</TableHead>
+                          <TableHead className="text-right font-semibold text-xs uppercase tracking-wider">10%+5%+3%</TableHead>
+                          <TableHead className="text-right font-semibold text-xs uppercase tracking-wider">Mínimo</TableHead>
+                          <TableHead className="w-8"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {priceList.map((item, i) => (
+                          <TableRow
+                            key={item.id}
+                            className={`cursor-pointer hover:bg-orange-50/50 dark:hover:bg-orange-950/20 transition-colors ${i % 2 === 0 ? '' : 'bg-muted/10'}`}
+                            onClick={() => setLocation(`/productos/${encodeURIComponent(item.codigo)}`)}
+                            title={`Ver ficha de ${item.producto}`}
+                          >
+                            <TableCell className="font-mono text-sm font-semibold text-orange-600 dark:text-orange-400">{item.codigo}</TableCell>
+                            <TableCell className="font-medium text-sm max-w-[250px] truncate">{item.producto}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs font-normal rounded-md">{item.unidad}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums font-medium">
+                              {Number(item.lista) > 0 ? `$${Number(item.lista).toLocaleString()}` : <span className="text-muted-foreground">-</span>}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-muted-foreground">
+                              {Number(item.desc10) > 0 ? `$${Number(item.desc10).toLocaleString()}` : '-'}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-muted-foreground">
+                              {Number(item.desc10_5) > 0 ? `$${Number(item.desc10_5).toLocaleString()}` : '-'}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-muted-foreground">
+                              {Number(item.desc10_5_3) > 0 ? `$${Number(item.desc10_5_3).toLocaleString()}` : '-'}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">
+                              {Number(item.minimo) > 0 ? `$${Number(item.minimo).toLocaleString()}` : '-'}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {priceListResponse && priceListResponse.totalCount > itemsPerPage && (
+                    <div className="flex items-center justify-between px-6 py-4 border-t bg-muted/10">
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-medium text-foreground">{priceListPage * itemsPerPage + 1}-{Math.min((priceListPage + 1) * itemsPerPage, priceListResponse.totalCount)}</span>
+                        {' '}de{' '}
+                        <span className="font-medium text-foreground">{priceListResponse.totalCount.toLocaleString()}</span>
+                        {' '}productos
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline" size="sm"
+                          className="h-8 w-8 p-0 rounded-lg"
+                          onClick={() => setPriceListPage(p => p - 1)}
+                          disabled={priceListPage === 0}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <span className="text-sm font-medium px-2">
+                          Pág. {priceListPage + 1}
+                        </span>
+                        <Button
+                          variant="outline" size="sm"
+                          className="h-8 w-8 p-0 rounded-lg"
+                          onClick={() => setPriceListPage(p => p + 1)}
+                          disabled={!priceListResponse.hasMore}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
+        </TabsContent>
 
-          {/* Tabla de productos */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Productos</CardTitle>
-              <CardDescription>
-                Lista de todos los productos en el sistema
-              </CardDescription>
+        {/* Tab de Catálogo Agrupado */}
+        <TabsContent value="grouped" className="space-y-4">
+          <GroupedCatalog />
+        </TabsContent>
+
+        {/* Tab de Productos eCommerce */}
+        <TabsContent value="products" className="space-y-4 mt-4">
+          {/* Inline Search & Filters */}
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por SKU, KOPR o nombre del producto..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 h-11 rounded-xl border-muted bg-muted/30 focus:bg-background transition-colors"
+                  data-testid="input-search-products"
+                />
+              </div>
+              <Select value={filterActive} onValueChange={setFilterActive}>
+                <SelectTrigger className="w-[150px] h-11 rounded-xl border-muted" data-testid="select-filter-active">
+                  <SelectValue placeholder="Estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="true">Activos</SelectItem>
+                  <SelectItem value="false">Inactivos</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterEcomActive} onValueChange={setFilterEcomActive}>
+                <SelectTrigger className="w-[170px] h-11 rounded-xl border-muted" data-testid="select-filter-ecom-active">
+                  <SelectValue placeholder="eCommerce" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="true">eCom Activo</SelectItem>
+                  <SelectItem value="false">eCom Inactivo</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterCategory} onValueChange={setFilterCategory}>
+                <SelectTrigger className="w-[180px] h-11 rounded-xl border-muted" data-testid="select-filter-category">
+                  <SelectValue placeholder="Categoría" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {uniqueCategories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Products Table */}
+          <Card className="border-0 shadow-sm rounded-xl overflow-hidden">
+            <CardHeader className="bg-muted/30 border-b px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg">Productos eCommerce</CardTitle>
+                  <CardDescription className="mt-0.5">
+                    {filteredProducts.length} producto{filteredProducts.length !== 1 ? 's' : ''} encontrado{filteredProducts.length !== 1 ? 's' : ''}
+                  </CardDescription>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               {productsLoading ? (
-                <div className="text-center py-8">Cargando productos...</div>
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                  <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+                  <p className="text-sm text-muted-foreground">Cargando productos...</p>
+                </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>SKU/KOPR</TableHead>
-                      <TableHead>Nombre</TableHead>
-                      <TableHead>Categoría</TableHead>
-                      <TableHead>Precio</TableHead>
-                      <TableHead>eCommerce</TableHead>
-                      <TableHead>Stock</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredProducts.map((product) => (
-                      <TableRow key={product.id} data-testid={`row-product-${product.kopr || product.sku}`}>
-                        <TableCell className="font-mono text-sm">
-                          <div className="flex flex-col">
-                            <span className="font-semibold">{product.kopr || product.sku}</span>
-                            {product.kopr && product.sku && product.kopr !== product.sku && (
-                              <span className="text-xs text-muted-foreground">{product.sku}</span>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/20 hover:bg-muted/20">
+                        <TableHead className="font-semibold text-xs uppercase tracking-wider">SKU/KOPR</TableHead>
+                        <TableHead className="font-semibold text-xs uppercase tracking-wider">Nombre</TableHead>
+                        <TableHead className="font-semibold text-xs uppercase tracking-wider">Categoría</TableHead>
+                        <TableHead className="font-semibold text-xs uppercase tracking-wider">Precio</TableHead>
+                        <TableHead className="font-semibold text-xs uppercase tracking-wider">eCommerce</TableHead>
+                        <TableHead className="font-semibold text-xs uppercase tracking-wider">Stock</TableHead>
+                        <TableHead className="font-semibold text-xs uppercase tracking-wider">Estado</TableHead>
+                        <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredProducts.map((product, i) => (
+                        <TableRow key={product.id} className={`hover:bg-muted/30 transition-colors ${i % 2 === 0 ? '' : 'bg-muted/10'}`} data-testid={`row-product-${product.kopr || product.sku}`}>
+                          <TableCell className="font-mono text-sm">
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-orange-600 dark:text-orange-400">{product.kopr || product.sku}</span>
+                              {product.kopr && product.sku && product.kopr !== product.sku && (
+                                <span className="text-xs text-muted-foreground">{product.sku}</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-xs">
+                            <div className="flex flex-col">
+                              <span className="truncate font-medium text-sm" title={product.name}>{product.name}</span>
+                              {product.slug && (
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <Link className="h-3 w-3 text-muted-foreground" />
+                                  <span className="text-xs text-muted-foreground">{product.slug}</span>
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {product.category ? (
+                              <Badge variant="outline" className="text-xs rounded-md font-normal">
+                                {product.category}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">—</span>
                             )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="max-w-xs">
-                          <div className="flex flex-col">
-                            <span className="truncate" title={product.name}>{product.name}</span>
-                            {product.slug && (
-                              <div className="flex items-center gap-1 mt-1">
-                                <Link className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground">{product.slug}</span>
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {product.category ? (
-                            <Badge variant="outline" className="text-xs">
-                              {product.category}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">Sin categoría</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-1">
-                            {product.ecomPrice && (
-                              <div className="flex items-center gap-1">
-                                <ShoppingCart className="h-3 w-3 text-green-600" />
-                                <span className="text-sm font-medium">${product.ecomPrice.toLocaleString()}</span>
-                              </div>
-                            )}
-                            {product.priceProduct && (
-                              <span className="text-xs text-muted-foreground">
-                                Regular: ${product.priceProduct.toLocaleString()}
-                              </span>
-                            )}
-                            {!product.ecomPrice && !product.priceProduct && (
-                              <span className="text-muted-foreground text-xs">Sin precio</span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-1">
-                              <Badge variant={product.ecomActive ? "default" : "secondary"} className="text-xs">
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-0.5">
+                              {product.ecomPrice && (
+                                <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">${product.ecomPrice.toLocaleString()}</span>
+                              )}
+                              {product.priceProduct && (
+                                <span className="text-xs text-muted-foreground tabular-nums">
+                                  Lista: ${product.priceProduct.toLocaleString()}
+                                </span>
+                              )}
+                              {!product.ecomPrice && !product.priceProduct && (
+                                <span className="text-muted-foreground text-xs">Sin precio</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              <Badge
+                                variant={product.ecomActive ? "default" : "secondary"}
+                                className={`text-xs w-fit ${product.ecomActive ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-400' : ''}`}
+                              >
                                 {product.ecomActive ? "Activo" : "Inactivo"}
                               </Badge>
-                            </div>
-                            {product.ecomActive && product.tags && product.tags.length > 0 && (
-                              <div className="flex items-center gap-1">
-                                <Tags className="h-3 w-3 text-muted-foreground" />
+                              {product.ecomActive && product.tags && product.tags.length > 0 && (
                                 <span className="text-xs text-muted-foreground">{product.tags.length} tags</span>
-                              </div>
-                            )}
-                            {product.ecomActive && product.images && product.images.length > 0 && (
-                              <div className="flex items-center gap-1">
-                                <Image className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground">{product.images.length} imágenes</span>
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>{formatStock(product.totalStock)}</TableCell>
-                        <TableCell>
-                          <Badge variant={product.active ? "default" : "secondary"}>
-                            {product.active ? "Activo" : "Inactivo"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedProduct(product);
-                                setNewPrice((product.priceProduct || product.pricePerUnit || product.price)?.toString() || "");
-                                setNewOfferPrice(product.priceOffer?.toString() || "");
-                                setShowInStore(product.showInStore || false);
-                                setShowPriceDialog(true);
-                              }}
-                              data-testid={`button-edit-price-${product.kopr || product.sku}`}
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="tabular-nums font-medium">{formatStock(product.totalStock)}</TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={product.active ? "default" : "secondary"}
+                              className={`text-xs ${product.active ? 'bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-400' : ''}`}
                             >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedProduct(product);
-                                initializeEcommerceForm(product);
-                                setShowEcomDialog(true);
-                              }}
-                              data-testid={`button-edit-ecom-${product.kopr || product.sku}`}
-                            >
-                              <Globe className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                              {product.active ? "Activo" : "Inactivo"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1.5 justify-center">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 rounded-lg hover:bg-muted"
+                                onClick={() => {
+                                  setSelectedProduct(product);
+                                  setNewPrice((product.priceProduct || product.pricePerUnit || product.price)?.toString() || "");
+                                  setNewOfferPrice(product.priceOffer?.toString() || "");
+                                  setShowInStore(product.showInStore || false);
+                                  setShowPriceDialog(true);
+                                }}
+                                data-testid={`button-edit-price-${product.kopr || product.sku}`}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 rounded-lg hover:bg-muted"
+                                onClick={() => {
+                                  setSelectedProduct(product);
+                                  initializeEcommerceForm(product);
+                                  setShowEcomDialog(true);
+                                }}
+                                data-testid={`button-edit-ecom-${product.kopr || product.sku}`}
+                              >
+                                <Globe className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -987,7 +1248,7 @@ export default function ProductsPage() {
                     </Select>
                   </div>
                 </div>
-                
+
                 {/* Acciones de selección múltiple */}
                 {selectedProducts.length > 0 && (
                   <div className="flex items-center gap-4 p-3 bg-muted rounded-lg">
@@ -1105,6 +1366,107 @@ export default function ProductsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+        {/* Tab de Segmentos */}
+        <TabsContent value="segments" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Precios por Segmento</CardTitle>
+              <CardDescription>
+                Gestiona los precios promedio establecidos para segmentos específicos
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Tabs value={activeSegment} onValueChange={setActiveSegment} className="w-full">
+                <TabsList>
+                  <TabsTrigger value="FERRETERIAS">Ferretería</TabsTrigger>
+                  <TabsTrigger value="CONSTRUCCION">Construcción</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value={activeSegment} className="pt-4 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-medium">
+                      Segmento {activeSegment === "FERRETERIAS" ? "Ferretería" : "Construcción"}
+                    </h3>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = '.csv';
+                        input.onchange = async (e) => {
+                          const file = (e.target as HTMLInputElement).files?.[0];
+                          if (!file) return;
+                          const formData = new FormData();
+                          formData.append('file', file);
+                          formData.append('segment', activeSegment);
+
+                          try {
+                            const response = await fetch('/api/segment-prices/import', {
+                              method: 'POST',
+                              body: formData
+                            });
+                            if (response.ok) {
+                              toast({ title: "Importación exitosa", description: "Los precios se han actualizado" });
+                              queryClient.invalidateQueries({ queryKey: ['/api/segment-prices', activeSegment] });
+                            } else {
+                              toast({ title: "Error en importación", variant: "destructive" });
+                            }
+                          } catch (err) {
+                            toast({ title: "Error de red", variant: "destructive" });
+                          }
+                        };
+                        input.click();
+                      }}>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Importar Precios Promedio
+                      </Button>
+                    </div>
+                  </div>
+
+                  {segmentPricesLoading ? (
+                    <div className="text-center py-8 text-muted-foreground">Cargando precios...</div>
+                  ) : segmentPrices.length === 0 ? (
+                    <Alert>
+                      {activeSegment === "FERRETERIAS" ? <TrendingUp className="h-4 w-4" /> : <Building2 className="h-4 w-4" />}
+                      <AlertTitle>Sin datos</AlertTitle>
+                      <AlertDescription>
+                        No hay precios promedio cargados para este segmento. Sube un CSV con las columnas "codigo" y "precioPromedio".
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <div className="border rounded-md">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Código</TableHead>
+                            <TableHead>Producto</TableHead>
+                            <TableHead>Unidad</TableHead>
+                            <TableHead className="text-right">Precio Promedio</TableHead>
+                            <TableHead className="text-right">Última Actualización</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {segmentPrices.map((item) => (
+                            <TableRow key={item.id}>
+                              <TableCell className="font-mono">{item.codigo}</TableCell>
+                              <TableCell>{item.producto || "-"}</TableCell>
+                              <TableCell>{item.unidad || "-"}</TableCell>
+                              <TableCell className="text-right font-semibold">
+                                ${Number(item.precioPromedio).toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-right text-xs text-muted-foreground">
+                                {new Date(item.lastUpdated).toLocaleDateString()}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Dialog para editar precio */}
@@ -1164,7 +1526,7 @@ export default function ProductsPage() {
               <Button variant="outline" onClick={() => setShowPriceDialog(false)}>
                 Cancelar
               </Button>
-              <Button 
+              <Button
                 onClick={handlePriceUpdate}
                 disabled={!newPrice || updatePriceMutation.isPending}
                 data-testid="button-update-price"
@@ -1357,11 +1719,21 @@ export default function ProductsPage() {
 
             {/* SEO Fields */}
             <div className="space-y-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Settings className="h-4 w-4" />
-                <Label className="text-sm font-medium">Configuración SEO</Label>
-              </div>
-              
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="skus" className="flex items-center gap-2">
+                  <ShoppingCart className="h-4 w-4" />
+                  <span>SKUs Disponibles</span>
+                </TabsTrigger>
+                <TabsTrigger value="segments" className="flex items-center gap-2">
+                  <Palette className="h-4 w-4" />
+                  <span>Segmentos</span>
+                </TabsTrigger>
+                <TabsTrigger value="seo" className="flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  <span>SEO</span>
+                </TabsTrigger>
+              </TabsList>
+
               <div className="space-y-2">
                 <Label htmlFor="seo-title">Título SEO</Label>
                 <Input

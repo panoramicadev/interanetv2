@@ -81,7 +81,7 @@ export const salesTransactions = pgTable("sales_transactions", {
   nokoprct: text("nokoprct"), // Product name
   nokofu: varchar("nokofu"), // Salesperson
   caprad2: numeric("caprad2", { precision: 10, scale: 2 }), // Secondary units (actual quantity sold)
-  
+
   // Additional fields from CSV for complete data storage  
   idmaeedo: numeric("idmaeedo", { precision: 10, scale: 2 }), // ERP identifier (can have duplicates)
   tido: varchar("tido"),
@@ -149,18 +149,18 @@ export const salesTransactions = pgTable("sales_transactions", {
   stockfis: numeric("stockfis", { precision: 10, scale: 2 }),
   listacost: varchar("listacost"),
   liscosmod: numeric("liscosmod", { precision: 10, scale: 2 }),
-  
+
   // Missing name fields from CSV export
   nokozo: varchar("nokozo"), // Zone name
   nosudo: varchar("nosudo"), // Document branch name  
   nokofudo: varchar("nokofudo"), // Document employee name
   nobosuli: varchar("nobosuli"), // Warehouse branch name
   nomrpr: varchar("nomrpr"), // Name field
-  
+
   // ETL control fields
   dataSource: varchar("data_source", { length: 20 }).default('csv'), // 'csv' | 'etl_sql_server'
   lastEtlSync: timestamp("last_etl_sync"), // Last ETL synchronization timestamp
-  
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -179,7 +179,7 @@ export const insertSalesTransactionSchema = z.object({
   nudo: z.string(),
   feemdo: z.string(),
   tido: z.string().optional().nullable(), // CRITICAL: Document type for NCV logic
-  
+
   // ALL CSV columns as strings (numeric fields processed by Drizzle)
   idmaeedo: z.string().optional().nullable(), // Transaction ID
   endo: z.string().optional().nullable(),
@@ -279,7 +279,7 @@ export const products = pgTable("products", {
   priceProduct: numeric("price_product", { precision: 15, scale: 2 }), // Precio normal
   priceOffer: numeric("price_offer", { precision: 15, scale: 2 }), // Precio de oferta
   showInStore: boolean("show_in_store").default(false), // Mostrar en tienda
-  
+
   // eCommerce fields
   slug: varchar("slug"), // SEO-friendly URL slug
   ecomActive: boolean("ecom_active").default(false), // Show in eCommerce store
@@ -290,7 +290,7 @@ export const products = pgTable("products", {
   seoTitle: varchar("seo_title"), // SEO title for product page
   seoDescription: text("seo_description"), // SEO description for product page
   ogImageUrl: varchar("og_image_url"), // Open Graph image URL
-  
+
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -325,43 +325,43 @@ export const productStock = pgTable("product_stock", {
   branchCode: varchar("branch_code").notNull(), // KOSU from CSV (compatibility)
   warehouseCode: varchar("warehouse_code").notNull(), // KOBO from CSV (compatibility)
   warehouseLocation: text("warehouse_location"), // DATOSUBIC from CSV (compatibility)
-  
+
   // Physical stock
   physicalStock1: numeric("physical_stock1", { precision: 15, scale: 4 }), // STFI1
   physicalStock2: numeric("physical_stock2", { precision: 15, scale: 4 }), // STFI2
-  
+
   // Available stock for sales  
   availableStock1: numeric("available_stock1", { precision: 15, scale: 4 }), // STDV1
   availableStock2: numeric("available_stock2", { precision: 15, scale: 4 }), // STDV2
-  
+
   // Committed stock
   committedStock1: numeric("committed_stock1", { precision: 15, scale: 4 }), // STOCNV1
   committedStock2: numeric("committed_stock2", { precision: 15, scale: 4 }), // STOCNV2
-  
+
   // Committed stock alternative
   committedStock1Alt: numeric("committed_stock1_alt", { precision: 15, scale: 4 }), // STDV1C
   committedStock2Alt: numeric("committed_stock2_alt", { precision: 15, scale: 4 }), // STDV2C
-  
+
   // Additional stock fields
   committedStockAlt1: numeric("committed_stock_alt1", { precision: 15, scale: 4 }), // STOCNV1C
   committedStockAlt2: numeric("committed_stock_alt2", { precision: 15, scale: 4 }), // STOCNV2C
-  
+
   // Receipts and dispatches without invoice
   receiptNoInvoice1: numeric("receipt_no_invoice1", { precision: 15, scale: 4 }), // RECENOFAC1
   receiptNoInvoice2: numeric("receipt_no_invoice2", { precision: 15, scale: 4 }), // RECENOFAC2
   dispatchNoInvoice1: numeric("dispatch_no_invoice1", { precision: 15, scale: 4 }), // DESPNOFAC1
   dispatchNoInvoice2: numeric("dispatch_no_invoice2", { precision: 15, scale: 4 }), // DESPNOFAC2
-  
+
   // Additional CSV fields from stock CSV
   fmpr: varchar("fmpr"), // FMPR - Family code
   pfpr: varchar("pfpr"), // PFPR - Price list code
   hfpr: varchar("hfpr"), // HFPR - Price list hierarchy
   rupr: varchar("rupr"), // RUPR - Route code
   mrpr: varchar("mrpr"), // MRPR - Brand code
-  
+
   // RLUD - Unit Relation from CSV (varies by location)
   rlud: numeric("rlud", { precision: 10, scale: 2 }), // RLUD - Unit Relation from CSV
-  
+
   lastUpdated: timestamp("last_updated").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
@@ -451,22 +451,22 @@ export const clients = pgTable("clients", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-  
+
   // Core identification fields
   idmaeen: numeric("idmaeen", { precision: 15, scale: 5 }), // ID Master Entity
   koen: varchar("koen").unique(), // Client code (unique identifier)
   nokoen: text("nokoen").notNull(), // Client name (relates to sales_transactions)
   rten: varchar("rten"), // RUT/Tax ID
-  
+
   // Entity and branch information
   tien: varchar("tien"), // Entity type
   suen: varchar("suen"), // Branch code
   tiposuc: varchar("tiposuc"), // Branch type
-  
+
   // Business and industry information
   sien: text("sien"), // Industry sector
   gien: text("gien"), // Business type/description
-  
+
   // Location information
   paen: varchar("paen"), // Country
   cien: varchar("cien"), // City code
@@ -480,7 +480,7 @@ export const clients = pgTable("clients", {
   codubigeo: varchar("codubigeo"), // Ubigeo code
   urbaniz: varchar("urbaniz"), // Urbanization
   cpostal: varchar("cpostal"), // Postal code
-  
+
   // Contact information
   foen: varchar("foen"), // Phone
   faen: varchar("faen"), // Fax
@@ -488,7 +488,7 @@ export const clients = pgTable("clients", {
   emailcomer: text("emailcomer"), // Commercial email
   cnen: varchar("cnen"), // Contact number
   cnen2: varchar("cnen2"), // Contact number 2
-  
+
   // Credit management (key business fields)
   crsd: numeric("crsd", { precision: 15, scale: 2 }), // Credit balance/debt
   crch: numeric("crch", { precision: 15, scale: 2 }), // Credit checks
@@ -503,7 +503,7 @@ export const clients = pgTable("clients", {
   incr: numeric("incr", { precision: 15, scale: 2 }), // Credit interest
   popicr: numeric("popicr", { precision: 15, scale: 2 }), // Credit percentage
   koplcr: varchar("koplcr"), // Credit place
-  
+
   // Sales and pricing
   kofuen: varchar("kofuen"), // Sales rep code
   assignedSalespersonUserId: varchar("assigned_salesperson_user_id"), // FK to users.id (assigned salesperson)
@@ -512,7 +512,7 @@ export const clients = pgTable("clients", {
   lven: varchar("lven"), // Sale list
   prefen: varchar("prefen"), // Preference
   porprefen: numeric("porprefen", { precision: 15, scale: 2 }), // Preference percentage
-  
+
   // Accounting information
   contab: varchar("contab"), // Accounting account
   subauxi: varchar("subauxi"), // Sub auxiliary
@@ -520,13 +520,13 @@ export const clients = pgTable("clients", {
   subauxivta: varchar("subauxivta"), // Sales sub auxiliary
   codcc: varchar("codcc"), // Cost center
   nutransmi: varchar("nutransmi"), // Transmission number
-  
+
   // Route and collection
   ruen: varchar("ruen"), // Route
   cpen: numeric("cpen", { precision: 15, scale: 2 }), // Collection percentage
   cobrador: varchar("cobrador"), // Collector
   diacobra: numeric("diacobra", { precision: 15, scale: 2 }), // Collection day
-  
+
   // Route days (delivery schedule)
   rutalun: integer("rutalun"), // Monday route
   rutamar: integer("rutamar"), // Tuesday route
@@ -535,14 +535,14 @@ export const clients = pgTable("clients", {
   rutavie: integer("rutavie"), // Friday route
   rutasab: integer("rutasab"), // Saturday route
   rutadom: integer("rutadom"), // Sunday route
-  
+
   // Status and configuration fields
   bloqueado: integer("bloqueado"), // Blocked flag
   actien: integer("actien"), // Active entity
   habilita: varchar("habilita"), // Enable flag
   bloqencom: integer("bloqencom"), // Commerce block
   blovenex: integer("blovenex"), // External sale block
-  
+
   // Business configuration
   dimoper: numeric("dimoper", { precision: 15, scale: 2 }), // Operation day
   tipoen: varchar("tipoen"), // Entity type
@@ -550,7 +550,7 @@ export const clients = pgTable("clients", {
   claveen: varchar("claveen"), // Entity key
   acteco: varchar("acteco"), // Economic activity
   cattrib: varchar("cattrib"), // Attribute category
-  
+
   // Tax and legal information
   agretiva: integer("agretiva"), // IVA retention agent
   agretiibb: integer("agretiibb"), // IIBB retention agent
@@ -562,19 +562,19 @@ export const clients = pgTable("clients", {
   imptoret: numeric("imptoret", { precision: 15, scale: 2 }), // Retention tax
   tiporuc: varchar("tiporuc"), // RUC type
   podetrac: integer("podetrac"), // DETRAC percentage
-  
+
   // Protests and financial risk
   proteacum: numeric("proteacum", { precision: 15, scale: 2 }), // Accumulated protest
   protevige: numeric("protevige", { precision: 15, scale: 2 }), // Current protest
   diasvenci: numeric("diasvenci", { precision: 15, scale: 2 }), // Expiry days
-  
+
   // Special features and validation
   nvvpidepie: integer("nvvpidepie"), // Request foot note
   recepelect: integer("recepelect"), // Electronic reception
   nvvobli: integer("nvvobli"), // Mandatory NVV
   occobli: integer("occobli"), // Mandatory OCC
   extenxml: varchar("extenxml"), // XML extension
-  
+
   // Additional business fields
   codconve: varchar("codconve"), // Agreement code
   notraedeud: varchar("notraedeud"), // No debt transfer
@@ -586,39 +586,39 @@ export const clients = pgTable("clients", {
   tipocontr: varchar("tipocontr"), // Contract type
   ferefauto: varchar("ferefauto"), // Auto reference date
   cuentabco: varchar("cuentabco"), // Bank account
-  
+
   // Pending and alternative clients
   koendpen: varchar("koendpen"), // Pending client
   suendpen: varchar("suendpen"), // Pending branch
   koenal: varchar("koenal"), // Alternative client
   kofuweb: varchar("kofuweb"), // Web sales rep
-  
+
   // Sequence and control
   secuecom: integer("secuecom"), // Commercial sequence
   secueven: integer("secueven"), // Sales sequence
   avisadpven: integer("avisadpven"), // Sales advice
-  
+
   // Linked entities
   entiliga: varchar("entiliga"), // Linked entity
   porceliga: numeric("porceliga", { precision: 15, scale: 2 }), // Link percentage
-  
+
   // GPS and location
   gpslat: numeric("gpslat", { precision: 15, scale: 8 }), // GPS latitude
   gpslon: numeric("gpslon", { precision: 15, scale: 8 }), // GPS longitude
-  
+
   // Dates
   fecreen: varchar("fecreen"), // Creation date
   femoen: varchar("femoen"), // Movement date
   feemdo: varchar("feemdo"), // Document date
-  
+
   // Document and signature
   firma: varchar("firma"), // Signature
   nodocum: varchar("nodocum"), // Document number
-  
+
   // Account and currency
   moctaen: varchar("moctaen"), // Account currency
   ctasdelaen: varchar("ctasdelaen"), // Entity accounts
-  
+
   // Personal information (for individuals)
   nacionen: varchar("nacionen"), // Nationality
   dirparen: text("dirparen"), // Parent address
@@ -630,20 +630,20 @@ export const clients = pgTable("clients", {
   rutsocen: varchar("rutsocen"), // Partner RUT
   sexoen: varchar("sexoen"), // Gender
   relacien: varchar("relacien"), // Relationship
-  
+
   // Annexes and additional data
   anexen1: varchar("anexen1"), // Annex 1
   anexen2: varchar("anexen2"), // Annex 2
   anexen3: varchar("anexen3"), // Annex 3
   anexen4: varchar("anexen4"), // Annex 4
-  
+
   // Time fields
   dten: varchar("dten"), // Entity day
   uren: varchar("uren"), // Entity hour
-  
+
   // Collection economic activity
   actecobco: varchar("actecobco"), // Collection economic activity
-  
+
   // Outstanding balances
   deudaven: numeric("deudaven", { precision: 15, scale: 2 }), // Due debt
   chvnocan: numeric("chvnocan", { precision: 15, scale: 2 }), // Uncanceled checks
@@ -738,7 +738,7 @@ export const ecommerceProductObject = z.object({
   ud02pr: z.string().optional(),
   priceProduct: z.number().min(0, "Product price must be non-negative").optional(),
   priceOffer: z.number().min(0, "Offer price must be non-negative").optional(),
-  
+
   // eCommerce fields - conditional validation based on ecomActive
   slug: z.string().min(1, "Slug is required").regex(/^[a-z0-9-]+$/, "Slug must contain only lowercase letters, numbers, and hyphens"),
   ecomActive: z.boolean().default(false),
@@ -749,7 +749,7 @@ export const ecommerceProductObject = z.object({
   seoTitle: z.string().optional(),
   seoDescription: z.string().optional(),
   ogImageUrl: z.string().url("Invalid Open Graph image URL").optional().or(z.literal("")),
-  
+
   // Base fields
   showInStore: z.boolean().default(false),
   active: z.boolean().default(true),
@@ -757,46 +757,46 @@ export const ecommerceProductObject = z.object({
 
 // Enhanced eCommerce product schema with validation (for API validation)
 export const ecommerceProductSchema = ecommerceProductObject
-.superRefine((data, ctx) => {
-  // When ecommerce is active, enforce additional requirements
-  if (data.ecomActive) {
-    // Require at least one image with primary=true when active
-    if (data.images.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "At least one image is required for active eCommerce products",
-        path: ["images"]
-      });
-    } else {
-      const hasPrimaryImage = data.images.some(img => img.primary);
-      if (!hasPrimaryImage) {
+  .superRefine((data, ctx) => {
+    // When ecommerce is active, enforce additional requirements
+    if (data.ecomActive) {
+      // Require at least one image with primary=true when active
+      if (data.images.length === 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "At least one image must be marked as primary for active eCommerce products",
+          message: "At least one image is required for active eCommerce products",
           path: ["images"]
+        });
+      } else {
+        const hasPrimaryImage = data.images.some(img => img.primary);
+        if (!hasPrimaryImage) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "At least one image must be marked as primary for active eCommerce products",
+            path: ["images"]
+          });
+        }
+      }
+
+      // Require category when active
+      if (!data.category || data.category.trim() === "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Category is required for active eCommerce products",
+          path: ["category"]
+        });
+      }
+
+      // Require at least one pricing option
+      if (!data.ecomPrice && !data.priceOffer && !data.priceProduct) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "At least one price (ecomPrice, priceOffer, or priceProduct) is required for active eCommerce products",
+          path: ["ecomPrice"]
         });
       }
     }
-    
-    // Require category when active
-    if (!data.category || data.category.trim() === "") {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Category is required for active eCommerce products",
-        path: ["category"]
-      });
-    }
-    
-    // Require at least one pricing option
-    if (!data.ecomPrice && !data.priceOffer && !data.priceProduct) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "At least one price (ecomPrice, priceOffer, or priceProduct) is required for active eCommerce products",
-        path: ["ecomPrice"]
-      });
-    }
-  }
-});
+  });
 
 // Base object for creating eCommerce product with price calculation (extends base object)
 const createEcommerceProductWithPriceObject = ecommerceProductObject.extend({
@@ -806,85 +806,85 @@ const createEcommerceProductWithPriceObject = ecommerceProductObject.extend({
 
 // Enhanced eCommerce product creation schema with price calculation
 export const createEcommerceProductWithPriceSchema = createEcommerceProductWithPriceObject
-.superRefine((data, ctx) => {
-  // When ecommerce is active, enforce additional requirements
-  if (data.ecomActive) {
-    // Require at least one image with primary=true when active
-    if (data.images.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "At least one image is required for active eCommerce products",
-        path: ["images"]
-      });
-    } else {
-      const hasPrimaryImage = data.images.some(img => img.primary);
-      if (!hasPrimaryImage) {
+  .superRefine((data, ctx) => {
+    // When ecommerce is active, enforce additional requirements
+    if (data.ecomActive) {
+      // Require at least one image with primary=true when active
+      if (data.images.length === 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "At least one image must be marked as primary for active eCommerce products",
+          message: "At least one image is required for active eCommerce products",
           path: ["images"]
+        });
+      } else {
+        const hasPrimaryImage = data.images.some(img => img.primary);
+        if (!hasPrimaryImage) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "At least one image must be marked as primary for active eCommerce products",
+            path: ["images"]
+          });
+        }
+      }
+
+      // Require category when active
+      if (!data.category || data.category.trim() === "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Category is required for active eCommerce products",
+          path: ["category"]
+        });
+      }
+
+      // Require at least one pricing option
+      if (!data.ecomPrice && !data.priceOffer && !data.priceProduct) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "At least one price (ecomPrice, priceOffer, or priceProduct) is required for active eCommerce products",
+          path: ["ecomPrice"]
         });
       }
     }
-    
-    // Require category when active
-    if (!data.category || data.category.trim() === "") {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Category is required for active eCommerce products",
-        path: ["category"]
-      });
-    }
-    
-    // Require at least one pricing option
-    if (!data.ecomPrice && !data.priceOffer && !data.priceProduct) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "At least one price (ecomPrice, priceOffer, or priceProduct) is required for active eCommerce products",
-        path: ["ecomPrice"]
-      });
-    }
-  }
-})
-.transform((data) => {
-  // Calculate display price using proper precedence
-  const displayPrice = data.ecomPrice ?? data.priceOffer ?? data.priceProduct;
-  return {
-    ...data,
-    displayPrice
-  };
-});
+  })
+  .transform((data) => {
+    // Calculate display price using proper precedence
+    const displayPrice = data.ecomPrice ?? data.priceOffer ?? data.priceProduct;
+    return {
+      ...data,
+      displayPrice
+    };
+  });
 
 // Base object for updating eCommerce products (uses partial of base object)
 const updateEcommerceProductObject = ecommerceProductObject.omit({ kopr: true }).partial();
 
 // Enhanced update schema with validation
 export const updateEcommerceProductSchema = updateEcommerceProductObject
-.superRefine((data, ctx) => {
-  // Apply same validation rules as create schema when ecomActive is being set to true
-  if (data.ecomActive === true) {
-    // Validate images if provided
-    if (data.images && data.images.length > 0) {
-      const hasPrimaryImage = data.images.some(img => img.primary);
-      if (!hasPrimaryImage) {
+  .superRefine((data, ctx) => {
+    // Apply same validation rules as create schema when ecomActive is being set to true
+    if (data.ecomActive === true) {
+      // Validate images if provided
+      if (data.images && data.images.length > 0) {
+        const hasPrimaryImage = data.images.some(img => img.primary);
+        if (!hasPrimaryImage) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "At least one image must be marked as primary when activating eCommerce",
+            path: ["images"]
+          });
+        }
+      }
+
+      // Validate category if provided
+      if (data.category !== undefined && (!data.category || data.category.trim() === "")) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "At least one image must be marked as primary when activating eCommerce",
-          path: ["images"]
+          message: "Category is required when activating eCommerce",
+          path: ["category"]
         });
       }
     }
-    
-    // Validate category if provided
-    if (data.category !== undefined && (!data.category || data.category.trim() === "")) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Category is required when activating eCommerce",
-        path: ["category"]
-      });
-    }
-  }
-});
+  });
 
 // Base object for eCommerce product filters (for extending/partial operations)
 export const ecommerceProductFiltersObject = z.object({
@@ -901,16 +901,16 @@ export const ecommerceProductFiltersObject = z.object({
 
 // Enhanced filters schema with validation
 export const ecommerceProductFiltersSchema = ecommerceProductFiltersObject
-.superRefine((data, ctx) => {
-  // Ensure maxPrice is greater than or equal to minPrice when both are provided
-  if (data.minPrice !== undefined && data.maxPrice !== undefined && data.maxPrice < data.minPrice) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Maximum price must be greater than or equal to minimum price",
-      path: ["maxPrice"]
-    });
-  }
-});
+  .superRefine((data, ctx) => {
+    // Ensure maxPrice is greater than or equal to minPrice when both are provided
+    if (data.minPrice !== undefined && data.maxPrice !== undefined && data.maxPrice < data.minPrice) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Maximum price must be greater than or equal to minimum price",
+        path: ["maxPrice"]
+      });
+    }
+  });
 
 // CSV import schema for products and stock (KOPR-based)
 export const csvProductStockImportSchema = z.object({
@@ -919,12 +919,12 @@ export const csvProductStockImportSchema = z.object({
   NOKOPR: z.string(), // Product Name
   UD01PR: z.string().optional(), // Unit 1
   UD02PR: z.string().optional(), // Unit 2
-  
+
   // Location identification from CSV
   KOSU: z.string(), // Branch Code
   KOBO: z.string(), // Warehouse Code
   DATOSUBIC: z.string().optional(), // Warehouse Location
-  
+
   // Stock fields from CSV (all as strings for parsing)
   STFI1: z.string().optional(), // Physical Stock 1
   STDV1: z.string().optional(), // Available Stock 1
@@ -933,7 +933,7 @@ export const csvProductStockImportSchema = z.object({
   STOCNV1C: z.string().optional(), // Committed Stock Alt 1
   RECENOFAC1: z.string().optional(), // Receipt No Invoice 1
   DESPNOFAC1: z.string().optional(), // Dispatch No Invoice 1
-  
+
   STFI2: z.string().optional(), // Physical Stock 2
   STDV2: z.string().optional(), // Available Stock 2
   STOCNV2: z.string().optional(), // Committed Stock 2
@@ -941,7 +941,7 @@ export const csvProductStockImportSchema = z.object({
   STOCNV2C: z.string().optional(), // Committed Stock Alt 2
   RECENOFAC2: z.string().optional(), // Receipt No Invoice 2
   DESPNOFAC2: z.string().optional(), // Dispatch No Invoice 2
-  
+
   // Additional fields from CSV
   RLUD: z.string().optional(), // Unit Relation
   FMPR: z.string().optional(), // Family code
@@ -1008,16 +1008,16 @@ export const insertInventoryProductSchema = createInsertSchema(inventoryProducts
   updatedAt: true,
 }).extend({
   // Transform numeric fields to strings
-  stock1: z.union([z.string(), z.number()]).transform(val => 
+  stock1: z.union([z.string(), z.number()]).transform(val =>
     typeof val === 'number' ? val.toString() : val
   ).optional(),
-  stock2: z.union([z.string(), z.number()]).transform(val => 
+  stock2: z.union([z.string(), z.number()]).transform(val =>
     typeof val === 'number' ? val.toString() : val
   ).optional(),
-  precioMedio: z.union([z.string(), z.number(), z.null()]).transform(val => 
+  precioMedio: z.union([z.string(), z.number(), z.null()]).transform(val =>
     val === null || val === undefined ? null : (typeof val === 'number' ? val.toString() : val)
   ).nullable().optional(),
-  valorInventario: z.union([z.string(), z.number(), z.null()]).transform(val => 
+  valorInventario: z.union([z.string(), z.number(), z.null()]).transform(val =>
     val === null || val === undefined ? null : (typeof val === 'number' ? val.toString() : val)
   ).nullable().optional(),
 });
@@ -1230,7 +1230,7 @@ export const salespeopleUsers = pgTable("salespeople_users", {
   role: varchar("role").default("salesperson"), // "admin" | "supervisor" | "salesperson" | "tecnico_obra" | "client" | "reception" | "jefe_planta" | "mantencion"
   supervisorId: varchar("supervisor_id"), // ID del supervisor que gestiona este vendedor (solo para role="salesperson")
   assignedSegment: varchar("assigned_segment"), // Segmento asignado al supervisor (solo para role="supervisor")
-  
+
   // Campos para catálogo público
   publicSlug: varchar("public_slug").unique(), // URL amigable (ej: "pablo-soto")
   profileImageUrl: varchar("profile_image_url"), // Foto de perfil del vendedor
@@ -1238,7 +1238,7 @@ export const salespeopleUsers = pgTable("salespeople_users", {
   publicEmail: varchar("public_email"), // Email de contacto público
   bio: text("bio"), // Descripción/biografía del vendedor
   catalogEnabled: boolean("catalog_enabled").default(false), // Si el catálogo público está habilitado
-  
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -1320,7 +1320,7 @@ export const insertGoalSchema = createInsertSchema(goals).omit({
   createdAt: true,
   updatedAt: true,
 }).extend({
-  amount: z.union([z.string(), z.number()]).transform((val) => 
+  amount: z.union([z.string(), z.number()]).transform((val) =>
     typeof val === 'string' ? val : val.toString()
   ),
 });
@@ -1624,16 +1624,16 @@ export const insertOrderItemSchema = createInsertSchema(orderItems, {
   productName: z.string().min(1, "Nombre del producto es requerido"),
   customSku: z.string().optional(),
   pricingMode: z.enum(["calculated", "direct"]).optional(),
-  quantity: z.union([z.string(), z.number()]).transform((val) => 
+  quantity: z.union([z.string(), z.number()]).transform((val) =>
     typeof val === 'string' ? val : val.toString()
   ),
-  unitPrice: z.union([z.string(), z.number()]).transform((val) => 
+  unitPrice: z.union([z.string(), z.number()]).transform((val) =>
     typeof val === 'string' ? val : val.toString()
   ),
-  costOfProduction: z.union([z.string(), z.number()]).optional().transform((val) => 
+  costOfProduction: z.union([z.string(), z.number()]).optional().transform((val) =>
     val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
   ),
-  profitMargin: z.union([z.string(), z.number()]).optional().transform((val) => 
+  profitMargin: z.union([z.string(), z.number()]).optional().transform((val) =>
     val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
   ),
 }).omit({
@@ -1663,19 +1663,19 @@ export const updateOrderItemByIdSchema = updateOrderItemSchema.extend({
 
 // Schema for order totals recalculation
 export const orderTotalsSchema = z.object({
-  subtotal: z.union([z.string(), z.number()]).transform((val) => 
+  subtotal: z.union([z.string(), z.number()]).transform((val) =>
     typeof val === 'string' ? val : val.toString()
   ),
-  discount: z.union([z.string(), z.number()]).optional().transform((val) => 
+  discount: z.union([z.string(), z.number()]).optional().transform((val) =>
     val === undefined || val === null ? "0" : (typeof val === 'string' ? val : val.toString())
   ),
-  taxRate: z.union([z.string(), z.number()]).optional().transform((val) => 
+  taxRate: z.union([z.string(), z.number()]).optional().transform((val) =>
     val === undefined || val === null ? "19" : (typeof val === 'string' ? val : val.toString())
   ),
-  taxAmount: z.union([z.string(), z.number()]).transform((val) => 
+  taxAmount: z.union([z.string(), z.number()]).transform((val) =>
     typeof val === 'string' ? val : val.toString()
   ),
-  total: z.union([z.string(), z.number()]).transform((val) => 
+  total: z.union([z.string(), z.number()]).transform((val) =>
     typeof val === 'string' ? val : val.toString()
   ),
 });
@@ -1699,7 +1699,7 @@ export function calculateOrderTotals(
   const discountedAmount = subtotal - discountAmount;
   const taxAmount = discountedAmount * (taxRate / 100);
   const total = discountedAmount + taxAmount;
-  
+
   return {
     subtotal: Math.round(subtotal * 100) / 100,
     discount: Math.round(discountAmount * 100) / 100,
@@ -1734,17 +1734,82 @@ export const priceList = pgTable("price_list", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Segment Average Prices - Precios promedio por segmento (Ferretería/Construcción)
+export const segmentAveragePrices = pgTable("segment_average_prices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  segmentCode: varchar("segment_code").notNull(), // 'FERRETERIAS' | 'CONSTRUCCION'
+  codigo: varchar("codigo").notNull(), // Product code (KOPR)
+  producto: text("producto"), // Product name context
+  precioPromedio: numeric("precio_promedio", { precision: 15, scale: 2 }).notNull(),
+  unidad: varchar("unidad"), // Unit context
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  updatedBy: varchar("updated_by"),
+}, (table) => ({
+  uniqueSegmentProduct: unique("unique_segment_product").on(table.segmentCode, table.codigo),
+}));
+
+export type SegmentAveragePrice = typeof segmentAveragePrices.$inferSelect;
+export type InsertSegmentAveragePrice = typeof segmentAveragePrices.$inferInsert;
+
+// Product Content table - stores rich product information for the AI and product detail pages
+export const productContent = pgTable("product_content", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  codigo: varchar("codigo").notNull().unique(), // KOPR, matches price_list.codigo
+  // Core content
+  descripcion: text("descripcion"), // Long description of the product
+  usos: text("usos"), // Applications and uses
+  presentacion: text("presentacion"), // Available presentations/packaging
+  rendimiento: text("rendimiento_texto"), // Theoretical yield
+  // Technical application
+  preparacionSuperficie: text("preparacion_superficie"), // Surface preparation
+  modoAplicacion: text("modo_aplicacion"), // Application method
+  tiempoSecado: text("tiempo_secado"), // Drying time
+  dilucion: text("dilucion"), // Dilution instructions
+  capas: text("capas"), // Number of coats
+  // Safety & compliance
+  observaciones: text("observaciones"), // Safety observations
+  // File attachments (stored as JSON array: [{name, url, type, uploadedAt}])
+  fichasTecnicas: jsonb("fichas_tecnicas").default([]), // Technical data sheets
+  hojasSeguridad: jsonb("hojas_seguridad").default([]), // Safety data sheets
+  // Metadata
+  updatedBy: varchar("updated_by"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type ProductContent = typeof productContent.$inferSelect;
+export type InsertProductContent = typeof productContent.$inferInsert;
+
+// Product Questions table - tracks questions the AI couldn't fully resolve, per product
+export const productQuestions = pgTable("product_questions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  codigo: varchar("codigo").notNull(), // Product code (KOPR)
+  pregunta: text("pregunta").notNull(), // The question asked
+  contexto: text("contexto"), // Context/extra details from the AI about why it lacked the answer
+  resuelta: boolean("resuelta").default(false), // Whether admin has filled in the missing info
+  resueltaAt: timestamp("resuelta_at"), // When it was resolved
+  resueltaPor: varchar("resuelta_por"), // Who resolved it
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  codigoIdx: index("product_questions_codigo_idx").on(table.codigo),
+}));
+
+export type ProductQuestion = typeof productQuestions.$inferSelect;
+export type InsertProductQuestion = typeof productQuestions.$inferInsert;
+
+
+
 // Helper function for flexible value transformation
 const flexibleTransform = (val: any): string | undefined => {
   // Handle null, undefined, empty strings, and common null representations
-  if (val === undefined || val === null || val === '' || 
-      (typeof val === 'string' && ['N/A', 'NULL', 'null', '-', '--', 'n/a'].includes(val.trim().toLowerCase()))) {
+  if (val === undefined || val === null || val === '' ||
+    (typeof val === 'string' && ['N/A', 'NULL', 'null', '-', '--', 'n/a'].includes(val.trim().toLowerCase()))) {
     return undefined;
   }
-  
+
   // Convert to string and trim
   const stringVal = String(val).trim();
-  
+
   // Return undefined for empty string after trim
   return stringVal === '' ? undefined : stringVal;
 };
@@ -1754,7 +1819,7 @@ export const insertPriceListSchema = createInsertSchema(priceList, {
   codigo: z.string().min(1, "Código es requerido"),
   producto: z.string().min(1, "Producto es requerido"),
   unidad: z.any().optional().transform(flexibleTransform),
-  
+
   // Numeric fields with flexible parsing
   lista: z.any().optional().transform(flexibleTransform),
   desc10: z.any().optional().transform(flexibleTransform),
@@ -1762,14 +1827,14 @@ export const insertPriceListSchema = createInsertSchema(priceList, {
   desc10_5_3: z.any().optional().transform(flexibleTransform),
   minimo: z.any().optional().transform(flexibleTransform),
   canalDigital: z.any().optional().transform(flexibleTransform),
-  
+
   // Special fields
   esPersonalizado: z.any().optional().transform((val) => {
     if (val === undefined || val === null || val === '') return "No";
     const stringVal = String(val).toLowerCase().trim();
     return ['si', 'sí', 'yes', 'true', '1'].includes(stringVal) ? "Si" : "No";
   }),
-  
+
   // Cost and utility fields - more flexible
   costoProduccion: z.any().optional().transform(flexibleTransform),
   porcentajeUtilidad: z.any().optional().transform(flexibleTransform),
@@ -1895,16 +1960,16 @@ export const insertQuoteItemSchema = createInsertSchema(quoteItems, {
   productName: z.string().min(1, "Nombre del producto es requerido"),
   customSku: z.string().optional(),
   pricingMode: z.enum(["calculated", "direct"]).optional(),
-  quantity: z.union([z.string(), z.number()]).transform((val) => 
+  quantity: z.union([z.string(), z.number()]).transform((val) =>
     typeof val === 'string' ? val : val.toString()
   ),
-  unitPrice: z.union([z.string(), z.number()]).transform((val) => 
+  unitPrice: z.union([z.string(), z.number()]).transform((val) =>
     typeof val === 'string' ? val : val.toString()
   ),
-  costOfProduction: z.union([z.string(), z.number()]).optional().transform((val) => 
+  costOfProduction: z.union([z.string(), z.number()]).optional().transform((val) =>
     val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
   ),
-  profitMargin: z.union([z.string(), z.number()]).optional().transform((val) => 
+  profitMargin: z.union([z.string(), z.number()]).optional().transform((val) =>
     val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
   ),
 }).omit({
@@ -1988,6 +2053,29 @@ export const ecommerceProducts = pgTable("ecommerce_products", {
   minUnit: integer("min_unit").default(1), // Cantidad mínima de pedido (constraints_minUnit del CSV)
   stepSize: integer("step_size").default(1), // Tamaño de salto de cantidad (constraints_stepSize del CSV)
   formatUnit: varchar("format_unit"), // Unidad de formato (packaging_unitName del CSV)
+
+  // Dimensions and Weight
+  weight: numeric("weight", { precision: 10, scale: 2 }),
+  weightUnit: varchar("weight_unit"),
+  length: numeric("length", { precision: 10, scale: 2 }),
+  lengthUnit: varchar("length_unit"),
+  width: numeric("width", { precision: 10, scale: 2 }),
+  widthUnit: varchar("width_unit"),
+  height: numeric("height", { precision: 10, scale: 2 }),
+  heightUnit: varchar("height_unit"),
+  volume: numeric("volume", { precision: 10, scale: 2 }),
+  volumeUnit: varchar("volume_unit"),
+
+  // Packaging details
+  packagingPackageName: varchar("packaging_package_name"),
+  packagingPackageUnit: varchar("packaging_package_unit"),
+  packagingAmountPerPackage: integer("packaging_amount_per_package"),
+  packagingBoxName: varchar("packaging_box_name"),
+  packagingBoxUnit: varchar("packaging_box_unit"),
+  packagingAmountPerBox: integer("packaging_amount_per_box"),
+  packagingPalletName: varchar("packaging_pallet_name"),
+  packagingPalletUnit: varchar("packaging_pallet_unit"),
+  packagingAmountPerPallet: integer("packaging_amount_per_pallet"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -2010,12 +2098,12 @@ export const shopifyProducts = pgTable("shopify_products", {
   tags: text("tags").array(), // Tags para búsqueda/filtrado
   status: varchar("status").default("draft"), // draft, active, archived
   category: varchar("category"), // Categoría para navegación
-  
+
   // SEO
   seoTitle: varchar("seo_title"),
   seoDescription: text("seo_description"),
   handle: varchar("handle").unique(), // URL slug (ej: "esmalte-agua-copper")
-  
+
   // Images (JSON array of image objects)
   images: jsonb("images").default(sql`'[]'::jsonb`).$type<{
     id: string;
@@ -2023,10 +2111,10 @@ export const shopifyProducts = pgTable("shopify_products", {
     alt: string;
     position: number;
   }[]>(),
-  
+
   // Ordering
   sortOrder: integer("sort_order").default(0),
-  
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -2045,41 +2133,41 @@ export const shopifyProductOptions = pgTable("shopify_product_options", {
 export const shopifyProductVariants = pgTable("shopify_product_variants", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   productId: varchar("product_id").notNull().references(() => shopifyProducts.id, { onDelete: "cascade" }),
-  
+
   // Identificación
   sku: varchar("sku").notNull().unique(), // Código único (ej: "PCA960CAFEMO2")
   barcode: varchar("barcode"), // Código de barras opcional
-  
+
   // Opciones de la variante (máximo 3 opciones como Shopify)
   option1: varchar("option1"), // Valor de opción 1 (ej: "Blanco")
   option2: varchar("option2"), // Valor de opción 2 (ej: "Galón")
   option3: varchar("option3"), // Valor de opción 3
-  
+
   // Precios
   price: numeric("price", { precision: 15, scale: 2 }).notNull(), // Precio de venta
   compareAtPrice: numeric("compare_at_price", { precision: 15, scale: 2 }), // Precio tachado (antes)
   costPrice: numeric("cost_price", { precision: 15, scale: 2 }), // Costo para reportes
-  
+
   // Inventario
   inventoryQuantity: integer("inventory_quantity").default(0),
   inventoryPolicy: varchar("inventory_policy").default("deny"), // deny, continue
-  
+
   // Peso y dimensiones para envío
   weight: numeric("weight", { precision: 10, scale: 2 }),
   weightUnit: varchar("weight_unit").default("kg"),
-  
+
   // Imagen específica de la variante
   imageUrl: varchar("image_url"),
-  
+
   // Packaging info from CSV
   packagingUnit: varchar("packaging_unit"), // GL, BD4, 1/4, etc.
   packagingUnitName: varchar("packaging_unit_name"), // "Galón", "Balde 4 Galones", etc.
   amountPerPackage: integer("amount_per_package"),
-  
+
   // Estado
   available: boolean("available").default(true),
   position: integer("position").default(1), // Orden de la variante
-  
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -2377,26 +2465,26 @@ export interface CartItem {
   productCode: string; // KOPR code from products table
   productName: string; // Product name
   productSlug?: string; // For product page navigation
-  
+
   // Product variations/selections
   selectedPackaging?: string; // E.g., "Galón", "Balde 4 Galones", "1/4"
   selectedColor?: string; // E.g., "BLANCO", "NEGRO", etc.
   selectedFinish?: string; // E.g., "Mate", "Satinado", etc.
   unit: string; // Base unit from ud02pr (GL, BD4, 1/4, etc.)
-  
+
   // Pricing and quantity
   unitPrice: number; // Price per unit in CLP
   quantity: number; // Selected quantity (must follow validation rules)
   subtotal: number; // unitPrice * quantity (calculated)
-  
+
   // Product information for display
   imageUrl?: string; // Primary product image
   category?: string; // Product category
-  
+
   // Metadata
   addedAt: string; // ISO timestamp when added to cart
   updatedAt: string; // ISO timestamp when last modified
-  
+
   // Validation metadata
   minQuantity: number; // Minimum quantity based on unit type
   quantityStep: number; // Step increment (1 for BD, 4 for GL, 6 for 1/4)
@@ -2405,17 +2493,17 @@ export interface CartItem {
 // Cart state interface
 export interface CartState {
   items: CartItem[];
-  
+
   // Calculated totals
   subtotal: number; // Sum of all item subtotals
   taxAmount: number; // IVA (19% in Chile)
   discountAmount: number; // Total discount amount
   total: number; // Final total (subtotal + tax - discount)
-  
+
   // Cart metrics
   itemCount: number; // Total number of different items
   unitCount: number; // Total number of units (sum of all quantities)
-  
+
   // Applied discounts/coupons
   appliedCoupons: Array<{
     code: string;
@@ -2423,7 +2511,7 @@ export interface CartState {
     type: 'percentage' | 'fixed'; // Discount type
     description?: string;
   }>;
-  
+
   // Metadata
   lastUpdated: string; // ISO timestamp
   sessionId?: string; // For guest cart tracking
@@ -2458,21 +2546,21 @@ export const CART_CONFIG = {
   CURRENCY_SYMBOL: '$',
   MAX_ITEMS: 50, // Maximum number of different items in cart
   MAX_QUANTITY_PER_ITEM: 99999,
-  
+
   // Quantity rules by unit type
   QUANTITY_RULES: {
     // Baldes - individual units
     BD4: { minQuantity: 1, stepQuantity: 1, displayName: 'Balde 4 Galones', description: 'Mínimo 1 unidad' },
     BD5: { minQuantity: 1, stepQuantity: 1, displayName: 'Balde 5 Galones', description: 'Mínimo 1 unidad' },
-    
+
     // Galones - multiples of 4
     GL: { minQuantity: 4, stepQuantity: 4, displayName: 'Galón', description: 'Mínimo 4 galones' },
     GAL: { minQuantity: 4, stepQuantity: 4, displayName: 'Galón', description: 'Mínimo 4 galones' },
-    
+
     // Cuartos - multiples of 6
     '1/4': { minQuantity: 6, stepQuantity: 6, displayName: '1/4 Galón', description: 'Mínimo 6 unidades' },
     'CUARTO': { minQuantity: 6, stepQuantity: 6, displayName: '1/4 Galón', description: 'Mínimo 6 unidades' },
-    
+
     // Default for other units
     DEFAULT: { minQuantity: 1, stepQuantity: 1, displayName: 'Unidad', description: 'Mínimo 1 unidad' }
   } as const
@@ -2497,7 +2585,7 @@ export const cartItemSchema = z.object({
   productName: z.string(),
   productSlug: z.string().optional(),
   selectedPackaging: z.string().optional(),
-  selectedColor: z.string().optional(), 
+  selectedColor: z.string().optional(),
   selectedFinish: z.string().optional(),
   unit: z.string(),
   unitPrice: z.number().min(0),
@@ -2565,11 +2653,11 @@ export type CartStateType = z.infer<typeof cartStateSchema>;
  */
 export const nvvPendingSales = pgTable("nvv_pending_sales", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  
+
   // ALL NVV CSV COLUMNS WITH EXACT NAMES - For easy linking with other systems
   IDMAEEDO: numeric("IDMAEEDO", { precision: 15, scale: 2 }),
   TIDO: varchar("TIDO"),
-  NUDO: varchar("NUDO"), 
+  NUDO: varchar("NUDO"),
   ENDO: varchar("ENDO"),
   SUENDO: varchar("SUENDO"),
   SUDO: varchar("SUDO"),
@@ -2623,11 +2711,11 @@ export const nvvPendingSales = pgTable("nvv_pending_sales", {
   ENDOFI: varchar("ENDOFI"),
   UBICACION: varchar("UBICACION"),
   OBSERVA: text("OBSERVA"), // Observaciones
-  
+
   // Calculated fields as requested
   cantidadPendiente: numeric("cantidad_pendiente", { precision: 10, scale: 2 }), // CAPRCO2 - CAPREX2
   totalPendiente: numeric("total_pendiente", { precision: 15, scale: 2 }), // PPPRNE * cantidadPendiente
-  
+
   // System fields for tracking
   importedAt: timestamp("imported_at").defaultNow(),
   importBatch: varchar("import_batch"),
@@ -2712,7 +2800,7 @@ export const nvvCsvImportSchema = z.object({
   productName: z.string().min(1, "Nombre del producto requerido"),
   quantity: z.number().positive("Cantidad debe ser positiva"),
   totalAmount: z.number().positive("Monto total debe ser positivo"),
-  
+
   // Optional fields with defaults
   documentType: z.string().optional(),
   clientCode: z.string().optional(),
@@ -2872,14 +2960,14 @@ export const visitasTecnicas = pgTable("visitas_tecnicas", {
   vendedorId: varchar("vendedor_id"), // FK to users.id
   clienteId: varchar("cliente_id"), // FK to clients.id (opcional si se usa clienteManual)
   clienteManual: text("cliente_manual"), // Cliente manual si no está en la lista
-  
+
   // Recepcionista
   recepcionistaNombre: text("recepcionista_nombre"),
   recepcionistaCargo: text("recepcionista_cargo"),
-  
+
   // Estados de la visita
   estado: varchar("estado").notNull().default("borrador"), // 'borrador', 'completada'
-  
+
   // Evaluación técnica general
   aplicacionGeneral: varchar("aplicacion_general"), // 'correcta', 'deficiente'
   tipoSuperficie: text("tipo_superficie"),
@@ -2887,16 +2975,16 @@ export const visitasTecnicas = pgTable("visitas_tecnicas", {
   condicionesClimaticas: text("condiciones_climaticas"),
   dilucion: text("dilucion"),
   observacionesGenerales: text("observaciones_generales"),
-  
+
   // Comentarios generales
   comentarios: text("comentarios"),
-  
+
   // Firmas de recepción
   firmaTecnicoNombre: text("firma_tecnico_nombre"),
   firmaTecnicoData: text("firma_tecnico_data"), // Base64 de la firma
   firmaRecepcionistaData: text("firma_recepcionista_data"), // Base64 de la firma
   fechaFirma: timestamp("fecha_firma"),
-  
+
   // Metadata
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -2906,25 +2994,25 @@ export const visitasTecnicas = pgTable("visitas_tecnicas", {
 export const contactosVisita = pgTable("contactos_visita", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   visitaId: varchar("visita_id").notNull(), // FK to visitasTecnicas.id
-  
+
   // Contratista
   contratistaNombre: varchar("contratista_nombre"),
   contratistaTelefono: varchar("contratista_telefono"),
   contratistaEmail: varchar("contratista_email"),
-  
+
   // Administrador de obra
   administradorNombre: varchar("administrador_nombre"),
   administradorTelefono: varchar("administrador_telefono"),
   administradorEmail: varchar("administrador_email"),
-  
+
   // Supervisor/Capataz
   supervisorNombre: varchar("supervisor_nombre"),
   supervisorTelefono: varchar("supervisor_telefono"),
   supervisorEmail: varchar("supervisor_email"),
-  
+
   // Campo contacto general (legacy)
   contactoGeneral: text("contacto_general"),
-  
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -2935,7 +3023,7 @@ export const productosEvaluados = pgTable("productos_evaluados", {
   visitaId: varchar("visita_id").notNull(), // FK to visitasTecnicas.id
   productoId: varchar("producto_id"), // FK to products.id (opcional)
   productoManual: text("producto_manual"), // Producto manual si no está en catálogo
-  
+
   // Información del producto en la obra
   formato: varchar("formato"),
   color: varchar("color"),
@@ -2943,7 +3031,7 @@ export const productosEvaluados = pgTable("productos_evaluados", {
   fechaLlegada: date("fecha_llegada"),
   metrosCuadradosAplicados: numeric("metros_cuadrados_aplicados", { precision: 10, scale: 2 }),
   porcentajeAvance: numeric("porcentaje_avance", { precision: 5, scale: 2 }),
-  
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -2952,7 +3040,7 @@ export const productosEvaluados = pgTable("productos_evaluados", {
 export const evaluacionesTecnicas = pgTable("evaluaciones_tecnicas", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   productoEvaluadoId: varchar("producto_evaluado_id").notNull(), // FK to productosEvaluados.id
-  
+
   // Evaluación técnica específica por producto
   aplicacion: varchar("aplicacion"), // 'correcta', 'deficiente'
   tipoSuperficie: text("tipo_superficie"),
@@ -2966,7 +3054,7 @@ export const evaluacionesTecnicas = pgTable("evaluaciones_tecnicas", {
   anomalias: text("anomalias"),
   accionesRecomendadas: text("acciones_recomendadas"),
   imagenesUrls: jsonb("imagenes_urls").default(sql`'[]'::jsonb`), // Array de URLs de imágenes
-  
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -2975,7 +3063,7 @@ export const evaluacionesTecnicas = pgTable("evaluaciones_tecnicas", {
 export const reclamos = pgTable("reclamos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   visitaId: varchar("visita_id").notNull(), // FK to visitasTecnicas.id
-  
+
   // Información del reclamo
   descripcion: text("descripcion").notNull(),
   loteInvolucrado: varchar("lote_involucrado"),
@@ -2984,7 +3072,7 @@ export const reclamos = pgTable("reclamos", {
   requiereAnalisisLaboratorio: boolean("requiere_analisis_laboratorio").default(false),
   estado: varchar("estado").default("pendiente"), // 'pendiente', 'en_proceso', 'resuelto'
   notasResolucion: text("notas_resolucion"),
-  
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -2993,15 +3081,15 @@ export const reclamos = pgTable("reclamos", {
 export const firmasDigitales = pgTable("firmas_digitales", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   visitaId: varchar("visita_id").notNull(), // FK to visitasTecnicas.id
-  
+
   // Tipos de firma
   tipoFirma: varchar("tipo_firma").notNull(), // 'contratista', 'constructor', 'tecnico'
   nombreFirmante: varchar("nombre_firmante"),
   cargoFirmante: varchar("cargo_firmante"),
-  
+
   // Datos de la firma (base64)
   datosBase64: text("datos_base64").notNull(),
-  
+
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -3011,7 +3099,7 @@ export const evidencias = pgTable("evidencias", {
   visitaId: varchar("visita_id"), // FK to visitasTecnicas.id (opcional)
   productoEvaluadoId: varchar("producto_evaluado_id"), // FK to productosEvaluados.id (opcional)
   reclamoId: varchar("reclamo_id"), // FK to reclamos.id (opcional)
-  
+
   // Información del archivo
   tipoEvidencia: varchar("tipo_evidencia").notNull(), // 'producto', 'reclamo', 'general'
   nombreArchivo: varchar("nombre_archivo").notNull(),
@@ -3019,7 +3107,7 @@ export const evidencias = pgTable("evidencias", {
   tipoArchivo: varchar("tipo_archivo"), // 'image/jpeg', 'image/png', etc.
   tamanio: integer("tamanio"), // Size in bytes
   descripcion: text("descripcion"),
-  
+
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -3340,32 +3428,32 @@ export const ecommerceOrders = pgTable("ecommerce_orders", {
   clientName: text("client_name").notNull(), // Client name for display
   clientEmail: varchar("client_email"), // Client email
   clientPhone: varchar("client_phone"), // Client phone
-  
+
   // Assigned salesperson and supervisor
   assignedSalespersonId: varchar("assigned_salesperson_id"), // FK to users.id (salesperson)
   assignedSalespersonName: varchar("assigned_salesperson_name"), // Salesperson name for display
   assignedSupervisorId: varchar("assigned_supervisor_id"), // FK to users.id (supervisor)
-  
+
   // Order details (JSON for flexibility)
   items: jsonb("items").notNull(), // Array of {productId, productName, sku, quantity, unitPrice, totalPrice}
   subtotal: numeric("subtotal", { precision: 15, scale: 2 }).notNull(),
   tax: numeric("tax", { precision: 15, scale: 2 }).notNull(),
   total: numeric("total", { precision: 15, scale: 2 }).notNull(),
-  
+
   // Order status flow
   status: varchar("status").default("pending"), // pending, approved, modified, rejected, sent
   notes: text("notes"), // Client notes or special instructions
   shippingAddress: text("shipping_address"), // Shipping/delivery address
-  
+
   // Approval tracking
   approvedAt: timestamp("approved_at"),
   approvedById: varchar("approved_by_id"), // FK to users.id (who approved)
   modifiedAt: timestamp("modified_at"),
   modifiedById: varchar("modified_by_id"), // FK to users.id (who modified)
-  
+
   // Quote reference (if converted to quote)
   quoteId: varchar("quote_id"), // FK to quotes.id
-  
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -3377,20 +3465,20 @@ export const ecommerceOrders = pgTable("ecommerce_orders", {
 // Notificaciones - Sistema robusto de notificaciones internas
 export const notifications = pgTable("notifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  
+
   // Destinatario (solo para notificaciones personales)
   userId: varchar("user_id"), // FK to users.id (solo para targetType='personal')
-  
+
   // Tipo de notificación
   targetType: varchar("target_type").notNull().default('personal'), // 'personal', 'general', 'departamento'
   department: varchar("department"), // Para targetType='departamento': 'laboratorio', 'logistica', 'finanzas', 'ventas', 'produccion', 'planificacion', etc.
-  
+
   // Contenido
   type: varchar("type").notNull(), // 'manual', 'stock_bajo', 'stock_critico', 'producto_agotado', 'ecommerce_order', 'task_assigned', etc.
   title: varchar("title").notNull(),
   message: text("message").notNull(),
   priority: varchar("priority").default("media"), // 'baja', 'media', 'alta', 'critica'
-  
+
   // Referencias relacionadas
   relatedOrderId: varchar("related_order_id"), // FK to ecommerce_orders.id
   relatedQuoteId: varchar("related_quote_id"), // FK to quotes.id
@@ -3398,25 +3486,25 @@ export const notifications = pgTable("notifications", {
   relatedReclamoId: varchar("related_reclamo_id"), // FK to reclamos_generales.id
   relatedInventoryProductId: varchar("related_inventory_product_id"), // FK to inventory_products.id
   relatedWarehouseId: varchar("related_warehouse_id"), // FK to warehouses.id
-  
+
   // Estado (DEPRECATED - usar notification_reads en su lugar para seguimiento individual)
   read: boolean("read").default(false),
   readAt: timestamp("read_at"),
-  
+
   // Archivado
   isArchived: boolean("is_archived").default(false),
   archivedAt: timestamp("archived_at"),
-  
+
   // Expiración
   expiresAt: timestamp("expires_at"), // Fecha de expiración opcional
-  
+
   // URL de acción
   actionUrl: varchar("action_url"),
-  
+
   // Creador
   createdBy: varchar("created_by").notNull().default('system'), // FK to users.id (quien creó la notificación)
   createdByName: varchar("created_by_name"), // Nombre del creador
-  
+
   // Metadata
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -3434,19 +3522,19 @@ export const notifications = pgTable("notifications", {
 // Configuración de notificaciones por email
 export const emailNotificationSettings = pgTable("email_notification_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  
+
   // Tipo de notificación
   notificationType: varchar("notification_type").notNull().unique(), // 'pedido_nuevo', 'reclamo_nuevo', 'cotizacion_convertida', 'stock_bajo', 'tarea_asignada', 'alerta_inactividad'
-  
+
   // Configuración
   enabled: boolean("enabled").default(true),
   recipients: text("recipients"), // Lista de emails separados por coma
   ccRecipients: text("cc_recipients"), // Copia a estos emails
-  
+
   // Descripción para el UI
   displayName: varchar("display_name").notNull(),
   description: text("description"),
-  
+
   // Metadata
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -3484,16 +3572,16 @@ export type InsertSmtpConfig = typeof smtpConfig.$inferInsert;
 // Historial de correos enviados
 export const emailLogs = pgTable("email_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  
+
   // Información del correo
   recipient: text("recipient").notNull(), // Destinatario(s)
   subject: varchar("subject").notNull(),
   notificationType: varchar("notification_type"), // Tipo de notificación que generó el correo
-  
+
   // Estado del envío
   status: varchar("status").notNull().default("pending"), // 'pending', 'sent', 'failed'
   errorMessage: text("error_message"), // Si falló, descripción del error
-  
+
   // Metadata
   sentAt: timestamp("sent_at"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -3530,10 +3618,10 @@ export type InsertWhatsAppConfig = typeof whatsappConfig.$inferInsert;
 // Tabla de seguimiento de lecturas de notificaciones
 export const notificationReads = pgTable("notification_reads", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  
+
   notificationId: varchar("notification_id").notNull(), // FK to notifications.id
   userId: varchar("user_id").notNull(), // FK to users.id (quien leyó)
-  
+
   readAt: timestamp("read_at").defaultNow(),
 }, (table) => ({
   notificationUserIdx: unique("notification_user_unique").on(table.notificationId, table.userId), // Un usuario solo puede leer una vez cada notificación
@@ -3633,33 +3721,33 @@ export type InsertNotificationReadInput = z.infer<typeof insertNotificationReadS
 // Tabla principal de reclamos generales
 export const reclamosGenerales = pgTable("reclamos_generales", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  
+
   // Información del cliente
   clientName: text("client_name").notNull(),
   clientRut: varchar("client_rut"),
   clientEmail: varchar("client_email"),
   clientPhone: varchar("client_phone"),
   clientAddress: text("client_address"),
-  
+
   // Información del producto/servicio
   productName: text("product_name").notNull(),
   productSku: varchar("product_sku"),
   lote: varchar("lote"), // Lote del producto
-  
+
   // Descripción del reclamo
   description: text("description").notNull(),
   gravedad: varchar("gravedad").notNull(), // baja, media, alta, critica
   motivo: varchar("motivo"), // Motivo del reclamo que sugiere área responsable
-  
+
   // Flujo de trabajo
   estado: varchar("estado").default("registrado").notNull(), // registrado, en_revision_tecnica, en_area_responsable, en_laboratorio, en_produccion, resuelto, cerrado
   procede: boolean("procede"), // NULL = sin revisar, true = procede, false = no procede (decidido por técnico)
-  
+
   // Áreas responsables
   areaAsignadaInicial: varchar("area_asignada_inicial"), // materia_prima, colores, aplicacion, envase, etiqueta - Sugerida al crear
   areaResponsableActual: varchar("area_responsable_actual"), // Área responsable actual (editable por técnico)
   categoriaResponsable: varchar("categoria_responsable"), // DEPRECATED: usar areaResponsableActual (mantener por compatibilidad)
-  
+
   // Asignaciones
   vendedorId: varchar("vendedor_id").notNull(), // FK to users.id (quien registra)
   vendedorName: varchar("vendedor_name"), // Nombre del vendedor
@@ -3667,30 +3755,30 @@ export const reclamosGenerales = pgTable("reclamos_generales", {
   tecnicoName: varchar("tecnico_name"), // Nombre del técnico
   responsableAreaId: varchar("responsable_area_id"), // FK to users.id (responsable del área asignada)
   responsableAreaName: varchar("responsable_area_name"), // Nombre del responsable del área
-  
+
   // Derivaciones
   derivadoLaboratorio: boolean("derivado_laboratorio").default(false),
   derivadoProduccion: boolean("derivado_produccion").default(false),
-  
+
   // Informes y notas
   informeLaboratorio: text("informe_laboratorio"), // DEPRECATED: usar resolucionDescripcion
   informeProduccion: text("informe_produccion"),
   informeTecnico: text("informe_tecnico"),
   notasInternas: text("notas_internas"),
-  
+
   // Resolución del área responsable
   resolucionDescripcion: text("resolucion_descripcion"), // Descripción de la resolución (cualquier área)
   resolucionUsuarioId: varchar("resolucion_usuario_id"), // Usuario que subió la resolución
   resolucionUsuarioName: varchar("resolucion_usuario_name"), // Nombre del usuario que resolvió
   fechaResolucion: timestamp("fecha_resolucion"), // Fecha de la resolución
-  
+
   // Fechas de seguimiento
   fechaRegistro: timestamp("fecha_registro").defaultNow(),
   fechaAsignacionTecnico: timestamp("fecha_asignacion_tecnico"),
   fechaEnvioLaboratorio: timestamp("fecha_envio_laboratorio"),
   fechaRespuestaLaboratorio: timestamp("fecha_respuesta_laboratorio"),
   fechaCierre: timestamp("fecha_cierre"),
-  
+
   // Metadata
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -3836,31 +3924,31 @@ export const equiposCriticos = pgTable("equipos_criticos", {
   criticidad: varchar("criticidad").notNull().default("media"), // baja, media, alta, critica
   ubicacion: text("ubicacion"), // Ubicación específica del equipo
   descripcion: text("descripcion"), // Descripción del equipo
-  
+
   // Jerarquía de equipos (equipo padre para componentes)
   equipoPadreId: varchar("equipo_padre_id"), // Referencia al equipo padre si es un componente
-  
+
   // Información técnica
   fabricante: varchar("fabricante", { length: 100 }),
   modelo: varchar("modelo", { length: 100 }),
   numeroSerie: varchar("numero_serie", { length: 100 }),
   fechaInstalacion: date("fecha_instalacion"),
   potencia: varchar("potencia", { length: 50 }), // ej: "5.5 HP", "220V 3-phase"
-  
+
   // Plan preventivo
   frecuenciaPreventivo: varchar("frecuencia_preventivo"), // semanal, mensual, trimestral, semestral, anual
   ultimoMantPreventivo: timestamp("ultimo_mant_preventivo"),
   proximoMantPreventivo: timestamp("proximo_mant_preventivo"),
-  
+
   // Información adicional
   repuestosCriticos: text("repuestos_criticos"), // Lista de repuestos críticos
   arbolFallas: text("arbol_fallas"), // Árbol simple de fallas (texto)
   manualesUrl: text("manuales_url"), // URLs de manuales/PDFs separados por comas
   notas: text("notas"),
-  
+
   // Estado
   estadoActual: varchar("estado_actual").default("operativo"), // operativo, en_mantencion, detenido, fuera_de_servicio
-  
+
   // Metadata
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -3882,7 +3970,7 @@ export const proveedoresMantencion = pgTable("proveedores_mantencion", {
   costoPromedioHora: numeric("costo_promedio_hora", { precision: 15, scale: 2 }),
   notas: text("notas"),
   activo: boolean("activo").default(true),
-  
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -3893,10 +3981,10 @@ export const presupuestoMantencion = pgTable("presupuesto_mantencion", {
   anio: integer("anio").notNull(),
   mes: integer("mes").notNull(), // 1-12, o 0 para presupuesto anual global
   area: varchar("area"), // NULL para global, o área específica
-  
+
   presupuestoAsignado: numeric("presupuesto_asignado", { precision: 15, scale: 2 }).notNull(),
   presupuestoEjecutado: numeric("presupuesto_ejecutado", { precision: 15, scale: 2 }).default(sql`0`),
-  
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -3913,12 +4001,12 @@ export const gastosMaterialesMantencion = pgTable("gastos_materiales_mantencion"
   cantidad: numeric("cantidad", { precision: 10, scale: 2 }).notNull(),
   costoUnitario: numeric("costo_unitario", { precision: 15, scale: 2 }).notNull(),
   costoTotal: numeric("costo_total", { precision: 15, scale: 2 }).notNull(),
-  
+
   area: varchar("area"), // Centro de costo/área
   otId: varchar("ot_id"), // FK opcional a solicitudes_mantencion
   proveedorId: varchar("proveedor_id"), // FK opcional a proveedores_mantencion
   adjuntoUrl: text("adjunto_url"), // URL de factura/foto
-  
+
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   fechaIdx: index("IDX_gastos_materiales_fecha").on(table.fecha),
@@ -3928,30 +4016,30 @@ export const gastosMaterialesMantencion = pgTable("gastos_materiales_mantencion"
 // ===== MANTENCIONES PLANIFICADAS (Proyectos grandes futuros) =====
 export const mantencionesPlanificadas = pgTable("mantenciones_planificadas", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  
+
   equipoId: varchar("equipo_id"), // FK a equipos_criticos (puede ser NULL para mantenciones generales)
   equipoNombre: varchar("equipo_nombre", { length: 255 }).notNull(),
-  
+
   titulo: varchar("titulo", { length: 255 }).notNull(), // ej: "Rectificación Eje Dispersora"
   descripcion: text("descripcion"),
   categoria: varchar("categoria").notNull(), // gran_mantenimiento, overhaul, rectificacion, reemplazo, mejora
-  
+
   costoEstimado: numeric("costo_estimado", { precision: 15, scale: 2 }).notNull(),
   mes: integer("mes").notNull(), // 1-12
   anio: integer("anio").notNull(),
   area: varchar("area"), // NULL para global, o área específica
-  
+
   estado: varchar("estado").default("planificado").notNull(), // planificado, aprobado, en_ejecucion, completado, cancelado
-  
+
   prioridad: varchar("prioridad").default("media"), // baja, media, alta
   notas: text("notas"),
-  
+
   // Vinculación a OT real cuando se ejecute
   otGeneradaId: varchar("ot_generada_id"), // FK a solicitudes_mantencion cuando se crea la OT
-  
+
   creadoPorId: varchar("creado_por_id").notNull(),
   creadoPorName: varchar("creado_por_name"),
-  
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -3968,14 +4056,14 @@ export const planesPreventivos = pgTable("planes_preventivos", {
   nombrePlan: varchar("nombre_plan", { length: 255 }).notNull(),
   descripcion: text("descripcion"),
   frecuencia: varchar("frecuencia").notNull(), // semanal, mensual, trimestral, semestral, anual
-  
+
   ultimaEjecucion: date("ultima_ejecucion"),
   proximaEjecucion: date("proxima_ejecucion"),
-  
+
   tareasPreventivas: text("tareas_preventivas"), // Checklist de tareas (texto o JSON)
-  
+
   activo: boolean("activo").default(true),
-  
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -3987,47 +4075,47 @@ export const planesPreventivos = pgTable("planes_preventivos", {
 export const solicitudesMantencion = pgTable("solicitudes_mantencion", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   numeroOT: varchar("numero_ot", { length: 50 }), // Número correlativo de OT (ej: "OT-2025-001")
-  
+
   // Información del equipo/máquina
   equipoId: varchar("equipo_id"), // FK a equipos_criticos (opcional, puede ser equipo no catalogado)
   equipoNombre: text("equipo_nombre").notNull(), // Nombre del equipo o máquina
   equipoCodigo: varchar("equipo_codigo"), // Código interno del equipo
   area: varchar("area").notNull(), // administracion, produccion, laboratorio, bodega_materias_primas, bodega_productos_terminados
   ubicacion: text("ubicacion"), // Ubicación específica dentro del área
-  
+
   // Descripción del problema
   descripcionProblema: text("descripcion_problema").notNull(),
   checklistTareas: text("checklist_tareas"), // Checklist de tareas a realizar (copiado de plan preventivo si aplica)
   prioridad: varchar("prioridad").notNull().default("media"), // baja, media, alta (para SLA)
   gravedad: varchar("gravedad").notNull(), // baja, media, alta, critica (impacto técnico)
   tipoMantencion: varchar("tipo_mantencion").default("correctivo"), // preventivo, correctivo
-  
+
   // Flujo de trabajo CMMS: Registrado → Programada → En Reparación → Pausada → Resuelto → Cerrado
   estado: varchar("estado").default("registrado").notNull(), // registrado, programada, en_reparacion, pausada, resuelto, cerrado
-  
+
   // Programación y pausas
   fechaProgramada: timestamp("fecha_programada"), // Fecha programada para atender la OT (si no es inmediata)
   fechaInicioTrabajo: timestamp("fecha_inicio_trabajo"), // Fecha en que se inició el trabajo
   motivoPausa: text("motivo_pausa"), // Motivo de pausa (ej: falta material, aprobación pendiente)
   fechaPausa: timestamp("fecha_pausa"), // Fecha en que se pausó la OT
-  
+
   // Asignaciones
   solicitanteId: varchar("solicitante_id").notNull(), // FK to users.id (quien crea la solicitud)
   solicitanteName: varchar("solicitante_name"), // Nombre del solicitante
-  
+
   // Asignación: técnico interno O proveedor externo
   tipoAsignacion: varchar("tipo_asignacion"), // tecnico_interno, proveedor_externo
   tecnicoAsignadoId: varchar("tecnico_asignado_id"), // FK to users.id (técnico interno)
   tecnicoAsignadoName: varchar("tecnico_asignado_name"),
   proveedorAsignadoId: varchar("proveedor_asignado_id"), // FK to proveedores_mantencion
   proveedorAsignadoName: varchar("proveedor_asignado_name"),
-  
+
   // Resolución
   resolucionDescripcion: text("resolucion_descripcion"), // Descripción de la reparación realizada
   resolucionUsuarioId: varchar("resolucion_usuario_id"), // Usuario que resolvió
   resolucionUsuarioName: varchar("resolucion_usuario_name"),
   fechaResolucion: timestamp("fecha_resolucion"),
-  
+
   // Información de costos y tiempos
   costoEstimado: numeric("costo_estimado", { precision: 15, scale: 2 }),
   costoReal: numeric("costo_real", { precision: 15, scale: 2 }),
@@ -4039,15 +4127,15 @@ export const solicitudesMantencion = pgTable("solicitudes_mantencion", {
   costoMateriales: numeric("costo_materiales", { precision: 15, scale: 2 }),
   repuestosUtilizados: text("repuestos_utilizados"), // Lista de repuestos
   notasCierre: text("notas_cierre"), // Notas al cerrar la OT
-  
+
   // Fechas de seguimiento (para KPIs)
   fechaSolicitud: timestamp("fecha_solicitud").defaultNow(),
   fechaAsignacion: timestamp("fecha_asignacion"),
   fechaCierre: timestamp("fecha_cierre"), // Cuando se cierra administrativamente
-  
+
   // Vinculación a plan preventivo
   planPreventivoId: varchar("plan_preventivo_id"), // FK a planes_preventivos (si es preventiva)
-  
+
   // Metadata
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -4264,10 +4352,10 @@ export const insertProveedorMantencionSchema = createInsertSchema(proveedoresMan
   nombre: z.string().min(1, "El nombre del proveedor es requerido"),
   activo: z.boolean().default(true),
   // Convert empty strings to null for numeric fields
-  evaluacion: z.union([z.string(), z.null()]).optional().transform(val => 
+  evaluacion: z.union([z.string(), z.null()]).optional().transform(val =>
     val === "" || val === null || val === undefined ? null : val
   ),
-  costoPromedioHora: z.union([z.string(), z.null()]).optional().transform(val => 
+  costoPromedioHora: z.union([z.string(), z.null()]).optional().transform(val =>
     val === "" || val === null || val === undefined ? null : val
   ),
 });
@@ -4280,7 +4368,7 @@ export const insertPresupuestoMantencionSchema = createInsertSchema(presupuestoM
 }).extend({
   anio: z.number().int().min(2020).max(2100),
   mes: z.number().int().min(0).max(12), // 0 = anual global
-  presupuestoAsignado: z.union([z.string(), z.number()]).transform((val) => 
+  presupuestoAsignado: z.union([z.string(), z.number()]).transform((val) =>
     typeof val === 'string' ? val : val.toString()
   ),
   area: z.string().nullable().optional(),
@@ -4297,13 +4385,13 @@ export const insertGastoMaterialMantencionSchema = createInsertSchema(gastosMate
       message: "Fecha inválida"
     }),
   item: z.string().min(1, "El ítem es requerido"),
-  cantidad: z.union([z.string(), z.number()]).transform((val) => 
+  cantidad: z.union([z.string(), z.number()]).transform((val) =>
     typeof val === 'string' ? val : val.toString()
   ),
-  costoUnitario: z.union([z.string(), z.number()]).transform((val) => 
+  costoUnitario: z.union([z.string(), z.number()]).transform((val) =>
     typeof val === 'string' ? val : val.toString()
   ),
-  costoTotal: z.union([z.string(), z.number()]).transform((val) => 
+  costoTotal: z.union([z.string(), z.number()]).transform((val) =>
     typeof val === 'string' ? val : val.toString()
   ),
   otId: z.union([z.string(), z.null()]).optional(),
@@ -4324,10 +4412,10 @@ export const insertPlanPreventivoSchema = createInsertSchema(planesPreventivos).
   frecuencia: z.enum(["semanal", "mensual", "trimestral", "semestral", "anual"]),
   tareasPreventivas: z.union([z.string(), z.null()]).optional(),
   activo: z.boolean().default(true),
-  ultimaEjecucion: z.union([z.string(), z.date(), z.null()]).optional().transform((val) => 
+  ultimaEjecucion: z.union([z.string(), z.date(), z.null()]).optional().transform((val) =>
     val && typeof val === 'string' ? new Date(val) : val as Date | null | undefined
   ),
-  proximaEjecucion: z.union([z.string(), z.date(), z.null()]).optional().transform((val) => 
+  proximaEjecucion: z.union([z.string(), z.date(), z.null()]).optional().transform((val) =>
     val && typeof val === 'string' ? new Date(val) : val as Date | null | undefined
   ),
 });
@@ -4346,7 +4434,7 @@ export const insertMantencionPlanificadaSchema = createInsertSchema(mantenciones
   titulo: z.string().min(1, "El título es requerido"),
   descripcion: z.union([z.string(), z.null()]).optional(),
   categoria: z.enum(["gran_mantenimiento", "overhaul", "rectificacion", "reemplazo", "mejora"]),
-  costoEstimado: z.union([z.string(), z.number()]).transform((val) => 
+  costoEstimado: z.union([z.string(), z.number()]).transform((val) =>
     typeof val === 'string' ? val : val.toString()
   ),
   mes: z.number().int().min(1).max(12),
@@ -4567,6 +4655,74 @@ export const insertTareaMarketingSchema = createInsertSchema(tareasMarketing).om
   prioridad: z.enum(["baja", "media", "alta"]).default("media"),
   mes: z.number().min(1).max(12),
   anio: z.number().min(2020).max(2100),
+});
+
+// Tabla de creatividades de marketing (Reels, Videos, etc)
+export const creatividadesMarketing = pgTable("creatividades_marketing", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  titulo: varchar("titulo", { length: 255 }).notNull(),
+  descripcion: text("descripcion"),
+  tipo: varchar("tipo", { length: 50 }).notNull().default("reel"), // reel, video, post, historia
+  estado: varchar("estado").notNull().default("planificacion"), // planificacion, grabacion, edicion, completado, publicado
+  plataforma: varchar("plataforma", { length: 100 }).notNull().default("instagram"), // instagram, tiktok, youtube, facebook, linkedin
+  urlReferencia: text("url_referencia"), // URL del producto o campaña
+  urlPublicacion: text("url_publicacion"), // URL donde se publicó
+  fechaPublicacion: date("fecha_publicacion"),
+  asignadoAId: varchar("asignado_a_id").references(() => users.id, { onDelete: 'set null' }),
+  creadoPorId: varchar("creado_por_id").references(() => users.id).notNull(),
+  mes: integer("mes").notNull(),
+  anio: integer("anio").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  estadoIdx: index("IDX_creatividades_marketing_estado").on(table.estado),
+  tipoIdx: index("IDX_creatividades_marketing_tipo").on(table.tipo),
+  mesAnioIdx: index("IDX_creatividades_marketing_mes_anio").on(table.mes, table.anio),
+  fechaPublicacionIdx: index("IDX_creatividades_marketing_fecha").on(table.fechaPublicacion),
+}));
+
+export const creatividadesMarketingRelations = relations(creatividadesMarketing, ({ one }) => ({
+  asignadoA: one(users, {
+    fields: [creatividadesMarketing.asignadoAId],
+    references: [users.id],
+  }),
+  creadoPor: one(users, {
+    fields: [creatividadesMarketing.creadoPorId],
+    references: [users.id],
+  }),
+}));
+
+export type CreatividadMarketing = typeof creatividadesMarketing.$inferSelect;
+export type InsertCreatividadMarketing = typeof creatividadesMarketing.$inferInsert;
+
+export const insertCreatividadMarketingSchema = createInsertSchema(creatividadesMarketing).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  titulo: z.string().min(1, "El título es requerido"),
+  tipo: z.enum(["reel", "video", "post", "historia"]).default("reel"),
+  estado: z.enum(["planificacion", "grabacion", "edicion", "completado", "publicado"]).default("planificacion"),
+  plataforma: z.enum(["instagram", "tiktok", "youtube", "facebook", "linkedin"]).default("instagram"),
+  mes: z.number().min(1).max(12),
+  anio: z.number().min(2020).max(2100),
+  fechaPublicacion: z.string().or(z.date()).transform(val => {
+    if (typeof val === 'string') {
+      const match = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (match) {
+        return `${match[1]}-${match[2]}-${match[3]}`;
+      }
+      if (val instanceof Date || !isNaN(Date.parse(val))) {
+        const d = new Date(val);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }
+      return val;
+    }
+    if (val instanceof Date) {
+      return `${val.getFullYear()}-${String(val.getMonth() + 1).padStart(2, '0')}-${String(val.getDate()).padStart(2, '0')}`;
+    }
+    return val;
+  }).optional().nullable(),
 });
 
 // ========================================
@@ -4999,10 +5155,10 @@ export const insertPromesaCompraSchema = createInsertSchema(promesasCompra).omit
   semana: z.string().regex(/^\d{4}-\d{2}$/, "Formato de semana inválido (debe ser YYYY-WW)"),
   anio: z.number().min(2020).max(2100),
   numeroSemana: z.number().min(1).max(53),
-  fechaInicio: z.string().or(z.date()).transform(val => 
+  fechaInicio: z.string().or(z.date()).transform(val =>
     typeof val === 'string' ? new Date(val) : val
   ),
-  fechaFin: z.string().or(z.date()).transform(val => 
+  fechaFin: z.string().or(z.date()).transform(val =>
     typeof val === 'string' ? new Date(val) : val
   ),
 });
@@ -5035,7 +5191,7 @@ export const insertHitoMarketingSchema = createInsertSchema(hitosMarketing).omit
   updatedAt: true,
 }).extend({
   titulo: z.string().min(1, "El título es requerido"),
-  fecha: z.string().or(z.date()).transform(val => 
+  fecha: z.string().or(z.date()).transform(val =>
     typeof val === 'string' ? new Date(val) : val
   ),
   tipo: z.enum(["general", "campaña", "evento", "deadline"]).default("general"),
@@ -5163,7 +5319,7 @@ export const insertPrecioCompetenciaSchema = createInsertSchema(preciosCompetenc
   competidorId: z.string().min(1, "El competidor es requerido"),
   precioNormal: z.string().or(z.number()).optional().transform(val => val ? String(val) : null),
   precioOferta: z.string().or(z.number()).optional().transform(val => val ? String(val) : null),
-  fechaRegistro: z.string().or(z.date()).optional().transform(val => 
+  fechaRegistro: z.string().or(z.date()).optional().transform(val =>
     val ? (typeof val === 'string' ? new Date(val) : val) : new Date()
   ),
 });
@@ -5419,7 +5575,7 @@ export const factVentas = ventasSchema.table("fact_ventas", {
   stockfis: numeric("stockfis", { precision: 20, scale: 0 }),
   listacost: numeric("listacost", { precision: 18, scale: 6 }),
   liscosmod: numeric("liscosmod", { precision: 20, scale: 0 }),
-  
+
   // ETL control fields - for compatibility with sales_transactions
   id: varchar("id").notNull().default(sql`gen_random_uuid()`).unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -5530,10 +5686,10 @@ export const factGdv = gdvSchema.table("fact_gdv", {
   stockfis: numeric("stockfis", { precision: 20, scale: 0 }),
   listacost: numeric("listacost", { precision: 18, scale: 6 }),
   liscosmod: numeric("liscosmod", { precision: 20, scale: 0 }),
-  
+
   // Columna calculada para determinar si hay cantidad pendiente de despacho
   cantidadPendiente: boolean("cantidad_pendiente").notNull().default(false),
-  
+
   // ETL control fields
   id: varchar("id").notNull().default(sql`gen_random_uuid()`).unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -5685,7 +5841,7 @@ export const factNvv = nvvSchema.table("fact_nvv", {
   nosudo: text("nosudo"), // Nombre sucursal
   feemdo: date("feemdo"), // Fecha de emisión
   feer: date("feer"), // Fecha de entrega esperada
-  
+
   // Información del producto
   koprct: text("koprct"), // Código producto
   nokopr: text("nokopr"), // Nombre producto
@@ -5695,24 +5851,24 @@ export const factNvv = nvvSchema.table("fact_nvv", {
   mrpr: text("mrpr"),
   rupr: text("rupr"), // Código de segmento
   nombre_segmento: text("nombre_segmento"), // Nombre del segmento
-  
+
   // Cantidades (unidad 1)
   caprco1: numeric("caprco1", { precision: 10, scale: 2 }),
   caprad1: numeric("caprad1", { precision: 10, scale: 2 }),
   caprex1: numeric("caprex1", { precision: 10, scale: 2 }),
   ud01pr: text("ud01pr"),
-  
+
   // Cantidades (unidad 2)
   caprco2: numeric("caprco2", { precision: 10, scale: 2 }),
   caprad2: numeric("caprad2", { precision: 10, scale: 2 }),
   caprex2: numeric("caprex2", { precision: 10, scale: 2 }),
   ud02pr: text("ud02pr"),
-  
+
   // Precio y montos
   ppprne: numeric("ppprne", { precision: 15, scale: 2 }),
   vaneli: numeric("vaneli", { precision: 15, scale: 2 }),
   monto: numeric("monto", { precision: 15, scale: 2 }), // Monto total
-  
+
   // Información del cliente
   nokoen: text("nokoen"), // Nombre cliente
   endo_nombre: text("endo_nombre"),
@@ -5720,34 +5876,34 @@ export const factNvv = nvvSchema.table("fact_nvv", {
   nombre_segmento_cliente: text("nombre_segmento_cliente"), // Nombre del segmento del cliente (desde ventas.stg_tabru)
   dien: text("dien"), // Dirección
   comuna: text("comuna"),
-  
+
   // Información del vendedor
   kofulido: text("kofulido"), // Código vendedor
   nombre_vendedor: text("nombre_vendedor"),
-  
+
   // Bodega
   bosulido: text("bosulido"),
   nombre_bodega: text("nombre_bodega"),
-  
+
   // Estado de la línea (CRÍTICO)
   eslido: text("eslido"), // NULL/'' = abierto, 'C' = cerrado
-  
+
   // Fechas importantes
   feerli: date("feerli"), // Fecha compromiso línea
   feemli: date("feemli"),
-  
+
   // Información adicional
   ocdo: text("ocdo"), // Orden de compra
   obdo: text("obdo"), // Observaciones
   lilg: text("lilg"),
   luvtlido: integer("luvtlido"),
-  
+
   // CAMPOS CALCULADOS: Cantidad y monto pendiente (sin usar ESLIDO)
   // cantidad_pendiente_ud2 = CAPRCO2 - CAPREX2 (cantidad pedida menos entregada en UD2)
   cantidad_pendiente_ud2: numeric("cantidad_pendiente_ud2", { precision: 15, scale: 2 }).default('0'),
   // monto_pendiente = cantidad_pendiente_ud2 * PPPRNE (valor monetario pendiente)
   monto_pendiente: numeric("monto_pendiente", { precision: 15, scale: 2 }).default('0'),
-  
+
   // ETL control fields
   id: varchar("id").notNull().default(sql`gen_random_uuid()`).unique(),
   created_at: timestamp("created_at").notNull().defaultNow(),
@@ -5849,34 +6005,34 @@ export const stgMaeddoNvv = nvvSchema.table("stg_maeddo_nvv", {
   ud01pr: text("ud01pr"),
   nokozo: text("nokozo"),
   nusepr: text("nusepr"),
-  
+
   // Cantidades en unidad 1
   caprco1: numeric("caprco1", { precision: 10, scale: 2 }),
   caprad1: numeric("caprad1", { precision: 10, scale: 2 }),
   caprex1: numeric("caprex1", { precision: 10, scale: 2 }),
-  
+
   // Unidad 2
   ud02pr: text("ud02pr"),
-  
+
   // Cantidades en unidad 2
   caprco2: numeric("caprco2", { precision: 10, scale: 2 }),
   caprad2: numeric("caprad2", { precision: 10, scale: 2 }),
   caprex2: numeric("caprex2", { precision: 10, scale: 2 }),
-  
+
   // Precio y monto
   ppprne: numeric("ppprne", { precision: 15, scale: 2 }),
   tamopppr: numeric("tamopppr", { precision: 15, scale: 2 }),
   vaneli: numeric("vaneli", { precision: 15, scale: 2 }),
   feemli: date("feemli"),
   kofulido: text("kofulido"),
-  
+
   // CAMPO CRÍTICO: Estado de la línea
   eslido: text("eslido"), // NULL/'' = abierto, 'C' = cerrado
-  
+
   // Información adicional
   ocdo: text("ocdo"),
   obdo: text("obdo"),
-  
+
   created_at: timestamp("created_at").defaultNow(),
 });
 
@@ -5933,28 +6089,28 @@ export const crmLeads = pgTable("crm_leads", {
   clientCompany: text("client_company"),
   clientAddress: text("client_address"),
   clientCity: varchar("client_city"),
-  
+
   // Pipeline stage
   stage: varchar("stage").notNull().default("lead"), // 'lead', 'contacto', 'visita', 'lista_precio', 'campana', 'primera_venta', 'promesa', 'venta'
-  
+
   // Assignment
   salespersonId: varchar("salesperson_id").notNull(), // FK to salespeopleUsers.id
   salespersonName: text("salesperson_name"), // Denormalized for performance
   supervisorId: varchar("supervisor_id"), // FK to salespeopleUsers.id
   segment: varchar("segment"), // Segment (noruen)
-  
+
   // Activity tracking
   hasCall: boolean("has_call").default(false),
   hasWhatsapp: boolean("has_whatsapp").default(false),
   lastContactDate: timestamp("last_contact_date"),
-  
+
   // Purchase history tracking
   hasHistoricalSales: boolean("has_historical_sales").default(false), // True if client has previous purchases
-  
+
   // Client classification
   clientType: varchar("client_type").default("nuevo"), // 'nuevo' o 'recurrente'
   nombreObra: text("nombre_obra"), // Nombre de la obra (solo para segmento construcción)
-  
+
   // Metadata
   estimatedValue: numeric("estimated_value", { precision: 15, scale: 2 }),
   notes: text("notes"),
@@ -6019,7 +6175,7 @@ export const insertCrmLeadSchema = createInsertSchema(crmLeads, {
   salespersonId: z.string().optional().nullable(),
   clientType: z.enum(["nuevo", "recurrente"]).default("nuevo"),
   nombreObra: z.string().optional().nullable(),
-  estimatedValue: z.union([z.string(), z.number()]).transform((val) => 
+  estimatedValue: z.union([z.string(), z.number()]).transform((val) =>
     typeof val === 'string' ? val : val.toString()
   ).optional().nullable(),
 }).omit({
@@ -6073,32 +6229,32 @@ export type InsertCrmStageInput = z.infer<typeof insertCrmStageSchema>;
 // Clientes Inactivos - Alertas de clientes que necesitan seguimiento
 export const clientesInactivos = pgTable("clientes_inactivos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  
+
   // Información del cliente
   clientName: text("client_name").notNull(),
   clientKoen: varchar("client_koen").notNull().unique(), // ID del cliente en el sistema de ventas - UNIQUE para UPSERT
   clientRut: varchar("client_rut"),
   clientEmail: varchar("client_email"),
   clientPhone: varchar("client_phone"),
-  
+
   // Información de ventas
   lastPurchaseDate: timestamp("last_purchase_date"),
   lastPurchaseAmount: numeric("last_purchase_amount", { precision: 15, scale: 2 }),
   daysSinceLastPurchase: integer("days_since_last_purchase"),
   totalPurchasesLastYear: numeric("total_purchases_last_year", { precision: 15, scale: 2 }),
-  
+
   // Segmentación y asignación
   segment: varchar("segment"), // Segmento del cliente (noruen)
   salespersonId: varchar("salesperson_id"), // Vendedor asignado (si lo tiene)
   salespersonName: text("salesperson_name"),
   supervisorId: varchar("supervisor_id"), // Supervisor del segmento
   supervisorName: text("supervisor_name"),
-  
+
   // Estado de la alerta
   addedToCrm: boolean("added_to_crm").default(false),
   crmLeadId: varchar("crm_lead_id"), // FK a crmLeads si fue añadido
   dismissed: boolean("dismissed").default(false), // Si el usuario descartó la alerta
-  
+
   // Metadata
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -6127,21 +6283,21 @@ export type InsertClienteInactivoInput = z.infer<typeof insertClienteInactivoSch
 // API Keys for external integrations (Make.com, Zapier, etc.)
 export const apiKeys = pgTable("api_keys", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  
+
   // API Key information
   keyHash: varchar("key_hash").notNull().unique(), // Hashed API key
   keyPrefix: varchar("key_prefix").notNull(), // First 8 chars for identification (e.g., "mk_live_abcd1234...")
   name: varchar("name").notNull(), // Descriptive name for the key
   description: text("description"), // Optional description
-  
+
   // Access control
   role: varchar("role").notNull().default("readonly"), // readonly, read_write, admin
   isActive: boolean("is_active").default(true),
-  
+
   // Usage tracking
   lastUsedAt: timestamp("last_used_at"),
   usageCount: integer("usage_count").default(0),
-  
+
   // Metadata
   createdBy: varchar("created_by").notNull(), // User ID who created the key
   createdAt: timestamp("created_at").defaultNow(),
@@ -6182,12 +6338,12 @@ export const integrations = pgTable("integrations", {
   accountId: varchar("account_id"), // Ad Account ID externo
   accountName: varchar("account_name"),
   status: varchar("status").notNull().default("pending"), // pending, active, disconnected, error
-  
+
   // OAuth tokens - almacenamiento seguro
   accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
   tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
-  
+
   config: jsonb("config").default("{}"), // Configuración específica
   lastSync: timestamp("last_sync", { withTimezone: true }),
   createdBy: varchar("created_by").notNull(),
@@ -6216,7 +6372,7 @@ export type InsertIntegrationInput = z.infer<typeof insertIntegrationSchema>;
 // Proyecciones Manuales de Ventas - Planificación futura por vendedor y cliente
 export const proyeccionesVentas = pgTable("proyecciones_ventas", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  
+
   // Información de la proyección
   year: integer("year").notNull(), // Año de la proyección
   month: integer("month"), // Mes de la proyección (1-12), null para proyecciones anuales
@@ -6224,11 +6380,11 @@ export const proyeccionesVentas = pgTable("proyecciones_ventas", {
   salespersonName: text("salesperson_name"), // Nombre del vendedor para referencia
   clientCode: varchar("client_code").notNull(), // Código del cliente (vakoen de fact_ventas)
   clientName: text("client_name"), // Nombre del cliente para referencia
-  
+
   // Datos de la proyección
   projectedAmount: numeric("projected_amount", { precision: 15, scale: 2 }).default('0'), // Monto proyectado
   segment: varchar("segment"), // Segmento del cliente (noruen)
-  
+
   // Metadata
   createdBy: varchar("created_by").notNull(), // Usuario que creó la proyección
   createdByName: text("created_by_name"), // Nombre del usuario
@@ -6435,3 +6591,85 @@ export const loyaltyTierBenefitsRelations = relations(loyaltyTierBenefits, ({ on
     references: [loyaltyTiers.id],
   }),
 }));
+
+// ===== PRESUPUESTO DE VENTAS =====
+export const presupuestoVentas = pgTable("presupuesto_ventas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  anio: integer("anio").notNull(),
+  mes: integer("mes").notNull(), // 1-12
+  categoria: varchar("categoria").notNull(), // "MCT", "CONSTRUCCION", "FERRETERIAS", etc.
+  entidad: varchar("entidad").notNull(), // "TEMUCO", "PABLO SOTO", etc.
+  monto: numeric("monto", { precision: 15, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  anioMesIdx: index("IDX_pv_anio_mes").on(table.anio, table.mes),
+  categoriaIdx: index("IDX_pv_categoria").on(table.categoria),
+  entidadIdx: index("IDX_pv_entidad").on(table.entidad),
+  uniqueEntry: uniqueIndex("IDX_pv_unique").on(table.anio, table.mes, table.categoria, table.entidad),
+}));
+
+export type PresupuestoVentas = typeof presupuestoVentas.$inferSelect;
+export type InsertPresupuestoVentas = typeof presupuestoVentas.$inferInsert;
+
+export const insertPresupuestoVentasSchema = createInsertSchema(presupuestoVentas).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  monto: z.union([z.string(), z.number()]).transform((val) =>
+    typeof val === 'string' ? val : val.toString()
+  ),
+});
+
+export type InsertPresupuestoVentasInput = z.infer<typeof insertPresupuestoVentasSchema>;
+
+export const bulkPresupuestoVentasSchema = z.object({
+  records: z.array(insertPresupuestoVentasSchema).min(1, "Debe enviar al menos un registro"),
+});
+
+// ==================================================================================
+// AI CHAT ASSISTANT
+// ==================================================================================
+
+export const chatMessages = pgTable("chat_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(), // FK to users.id
+  role: varchar("role").notNull(), // 'user' | 'assistant' | 'system' | 'tool'
+  content: text("content"), // Message text (nullable for tool-call-only messages)
+  toolCalls: jsonb("tool_calls"), // Tools invoked by the assistant
+  toolResults: jsonb("tool_results"), // Results returned from tools
+  metadata: jsonb("metadata"), // Extra data (model, tokens, latency, etc.)
+  sessionId: varchar("session_id").notNull(), // Groups messages in a conversation session
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("IDX_chat_user_id").on(table.userId),
+  sessionIdx: index("IDX_chat_session_id").on(table.sessionId),
+  userSessionIdx: index("IDX_chat_user_session").on(table.userId, table.sessionId),
+}));
+
+export const aiKnowledgeBase = pgTable("ai_knowledge_base", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: varchar("title").notNull(),
+  content: text("content"), // Extracted text content for RAG
+  fileUrl: varchar("file_url"), // Path to the file in storage
+  fileType: varchar("file_type"), // 'pdf' | 'txt' | 'doc' | etc.
+  userId: varchar("user_id").notNull(), // Who uploaded it
+  metadata: jsonb("metadata"), // Tags, category, etc.
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("IDX_ai_knowledge_user_id").on(table.userId),
+}));
+
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = typeof chatMessages.$inferInsert;
+
+export type AiKnowledgeBase = typeof aiKnowledgeBase.$inferSelect;
+export type InsertAiKnowledgeBase = typeof aiKnowledgeBase.$inferInsert;
+
+export const insertAiKnowledgeBaseSchema = createInsertSchema(aiKnowledgeBase).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});

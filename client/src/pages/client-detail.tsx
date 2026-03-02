@@ -31,7 +31,7 @@ interface ClientProduct {
 export default function ClientDetail() {
   const { clientName } = useParams();
   const { user } = useAuth();
-  
+
   // Date filter states
   const [selectedPeriod, setSelectedPeriod] = useState(() => {
     return format(new Date(), "yyyy-MM");
@@ -77,7 +77,7 @@ export default function ClientDetail() {
         break;
     }
   }, [filterType, selectedDate, selectedYear, startDate, endDate]);
-  
+
   const { data: details, isLoading: isLoadingDetails } = useQuery<ClientDetails>({
     queryKey: [`/api/sales/client/${clientName}/details?period=${selectedPeriod}&filterType=${filterType}`],
     enabled: !!clientName,
@@ -161,10 +161,10 @@ export default function ClientDetail() {
                 {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : filterType === "year" ? "Análisis anual" : "Análisis por rango"}
               </p>
             </div>
-            
+
             <Link href="/">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 className="rounded-xl border-gray-200 shadow-sm ml-4"
                 data-testid="button-back-dashboard"
@@ -246,9 +246,9 @@ export default function ClientDetail() {
                       />
                     </PopoverContent>
                   </Popover>
-                  
+
                   <span className="text-gray-500">-</span>
-                  
+
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -304,14 +304,14 @@ export default function ClientDetail() {
         </header>
 
         {/* Main Content */}
-        <main className="p-4 lg:p-6 space-y-4 lg:space-y-6">
+        <main className="px-3 sm:px-4 lg:px-6 py-4 lg:py-6 space-y-4 lg:space-y-6">
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-            <div className="modern-card p-5 lg:p-6 hover-lift">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-muted-foreground mb-2">Compras Totales</p>
-                  <p className="text-xl lg:text-2xl font-bold text-green-600" data-testid="text-total-purchases">
+                  <p className="text-xl lg:text-3xl font-bold text-green-600" data-testid="text-total-purchases">
                     {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.totalPurchases || 0)}
                   </p>
                 </div>
@@ -321,11 +321,11 @@ export default function ClientDetail() {
               </div>
             </div>
 
-            <div className="modern-card p-5 lg:p-6 hover-lift">
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-muted-foreground mb-2">Productos Diferentes</p>
-                  <p className="text-xl lg:text-2xl font-bold text-blue-600" data-testid="text-total-products">
+                  <p className="text-xl lg:text-3xl font-bold text-blue-600" data-testid="text-total-products">
                     {isLoadingDetails ? 'Cargando...' : formatNumber(details?.totalProducts || 0)}
                   </p>
                 </div>
@@ -335,11 +335,11 @@ export default function ClientDetail() {
               </div>
             </div>
 
-            <div className="modern-card p-5 lg:p-6 hover-lift">
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-muted-foreground mb-2">Transacciones</p>
-                  <p className="text-xl lg:text-2xl font-bold text-purple-600" data-testid="text-transaction-count">
+                  <p className="text-xl lg:text-3xl font-bold text-purple-600" data-testid="text-transaction-count">
                     {isLoadingDetails ? 'Cargando...' : formatNumber(details?.transactionCount || 0)}
                   </p>
                 </div>
@@ -349,11 +349,11 @@ export default function ClientDetail() {
               </div>
             </div>
 
-            <div className="modern-card p-5 lg:p-6 hover-lift">
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-muted-foreground mb-2">Frecuencia de Compra</p>
-                  <p className="text-xl lg:text-2xl font-bold text-orange-600" data-testid="text-purchase-frequency">
+                  <p className="text-xl lg:text-3xl font-bold text-orange-600" data-testid="text-purchase-frequency">
                     {isLoadingDetails ? 'Cargando...' : getFrequencyDescription(details?.purchaseFrequency || 0)}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -368,12 +368,12 @@ export default function ClientDetail() {
           </div>
 
           {/* Additional KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-            <div className="modern-card p-5 lg:p-6 hover-lift">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-muted-foreground mb-2">Ticket Promedio</p>
-                  <p className="text-xl lg:text-2xl font-bold text-indigo-600" data-testid="text-average-ticket">
+                  <p className="text-xl lg:text-3xl font-bold text-indigo-600" data-testid="text-average-ticket">
                     {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.averageTicket || 0)}
                   </p>
                 </div>
@@ -383,7 +383,7 @@ export default function ClientDetail() {
               </div>
             </div>
 
-            <div className="modern-card p-5 lg:p-6 hover-lift">
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-muted-foreground mb-2">Segmentos de Compra</p>
@@ -392,9 +392,9 @@ export default function ClientDetail() {
                       <span className="text-sm text-muted-foreground">Cargando...</span>
                     ) : details?.segments && details.segments.length > 0 ? (
                       details.segments.map((segment, idx) => (
-                        <Badge 
-                          key={idx} 
-                          variant="secondary" 
+                        <Badge
+                          key={idx}
+                          variant="secondary"
                           className="text-xs bg-teal-100 text-teal-700 hover:bg-teal-200"
                         >
                           {segment}
@@ -413,14 +413,14 @@ export default function ClientDetail() {
           </div>
 
           {/* Products Table */}
-          <div className="modern-card p-5 lg:p-6 hover-lift">
+          <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
             <div className="flex items-center space-x-3 mb-6">
               <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
                 <ShoppingBag className="h-5 w-5 text-blue-600" />
               </div>
               <h2 className="text-xl font-bold text-gray-900">Productos Comprados por el Cliente</h2>
             </div>
-            
+
             <div className="space-y-3">
               {isLoadingProducts ? (
                 <div className="space-y-3">
@@ -432,7 +432,7 @@ export default function ClientDetail() {
                 <p className="text-gray-500 text-center py-8">No hay productos registrados para este cliente</p>
               ) : (
                 products.map((product, index) => (
-                  <div 
+                  <div
                     key={product.productName}
                     className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
                     data-testid={`product-${index}`}

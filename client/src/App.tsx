@@ -6,14 +6,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { CartProvider } from "@/contexts/CartContext";
 import { FilterProvider } from "@/contexts/FilterContext";
 import { UpdateNotification } from "@/components/UpdateNotification";
-import { 
-  canViewCMMS, 
+import {
+  canViewCMMS,
   canViewCMMSDashboard,
-  canAccessCMMSFull, 
-  canAccessPlanesPreventivos, 
-  canAccessMantencionesPlanificadas, 
-  canAccessGastosMateriales, 
-  canViewCalendar 
+  canAccessCMMSFull,
+  canAccessPlanesPreventivos,
+  canAccessMantencionesPlanificadas,
+  canAccessGastosMateriales,
+  canViewCalendar
 } from "@/lib/cmmsPermissions";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import Landing from "@/pages/landing";
@@ -43,6 +43,7 @@ import SucursalDetail from "@/pages/sucursal-detail";
 import SalespersonDetail from "@/pages/salesperson-detail";
 import ClientDetail from "@/pages/client-detail";
 import ProductDetail from "@/pages/product-detail";
+import ProductCatalogDetail from "@/pages/product-catalog-detail";
 import TomadorPedidos from "@/pages/tomador-pedidos";
 import PresupuestosAvanzados from "@/pages/presupuestos-avanzados";
 import EcommerceAdmin from "@/pages/ecommerce-admin";
@@ -61,6 +62,7 @@ import CMmsPresupuesto from "@/pages/cmms-presupuesto";
 import CMmsGastosMateriales from "@/pages/cmms-gastos-materiales";
 import CMmsPlanesPreventivos from "@/pages/cmms-planes-preventivos";
 import CmmsMantencionesPlanificadas from "@/pages/cmms-mantenciones-planificadas";
+import PanoramicaMarketPage from "@/pages/panoramica-market";
 import CMmsCalendario from "@/pages/cmms-calendario";
 import ApiKeysPage from "@/pages/api-keys";
 import Marketing from "@/pages/marketing";
@@ -70,6 +72,7 @@ import GastosEmpresarialesForm from "@/pages/gastos-empresariales-form";
 import GastosEmpresarialesDashboard from "@/pages/gastos-empresariales-dashboard";
 import GestionFondos from "@/pages/gestion-fondos";
 import Notificaciones from "@/pages/notificaciones";
+import AiAssistantPage from "@/pages/ai-assistant";
 import AdminCatalogos from "@/pages/admin-catalogos";
 import Reception from "@/pages/reception";
 import TintometriaAdmin from "@/pages/tintometria-admin";
@@ -81,6 +84,7 @@ import MetricasProductos from "@/pages/metricas-productos";
 import ETLMonitor from "@/pages/etl-monitor";
 import DateSelectorDemo from "@/pages/date-selector-demo";
 import ConfiguracionPage from "@/pages/configuracion";
+import PresupuestoVentas from "@/pages/presupuesto-ventas";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -169,8 +173,10 @@ function Router() {
             <Route path="/usuarios" component={Users} />
             <Route path="/admin-catalogos" component={AdminCatalogos} />
             <Route path="/productos" component={Products} />
+            <Route path="/productos/:codigo" component={ProductCatalogDetail} />
             <Route path="/lista-precios" component={ListaPrecios} />
             <Route path="/ecommerce" component={EcommerceAdmin} />
+            <Route path="/panoramica-market" component={PanoramicaMarketPage} />
             <Route path="/shopify-products" component={ShopifyProducts} />
             <Route path="/clientes" component={Clients} />
             <Route path="/ordenes" component={OrdenesPage} />
@@ -185,6 +191,7 @@ function Router() {
               return null;
             }} />
             <Route path="/metas" component={Metas} />
+            <Route path="/presupuesto-ventas" component={PresupuestoVentas} />
             <Route path="/promesas-compra" component={() => {
               // Solo admin, supervisor y salesperson pueden acceder a promesas de compra
               if (!user?.role || !['admin', 'supervisor', 'salesperson'].includes(user.role)) {
@@ -280,6 +287,7 @@ function Router() {
               return null;
             }} />
             <Route path="/notificaciones" component={Notificaciones} />
+            <Route path="/ai-assistant" component={AiAssistantPage} />
             <Route path="/api-keys" component={ApiKeysPage} />
             <Route path="/gastos-empresariales/nuevo" component={GastosEmpresarialesForm} />
             <Route path="/gastos-empresariales/dashboard" component={GastosEmpresarialesDashboard} />

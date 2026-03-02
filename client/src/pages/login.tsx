@@ -23,20 +23,29 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <img 
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Decorative background shapes */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-400/20 dark:bg-blue-600/20 blur-[100px] pointer-events-none animate-pulse" style={{ animationDuration: '8s' }} />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-400/20 dark:bg-indigo-600/20 blur-[100px] pointer-events-none animate-pulse" style={{ animationDuration: '10s', animationDelay: '1s' }} />
+      <div className="absolute top-[20%] right-[10%] w-[20%] h-[20%] rounded-full bg-cyan-400/20 dark:bg-cyan-600/20 blur-[80px] pointer-events-none animate-pulse" style={{ animationDuration: '12s', animationDelay: '2s' }} />
+
+      <div className="w-full max-w-md relative z-10">
+        <div className="text-center mb-10">
+          <img
             src={panoramicaLogo}
             alt="Panoramica - 30 Años"
-            className="mx-auto max-w-full h-auto max-h-24 mb-4"
+            className="mx-auto max-w-full h-auto max-h-28 drop-shadow-xl"
           />
         </div>
 
         <LoginForm />
 
-        <div className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
-          <p>🔒 Sistema seguro con autenticación profesional</p>
+        <div className="mt-10 text-center flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+          <div className="h-px bg-slate-300 dark:bg-slate-700 flex-1 max-w-[50px]"></div>
+          <span className="flex items-center gap-1.5 font-medium">
+            <span className="text-base">🔒</span> Sistema Seguro
+          </span>
+          <div className="h-px bg-slate-300 dark:bg-slate-700 flex-1 max-w-[50px]"></div>
         </div>
       </div>
     </div>

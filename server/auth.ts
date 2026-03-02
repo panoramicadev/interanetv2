@@ -124,12 +124,12 @@ export function setupAuth(app: Express) {
   app.post("/api/auth/register", async (req, res, next) => {
     try {
       const validatedData = registerSchema.parse(req.body);
-      
+
       // Check if user already exists
       const existingUser = await storage.getUserByEmail(validatedData.email);
       if (existingUser) {
-        return res.status(400).json({ 
-          message: "Ya existe un usuario con este email" 
+        return res.status(400).json({
+          message: "Ya existe un usuario con este email"
         });
       }
 
@@ -181,10 +181,10 @@ export function setupAuth(app: Express) {
   app.post("/api/auth/login", (req, res, next) => {
     try {
       const validatedData = loginSchema.parse(req.body);
-      
+
       passport.authenticate("local", (err: any, user: User | false, info: any) => {
         if (err) return next(err);
-        
+
         if (!user) {
           return res.status(401).json({
             message: info?.message || "Credenciales inválidas",
@@ -260,7 +260,7 @@ export const requireAuth = (req: any, res: any, next: any) => {
     method: req.method,
     timestamp: new Date().toISOString()
   });
-  
+
   if (!req.isAuthenticated()) {
     console.warn('❌ [AUTH] Authentication failed for:', {
       url: req.url,
@@ -270,7 +270,7 @@ export const requireAuth = (req: any, res: any, next: any) => {
     });
     return res.status(401).json({ message: "No autenticado" });
   }
-  
+
   console.log('✅ [AUTH] Authentication successful for:', {
     user: { id: req.user.id, email: req.user.email, role: req.user.role },
     url: req.url,
@@ -290,7 +290,7 @@ export const requireRoles = (roles: string[]) => {
       method: req.method,
       timestamp: new Date().toISOString()
     });
-    
+
     if (!req.isAuthenticated()) {
       console.warn('❌ [AUTHORIZATION] Not authenticated for role check:', {
         url: req.url,
@@ -299,14 +299,14 @@ export const requireRoles = (roles: string[]) => {
       });
       return res.status(401).json({ message: "No autenticado" });
     }
-    
+
     const userRole = req.user?.role;
     console.log('👤 [AUTHORIZATION] User role check:', {
       userRole,
       requiredRoles: roles,
       hasValidRole: userRole && roles.includes(userRole)
     });
-    
+
     if (!userRole || !roles.includes(userRole)) {
       console.warn('❌ [AUTHORIZATION] Insufficient permissions:', {
         userRole,
@@ -315,11 +315,11 @@ export const requireRoles = (roles: string[]) => {
         method: req.method,
         user: { id: req.user.id, email: req.user.email }
       });
-      return res.status(403).json({ 
-        message: "Acceso denegado. No tienes permisos para realizar esta acción." 
+      return res.status(403).json({
+        message: "Acceso denegado. No tienes permisos para realizar esta acción."
       });
     }
-    
+
     console.log('✅ [AUTHORIZATION] Role authorization successful:', {
       userRole,
       requiredRoles: roles,
@@ -338,9 +338,9 @@ export const requireAdminOrSupervisor = requireRoles(['admin', 'supervisor']);
 // Allows: admin, supervisor, salesperson, tecnico_obra, jefe_planta, logistica_bodega (dashboard and invoices viewing)
 // Excludes: mantencion, laboratorio, produccion, planificacion, bodega_materias_primas, client, and all area_* roles
 export const requireCommercialAccess = requireRoles([
-  'admin', 
-  'supervisor', 
-  'salesperson', 
+  'admin',
+  'supervisor',
+  'salesperson',
   'tecnico_obra',
   'jefe_planta',
   'logistica_bodega'
@@ -352,7 +352,7 @@ export const requireCommercialAccess = requireRoles([
 // Excludes: salesperson, tecnico_obra, client
 export const requirePlantOperationsAccess = requireRoles([
   'admin',
-  'supervisor', 
+  'supervisor',
   'jefe_planta',
   'mantencion',
   'laboratorio',
@@ -371,13 +371,13 @@ export const requireCMMSMaintenance = requireRoles(['admin', 'jefe_planta', 'man
 
 // Plant staff access (ver OT y calendario, crear OT)
 export const requireCMMSPlantStaff = requireRoles([
-  'admin', 
-  'jefe_planta', 
-  'mantencion', 
-  'supervisor', 
-  'laboratorio', 
-  'bodega_materias_primas', 
-  'logistica_bodega', 
-  'produccion', 
+  'admin',
+  'jefe_planta',
+  'mantencion',
+  'supervisor',
+  'laboratorio',
+  'bodega_materias_primas',
+  'logistica_bodega',
+  'produccion',
   'planificacion'
 ]);

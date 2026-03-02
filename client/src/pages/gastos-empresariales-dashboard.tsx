@@ -21,13 +21,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { 
-  ArrowLeft, 
-  TrendingUp, 
-  DollarSign, 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
+import {
+  ArrowLeft,
+  TrendingUp,
+  DollarSign,
+  CheckCircle,
+  XCircle,
+  Clock,
   Download,
   FileSpreadsheet,
   Filter,
@@ -68,17 +68,17 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 // Load image for PDF generation - uses backend endpoint to normalize EXIF orientation
 // This ensures images are correctly oriented in PDF regardless of how they were taken
 async function loadImageForPdf(imageUrl: string): Promise<{ base64: string; format: 'JPEG' | 'PNG' | 'WEBP' }> {
-  const absoluteUrl = imageUrl.startsWith('http') 
-    ? imageUrl 
+  const absoluteUrl = imageUrl.startsWith('http')
+    ? imageUrl
     : `${window.location.origin}${imageUrl}`;
-  
+
   let blob: Blob;
-  
+
   try {
     // Try the backend endpoint that applies EXIF orientation correction
     const normalizedUrl = `/api/image-normalized?url=${encodeURIComponent(absoluteUrl)}`;
     const response = await fetch(normalizedUrl, { credentials: 'include' });
-    
+
     if (response.ok) {
       blob = await response.blob();
     } else {
@@ -99,14 +99,14 @@ async function loadImageForPdf(imageUrl: string): Promise<{ base64: string; form
     }
     blob = await directResponse.blob();
   }
-  
+
   let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
   if (blob.type === 'image/png') {
     format = 'PNG';
   } else if (blob.type === 'image/webp') {
     format = 'WEBP';
   }
-  
+
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onloadend = () => resolve({ base64: reader.result as string, format });
@@ -124,28 +124,28 @@ async function pdfToImage(pdfUrl: string, width: number = 400): Promise<string |
       return null;
     }
     const arrayBuffer = await response.arrayBuffer();
-    
+
     // Load PDF from ArrayBuffer data
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
     const page = await pdf.getPage(1);
-    
+
     const viewport = page.getViewport({ scale: 1 });
     const scale = width / viewport.width;
     const scaledViewport = page.getViewport({ scale });
-    
+
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     if (!context) return null;
-    
+
     canvas.width = scaledViewport.width;
     canvas.height = scaledViewport.height;
-    
+
     await page.render({
       canvasContext: context,
       viewport: scaledViewport
     }).promise;
-    
+
     return canvas.toDataURL('image/png');
   } catch (error) {
     console.error('Error converting PDF to image:', error);
@@ -250,12 +250,12 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
   const setMes = (v: string) => updateGastosFilter({ mes: v });
   const setAnio = (v: string) => updateGastosFilter({ anio: v });
   const setUsuarioFilter = (v: string) => updateGastosFilter({ usuarioFilter: v });
-  
+
   const canExport = user?.role && !['salesperson', 'Salesperson', 'Vendedor', 'vendedor'].includes(user.role);
   const [estadoFilter, setEstadoFilter] = useState("todos");
   const [categoriaFilter, setCategoriaFilter] = useState("todos");
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
-  
+
   const getDateRange = (month: string, year: string) => {
     const m = parseInt(month);
     const y = parseInt(year);
@@ -406,11 +406,11 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
   const formatFullDate = (dateString: string) => {
     if (!dateString) return '-';
     const match = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    const date = match 
+    const date = match
       ? new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]))
       : new Date(dateString);
-    return date.toLocaleDateString('es-CL', { 
-      day: '2-digit', 
+    return date.toLocaleDateString('es-CL', {
+      day: '2-digit',
       month: 'short',
       year: 'numeric'
     });
@@ -565,7 +565,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
   const handleExportCSV = () => {
     const gastosParaExportar = getFilteredGastos();
     if (gastosParaExportar.length === 0) return;
-    
+
     const headers = ['Fecha', 'Descripción', 'Categoría', 'Monto', 'Estado', 'Proveedor'];
     const rows = gastosParaExportar.map(g => [
       formatFullDate((g.fechaEmision || g.createdAt) as any),
@@ -575,12 +575,12 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
       g.estado,
       g.proveedor || '-'
     ]);
-    
+
     // Agregar info de filtros al nombre del archivo
     let fileName = `gastos_${anio}_${mes}`;
     if (estadoFilter !== 'todos') fileName += `_${estadoFilter}`;
     if (categoriaFilter !== 'todos') fileName += `_${categoriaFilter.replace(/\s+/g, '_')}`;
-    
+
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -597,9 +597,9 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
       canvas.height = height * scale;
       const ctx = canvas.getContext('2d');
       if (!ctx) { resolve(''); return; }
-      
+
       ctx.scale(scale, scale);
-      
+
       const chartConfig: any = {
         type: chartType,
         data: chartData,
@@ -617,7 +617,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
           } : undefined
         }
       };
-      
+
       const chart = new ChartJS(ctx, chartConfig);
       setTimeout(() => {
         const imgData = canvas.toDataURL('image/png', 1.0);
@@ -630,7 +630,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
   const handleExportPDF = async () => {
     const gastosParaExportar = getFilteredGastos();
     if (gastosParaExportar.length === 0 && fondosData.length === 0) return;
-    
+
     setIsGeneratingPDF(true);
     try {
       const doc = new jsPDF('p', 'mm', 'a4');
@@ -638,28 +638,28 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 15;
       let yPos = margin;
-      
+
       const monthName = months.find(m => m.value === mes)?.label || mes;
-      
+
       const primaryColor: [number, number, number] = [29, 78, 216];
       const successColor: [number, number, number] = [22, 163, 74];
       const warningColor: [number, number, number] = [245, 158, 11];
       const dangerColor: [number, number, number] = [220, 38, 38];
       const grayLight: [number, number, number] = [248, 250, 252];
       const grayDark: [number, number, number] = [71, 85, 105];
-      
+
       doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
       doc.rect(0, 0, pageWidth, 45, 'F');
-      
+
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(22);
       doc.setFont('helvetica', 'bold');
       doc.text('Reporte de Rendición de Gastos', pageWidth / 2, 18, { align: 'center' });
-      
+
       doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
       doc.text(`Período: ${monthName} ${anio}`, pageWidth / 2, 28, { align: 'center' });
-      
+
       const filtrosAplicados: string[] = [];
       if (estadoFilter !== 'todos') filtrosAplicados.push(`Estado: ${estadoFilter}`);
       if (categoriaFilter !== 'todos') filtrosAplicados.push(`Categoría: ${categoriaFilter}`);
@@ -668,48 +668,48 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
         const nombreVendedor = usuarioData?.userName || getUserName(usuarioFilter);
         filtrosAplicados.push(`Vendedor: ${nombreVendedor}`);
       }
-      
+
       doc.setFontSize(10);
       if (filtrosAplicados.length > 0) {
         doc.text(`Filtros: ${filtrosAplicados.join(' | ')}`, pageWidth / 2, 36, { align: 'center' });
       } else {
         doc.text(`Generado: ${new Date().toLocaleDateString('es-CL')}`, pageWidth / 2, 36, { align: 'center' });
       }
-      
+
       yPos = 55;
       doc.setTextColor(0, 0, 0);
-      
+
       if (summary) {
         const cardWidth = (pageWidth - margin * 2 - 15) / 4;
         const cardHeight = 28;
         const cardY = yPos;
-        
+
         const kpis = [
           { label: 'Total Gastos', value: formatCurrency(summary.total), subtext: `${summary.count} registros`, color: primaryColor },
           { label: 'Aprobados', value: formatCurrency(summary.totalAprobado), subtext: '', color: successColor },
           { label: 'Pendientes', value: formatCurrency(summary.totalPendiente), subtext: '', color: warningColor },
           { label: 'Rechazados', value: formatCurrency(summary.totalRechazado), subtext: '', color: dangerColor },
         ];
-        
+
         kpis.forEach((kpi, i) => {
           const cardX = margin + i * (cardWidth + 5);
-          
+
           doc.setFillColor(grayLight[0], grayLight[1], grayLight[2]);
           doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 3, 3, 'F');
-          
+
           doc.setFillColor(kpi.color[0], kpi.color[1], kpi.color[2]);
           doc.rect(cardX, cardY, 3, cardHeight, 'F');
-          
+
           doc.setFontSize(8);
           doc.setTextColor(grayDark[0], grayDark[1], grayDark[2]);
           doc.setFont('helvetica', 'normal');
           doc.text(kpi.label.toUpperCase(), cardX + 7, cardY + 8);
-          
+
           doc.setFontSize(13);
           doc.setTextColor(kpi.color[0], kpi.color[1], kpi.color[2]);
           doc.setFont('helvetica', 'bold');
           doc.text(kpi.value, cardX + 7, cardY + 18);
-          
+
           if (kpi.subtext) {
             doc.setFontSize(7);
             doc.setTextColor(grayDark[0], grayDark[1], grayDark[2]);
@@ -717,22 +717,22 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
             doc.text(kpi.subtext, cardX + 7, cardY + 24);
           }
         });
-        
+
         yPos = cardY + cardHeight + 12;
       }
-      
+
       doc.setTextColor(0, 0, 0);
-      
+
       if (porCategoria.length > 0 && summary && summary.count > 0) {
         const chartWidth = 80;
         const chartHeight = 55;
-        
+
         doc.setFontSize(11);
         doc.setFont('helvetica', 'bold');
         doc.text('Distribución por Categoría', margin, yPos);
         doc.text('Distribución por Estado', pageWidth / 2 + 10, yPos);
         yPos += 5;
-        
+
         try {
           const pieData = {
             labels: porCategoria.map(c => c.categoria),
@@ -746,7 +746,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
           if (pieImg) {
             doc.addImage(pieImg, 'PNG', margin, yPos, chartWidth, chartHeight);
           }
-          
+
           const estadosData = {
             labels: ['Aprobado', 'Pendiente', 'Rechazado'],
             datasets: [{
@@ -762,23 +762,23 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
         } catch (e) {
           console.log('Charts could not be rendered:', e);
         }
-        
+
         yPos += chartHeight + 10;
       }
-      
+
       if (fondosData.length > 0) {
         if (yPos > pageHeight - 60) {
           doc.addPage();
           yPos = margin;
         }
-        
+
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
         doc.text('Fondos Asignados', margin, yPos);
         yPos += 2;
         doc.setTextColor(0, 0, 0);
-        
+
         autoTable(doc, {
           startY: yPos,
           head: [['Fecha Inicio', 'Fecha Término', 'Monto', 'Estado', 'Asignado Por']],
@@ -790,9 +790,9 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
             (f as any).assignedByName || getUserName(f.assignedById) || '-'
           ]),
           theme: 'striped',
-          headStyles: { 
-            fillColor: [29, 78, 216], 
-            textColor: 255, 
+          headStyles: {
+            fillColor: [29, 78, 216],
+            textColor: 255,
             fontStyle: 'bold',
             fontSize: 9
           },
@@ -801,27 +801,27 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
           margin: { left: margin, right: margin },
           tableWidth: 'auto'
         });
-        
+
         yPos = (doc as any).lastAutoTable.finalY + 10;
       }
-      
+
       const gastosAprobados = gastosParaExportar.filter(g => g.estado === 'aprobado');
       const gastosRechazados = gastosParaExportar.filter(g => g.estado === 'rechazado');
       const gastosPendientes = gastosParaExportar.filter(g => g.estado === 'pendiente');
-      
+
       if (gastosAprobados.length > 0) {
         if (yPos > pageHeight - 60) {
           doc.addPage();
           yPos = margin;
         }
-        
+
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(successColor[0], successColor[1], successColor[2]);
         doc.text(`Gastos Aprobados (${gastosAprobados.length})`, margin, yPos);
         yPos += 2;
         doc.setTextColor(0, 0, 0);
-        
+
         autoTable(doc, {
           startY: yPos,
           head: [['Fecha', 'Descripción', 'Categoría', 'Proveedor', 'Monto']],
@@ -833,9 +833,9 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
             formatCurrency(Number(g.monto) || 0)
           ]),
           theme: 'striped',
-          headStyles: { 
+          headStyles: {
             fillColor: [22, 163, 74],
-            textColor: 255, 
+            textColor: 255,
             fontStyle: 'bold',
             fontSize: 9
           },
@@ -850,23 +850,23 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
           },
           margin: { left: margin, right: margin }
         });
-        
+
         yPos = (doc as any).lastAutoTable.finalY + 10;
       }
-      
+
       if (gastosRechazados.length > 0) {
         if (yPos > pageHeight - 60) {
           doc.addPage();
           yPos = margin;
         }
-        
+
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(dangerColor[0], dangerColor[1], dangerColor[2]);
         doc.text(`Gastos Rechazados (${gastosRechazados.length})`, margin, yPos);
         yPos += 2;
         doc.setTextColor(0, 0, 0);
-        
+
         autoTable(doc, {
           startY: yPos,
           head: [['Fecha', 'Descripción', 'Categoría', 'Proveedor', 'Monto']],
@@ -878,9 +878,9 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
             formatCurrency(Number(g.monto) || 0)
           ]),
           theme: 'striped',
-          headStyles: { 
+          headStyles: {
             fillColor: [220, 38, 38],
-            textColor: 255, 
+            textColor: 255,
             fontStyle: 'bold',
             fontSize: 9
           },
@@ -895,23 +895,23 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
           },
           margin: { left: margin, right: margin }
         });
-        
+
         yPos = (doc as any).lastAutoTable.finalY + 10;
       }
-      
+
       if (gastosPendientes.length > 0) {
         if (yPos > pageHeight - 60) {
           doc.addPage();
           yPos = margin;
         }
-        
+
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(warningColor[0], warningColor[1], warningColor[2]);
         doc.text(`Gastos Pendientes (${gastosPendientes.length})`, margin, yPos);
         yPos += 2;
         doc.setTextColor(0, 0, 0);
-        
+
         autoTable(doc, {
           startY: yPos,
           head: [['Fecha', 'Descripción', 'Categoría', 'Proveedor', 'Monto']],
@@ -923,9 +923,9 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
             formatCurrency(Number(g.monto) || 0)
           ]),
           theme: 'striped',
-          headStyles: { 
+          headStyles: {
             fillColor: [245, 158, 11],
-            textColor: 255, 
+            textColor: 255,
             fontStyle: 'bold',
             fontSize: 9
           },
@@ -940,10 +940,10 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
           },
           margin: { left: margin, right: margin }
         });
-        
+
         yPos = (doc as any).lastAutoTable.finalY + 10;
       }
-      
+
       interface ImageInfo {
         url: string;
         previewUrl?: string | null;
@@ -964,9 +964,9 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
         clientes?: string;
         ciudad?: string;
       }
-      
+
       const allImages: ImageInfo[] = [];
-      
+
       for (const fondo of fondosData) {
         if (fondo.comprobanteUrl) {
           const fechaInicio = fondo.fechaInicio ? formatFullDate(fondo.fechaInicio) : '-';
@@ -987,7 +987,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
           });
         }
       }
-      
+
       for (const gasto of gastosParaExportar) {
         // Primero añadir el documento adjunto del gasto (factura/boleta)
         if ((gasto as any).archivoUrl) {
@@ -1031,55 +1031,55 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
           });
         }
       }
-      
+
       let imageErrors = 0;
       if (allImages.length > 0) {
         doc.addPage();
         yPos = margin;
-        
+
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.text('Comprobantes Adjuntos', pageWidth / 2, yPos, { align: 'center' });
         yPos += 15;
-        
+
         const infoColumnWidth = 75;
         const gapBetweenColumns = 8;
         const imageColumnStart = margin + infoColumnWidth + gapBetweenColumns;
         const imageMaxWidth = pageWidth - imageColumnStart - margin;
-        
+
         for (const img of allImages) {
           try {
             const isPDF = img.url.toLowerCase().endsWith('.pdf');
             const sectionHeight = img.type === 'fondo' ? 102 : 120;
-            
+
             if (yPos + sectionHeight > pageHeight - 20) {
               doc.addPage();
               yPos = margin;
             }
-            
+
             const sectionStartY = yPos;
-            
+
             doc.setDrawColor(229, 231, 235);
             doc.setFillColor(255, 255, 255);
             doc.roundedRect(margin, yPos - 3, infoColumnWidth, sectionHeight, 3, 3, 'FD');
-            
+
             const tipoLabel = img.type === 'fondo' ? 'COMPROBANTE DE FONDO' : 'COMPROBANTE DE GASTO';
             const headerColor = img.type === 'fondo' ? [22, 163, 74] : [59, 130, 246];
             doc.setFillColor(headerColor[0], headerColor[1], headerColor[2]);
             doc.roundedRect(margin, yPos - 3, infoColumnWidth, 10, 3, 3, 'F');
             doc.rect(margin, yPos + 4, infoColumnWidth, 3, 'F');
-            
+
             doc.setFontSize(9);
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(255, 255, 255);
             doc.text(tipoLabel, margin + infoColumnWidth / 2, yPos + 3, { align: 'center' });
             doc.setTextColor(0, 0, 0);
             yPos += 14;
-            
+
             const labelX = margin + 4;
             const valueX = margin + 28;
             const lineHeight = 6.5;
-            
+
             doc.setFontSize(8);
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(100, 116, 139);
@@ -1088,7 +1088,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
             doc.setTextColor(15, 23, 42);
             doc.text(String(img.vendedor).substring(0, 22), valueX, yPos);
             yPos += lineHeight;
-            
+
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(100, 116, 139);
             doc.text('Monto', labelX, yPos);
@@ -1096,7 +1096,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
             doc.setTextColor(22, 163, 74);
             doc.text(img.monto, valueX, yPos);
             yPos += lineHeight;
-            
+
             if (img.type === 'fondo' && img.fechaInicio && img.fechaTermino) {
               doc.setFont('helvetica', 'bold');
               doc.setTextColor(100, 116, 139);
@@ -1105,7 +1105,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
               doc.setTextColor(15, 23, 42);
               doc.text(img.fechaInicio, valueX, yPos);
               yPos += lineHeight;
-              
+
               doc.setFont('helvetica', 'bold');
               doc.setTextColor(100, 116, 139);
               doc.text('F. Término', labelX, yPos);
@@ -1122,7 +1122,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
               doc.text(img.fecha, valueX, yPos);
               yPos += lineHeight;
             }
-            
+
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(100, 116, 139);
             doc.text('Tipo', labelX, yPos);
@@ -1132,7 +1132,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
             doc.text(img.financiamiento, valueX, yPos);
             doc.setTextColor(0, 0, 0);
             yPos += lineHeight;
-            
+
             if (img.type === 'gasto') {
               doc.setFont('helvetica', 'bold');
               doc.setTextColor(100, 116, 139);
@@ -1141,7 +1141,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
               doc.setTextColor(15, 23, 42);
               doc.text(String(img.categoria || '-').substring(0, 18), valueX, yPos);
               yPos += lineHeight;
-              
+
               doc.setFont('helvetica', 'bold');
               doc.setTextColor(100, 116, 139);
               doc.text('Documento', labelX, yPos);
@@ -1149,7 +1149,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
               doc.setTextColor(15, 23, 42);
               doc.text(String(img.tipoDocumento || '-').substring(0, 16), valueX, yPos);
               yPos += lineHeight;
-              
+
               if (img.proveedor && img.proveedor !== '-') {
                 doc.setFont('helvetica', 'bold');
                 doc.setTextColor(100, 116, 139);
@@ -1159,7 +1159,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
                 doc.text(String(img.proveedor).substring(0, 18), valueX, yPos);
                 yPos += lineHeight;
               }
-              
+
               if (img.ruta && img.ruta !== '-') {
                 doc.setFont('helvetica', 'bold');
                 doc.setTextColor(100, 116, 139);
@@ -1169,7 +1169,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
                 doc.text(String(img.ruta).substring(0, 18), valueX, yPos);
                 yPos += lineHeight;
               }
-              
+
               if (img.clientes && img.clientes !== '-') {
                 doc.setFont('helvetica', 'bold');
                 doc.setTextColor(100, 116, 139);
@@ -1179,7 +1179,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
                 doc.text(String(img.clientes).substring(0, 18), valueX, yPos);
                 yPos += lineHeight;
               }
-              
+
               if (img.ciudad && img.ciudad !== '-') {
                 doc.setFont('helvetica', 'bold');
                 doc.setTextColor(100, 116, 139);
@@ -1197,7 +1197,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
               doc.setTextColor(15, 23, 42);
               doc.text(String(img.tipoFondo || '-').substring(0, 16), valueX, yPos);
               yPos += lineHeight;
-              
+
               doc.setFont('helvetica', 'bold');
               doc.setTextColor(100, 116, 139);
               doc.text('Estado', labelX, yPos);
@@ -1208,7 +1208,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
               doc.setTextColor(0, 0, 0);
               yPos += lineHeight;
             }
-            
+
             if (img.descripcion && img.descripcion !== '-') {
               doc.setFont('helvetica', 'bold');
               doc.setTextColor(100, 116, 139);
@@ -1223,22 +1223,22 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
               }
               yPos += (maxLines - 1) * 4;
             }
-            
+
             doc.setDrawColor(229, 231, 235);
             doc.setFillColor(249, 250, 251);
             doc.roundedRect(imageColumnStart, sectionStartY - 3, imageMaxWidth, sectionHeight, 3, 3, 'FD');
-            
+
             const imgYPos = sectionStartY + 5;
             const imgMaxHeight = sectionHeight - 16;
-            
+
             if (isPDF) {
               let pdfPreviewLoaded = false;
-              
+
               const previewPath = img.previewUrl || img.url.replace(/\.pdf$/i, '_preview.png');
-              const previewUrl = previewPath.startsWith('http') 
-                ? previewPath 
+              const previewUrl = previewPath.startsWith('http')
+                ? previewPath
                 : `${window.location.origin}${previewPath}`;
-              
+
               try {
                 const previewResponse = await fetch(previewUrl, { credentials: 'include' });
                 if (previewResponse.ok) {
@@ -1248,17 +1248,17 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
                     reader.onloadend = () => resolve(reader.result as string);
                     reader.readAsDataURL(previewBlob);
                   });
-                  
+
                   const imgObj = new Image();
                   await new Promise((resolve, reject) => {
                     imgObj.onload = resolve;
                     imgObj.onerror = reject;
                     imgObj.src = previewBase64;
                   });
-                  
+
                   let imgWidth = imgObj.width;
                   let imgHeight = imgObj.height;
-                  
+
                   if (imgWidth > imageMaxWidth) {
                     const ratio = imageMaxWidth / imgWidth;
                     imgWidth = imageMaxWidth;
@@ -1269,7 +1269,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
                     imgHeight = imgMaxHeight;
                     imgWidth = imgWidth * ratio;
                   }
-                  
+
                   doc.addImage(previewBase64, 'PNG', imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
                   doc.setFontSize(7);
                   doc.setTextColor(100, 116, 139);
@@ -1280,10 +1280,10 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
               } catch (previewError) {
                 console.log('Server preview not available, trying client-side conversion');
               }
-              
+
               if (!pdfPreviewLoaded) {
-                const pdfAbsoluteUrl = img.url.startsWith('http') 
-                  ? img.url 
+                const pdfAbsoluteUrl = img.url.startsWith('http')
+                  ? img.url
                   : `${window.location.origin}${img.url}`;
                 const pdfImage = await pdfToImage(pdfAbsoluteUrl, 400);
                 if (pdfImage) {
@@ -1293,10 +1293,10 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
                     imgObj.onerror = reject;
                     imgObj.src = pdfImage;
                   });
-                  
+
                   let imgWidth = imgObj.width;
                   let imgHeight = imgObj.height;
-                  
+
                   if (imgWidth > imageMaxWidth) {
                     const ratio = imageMaxWidth / imgWidth;
                     imgWidth = imageMaxWidth;
@@ -1307,7 +1307,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
                     imgHeight = imgMaxHeight;
                     imgWidth = imgWidth * ratio;
                   }
-                  
+
                   doc.addImage(pdfImage, 'PNG', imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
                   doc.setFontSize(7);
                   doc.setTextColor(100, 116, 139);
@@ -1316,7 +1316,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
                   pdfPreviewLoaded = true;
                 }
               }
-              
+
               if (!pdfPreviewLoaded) {
                 doc.setFontSize(9);
                 doc.setFont('helvetica', 'normal');
@@ -1328,17 +1328,17 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
             } else {
               // Use the normalization endpoint to correct EXIF orientation
               const { base64, format: imgFormat } = await loadImageForPdf(img.url);
-              
+
               const imgObj = new Image();
               await new Promise((resolve, reject) => {
                 imgObj.onload = resolve;
                 imgObj.onerror = reject;
                 imgObj.src = base64;
               });
-              
+
               let imgWidth = imgObj.width;
               let imgHeight = imgObj.height;
-              
+
               if (imgWidth > imageMaxWidth) {
                 const ratio = imageMaxWidth / imgWidth;
                 imgWidth = imageMaxWidth;
@@ -1349,12 +1349,12 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
                 imgHeight = imgMaxHeight;
                 imgWidth = imgWidth * ratio;
               }
-              
+
               doc.addImage(base64, imgFormat, imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
             }
-            
+
             yPos = sectionStartY + sectionHeight + 8;
-            
+
           } catch (e) {
             console.error('Error loading image:', img.url, e);
             imageErrors++;
@@ -1364,9 +1364,9 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
           }
         }
       }
-      
+
       doc.save(`reporte_gastos_${anio}_${mes}.pdf`);
-      
+
       if (imageErrors > 0) {
         toast({
           title: "PDF generado con advertencias",
@@ -1447,7 +1447,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
           </div>
           {canExport && (
             <div className="flex gap-2">
-              <Button 
+              <Button
                 onClick={handleExportPDF}
                 variant="default"
                 disabled={!hasData || isGeneratingPDF || isLoadingUsers}
@@ -1461,7 +1461,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
                 )}
                 {isGeneratingPDF ? 'Generando...' : isLoadingUsers ? 'Cargando...' : 'Exportar PDF'}
               </Button>
-              <Button 
+              <Button
                 onClick={handleExportCSV}
                 variant="outline"
                 disabled={!hasData}
@@ -1631,25 +1631,27 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Top 10 Vendedores con más Gastos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              {porUsuario.length > 0 ? (
-                <Bar data={usuarioChartData} options={horizontalBarOptions} />
-              ) : (
-                <div className="flex items-center justify-center h-full text-gray-500">
-                  No hay datos disponibles
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        {user?.role !== 'salesperson' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Top 10 Vendedores con más Gastos
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px]">
+                {porUsuario.length > 0 ? (
+                  <Bar data={usuarioChartData} options={horizontalBarOptions} />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-gray-500">
+                    No hay datos disponibles
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

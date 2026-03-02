@@ -15,20 +15,20 @@ import * as XLSX from "xlsx";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { comunaRegionService } from "./comunaRegionService";
 import { db } from "./db";
-import { 
-  ecommerceProducts, 
-  salesTransactions, 
-  fileUploads, 
-  productosEvaluados, 
-  evaluacionesTecnicas, 
-  insertClientSchema, 
+import {
+  ecommerceProducts,
+  salesTransactions,
+  fileUploads,
+  productosEvaluados,
+  evaluacionesTecnicas,
+  insertClientSchema,
   insertGastoEmpresarialSchema,
   insertFundAllocationSchema,
   insertFundRecurringConfigSchema,
   fundMovements,
-  insertPromesaCompraSchema, 
-  insertHitoMarketingSchema, 
-  nvvPendingSales, 
+  insertPromesaCompraSchema,
+  insertHitoMarketingSchema,
+  nvvPendingSales,
   factVentas,
   gastosEmpresariales,
   // CMMS tables
@@ -43,7 +43,13 @@ import {
   // Email notification settings
   emailNotificationSettings,
   emailLogs,
-  smtpConfig
+  smtpConfig,
+  // Presupuesto de ventas
+  presupuestoVentas,
+  bulkPresupuestoVentasSchema,
+  // AI Chat
+  chatMessages,
+  aiKnowledgeBase,
 } from "../shared/schema";
 import { eq, and, isNotNull, isNull, ne, sql, desc, or, sum, countDistinct } from "drizzle-orm";
 import { emailService } from "./services/email";
@@ -56,15 +62,17 @@ import { wrapEmailContent } from "./email-templates";
 import { getAuthUrl, handleCallback, getValidAccessToken, disconnectGmail, isOAuthConfigured, validateStateToken, sendEmailWithOAuth, testConnection, getConnectionStatus } from "./gmail-oauth";
 import { convertPdfToImage, isPdfFile } from "./pdf-to-image";
 import sharp from "sharp";
+import { processAgentMessage, type AiUserContext, type AiMessage } from "./ai-agent";
+import { randomUUID } from "crypto";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
   if (!value || value.toString().trim() === '') return null;
-  
+
   try {
     const dateStr = value.toString().trim();
     let parts: string[];
-    
+
     // Handle different separators
     if (dateStr.includes('/')) {
       parts = dateStr.split('/');
@@ -73,25 +81,25 @@ function parseDate(value: any): string | null {
     } else {
       return null;
     }
-    
+
     if (parts.length !== 3) return null;
-    
+
     // Parse numbers
     const day = parseInt(parts[0]);
-    const month = parseInt(parts[1]); 
+    const month = parseInt(parts[1]);
     const year = parseInt(parts[2]);
-    
+
     // Validate ranges
     if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
     if (day < 1 || day > 31) return null;
     if (month < 1 || month > 12) return null;
     if (year < 1900 || year > 2100) return null; // Reasonable year range
-    
+
     // Format as YYYY-MM-DD
     const formattedMonth = month.toString().padStart(2, '0');
     const formattedDay = day.toString().padStart(2, '0');
     return `${year}-${formattedMonth}-${formattedDay}`;
-    
+
   } catch (e) {
     console.warn('Error parsing date:', value, e);
     return null;
@@ -109,9 +117,9 @@ function handleDatabaseError(error: any, operation: string) {
     name: error.name,
   };
   console.error(`${timestamp} [DB-ERROR] ${operation} failed:`, sanitizedError);
-  
+
   // Check if it's a database connection error
-  const isDbError = 
+  const isDbError =
     error?.code === '57P01' || // admin_shutdown
     error?.code === '08006' || // connection_failure
     error?.code === '08001' || // sqlclient_unable_to_establish_sqlconnection
@@ -144,7 +152,7 @@ function asyncHandler(fn: Function) {
   return (req: any, res: any, next: any) => {
     Promise.resolve(fn(req, res, next)).catch((error) => {
       const errorInfo = handleDatabaseError(error, `${req.method} ${req.path}`);
-      res.status(errorInfo.status).json({ 
+      res.status(errorInfo.status).json({
         message: errorInfo.message,
         type: errorInfo.type
       });
@@ -157,33 +165,33 @@ function formatDateLocal(date: Date): string {
   if (!date || isNaN(date.getTime())) {
     throw new Error('Invalid date provided');
   }
-  
+
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
-  
+
   return `${year}-${month}-${day}`;
 }
 
 // Helper function to normalize date range for SQL queries
-function normalizeDateRange(startDate?: string, endDate?: string): { 
-  startDate?: string; 
-  endDate?: string; 
-  endDateExclusive?: string; 
+function normalizeDateRange(startDate?: string, endDate?: string): {
+  startDate?: string;
+  endDate?: string;
+  endDateExclusive?: string;
 } {
   if (!startDate && !endDate) {
     return {};
   }
-  
+
   let endDateExclusive: string | undefined;
-  
+
   if (endDate) {
     // For inclusive endDate, create exclusive endDate by adding 1 day
     const endDateObj = new Date(endDate);
     endDateObj.setDate(endDateObj.getDate() + 1);
     endDateExclusive = formatDateLocal(endDateObj);
   }
-  
+
   return {
     startDate,
     endDate,
@@ -195,12 +203,12 @@ function normalizeDateRange(startDate?: string, endDate?: string): {
 // Helper function to resolve comparison periods like "previous-month", "previous-year", etc.
 function resolveComparisonPeriod(comparePeriod: string, currentPeriod: string, filterType: string): string {
   if (!comparePeriod || comparePeriod === "none") return "";
-  
+
   // If it's already a specific period like "2025-08", return as is
   if (comparePeriod.match(/^\d{4}-\d{2}$/) || comparePeriod.match(/^\d{4}$/)) {
     return comparePeriod;
   }
-  
+
   // Parse current period to determine comparison period
   switch (comparePeriod) {
     case "previous-month": {
@@ -230,13 +238,13 @@ function resolveComparisonPeriod(comparePeriod: string, currentPeriod: string, f
       break;
     }
   }
-  
+
   return comparePeriod; // Return as is if no pattern matches
 }
 
 function getDateRange(period?: string, filterType?: string): { startDate?: string; endDate?: string } {
   if (!period || !filterType) return {};
-  
+
   const now = new Date();
   let startDate: Date | undefined;
   let endDate: Date | undefined;
@@ -265,13 +273,13 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
         const [year, month] = period.split('-');
         const periodYear = parseInt(year);
         const periodMonth = parseInt(month) - 1; // 0-indexed
-        
+
         startDate = new Date(periodYear, periodMonth, 1);
-        
+
         // Check if this is the current month
         const currentYear = now.getFullYear();
         const currentMonth = now.getMonth();
-        
+
         if (periodYear === currentYear && periodMonth === currentMonth) {
           // If it's the current month, use today as the end date
           endDate = new Date(currentYear, currentMonth, now.getDate());
@@ -335,22 +343,22 @@ import { registerLogRoutes } from './routes-logs';
 // Must be used after requireAuth middleware
 function requireOwnDataOrAdmin(req: any, res: any, next: any) {
   const user = req.user;
-  
+
   if (!user) {
     return res.status(401).json({ message: "No autenticado" });
   }
-  
+
   // Allow admins, supervisors, and jefe_planta to access all data
   if (user.role === 'admin' || user.role === 'supervisor' || user.role === 'jefe_planta') {
     return next();
   }
-  
+
   // Validate salespersonName parameter exists
   const requestedSalesperson = req.params.salespersonName;
   if (!requestedSalesperson) {
     return res.status(400).json({ message: "Nombre de vendedor requerido" });
   }
-  
+
   // Normalize function: decode URI, trim, lowercase
   const normalize = (str: string): string => {
     try {
@@ -359,25 +367,25 @@ function requireOwnDataOrAdmin(req: any, res: any, next: any) {
       return str.trim().toLowerCase();
     }
   };
-  
+
   // For salespeople, validate they're only accessing their own data
   if (user.role === 'salesperson') {
     const userSalespersonName = user.salespersonName || `${user.firstName || ''} ${user.lastName || ''}`.trim();
     const normalizedRequested = normalize(requestedSalesperson);
     const normalizedUser = normalize(userSalespersonName);
-    
+
     if (normalizedRequested !== normalizedUser) {
-      return res.status(403).json({ 
-        message: "No tienes permiso para acceder a datos de otros vendedores" 
+      return res.status(403).json({
+        message: "No tienes permiso para acceder a datos de otros vendedores"
       });
     }
-    
+
     return next();
   }
-  
+
   // All other roles (marketing, client, tecnico_obra, etc.) are denied
-  return res.status(403).json({ 
-    message: "No tienes permiso para acceder a esta información" 
+  return res.status(403).json({
+    message: "No tienes permiso para acceder a esta información"
   });
 }
 
@@ -389,7 +397,7 @@ export function registerRoutes(app: Express): Server {
   registerLogRoutes(app, requireRoles);
 
   // Note: Replit OIDC auth disabled to avoid conflicts - using email/password auth only
-  
+
   // Mount external API routes (with API key auth)
   app.use('/api/external', externalApiRouter);
 
@@ -398,7 +406,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/image-normalized', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const imageUrl = req.query.url as string;
-      
+
       if (!imageUrl) {
         return res.status(400).json({ message: 'URL de imagen requerida' });
       }
@@ -424,7 +432,7 @@ export function registerRoutes(app: Express): Server {
         /^169\.254\.\d+\.\d+$/, // Link-local
         'metadata.google.internal', '169.254.169.254' // Cloud metadata endpoints
       ];
-      
+
       for (const pattern of blockedPatterns) {
         if (typeof pattern === 'string' && hostname === pattern) {
           return res.status(403).json({ message: 'URL no permitida' });
@@ -446,7 +454,7 @@ export function registerRoutes(app: Express): Server {
         process.env.REPL_SLUG ? `${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` : ''
       ].filter(Boolean);
 
-      const isAllowedDomain = allowedDomains.some(domain => 
+      const isAllowedDomain = allowedDomains.some(domain =>
         hostname === domain || hostname.endsWith(`.${domain}`)
       );
 
@@ -489,7 +497,7 @@ export function registerRoutes(app: Express): Server {
       res.send(normalizedBuffer);
     } catch (error) {
       console.error('Error normalizing image:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: 'Error al procesar la imagen',
         error: error instanceof Error ? error.message : 'Error desconocido'
       });
@@ -497,7 +505,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Configure multer for file uploads
-  const upload = multer({ 
+  const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
   });
@@ -518,9 +526,9 @@ export function registerRoutes(app: Express): Server {
       const objectStorageService = new ObjectStorageService();
       const fileUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
       console.log(`☁️ [UPLOAD] File uploaded: ${fileName} -> ${fileUrl}`);
-      
+
       let previewUrl: string | null = null;
-      
+
       if (isPdfFile(file.mimetype, file.originalname)) {
         console.log(`📄 [UPLOAD] PDF detected, generating preview image...`);
         try {
@@ -534,7 +542,7 @@ export function registerRoutes(app: Express): Server {
           console.warn('⚠️ [UPLOAD] Failed to generate PDF preview:', previewError);
         }
       }
-      
+
       res.json({ url: fileUrl, previewUrl });
     } catch (error: any) {
       console.error('Error uploading file:', error);
@@ -550,19 +558,19 @@ export function registerRoutes(app: Express): Server {
   // Health check endpoint - Production monitoring
   app.get('/api/health', asyncHandler(async (req: any, res: any) => {
     const dbHealth = await checkDbHealth();
-    
+
     // Get last ETL execution
     let lastETL: any = null;
     let etlHealthy = true;
     let etlWarnings: string[] = [];
-    
+
     try {
       const lastExecutions = await db
         .select()
         .from(sql`ventas.etl_execution_log`)
         .orderBy(desc(sql`start_time`))
         .limit(1);
-      
+
       if (lastExecutions.length > 0) {
         const last = lastExecutions[0] as any;
         lastETL = {
@@ -572,13 +580,13 @@ export function registerRoutes(app: Express): Server {
           executionTimeMs: last.execution_time_ms,
           period: last.period
         };
-        
+
         // Check if last ETL failed
         if (last.status === 'failed') {
           etlHealthy = false;
           etlWarnings.push('Última ejecución ETL falló');
         }
-        
+
         // Check if last execution was too long ago (>45 min = problema con scheduler)
         const timeSinceLastETL = Date.now() - new Date(last.start_time).getTime();
         const minutesSince = timeSinceLastETL / (1000 * 60);
@@ -594,15 +602,15 @@ export function registerRoutes(app: Express): Server {
       etlWarnings.push('Error verificando estado ETL');
       etlHealthy = false;
     }
-    
+
     // Get circuit breaker stats
     const breakerStats = sqlServerBreaker.getStats();
     const breakerHealthy = breakerStats.state !== 'OPEN';
-    
+
     // Data quality check - critical fields
     let dataQualityHealthy = true;
     let dataQualityWarnings: string[] = [];
-    
+
     try {
       const qualityCheck = await db.execute(sql`
         SELECT 
@@ -613,15 +621,15 @@ export function registerRoutes(app: Express): Server {
         FROM ventas.fact_ventas
         WHERE last_etl_sync >= NOW() - INTERVAL '24 hours'
       `);
-      
+
       const quality = qualityCheck.rows[0] as any;
       const totalRecent = Number(quality.total_records);
-      
+
       if (totalRecent > 0) {
         const nullClientsPercent = (Number(quality.null_clients) / totalRecent) * 100;
         const nullSalesPercent = (Number(quality.null_salespeople) / totalRecent) * 100;
         const nullSegmentsPercent = (Number(quality.null_segments) / totalRecent) * 100;
-        
+
         if (nullClientsPercent > 10) {
           dataQualityWarnings.push(`${nullClientsPercent.toFixed(1)}% clientes NULL`);
           dataQualityHealthy = false;
@@ -639,12 +647,12 @@ export function registerRoutes(app: Express): Server {
       console.error('[HEALTH] Error checking data quality:', error.message);
       dataQualityWarnings.push('Error verificando calidad de datos');
     }
-    
+
     // Overall system health - only DB connectivity is critical for health check
     const systemHealthy = dbHealth.connected;
     const allServicesHealthy = dbHealth.connected && etlHealthy && breakerHealthy && dataQualityHealthy;
     const systemStatus = allServicesHealthy ? 'healthy' : (systemHealthy ? 'degraded' : 'unhealthy');
-    
+
     const health = {
       status: systemStatus,
       timestamp: new Date().toISOString(),
@@ -665,8 +673,8 @@ export function registerRoutes(app: Express): Server {
           healthy: breakerHealthy,
           failures: breakerStats.failures,
           successes: breakerStats.successes,
-          nextAttemptTime: breakerStats.nextAttemptTime > 0 
-            ? new Date(breakerStats.nextAttemptTime).toISOString() 
+          nextAttemptTime: breakerStats.nextAttemptTime > 0
+            ? new Date(breakerStats.nextAttemptTime).toISOString()
             : null
         }
       },
@@ -675,7 +683,7 @@ export function registerRoutes(app: Express): Server {
         warnings: dataQualityWarnings
       }
     };
-    
+
     // Only return 503 if database is completely unreachable
     // ETL/circuit breaker/data quality issues are reported but don't fail the health check
     res.status(systemHealthy ? 200 : 503).json(health);
@@ -685,7 +693,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/sales/metrics', requireCommercialAccess, async (req, res) => {
     try {
       const { startDate, endDate, salesperson, segment, client, supplier, period, filterType, product } = req.query;
-      
+
       // Check if this is a comparison period query and resolve it
       let resolvedPeriod = period as string;
       if (period && typeof period === 'string' && (period.startsWith('previous-') || period.startsWith('same-month-'))) {
@@ -693,34 +701,40 @@ export function registerRoutes(app: Express): Server {
         // Since we don't have it in this query, we'll handle it in getDateRange
         resolvedPeriod = period;
       }
-      
+
       const dateRange = getDateRange(resolvedPeriod, filterType as string);
-      
+
       const currentStartDate = (startDate as string) || dateRange.startDate;
       const currentEndDate = (endDate as string) || dateRange.endDate;
-      
+
       // Validate that we have valid dates before proceeding
       if (!currentStartDate || !currentEndDate) {
         return res.status(400).json({ message: "Missing required date parameters" });
       }
-      
+
       // Calculate previous year dates - exactly same period but one year before (year-over-year comparison)
-      const currentStart = new Date(currentStartDate);
-      const currentEnd = new Date(currentEndDate);
-      
+      // IMPORTANT: Parse date strings by splitting components to avoid timezone shifting.
+      // new Date('YYYY-MM-DD') parses as UTC midnight, which in Chile (UTC-3) becomes the previous day.
+      const parseDateSafe = (dateStr: string): Date => {
+        const [y, m, d] = dateStr.split('-').map(Number);
+        return new Date(y, m - 1, d); // local time, no UTC shift
+      };
+      const currentStart = parseDateSafe(currentStartDate);
+      const currentEnd = parseDateSafe(currentEndDate);
+
       // Validate that dates are valid
       if (isNaN(currentStart.getTime()) || isNaN(currentEnd.getTime())) {
         return res.status(400).json({ message: "Invalid date format" });
       }
-      
+
       // Clone the dates and move them back by exactly one year
       const previousStart = new Date(currentStart);
       const previousEnd = new Date(currentEnd);
-      
+
       // Move to same period in previous year (year-over-year)
       previousStart.setFullYear(previousStart.getFullYear() - 1);
       previousEnd.setFullYear(previousEnd.getFullYear() - 1);
-      
+
       // Handle edge case for Feb 29 in leap years
       if (currentStart.getMonth() === 1 && currentStart.getDate() === 29) {
         // If current is Feb 29 and previous year is not a leap year, use Feb 28
@@ -734,13 +748,13 @@ export function registerRoutes(app: Express): Server {
           previousEnd.setMonth(1, 28);
         }
       }
-      
+
       const previousStartFormatted = formatDateLocal(previousStart);
       const previousEndFormatted = formatDateLocal(previousEnd);
-      
+
       console.log(`[DEBUG] Periodo actual: ${currentStartDate} a ${currentEndDate}`);
       console.log(`[DEBUG] Periodo año anterior: ${previousStartFormatted} a ${previousEndFormatted}`);
-      
+
       // Get current period metrics
       const metrics = await storage.getSalesMetrics({
         startDate: currentStartDate,
@@ -751,7 +765,7 @@ export function registerRoutes(app: Express): Server {
         supplier: supplier as string,
         product: product as string,
       });
-      
+
       // Get previous year metrics for comparison (same period in previous year - year-over-year)
       const previousMetrics = await storage.getSalesMetrics({
         startDate: previousStartFormatted,
@@ -762,10 +776,10 @@ export function registerRoutes(app: Express): Server {
         supplier: supplier as string,
         product: product as string,
       });
-      
+
       console.log(`[DEBUG] Métricas actuales: Ventas=${metrics.totalSales}, Transacciones=${metrics.totalTransactions}`);
       console.log(`[DEBUG] Métricas año anterior: Ventas=${previousMetrics.totalSales}, Transacciones=${previousMetrics.totalTransactions}`);
-      
+
       const commonFilters = {
         salesperson: salesperson as string,
         segment: segment as string,
@@ -796,9 +810,9 @@ export function registerRoutes(app: Express): Server {
         previousMonthGdvSales: previousMetrics.totalTransactions > 0 ? previousMetrics.gdvSales : undefined,
         previousNewClients,
       };
-      
+
       console.log(`[DEBUG] Datos enviados al frontend:`, JSON.stringify(metricsWithComparison, null, 2));
-      
+
       res.json(metricsWithComparison);
     } catch (error) {
       console.error("Error fetching sales metrics:", error);
@@ -854,15 +868,15 @@ export function registerRoutes(app: Express): Server {
         salesperson: salesperson as string,
         client: client as string,
       };
-      
+
       // First get current year totals
       const currentTotals = await storage.getYearlyTotals(currentYear, filters);
-      
+
       // If we're in the first days of a new year and current year has very little data,
       // return previous year as the main reference for better UX
       const isEarlyInYear = new Date().getMonth() === 0 && new Date().getDate() <= 15; // First 15 days of January
       const hasMinimalCurrentData = Math.abs(currentTotals.currentYearTotal) < 1000000; // Less than 1M in sales
-      
+
       if (isEarlyInYear && hasMinimalCurrentData) {
         // Get previous year as main reference
         const previousYearTotals = await storage.getYearlyTotals(currentYear - 1, filters);
@@ -902,7 +916,7 @@ export function registerRoutes(app: Express): Server {
       if (!search || (search as string).length < 1) {
         return res.json({ clients: [] });
       }
-      
+
       // Search unique clients from fact_ventas
       const searchPattern = `%${search}%`;
       const results = await db
@@ -913,14 +927,14 @@ export function registerRoutes(app: Express): Server {
         .from(factVentas)
         .where(sql`${factVentas.nokoen} ILIKE ${searchPattern}`)
         .limit(parseInt(limit as string));
-      
+
       const clients = results.map(r => ({
         id: r.koen || r.nokoen,
         koen: r.koen || r.nokoen,
         nokoen: r.nokoen,
         rten: '',
       }));
-      
+
       res.json({ clients });
     } catch (error) {
       console.error("Error searching clients from sales:", error);
@@ -933,13 +947,13 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/sales/gdv-pending', requireCommercialAccess, async (req, res) => {
     try {
       const { salesperson, segment, client } = req.query;
-      
+
       const metrics = await storage.getGdvPendingGlobal({
         salesperson: salesperson as string,
         segment: segment as string,
         client: client as string,
       });
-      
+
       res.json(metrics);
     } catch (error) {
       console.error("Error fetching GDV pending:", error);
@@ -953,7 +967,7 @@ export function registerRoutes(app: Express): Server {
       const { salespersonName } = req.params;
       const { startDate, endDate, period, filterType } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
-      
+
       const metrics = await storage.getSalesMetrics({
         startDate: (startDate as string) || dateRange.startDate,
         endDate: (endDate as string) || dateRange.endDate,
@@ -972,8 +986,8 @@ export function registerRoutes(app: Express): Server {
       const { salespersonName } = req.params;
       const { startDate, endDate, period, filterType } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
-      
-      const clients = await storage.getTopClients(10, 
+
+      const clients = await storage.getTopClients(10,
         (startDate as string) || dateRange.startDate,
         (endDate as string) || dateRange.endDate,
         salespersonName
@@ -1027,11 +1041,11 @@ export function registerRoutes(app: Express): Server {
     try {
       const { salespersonId } = req.params;
       const { period, filterType = "month" } = req.query;
-      
+
       // Obtener el nombre del vendedor por su ID
       const user = await storage.getSalespersonUser(salespersonId);
       const salespersonName = user?.salespersonName;
-      
+
       if (!salespersonName) {
         return res.status(404).json({ message: "Vendedor no encontrado" });
       }
@@ -1068,7 +1082,7 @@ export function registerRoutes(app: Express): Server {
       // Datos específicos del vendedor
       const dashboardData = {
         totalSales: metrics.totalSales || 0,
-        transactions: metrics.totalTransactions || 0, 
+        transactions: metrics.totalTransactions || 0,
         avgTicket: (metrics.totalSales / (metrics.totalTransactions || 1)) || 0,
         topProducts: [], // Se obtiene por separado
         recentSales: transactions || [],
@@ -1089,11 +1103,11 @@ export function registerRoutes(app: Express): Server {
     try {
       const { salespersonId } = req.params;
       const { period, filterType = "month" } = req.query;
-      
+
       // Obtener el nombre del vendedor por su ID
       const user = await storage.getSalespersonUser(salespersonId);
       const salespersonName = user?.salespersonName;
-      
+
       if (!salespersonName) {
         return res.status(404).json({ message: "Vendedor no encontrado" });
       }
@@ -1111,17 +1125,17 @@ export function registerRoutes(app: Express): Server {
     try {
       const { salespersonId } = req.params;
       const { period, filterType = "month" } = req.query;
-      
+
       // Obtener el nombre del vendedor por su ID
       const user = await storage.getSalespersonUser(salespersonId);
       const salespersonName = user?.salespersonName;
-      
+
       if (!salespersonName) {
         return res.status(404).json({ message: "Vendedor no encontrado" });
       }
 
       const goals = await storage.getGoalsBySalesperson(salespersonName);
-      
+
       // Convert "current-month" to actual period (e.g., "2025-10")
       let actualPeriod = period as string;
       if (period === 'current-month') {
@@ -1132,17 +1146,17 @@ export function registerRoutes(app: Express): Server {
         const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         actualPeriod = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
       }
-      
+
       // Filter goals by period if specified
-      const filteredGoals = period 
+      const filteredGoals = period
         ? goals.filter(goal => goal.period === actualPeriod)
         : goals;
-      
+
       // Process goals to include current sales and progress calculations
       const goalsWithProgress = await Promise.all(
         filteredGoals.map(async (goal) => {
           let currentSales = 0;
-          
+
           switch (goal.type) {
             case 'global':
               currentSales = await storage.getGlobalSalesForPeriod(goal.period);
@@ -1185,9 +1199,9 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/transactions/:transactionId/details', requireAuth, async (req, res) => {
     try {
       const { transactionId } = req.params;
-      
+
       const transactionDetail = await storage.getTransactionDetails(transactionId);
-      
+
       if (!transactionDetail) {
         return res.status(404).json({ message: "Transacción no encontrada" });
       }
@@ -1203,7 +1217,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/clients', requireAuth, async (req, res) => {
     try {
       const { search, segment, salesperson, creditStatus, businessType, debtStatus, entityType, salesPeriod, limit, offset } = req.query;
-      
+
       const filters = {
         search: search as string,
         segment: segment as string,
@@ -1216,15 +1230,15 @@ export function registerRoutes(app: Express): Server {
         limit: limit ? parseInt(limit as string) : 50,
         offset: offset ? parseInt(offset as string) : 0,
       };
-      
+
       console.log('GET /api/clients - Filtros:', filters);
-      
+
       // Get both clients and total count in parallel for better performance
       const [clients, totalCount] = await Promise.all([
         storage.getClients(filters),
         storage.getClientsCount(filters)
       ]);
-      
+
       res.json({
         clients,
         totalCount,
@@ -1241,17 +1255,17 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/clients/check-rut', requireAuth, async (req, res) => {
     try {
       const { rut } = req.query;
-      
+
       if (!rut || typeof rut !== 'string') {
         return res.status(400).json({ message: 'RUT es requerido' });
       }
-      
+
       // Clean the RUT for comparison (remove dots, dashes, and spaces)
       const cleanRut = rut.replace(/[\.\-\s]/g, '').trim().toUpperCase();
-      
+
       // Search for client with this RUT using the original format
       const clients = await storage.getClients({ search: rut.trim(), limit: 50 });
-      
+
       // Check if any client has this exact RUT (normalized comparison)
       const exists = clients.some((client: any) => {
         if (!client.rten) return false;
@@ -1259,7 +1273,7 @@ export function registerRoutes(app: Express): Server {
         const clientRut = client.rten.replace(/[\.\-\s]/g, '').trim().toUpperCase();
         return clientRut === cleanRut;
       });
-      
+
       res.json({ exists, rut: rut.trim() });
     } catch (error) {
       console.error('Error checking RUT:', error);
@@ -1271,11 +1285,11 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/clients/business-types', requireAuth, async (req, res) => {
     try {
       console.log('GET /api/clients/business-types');
-      
+
       const businessTypes = await storage.getUniqueBusinessTypes();
-      
+
       console.log(`GET /api/clients/business-types - Devolviendo ${businessTypes.length} tipos de negocio`);
-      
+
       res.json(businessTypes);
     } catch (error) {
       console.error('Error al obtener tipos de negocio:', error);
@@ -1287,11 +1301,11 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/clients/entity-types', requireAuth, async (req, res) => {
     try {
       console.log('GET /api/clients/entity-types');
-      
+
       const entityTypes = await storage.getUniqueEntityTypes();
-      
+
       console.log(`GET /api/clients/entity-types - Devolviendo ${entityTypes.length} tipos de entidad`);
-      
+
       res.json(entityTypes);
     } catch (error) {
       console.error('Error al obtener tipos de entidad:', error);
@@ -1303,13 +1317,13 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/clients/by-user/:userId', requireAuth, async (req, res) => {
     try {
       const { userId } = req.params;
-      
+
       const client = await storage.getClientByUserId(userId);
-      
+
       if (!client) {
         return res.status(404).json({ message: 'Cliente no encontrado' });
       }
-      
+
       res.json(client);
     } catch (error) {
       console.error('Error al obtener datos del cliente:', error);
@@ -1350,21 +1364,21 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/clients/search', requireAuth, async (req, res) => {
     try {
       const { q, period, filterType, segment, salesperson } = req.query;
-      
+
       console.log('[CLIENT SEARCH] Query params:', { q, period, filterType, segment, salesperson });
-      
+
       if (!q || typeof q !== 'string' || q.trim().length < 2) {
         console.log('[CLIENT SEARCH] Returning empty array - query too short');
         return res.json([]);
       }
-      
+
       const searchTerm = q.trim();
-      
+
       // Determine if we're searching with sales filters or just basic client directory
       const hasSalesFilters = period || filterType || segment || salesperson;
-      
+
       console.log('[CLIENT SEARCH] Has sales filters?', hasSalesFilters);
-      
+
       if (!hasSalesFilters) {
         // Simple client directory lookup (for obras, autocomplete without filters, etc.)
         console.log('[CLIENT SEARCH] Using searchClientsByName for term:', searchTerm);
@@ -1372,7 +1386,7 @@ export function registerRoutes(app: Express): Server {
         console.log('[CLIENT SEARCH] Results from searchClientsByName:', results.length);
         return res.json(results);
       }
-      
+
       // Search with sales filters (for analytics, dashboards, etc.)
       console.log('[CLIENT SEARCH] Using searchClients with filters');
       let startDate, endDate;
@@ -1381,7 +1395,7 @@ export function registerRoutes(app: Express): Server {
         startDate = dateRange.startDate;
         endDate = dateRange.endDate;
       }
-      
+
       const results = await storage.searchClients(
         searchTerm.toLowerCase(),
         startDate,
@@ -1389,7 +1403,7 @@ export function registerRoutes(app: Express): Server {
         salesperson as string,
         segment as string
       );
-      
+
       console.log('[CLIENT SEARCH] Results from searchClients:', results.length);
       res.json(results);
     } catch (error) {
@@ -1402,11 +1416,11 @@ export function registerRoutes(app: Express): Server {
     try {
       const { koen } = req.params;
       const client = await storage.getClientByKoen(koen);
-      
+
       if (!client) {
         return res.status(404).json({ error: 'Cliente no encontrado' });
       }
-      
+
       res.json(client);
     } catch (error) {
       console.error('Error fetching client:', error);
@@ -1423,7 +1437,7 @@ export function registerRoutes(app: Express): Server {
 
       const csvContent = req.file.buffer.toString('utf-8');
       console.log(`📄 Processing CSV file: ${(csvContent.length / 1024 / 1024).toFixed(2)}MB`);
-      
+
       // Parse CSV content with streaming support for large files
       const parsed = Papa.parse(csvContent, {
         header: true,
@@ -1435,15 +1449,15 @@ export function registerRoutes(app: Express): Server {
 
       if (parsed.errors.length > 0) {
         console.error('CSV parsing errors:', parsed.errors);
-        return res.status(400).json({ 
-          message: "Error parsing CSV", 
+        return res.status(400).json({
+          message: "Error parsing CSV",
           errors: parsed.errors.slice(0, 5) // Limit error output
         });
       }
 
       const csvData = parsed.data as Array<any>;
       console.log(`📊 Parsed ${csvData.length} rows with ${Object.keys(csvData[0] || {}).length} columns`);
-      
+
       if (csvData.length === 0) {
         return res.status(400).json({ message: "El archivo CSV está vacío" });
       }
@@ -1451,23 +1465,23 @@ export function registerRoutes(app: Express): Server {
       // For large files, optimize duplicate checking with SIMPLE lookup
       console.log('🔍 Performing fast duplicate analysis...');
       const analysisStart = Date.now();
-      
+
       // Simple approach: just estimate duplicates without full lookup for preview
       const existingKoens = new Set();
       const existingNokoens = new Set();
 
       let wouldInsert = 0;
       let wouldUpdate = 0;
-      
+
       // Process in chunks for memory efficiency on large files
       const ANALYSIS_CHUNK_SIZE = 1000;
       for (let i = 0; i < csvData.length; i += ANALYSIS_CHUNK_SIZE) {
         const chunk = csvData.slice(i, i + ANALYSIS_CHUNK_SIZE);
-        
+
         for (const row of chunk) {
           const koen = row.KOEN;
           const nokoen = row.NOKOEN;
-          
+
           if (koen && existingKoens.has(koen)) {
             wouldUpdate++;
           } else if (nokoen && existingNokoens.has(nokoen)) {
@@ -1476,13 +1490,13 @@ export function registerRoutes(app: Express): Server {
             wouldInsert++;
           }
         }
-        
+
         // Progress logging for large files
         if (csvData.length > 5000 && i % 5000 === 0) {
-          console.log(`📈 Analysis progress: ${i}/${csvData.length} (${((i/csvData.length)*100).toFixed(1)}%)`);
+          console.log(`📈 Analysis progress: ${i}/${csvData.length} (${((i / csvData.length) * 100).toFixed(1)}%)`);
         }
       }
-      
+
       const analysisTime = Date.now() - analysisStart;
       console.log(`⚡ Analysis completed in ${analysisTime}ms`);
 
@@ -1508,8 +1522,8 @@ export function registerRoutes(app: Express): Server {
       });
     } catch (error) {
       console.error('Error previewing clients CSV:', error);
-      res.status(500).json({ 
-        message: 'Error interno del servidor', 
+      res.status(500).json({
+        message: 'Error interno del servidor',
         error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
@@ -1518,7 +1532,7 @@ export function registerRoutes(app: Express): Server {
   // Clients import endpoint - OPTIMIZED for massive files (20,000 rows x 500 columns)
   app.post('/api/clients/import', requireAuth, upload.single('file'), async (req, res) => {
     const importStartTime = Date.now();
-    
+
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No se ha subido ningún archivo" });
@@ -1527,7 +1541,7 @@ export function registerRoutes(app: Express): Server {
       const csvContent = req.file.buffer.toString('utf-8');
       const fileSizeMB = (csvContent.length / 1024 / 1024).toFixed(2);
       console.log(`🚀 MASSIVE CLIENT IMPORT STARTED: ${fileSizeMB}MB file`);
-      
+
       // Parse CSV content with optimizations for large files
       const parseStart = Date.now();
       const parsed = Papa.parse(csvContent, {
@@ -1542,8 +1556,8 @@ export function registerRoutes(app: Express): Server {
 
       if (parsed.errors.length > 0) {
         console.error('CSV parsing errors:', parsed.errors.slice(0, 10));
-        return res.status(400).json({ 
-          message: "Error parsing CSV", 
+        return res.status(400).json({
+          message: "Error parsing CSV",
           errors: parsed.errors.slice(0, 5) // Limit error output
         });
       }
@@ -1551,9 +1565,9 @@ export function registerRoutes(app: Express): Server {
       const csvData = parsed.data as Array<any>;
       const parseTime = Date.now() - parseStart;
       const columnCount = Object.keys(csvData[0] || {}).length;
-      
+
       console.log(`📊 PARSED: ${csvData.length} rows × ${columnCount} columns in ${parseTime}ms`);
-      
+
       if (csvData.length === 0) {
         return res.status(400).json({ message: "El archivo CSV está vacío" });
       }
@@ -1565,39 +1579,39 @@ export function registerRoutes(app: Express): Server {
       const PROCESSING_CHUNK_SIZE = 1000; // Process 1000 rows at a time
 
       console.log(`⚙️  PROCESSING: ${csvData.length} rows in chunks of ${PROCESSING_CHUNK_SIZE}...`);
-      
+
       for (let i = 0; i < csvData.length; i += PROCESSING_CHUNK_SIZE) {
         const chunk = csvData.slice(i, i + PROCESSING_CHUNK_SIZE);
         const chunkNumber = Math.floor(i / PROCESSING_CHUNK_SIZE) + 1;
         const totalChunks = Math.ceil(csvData.length / PROCESSING_CHUNK_SIZE);
-        
+
         console.log(`📦 Processing chunk ${chunkNumber}/${totalChunks} (rows ${i + 1}-${Math.min(i + PROCESSING_CHUNK_SIZE, csvData.length)})`);
-        
+
         for (let index = 0; index < chunk.length; index++) {
           const row = chunk[index];
           const globalIndex = i + index;
-          
+
           try {
             // DYNAMIC COLUMN MAPPING - Support any number of columns
             const client: any = {
               nokoen: row.NOKOEN || `Cliente ${globalIndex + 1}`, // Required field
             };
-            
+
             // Map ALL available columns dynamically
             const columnMappings = {
               // Core fields
               koen: 'KOEN',
-              rten: 'RTEN', 
+              rten: 'RTEN',
               idmaeen: 'IDMAEEN',
               tien: 'TIEN',
               suen: 'SUEN',
               tiposuc: 'TIPOSUC',
               sien: 'SIEN',
               gien: 'GIEN',
-              
+
               // Location fields
               paen: 'PAEN',
-              cien: 'CIEN', 
+              cien: 'CIEN',
               cmen: 'CMEN',
               dien: 'DIEN',
               zoen: 'ZOEN',
@@ -1608,15 +1622,15 @@ export function registerRoutes(app: Express): Server {
               codubigeo: 'CODUBIGEO',
               urbaniz: 'URBANIZ',
               cpostal: 'CPOSTAL',
-              
+
               // Contact fields
               foen: 'FOEN',
-              faen: 'FAEN', 
+              faen: 'FAEN',
               email: 'EMAIL',
               emailcomer: 'EMAILCOMER',
               cnen: 'CNEN',
               cnen2: 'CNEN2',
-              
+
               // Credit fields (convert to strings for numeric DB fields)
               crsd: 'CRSD',
               crch: 'CRCH',
@@ -1631,14 +1645,14 @@ export function registerRoutes(app: Express): Server {
               incr: 'INCR',
               popicr: 'POPICR',
               koplcr: 'KOPLCR',
-              
+
               // Sales fields
               kofuen: 'KOFUEN',
               lcen: 'LCEN',
               lven: 'LVEN',
               prefen: 'PREFEN',
               porprefen: 'PORPREFEN',
-              
+
               // Status fields (convert to strings for integer DB fields)
               bloqueado: 'BLOQUEADO',
               actien: 'ACTIEN',
@@ -1646,17 +1660,17 @@ export function registerRoutes(app: Express): Server {
               bloqencom: 'BLOQENCOM',
               blovenex: 'BLOVENEX'
             };
-            
+
             // Apply CORE FIELDS ONLY with strict type validation to avoid parameter limit
             for (const [dbField, csvColumn] of Object.entries(columnMappings)) {
               if (row[csvColumn] !== undefined && row[csvColumn] !== null && row[csvColumn] !== '') {
                 const rawValue = row[csvColumn];
-                
+
                 // Only process core fields to limit parameters
                 if (!coreClientFields.has(dbField) && !numericClientFields.has(dbField) && !integerClientFields.has(dbField)) {
                   continue; // Skip non-essential fields to reduce parameter count
                 }
-                
+
                 // Apply strict type validation
                 if (numericClientFields.has(dbField)) {
                   const numValue = safeNumericConvert(rawValue, dbField);
@@ -1674,7 +1688,7 @@ export function registerRoutes(app: Express): Server {
                 }
               }
             }
-            
+
             // Skip additional columns to limit parameters and avoid SQL parameter limit errors
             // Only process essential core fields for reliable import
 
@@ -1684,15 +1698,15 @@ export function registerRoutes(app: Express): Server {
           }
         }
       }
-      
+
       const processingTime = Date.now() - processingStart;
       console.log(`⚡ PROCESSING COMPLETED: ${clientsToInsert.length} clients ready in ${processingTime}ms`);
 
       if (errors.length > 0) {
         console.warn(`⚠️  Processing errors: ${errors.length}`);
         if (errors.length > clientsToInsert.length * 0.1) { // More than 10% errors
-          return res.status(400).json({ 
-            message: `Too many errors (${errors.length}): Import aborted`, 
+          return res.status(400).json({
+            message: `Too many errors (${errors.length}): Import aborted`,
             errors: errors.slice(0, 10) // Show first 10 errors
           });
         }
@@ -1700,7 +1714,7 @@ export function registerRoutes(app: Express): Server {
 
       // MASSIVE IMPORT with optimized batch processing
       console.log(`💾 STARTING MASSIVE DATABASE IMPORT: ${clientsToInsert.length} clients...`);
-      
+
       // 🔍 DETAILED LOGGING - Sample data inspection before import
       if (clientsToInsert.length > 0) {
         const sampleClient = clientsToInsert[0];
@@ -1709,7 +1723,7 @@ export function registerRoutes(app: Express): Server {
           sample: JSON.stringify(sampleClient, null, 2).substring(0, 500) + '...',
           types: Object.entries(sampleClient).slice(0, 10).map(([key, value]) => `${key}: ${typeof value} = "${value}"`)
         });
-        
+
         // Check for problematic values
         const problemFields = [];
         for (const [field, value] of Object.entries(sampleClient)) {
@@ -1721,12 +1735,12 @@ export function registerRoutes(app: Express): Server {
           console.warn(`⚠️  POTENTIAL NUMERIC FIELD ISSUES:`, problemFields);
         }
       }
-      
+
       const importResult = await storage.insertMultipleClientsSimple(clientsToInsert);
 
       const totalTime = Date.now() - importStartTime;
       console.log(`🎉 MASSIVE IMPORT COMPLETED: ${totalTime}ms total`);
-      
+
       res.json({
         success: true,
         message: `Successfully processed ${clientsToInsert.length} clients from ${fileSizeMB}MB file`,
@@ -1749,8 +1763,8 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       const totalTime = Date.now() - importStartTime;
       console.error(`💥 MASSIVE IMPORT FAILED after ${totalTime}ms:`, error);
-      res.status(500).json({ 
-        message: 'Error interno del servidor durante importación masiva', 
+      res.status(500).json({
+        message: 'Error interno del servidor durante importación masiva',
         error: error instanceof Error ? error.message : 'Unknown error',
         processingTime: `${totalTime}ms`
       });
@@ -1762,38 +1776,38 @@ export function registerRoutes(app: Express): Server {
     try {
       const { koen } = req.params;
       const user = req.user;
-      
+
       // Solo admin y supervisor pueden asignar credenciales
       if (!['admin', 'supervisor'].includes(user.role)) {
         return res.status(403).json({ message: "No autorizado para asignar credenciales" });
       }
-      
+
       // Validar datos con Zod
       const credentialsSchema = z.object({
         email: z.string().email("Email inválido"),
         password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
         salespersonUserId: z.string().optional(),
       });
-      
+
       const validatedData = credentialsSchema.parse(req.body);
-      
+
       // Obtener información del cliente
       const client = await storage.getClientByKoen(koen);
       if (!client) {
         return res.status(404).json({ message: "Cliente no encontrado" });
       }
-      
+
       // Verificar si el cliente ya tiene un usuario asignado
       if (client.userId) {
         return res.status(400).json({ message: "Este cliente ya tiene credenciales asignadas" });
       }
-      
+
       // Verificar si ya existe un usuario con ese email
       const existingUser = await storage.getUserByEmail(validatedData.email);
       if (existingUser) {
         return res.status(400).json({ message: "Ya existe un usuario con ese email" });
       }
-      
+
       // Si se proporciona salespersonUserId, verificar que existe
       if (validatedData.salespersonUserId) {
         const salesperson = await storage.getUserById(validatedData.salespersonUserId);
@@ -1804,10 +1818,10 @@ export function registerRoutes(app: Express): Server {
           return res.status(400).json({ message: "El usuario especificado no es un vendedor válido" });
         }
       }
-      
+
       // Hash de la contraseña
       const hashedPassword = await bcrypt.hash(validatedData.password, 12);
-      
+
       // Crear usuario con rol client
       const newUser = await storage.createUser({
         email: validatedData.email,
@@ -1816,20 +1830,20 @@ export function registerRoutes(app: Express): Server {
         lastName: '',
         role: 'client',
       });
-      
+
       // Actualizar cliente con el userId y el vendedor asignado
       const updateData: any = {
         userId: newUser.id,
       };
-      
+
       if (validatedData.salespersonUserId) {
         updateData.assignedSalespersonUserId = validatedData.salespersonUserId;
       }
-      
+
       if (client.koen) {
         await storage.updateClient(client.koen, updateData);
       }
-      
+
       res.json({
         success: true,
         message: "Credenciales asignadas exitosamente",
@@ -1839,14 +1853,14 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error asignando credenciales:", error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ 
-          message: "Error de validación", 
-          errors: error.errors 
+        return res.status(400).json({
+          message: "Error de validación",
+          errors: error.errors
         });
       }
-      res.status(500).json({ 
-        message: "Error al asignar credenciales", 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+      res.status(500).json({
+        message: "Error al asignar credenciales",
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
@@ -1859,8 +1873,8 @@ export function registerRoutes(app: Express): Server {
 
   // Numeric fields that require strict validation 
   const numericClientFields = new Set([
-    'idmaeen', 'crsd', 'crch', 'crlt', 'crpa', 'crto', 'cren', 'nuvecr', 'dccr', 'incr', 
-    'popicr', 'porprefen', 'cpen', 'diacobra', 'dimoper', 'imptoret', 'podetrac', 'proteacum', 
+    'idmaeen', 'crsd', 'crch', 'crlt', 'crpa', 'crto', 'cren', 'nuvecr', 'dccr', 'incr',
+    'popicr', 'porprefen', 'cpen', 'diacobra', 'dimoper', 'imptoret', 'podetrac', 'proteacum',
     'protevige', 'diasvenci', 'diprve', 'valivenpag', 'porceliga', 'gpslat', 'gpslon'
   ]);
 
@@ -1875,44 +1889,44 @@ export function registerRoutes(app: Express): Server {
   // Function to safely convert and validate numeric values
   const safeNumericConvert = (value: any, fieldName: string): number | null => {
     if (value === null || value === undefined || value === '') return null;
-    
+
     const strValue = value.toString().trim();
-    
+
     // Skip obvious text values
     if (/[A-Za-z]/.test(strValue) && !strValue.match(/^-?\d+\.?\d*$/)) {
       console.warn(`⚠️  SKIPPING NON-NUMERIC VALUE for ${fieldName}: "${strValue}"`);
       return null;
     }
-    
+
     // Try to parse as number
     const numValue = parseFloat(strValue.replace(/[^\d.-]/g, ''));
     if (isNaN(numValue)) {
       console.warn(`⚠️  INVALID NUMERIC VALUE for ${fieldName}: "${strValue}"`);
       return null;
     }
-    
+
     return numValue;
   };
 
   // Function to safely convert and validate integer values
   const safeIntegerConvert = (value: any, fieldName: string): number | null => {
     if (value === null || value === undefined || value === '') return null;
-    
+
     const strValue = value.toString().trim();
-    
+
     // Skip text values
     if (/[A-Za-z]/.test(strValue)) {
       console.warn(`⚠️  SKIPPING NON-INTEGER VALUE for ${fieldName}: "${strValue}"`);
       return null;
     }
-    
+
     // Try to parse as integer
     const intValue = parseInt(strValue.replace(/[^\d-]/g, ''));
     if (isNaN(intValue)) {
       console.warn(`⚠️  INVALID INTEGER VALUE for ${fieldName}: "${strValue}"`);
       return null;
     }
-    
+
     return intValue;
   };
 
@@ -1921,19 +1935,19 @@ export function registerRoutes(app: Express): Server {
     try {
       const { startDate, endDate, salesperson, segment, limit, offset, period, filterType, client, product } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
-      
+
       // Enforce role-based access control for salespeople
       let salespersonFilter = salesperson as string;
       if (req.user?.role === 'salesperson') {
         // Force filter to authenticated user's salesperson name
         salespersonFilter = (req.user as any).salespersonName;
-        
+
         // If salesperson name is not available, return empty result for security
         if (!salespersonFilter) {
           return res.json([]);
         }
       }
-      
+
       const transactions = await storage.getSalesTransactions({
         startDate: (startDate as string) || dateRange.startDate,
         endDate: (endDate as string) || dateRange.endDate,
@@ -1956,7 +1970,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { limit, period, filterType, segment, client, product } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
-      
+
       const result = await storage.getTopSalespeople(
         limit ? parseInt(limit as string) : undefined,
         dateRange.startDate,
@@ -1976,13 +1990,13 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/salespeople/search', requireCommercialAccess, async (req, res) => {
     try {
       const { q, period, filterType, segment, client, product } = req.query;
-      
+
       if (!q || typeof q !== 'string' || q.trim().length < 2) {
         return res.json([]);
       }
-      
+
       const searchTerm = q.trim().toLowerCase();
-      
+
       // Get date range if period is provided
       let startDate, endDate;
       if (period && filterType) {
@@ -1990,7 +2004,7 @@ export function registerRoutes(app: Express): Server {
         startDate = dateRange.startDate;
         endDate = dateRange.endDate;
       }
-      
+
       const results = await storage.searchSalespeople(
         searchTerm,
         startDate,
@@ -1999,7 +2013,7 @@ export function registerRoutes(app: Express): Server {
         client as string,
         product as string
       );
-      
+
       res.json(results);
     } catch (error) {
       console.error("Error searching salespeople:", error);
@@ -2012,13 +2026,13 @@ export function registerRoutes(app: Express): Server {
     try {
       const { salespersonName } = req.params;
       const { q, period, filterType, segment } = req.query;
-      
+
       if (!q || typeof q !== 'string' || q.trim().length < 2) {
         return res.json([]);
       }
-      
+
       const searchTerm = q.trim();
-      
+
       const results = await storage.searchSalespersonClients(
         salespersonName,
         searchTerm,
@@ -2026,7 +2040,7 @@ export function registerRoutes(app: Express): Server {
         filterType as string,
         segment as string
       );
-      
+
       res.json(results);
     } catch (error) {
       console.error("Error searching salesperson clients:", error);
@@ -2039,18 +2053,18 @@ export function registerRoutes(app: Express): Server {
     try {
       const { salespersonName, clientName } = req.params;
       const { period, filterType } = req.query;
-      
+
       if (!period || !filterType) {
         return res.status(400).json({ message: "Period and filterType are required" });
       }
-      
+
       const details = await storage.getSalespersonClientDetails(
         decodeURIComponent(salespersonName),
         decodeURIComponent(clientName),
         period as string,
         filterType as string
       );
-      
+
       res.json(details);
     } catch (error) {
       console.error("Error fetching salesperson client details:", error);
@@ -2063,13 +2077,13 @@ export function registerRoutes(app: Express): Server {
     try {
       const { salespersonName } = req.params;
       const { q, period, filterType, segment } = req.query;
-      
+
       if (!q || typeof q !== 'string' || q.trim().length < 2) {
         return res.json([]);
       }
-      
+
       const searchTerm = q.trim();
-      
+
       const results = await storage.searchSalespersonProducts(
         salespersonName,
         searchTerm,
@@ -2077,7 +2091,7 @@ export function registerRoutes(app: Express): Server {
         filterType as string,
         segment as string
       );
-      
+
       res.json(results);
     } catch (error) {
       console.error("Error searching salesperson products:", error);
@@ -2090,20 +2104,20 @@ export function registerRoutes(app: Express): Server {
     try {
       const { salespersonName, productName } = req.params;
       const { period, filterType } = req.query;
-      
+
       console.log('[Product Details] Request:', { salespersonName, productName, period, filterType });
-      
+
       if (!period || !filterType) {
         return res.status(400).json({ message: "Period and filterType are required" });
       }
-      
+
       const details = await storage.getSalespersonProductDetails(
         decodeURIComponent(salespersonName),
         decodeURIComponent(productName),
         period as string,
         filterType as string
       );
-      
+
       console.log('[Product Details] Response:', details);
       res.json(details);
     } catch (error) {
@@ -2117,14 +2131,14 @@ export function registerRoutes(app: Express): Server {
     try {
       const { salespersonName } = req.params;
       const { limit } = req.query;
-      
+
       console.log('[Recent Transactions] Request:', { salespersonName, limit });
-      
+
       const transactions = await storage.getSalespersonRecentTransactions(
         decodeURIComponent(salespersonName),
         limit ? parseInt(limit as string) : 10
       );
-      
+
       console.log(`[Recent Transactions] Returning ${transactions.length} transactions`);
       res.json(transactions);
     } catch (error) {
@@ -2138,7 +2152,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { limit, period, filterType, salesperson, segment, client } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
-      
+
       const result = await storage.getTopProducts(
         limit ? parseInt(limit as string) : undefined,
         dateRange.startDate,
@@ -2160,7 +2174,7 @@ export function registerRoutes(app: Express): Server {
       const { productName } = req.params;
       const { period, filterType, salesperson, segment } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
-      
+
       const result = await storage.getProductDetails(
         decodeURIComponent(productName),
         dateRange.startDate,
@@ -2168,11 +2182,11 @@ export function registerRoutes(app: Express): Server {
         salesperson as string,
         segment as string
       );
-      
+
       if (!result) {
         return res.status(404).json({ message: "Product not found or has no sales data" });
       }
-      
+
       res.json(result);
     } catch (error) {
       console.error("Error fetching product details:", error);
@@ -2186,18 +2200,18 @@ export function registerRoutes(app: Express): Server {
       const { salesperson } = req.params;
       const { period, filterType, segment } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
-      
+
       const result = await storage.getSalespersonDetails(
         decodeURIComponent(salesperson),
         dateRange.startDate,
         dateRange.endDate,
         segment as string
       );
-      
+
       if (!result) {
         return res.status(404).json({ message: "Salesperson not found or has no sales data" });
       }
-      
+
       res.json(result);
     } catch (error) {
       console.error("Error fetching salesperson details:", error);
@@ -2210,7 +2224,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { limit, period, filterType, salesperson, segment, product } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
-      
+
       const result = await storage.getTopClients(
         limit ? parseInt(limit as string) : undefined,
         dateRange.startDate,
@@ -2230,13 +2244,13 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/products/search', requireAuth, async (req, res) => {
     try {
       const { q, period, filterType, segment, salesperson } = req.query;
-      
+
       if (!q || typeof q !== 'string' || q.trim().length < 2) {
         return res.json([]);
       }
-      
+
       const searchTerm = q.trim().toLowerCase();
-      
+
       // Get date range if period is provided
       let startDate, endDate;
       if (period && filterType) {
@@ -2244,7 +2258,7 @@ export function registerRoutes(app: Express): Server {
         startDate = dateRange.startDate;
         endDate = dateRange.endDate;
       }
-      
+
       const results = await storage.searchProducts(
         searchTerm,
         startDate,
@@ -2252,7 +2266,7 @@ export function registerRoutes(app: Express): Server {
         salesperson as string,
         segment as string
       );
-      
+
       res.json(results);
     } catch (error) {
       console.error("Error searching products:", error);
@@ -2260,12 +2274,51 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Search products grouped by parent name (strips format/color variants)
+  app.get('/api/products/search-parent', requireAuth, async (req, res) => {
+    try {
+      const { q, period, filterType } = req.query;
+
+      if (!q || typeof q !== 'string' || q.trim().length < 2) {
+        return res.json([]);
+      }
+
+      const searchTerm = q.trim().toLowerCase();
+
+      let startDate, endDate;
+      if (period && filterType) {
+        const dateRange = getDateRange(period as string, filterType as string);
+        startDate = dateRange.startDate;
+        endDate = dateRange.endDate;
+      }
+
+      const results = await storage.searchParentProducts(searchTerm, startDate, endDate);
+      res.json(results);
+    } catch (error) {
+      console.error("Error searching parent products:", error);
+      res.status(500).json({ message: "Failed to search parent products" });
+    }
+  });
+
+  // Get parent product variants with format/color breakdown
+  app.get('/api/sales/product-parent/:parentName/variants', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    const { parentName } = req.params;
+    const { period, filterType } = req.query;
+    const dateRange = getDateRange(period as string, filterType as string);
+
+    const variants = await storage.getParentProductVariants(decodeURIComponent(parentName), {
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+    });
+    res.json(variants);
+  }));
+
   // Segment analysis endpoint
   app.get('/api/sales/segments', requireCommercialAccess, async (req, res) => {
     try {
       const { period, filterType, salesperson, segment } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
-      
+
       const segmentAnalysis = await storage.getSegmentAnalysis(
         dateRange.startDate,
         dateRange.endDate,
@@ -2284,7 +2337,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { period, filterType } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
-      
+
       const segmentAnalysis = await storage.getSegmentAnalysisByUniqueClients(
         dateRange.startDate,
         dateRange.endDate
@@ -2300,7 +2353,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/sales/packaging-metrics', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     const { period, filterType, salesperson, segment, branch, client } = req.query;
     const dateRange = getDateRange(period as string, filterType as string);
-    
+
     const packagingMetrics = await storage.getPackagingMetrics({
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
@@ -2309,7 +2362,7 @@ export function registerRoutes(app: Express): Server {
       branch: branch as string,
       client: client as string,
     });
-    
+
     res.json(packagingMetrics);
   }));
 
@@ -2317,14 +2370,14 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/nvv/packaging-breakdown', requireAuth, asyncHandler(async (req: any, res: any) => {
     const { period, filterType, salesperson, segment } = req.query;
     const dateRange = getDateRange(period as string, filterType as string);
-    
+
     const packagingMetrics = await storage.getPackagingMetrics({
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
       salesperson: salesperson as string,
       segment: segment as string,
     });
-    
+
     res.json(packagingMetrics);
   }));
 
@@ -2333,7 +2386,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { period, filterType, segment, salesperson, viewType } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
-      
+
       if (viewType === 'regiones') {
         const regionAnalysis = await storage.getRegionAnalysis({
           startDate: dateRange.startDate,
@@ -2361,15 +2414,15 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/sales/chart-data', requireCommercialAccess, async (req, res) => {
     try {
       const { period = 'monthly', selectedPeriod, filterType, salesperson, segment, client, product } = req.query;
-      
+
       // Si tenemos selectedPeriod y filterType, usamos esos para el filtro de fecha
-      const dateRange = selectedPeriod && filterType 
+      const dateRange = selectedPeriod && filterType
         ? getDateRange(selectedPeriod as string, filterType as string)
         : { startDate: undefined, endDate: undefined };
-      
+
       console.log('[CHART-DATA DEBUG] Request params:', { period, selectedPeriod, filterType, salesperson, segment, client, product });
       console.log('[CHART-DATA DEBUG] Date range calculated:', dateRange);
-      
+
       let chartData = await storage.getSalesChartData(
         period as 'weekly' | 'monthly' | 'daily',
         dateRange.startDate,
@@ -2379,14 +2432,14 @@ export function registerRoutes(app: Express): Server {
         client as string, // Filtrar por cliente específico
         product as string // Filtrar por producto específico
       );
-      
+
       console.log('[CHART-DATA DEBUG] Result count:', chartData?.length || 0);
 
       // Transformar etiquetas a nombres de meses en español para vista anual mensual
       if (filterType === 'year' && period === 'monthly') {
         const monthNames: { [key: string]: string } = {
           '01': 'Enero',
-          '02': 'Febrero', 
+          '02': 'Febrero',
           '03': 'Marzo',
           '04': 'Abril',
           '05': 'Mayo',
@@ -2404,7 +2457,7 @@ export function registerRoutes(app: Express): Server {
           period: monthNames[item.period.split('-')[1]] || item.period
         }));
       }
-      
+
       res.json(chartData);
     } catch (error) {
       console.error("Error fetching chart data:", error);
@@ -2417,7 +2470,7 @@ export function registerRoutes(app: Express): Server {
     const { productName } = req.params;
     const { period, filterType } = req.query;
     const dateRange = getDateRange(period as string, filterType as string);
-    
+
     const details = await storage.getProductDetails(productName, {
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
@@ -2429,7 +2482,7 @@ export function registerRoutes(app: Express): Server {
     const { productName } = req.params;
     const { period, filterType } = req.query;
     const dateRange = getDateRange(period as string, filterType as string);
-    
+
     const formats = await storage.getProductFormats(productName, {
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
@@ -2441,7 +2494,7 @@ export function registerRoutes(app: Express): Server {
     const { productName } = req.params;
     const { period, filterType } = req.query;
     const dateRange = getDateRange(period as string, filterType as string);
-    
+
     const colors = await storage.getProductColors(productName, {
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
@@ -2454,7 +2507,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { segmentName } = req.params;
       const { period, filterType = "month" } = req.query;
-      
+
       const clients = await storage.getSegmentClients(segmentName, period as string, filterType as string);
       res.json(clients);
     } catch (error) {
@@ -2468,11 +2521,11 @@ export function registerRoutes(app: Express): Server {
     try {
       const { segmentName } = req.params;
       const { year } = req.query;
-      
+
       if (!year) {
         return res.status(400).json({ message: "Year parameter is required" });
       }
-      
+
       const monthlyData = await storage.getSegmentMonthlyBreakdown(segmentName, year as string);
       res.json(monthlyData);
     } catch (error) {
@@ -2486,7 +2539,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { segmentName } = req.params;
       const { period, filterType = "month" } = req.query;
-      
+
       const salespeople = await storage.getSegmentSalespeople(segmentName, period as string, filterType as string);
       res.json(salespeople);
     } catch (error) {
@@ -2500,7 +2553,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { segmentName } = req.params;
       const { period, filterType = "month" } = req.query;
-      
+
       const recurrence = await storage.getSegmentClientRecurrence(segmentName, period as string, filterType as string);
       res.json(recurrence);
     } catch (error) {
@@ -2515,7 +2568,7 @@ export function registerRoutes(app: Express): Server {
       const { segment } = req.params;
       const { limit, period, filterType } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
-      
+
       const result = await storage.getTopSalespeople(
         limit ? parseInt(limit as string) : undefined,
         dateRange.startDate,
@@ -2534,11 +2587,11 @@ export function registerRoutes(app: Express): Server {
     try {
       const { segment } = req.params;
       const { q, period, filterType } = req.query;
-      
+
       if (!q || typeof q !== 'string' || q.trim().length < 2) {
         return res.json([]);
       }
-      
+
       const searchTerm = q.trim().toLowerCase();
       let startDate, endDate;
       if (period && filterType) {
@@ -2546,14 +2599,14 @@ export function registerRoutes(app: Express): Server {
         startDate = dateRange.startDate;
         endDate = dateRange.endDate;
       }
-      
+
       const results = await storage.searchSalespeople(
         searchTerm,
         startDate,
         endDate,
         decodeURIComponent(segment)
       );
-      
+
       res.json(results);
     } catch (error) {
       console.error("Error searching segment salespeople:", error);
@@ -2566,7 +2619,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { segment, salesperson } = req.params;
       const { period, filterType, limit } = req.query;
-      
+
       const result = await storage.getSalespersonClients(
         decodeURIComponent(salesperson),
         period as string,
@@ -2574,7 +2627,7 @@ export function registerRoutes(app: Express): Server {
         decodeURIComponent(segment),
         limit ? parseInt(limit as string) : undefined
       );
-      
+
       res.json(result);
     } catch (error) {
       console.error("Error fetching segment salesperson clients:", error);
@@ -2588,7 +2641,7 @@ export function registerRoutes(app: Express): Server {
       const { segment } = req.params;
       const { limit, period, filterType } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
-      
+
       const result = await storage.getTopClients(
         limit ? parseInt(limit as string) : undefined,
         dateRange.startDate,
@@ -2608,11 +2661,11 @@ export function registerRoutes(app: Express): Server {
     try {
       const { segment } = req.params;
       const { q, period, filterType } = req.query;
-      
+
       if (!q || typeof q !== 'string' || q.trim().length < 2) {
         return res.json([]);
       }
-      
+
       const searchTerm = q.trim().toLowerCase();
       let startDate, endDate;
       if (period && filterType) {
@@ -2620,7 +2673,7 @@ export function registerRoutes(app: Express): Server {
         startDate = dateRange.startDate;
         endDate = dateRange.endDate;
       }
-      
+
       const results = await storage.searchClients(
         searchTerm,
         startDate,
@@ -2628,7 +2681,7 @@ export function registerRoutes(app: Express): Server {
         undefined, // salesperson filter
         decodeURIComponent(segment)
       );
-      
+
       res.json(results);
     } catch (error) {
       console.error("Error searching segment clients:", error);
@@ -2641,7 +2694,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { segment, client } = req.params;
       const { period, filterType } = req.query;
-      
+
       // Get client products using existing method
       // Note: getClientProducts() does not currently support segment filtering
       // Products are filtered by client and period only
@@ -2650,7 +2703,7 @@ export function registerRoutes(app: Express): Server {
         period as string,
         filterType as string
       );
-      
+
       res.json(products);
     } catch (error) {
       console.error("Error fetching segment client products:", error);
@@ -2663,7 +2716,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { branchName } = req.params;
       const { period, filterType = "month" } = req.query;
-      
+
       const clients = await storage.getBranchClients(branchName, period as string, filterType as string);
       res.json(clients);
     } catch (error) {
@@ -2677,7 +2730,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { branchName } = req.params;
       const { period, filterType = "month" } = req.query;
-      
+
       const salespeople = await storage.getBranchSalespeople(branchName, period as string, filterType as string);
       res.json(salespeople);
     } catch (error) {
@@ -2691,7 +2744,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { salespersonName } = req.params;
       const { period, filterType = "month" } = req.query;
-      
+
       const details = await storage.getSalespersonDetails(salespersonName, period as string, filterType as string);
       res.json(details);
     } catch (error) {
@@ -2705,9 +2758,9 @@ export function registerRoutes(app: Express): Server {
     try {
       const { salespersonName } = req.params;
       const { period, filterType = "month" } = req.query;
-      
+
       const details = await storage.getSalespersonDetails(salespersonName, period as string, filterType as string);
-      
+
       // Return only the metrics needed for comparative charts
       res.json({
         totalSales: details.totalSales,
@@ -2725,10 +2778,10 @@ export function registerRoutes(app: Express): Server {
     try {
       const { salespersonName } = req.params;
       const { period, filterType = "month", segment, limit } = req.query;
-      
+
       const clients = await storage.getSalespersonClients(
-        salespersonName, 
-        period as string, 
+        salespersonName,
+        period as string,
         filterType as string,
         segment as string | undefined,
         limit ? parseInt(limit as string) : undefined
@@ -2744,10 +2797,10 @@ export function registerRoutes(app: Express): Server {
     try {
       const { salespersonName } = req.params;
       const { period, filterType = "month", segment, limit } = req.query;
-      
+
       const products = await storage.getSalespersonProducts(
-        salespersonName, 
-        period as string, 
+        salespersonName,
+        period as string,
         filterType as string,
         segment as string | undefined,
         limit ? parseInt(limit as string) : undefined
@@ -2763,7 +2816,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { salespersonName } = req.params;
       const { period, filterType = "month" } = req.query;
-      
+
       const segments = await storage.getSalespersonSegments(salespersonName, period as string, filterType as string);
       res.json(segments);
     } catch (error) {
@@ -2777,11 +2830,11 @@ export function registerRoutes(app: Express): Server {
     try {
       const { salespersonName } = req.params;
       const { period, filterType = "month" } = req.query;
-      
+
       // Calculate date range based on period
       let startDate: Date | undefined;
       let endDate: Date | undefined;
-      
+
       if (period) {
         switch (filterType) {
           case 'month':
@@ -2795,17 +2848,17 @@ export function registerRoutes(app: Express): Server {
             break;
         }
       }
-      
+
       // Use storage layer which queries fact_nvv (the active NVV table)
       const nvvRecords = await storage.getNvvBySalesperson({
         salesperson: salespersonName,
         startDate,
         endDate
       });
-      
+
       // Aggregate by client
       const clientMap = new Map<string, { totalPending: number; documentCount: Set<string> }>();
-      
+
       for (const record of nvvRecords) {
         const clientName = record.NOKOEN || 'Sin Cliente';
         if (!clientMap.has(clientName)) {
@@ -2815,7 +2868,7 @@ export function registerRoutes(app: Express): Server {
         client.totalPending += record.totalPendiente || 0;
         if (record.NUDO) client.documentCount.add(record.NUDO);
       }
-      
+
       const clients = Array.from(clientMap.entries())
         .map(([clientName, data]) => ({
           clientName,
@@ -2823,10 +2876,10 @@ export function registerRoutes(app: Express): Server {
           documentCount: data.documentCount.size
         }))
         .sort((a, b) => b.totalPending - a.totalPending);
-      
+
       const totalNVV = clients.reduce((sum, item) => sum + item.totalPending, 0);
       const totalDocuments = clients.reduce((sum, item) => sum + item.documentCount, 0);
-      
+
       res.json({
         total: totalNVV,
         documentCount: totalDocuments,
@@ -2843,7 +2896,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { clientName } = req.params;
       const { period, filterType = "month" } = req.query;
-      
+
       const details = await storage.getClientDetails(clientName, period as string, filterType as string);
       res.json(details);
     } catch (error) {
@@ -2856,7 +2909,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { clientName } = req.params;
       const { period, filterType = "month" } = req.query;
-      
+
       const products = await storage.getClientProducts(clientName, period as string, filterType as string);
       res.json(products);
     } catch (error) {
@@ -2893,7 +2946,7 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/sales/salesperson/:salespersonName/clients-analysis", requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName } = req.params;
-      
+
       const analysis = await storage.getSalespersonClientsAnalysis(salespersonName);
       res.json(analysis);
     } catch (error) {
@@ -2906,7 +2959,7 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/sales/salesperson/:salespersonName/smart-notifications", requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName } = req.params;
-      
+
       const notifications = await storage.getSalespersonSmartNotifications(salespersonName);
       res.json(notifications);
     } catch (error) {
@@ -2919,7 +2972,7 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/sales/salesperson/:salespersonName/client-purchase-details/:clientName", requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName, clientName } = req.params;
-      
+
       const details = await storage.getClientLastPurchaseDetails(salespersonName, clientName);
       res.json(details);
     } catch (error) {
@@ -2932,18 +2985,18 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/supervisor/:supervisorId/available-vendors", requireAuth, async (req, res) => {
     try {
       const { supervisorId } = req.params;
-      
+
       // Get supervisor's assigned segment
       const supervisor = await storage.getSalespersonUser(supervisorId);
       if (!supervisor || supervisor.role !== 'supervisor') {
         return res.status(403).json({ message: "No autorizado como supervisor" });
       }
-      
+
       const segment = supervisor.assignedSegment;
       if (!segment) {
         return res.status(400).json({ message: "Supervisor sin segmento asignado" });
       }
-      
+
       const availableVendors = await storage.getAvailableVendorsInSegment(segment);
       res.json(availableVendors);
     } catch (error) {
@@ -2957,26 +3010,26 @@ export function registerRoutes(app: Express): Server {
     try {
       const { supervisorId } = req.params;
       const { salespersonName, email, password } = req.body;
-      
+
       // Validate supervisor
       const supervisor = await storage.getSalespersonUser(supervisorId);
       if (!supervisor || supervisor.role !== 'supervisor') {
         return res.status(403).json({ message: "No autorizado como supervisor" });
       }
-      
+
       const segment = supervisor.assignedSegment;
       if (!segment) {
         return res.status(400).json({ message: "Supervisor sin segmento asignado" });
       }
-      
+
       // Check if vendor is available
       const availableVendors = await storage.getAvailableVendorsInSegment(segment);
       const vendorExists = availableVendors.some(v => v.salespersonName === salespersonName);
-      
+
       if (!vendorExists) {
         return res.status(400).json({ message: "Vendedor no disponible o ya asignado" });
       }
-      
+
       // Create user account for the vendor
       const claimedVendor = await storage.claimVendor({
         salespersonName,
@@ -2985,7 +3038,7 @@ export function registerRoutes(app: Express): Server {
         supervisorId,
         assignedSegment: segment
       });
-      
+
       res.status(201).json(claimedVendor);
     } catch (error) {
       console.error("Error claiming vendor:", error);
@@ -3003,9 +3056,9 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/sales/import', requireAuth, async (req, res) => {
     try {
       console.warn('⚠️  DEPRECATED ENDPOINT USED: /api/sales/import - Este sistema está obsoleto. Usar ETL automático (fact_ventas) como fuente principal.');
-      
+
       const { transactions } = req.body;
-      
+
       if (!Array.isArray(transactions)) {
         return res.status(400).json({ message: "Invalid data format" });
       }
@@ -3013,11 +3066,11 @@ export function registerRoutes(app: Express): Server {
       // Validate each transaction
       const validatedTransactions = [];
       const errors = [];
-      
+
       for (let i = 0; i < transactions.length; i++) {
         const transaction = transactions[i];
-        
-        
+
+
         try {
           const validated = insertSalesTransactionSchema.parse(transaction);
           validatedTransactions.push(validated);
@@ -3032,7 +3085,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       if (validatedTransactions.length === 0) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "No valid transactions found",
           errors: errors.slice(0, 5) // Show first 5 errors
         });
@@ -3056,12 +3109,12 @@ export function registerRoutes(app: Express): Server {
         console.error('Failed to record file upload:', uploadRecordError);
         // Don't fail the main import for this
       }
-      
+
       // Add deprecation warning to response
       res.set('X-Deprecated-API', 'true');
       res.set('X-Deprecation-Warning', 'Este endpoint está obsoleto. Los datos NO aparecerán en dashboards. Usar ETL automático como fuente principal.');
-      
-      res.json({ 
+
+      res.json({
         message: "Data imported successfully",
         imported: validatedTransactions.length,
         total: transactions.length,
@@ -3079,11 +3132,11 @@ export function registerRoutes(app: Express): Server {
     try {
       const { fileType } = req.query;
       const lastUpload = await storage.getLastFileUpload(fileType as string);
-      
+
       if (!lastUpload) {
         return res.status(404).json({ message: "No file uploads found" });
       }
-      
+
       res.json(lastUpload);
     } catch (error) {
       console.error("Error fetching last file upload:", error);
@@ -3095,7 +3148,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { fileType, limit } = req.query;
       const history = await storage.getFileUploadHistory(
-        fileType as string, 
+        fileType as string,
         limit ? parseInt(limit as string) : 10
       );
       res.json(history);
@@ -3109,7 +3162,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/goals', requireCommercialAccess, async (req, res) => {
     try {
       const { type } = req.query;
-      const goals = type 
+      const goals = type
         ? await storage.getGoalsByType(type as string)
         : await storage.getGoals();
       res.json(goals);
@@ -3123,19 +3176,19 @@ export function registerRoutes(app: Express): Server {
     try {
       // Validate the request body
       const validatedGoal = insertGoalSchema.parse(req.body);
-      
+
       // Ensure target is null for global goals
       if (validatedGoal.type === 'global') {
         validatedGoal.target = null;
       }
-      
+
       const goal = await storage.createGoal(validatedGoal);
       res.json(goal);
     } catch (error: any) {
       console.error("Error creating goal:", error);
       if (error.name === 'ZodError') {
-        return res.status(400).json({ 
-          message: "Invalid data format", 
+        return res.status(400).json({
+          message: "Invalid data format",
           details: error.issues.map((issue: any) => `${issue.path.join('.')}: ${issue.message}`).join(', ')
         });
       }
@@ -3146,22 +3199,22 @@ export function registerRoutes(app: Express): Server {
   app.put('/api/goals/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      
+
       // Validate the request body (allow partial updates)
       const validatedGoal = insertGoalSchema.partial().parse(req.body);
-      
+
       // Ensure target is null for global goals
       if (validatedGoal.type === 'global') {
         validatedGoal.target = null;
       }
-      
+
       const goal = await storage.updateGoal(id, validatedGoal);
       res.json(goal);
     } catch (error: any) {
       console.error("Error updating goal:", error);
       if (error.name === 'ZodError') {
-        return res.status(400).json({ 
-          message: "Invalid data format", 
+        return res.status(400).json({
+          message: "Invalid data format",
           details: error.issues.map((issue: any) => `${issue.path.join('.')}: ${issue.message}`).join(', ')
         });
       }
@@ -3230,7 +3283,7 @@ export function registerRoutes(app: Express): Server {
       const filterPeriod = selectedPeriod as string;
       const filterType = type as string;
       const filterTarget = target as string;
-      
+
       // Normalize function to handle case and accent insensitive comparison
       const normalize = (str: string | null | undefined): string => {
         if (!str) return '';
@@ -3241,34 +3294,34 @@ export function registerRoutes(app: Express): Server {
           .toLowerCase()
           .trim();
       };
-      
+
       const allGoals = await storage.getGoals();
-      
+
       // Filter goals by selected period - only show goals for the specific period
-      let filteredGoals = filterPeriod 
+      let filteredGoals = filterPeriod
         ? allGoals.filter(goal => goal.period === filterPeriod)
         : allGoals;
-      
+
       // Additional filtering by type and target if provided
       if (filterType && filterType !== "all") {
         filteredGoals = filteredGoals.filter(goal => goal.type === filterType);
-        
+
         // If a specific target is provided, filter by it with normalized comparison
         if (filterTarget) {
           filteredGoals = filteredGoals.filter(goal => normalize(goal.target) === normalize(filterTarget));
         }
       }
-      
+
       // If no goals found for the filters, return empty array (this will hide the section)
       if (filteredGoals.length === 0) {
         res.json([]);
         return;
       }
-      
+
       const goalsWithProgress = await Promise.all(
         filteredGoals.map(async (goal) => {
           let currentSales = 0;
-          
+
           switch (goal.type) {
             case 'global':
               currentSales = await storage.getGlobalSalesForPeriod(goal.period);
@@ -3316,7 +3369,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       const keys = await storage.getApiKeys();
-      
+
       // Don't return the actual key hash
       const sanitizedKeys = keys.map(key => ({
         id: key.id,
@@ -3390,7 +3443,7 @@ export function registerRoutes(app: Express): Server {
       const { isActive } = req.body;
 
       const updated = await storage.toggleApiKeyStatus(id, isActive);
-      
+
       if (!updated) {
         return res.status(404).json({ message: 'API key no encontrada' });
       }
@@ -3411,7 +3464,7 @@ export function registerRoutes(app: Express): Server {
 
       const { id } = req.params;
       const deleted = await storage.deleteApiKey(id);
-      
+
       if (!deleted) {
         return res.status(404).json({ message: 'API key no encontrada' });
       }
@@ -3473,12 +3526,12 @@ export function registerRoutes(app: Express): Server {
       if (!integration) {
         return res.status(404).json({ message: 'Integración no encontrada' });
       }
-      
+
       if (integration.platform === 'meta_ads') {
         // Sync Meta Ads data
         await storage.updateIntegration(integration.id, { lastSync: new Date() });
       }
-      
+
       res.json({ success: true, message: 'Sincronización iniciada' });
     } catch (error) {
       console.error('Error syncing integration:', error);
@@ -3491,16 +3544,16 @@ export function registerRoutes(app: Express): Server {
     try {
       const metaAppId = process.env.META_APP_ID;
       const metaAppSecret = process.env.META_APP_SECRET;
-      
+
       if (!metaAppId || !metaAppSecret) {
-        return res.status(400).json({ 
-          message: 'Las credenciales de Meta Ads no están configuradas. Configure META_APP_ID y META_APP_SECRET en las variables de entorno.' 
+        return res.status(400).json({
+          message: 'Las credenciales de Meta Ads no están configuradas. Configure META_APP_ID y META_APP_SECRET en las variables de entorno.'
         });
       }
 
       // Generate session ID for security
       const sessionId = `meta_oauth_${Date.now()}_${nanoid(8)}`;
-      
+
       // Store state in session
       req.session.metaOAuth = {
         sessionId,
@@ -3509,9 +3562,9 @@ export function registerRoutes(app: Express): Server {
       };
 
       // Build OAuth URL
-      const redirectUri = process.env.META_REDIRECT_URI || 
+      const redirectUri = process.env.META_REDIRECT_URI ||
         `${process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : ''}/api/oauth/meta/callback`;
-      
+
       const scope = 'ads_read,ads_management,business_management';
       const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?` +
         `client_id=${metaAppId}` +
@@ -3541,14 +3594,14 @@ export function registerRoutes(app: Express): Server {
       if (!metaOAuth || metaOAuth.sessionId !== state) {
         return res.redirect('/configuracion?tab=integraciones&oauth=error&message=Sesión+inválida');
       }
-      
+
       // Immediately clear session state to prevent reuse (single-use state)
       const userId = metaOAuth.userId;
       delete req.session.metaOAuth;
 
       const metaAppId = process.env.META_APP_ID;
       const metaAppSecret = process.env.META_APP_SECRET;
-      const redirectUri = process.env.META_REDIRECT_URI || 
+      const redirectUri = process.env.META_REDIRECT_URI ||
         `${process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : ''}/api/oauth/meta/callback`;
 
       // Exchange code for access token
@@ -3618,7 +3671,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/meta-ads/insights', requireAdminOrSupervisor, async (req: any, res) => {
     try {
       const { datePreset = 'last_30d' } = req.query;
-      
+
       // Get active Meta Ads integration
       const integration = await storage.getActiveIntegration('meta_ads');
       if (!integration) {
@@ -3713,7 +3766,7 @@ export function registerRoutes(app: Express): Server {
       let targetEndDate: Date;
       let projectionLabel: string;
 
-      const mFullNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+      const mFullNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
       switch (pType) {
         case 'siguiente_mes': {
@@ -3851,7 +3904,7 @@ export function registerRoutes(app: Express): Server {
       let elapsedDays: number;
       const monthlyBreakdown: { month: string; projected: number; isActual: boolean }[] = [];
 
-      const mNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+      const mNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
       const buildMultiMonthProjection = (rangeStart: number, rangeEnd: number) => {
         let accumulated = 0;
@@ -3942,7 +3995,7 @@ export function registerRoutes(app: Express): Server {
         const [y, mo] = m.period.split('-').map(Number);
         return y === currentYear - 1 && mo === currentMonth + 1;
       });
-      const yoyChange = samePeriodLastYear 
+      const yoyChange = samePeriodLastYear
         ? ((projectedSales - samePeriodLastYear.sales) / samePeriodLastYear.sales * 100)
         : null;
 
@@ -3957,7 +4010,7 @@ export function registerRoutes(app: Express): Server {
       if (pType === 'cierre_mes' && methodology === 'run_rate_blended') {
         factors.push(`Con ${currentMonthActiveDays} días activos de venta y un acumulado de ${formatCLP(currentMonthSales)}, el ritmo actual proyecta un cierre de ${formatCLP(projectedSales)}.`);
       } else if (pType === 'siguiente_mes') {
-        const targetMName = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'][targetStartDate.getMonth()];
+        const targetMName = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'][targetStartDate.getMonth()];
         factors.push(`La proyección para ${targetMName} se basa en el promedio estacional de ese mes ajustado por la tendencia reciente.`);
       } else if (pType === 'cierre_semestre') {
         const remaining = monthlyBreakdown.filter(b => !b.isActual).length;
@@ -4018,15 +4071,15 @@ export function registerRoutes(app: Express): Server {
     try {
       const { type, salespersonCode, segment } = req.query;
       const viewType = (type as string) || 'salesperson';
-      
+
       // Get data from the last 36 months for better forecasting
       const endDate = new Date();
       const startDate = new Date();
       startDate.setMonth(startDate.getMonth() - 36);
-      
+
       const startDateStr = startDate.toISOString().split('T')[0];
       const endDateStr = endDate.toISOString().split('T')[0];
-      
+
       // Build additional filters
       let additionalFilters = '';
       if (viewType === 'salesperson' && salespersonCode && salespersonCode !== 'all') {
@@ -4035,7 +4088,7 @@ export function registerRoutes(app: Express): Server {
       if (viewType === 'segment' && segment && segment !== 'all') {
         additionalFilters += ` AND noruen = '${segment}'`;
       }
-      
+
       // Query historical monthly sales from fact_ventas
       const query = `
         SELECT 
@@ -4051,12 +4104,12 @@ export function registerRoutes(app: Express): Server {
         GROUP BY ${viewType === 'salesperson' ? 'nokofu' : 'noruen'}, TO_CHAR(feemdo::date, 'YYYY-MM')
         ORDER BY entity, period
       `;
-      
+
       const result = await db.execute(sql.raw(query.replace('$1', `'${startDateStr}'`).replace('$2', `'${endDateStr}'`)));
-      
+
       // Group by entity (salesperson or segment)
       const groupedData: Record<string, any[]> = {};
-      
+
       for (const row of result.rows as any[]) {
         const entity = row.entity;
         if (!groupedData[entity]) {
@@ -4067,21 +4120,21 @@ export function registerRoutes(app: Express): Server {
           totalSales: parseFloat(row.total_sales) || 0,
         });
       }
-      
+
       // Convert to array format
       const historicalData = Object.entries(groupedData).map(([entity, monthlySales]) => {
         // Sort by period
         monthlySales.sort((a, b) => a.period.localeCompare(b.period));
-        
+
         return {
           [viewType === 'salesperson' ? 'salesperson' : 'segment']: entity,
           monthlySales,
         };
       });
-      
+
       // Filter out entities with insufficient data (less than 12 months)
       const filteredData = historicalData.filter(item => item.monthlySales.length >= 12);
-      
+
       res.json(filteredData);
     } catch (error) {
       console.error('Error fetching projection historical data:', error);
@@ -4105,7 +4158,7 @@ export function registerRoutes(app: Express): Server {
     console.log("📦 Body recibido:", req.body);
     try {
       const validatedUser = insertSalespersonUserSchema.parse(req.body);
-      
+
       // Hash de la contraseña si se proporciona
       if (validatedUser.password) {
         validatedUser.password = await bcrypt.hash(validatedUser.password, 12);
@@ -4121,18 +4174,18 @@ export function registerRoutes(app: Express): Server {
       console.error("Error name:", error.name);
       console.error("Error code:", error.code);
       if (error.name === 'ZodError') {
-        return res.status(400).json({ 
-          message: "Datos inválidos", 
+        return res.status(400).json({
+          message: "Datos inválidos",
           details: error.issues.map((issue: any) => `${issue.path.join('.')}: ${issue.message}`).join(', ')
         });
       }
       if (error.code === '23505') { // PostgreSQL unique violation
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "Ya existe un usuario con esos datos",
           details: `Conflicto en: ${error.detail || 'campo único'}`
         });
       }
-      res.status(500).json({ 
+      res.status(500).json({
         message: "Failed to create salesperson user",
         error: error.message,
         details: error.stack
@@ -4146,7 +4199,7 @@ export function registerRoutes(app: Express): Server {
       console.log('[DEBUG] Update user - Full req.session:', req.session);
       console.log('[DEBUG] Update user - req.session.simulatedUser:', req.session?.simulatedUser);
       console.log('[DEBUG] Update user - req.user:', req.user);
-      
+
       let userId;
       let userRecord;
 
@@ -4155,34 +4208,34 @@ export function registerRoutes(app: Express): Server {
         console.log('[DEBUG] No authentication found');
         return res.status(401).json({ message: 'Usuario no autenticado' });
       }
-      
+
       console.log('[DEBUG] Using authenticated user - new auth system');
       userId = req.user.id;
       userRecord = req.user;
-      
+
       console.log('[DEBUG] userRecord:', userRecord);
       console.log('[DEBUG] userRecord.role:', userRecord?.role);
-      
+
       if (userRecord?.role !== 'admin' && userRecord?.role !== 'supervisor') {
         console.log('[DEBUG] Access denied - role is not admin or supervisor');
         return res.status(403).json({ message: 'Acceso denegado. Solo administradores y supervisores pueden actualizar usuarios.' });
       }
-      
+
       console.log('[DEBUG] Access granted - user is admin or supervisor');
 
       const { id } = req.params;
       const validatedUser = insertSalespersonUserSchema.partial().parse(req.body);
-      
+
       // Verificar si se está cambiando información crítica (email o password)
       const isCriticalUpdate = validatedUser.email || validatedUser.password;
-      
+
       // Hash de la contraseña si se proporciona
       if (validatedUser.password) {
         validatedUser.password = await bcrypt.hash(validatedUser.password, 12);
       }
 
       const updatedUser = await storage.updateSalespersonUser(id, validatedUser);
-      
+
       // Si se cambió email o password, invalidar sesiones activas del usuario
       if (isCriticalUpdate) {
         console.log('[DEBUG] Critical update detected (email/password), invalidating sessions for user:', id);
@@ -4195,13 +4248,13 @@ export function registerRoutes(app: Express): Server {
           // No fallar la actualización del usuario por esto
         }
       }
-      
+
       res.json(updatedUser);
     } catch (error: any) {
       console.error("Error updating salesperson user:", error);
       if (error.name === 'ZodError') {
-        return res.status(400).json({ 
-          message: "Datos inválidos", 
+        return res.status(400).json({
+          message: "Datos inválidos",
           details: error.issues.map((issue: any) => `${issue.path.join('.')}: ${issue.message}`).join(', ')
         });
       }
@@ -4219,10 +4272,10 @@ export function registerRoutes(app: Express): Server {
       if (!req.user || !req.user.id) {
         return res.status(401).json({ message: 'Usuario no autenticado' });
       }
-      
+
       userId = req.user.id;
       userRecord = req.user;
-      
+
       if (userRecord?.role !== 'admin' && userRecord?.role !== 'supervisor') {
         return res.status(403).json({ message: 'Acceso denegado. Solo administradores y supervisores pueden eliminar usuarios.' });
       }
@@ -4246,10 +4299,10 @@ export function registerRoutes(app: Express): Server {
       if (!req.user || !req.user.id) {
         return res.status(401).json({ message: 'Usuario no autenticado' });
       }
-      
+
       userId = req.user.id;
       userRecord = req.user;
-      
+
       if (userRecord?.role !== 'admin' && userRecord?.role !== 'supervisor' && userRecord?.role !== 'tecnico_obra') {
         return res.status(403).json({ message: 'Acceso denegado. Solo administradores, supervisores y técnicos pueden acceder a la gestión de usuarios.' });
       }
@@ -4267,7 +4320,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { supervisorId } = req.params;
       console.log(`[DEBUG] Fetching salespeople for supervisor ID: ${supervisorId}`);
-      
+
       const salespeople = await storage.getSalespeopleUnderSupervisor(supervisorId);
       console.log(`[DEBUG] Found ${salespeople.length} salespeople:`, salespeople.map(sp => sp.salespersonName));
       console.log(`[DEBUG] Complete response being sent:`, JSON.stringify(salespeople, null, 2));
@@ -4284,7 +4337,7 @@ export function registerRoutes(app: Express): Server {
       // En producción estas verificaciones serían más estrictas
 
       const { supervisorId } = req.params;
-      
+
       console.log('[DEBUG] Fetching goals for supervisor:', supervisorId);
       const goals = await storage.getSupervisorGoals(supervisorId);
       console.log('[DEBUG] Goals found:', goals);
@@ -4322,7 +4375,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/supervisor/:supervisorId/team-metrics', async (req: any, res) => {
     try {
       const { supervisorId } = req.params;
-      
+
       // Obtener vendedores del supervisor
       const salespeople = await storage.getSalespeopleUnderSupervisor(supervisorId);
       const salespeopleNames = salespeople.map(sp => sp.salespersonName);
@@ -4352,10 +4405,10 @@ export function registerRoutes(app: Express): Server {
       // En producción, estas verificaciones deberían ser más estrictas
 
       const { supervisorId } = req.params;
-      
+
       console.log('[DEBUG] Fetching goals progress for supervisor:', supervisorId);
       const supervisorGoals = await storage.getSupervisorGoals(supervisorId);
-      
+
       // Convertir al formato GoalProgress para compatibilidad con el componente
       const progressData = supervisorGoals.map((goal: any) => ({
         id: goal.id,
@@ -4382,7 +4435,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/supervisor/:supervisorId/alerts', async (req: any, res) => {
     try {
       const { supervisorId } = req.params;
-      
+
       const alerts = await storage.getSupervisorAlerts(supervisorId);
       res.json(alerts);
     } catch (error) {
@@ -4409,14 +4462,14 @@ export function registerRoutes(app: Express): Server {
       }
 
       const { supervisorId } = req.params;
-      
+
       // Verificar que el usuario logueado es el supervisor
       if (userRecord?.id !== supervisorId || userRecord?.role !== 'supervisor') {
         return res.status(403).json({ message: 'Solo el supervisor puede crear metas para sus vendedores' });
       }
 
       const { salespersonId, salespersonName, description, amount, period } = req.body;
-      
+
       // Verificar que el vendedor está bajo la supervisión de este supervisor
       const salesperson = await storage.getSalespersonUser(salespersonId);
       if (!salesperson || salesperson.supervisorId !== supervisorId) {
@@ -4458,7 +4511,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       const { supervisorId, goalId } = req.params;
-      
+
       // Verificar que el usuario logueado es el supervisor
       if (userRecord?.id !== supervisorId || userRecord?.role !== 'supervisor') {
         return res.status(403).json({ message: 'Solo el supervisor puede editar metas de sus vendedores' });
@@ -4480,7 +4533,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       const { description, amount, period } = req.body;
-      
+
       // Actualizar la meta
       const updatedGoal = await storage.updateGoal(goalId, {
         description,
@@ -4503,9 +4556,9 @@ export function registerRoutes(app: Express): Server {
     const commaCount = (firstLine.match(/,/g) || []).length;
     const semicolonCount = (firstLine.match(/;/g) || []).length;
     const delimiter = semicolonCount > commaCount ? ';' : ',';
-    
+
     console.log(`🔍 CSV delimiter detected: "${delimiter}"`);
-    
+
     const parseResult = Papa.parse(csvContent, {
       header: true,
       delimiter,
@@ -4519,19 +4572,19 @@ export function registerRoutes(app: Express): Server {
 
     const transactions = [];
     const rawData = parseResult.data as any[];
-    
+
     console.log(`📊 Processing ${rawData.length} CSV rows`);
 
     for (let i = 0; i < rawData.length; i++) {
       const row = rawData[i];
       const transaction: any = {};
-      
+
       // Helper functions
       const cleanValue = (value: any): string => {
         if (!value) return '';
         return value.toString().replace(/^"|"$/g, '').trim();
       };
-      
+
       const parseNumber = (value: any): string | null => {
         if (!value || value.toString().trim() === '') return null;
         let cleanValue = value.toString();
@@ -4547,13 +4600,13 @@ export function registerRoutes(app: Express): Server {
         const parsed = parseFloat(cleanValue);
         return isNaN(parsed) ? null : cleanValue;
       };
-      
+
       const parseDate = (value: any): string | null => {
         if (!value || value.toString().trim() === '') return null;
         try {
           const dateStr = value.toString();
           let parts: string[];
-          
+
           if (dateStr.includes('-')) {
             parts = dateStr.split('-');
           } else if (dateStr.includes('/')) {
@@ -4561,12 +4614,12 @@ export function registerRoutes(app: Express): Server {
           } else {
             return null;
           }
-          
+
           if (parts.length === 3) {
             const day = parseInt(parts[0]);
             const month = parseInt(parts[1]);
             const year = parseInt(parts[2]);
-            
+
             if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 1900) {
               const formattedMonth = month.toString().padStart(2, '0');
               const formattedDay = day.toString().padStart(2, '0');
@@ -4584,7 +4637,7 @@ export function registerRoutes(app: Express): Server {
         const cleanHeader = header.toLowerCase().trim().replace(/\s+/g, '');
         const rawValue = row[header];
         const value = cleanValue(rawValue);
-        
+
         switch (cleanHeader) {
           // Required fields
           case 'nudo':
@@ -4596,7 +4649,7 @@ export function registerRoutes(app: Express): Server {
           case 'tido':
             transaction.tido = value || '';
             break;
-            
+
           // String fields
           case 'koprct':
           case 'nokoen':
@@ -4639,14 +4692,14 @@ export function registerRoutes(app: Express): Server {
           case 'nomrpr':
             if (value) transaction[cleanHeader] = value;
             break;
-            
+
           // Date fields
           case 'feulvedo':
           case 'feemli':
           case 'feerli':
             if (value) transaction[cleanHeader] = parseDate(value);
             break;
-            
+
           // Integer field
           case 'luvtlido':
             if (value) {
@@ -4654,7 +4707,7 @@ export function registerRoutes(app: Express): Server {
               transaction.luvtlido = isNaN(intVal) ? null : intVal;
             }
             break;
-            
+
           // Numeric fields
           case 'idmaeedo':
           case 'tamodo':
@@ -4693,7 +4746,7 @@ export function registerRoutes(app: Express): Server {
             break;
         }
       });
-      
+
       // Only add transaction if it has required fields
       if (transaction.nudo || transaction.feemdo || transaction.idmaeedo) {
         transactions.push(transaction);
@@ -4701,7 +4754,7 @@ export function registerRoutes(app: Express): Server {
         console.warn(`❌ Row ${i + 1} without required fields:`, transaction);
       }
     }
-    
+
     console.log(`✅ Processed ${transactions.length} valid transactions from CSV`);
     return transactions;
   }
@@ -4710,7 +4763,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/public/products', async (req: any, res) => {
     try {
       const { search, category, limit = 100, offset = 0 } = req.query;
-      
+
       const filters = {
         search: search || undefined,
         category: category || undefined,
@@ -4731,25 +4784,25 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
   // PUBLIC CATALOG ROUTES (for salesperson public catalogs)
   // ==================================================================================
-  
+
   // Get public salesperson catalog (profile + products)
   app.get('/api/public/catalogos/:slug', async (req: any, res) => {
     try {
       const { slug } = req.params;
       const { grouped } = req.query;
-      
+
       // Get salesperson by slug
       const salesperson = await storage.getPublicSalespersonBySlug(slug);
-      
+
       if (!salesperson) {
         return res.status(404).json({ message: 'Catálogo no encontrado' });
       }
-      
+
       // Get active ecommerce products (grouped or flat)
-      const products = grouped === 'true' 
+      const products = grouped === 'true'
         ? await storage.getGroupedCatalogProducts()
         : await storage.getPublicCatalogProducts();
-      
+
       res.json({
         salesperson,
         products,
@@ -4760,7 +4813,7 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ message: 'Error al cargar el catálogo' });
     }
   });
-  
+
   // Get grouped products for public catalog
   app.get('/api/public/products/grouped', async (req: any, res) => {
     try {
@@ -4776,21 +4829,21 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/public/clients/search-by-rut', async (req: any, res) => {
     try {
       const { rut } = req.query;
-      
+
       if (!rut || typeof rut !== 'string') {
         return res.status(400).json({ message: 'RUT es requerido' });
       }
 
       // Clean and normalize RUT (remove dots and dashes, uppercase)
       const cleanRut = rut.replace(/\./g, '').replace(/-/g, '').toUpperCase().trim();
-      
+
       if (cleanRut.length < 7) {
         return res.status(400).json({ message: 'RUT inválido' });
       }
 
       // Search client by RUT in the clients table
       const client = await storage.getClientByRut(cleanRut);
-      
+
       if (!client) {
         return res.status(404).json({ message: 'Cliente no encontrado' });
       }
@@ -4840,33 +4893,33 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ message: 'Error al buscar cliente' });
     }
   });
-  
+
   // Submit quote request from public catalog (no auth required)
   app.post('/api/public/catalogos/:slug/cotizacion', async (req: any, res) => {
     try {
       const { slug } = req.params;
       const { publicQuoteRequestSchema } = await import('@shared/schema');
-      
+
       // Get salesperson by slug
       const salesperson = await storage.getPublicSalespersonBySlug(slug);
-      
+
       if (!salesperson) {
         return res.status(404).json({ message: 'Catálogo no encontrado' });
       }
-      
+
       // Validate request body
       const validation = publicQuoteRequestSchema.safeParse(req.body);
-      
+
       if (!validation.success) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: 'Datos inválidos',
-          errors: validation.error.errors 
+          errors: validation.error.errors
         });
       }
-      
+
       // Create quote request
       const quote = await storage.createPublicQuoteRequest(salesperson.id, validation.data);
-      
+
       res.status(201).json({
         message: 'Solicitud de cotización enviada exitosamente',
         quoteId: quote.id
@@ -4899,11 +4952,151 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // ===================== Grouped Product Catalog API =====================
+  // IMPORTANT: This must be registered BEFORE /api/products/:sku to avoid Express matching 'grouped-catalog' as a :sku param
+
+  app.get('/api/products/grouped-catalog', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { search, groupFilter } = req.query;
+
+    const result = await db.execute(sql`
+      SELECT
+        ep.id as ecom_id,
+        ep.categoria as group_name,
+        ep.descripcion as description,
+        ep.activo as activo,
+        ep.precio_ecommerce as precio,
+        ep.variant_parent_sku,
+        ep.variant_generic_display_name,
+        ep.variant_index,
+        ep.color,
+        ep.variant_label,
+        ep.is_main_variant,
+        ep.min_unit,
+        ep.step_size,
+        ep.format_unit,
+        ep.weight, ep.weight_unit,
+        ep.length, ep.length_unit,
+        ep.width, ep.width_unit,
+        ep.height, ep.height_unit,
+        ep.volume, ep.volume_unit,
+        ep.packaging_package_name, ep.packaging_package_unit, ep.packaging_amount_per_package,
+        ep.packaging_box_name, ep.packaging_box_unit, ep.packaging_amount_per_box,
+        ep.packaging_pallet_name, ep.packaging_pallet_unit, ep.packaging_amount_per_pallet,
+        ep.group_id,
+        pl.codigo as sku,
+        pl.producto as product_name,
+        pl.unidad as unit,
+        pl.lista as price_list,
+        epg.nombre as group_display_name,
+        epg.categoria as group_category
+      FROM ecommerce_products ep
+      INNER JOIN price_list pl ON ep.price_list_id = pl.id
+      LEFT JOIN ecommerce_product_groups epg ON ep.group_id = epg.id
+      WHERE ep.categoria IS NOT NULL
+      ORDER BY ep.categoria, ep.variant_generic_display_name, ep.variant_index
+    `);
+
+    const rows = Array.isArray(result) ? result : (result as any).rows || [];
+
+    const groupsMap = new Map<string, {
+      groupName: string;
+      products: Map<string, {
+        genericName: string;
+        parentSku: string | null;
+        groupId: string | null;
+        variants: any[];
+      }>;
+    }>();
+
+    for (const row of rows as any[]) {
+      const groupName = row.group_name || 'Sin Grupo';
+      const genericName = row.variant_generic_display_name || row.product_name || 'Sin Nombre';
+      const parentSku = row.variant_parent_sku || row.sku;
+
+      if (search) {
+        const s = (search as string).toLowerCase();
+        const matches =
+          row.sku?.toLowerCase().includes(s) ||
+          row.product_name?.toLowerCase().includes(s) ||
+          genericName.toLowerCase().includes(s) ||
+          row.color?.toLowerCase().includes(s) ||
+          groupName.toLowerCase().includes(s);
+        if (!matches) continue;
+      }
+
+      if (groupFilter && groupFilter !== 'all' && groupName !== groupFilter) continue;
+
+      if (!groupsMap.has(groupName)) {
+        groupsMap.set(groupName, { groupName, products: new Map() });
+      }
+      const group = groupsMap.get(groupName)!;
+
+      const productKey = genericName;
+      if (!group.products.has(productKey)) {
+        group.products.set(productKey, {
+          genericName,
+          parentSku,
+          groupId: row.group_id,
+          variants: [],
+        });
+      }
+
+      group.products.get(productKey)!.variants.push({
+        ecomId: row.ecom_id,
+        sku: row.sku,
+        name: row.product_name,
+        color: row.color,
+        unit: row.unit || row.format_unit,
+        price: row.precio,
+        priceList: row.price_list,
+        minUnit: row.min_unit,
+        stepSize: row.step_size,
+        variantIndex: row.variant_index,
+        isMainVariant: row.is_main_variant,
+        description: row.description,
+        dimensions: {
+          weight: row.weight, weightUnit: row.weight_unit,
+          length: row.length, lengthUnit: row.length_unit,
+          width: row.width, widthUnit: row.width_unit,
+          height: row.height, heightUnit: row.height_unit,
+          volume: row.volume, volumeUnit: row.volume_unit,
+        },
+        packaging: {
+          packageName: row.packaging_package_name,
+          packageUnit: row.packaging_package_unit,
+          amountPerPackage: row.packaging_amount_per_package,
+          boxName: row.packaging_box_name,
+          boxUnit: row.packaging_box_unit,
+          amountPerBox: row.packaging_amount_per_box,
+          palletName: row.packaging_pallet_name,
+          palletUnit: row.packaging_pallet_unit,
+          amountPerPallet: row.packaging_amount_per_pallet,
+        },
+      });
+    }
+
+    const catalog = Array.from(groupsMap.values()).map(g => ({
+      groupName: g.groupName,
+      productCount: Array.from(g.products.values()).reduce((acc, p) => acc + p.variants.length, 0),
+      products: Array.from(g.products.values()).map(p => ({
+        genericName: p.genericName,
+        parentSku: p.parentSku,
+        groupId: p.groupId,
+        variantCount: p.variants.length,
+        variants: p.variants,
+      })),
+    }));
+
+    const availableGroups = [...new Set((rows as any[]).map((r: any) => r.group_name).filter(Boolean))].sort();
+
+    res.json({ catalog, availableGroups, totalProducts: (rows as any[]).length });
+  }));
+
   // Product routes
   app.get('/api/products', requireAuth, async (req: any, res) => {
     try {
       const { search, active, hasPrices, warehouseCode, limit = 50, offset = 0 } = req.query;
-      
+
       const filters = {
         search: search || undefined,
         active: active !== undefined ? active === 'true' : undefined,
@@ -4925,7 +5118,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { sku } = req.params;
       const product = await storage.getProduct(sku);
-      
+
       if (!product) {
         return res.status(404).json({ message: "Product not found" });
       }
@@ -4941,7 +5134,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { sku } = req.params;
       const { warehouseCode, branchCode } = req.query;
-      
+
       let stock;
       if (warehouseCode) {
         stock = await storage.getProductStockByWarehouse(sku, warehouseCode, branchCode);
@@ -5029,7 +5222,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { sku } = req.params;
       const { price, offerPrice, showInStore, reason } = req.body;
-      
+
       if (!price || isNaN(price)) {
         return res.status(400).json({ message: "Valid price is required" });
       }
@@ -5040,9 +5233,9 @@ export function registerRoutes(app: Express): Server {
       }
 
       const product = await storage.updateProductPrice(
-        sku, 
-        parseFloat(price), 
-        userId, 
+        sku,
+        parseFloat(price),
+        userId,
         reason
       );
       res.json(product);
@@ -5053,24 +5246,24 @@ export function registerRoutes(app: Express): Server {
   });
 
   // ===================== eCommerce API Routes =====================
-  
+
   // Get eCommerce products with filters (admin/supervisor only)
   app.get('/api/ecommerce/products', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
-    const { 
-      search, 
-      category, 
-      active, 
-      ecomActive, 
-      minPrice, 
-      maxPrice, 
+    const {
+      search,
+      category,
+      active,
+      ecomActive,
+      minPrice,
+      maxPrice,
       tags,
-      limit, 
-      offset 
+      limit,
+      offset
     } = req.query;
 
     // Parse filters
     const filters: any = {};
-    
+
     if (search) filters.search = search as string;
     if (category) filters.category = category as string;
     if (active !== undefined) filters.active = active === 'true';
@@ -5092,34 +5285,34 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/ecommerce/products/:kopr', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { kopr } = req.params;
     const product = await storage.getEcommerceProduct(kopr);
-    
+
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
-    
+
     res.json(product);
   }));
 
   // Create new eCommerce product (admin/supervisor only)
   app.post('/api/ecommerce/products', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
-    const { 
-      ecommerceProductSchema 
+    const {
+      ecommerceProductSchema
     } = await import('@shared/schema');
-    
+
     // Validate request body
     const validationResult = ecommerceProductSchema.safeParse(req.body);
     if (!validationResult.success) {
-      return res.status(400).json({ 
-        message: 'Validation error', 
-        errors: validationResult.error.errors 
+      return res.status(400).json({
+        message: 'Validation error',
+        errors: validationResult.error.errors
       });
     }
 
     // Check if slug is available
     const slugAvailable = await storage.validateProductSlug(validationResult.data.slug);
     if (!slugAvailable) {
-      return res.status(400).json({ 
-        message: 'Slug already exists. Please choose a different slug.' 
+      return res.status(400).json({
+        message: 'Slug already exists. Please choose a different slug.'
       });
     }
 
@@ -5143,16 +5336,16 @@ export function registerRoutes(app: Express): Server {
   // Update eCommerce product (admin/supervisor only)
   app.patch('/api/ecommerce/products/:kopr', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { kopr } = req.params;
-    const { 
-      updateEcommerceProductSchema 
+    const {
+      updateEcommerceProductSchema
     } = await import('@shared/schema');
-    
+
     // Validate request body
     const validationResult = updateEcommerceProductSchema.safeParse(req.body);
     if (!validationResult.success) {
-      return res.status(400).json({ 
-        message: 'Validation error', 
-        errors: validationResult.error.errors 
+      return res.status(400).json({
+        message: 'Validation error',
+        errors: validationResult.error.errors
       });
     }
 
@@ -5160,8 +5353,8 @@ export function registerRoutes(app: Express): Server {
     if (validationResult.data.slug) {
       const slugAvailable = await storage.validateProductSlug(validationResult.data.slug, kopr);
       if (!slugAvailable) {
-        return res.status(400).json({ 
-          message: 'Slug already exists. Please choose a different slug.' 
+        return res.status(400).json({
+          message: 'Slug already exists. Please choose a different slug.'
         });
       }
     }
@@ -5180,7 +5373,7 @@ export function registerRoutes(app: Express): Server {
   // Toggle eCommerce active status (admin/supervisor only)
   app.patch('/api/ecommerce/products/:kopr/toggle-active', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { kopr } = req.params;
-    
+
     try {
       const product = await storage.toggleEcommerceActive(kopr);
       res.json(product);
@@ -5201,7 +5394,7 @@ export function registerRoutes(app: Express): Server {
   // Validate product slug availability (admin/supervisor only)
   app.post('/api/ecommerce/products/validate-slug', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { slug, excludeKopr } = req.body;
-    
+
     if (!slug) {
       return res.status(400).json({ message: 'Slug is required' });
     }
@@ -5213,32 +5406,32 @@ export function registerRoutes(app: Express): Server {
   // ===================== End eCommerce API Routes =====================
 
   // ===================== eCommerce Orders API Routes =====================
-  
+
   // Create order from client (authenticated clients only)
   app.post('/api/ecommerce/orders/client', requireAuth, asyncHandler(async (req: any, res: any) => {
     const { insertEcommerceOrderSchema } = await import('@shared/schema');
-    
+
     // Validate user is authenticated
     if (!req.user || !req.user.id) {
       return res.status(401).json({ message: 'No autenticado' });
     }
-    
+
     try {
       // Validate request body
       const validationResult = insertEcommerceOrderSchema.safeParse(req.body);
       if (!validationResult.success) {
-        return res.status(400).json({ 
-          message: 'Error de validación', 
-          errors: validationResult.error.errors 
+        return res.status(400).json({
+          message: 'Error de validación',
+          errors: validationResult.error.errors
         });
       }
-      
+
       const orderData = validationResult.data;
       const clientId = req.user.id;
-      
+
       // Get client details to find assigned salesperson
       const client = await storage.getClientByUserId(clientId);
-      
+
       // Prepare order data with client and salesperson info
       const orderToCreate = {
         ...orderData,
@@ -5249,7 +5442,7 @@ export function registerRoutes(app: Express): Server {
         assignedSalespersonName: null, // Will be populated if there's a salesperson
         status: 'pending'
       };
-      
+
       // If there's an assigned salesperson, get their name
       if (client?.assignedSalespersonUserId) {
         const salesperson = await storage.getUser(client.assignedSalespersonUserId);
@@ -5257,13 +5450,13 @@ export function registerRoutes(app: Express): Server {
           orderToCreate.assignedSalespersonName = salesperson.email || 'Vendedor';
         }
       }
-      
+
       // Create the order
       const order = await storage.createEcommerceOrder(orderToCreate);
-      
+
       // Create notification for salesperson or admin
       const notificationUserId = orderToCreate.assignedSalespersonId || await storage.getAdminUserId();
-      
+
       if (notificationUserId) {
         await storage.createNotification({
           userId: notificationUserId,
@@ -5274,7 +5467,7 @@ export function registerRoutes(app: Express): Server {
           read: false
         });
       }
-      
+
       res.status(201).json(order);
     } catch (error: any) {
       console.error('Error creating client order:', error);
@@ -5286,10 +5479,10 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/ecommerce/orders', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Build filters based on user role
       const filters: any = {};
-      
+
       if (user.role === 'salesperson') {
         // Salesperson sees only their assigned orders
         filters.salespersonId = user.id;
@@ -5303,7 +5496,7 @@ export function registerRoutes(app: Express): Server {
         // Other roles can't access this endpoint
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const orders = await storage.getEcommerceOrders(filters);
       res.json(orders);
     } catch (error) {
@@ -5315,17 +5508,17 @@ export function registerRoutes(app: Express): Server {
   // ===================== End eCommerce Orders API Routes =====================
 
   // ===================== eCommerce Admin API Routes (Simple) =====================
-  
+
   // Get products for eCommerce admin panel (imports from priceList)
   app.get('/api/ecommerce/admin/productos', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { search, categoria, activo } = req.query;
-    
+
     const products = await storage.getEcommerceAdminProducts({
       search,
       categoria: categoria !== 'all' ? categoria : undefined,
       activo: activo !== 'all' ? (activo === 'true') : undefined
     });
-    
+
     res.json(products);
   }));
 
@@ -5345,14 +5538,14 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/ecommerce/admin/productos/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
     const { categoria, descripcion, imagenUrl, precio, activo, groupId, variantLabel, isMainVariant, productFamily, color } = req.body;
-    
+
     console.log('🔄 [BACKEND] Recibida solicitud PATCH para producto:', {
       id,
       body: req.body,
       user: req.user?.email,
       timestamp: new Date().toISOString()
     });
-    
+
     console.log('📝 [BACKEND] Datos extraídos para actualización:', {
       categoria,
       descripcion,
@@ -5366,7 +5559,7 @@ export function registerRoutes(app: Express): Server {
       productFamily,
       color
     });
-    
+
     try {
       console.log('🏪 [BACKEND] Llamando a storage.updateEcommerceAdminProduct...');
       const product = await storage.updateEcommerceAdminProduct(id, {
@@ -5381,7 +5574,7 @@ export function registerRoutes(app: Express): Server {
         productFamily,
         color
       });
-      
+
       console.log('✅ [BACKEND] Producto actualizado exitosamente:', product);
       res.json(product);
     } catch (error: any) {
@@ -5391,7 +5584,7 @@ export function registerRoutes(app: Express): Server {
         id,
         updates: { categoria, descripcion, imagenUrl, precioEcommerce: precio, activo, groupId, variantLabel, isMainVariant }
       });
-      
+
       if (error.message.includes('not found')) {
         return res.status(404).json({ message: 'Product not found' });
       }
@@ -5402,7 +5595,7 @@ export function registerRoutes(app: Express): Server {
   // Toggle product active status in admin panel
   app.patch('/api/ecommerce/admin/productos/:id/toggle', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
-    
+
     try {
       const product = await storage.toggleEcommerceAdminProduct(id);
       res.json(product);
@@ -5417,11 +5610,11 @@ export function registerRoutes(app: Express): Server {
   // Import products from catalog CSV
   app.post('/api/ecommerce/admin/productos/import-catalog', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { data } = req.body;
-    
+
     if (!Array.isArray(data) || data.length === 0) {
       return res.status(400).json({ message: 'Se requiere una lista de productos para importar' });
     }
-    
+
     try {
       const result = await storage.importEcommerceProductsFromCatalogCsv(data);
       res.json({
@@ -5453,15 +5646,15 @@ export function registerRoutes(app: Express): Server {
   // Bulk assign products to a group
   app.post('/api/ecommerce/admin/productos/bulk-assign', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { productIds, groupId } = req.body;
-    
+
     if (!Array.isArray(productIds) || productIds.length === 0) {
       return res.status(400).json({ message: 'Se requiere una lista de productos' });
     }
-    
+
     if (!groupId) {
       return res.status(400).json({ message: 'Se requiere un grupo destino' });
     }
-    
+
     try {
       const result = await storage.bulkAssignProductsToGroup(productIds, groupId);
       res.json({ success: true, count: result.count });
@@ -5474,11 +5667,11 @@ export function registerRoutes(app: Express): Server {
   // Create new category in admin panel
   app.post('/api/ecommerce/admin/categorias', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { nombre, descripcion } = req.body;
-    
+
     if (!nombre || nombre.trim() === '') {
       return res.status(400).json({ message: 'Nombre de categoría es requerido' });
     }
-    
+
     try {
       const category = await storage.createEcommerceAdminCategory({
         nombre: nombre.trim(),
@@ -5498,7 +5691,7 @@ export function registerRoutes(app: Express): Server {
   // Create new product group
   app.post('/api/ecommerce/admin/grupos', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { insertEcommerceProductGroupSchema } = await import('@shared/schema');
-    
+
     try {
       const validated = insertEcommerceProductGroupSchema.parse(req.body);
       const group = await storage.createProductGroup(validated);
@@ -5514,32 +5707,32 @@ export function registerRoutes(app: Express): Server {
   // Get all product groups
   app.get('/api/ecommerce/admin/grupos', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { search, categoria, activo, withVariations } = req.query;
-    
+
     // If withVariations=true, return groups with nested variations
     if (withVariations === 'true') {
       const groupsWithVariations = await storage.getProductGroupsWithVariations();
       return res.json(groupsWithVariations);
     }
-    
+
     const groups = await storage.getProductGroups({
       search,
       categoria: categoria !== 'all' ? categoria : undefined,
       activo: activo && activo !== 'all' ? (activo === 'true') : undefined
     });
-    
+
     res.json(groups);
   }));
 
   // Get single product group with variants
   app.get('/api/ecommerce/admin/grupos/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
-    
+
     const groupData = await storage.getProductGroupWithVariants(id);
-    
+
     if (!groupData) {
       return res.status(404).json({ message: 'Grupo no encontrado' });
     }
-    
+
     res.json(groupData);
   }));
 
@@ -5547,7 +5740,7 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/ecommerce/admin/grupos/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
     const { updateEcommerceProductGroupSchema } = await import('@shared/schema');
-    
+
     try {
       const validated = updateEcommerceProductGroupSchema.parse(req.body);
       const updated = await storage.updateProductGroup(id, validated);
@@ -5566,7 +5759,7 @@ export function registerRoutes(app: Express): Server {
   // Delete product group
   app.delete('/api/ecommerce/admin/grupos/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
-    
+
     await storage.deleteProductGroup(id);
     res.json({ message: 'Grupo eliminado correctamente' });
   }));
@@ -5575,11 +5768,11 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/ecommerce/admin/grupos/:id/assign', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { id: groupId } = req.params;
     const { productId, variantLabel, isMainVariant } = req.body;
-    
+
     if (!productId) {
       return res.status(400).json({ message: 'productId es requerido' });
     }
-    
+
     await storage.assignProductToGroup(productId, groupId, variantLabel, isMainVariant);
     res.json({ message: 'Producto asignado al grupo correctamente' });
   }));
@@ -5587,11 +5780,11 @@ export function registerRoutes(app: Express): Server {
   // Remove product from group
   app.post('/api/ecommerce/admin/grupos/:id/remove', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { productId } = req.body;
-    
+
     if (!productId) {
       return res.status(400).json({ message: 'productId es requerido' });
     }
-    
+
     await storage.removeProductFromGroup(productId);
     res.json({ message: 'Producto removido del grupo correctamente' });
   }));
@@ -5600,11 +5793,11 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/ecommerce/admin/variaciones/:id/reasignar', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { id: variationId } = req.params;
     const { newGroupId } = req.body;
-    
+
     if (!variationId) {
       return res.status(400).json({ message: 'variationId es requerido' });
     }
-    
+
     await storage.reassignVariationToGroup(variationId, newGroupId || null);
     res.json({ message: newGroupId ? 'Variación reasignada correctamente' : 'Variación desagrupada correctamente' });
   }));
@@ -5614,7 +5807,7 @@ export function registerRoutes(app: Express): Server {
   // Get all Shopify products with variants
   app.get('/api/shopify/products', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { search, category, status, productType, limit, offset } = req.query;
-    
+
     const products = await storage.getShopifyProducts({
       search,
       category,
@@ -5623,7 +5816,7 @@ export function registerRoutes(app: Express): Server {
       limit: limit ? parseInt(limit) : undefined,
       offset: offset ? parseInt(offset) : undefined,
     });
-    
+
     res.json(products);
   }));
 
@@ -5631,11 +5824,11 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/shopify/products/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
     const product = await storage.getShopifyProduct(id);
-    
+
     if (!product) {
       return res.status(404).json({ message: 'Producto no encontrado' });
     }
-    
+
     res.json(product);
   }));
 
@@ -5643,18 +5836,18 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/shopify/products/handle/:handle', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { handle } = req.params;
     const product = await storage.getShopifyProductByHandle(handle);
-    
+
     if (!product) {
       return res.status(404).json({ message: 'Producto no encontrado' });
     }
-    
+
     res.json(product);
   }));
 
   // Create new Shopify product
   app.post('/api/shopify/products', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { insertShopifyProductSchema } = await import('@shared/schema');
-    
+
     try {
       const validated = insertShopifyProductSchema.parse(req.body);
       const product = await storage.createShopifyProduct(validated);
@@ -5671,7 +5864,7 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/shopify/products/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
     const { updateShopifyProductSchema } = await import('@shared/schema');
-    
+
     try {
       const validated = updateShopifyProductSchema.parse(req.body);
       const updated = await storage.updateShopifyProduct(id, validated);
@@ -5695,11 +5888,11 @@ export function registerRoutes(app: Express): Server {
   app.put('/api/shopify/products/:id/options', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
     const { options } = req.body;
-    
+
     if (!Array.isArray(options)) {
       return res.status(400).json({ message: 'options debe ser un array' });
     }
-    
+
     const updatedOptions = await storage.updateShopifyProductOptions(id, options);
     res.json(updatedOptions);
   }));
@@ -5708,7 +5901,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/shopify/products/:productId/variants', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { productId } = req.params;
     const { insertShopifyProductVariantSchema } = await import('@shared/schema');
-    
+
     try {
       const validated = insertShopifyProductVariantSchema.parse({ ...req.body, productId });
       const variant = await storage.createShopifyProductVariant(validated);
@@ -5725,7 +5918,7 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/shopify/variants/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
     const { updateShopifyProductVariantSchema } = await import('@shared/schema');
-    
+
     try {
       const validated = updateShopifyProductVariantSchema.parse(req.body);
       const updated = await storage.updateShopifyProductVariant(id, validated);
@@ -5749,11 +5942,11 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/shopify/variants/sku/:sku', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { sku } = req.params;
     const variant = await storage.getShopifyVariantBySku(sku);
-    
+
     if (!variant) {
       return res.status(404).json({ message: 'Variante no encontrada' });
     }
-    
+
     res.json(variant);
   }));
 
@@ -5762,20 +5955,20 @@ export function registerRoutes(app: Express): Server {
     if (!req.file) {
       return res.status(400).json({ message: 'No se proporcionó archivo CSV' });
     }
-    
+
     const Papa = require('papaparse');
     const csvContent = req.file.buffer.toString('utf-8');
     const parsed = Papa.parse(csvContent, { header: true, skipEmptyLines: true });
-    
+
     if (parsed.errors.length > 0) {
-      return res.status(400).json({ 
-        message: 'Error al parsear CSV', 
-        errors: parsed.errors.slice(0, 5) 
+      return res.status(400).json({
+        message: 'Error al parsear CSV',
+        errors: parsed.errors.slice(0, 5)
       });
     }
-    
+
     const result = await storage.importShopifyProductsFromCsv(parsed.data);
-    
+
     res.json({
       message: `Importación completada: ${result.productsCreated} productos, ${result.variantsCreated} variantes`,
       ...result
@@ -5803,17 +5996,17 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/sales/preview', requireAuth, upload.single('file'), async (req, res) => {
     try {
       console.warn('⚠️  DEPRECATED ENDPOINT USED: /api/sales/preview - Este sistema está obsoleto.');
-      
+
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
 
       console.log(`📋 Analyzing CSV file: ${req.file.originalname}`);
-      
+
       // Parse CSV content using the same logic as import
       const csvContent = req.file.buffer.toString('utf-8');
       const transactions = parseCSV(csvContent);
-      
+
       if (transactions.length === 0) {
         return res.status(400).json({ message: "No valid transactions found in CSV" });
       }
@@ -5823,10 +6016,10 @@ export function registerRoutes(app: Express): Server {
         .map(t => t.feemdo)
         .filter(date => date && date !== '')
         .sort();
-      
+
       const startDate = dates[0];
       const endDate = dates[dates.length - 1];
-      
+
       if (!startDate || !endDate) {
         return res.status(400).json({ message: "No valid dates found in CSV" });
       }
@@ -5871,7 +6064,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/sales/import-replace', requireAuth, upload.single('file'), async (req, res) => {
     try {
       console.warn('⚠️  DEPRECATED ENDPOINT USED: /api/sales/import-replace - Este sistema está obsoleto. Usar ETL automático.');
-      
+
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
@@ -5882,15 +6075,15 @@ export function registerRoutes(app: Express): Server {
       }
 
       console.log(`🔄 Starting atomic replace import: ${req.file.originalname}`);
-      
+
       // Parse and validate CSV content
       const csvContent = req.file.buffer.toString('utf-8');
       const transactions = parseCSV(csvContent);
-      
+
       // Validate each transaction
       const validatedTransactions = [];
       const errors = [];
-      
+
       for (let i = 0; i < transactions.length; i++) {
         const transaction = transactions[i];
         try {
@@ -5906,7 +6099,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       if (validatedTransactions.length === 0) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "No valid transactions found",
           errors: errors.slice(0, 5)
         });
@@ -5917,7 +6110,7 @@ export function registerRoutes(app: Express): Server {
         .map(t => t.feemdo)
         .filter(date => date && date !== '')
         .sort();
-      
+
       const startDate = dates[0];
       const endDate = dates[dates.length - 1];
 
@@ -5927,11 +6120,11 @@ export function registerRoutes(app: Express): Server {
         startDate,
         endDate
       );
-      
+
       res.set('X-Deprecated-API', 'true');
       res.set('X-Deprecation-Warning', 'Este endpoint está obsoleto. Los datos NO aparecerán en dashboards. Usar ETL automático.');
-      
-      res.json({ 
+
+      res.json({
         message: "Data replaced successfully",
         deleted: result.deleted,
         inserted: result.inserted,
@@ -5953,7 +6146,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       const csvContent = req.file.buffer.toString('utf-8');
-      
+
       // Parse CSV using Papa Parse
       const parseResult = Papa.parse(csvContent, {
         header: true,
@@ -5963,14 +6156,14 @@ export function registerRoutes(app: Express): Server {
       });
 
       if (parseResult.errors.length > 0) {
-        return res.status(400).json({ 
-          message: "CSV parsing errors", 
-          errors: parseResult.errors 
+        return res.status(400).json({
+          message: "CSV parsing errors",
+          errors: parseResult.errors
         });
       }
 
       console.log(`📊 CSV parseado: ${parseResult.data.length} filas`);
-      
+
       // Transform CSV data to match our schema
       const csvData = parseResult.data.map((row: any, index: number) => {
         const transformedRow = {
@@ -6029,9 +6222,9 @@ export function registerRoutes(app: Express): Server {
       }));
 
       const result = await storage.importProductStockFromKOPRCSV(koprData);
-      
+
       console.log(`📈 Resultado de importación:`, result);
-      
+
       res.json({
         message: "CSV import completed",
         result: {
@@ -6051,17 +6244,17 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/products/import-products-csv', requireAuth, async (req: any, res) => {
     try {
       const { products } = req.body;
-      
+
       if (!products || !Array.isArray(products)) {
         return res.status(400).json({ message: "No products data provided" });
       }
 
       console.log(`📊 Productos parseados: iniciando procesamiento de ${products.length} productos`);
-      
+
       // Debug: Log first few rows to see structure
       console.log(`🔍 Primeros 3 productos:`, JSON.stringify(products.slice(0, 3), null, 2));
       console.log(`🔍 Columnas disponibles:`, Object.keys(products[0] || {}));
-      
+
       // Transform to KOPR format for storage function
       const koprData = products.map((row: any) => ({
         KOPR: row.KOPR?.toString()?.trim(),
@@ -6072,13 +6265,13 @@ export function registerRoutes(app: Express): Server {
         DATOSUBIC: row.DATOSUBIC?.toString()?.trim(),
         STFI2: row.STFI2?.toString()?.trim()
       })).filter((item: any) => item.KOPR && item.NOKOPR);
-      
+
       console.log(`✅ Productos válidos para procesar: ${koprData.length}`);
 
       const result = await storage.importProductStockFromKOPRCSV(koprData);
-      
+
       console.log(`📈 Resultado de importación de productos:`, result);
-      
+
       res.json({
         message: "Products CSV import completed",
         result: {
@@ -6099,7 +6292,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const { status, priority } = req.query;
-      
+
       // SECURE: Use optimized method with role-based access control
       const userSegments = user.assignedSegment ? [user.assignedSegment] : [];
       const tasks = await storage.getTasksWithAssignmentsOptimized({
@@ -6109,7 +6302,7 @@ export function registerRoutes(app: Express): Server {
         userId: user.id,
         assigneeSegments: userSegments,
       });
-      
+
       res.json(tasks);
     } catch (error) {
       console.error("Error fetching tasks:", error);
@@ -6124,25 +6317,25 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       const task = await storage.getTask(id);
-      
+
       if (!task) {
         return res.status(404).json({ message: "Task not found" });
       }
-      
+
       // Check if user has access to this task
       const canAccess = user.role === 'admin' || user.role === 'supervisor' ||
         task.createdByUserId === user.id ||
-        task.assignments.some(assignment => 
+        task.assignments.some(assignment =>
           (assignment.assigneeType === "supervisor" && assignment.assigneeId === user.id) ||
           (assignment.assigneeType === "salesperson" && assignment.assigneeId === user.id)
         );
-      
+
       if (!canAccess) {
         return res.status(403).json({ message: "Access denied to this task" });
       }
-      
+
       res.json(task);
     } catch (error) {
       console.error("Error fetching task:", error);
@@ -6153,12 +6346,12 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/tasks', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
-      
+
       // Admin, supervisor and tecnico_obra can create tasks
       if (user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'tecnico_obra') {
         return res.status(403).json({ message: "Only administrators, supervisors and technical staff can create tasks" });
       }
-      
+
       // SECURITY: Use discriminated union validation with assignments
       // Schema for task creation - payload is optional
       const createTaskWithAssignmentsSchema = z.object({
@@ -6178,28 +6371,28 @@ export function registerRoutes(app: Express): Server {
           assigneeId: z.string().min(1, "Destinatario requerido"),
         })).min(1, "Debe asignar al menos un destinatario"),
       });
-      
+
       // Validate request body
       const validation = createTaskWithAssignmentsSchema.safeParse(req.body);
       if (!validation.success) {
-        return res.status(400).json({ 
-          message: "Invalid task data", 
-          errors: validation.error.issues 
+        return res.status(400).json({
+          message: "Invalid task data",
+          errors: validation.error.issues
         });
       }
-      
+
       const { title, description, type, dueDate, priority, payload, assignments } = validation.data;
-      
+
       // Additional validation: formulario tasks must have formKey='compras_potenciales'
       if (type === 'formulario' && payload && 'formKey' in payload) {
         if (payload.formKey !== 'compras_potenciales') {
-          return res.status(400).json({ 
-            message: "Invalid formulario task", 
+          return res.status(400).json({
+            message: "Invalid formulario task",
             errors: [{ message: "formulario tasks must have formKey='compras_potenciales'" }]
           });
         }
       }
-      
+
       const taskData = {
         title,
         description: description || null,
@@ -6210,13 +6403,13 @@ export function registerRoutes(app: Express): Server {
         payload, // Now properly validated payload based on task type
         createdByUserId: user.id,
       };
-      
+
       // Add taskId to assignments (will be set by storage method)
       const assignmentsWithDefaults = assignments.map(assignment => ({
         ...assignment,
         taskId: '', // Will be set by createTask method
       }));
-      
+
       const task = await storage.createTask(taskData, assignmentsWithDefaults);
       res.status(201).json(task);
     } catch (error) {
@@ -6229,18 +6422,18 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       const task = await storage.getTask(id);
       if (!task) {
         return res.status(404).json({ message: "Task not found" });
       }
-      
+
       // Only admin, supervisor, or task creator can update task
       const canUpdate = user.role === 'admin' || user.role === 'supervisor' || task.createdByUserId === user.id;
       if (!canUpdate) {
         return res.status(403).json({ message: "Not authorized to update this task" });
       }
-      
+
       // Field whitelisting: only allow specific fields to be updated (no createdByUserId for security)
       const updateTaskSchema = z.object({
         title: z.string().min(1).optional(),
@@ -6256,48 +6449,48 @@ export function registerRoutes(app: Express): Server {
         priority: z.enum(["low", "medium", "high"]).optional(),
         status: z.enum(["pendiente", "en_progreso", "completada"]).optional()
       }).partial();
-      
+
       // Validate request body with Zod
       const validation = updateTaskSchema.safeParse(req.body);
       if (!validation.success) {
-        return res.status(400).json({ 
-          message: "Invalid task update data", 
-          errors: validation.error.issues 
+        return res.status(400).json({
+          message: "Invalid task update data",
+          errors: validation.error.issues
         });
       }
-      
+
       const updates = validation.data;
-      
+
       // Additional role-based restrictions
       if (user.role === 'salesperson' && task.createdByUserId !== user.id) {
         // Salesperson can only update status of tasks assigned to them
-        const isAssigned = task.assignments.some(assignment => 
+        const isAssigned = task.assignments.some(assignment =>
           (assignment.assigneeType === "user" && assignment.assigneeId === user.id) ||
           (assignment.assigneeType === "segment" && assignment.assigneeId === user.assignedSegment)
         );
-        
+
         if (!isAssigned) {
           return res.status(403).json({ message: "Not authorized to update this task" });
         }
-        
+
         // Only allow status updates for assigned salesperson
         if (Object.keys(updates).some(key => key !== 'status')) {
           return res.status(403).json({ message: "Salesperson can only update task status" });
         }
       }
-      
+
       // Convert dueDate string to Date if present, handle all cases properly
       const { dueDate, ...otherUpdates } = updates;
       const processedUpdates: Partial<InsertTask> = {
         ...otherUpdates,
         // Handle dueDate conversion properly
         ...(dueDate !== undefined && {
-          dueDate: typeof dueDate === 'string' 
-            ? new Date(dueDate) 
+          dueDate: typeof dueDate === 'string'
+            ? new Date(dueDate)
             : dueDate // Already Date or null
         })
       };
-      
+
       const updatedTask = await storage.updateTask(id, processedUpdates);
       res.json(updatedTask);
     } catch (error) {
@@ -6310,18 +6503,18 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       const task = await storage.getTask(id);
       if (!task) {
         return res.status(404).json({ message: "Task not found" });
       }
-      
+
       // Only admin, supervisor, or task creator can delete task
       const canDelete = user.role === 'admin' || user.role === 'supervisor' || task.createdByUserId === user.id;
       if (!canDelete) {
         return res.status(403).json({ message: "Not authorized to delete this task" });
       }
-      
+
       await storage.deleteTask(id);
       res.json({ message: "Task deleted successfully" });
     } catch (error) {
@@ -6334,47 +6527,47 @@ export function registerRoutes(app: Express): Server {
     try {
       const { taskId, assignmentId } = req.params;
       const user = req.user;
-      
+
       // Field whitelisting: only allow status, notes, and evidenceImages to be updated
       const updateAssignmentSchema = insertTaskAssignmentSchema.pick({
         status: true,
         notes: true,
         evidenceImages: true
       }).partial();
-      
+
       // Validate request body with Zod
       const validation = updateAssignmentSchema.safeParse(req.body);
       if (!validation.success) {
-        return res.status(400).json({ 
-          message: "Invalid assignment update data", 
-          errors: validation.error.issues 
+        return res.status(400).json({
+          message: "Invalid assignment update data",
+          errors: validation.error.issues
         });
       }
-      
+
       const { status, notes, evidenceImages } = validation.data;
-      
+
       const task = await storage.getTask(taskId);
       if (!task) {
         return res.status(404).json({ message: "Task not found" });
       }
-      
+
       const assignment = task.assignments.find(a => a.id === assignmentId);
       if (!assignment) {
         return res.status(404).json({ message: "Assignment not found" });
       }
-      
+
       // Check if user can update this assignment
       const isAssignee = (assignment.assigneeType === "user" && assignment.assigneeId === user.id) ||
         (assignment.assigneeType === "segment" && assignment.assigneeId === user.assignedSegment);
       const isAdminOrSupervisor = user.role === 'admin' || user.role === 'supervisor';
-      
+
       if (!isAssignee && !isAdminOrSupervisor) {
         return res.status(403).json({ message: "Not authorized to update this assignment" });
       }
-      
+
       const updatedAssignment = await storage.updateAssignmentStatus(
-        assignmentId, 
-        status || '', 
+        assignmentId,
+        status || '',
         notes || undefined,
         evidenceImages || undefined
       );
@@ -6389,25 +6582,25 @@ export function registerRoutes(app: Express): Server {
     try {
       const { taskId, assignmentId } = req.params;
       const user = req.user;
-      
+
       const task = await storage.getTask(taskId);
       if (!task) {
         return res.status(404).json({ message: "Task not found" });
       }
-      
+
       const assignment = task.assignments.find(a => a.id === assignmentId);
       if (!assignment) {
         return res.status(404).json({ message: "Assignment not found" });
       }
-      
+
       // Check if user can mark this assignment as read
       const isAssignee = (assignment.assigneeType === "user" && assignment.assigneeId === user.id) ||
         (assignment.assigneeType === "segment" && assignment.assigneeId === user.assignedSegment);
-      
+
       if (!isAssignee) {
         return res.status(403).json({ message: "Not authorized to mark this assignment as read" });
       }
-      
+
       const updatedAssignment = await storage.markAssignmentRead(assignmentId);
       res.json(updatedAssignment);
     } catch (error) {
@@ -6487,17 +6680,17 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
   // Users endpoint for CRM
   // ==================================================================================
-  
+
   // Get all users (for dropdowns like salesperson assignment)
   app.get('/api/users', requireCommercialAccess, async (req: any, res) => {
     try {
       const user = req.user;
-      
+
       // Only admin, supervisor, and salesperson can view users list
       if (!['admin', 'supervisor', 'salesperson'].includes(user.role)) {
         return res.status(403).json({ message: "No autorizado" });
       }
-      
+
       const users = await storage.getSalespeopleUsers();
       res.json(users);
     } catch (error) {
@@ -6511,17 +6704,17 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const { q } = req.query;
-      
+
       // Only admin, supervisor, and salesperson can view client list
       if (!['admin', 'supervisor', 'salesperson'].includes(user.role)) {
         return res.status(403).json({ message: "No autorizado" });
       }
-      
+
       // Require at least 2 characters for search
       if (!q || typeof q !== 'string' || q.trim().length < 2) {
         return res.json([]);
       }
-      
+
       // Search clients directly from fact_ventas (data warehouse) to ensure we get real recurring clients
       const searchTerm = q.trim().toLowerCase();
       const clientsFromSales = await db
@@ -6544,7 +6737,7 @@ export function registerRoutes(app: Express): Server {
         )
         .orderBy(desc(factVentas.nokoen))
         .limit(100);
-      
+
       res.json(clientsFromSales);
     } catch (error) {
       console.error("Error searching clients:", error);
@@ -6562,14 +6755,14 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const { isArchived = 'false', type, priority, department } = req.query;
-      
+
       const filters = {
         isArchived: isArchived === 'true',
         type: type as string,
         priority: priority as string,
         department: department as string,
       };
-      
+
       const notifications = await storage.getNotificationsForUser(user.id, user.role, user.assignedSegment, filters);
       res.json(notifications);
     } catch (error) {
@@ -6581,15 +6774,15 @@ export function registerRoutes(app: Express): Server {
   // ==================== NOTIFICATIONS SYSTEM ====================
   // Authorized roles for creating notifications
   const NOTIFICATION_CREATOR_ROLES = ['admin', 'supervisor', 'logistica_bodega', 'logistica', 'laboratorio', 'area_produccion', 'area_logistica', 'area_aplicacion', 'produccion', 'planificacion'];
-  
+
   // Authorized roles for archiving notifications
   const NOTIFICATION_ARCHIVER_ROLES = ['admin', 'supervisor'];
-  
+
   // Get unread notification count for current user
   app.get('/api/notifications/unread-count', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
-      
+
       const count = await storage.getUnreadNotificationCount(user.id, user.role, user.assignedSegment);
       res.json({ count });
     } catch (error) {
@@ -6602,21 +6795,21 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/notifications', requireRoles(NOTIFICATION_CREATOR_ROLES), async (req: any, res) => {
     try {
       const user = req.user;
-      
+
       // Validate request body
       const validatedData = insertNotificationSchema.parse({
         ...req.body,
         createdBy: user.id,
         createdByName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
       });
-      
+
       const notification = await storage.createNotification(validatedData);
       res.status(201).json(notification);
     } catch (error: any) {
       console.error("Error creating notification:", error);
       if (error.name === 'ZodError') {
-        return res.status(400).json({ 
-          message: "Datos inválidos", 
+        return res.status(400).json({
+          message: "Datos inválidos",
           details: error.issues.map((issue: any) => `${issue.path.join('.')}: ${issue.message}`).join(', ')
         });
       }
@@ -6629,9 +6822,9 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const { id } = req.params;
-      
+
       const success = await storage.markNotificationAsRead(id, user.id);
-      
+
       if (success) {
         res.json({ message: "Notification marked as read" });
       } else {
@@ -6648,9 +6841,9 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const { id } = req.params;
-      
+
       const success = await storage.archiveNotification(id, user.id);
-      
+
       if (success) {
         res.json({ message: "Notification archived successfully" });
       } else {
@@ -6666,7 +6859,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/notifications/:id/reads', requireAuth, async (req: any, res) => {
     try {
       const { id } = req.params;
-      
+
       const reads = await storage.getNotificationReads(id);
       res.json(reads);
     } catch (error) {
@@ -6680,7 +6873,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const { status, clientName, limit = 50, offset = 0 } = req.query;
-      
+
       const orders = await storage.getOrders({
         status: status as string,
         clientName: clientName as string,
@@ -6689,7 +6882,7 @@ export function registerRoutes(app: Express): Server {
         limit: parseInt(limit as string),
         offset: parseInt(offset as string),
       });
-      
+
       res.json(orders);
     } catch (error) {
       console.error("Error fetching orders:", error);
@@ -6704,18 +6897,18 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       const order = await storage.getOrderById(id);
-      
+
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
       }
-      
+
       // Role-based access control
       if (user.role === 'salesperson' && order.createdBy !== user.id) {
         return res.status(403).json({ message: "Access denied to this order" });
       }
-      
+
       res.json(order);
     } catch (error) {
       console.error("Error fetching order:", error);
@@ -6726,34 +6919,34 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/orders', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
-      
+
       // Only admin and supervisor can create orders
       if (!['admin', 'supervisor'].includes(user.role)) {
         return res.status(403).json({ message: "Not authorized to create orders" });
       }
-      
+
       const validatedData = insertOrderSchema.parse({
         ...req.body,
         createdBy: user.id
       });
-      
+
       // Transform data for storage layer and generate orderNumber
       const orderData = {
         ...validatedData,
         orderNumber: `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        estimatedDeliveryDate: validatedData.estimatedDeliveryDate 
-          ? new Date(validatedData.estimatedDeliveryDate) 
+        estimatedDeliveryDate: validatedData.estimatedDeliveryDate
+          ? new Date(validatedData.estimatedDeliveryDate)
           : null
       };
-      
+
       const order = await storage.createOrder(orderData);
       res.status(201).json(order);
     } catch (error) {
       console.error("Error creating order:", error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ 
-          message: "Validation error", 
-          errors: error.errors 
+        return res.status(400).json({
+          message: "Validation error",
+          errors: error.errors
         });
       }
       res.status(500).json({ message: "Failed to create order" });
@@ -6764,40 +6957,40 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       const order = await storage.getOrderById(id);
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
       }
-      
+
       // Role-based access control - only admin and supervisor can update orders
       const canUpdate = user.role === 'admin' || user.role === 'supervisor';
-      
+
       if (!canUpdate) {
         return res.status(403).json({ message: "Not authorized to update this order" });
       }
-      
+
       const validatedUpdateData = insertOrderSchema.partial().parse(req.body);
-      
+
       // Transform data for storage layer
       const updateData = {
         ...validatedUpdateData,
         ...(validatedUpdateData.estimatedDeliveryDate !== undefined && {
-          estimatedDeliveryDate: validatedUpdateData.estimatedDeliveryDate 
-            ? new Date(validatedUpdateData.estimatedDeliveryDate) 
+          estimatedDeliveryDate: validatedUpdateData.estimatedDeliveryDate
+            ? new Date(validatedUpdateData.estimatedDeliveryDate)
             : null
         })
       } as Partial<any>; // Type assertion to handle storage compatibility
-      
+
       const updatedOrder = await storage.updateOrder(id, updateData);
-      
+
       res.json(updatedOrder);
     } catch (error) {
       console.error("Error updating order:", error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ 
-          message: "Validation error", 
-          errors: error.errors 
+        return res.status(400).json({
+          message: "Validation error",
+          errors: error.errors
         });
       }
       res.status(500).json({ message: "Failed to update order" });
@@ -6808,19 +7001,19 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       const order = await storage.getOrderById(id);
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
       }
-      
+
       // Role-based access control - only admin and supervisor can delete orders
       const canDelete = user.role === 'admin' || user.role === 'supervisor';
-      
+
       if (!canDelete) {
         return res.status(403).json({ message: "Not authorized to delete this order" });
       }
-      
+
       await storage.deleteOrder(id);
       res.json({ message: "Order deleted successfully" });
     } catch (error) {
@@ -6834,17 +7027,17 @@ export function registerRoutes(app: Express): Server {
     try {
       const { orderId } = req.params;
       const user = req.user;
-      
+
       const order = await storage.getOrderById(orderId);
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
       }
-      
+
       // Role-based access control
       if (user.role === 'salesperson' && order.createdBy !== user.id) {
         return res.status(403).json({ message: "Access denied to this order" });
       }
-      
+
       const items = await storage.getOrderItems(orderId);
       res.json(items);
     } catch (error) {
@@ -6857,29 +7050,29 @@ export function registerRoutes(app: Express): Server {
     try {
       const { orderId } = req.params;
       const user = req.user;
-      
+
       const order = await storage.getOrderById(orderId);
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
       }
-      
+
       // Role-based access control - only admin and supervisor can add order items
       const canAddItems = user.role === 'admin' || user.role === 'supervisor';
-      
+
       if (!canAddItems) {
         return res.status(403).json({ message: "Not authorized to add items to this order" });
       }
-      
+
       const itemData = addOrderItemSchema.parse(req.body);
-      
+
       const item = await storage.addOrderItem(orderId, itemData);
       res.status(201).json(item);
     } catch (error) {
       console.error("Error creating order item:", error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ 
-          message: "Validation error", 
-          errors: error.errors 
+        return res.status(400).json({
+          message: "Validation error",
+          errors: error.errors
         });
       }
       res.status(500).json({ message: "Failed to create order item" });
@@ -6891,23 +7084,23 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const { status, clientName, createdBy, dateFrom, dateTo, limit = 50, offset = 0 } = req.query;
-      
+
       const filters: any = {
         limit: Math.min(parseInt(limit) || 500, 500),
         offset: parseInt(offset) || 0,
       };
-      
+
       // Add filters based on role and user permissions
       if (user.role === 'salesperson') {
         filters.createdBy = user.id;
       } else if (createdBy) {
         filters.createdBy = createdBy;
       }
-      
+
       if (status) {
         filters.status = status;
       }
-      
+
       if (clientName) {
         filters.clientName = clientName;
       }
@@ -6919,7 +7112,7 @@ export function registerRoutes(app: Express): Server {
       if (dateTo) {
         filters.dateTo = dateTo;
       }
-      
+
       const quotes = await storage.getQuotes(filters);
       res.json(quotes);
     } catch (error) {
@@ -6942,34 +7135,34 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/quotes', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
-      
+
       // Role-based access control - only admin, supervisor and salesperson can create quotes
       const canCreate = ['admin', 'supervisor', 'salesperson'].includes(user.role);
-      
+
       if (!canCreate) {
         return res.status(403).json({ message: "Not authorized to create quotes" });
       }
-      
+
       const validatedData = insertQuoteSchema.parse({
         ...req.body,
         createdBy: user.id
       });
-      
+
       // Prepare data for storage with proper type conversions
       const storageData = {
         ...validatedData,
         // Convert validUntil string to Date object if present
         validUntil: validatedData.validUntil ? new Date(validatedData.validUntil) : null
       } as any; // Type assertion to handle the conversion
-      
+
       const quote = await storage.createQuote(storageData);
       res.status(201).json(quote);
     } catch (error) {
       console.error("Error creating quote:", error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ 
-          message: "Validation error", 
-          errors: error.errors 
+        return res.status(400).json({
+          message: "Validation error",
+          errors: error.errors
         });
       }
       res.status(500).json({ message: "Failed to create quote" });
@@ -6980,17 +7173,17 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       const quote = await storage.getQuoteById(id);
       if (!quote) {
         return res.status(404).json({ message: "Quote not found" });
       }
-      
+
       // Role-based access control
       if (user.role === 'salesperson' && quote.createdBy !== user.id) {
         return res.status(403).json({ message: "Access denied to this quote" });
       }
-      
+
       res.json(quote);
     } catch (error) {
       console.error("Error fetching quote:", error);
@@ -7002,34 +7195,34 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       const quote = await storage.getQuoteById(id);
       if (!quote) {
         return res.status(404).json({ message: "Quote not found" });
       }
-      
+
       // Role-based access control
       if (user.role === 'salesperson' && quote.createdBy !== user.id) {
         return res.status(403).json({ message: "Not authorized to update this quote" });
       }
-      
+
       const validatedUpdateData = insertQuoteSchema.partial().parse(req.body);
-      
+
       // Prepare data for storage with proper type conversions
       const storageUpdateData = {
         ...validatedUpdateData,
         // Convert validUntil string to Date object if present
         validUntil: validatedUpdateData.validUntil ? new Date(validatedUpdateData.validUntil) : validatedUpdateData.validUntil
       } as any; // Type assertion to handle the conversion
-      
+
       const updatedQuote = await storage.updateQuote(id, storageUpdateData);
       res.json(updatedQuote);
     } catch (error) {
       console.error("Error updating quote:", error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ 
-          message: "Validation error", 
-          errors: error.errors 
+        return res.status(400).json({
+          message: "Validation error",
+          errors: error.errors
         });
       }
       res.status(500).json({ message: "Failed to update quote" });
@@ -7042,17 +7235,17 @@ export function registerRoutes(app: Express): Server {
       const { id } = req.params;
       const { status } = req.body;
       const user = req.user;
-      
+
       const quote = await storage.getQuoteById(id);
       if (!quote) {
         return res.status(404).json({ message: "Quote not found" });
       }
-      
+
       // Role-based access control
       if (user.role === 'salesperson' && quote.createdBy !== user.id) {
         return res.status(403).json({ message: "Not authorized to update this quote" });
       }
-      
+
       // Reception can only update status to "converted" or "rejected" and only for "sent" quotes
       if (user.role === 'reception') {
         if (quote.status !== 'sent') {
@@ -7062,13 +7255,13 @@ export function registerRoutes(app: Express): Server {
           return res.status(403).json({ message: "Recepción solo puede marcar como convertido o rechazado" });
         }
       }
-      
+
       // Validate status
       const validStatuses = ["draft", "sent", "accepted", "rejected", "converted"];
       if (!validStatuses.includes(status)) {
         return res.status(400).json({ message: "Invalid status value" });
       }
-      
+
       const updatedQuote = await storage.updateQuote(id, { status });
       res.json(updatedQuote);
     } catch (error) {
@@ -7081,19 +7274,19 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       const quote = await storage.getQuoteById(id);
       if (!quote) {
         return res.status(404).json({ message: "Quote not found" });
       }
-      
+
       // Role-based access control - only admin and supervisor can delete quotes
       const canDelete = user.role === 'admin' || user.role === 'supervisor';
-      
+
       if (!canDelete) {
         return res.status(403).json({ message: "Not authorized to delete this quote" });
       }
-      
+
       await storage.deleteQuote(id);
       res.json({ message: "Quote deleted successfully" });
     } catch (error) {
@@ -7107,17 +7300,17 @@ export function registerRoutes(app: Express): Server {
     try {
       const { quoteId } = req.params;
       const user = req.user;
-      
+
       const quote = await storage.getQuoteById(quoteId);
       if (!quote) {
         return res.status(404).json({ message: "Quote not found" });
       }
-      
+
       // Role-based access control
       if (user.role === 'salesperson' && quote.createdBy !== user.id) {
         return res.status(403).json({ message: "Access denied to this quote" });
       }
-      
+
       const items = await storage.getQuoteItems(quoteId);
       res.json(items);
     } catch (error) {
@@ -7130,43 +7323,43 @@ export function registerRoutes(app: Express): Server {
     try {
       const { quoteId } = req.params;
       const user = req.user;
-      
+
       const quote = await storage.getQuoteById(quoteId);
       if (!quote) {
         return res.status(404).json({ message: "Quote not found" });
       }
-      
+
       // Role-based access control
       if (user.role === 'salesperson' && quote.createdBy !== user.id) {
         return res.status(403).json({ message: "Not authorized to add items to this quote" });
       }
-      
+
       // Debug: Log incoming productUnit
       console.log('[QUOTE-ITEM] Creating item with productUnit:', req.body.productUnit, '| Full body:', JSON.stringify(req.body));
-      
+
       const itemData = insertQuoteItemSchema.parse({
         ...req.body,
         quoteId
       });
-      
+
       // Debug: Log parsed itemData
       console.log('[QUOTE-ITEM] Parsed itemData productUnit:', (itemData as any).productUnit);
-      
+
       const item = await storage.createQuoteItem(itemData);
-      
+
       // Debug: Log saved item
       console.log('[QUOTE-ITEM] Saved item productUnit:', item.productUnit);
-      
+
       // Recalculate quote totals after adding item
       await storage.recalculateQuoteTotals(quoteId);
-      
+
       res.status(201).json(item);
     } catch (error) {
       console.error("Error creating quote item:", error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ 
-          message: "Validation error", 
-          errors: error.errors 
+        return res.status(400).json({
+          message: "Validation error",
+          errors: error.errors
         });
       }
       res.status(500).json({ message: "Failed to create quote item" });
@@ -7177,36 +7370,36 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       // Get the quote item to verify ownership via quote
       const item = await storage.getQuoteItemById(id);
       if (!item) {
         return res.status(404).json({ message: "Quote item not found" });
       }
-      
+
       const quote = await storage.getQuoteById(item.quoteId);
       if (!quote) {
         return res.status(404).json({ message: "Quote not found" });
       }
-      
+
       // Role-based access control
       if (user.role === 'salesperson' && quote.createdBy !== user.id) {
         return res.status(403).json({ message: "Not authorized to update this quote item" });
       }
-      
+
       const validatedData = insertQuoteItemSchema.partial().parse(req.body);
       const updatedItem = await storage.updateQuoteItemById(id, validatedData);
-      
+
       // Recalculate quote totals after updating item
       await storage.recalculateQuoteTotals(item.quoteId);
-      
+
       res.json(updatedItem);
     } catch (error) {
       console.error("Error updating quote item:", error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ 
-          message: "Validation error", 
-          errors: error.errors 
+        return res.status(400).json({
+          message: "Validation error",
+          errors: error.errors
         });
       }
       res.status(500).json({ message: "Failed to update quote item" });
@@ -7217,28 +7410,28 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       // Get the quote item to verify ownership via quote
       const item = await storage.getQuoteItemById(id);
       if (!item) {
         return res.status(404).json({ message: "Quote item not found" });
       }
-      
+
       const quote = await storage.getQuoteById(item.quoteId);
       if (!quote) {
         return res.status(404).json({ message: "Quote not found" });
       }
-      
+
       // Role-based access control
       if (user.role === 'salesperson' && quote.createdBy !== user.id) {
         return res.status(403).json({ message: "Not authorized to delete this quote item" });
       }
-      
+
       await storage.deleteQuoteItemById(id);
-      
+
       // Recalculate quote totals after deleting item
       await storage.recalculateQuoteTotals(item.quoteId);
-      
+
       res.json({ message: "Quote item deleted successfully" });
     } catch (error) {
       console.error("Error deleting quote item:", error);
@@ -7251,19 +7444,19 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       const quote = await storage.getQuoteById(id);
       if (!quote) {
         return res.status(404).json({ message: "Quote not found" });
       }
-      
+
       // Role-based access control - only admin, supervisor and quote creator can convert
       const canConvert = user.role === 'admin' || user.role === 'supervisor' || quote.createdBy === user.id;
-      
+
       if (!canConvert) {
         return res.status(403).json({ message: "Not authorized to convert this quote" });
       }
-      
+
       const order = await storage.convertQuoteToOrder(id, user.id);
       res.status(201).json(order);
     } catch (error) {
@@ -7277,22 +7470,22 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       const originalQuote = await storage.getQuoteById(id);
       if (!originalQuote) {
         return res.status(404).json({ message: "Quote not found" });
       }
-      
+
       // Role-based access control - admin, supervisor, and quote creator can duplicate
       const canDuplicate = user.role === 'admin' || user.role === 'supervisor' || originalQuote.createdBy === user.id;
-      
+
       if (!canDuplicate) {
         return res.status(403).json({ message: "Not authorized to duplicate this quote" });
       }
-      
+
       // Use the atomic duplicate method
       const newQuote = await storage.duplicateQuote(id, user.id);
-      
+
       res.status(201).json({
         ...newQuote,
         message: `Nueva cotización creada basada en #${originalQuote.quoteNumber}`
@@ -7308,19 +7501,19 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       const order = await storage.getOrderWithItems(id);
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
       }
-      
+
       // Role-based access control
       const canView = user.role === 'admin' || user.role === 'supervisor' || order.createdBy === user.id;
-      
+
       if (!canView) {
         return res.status(403).json({ message: "Access denied to this order" });
       }
-      
+
       res.json(order);
     } catch (error) {
       console.error("Error fetching order with items:", error);
@@ -7333,35 +7526,35 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       // Get the order item to verify ownership via order
       const item = await storage.getOrderItemById(id);
       if (!item) {
         return res.status(404).json({ message: "Order item not found" });
       }
-      
+
       const order = await storage.getOrderById(item.orderId);
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
       }
-      
+
       // Role-based access control - only admin and supervisor can update order items
       const canUpdate = user.role === 'admin' || user.role === 'supervisor';
-      
+
       if (!canUpdate) {
         return res.status(403).json({ message: "Not authorized to update this order item" });
       }
-      
+
       const validatedData = updateOrderItemByIdSchema.parse(req.body);
       const updatedItem = await storage.updateOrderItemById(id, validatedData);
-      
+
       res.json(updatedItem);
     } catch (error) {
       console.error("Error updating order item:", error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ 
-          message: "Validation error", 
-          errors: error.errors 
+        return res.status(400).json({
+          message: "Validation error",
+          errors: error.errors
         });
       }
       res.status(500).json({ message: "Failed to update order item" });
@@ -7373,25 +7566,25 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       // Get the order item to verify ownership via order
       const item = await storage.getOrderItemById(id);
       if (!item) {
         return res.status(404).json({ message: "Order item not found" });
       }
-      
+
       const order = await storage.getOrderById(item.orderId);
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
       }
-      
+
       // Role-based access control - only admin and supervisor can delete order items
       const canDelete = user.role === 'admin' || user.role === 'supervisor';
-      
+
       if (!canDelete) {
         return res.status(403).json({ message: "Not authorized to delete this order item" });
       }
-      
+
       await storage.deleteOrderItemById(id);
       res.json({ message: "Order item deleted successfully" });
     } catch (error) {
@@ -7405,21 +7598,163 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       const quote = await storage.getQuoteWithItems(id);
       if (!quote) {
         return res.status(404).json({ message: "Quote not found" });
       }
-      
+
       // Role-based access control
       if (user.role === 'salesperson' && quote.createdBy !== user.id) {
         return res.status(403).json({ message: "Access denied to this quote" });
       }
-      
+
       res.json(quote);
     } catch (error) {
       console.error("Error fetching quote with items:", error);
       res.status(500).json({ message: "Failed to fetch quote with items" });
+    }
+  });
+
+  // Serve printable quote PDF page
+  app.get('/api/quotes/:id/pdf', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+
+      const quote = await storage.getQuoteWithItems(id);
+      if (!quote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+
+      // Role-based access control
+      if (user.role === 'salesperson' && quote.createdBy !== user.id) {
+        return res.status(403).json({ message: "Access denied to this quote" });
+      }
+
+      const items = (quote as any).items || [];
+
+      // Format helpers
+      const escHtml = (s: string | null | undefined) => {
+        if (!s) return '';
+        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      };
+      const fmtCLP = (n: number) => `$${Math.round(n).toLocaleString('es-CL').replace(/,/g, '.')}`;
+      const quoteDate = new Date(quote.createdAt || new Date()).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+      const subtotal = parseFloat(quote.subtotal || "0");
+      const tax = parseFloat(quote.taxAmount || "0");
+      const total = parseFloat(quote.total || "0");
+
+      const productRows = items.map((item: any) => {
+        const unitPrice = parseFloat(item.unitPrice || "0");
+        const lineTotal = parseFloat(item.totalPrice || String(unitPrice * parseFloat(item.quantity || "1")));
+        return `<tr>
+          <td><div style="font-weight:600">${escHtml(item.productName)}</div>
+          ${item.productCode ? `<div style="color:#6b7280;font-size:11px">SKU: ${escHtml(item.productCode)}</div>` : ''}</td>
+          <td style="text-align:center">${escHtml(item.productUnit) || 'UN'}</td>
+          <td style="text-align:center">${parseFloat(item.quantity || "1")}</td>
+          <td style="text-align:right">${fmtCLP(unitPrice)}</td>
+          <td style="text-align:right;color:#fd6301;font-weight:600">${fmtCLP(lineTotal)}</td>
+        </tr>`;
+      }).join('');
+
+      const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Cotización ${escHtml(quote.quoteNumber)}</title>
+<style>
+  @page { size: A4; margin: 15mm; }
+  body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #333; font-size: 14px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 2px solid #fd6301; padding-bottom: 15px; }
+  .header h1 { color: #fd6301; margin: 0; font-size: 24px; }
+  .header-info { font-size: 13px; color: #374151; margin-top: 8px; }
+  .header-info p { margin: 4px 0; }
+  .section { margin-bottom: 15px; }
+  .section h3 { color: #fd6301; margin: 0 0 10px 0; font-size: 16px; }
+  .client-info { background: #fff7ed; border: 1px solid #fdba74; padding: 12px; border-radius: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px; }
+  .client-info p { margin: 0 0 8px 0; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 13px; }
+  th { background: linear-gradient(to right, #fd6301, #e55100); color: white; padding: 8px; text-align: left; font-size: 12px; }
+  td { padding: 8px; border-bottom: 1px solid #e5e7eb; }
+  .totals { background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
+  .total-row { display: flex; justify-content: space-between; margin: 6px 0; font-size: 14px; }
+  .total-row span:first-child { color: #374151; font-weight: 500; }
+  .total-row span:last-child { font-weight: 600; }
+  .final-total { font-size: 16px; font-weight: bold; border-top: 2px solid #e2e8f0; padding-top: 10px; margin-top: 8px; }
+  .final-total span:last-child { color: #fd6301; }
+  .terms { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 6px; margin-bottom: 15px; }
+  .terms h4 { margin: 0 0 8px 0; font-size: 14px; color: #374151; }
+  .terms ul { margin: 0; padding-left: 16px; font-size: 12px; color: #6b7280; }
+  .terms li { margin-bottom: 4px; }
+  .payment-info { background: #fff7ed; border: 1px solid #fdba74; padding: 12px; border-radius: 6px; font-size: 12px; }
+  .payment-info h4 { color: #ea580c; margin: 0 0 10px 0; font-size: 14px; }
+  .payment-info p { margin: 0 0 8px 0; }
+  .payment-info a { color: #2563eb; }
+  .no-print { margin-top: 20px; text-align: center; }
+  @media print { .no-print { display: none; } body { padding: 0; } }
+</style></head><body>
+<div>
+  <div class="header">
+    <div><img src="/panoramica-logo.png" alt="Panorámica" style="width:220px;height:auto" /></div>
+    <div style="text-align:right">
+      <h1>COTIZACIÓN</h1>
+      <div class="header-info">
+        <p><strong>Fecha:</strong> ${quoteDate}</p>
+        <p><strong>Cotización N°:</strong> ${escHtml(quote.quoteNumber)}</p>
+      </div>
+    </div>
+  </div>
+  <div class="section">
+    <h3>Información del Cliente</h3>
+    <div class="client-info">
+      <p><strong>RUT:</strong> ${escHtml(quote.clientRut) || 'No especificado'}</p>
+      <p><strong>Cliente:</strong> ${escHtml(quote.clientName)}</p>
+      <p><strong>Email:</strong> ${escHtml(quote.clientEmail) || 'No especificado'}</p>
+      <p><strong>Teléfono:</strong> ${escHtml(quote.clientPhone) || 'No especificado'}</p>
+      <p><strong>Dirección:</strong> ${escHtml(quote.clientAddress) || 'No especificada'}</p>
+      <p><strong>Ubicación:</strong> Chile</p>
+      ${quote.notes ? `<div style="grid-column:1/-1;margin-top:8px;padding-top:8px;border-top:1px solid #fdba74"><p><strong>Observaciones:</strong> ${escHtml(quote.notes)}</p></div>` : ''}
+    </div>
+  </div>
+  <div class="section">
+    <h3>Detalle de Productos</h3>
+    <table><thead><tr>
+      <th>Producto</th><th style="text-align:center">Unidad</th><th style="text-align:center">Cant.</th><th style="text-align:right">Precio</th><th style="text-align:right">Total</th>
+    </tr></thead><tbody>${productRows}</tbody></table>
+  </div>
+  <div class="section">
+    <div class="totals">
+      <div class="total-row"><span>Subtotal:</span><span>${fmtCLP(subtotal)}</span></div>
+      <div class="total-row"><span>IVA (19%):</span><span>${fmtCLP(tax)}</span></div>
+      <div class="total-row final-total"><span>Total Final:</span><span>${fmtCLP(total)}</span></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="terms"><h4>Términos y Condiciones</h4><ul>
+      <li>Precios válidos por 7 días hábiles desde la emisión de esta cotización.</li>
+      <li>Todos los precios están expresados en pesos chilenos (CLP) e incluyen IVA.</li>
+      <li>Los productos están sujetos a disponibilidad de stock.</li>
+      <li>Condiciones de pago: según acuerdo comercial.</li>
+    </ul></div>
+  </div>
+  <div class="section">
+    <div class="payment-info"><h4>Información de Pagos</h4>
+      <p><strong>Link de pagos con tarjetas:</strong><br><a href="https://micrositios.getnet.cl/pinturaspanoramica">https://micrositios.getnet.cl/pinturaspanoramica</a></p>
+      <p><strong>Pagos con transferencia dirigirlos a:</strong><br>Pintureria Panoramica Limitada<br>RUT: 78.652.260-9<br>Cuenta Corriente Banco Santander: 2592916-0<br>Email: <a href="mailto:contacto@pinturaspanoramica.cl">contacto@pinturaspanoramica.cl</a></p>
+    </div>
+  </div>
+</div>
+<div class="no-print">
+  <button onclick="window.print()" style="padding:10px 20px;background:#fd6301;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:600;font-size:14px">
+    Imprimir / Descargar PDF
+  </button>
+</div>
+</body></html>`;
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(html);
+    } catch (error) {
+      console.error("Error generating quote PDF:", error);
+      res.status(500).json({ message: "Failed to generate quote PDF" });
     }
   });
 
@@ -7436,7 +7771,7 @@ export function registerRoutes(app: Express): Server {
 
       // Check if email service is configured
       if (!emailService.isConfigured()) {
-        return res.status(503).json({ 
+        return res.status(503).json({
           message: "Email service not configured. Please contact administrator.",
           configured: false
         });
@@ -7466,13 +7801,13 @@ export function registerRoutes(app: Express): Server {
         recipient
       );
 
-      res.json({ 
+      res.json({
         message: "Email sent successfully",
         sentTo: recipient
       });
     } catch (error) {
       console.error("Error sending quote email:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: "Failed to send email",
         error: error instanceof Error ? error.message : "Unknown error"
       });
@@ -7516,11 +7851,11 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/price-list', requireAuth, async (req, res) => {
     try {
       const { search, unidad, tipoProducto, color, limit = 50, offset = 0 } = req.query;
-      
+
       // Validate and clamp pagination parameters (allow up to 10000 for bulk operations like reception file export)
       const validatedLimit = Math.min(Math.max(parseInt(limit as string) || 50, 1), 10000);
       const validatedOffset = Math.max(parseInt(offset as string) || 0, 0);
-      
+
       const items = await storage.getPriceList({
         search: search as string,
         unidad: unidad as string,
@@ -7529,9 +7864,9 @@ export function registerRoutes(app: Express): Server {
         limit: validatedLimit,
         offset: validatedOffset,
       });
-      
+
       const totalCount = await storage.getPriceListCount(search as string, unidad as string, tipoProducto as string, color as string);
-      
+
       res.json({
         items,
         totalCount,
@@ -7547,11 +7882,11 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const item = await storage.getPriceListById(id);
-      
+
       if (!item) {
         return res.status(404).json({ message: "Price list item not found" });
       }
-      
+
       res.json(item);
     } catch (error) {
       console.error("Error fetching price list item:", error);
@@ -7562,22 +7897,22 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/price-list', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
-      
+
       // Only admin and supervisor can create price list items
       if (user.role !== 'admin' && user.role !== 'supervisor') {
         return res.status(403).json({ message: "Not authorized to create price list items" });
       }
-      
+
       const validatedData = insertPriceListSchema.parse(req.body);
       const item = await storage.createPriceListItem(validatedData);
-      
+
       res.status(201).json(item);
     } catch (error) {
       console.error("Error creating price list item:", error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ 
-          message: "Validation error", 
-          errors: error.errors 
+        return res.status(400).json({
+          message: "Validation error",
+          errors: error.errors
         });
       }
       res.status(500).json({ message: "Failed to create price list item" });
@@ -7588,27 +7923,27 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       // Only admin and supervisor can update price list items
       if (user.role !== 'admin' && user.role !== 'supervisor') {
         return res.status(403).json({ message: "Not authorized to update price list items" });
       }
-      
+
       const item = await storage.getPriceListById(id);
       if (!item) {
         return res.status(404).json({ message: "Price list item not found" });
       }
-      
+
       const validatedData = insertPriceListSchema.partial().parse(req.body);
       const updatedItem = await storage.updatePriceListItem(id, validatedData);
-      
+
       res.json(updatedItem);
     } catch (error) {
       console.error("Error updating price list item:", error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ 
-          message: "Validation error", 
-          errors: error.errors 
+        return res.status(400).json({
+          message: "Validation error",
+          errors: error.errors
         });
       }
       res.status(500).json({ message: "Failed to update price list item" });
@@ -7619,17 +7954,17 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const user = req.user;
-      
+
       // Only admin and supervisor can delete price list items
       if (user.role !== 'admin' && user.role !== 'supervisor') {
         return res.status(403).json({ message: "Not authorized to delete price list items" });
       }
-      
+
       const item = await storage.getPriceListById(id);
       if (!item) {
         return res.status(404).json({ message: "Price list item not found" });
       }
-      
+
       await storage.deletePriceListItem(id);
       res.json({ message: "Price list item deleted successfully" });
     } catch (error) {
@@ -7642,12 +7977,12 @@ export function registerRoutes(app: Express): Server {
   app.delete('/api/price-list', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
-      
+
       // Only admin and supervisor can delete all price list items
       if (user.role !== 'admin' && user.role !== 'supervisor') {
         return res.status(403).json({ message: "Not authorized to delete price list items" });
       }
-      
+
       await storage.deleteAllPriceListItems();
       res.json({ message: "All price list items deleted successfully" });
     } catch (error) {
@@ -7660,49 +7995,49 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/price-list/import', upload.single('file'), requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
-      
+
       // Only admin and supervisor can import price list
       if (user.role !== 'admin' && user.role !== 'supervisor') {
         return res.status(403).json({ message: "Not authorized to import price list" });
       }
-      
+
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
-      
+
       const csvData = req.file.buffer.toString('utf8');
-      
+
       console.log('🚀 Starting robust CSV import process...');
-      
+
       // Step 1: Parse CSV with basic cleaning
       const { data: rawData, errors: parseErrors } = Papa.parse(csvData, {
         header: true,
         skipEmptyLines: 'greedy',
         transformHeader: (header: string) => header.trim()
       });
-      
+
       console.log(`📊 Raw CSV data: ${rawData.length} rows parsed`);
-      
+
       // Only fail on critical parsing errors
-      const criticalErrors = parseErrors.filter(error => 
+      const criticalErrors = parseErrors.filter(error =>
         error.type !== 'FieldMismatch' && error.code !== 'TooManyFields'
       );
-      
+
       if (criticalErrors.length > 0) {
         console.error('❌ Critical CSV parsing errors:', criticalErrors);
-        return res.status(400).json({ 
-          message: "CSV parsing error", 
-          errors: criticalErrors 
+        return res.status(400).json({
+          message: "CSV parsing error",
+          errors: criticalErrors
         });
       }
-      
+
       // Step 2: Auto-detect column mapping
       const { CSVDataCleaner } = await import('./utils/csv-data-cleaner');
       const headers = Object.keys(rawData[0] || {});
       const columnMapping = CSVDataCleaner.detectColumnMapping(headers);
-      
+
       console.log('🎯 Detected column mapping:', columnMapping);
-      
+
       // Step 3: Apply column mapping and data cleaning
       const cleaner = new CSVDataCleaner({
         treatEmptyAsNull: true,
@@ -7712,7 +8047,7 @@ export function registerRoutes(app: Express): Server {
           esPersonalizado: 'No'
         }
       });
-      
+
       const fieldTypes = {
         codigo: 'string' as const,
         producto: 'string' as const,
@@ -7728,28 +8063,28 @@ export function registerRoutes(app: Express): Server {
         modoPrecio: 'string' as const,
         esPersonalizado: 'string' as const
       };
-      
+
       // Process each row
       const processedData = [];
       const allWarnings = [];
       const criticalRowErrors = [];
       let totalTransformations = 0;
-      
+
       for (let i = 0; i < rawData.length; i++) {
         const rawRow = rawData[i];
-        
+
         // Map columns
         const mappedRow: Record<string, any> = {};
         for (const [csvHeader, value] of Object.entries(rawRow as Record<string, any>)) {
           const mappedField = columnMapping[csvHeader] || csvHeader.toLowerCase();
           mappedRow[mappedField] = value;
         }
-        
+
         // Clean the data
         const { cleanedRow, warnings, transformations } = cleaner.cleanRow(mappedRow, fieldTypes);
-        
+
         totalTransformations += transformations;
-        
+
         // Convert warnings to detailed format
         if (warnings.length > 0) {
           allWarnings.push({
@@ -7758,7 +8093,7 @@ export function registerRoutes(app: Express): Server {
             warnings: warnings.map((w: any) => `${w.field}: ${w.warnings.join(', ')}`).join('; ')
           });
         }
-        
+
         // Validate required fields
         if (!cleanedRow.codigo || !cleanedRow.producto) {
           criticalRowErrors.push({
@@ -7771,20 +8106,20 @@ export function registerRoutes(app: Express): Server {
           });
           continue;
         }
-        
+
         processedData.push(cleanedRow);
       }
-      
+
       console.log(`✨ Data cleaning complete: ${totalTransformations} transformations applied`);
       console.log(`⚠️  Warnings: ${allWarnings.length}, Critical errors: ${criticalRowErrors.length}`);
-      
+
       // Step 4: Final validation with Zod
       const validatedItems = [];
       const validationErrors = [];
-      
+
       for (let i = 0; i < processedData.length; i++) {
         const cleanedRow = processedData[i];
-        
+
         try {
           // Remove any extra fields not in our schema
           const { id, ...schemaRow } = cleanedRow;
@@ -7794,20 +8129,20 @@ export function registerRoutes(app: Express): Server {
           validationErrors.push({
             row: i + 1,
             codigo: cleanedRow.codigo || `Row ${i + 1}`,
-            error: error.issues ? error.issues.map((issue: any) => 
+            error: error.issues ? error.issues.map((issue: any) =>
               `${issue.path.join('.')}: ${issue.message}`).join(', ') : error.message
           });
         }
       }
-      
+
       // Combine all errors
       const allErrors = [...criticalRowErrors, ...validationErrors];
-      
+
       // Step 5: Return results based on error severity
       if (allErrors.length > 0) {
         // If more than 50% of rows have errors, reject the import
         const errorRate = allErrors.length / rawData.length;
-        
+
         if (errorRate > 0.5) {
           return res.status(400).json({
             message: "Too many validation errors found",
@@ -7824,7 +8159,7 @@ export function registerRoutes(app: Express): Server {
           });
         }
       }
-      
+
       // Step 6: If we have valid data, import it
       if (validatedItems.length === 0) {
         return res.status(400).json({
@@ -7833,14 +8168,14 @@ export function registerRoutes(app: Express): Server {
           warnings: allWarnings
         });
       }
-      
+
       // Clear existing price list and import new data
       console.log(`💾 Importing ${validatedItems.length} valid items...`);
       await storage.deleteAllPriceListItems();
       await storage.createMultiplePriceListItems(validatedItems);
-      
+
       console.log('✅ Import completed successfully!');
-      
+
       // Return success with detailed statistics
       res.json({
         message: "Price list imported successfully",
@@ -7856,24 +8191,149 @@ export function registerRoutes(app: Express): Server {
         errors: allErrors.length > 0 ? allErrors : undefined,
         warnings: allWarnings.length > 0 ? allWarnings : undefined
       });
-      
+
     } catch (error) {
       console.error("❌ Error importing price list:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: "Failed to import price list",
         error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
 
+  // Segment Prices endpoints
+  app.get('/api/segment-prices/:segment', requireAuth, async (req, res) => {
+    try {
+      const { segment } = req.params;
+      const prices = await storage.getSegmentPrices(segment);
+      res.json(prices);
+    } catch (error) {
+      console.error("Error fetching segment prices:", error);
+      res.status(500).json({ message: "Failed to fetch segment prices" });
+    }
+  });
+
+  app.post('/api/segment-prices/import', upload.single('file'), requireAuth, async (req: any, res) => {
+    try {
+      const { segment } = req.body;
+      if (!segment) {
+        return res.status(400).json({ message: "Segment code is required" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const csvData = req.file.buffer.toString('utf8');
+      const { data: rawData, errors: parseErrors } = Papa.parse(csvData, {
+        header: true,
+        skipEmptyLines: 'greedy'
+      });
+
+      if (parseErrors.length > 0) {
+        return res.status(400).json({ message: "CSV parsing error", errors: parseErrors });
+      }
+
+      const results = [];
+      for (const row of rawData as any[]) {
+        if (!row.codigo || !row.precioPromedio) continue;
+
+        const item = {
+          segmentCode: segment,
+          codigo: row.codigo,
+          producto: row.producto || '',
+          precioPromedio: row.precioPromedio.toString().replace(',', '.'),
+          unidad: row.unidad || '',
+          updatedBy: req.user.username
+        };
+
+        results.push(await storage.upsertSegmentPrice(item));
+      }
+
+      res.json({ message: `Imported ${results.length} prices for segment ${segment}`, count: results.length });
+    } catch (error) {
+      console.error("Error importing segment prices:", error);
+      res.status(500).json({ message: "Failed to import segment prices" });
+    }
+  });
+
+  // Product Content (Fichas Técnicas) endpoints
+  app.get('/api/product-content/:codigo', requireAuth, async (req, res) => {
+    try {
+      const { codigo } = req.params;
+      const content = await storage.getProductContent(codigo);
+      res.json(content || { codigo, fichasTecnicas: [], hojasSeguridad: [] });
+    } catch (error) {
+      console.error("Error fetching product content:", error);
+      res.status(500).json({ message: "Failed to fetch product content" });
+    }
+  });
+
+  app.put('/api/product-content/:codigo', requireAuth, async (req: any, res) => {
+    try {
+      const { codigo } = req.params;
+      const user = req.user;
+      const data = { ...req.body, codigo, updatedBy: user.username };
+      const result = await storage.upsertProductContent(data);
+      res.json(result);
+    } catch (error) {
+      console.error("Error updating product content:", error);
+      res.status(500).json({ message: "Failed to update product content" });
+    }
+  });
+
+  // Inventory by product SKU (for cross-reference in the catalog)
+  app.get('/api/inventory/by-product/:sku', requireAuth, async (req, res) => {
+    try {
+      const { sku } = req.params;
+      const stock = await storage.getInventoryByProduct(sku);
+      res.json(stock);
+    } catch (error) {
+      console.error("Error fetching inventory by product:", error);
+      res.status(500).json({ message: "Failed to fetch inventory for product" });
+    }
+  });
+
+  // Product Questions (AI feedback loop)
+  app.get('/api/product-questions/:codigo', requireAuth, async (req, res) => {
+    try {
+      const { codigo } = req.params;
+      const questions = await storage.getProductQuestions(codigo);
+      res.json(questions);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch product questions" });
+    }
+  });
+
+  app.post('/api/product-questions', requireAuth, async (req, res) => {
+    try {
+      const { codigo, pregunta, contexto } = req.body;
+      if (!codigo || !pregunta) return res.status(400).json({ message: "codigo and pregunta required" });
+      const question = await storage.logProductQuestion({ codigo, pregunta, contexto });
+      res.json(question);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to log product question" });
+    }
+  });
+
+  app.put('/api/product-questions/:id/resolve', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const updated = await storage.resolveProductQuestion(id, req.user.username);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to resolve product question" });
+    }
+  });
+
   // Store API endpoints (public access)
-  
+
   // Get store configuration
   app.get('/api/store/config', async (req: any, res) => {
     try {
       const config = await storage.getStoreConfig();
       res.json(config || {
-        siteName: "Pinturas Panorámica", 
+        siteName: "Pinturas Panorámica",
         logoUrl: "/panoramica-logo.png",
         primaryColor: "#FF6B35"
       });
@@ -7898,7 +8358,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/store/products', async (req: any, res) => {
     try {
       const { search, categoria } = req.query;
-      
+
       const filters = {
         search: search || undefined,
         categoria: categoria || undefined,
@@ -7907,7 +8367,7 @@ export function registerRoutes(app: Express): Server {
       };
 
       const ungroupedProducts = await storage.getEcommerceAdminProducts(filters);
-      
+
       res.json(ungroupedProducts);
     } catch (error) {
       console.error("Error fetching store products:", error);
@@ -7920,16 +8380,16 @@ export function registerRoutes(app: Express): Server {
     try {
       // Get categories from individual products
       const productCategories = await storage.getEcommerceCategories();
-      
+
       // Get categories from product groups
       const groups = await storage.getProductGroups({ activo: true });
       const groupCategories = groups
         .map(g => g.categoria)
         .filter((cat): cat is string => !!cat && cat.trim() !== '');
-      
+
       // Combine and deduplicate categories
       const allCategories = Array.from(new Set([...productCategories, ...groupCategories])).sort();
-      
+
       res.json(allCategories);
     } catch (error) {
       console.error("Error fetching store categories:", error);
@@ -7941,7 +8401,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/store/groups', async (req: any, res) => {
     try {
       const groups = await storage.getProductGroups({ activo: true });
-      
+
       // For each group, fetch its variant products
       const groupsWithProducts = await Promise.all(
         groups.map(async (group) => {
@@ -7949,14 +8409,14 @@ export function registerRoutes(app: Express): Server {
             groupId: group.id,
             activo: true
           });
-          
+
           return {
             ...group,
             productos: products
           };
         })
       );
-      
+
       // Only return groups that have products
       const activeGroups = groupsWithProducts.filter(g => g.productos.length > 0);
       res.json(activeGroups);
@@ -7967,12 +8427,12 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Object Storage endpoints
-  
+
   // Serve public objects from Object Storage with local fallback
   app.get("/public-objects/:filePath(*)", asyncHandler(async (req: any, res: any) => {
     const filePath = req.params.filePath;
     const objectStorageService = new ObjectStorageService();
-    
+
     try {
       // First try Object Storage
       const file = await objectStorageService.searchPublicObject(filePath);
@@ -7982,7 +8442,7 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.warn("Object Storage search failed, trying local fallback:", error);
     }
-    
+
     // Fallback to local file system for product images
     if (filePath.startsWith('product-images/')) {
       const localPath = path.join(process.cwd(), 'public', filePath);
@@ -7994,7 +8454,7 @@ export function registerRoutes(app: Express): Server {
         // File doesn't exist locally either
       }
     }
-    
+
     return res.status(404).json({ error: "File not found" });
   }));
 
@@ -8025,10 +8485,10 @@ export function registerRoutes(app: Express): Server {
       const imageBuffer = req.file.buffer;
       const fileName = req.file.originalname;
       const fileExt = fileName.substring(fileName.lastIndexOf('.'));
-      
+
       // Extract SKU from filename (remove extension)
       const sku = fileName.substring(0, fileName.lastIndexOf('.')).toUpperCase();
-      
+
       console.log(`📸 [SINGLE IMAGE] Uploading image: ${fileName} -> SKU: ${sku}`);
 
       try {
@@ -8040,18 +8500,18 @@ export function registerRoutes(app: Express): Server {
         const objectStorageService = new ObjectStorageService();
         const imageName = `${sku}_${Date.now()}${fileExt}`;
         const publicUrl = await objectStorageService.uploadImage(
-          imageName, 
-          imageBuffer, 
+          imageName,
+          imageBuffer,
           req.file.mimetype || 'image/png'
         );
-        
+
         console.log(`☁️ [SINGLE IMAGE] Uploaded to Object Storage: ${imageName}`);
 
         if (product) {
           // Update product with image URL immediately
           await storage.updateEcommerceAdminProduct(product.id, { imagenUrl: publicUrl });
           console.log(`✅ [SINGLE IMAGE] Image replaced for product: ${product.producto}`);
-          
+
           res.json({
             success: true,
             matched: true,
@@ -8091,7 +8551,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       const { productId, productCode } = req.body;
-      
+
       if (!productId || !productCode) {
         return res.status(400).json({ message: "Product ID and code are required" });
       }
@@ -8099,7 +8559,7 @@ export function registerRoutes(app: Express): Server {
       const imageBuffer = req.file.buffer;
       const fileName = req.file.originalname;
       const fileExt = fileName.substring(fileName.lastIndexOf('.'));
-      
+
       console.log(`📸 [PRODUCT IMAGE] Uploading image for product: ${productCode} (ID: ${productId})`);
 
       try {
@@ -8107,18 +8567,18 @@ export function registerRoutes(app: Express): Server {
         const objectStorageService = new ObjectStorageService();
         const imageName = `${productCode}_${Date.now()}${fileExt}`;
         const publicUrl = await objectStorageService.uploadImage(
-          imageName, 
-          imageBuffer, 
+          imageName,
+          imageBuffer,
           req.file.mimetype || 'image/png'
         );
-        
+
         console.log(`☁️ [PRODUCT IMAGE] Uploaded to Object Storage: ${imageName}`);
 
         // Update product with image URL immediately
         await storage.updateEcommerceAdminProduct(productId, { imagenUrl: publicUrl });
-        
+
         console.log(`✅ [PRODUCT IMAGE] Image uploaded for product: ${productCode}`);
-        
+
         res.json({
           success: true,
           productId,
@@ -8137,13 +8597,13 @@ export function registerRoutes(app: Express): Server {
   );
 
   // ZIP image importer for eCommerce products
-  const uploadZip = multer({ 
+  const uploadZip = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit (increased from 50MB)
     fileFilter: (req, file, cb) => {
-      if (file.mimetype === 'application/zip' || 
-          file.mimetype === 'application/x-zip-compressed' ||
-          file.originalname.toLowerCase().endsWith('.zip')) {
+      if (file.mimetype === 'application/zip' ||
+        file.mimetype === 'application/x-zip-compressed' ||
+        file.originalname.toLowerCase().endsWith('.zip')) {
         cb(null, true);
       } else {
         cb(new Error('Only ZIP files are allowed'));
@@ -8152,8 +8612,8 @@ export function registerRoutes(app: Express): Server {
   });
 
   // New improved streaming ZIP image importer with job-based processing
-  app.post('/api/ecommerce/admin/upload-images', 
-    requireAuth, 
+  app.post('/api/ecommerce/admin/upload-images',
+    requireAuth,
     requireAdminOrSupervisor,
     uploadZip.single('zipFile'),
     asyncHandler(async (req: any, res: any) => {
@@ -8165,7 +8625,7 @@ export function registerRoutes(app: Express): Server {
       const zipBuffer = req.file.buffer;
       const fileName = req.file.originalname;
       const fileSize = req.file.size;
-      
+
       console.log(`🚀 [ZIP IMPORT] Starting new ZIP import job: ${fileName} (${Math.round(fileSize / (1024 * 1024))}MB)`);
 
       try {
@@ -8199,7 +8659,7 @@ export function registerRoutes(app: Express): Server {
         };
 
         await db.insert(fileUploads).values(jobRecord);
-        
+
         console.log(`📋 [ZIP IMPORT] Created job record: ${jobId}`);
 
         // Start background processing (don't await - return jobId immediately)
@@ -8218,8 +8678,8 @@ export function registerRoutes(app: Express): Server {
 
       } catch (error) {
         console.error("💥 [ZIP IMPORT] Critical error starting job:", error);
-        
-        res.status(500).json({ 
+
+        res.status(500).json({
           message: "Error crítico iniciando importación",
           error: error instanceof Error ? error.message : 'Error desconocido',
           type: 'job_creation_error'
@@ -8234,7 +8694,7 @@ export function registerRoutes(app: Express): Server {
     requireAdminOrSupervisor,
     asyncHandler(async (req: any, res: any) => {
       const { jobId } = req.params;
-      
+
       try {
         const job = await db
           .select()
@@ -8247,7 +8707,7 @@ export function registerRoutes(app: Express): Server {
         }
 
         const jobData = job[0];
-        
+
         res.json({
           jobId: jobId,
           status: jobData.status,
@@ -8315,8 +8775,8 @@ export function registerRoutes(app: Express): Server {
 
   // Update job status in database
   async function updateJobStatus(
-    jobId: string, 
-    status: string, 
+    jobId: string,
+    status: string,
     errorMessage?: string,
     updateData: Partial<{
       totalFiles: number;
@@ -8329,7 +8789,7 @@ export function registerRoutes(app: Express): Server {
     }> = {}
   ): Promise<void> {
     try {
-      const updateFields: any = { 
+      const updateFields: any = {
         status,
         ...updateData
       };
@@ -8382,7 +8842,7 @@ export function registerRoutes(app: Express): Server {
 
       // Create readable stream from buffer for unzipper
       const zipStream = Readable.from(zipBuffer);
-      
+
       await new Promise<void>((resolve, reject) => {
         zipStream
           .pipe(unzipper.Parse())
@@ -8419,7 +8879,7 @@ export function registerRoutes(app: Express): Server {
 
             totalUncompressedSize += size;
             const sku = extractProductSku(fileName);
-            
+
             if (sku) {
               imageFiles.push({ path: fileName, sku });
               console.log(`✅ [ZIP IMPORT] Found image: ${fileName} -> SKU: ${sku}`);
@@ -8448,12 +8908,12 @@ export function registerRoutes(app: Express): Server {
       const totalBatches = Math.ceil(imageFiles.length / BATCH_SIZE);
       await updateJobStatus(jobId, 'processing', undefined, {
         totalFiles: imageFiles.length,
-        progressData: { 
-          phase: 'processing', 
-          currentBatch: 0, 
+        progressData: {
+          phase: 'processing',
+          currentBatch: 0,
           totalBatches,
           currentFile: '',
-          totalImages: imageFiles.length 
+          totalImages: imageFiles.length
         }
       });
 
@@ -8478,9 +8938,9 @@ export function registerRoutes(app: Express): Server {
         console.log(`🔄 [ZIP IMPORT] Processing batch ${batchIndex + 1}/${totalBatches} (${batch.length} files)`);
 
         await updateJobStatus(jobId, 'processing', undefined, {
-          progressData: { 
-            phase: 'processing', 
-            currentBatch: batchIndex + 1, 
+          progressData: {
+            phase: 'processing',
+            currentBatch: batchIndex + 1,
             totalBatches,
             currentFile: batch[0]?.path || '',
             batchSize: batch.length
@@ -8491,7 +8951,7 @@ export function registerRoutes(app: Express): Server {
         const batchPromises = batch.map(async (fileInfo, index) => {
           // Add small delay between files to avoid overwhelming the system
           await new Promise(resolve => setTimeout(resolve, index * 10));
-          
+
           return await processImageFile(jobId, zipBuffer, fileInfo.path, fileInfo.sku);
         });
 
@@ -8555,11 +9015,11 @@ export function registerRoutes(app: Express): Server {
         successfulFiles: successCount,
         failedFiles: failedCount,
         isCompleted: true,
-        progressData: { 
-          phase: 'completed', 
-          currentBatch: totalBatches, 
+        progressData: {
+          phase: 'completed',
+          currentBatch: totalBatches,
           totalBatches,
-          currentFile: '' 
+          currentFile: ''
         },
         resultData: {
           results,
@@ -8593,7 +9053,7 @@ export function registerRoutes(app: Express): Server {
 
       // Check if product exists
       const existingProduct = await storage.getEcommerceProductByCode(sku);
-      
+
       if (!existingProduct) {
         return {
           fileName: filePath,
@@ -8620,7 +9080,7 @@ export function registerRoutes(app: Express): Server {
       const timestamp = Date.now();
       const fileExtension = path.extname(filePath).toLowerCase() || '.png';
       const uniqueFileName = `${sku}_${timestamp}${fileExtension}`;
-      
+
       try {
         // Upload to Object Storage (permanent storage)
         const objectStorageService = new ObjectStorageService();
@@ -8670,14 +9130,14 @@ export function registerRoutes(app: Express): Server {
     return new Promise((resolve) => {
       const zipStream = Readable.from(zipBuffer);
       let found = false;
-      
+
       zipStream
         .pipe(unzipper.Parse())
         .on('entry', (entry) => {
           if (entry.path === targetPath && !found) {
             found = true;
             const chunks: Buffer[] = [];
-            
+
             entry.on('data', (chunk) => chunks.push(chunk));
             entry.on('end', () => {
               const buffer = Buffer.concat(chunks);
@@ -8723,11 +9183,11 @@ export function registerRoutes(app: Express): Server {
    * @deprecated This endpoint is DEPRECATED. NVV data is now loaded via automated ETL.
    * See /api/nvv/etl/run for triggering the current ETL process.
    */
-  app.post('/api/nvv/import', requireAuth, 
+  app.post('/api/nvv/import', requireAuth,
     upload.single('file'),
     asyncHandler(async (req: any, res: any) => {
       const file = req.file;
-      
+
       if (!file) {
         return res.status(400).json({
           success: false,
@@ -8759,27 +9219,27 @@ export function registerRoutes(app: Express): Server {
         // Process each row
         for (let i = 0; i < rawData.length; i++) {
           const row = rawData[i];
-          
+
           try {
             // Map CSV columns DIRECTLY to database fields with EXACT NAMES
             // Store all values as strings - Drizzle will convert them appropriately 
             const processedRow: any = {};
-            
+
             // Map all CSV columns directly to database fields
             const csvFields = [
-              'IDMAEEDO', 'TIDO', 'NUDO', 'ENDO', 'SUENDO', 'SUDO', 'FEEMDO', 'FEER', 
-              'MODO', 'TIMODO', 'TIDEVE', 'TIDEVEFE', 'TIDEVEHO', 'PPPRNE', 'TAMOPPPR', 
-              'VANELI', 'FEEMLI', 'KOFULIDO', 'LILG', 'PRCT', 'NULIDO', 'FEERLI', 
+              'IDMAEEDO', 'TIDO', 'NUDO', 'ENDO', 'SUENDO', 'SUDO', 'FEEMDO', 'FEER',
+              'MODO', 'TIMODO', 'TIDEVE', 'TIDEVEFE', 'TIDEVEHO', 'PPPRNE', 'TAMOPPPR',
+              'VANELI', 'FEEMLI', 'KOFULIDO', 'LILG', 'PRCT', 'NULIDO', 'FEERLI',
               'SULIDO', 'BOSULIDO', 'LUVTLIDO', 'KOPRCT', 'UD01PR', 'NOKOZO', 'IDMAEDDO',
-              'NUSEPR', 'CAPRCO1', 'CAPRAD1', 'CAPREX1', 'UD02PR', 'CAPRCO2', 'CAPRAD2', 
+              'NUSEPR', 'CAPRCO1', 'CAPRAD1', 'CAPREX1', 'UD02PR', 'CAPRCO2', 'CAPRAD2',
               'CAPREX2', 'OCDO', 'OBDO', 'NOKOEN', 'ZOEN', 'DIEN', 'COMUNA', 'TIPR',
-              'NOKOPR', 'PFPR', 'FMPR', 'RUPR', 'MRPR', 'STFI1', 'STFI2', 'PRRG', 
+              'NOKOPR', 'PFPR', 'FMPR', 'RUPR', 'MRPR', 'STFI1', 'STFI2', 'PRRG',
               'KOPRTE', 'ENDOFI', 'UBICACION', 'OBSERVA'
             ];
-            
+
             // Date fields that need parseDate processing
             const dateFields = ['FEEMDO', 'FEER', 'TIDEVEFE', 'FEEMLI', 'FEERLI'];
-            
+
             csvFields.forEach(field => {
               if (dateFields.includes(field)) {
                 // Parse date fields with parseDate function
@@ -8789,7 +9249,7 @@ export function registerRoutes(app: Express): Server {
                 processedRow[field] = row[field] || null;
               }
             });
-            
+
             // System fields
             processedRow.importBatch = importBatch;
 
@@ -8802,7 +9262,7 @@ export function registerRoutes(app: Express): Server {
 
         // Import to database
         const result = await storage.importNvvFromCsv(processedData, importBatch);
-        
+
         res.json(result);
 
       } catch (error) {
@@ -8819,7 +9279,7 @@ export function registerRoutes(app: Express): Server {
   // Get NVV pending sales data
   app.get('/api/nvv/pending', requireAuth, asyncHandler(async (req: any, res: any) => {
     const { status, salesperson, segment, startDate, endDate, limit = 500, offset = 0 } = req.query;
-    
+
     const options: any = {
       limit: parseInt(limit),
       offset: parseInt(offset),
@@ -8865,10 +9325,10 @@ export function registerRoutes(app: Express): Server {
     try {
       const { salesperson, segment } = req.query;
       const options: { salesperson?: string; segment?: string } = {};
-      
+
       if (salesperson) options.salesperson = salesperson as string;
       if (segment) options.segment = segment as string;
-      
+
       const totalSummary = await storage.getNvvTotalSummary(options);
       res.json(totalSummary);
     } catch (error) {
@@ -8883,15 +9343,15 @@ export function registerRoutes(app: Express): Server {
   // Get NVV summary metrics
   app.get('/api/nvv/metrics', requireAuth, asyncHandler(async (req: any, res: any) => {
     const { salesperson, segment, client, startDate, endDate, period, filterType } = req.query;
-    
+
     // Use same date range logic as sales metrics
     const dateRange = getDateRange(period as string, filterType as string);
-    
+
     const options: any = {};
     if (salesperson) options.salesperson = salesperson;
     if (segment) options.segment = segment;
     if (client) options.client = client;
-    
+
     // Use date range if period/filterType provided, otherwise use startDate/endDate
     if (period && filterType && dateRange.startDate && dateRange.endDate) {
       options.startDate = new Date(dateRange.startDate);
@@ -8918,7 +9378,7 @@ export function registerRoutes(app: Express): Server {
 
     // TODO: Implement updateNvvStatus function in storage
     // const success = await storage.updateNvvStatus(id, status);
-    
+
     // Temporarily return success
     res.json({ success: true, message: 'Estado actualizado (temporalmente deshabilitado)' });
   }));
@@ -8931,7 +9391,7 @@ export function registerRoutes(app: Express): Server {
     const { batchId } = req.params;
 
     const success = await storage.deleteNvvBatch(batchId);
-    
+
     if (success) {
       res.json({ success: true, message: 'Lote eliminado' });
     } else {
@@ -9111,7 +9571,7 @@ export function registerRoutes(app: Express): Server {
     // Convert string dates to Date objects
     let startDate: Date | undefined;
     let endDate: Date | undefined;
-    
+
     if (dateRange.startDate) {
       startDate = new Date(dateRange.startDate);
     }
@@ -9178,7 +9638,7 @@ export function registerRoutes(app: Express): Server {
     // Get date range for filtering if provided
     let startDate: Date | undefined;
     let endDate: Date | undefined;
-    
+
     if (period && filterType) {
       const dateRange = getDateRange(period as string, filterType as string);
       // Convert string dates to Date objects
@@ -9206,7 +9666,7 @@ export function registerRoutes(app: Express): Server {
     // Get date range for filtering if provided
     let startDate: Date | undefined;
     let endDate: Date | undefined;
-    
+
     if (period && filterType) {
       const dateRange = getDateRange(period as string, filterType as string);
       // Convert string dates to Date objects
@@ -9242,7 +9702,7 @@ export function registerRoutes(app: Express): Server {
     try {
       console.log('🗺️ Loading comuna-region mapping from CSV...');
       await comunaRegionService.initialize();
-      
+
       const stats = await comunaRegionService.getMappingStats();
       res.json({
         success: true,
@@ -9264,7 +9724,7 @@ export function registerRoutes(app: Express): Server {
     try {
       console.log('🔄 Reloading comuna-region mapping...');
       await comunaRegionService.reloadMapping();
-      
+
       const stats = await comunaRegionService.getMappingStats();
       res.json({
         success: true,
@@ -9300,7 +9760,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/admin/regions/test', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
       const { comunas } = req.body;
-      
+
       if (!Array.isArray(comunas)) {
         return res.status(400).json({
           success: false,
@@ -9336,7 +9796,7 @@ export function registerRoutes(app: Express): Server {
     try {
       // Get unique comunas from current transaction data
       const unmatchedComunas = await storage.getUnmatchedComunas();
-      
+
       // Test each one with the mapping service
       const diagnostics = [];
       for (const comunaData of unmatchedComunas) {
@@ -9353,7 +9813,7 @@ export function registerRoutes(app: Express): Server {
       diagnostics.sort((a, b) => b.transactionCount - a.transactionCount);
 
       const stats = await comunaRegionService.getMappingStats();
-      
+
       res.json({
         success: true,
         diagnostics,
@@ -9394,7 +9854,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const configs = await db.select().from(smtpConfig).where(eq(smtpConfig.id, 'default'));
       const config = configs[0];
-      
+
       if (config && config.email && config.password) {
         res.json({
           configured: true,
@@ -9452,13 +9912,13 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/admin/smtp-config', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
       const { host, port, email, password, fromName } = req.body;
-      
+
       if (!email) {
         return res.status(400).json({ message: 'El email es requerido' });
       }
-      
+
       const existingConfigs = await db.select().from(smtpConfig).where(eq(smtpConfig.id, 'default'));
-      
+
       if (existingConfigs.length > 0) {
         const updateData: any = {
           host: host || 'smtp.gmail.com',
@@ -9481,7 +9941,7 @@ export function registerRoutes(app: Express): Server {
           fromName: fromName || 'Panoramica'
         });
       }
-      
+
       res.json({ success: true, message: 'Configuración guardada correctamente' });
     } catch (error: any) {
       console.error('❌ Error al guardar configuración SMTP:', error);
@@ -9506,12 +9966,12 @@ export function registerRoutes(app: Express): Server {
   // Test SMTP connection (using database config or Gmail OAuth)
   app.post('/api/admin/smtp-test', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { testEmail } = req.body;
-    
+
     try {
       console.log('[SMTP-TEST] Starting connection test...');
       const configs = await db.select().from(smtpConfig).where(eq(smtpConfig.id, 'default'));
       const config = configs[0];
-      
+
       console.log('[SMTP-TEST] Config found:', config ? {
         authMethod: config.authMethod,
         hasRefreshToken: !!config.oauthRefreshToken,
@@ -9524,7 +9984,7 @@ export function registerRoutes(app: Express): Server {
         // Use the new testConnection function
         const result = await testConnection(testEmail || undefined);
         console.log('[SMTP-TEST] testConnection result:', result);
-        
+
         if (result.success && testEmail) {
           // Log the test email
           await db.insert(emailLogs).values({
@@ -9535,16 +9995,16 @@ export function registerRoutes(app: Express): Server {
             sentAt: new Date(),
           });
         }
-        
+
         if (result.success) {
-          return res.json({ 
-            success: true, 
+          return res.json({
+            success: true,
             message: result.message,
             details: result.details
           });
         } else {
-          return res.status(400).json({ 
-            success: false, 
+          return res.status(400).json({
+            success: false,
             message: result.message,
             details: result.details
           });
@@ -9555,9 +10015,9 @@ export function registerRoutes(app: Express): Server {
       console.log('[SMTP-TEST] No OAuth config, checking SMTP fallback');
       if (!config || !config.email || !config.password) {
         console.log('[SMTP-TEST] No SMTP config available');
-        return res.status(400).json({ 
-          success: false, 
-          message: 'SMTP no configurado. Guarda la configuración primero o conecta Gmail OAuth.' 
+        return res.status(400).json({
+          success: false,
+          message: 'SMTP no configurado. Guarda la configuración primero o conecta Gmail OAuth.'
         });
       }
 
@@ -9577,13 +10037,13 @@ export function registerRoutes(app: Express): Server {
 
       // Verify connection
       await transporter.verify();
-      
+
       // Send test email if provided
       if (testEmail) {
-        const fromAddress = config.fromName 
+        const fromAddress = config.fromName
           ? `"${config.fromName}" <${config.email}>`
           : config.email;
-          
+
         await transporter.sendMail({
           from: fromAddress,
           to: testEmail,
@@ -9606,7 +10066,7 @@ export function registerRoutes(app: Express): Server {
             </p>
           `),
         });
-        
+
         // Log the test email
         await db.insert(emailLogs).values({
           recipient: testEmail,
@@ -9617,17 +10077,17 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      res.json({ 
-        success: true, 
-        message: testEmail 
-          ? `Conexión exitosa. Correo de prueba enviado a ${testEmail}` 
+      res.json({
+        success: true,
+        message: testEmail
+          ? `Conexión exitosa. Correo de prueba enviado a ${testEmail}`
           : 'Conexión SMTP verificada exitosamente'
       });
     } catch (error: any) {
       console.error('❌ Error en prueba SMTP:', error);
-      res.status(400).json({ 
-        success: false, 
-        message: `Error de conexión: ${error.message}` 
+      res.status(400).json({
+        success: false,
+        message: `Error de conexión: ${error.message}`
       });
     }
   }));
@@ -9636,19 +10096,19 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/oauth/google/authorize', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
       if (!isOAuthConfigured()) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Google OAuth no está configurado en el servidor' 
+        return res.status(400).json({
+          success: false,
+          message: 'Google OAuth no está configurado en el servidor'
         });
       }
-      
+
       const { url: authUrl, state } = getAuthUrl();
       res.json({ authUrl });
     } catch (error: any) {
       console.error('❌ Error generando URL OAuth:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: `Error: ${error.message}` 
+      res.status(500).json({
+        success: false,
+        message: `Error: ${error.message}`
       });
     }
   }));
@@ -9656,23 +10116,23 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/oauth/google/callback', asyncHandler(async (req: any, res: any) => {
     try {
       const { code, error, state } = req.query;
-      
+
       if (error) {
         return res.redirect('/admin?tab=correos&oauth=error&message=' + encodeURIComponent(error));
       }
-      
+
       if (!code) {
         return res.redirect('/admin?tab=correos&oauth=error&message=No+se+recibió+código+de+autorización');
       }
-      
+
       // Validate state token for CSRF protection
       if (!state || !validateStateToken(state as string)) {
         console.error('❌ OAuth callback: Invalid or missing state token');
         return res.redirect('/admin?tab=correos&oauth=error&message=Token+de+seguridad+inválido.+Intenta+nuevamente.');
       }
-      
+
       const result = await handleCallback(code as string);
-      
+
       res.redirect('/admin?tab=correos&oauth=success&email=' + encodeURIComponent(result.email));
     } catch (error: any) {
       console.error('❌ Error en callback OAuth:', error);
@@ -9686,9 +10146,9 @@ export function registerRoutes(app: Express): Server {
       res.json(status);
     } catch (error: any) {
       console.error('❌ Error obteniendo estado OAuth:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: `Error: ${error.message}` 
+      res.status(500).json({
+        success: false,
+        message: `Error: ${error.message}`
       });
     }
   }));
@@ -9699,9 +10159,9 @@ export function registerRoutes(app: Express): Server {
       res.json({ success: true, message: 'Gmail desvinculado correctamente' });
     } catch (error: any) {
       console.error('❌ Error desvinculando Gmail:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: `Error: ${error.message}` 
+      res.status(500).json({
+        success: false,
+        message: `Error: ${error.message}`
       });
     }
   }));
@@ -9744,19 +10204,19 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/admin/email-notification-settings/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      
+
       const validation = updateEmailNotificationSettingSchema.safeParse(req.body);
       if (!validation.success) {
-        return res.status(400).json({ 
-          message: 'Datos inválidos', 
-          errors: validation.error.errors 
+        return res.status(400).json({
+          message: 'Datos inválidos',
+          errors: validation.error.errors
         });
       }
 
       const { enabled, recipients, ccRecipients } = validation.data;
 
-      const updateData: { updatedAt: Date; enabled?: boolean; recipients?: string | null; ccRecipients?: string | null } = { 
-        updatedAt: new Date() 
+      const updateData: { updatedAt: Date; enabled?: boolean; recipients?: string | null; ccRecipients?: string | null } = {
+        updatedAt: new Date()
       };
       if (typeof enabled === 'boolean') updateData.enabled = enabled;
       if (recipients !== undefined) updateData.recipients = recipients;
@@ -9797,11 +10257,11 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const obra = await storage.getObra(id);
-      
+
       if (!obra) {
         return res.status(404).json({ message: 'Obra no encontrada' });
       }
-      
+
       res.json(obra);
     } catch (error: any) {
       console.error('❌ Error al obtener obra:', error);
@@ -9893,7 +10353,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/visitas-tecnicas/listado', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const { search, estado, tecnico, limit = 20, offset = 0 } = req.query;
-      
+
       const options = {
         search: search || undefined,
         estado: estado !== 'all' ? estado : undefined,
@@ -9917,18 +10377,18 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/visitas-tecnicas', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       console.log('📝 Recibiendo datos de visita técnica:', JSON.stringify(req.body, null, 2));
-      
+
       // Validar datos básicos requeridos
       const { nombreObra, direccionObra, tecnicoId, clienteId, productos, estado, recepcionistaNombre, recepcionistaCargo, observacionesGenerales } = req.body;
-      
+
       console.log('🔍 Validando campos:', { nombreObra, direccionObra, tecnicoId, clienteId, productosCount: productos?.length });
-      
+
       if (!nombreObra || !direccionObra || !tecnicoId) {
         const camposFaltantes = [];
         if (!nombreObra) camposFaltantes.push('nombreObra');
         if (!direccionObra) camposFaltantes.push('direccionObra');
         if (!tecnicoId) camposFaltantes.push('tecnicoId');
-        
+
         console.error('❌ Faltan campos:', camposFaltantes);
         return res.status(400).json({
           message: `Faltan campos requeridos: ${camposFaltantes.join(', ')}`
@@ -9950,7 +10410,7 @@ export function registerRoutes(app: Express): Server {
       console.log('💾 Creando visita con datos:', visitaData);
       const nuevaVisita = await storage.createVisitaTecnica(visitaData);
       console.log('✅ Visita creada con ID:', nuevaVisita.id);
-      
+
       // 🔔 Notificación automática: Nueva visita técnica programada
       const user = req.user;
       const creatorName = user.salespersonName || `${user.firstName} ${user.lastName}` || user.email;
@@ -9963,11 +10423,11 @@ export function registerRoutes(app: Express): Server {
       // Si hay productos, crearlos junto con sus evaluaciones
       if (productos && productos.length > 0) {
         console.log(`📦 Procesando ${productos.length} productos evaluados...`);
-        
+
         for (const producto of productos) {
           // Detectar si es producto personalizado (custom-xxxx) o del catálogo
           const isCustomProduct = producto.productId?.startsWith('custom-');
-          
+
           // Crear producto evaluado con todos los campos del esquema
           const productoData = {
             visitaId: nuevaVisita.id,
@@ -9983,7 +10443,7 @@ export function registerRoutes(app: Express): Server {
 
           console.log('  💾 Guardando producto:', producto.name);
           const [productoEvaluado] = await db.insert(productosEvaluados).values([productoData]).returning();
-          
+
           // Si tiene evaluación técnica, crearla
           if (producto.evaluacion && productoEvaluado) {
             const evaluacionData = {
@@ -10000,7 +10460,7 @@ export function registerRoutes(app: Express): Server {
             await db.insert(evaluacionesTecnicas).values([evaluacionData]);
           }
         }
-        
+
         console.log('✅ Todos los productos y evaluaciones guardados');
       }
 
@@ -10019,7 +10479,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const visita = await storage.getVisitaTecnicaById(id);
-      
+
       if (!visita) {
         return res.status(404).json({
           message: 'Visita técnica no encontrada'
@@ -10041,9 +10501,9 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const { firmaTecnicoNombre, firmaTecnicoData, firmaRecepcionistaNombre, firmaRecepcionistaData } = req.body;
-      
+
       console.log('📝 Guardando firmas para visita:', id);
-      
+
       const visitaActualizada = await storage.updateVisitaTecnica(id, {
         firmaTecnicoNombre,
         firmaTecnicoData,
@@ -10051,7 +10511,7 @@ export function registerRoutes(app: Express): Server {
         firmaRecepcionistaData,
         fechaFirma: new Date(),
       });
-      
+
       if (!visitaActualizada) {
         return res.status(404).json({
           message: 'Visita técnica no encontrada'
@@ -10075,7 +10535,7 @@ export function registerRoutes(app: Express): Server {
       const { id } = req.params;
       const userId = req.user?.id;
       const userRole = req.user?.role;
-      
+
       // 1. Verificar que la visita existe
       const visitaExistente = await storage.getVisitaTecnicaById(id);
       if (!visitaExistente) {
@@ -10083,19 +10543,19 @@ export function registerRoutes(app: Express): Server {
           message: 'Visita técnica no encontrada'
         });
       }
-      
+
       // 2. Verificar autorización: solo el técnico asignado, vendedor, admin o supervisor pueden editar
       const rolesPermitidos = ['admin', 'supervisor', 'gerente'];
       const esTecnicoAsignado = visitaExistente.tecnicoId === userId;
       const esVendedorAsignado = visitaExistente.vendedorId === userId;
       const tieneRolPermitido = rolesPermitidos.includes(userRole);
-      
+
       if (!esTecnicoAsignado && !esVendedorAsignado && !tieneRolPermitido) {
         return res.status(403).json({
           message: 'No tiene permisos para editar esta visita técnica'
         });
       }
-      
+
       // 3. Sanitizar campos de texto para prevenir XSS
       const sanitizeText = (text: any): string | null => {
         if (text === null || text === undefined) return null;
@@ -10107,7 +10567,7 @@ export function registerRoutes(app: Express): Server {
           .replace(/'/g, '&#x27;')
           .trim();
       };
-      
+
       // 4. Campos permitidos para actualización con sanitización
       const datosLimpios: any = {};
       const camposTexto = [
@@ -10118,14 +10578,14 @@ export function registerRoutes(app: Express): Server {
       const camposId = ['obraId', 'tecnicoId', 'vendedorId', 'clienteId'];
       const camposEnum = ['estado', 'aplicacionGeneral', 'ambiente'];
       const camposBase64 = ['firmaTecnicoData', 'firmaRecepcionistaData'];
-      
+
       // Sanitizar campos de texto
       for (const campo of camposTexto) {
         if (campo in req.body) {
           datosLimpios[campo] = sanitizeText(req.body[campo]);
         }
       }
-      
+
       // Validar campos de ID (solo strings alfanuméricos y guiones)
       const idRegex = /^[a-zA-Z0-9\-_]+$/;
       for (const campo of camposId) {
@@ -10138,7 +10598,7 @@ export function registerRoutes(app: Express): Server {
           }
         }
       }
-      
+
       // Validar campos enum
       const enumsValidos: Record<string, string[]> = {
         estado: ['borrador', 'completada'],
@@ -10153,7 +10613,7 @@ export function registerRoutes(app: Express): Server {
           }
         }
       }
-      
+
       // Validar campos base64 (firmas) - limitar tamaño
       for (const campo of camposBase64) {
         if (campo in req.body) {
@@ -10166,7 +10626,7 @@ export function registerRoutes(app: Express): Server {
           }
         }
       }
-      
+
       // Parsear fecha si viene
       if ('fechaFirma' in req.body) {
         const fecha = req.body.fechaFirma;
@@ -10181,22 +10641,22 @@ export function registerRoutes(app: Express): Server {
           }
         }
       }
-      
+
       // 5. Verificar que hay datos para actualizar
       if (Object.keys(datosLimpios).length === 0) {
         return res.status(400).json({
           message: 'No se proporcionaron campos válidos para actualizar'
         });
       }
-      
+
       const visitaActualizada = await storage.updateVisitaTecnica(id, datosLimpios);
-      
+
       if (!visitaActualizada) {
         return res.status(500).json({
           message: 'Error al actualizar la visita técnica'
         });
       }
-      
+
       // 6. Respuesta con datos esenciales (sin firmas base64 completas)
       const respuesta = {
         id: visitaActualizada.id,
@@ -10225,7 +10685,7 @@ export function registerRoutes(app: Express): Server {
   app.delete('/api/visitas-tecnicas/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      
+
       // Solo permitir eliminar visitas en estado borrador
       const visita = await storage.getVisitaTecnicaById(id);
       if (!visita) {
@@ -10255,7 +10715,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/visitas-tecnicas/productos', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const { clienteId, search } = req.query;
-      
+
       const options = {
         clienteId: clienteId || undefined,
         search: search || undefined,
@@ -10308,13 +10768,13 @@ export function registerRoutes(app: Express): Server {
       const { id } = req.params;
       const { tipo, descripcion, productoEvaluadoId, reclamoId } = req.body;
       const file = req.file;
-      
+
       if (!file) {
         return res.status(400).json({
           message: 'No se proporcionó archivo'
         });
       }
-      
+
       // Validar tipo de archivo
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
       if (!allowedTypes.includes(file.mimetype)) {
@@ -10322,25 +10782,25 @@ export function registerRoutes(app: Express): Server {
           message: 'Tipo de archivo no permitido. Solo se aceptan imágenes (JPEG, PNG, WebP, GIF)'
         });
       }
-      
+
       // Validar tamaño (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
         return res.status(400).json({
           message: 'El archivo es demasiado grande. Máximo 10MB'
         });
       }
-      
+
       // Generar nombre único para el archivo
       const timestamp = Date.now();
       const randomId = Math.random().toString(36).substring(2, 8);
       const extension = file.originalname.split('.').pop() || 'jpg';
       const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_').substring(0, 50);
       const fileName = `visitas-tecnicas/${id}/${timestamp}-${randomId}-${sanitizedName}`;
-      
+
       // Subir al Object Storage
       const objectStorageService = new ObjectStorageService();
       const fileUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
-      
+
       // Crear registro en base de datos
       const evidenciaData = {
         visitaId: id,
@@ -10372,7 +10832,7 @@ export function registerRoutes(app: Express): Server {
       const { evidenciaId } = req.params;
       const userId = req.user?.id;
       const userRole = req.user?.role;
-      
+
       // Obtener la evidencia para verificar permisos
       const evidencia = await storage.getEvidenciaById(evidenciaId);
       if (!evidencia) {
@@ -10380,24 +10840,24 @@ export function registerRoutes(app: Express): Server {
           message: 'Evidencia no encontrada'
         });
       }
-      
+
       // Verificar permisos: admin, supervisor, gerente, o el técnico/vendedor asignado a la visita
       const rolesPermitidos = ['admin', 'supervisor', 'gerente'];
       let tienePermiso = rolesPermitidos.includes(userRole);
-      
+
       if (!tienePermiso && evidencia.visitaId) {
         const visita = await storage.getVisitaTecnicaById(evidencia.visitaId);
         if (visita) {
           tienePermiso = visita.tecnicoId === userId || visita.vendedorId === userId;
         }
       }
-      
+
       if (!tienePermiso) {
         return res.status(403).json({
           message: 'No tiene permisos para eliminar esta evidencia'
         });
       }
-      
+
       // Intentar eliminar del Object Storage (no bloquear si falla)
       if (evidencia.urlArchivo) {
         try {
@@ -10407,11 +10867,11 @@ export function registerRoutes(app: Express): Server {
           console.warn('No se pudo eliminar archivo del storage:', deleteError);
         }
       }
-      
+
       // Eliminar de la base de datos
       await storage.deleteEvidencia(evidenciaId);
       console.log(`🗑️ Evidencia eliminada: ${evidenciaId}`);
-      
+
       res.json({ success: true, message: 'Evidencia eliminada correctamente' });
     } catch (error: any) {
       console.error('❌ Error al eliminar evidencia:', error);
@@ -10427,13 +10887,13 @@ export function registerRoutes(app: Express): Server {
     try {
       const { productoEvaluadoId } = req.params;
       const evaluacionData = req.body;
-      
+
       // Buscar si existe una evaluación para este producto
       const [existingEval] = await db
         .select()
         .from(evaluacionesTecnicas)
         .where(eq(evaluacionesTecnicas.productoEvaluadoId, productoEvaluadoId));
-      
+
       if (existingEval) {
         // Actualizar evaluación existente
         const [updated] = await db
@@ -10444,7 +10904,7 @@ export function registerRoutes(app: Express): Server {
           })
           .where(eq(evaluacionesTecnicas.productoEvaluadoId, productoEvaluadoId))
           .returning();
-        
+
         return res.json(updated);
       } else {
         // Crear nueva evaluación si no existe
@@ -10455,7 +10915,7 @@ export function registerRoutes(app: Express): Server {
             ...evaluacionData
           })
           .returning();
-        
+
         return res.status(201).json(created);
       }
     } catch (error: any) {
@@ -10471,7 +10931,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/visitas-tecnicas/:id/completar', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const { id } = req.params;
-      
+
       // Validar que la visita existe y tiene los datos mínimos
       const visita = await storage.getVisitaTecnicaById(id);
       if (!visita) {
@@ -10809,12 +11269,12 @@ export function registerRoutes(app: Express): Server {
       if (!colorId || !envaseId) {
         return res.status(400).json({ message: 'colorId y envaseId son requeridos' });
       }
-      
+
       const calculation = await storage.calculateColorCost(colorId, envaseId);
       if (!calculation) {
         return res.status(404).json({ message: 'Color o envase no encontrado' });
       }
-      
+
       res.json(calculation);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al calcular costo', error: error.message });
@@ -10840,29 +11300,29 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const filters: any = {};
-      
+
       if (req.query.vendedorId) filters.vendedorId = req.query.vendedorId;
       if (req.query.tecnicoId) filters.tecnicoId = req.query.tecnicoId;
       if (req.query.estado) filters.estado = req.query.estado;
       if (req.query.gravedad) filters.gravedad = req.query.gravedad;
       if (req.query.limit) filters.limit = parseInt(req.query.limit);
       if (req.query.offset) filters.offset = parseInt(req.query.offset);
-      
+
       // Filtrar automáticamente por área responsable si el usuario tiene rol de área
       // Usa taxonomía compartida para roles de área y organizacionales
       const { getRoleArea, canViewAllReclamos } = await import('@shared/reclamosAreas');
-      
+
       // Admin, supervisor y jefe_planta pueden ver todos los reclamos de todas las áreas
       if (!canViewAllReclamos(user.role)) {
         const userArea = getRoleArea(user.role);
-        
+
         // Usuarios de área (laboratorio, produccion, etc.) ven todos los reclamos de su área
         if (userArea) {
           // Filtrar por área responsable para ver todos los reclamos en la cola del área
           filters.areaResponsable = userArea;
         }
       }
-      
+
       const reclamos = await storage.getReclamosGenerales(filters);
       res.json(reclamos);
     } catch (error: any) {
@@ -10874,11 +11334,11 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/reclamos-generales/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const reclamo = await storage.getReclamoGeneralById(req.params.id);
-      
+
       if (!reclamo) {
         return res.status(404).json({ message: 'Reclamo no encontrado' });
       }
-      
+
       res.json(reclamo);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener reclamo', error: error.message });
@@ -10889,11 +11349,11 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/reclamos-generales/:id/details', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const reclamo = await storage.getReclamoGeneralWithDetails(req.params.id);
-      
+
       if (!reclamo) {
         return res.status(404).json({ message: 'Reclamo no encontrado' });
       }
-      
+
       res.json(reclamo);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener detalles del reclamo', error: error.message });
@@ -10904,25 +11364,25 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/reclamos-generales', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only salesperson, admin, supervisor, and tecnico_obra can create reclamos
       const allowedRoles = ['salesperson', 'admin', 'supervisor', 'tecnico_obra'];
       if (!allowedRoles.includes(user.role)) {
-        return res.status(403).json({ 
-          message: 'No tiene permisos para crear reclamos. Solo vendedores, administradores, supervisores y técnicos pueden crear reclamos.' 
+        return res.status(403).json({
+          message: 'No tiene permisos para crear reclamos. Solo vendedores, administradores, supervisores y técnicos pueden crear reclamos.'
         });
       }
-      
+
       const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
-      
+
       // Para técnicos de obra: auto-validar el reclamo (saltar paso de validación técnica)
       // El estado va directamente a "en_laboratorio" o según el área asignada
       const isTecnicoObra = user.role === 'tecnico_obra';
-      
+
       // Determinar el estado inicial según quién crea el reclamo
       let estadoInicial = 'registrado'; // Default: pendiente de validación técnica
       let areaResponsableActual = null;
-      
+
       if (isTecnicoObra) {
         // Técnico de obra crea el reclamo: auto-validado, va directo al área asignada
         const areaAsignadaInicial = req.body.areaAsignadaInicial;
@@ -10936,7 +11396,7 @@ export function registerRoutes(app: Express): Server {
           areaResponsableActual = areaAsignadaInicial;
         }
       }
-      
+
       // Add vendedor info from authenticated user
       const reclamoData = {
         ...req.body,
@@ -10953,9 +11413,9 @@ export function registerRoutes(app: Express): Server {
           areaResponsableActual: areaResponsableActual || req.body.areaAsignadaInicial,
         }),
       };
-      
+
       const reclamo = await storage.createReclamoGeneral(reclamoData);
-      
+
       // Si el técnico creó el reclamo, agregar entrada de historial indicando auto-validación
       if (isTecnicoObra) {
         await storage.createReclamoGeneralHistorial({
@@ -10967,15 +11427,15 @@ export function registerRoutes(app: Express): Server {
           notas: 'Reclamo creado y validado automáticamente por el técnico de obra',
         });
       }
-      
+
       // 🔔 Notificación automática: Nuevo reclamo creado
       await NotifyHelper.notifyReclamoCreated(
-        reclamo.id, 
+        reclamo.id,
         reclamoData.motivo,
         reclamoData.clientName || 'Cliente',
         reclamoData.vendedorName
       );
-      
+
       res.status(201).json(reclamo);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al crear reclamo', error: error.message });
@@ -10997,33 +11457,33 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const reclamoId = req.params.id;
-      
+
       // Admin and tecnico_obra can always delete
       if (user.role === 'admin' || user.role === 'tecnico_obra') {
         await storage.deleteReclamoGeneral(reclamoId);
         return res.status(204).send();
       }
-      
+
       // Creator can delete their own reclamo if it's recent (for rollback purposes)
       const reclamo = await storage.getReclamoGeneralById(reclamoId);
       if (!reclamo) {
         return res.status(404).json({ message: 'Reclamo no encontrado' });
       }
-      
+
       // Check if user is the creator
       if (reclamo.vendedorId !== user.id) {
         return res.status(403).json({ message: 'No tiene permiso para eliminar este reclamo' });
       }
-      
+
       // Check if reclamo is recent (within 5 minutes)
       const createdAt = new Date(reclamo.fechaRegistro || '');
       const now = new Date();
       const minutesDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60);
-      
+
       if (minutesDiff > 5) {
         return res.status(403).json({ message: 'Solo puede eliminar reclamos recientes (< 5 minutos)' });
       }
-      
+
       await storage.deleteReclamoGeneral(reclamoId);
       res.status(204).send();
     } catch (error: any) {
@@ -11036,11 +11496,11 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const { tecnicoId, tecnicoName } = req.body;
-      
+
       if (!tecnicoId || !tecnicoName) {
         return res.status(400).json({ message: 'tecnicoId y tecnicoName son requeridos' });
       }
-      
+
       const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
       const reclamo = await storage.assignTecnicoToReclamo(
         req.params.id,
@@ -11049,7 +11509,7 @@ export function registerRoutes(app: Express): Server {
         user.id,
         userName
       );
-      
+
       res.json(reclamo);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al asignar técnico', error: error.message });
@@ -11061,11 +11521,11 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const { nuevoEstado, notas } = req.body;
-      
+
       if (!nuevoEstado) {
         return res.status(400).json({ message: 'nuevoEstado es requerido' });
       }
-      
+
       const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
       const reclamo = await storage.updateReclamoGeneralEstado(
         req.params.id,
@@ -11074,7 +11534,7 @@ export function registerRoutes(app: Express): Server {
         userName,
         notas
       );
-      
+
       res.json(reclamo);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al actualizar estado', error: error.message });
@@ -11086,7 +11546,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
-      
+
       const reclamo = await storage.derivarReclamoGeneralLaboratorio(req.params.id, user.id, userName);
       res.json(reclamo);
     } catch (error: any) {
@@ -11099,7 +11559,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
-      
+
       const reclamo = await storage.derivarReclamoGeneralProduccion(req.params.id, user.id, userName);
       res.json(reclamo);
     } catch (error: any) {
@@ -11112,26 +11572,26 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const { procede, areaResponsable, notas } = req.body;
-      
+
       // Validaciones
       if (typeof procede !== 'boolean') {
         return res.status(400).json({ message: 'El campo procede es requerido y debe ser booleano' });
       }
-      
+
       if (procede && !areaResponsable) {
         return res.status(400).json({ message: 'El área responsable es requerida cuando el reclamo procede' });
       }
-      
+
       const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
       const reclamo = await storage.validarReclamoTecnico(
-        req.params.id, 
-        procede, 
+        req.params.id,
+        procede,
         areaResponsable,
         notas,
-        user.id, 
+        user.id,
         userName
       );
-      
+
       res.json(reclamo);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al validar reclamo', error: error.message });
@@ -11143,11 +11603,11 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const { informe } = req.body;
-      
+
       if (!informe) {
         return res.status(400).json({ message: 'informe es requerido' });
       }
-      
+
       const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
       const reclamo = await storage.updateInformeLaboratorio(req.params.id, informe, user.id, userName);
       res.json(reclamo);
@@ -11161,11 +11621,11 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const { informe } = req.body;
-      
+
       if (!informe) {
         return res.status(400).json({ message: 'informe es requerido' });
       }
-      
+
       const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
       const reclamo = await storage.updateInformeProduccion(req.params.id, informe, user.id, userName);
       res.json(reclamo);
@@ -11179,11 +11639,11 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const { informe } = req.body;
-      
+
       if (!informe) {
         return res.status(400).json({ message: 'informe es requerido' });
       }
-      
+
       const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
       const reclamo = await storage.updateInformeTecnico(req.params.id, informe, user.id, userName);
       res.json(reclamo);
@@ -11197,7 +11657,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const { notas, photos } = req.body;
-      
+
       const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
       const reclamo = await storage.cerrarReclamoGeneral(req.params.id, user.id, userName, notas, photos);
       res.json(reclamo);
@@ -11213,7 +11673,7 @@ export function registerRoutes(app: Express): Server {
         reclamoId: req.params.id,
         ...req.body,
       };
-      
+
       const photo = await storage.createReclamoGeneralPhoto(photoData);
       res.status(201).json(photo);
     } catch (error: any) {
@@ -11253,14 +11713,14 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/reclamos-generales/:id/resolucion-laboratorio', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Validar que solo laboratorio puede subir resolución
       if (user.role !== 'laboratorio') {
         return res.status(403).json({ message: 'Solo usuarios con rol laboratorio pueden subir resoluciones' });
       }
-      
+
       const { informe, categoriaResponsable, photos, documents } = req.body;
-      
+
       if (!informe) {
         return res.status(400).json({ message: 'El informe es requerido' });
       }
@@ -11268,32 +11728,32 @@ export function registerRoutes(app: Express): Server {
       if (!categoriaResponsable) {
         return res.status(400).json({ message: 'La categoría responsable es requerida' });
       }
-      
+
       // Photos and documents are now optional - validate only that they're arrays if provided
       const photoArray = Array.isArray(photos) ? photos : [];
       const documentArray = Array.isArray(documents) ? documents : [];
-      
+
       // Verificar que el reclamo existe y está en el estado correcto
       const existingReclamo = await storage.getReclamoGeneralById(req.params.id);
       if (!existingReclamo) {
         return res.status(404).json({ message: 'Reclamo no encontrado' });
       }
-      
+
       if (existingReclamo.estado !== 'en_laboratorio') {
         return res.status(400).json({ message: 'El reclamo no está en estado "En Laboratorio"' });
       }
-      
+
       if (existingReclamo.informeLaboratorio) {
         return res.status(400).json({ message: 'Este reclamo ya tiene una resolución del laboratorio' });
       }
-      
+
       const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
       const reclamo = await storage.updateResolucionLaboratorio(req.params.id, informe, categoriaResponsable, photoArray, user.id, userName, documentArray);
-      
+
       if (!reclamo) {
         return res.status(409).json({ message: 'El reclamo ya tiene una resolución o fue modificado por otro usuario' });
       }
-      
+
       res.json(reclamo);
     } catch (error: any) {
       console.error('Error al subir resolución:', error);
@@ -11305,13 +11765,13 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/reclamos-generales/:id/resolucion-area', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Definir roles organizacionales permitidos
       const organizationalRoles = ['produccion', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
-      
+
       // Validar que el usuario tiene rol de área, laboratorio, jefe_planta, o rol organizacional
       const isAreaRole = user.role && (
-        user.role.startsWith('area_') || 
+        user.role.startsWith('area_') ||
         user.role === 'laboratorio' ||
         user.role === 'jefe_planta' ||
         organizationalRoles.includes(user.role)
@@ -11319,34 +11779,34 @@ export function registerRoutes(app: Express): Server {
       if (!isAreaRole) {
         return res.status(403).json({ message: 'No tiene permisos para subir resoluciones' });
       }
-      
+
       const { resolucionDescripcion, photos, documents } = req.body;
-      
+
       if (!resolucionDescripcion) {
         return res.status(400).json({ message: 'La descripción de la resolución es requerida' });
       }
-      
+
       // Photos and documents are now optional - validate only that they're arrays if provided
       const photoArray = Array.isArray(photos) ? photos : [];
       const documentArray = Array.isArray(documents) ? documents : [];
-      
+
       const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
-      
+
       try {
         const reclamo = await storage.updateResolucionArea(
-          req.params.id, 
-          resolucionDescripcion, 
-          photoArray, 
-          user.id, 
+          req.params.id,
+          resolucionDescripcion,
+          photoArray,
+          user.id,
           userName,
           user.role,
           documentArray
         );
-        
+
         if (!reclamo) {
           return res.status(409).json({ message: 'El reclamo ya tiene una resolución o fue modificado por otro usuario' });
         }
-        
+
         res.json(reclamo);
       } catch (error: any) {
         // Manejar errores de validación del storage
@@ -11380,7 +11840,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/mantenciones', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only specific roles can access mantenciones
       const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
       if (!allowedRoles.includes(user.role)) {
@@ -11388,13 +11848,13 @@ export function registerRoutes(app: Express): Server {
       }
 
       const filters: any = {};
-      
+
       if (req.query.solicitanteId) filters.solicitanteId = req.query.solicitanteId;
       if (req.query.tecnicoAsignadoId) filters.tecnicoAsignadoId = req.query.tecnicoAsignadoId;
       if (req.query.estado) filters.estado = req.query.estado;
       if (req.query.gravedad) filters.gravedad = req.query.gravedad;
       if (req.query.area) filters.area = req.query.area;
-      
+
       const solicitudes = await storage.getSolicitudesMantencion(filters);
       res.json(solicitudes);
     } catch (error: any) {
@@ -11407,7 +11867,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/mantenciones/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only specific roles can access mantenciones
       const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
       if (!allowedRoles.includes(user.role)) {
@@ -11415,11 +11875,11 @@ export function registerRoutes(app: Express): Server {
       }
 
       const solicitud = await storage.getSolicitudMantencionById(req.params.id);
-      
+
       if (!solicitud) {
         return res.status(404).json({ message: 'Solicitud de mantención no encontrada' });
       }
-      
+
       res.json(solicitud);
     } catch (error: any) {
       console.error('Error al obtener solicitud de mantención:', error);
@@ -11431,7 +11891,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/mantenciones/:id/details', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only specific roles can access mantenciones
       const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
       if (!allowedRoles.includes(user.role)) {
@@ -11439,11 +11899,11 @@ export function registerRoutes(app: Express): Server {
       }
 
       const solicitud = await storage.getSolicitudMantencionWithDetails(req.params.id);
-      
+
       if (!solicitud) {
         return res.status(404).json({ message: 'Solicitud de mantención no encontrada' });
       }
-      
+
       res.json(solicitud);
     } catch (error: any) {
       console.error('Error al obtener detalles de mantención:', error);
@@ -11455,7 +11915,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/mantenciones', requireAuth, upload.array('photos', 10), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only specific roles can create mantenciones
       const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
       if (!allowedRoles.includes(user.role)) {
@@ -11477,14 +11937,14 @@ export function registerRoutes(app: Express): Server {
       const validatedData = insertSolicitudMantencionSchema.parse(solicitudData);
 
       const solicitud = await storage.createSolicitudMantencion(validatedData);
-      
+
       // 🔔 Notificación automática: Nueva solicitud de mantención
       await NotifyHelper.notifyMantencionCreada(
         validatedData.equipoNombre,
         validatedData.gravedad,
         validatedData.solicitanteName || 'Usuario'
       );
-      
+
       // Process uploaded photos
       if (req.files && req.files.length > 0) {
         const objectStorageService = new ObjectStorageService();
@@ -11496,14 +11956,14 @@ export function registerRoutes(app: Express): Server {
               const timestamp = Date.now();
               const uniqueFileName = `${solicitud.id}_${timestamp}_${index}${fileExtension}`;
               const storageKey = `mantencion-photos/${solicitud.id}/${uniqueFileName}`;
-              
+
               // Upload to object storage
               const photoUrl = await objectStorageService.uploadImage(
-                storageKey, 
-                file.buffer, 
+                storageKey,
+                file.buffer,
                 file.mimetype || getContentType(fileExtension.substring(1))
               );
-              
+
               // Create photo record in database
               return await storage.createMantencionPhoto({
                 mantencionId: solicitud.id,
@@ -11517,26 +11977,26 @@ export function registerRoutes(app: Express): Server {
             }
           })
         );
-        
+
         // Filter out any failed uploads
         const successfulPhotos = uploadedPhotos.filter(photo => photo !== null);
-        
+
         // Return solicitud with photos
         return res.status(201).json({ ...solicitud, photos: successfulPhotos });
       }
-      
+
       res.status(201).json(solicitud);
     } catch (error: any) {
       console.error('Error al crear solicitud de mantención:', error);
-      
+
       // Handle Zod validation errors
       if (error.name === 'ZodError') {
-        return res.status(400).json({ 
-          message: 'Datos inválidos', 
-          errors: error.errors 
+        return res.status(400).json({
+          message: 'Datos inválidos',
+          errors: error.errors
         });
       }
-      
+
       res.status(500).json({ message: 'Error al crear solicitud de mantención', error: error.message });
     }
   }));
@@ -11545,7 +12005,7 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/mantenciones/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only admin, supervisor, jefe_planta, mantencion, and produccion can update
       const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
@@ -11560,15 +12020,15 @@ export function registerRoutes(app: Express): Server {
       res.json(solicitud);
     } catch (error: any) {
       console.error('Error al actualizar solicitud de mantención:', error);
-      
+
       // Handle Zod validation errors
       if (error.name === 'ZodError') {
-        return res.status(400).json({ 
-          message: 'Datos inválidos', 
-          errors: error.errors 
+        return res.status(400).json({
+          message: 'Datos inválidos',
+          errors: error.errors
         });
       }
-      
+
       res.status(500).json({ message: 'Error al actualizar solicitud de mantención', error: error.message });
     }
   }));
@@ -11585,7 +12045,7 @@ export function registerRoutes(app: Express): Server {
 
       // Admin, jefe_planta, mantencion, and produccion can delete anytime
       const canDeleteAnytime = ['admin', 'jefe_planta', 'mantencion', 'produccion'].includes(user.role);
-      
+
       if (!canDeleteAnytime) {
         // Other users can only delete their own within 5 minutes
         if (solicitud.solicitanteId !== user.id) {
@@ -11613,7 +12073,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/mantenciones/:id/photos', requireAuth, upload.array('photos', 10), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only specific roles can upload photos
       const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
       if (!allowedRoles.includes(user.role)) {
@@ -11631,9 +12091,9 @@ export function registerRoutes(app: Express): Server {
       }
 
       const photoUrls = files.map(file => file.path);
-      
+
       const photos = await Promise.all(
-        photoUrls.map((photoUrl, index) => 
+        photoUrls.map((photoUrl, index) =>
           storage.createMantencionPhoto({
             mantencionId: req.params.id,
             photoUrl,
@@ -11675,7 +12135,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/mantenciones/:id/assign-tecnico', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only admin, supervisor, jefe_planta, mantencion, and produccion can assign técnico
       const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
@@ -11701,15 +12161,15 @@ export function registerRoutes(app: Express): Server {
       res.json(solicitud);
     } catch (error: any) {
       console.error('Error al asignar técnico:', error);
-      
+
       // Handle Zod validation errors
       if (error.name === 'ZodError') {
-        return res.status(400).json({ 
-          message: 'Datos inválidos', 
-          errors: error.errors 
+        return res.status(400).json({
+          message: 'Datos inválidos',
+          errors: error.errors
         });
       }
-      
+
       res.status(500).json({ message: 'Error al asignar técnico', error: error.message });
     }
   }));
@@ -11718,7 +12178,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/mantenciones/:id/cambiar-estado', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only admin, supervisor, jefe_planta, mantencion, and produccion can change estado
       const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
@@ -11746,15 +12206,15 @@ export function registerRoutes(app: Express): Server {
       res.json(solicitud);
     } catch (error: any) {
       console.error('Error al cambiar estado:', error);
-      
+
       // Handle Zod validation errors
       if (error.name === 'ZodError') {
-        return res.status(400).json({ 
-          message: 'Datos inválidos', 
-          errors: error.errors 
+        return res.status(400).json({
+          message: 'Datos inválidos',
+          errors: error.errors
         });
       }
-      
+
       res.status(500).json({ message: 'Error al cambiar estado', error: error.message });
     }
   }));
@@ -11763,7 +12223,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/mantenciones/:id/resolucion', requireAuth, upload.array('photos', 10), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only admin, supervisor, jefe_planta, mantencion, and produccion can submit resolucion
       const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
@@ -11783,7 +12243,7 @@ export function registerRoutes(app: Express): Server {
 
       // Process uploaded photos - upload to Object Storage first
       let photos: Array<{ photoUrl: string; description: string }> = [];
-      
+
       if (files && files.length > 0) {
         const objectStorageService = new ObjectStorageService();
         photos = await Promise.all(
@@ -11794,14 +12254,14 @@ export function registerRoutes(app: Express): Server {
               const timestamp = Date.now();
               const uniqueFileName = `resolucion_${req.params.id}_${timestamp}_${index}${fileExtension}`;
               const storageKey = `mantencion-resolucion/${req.params.id}/${uniqueFileName}`;
-              
+
               // Upload to object storage
               const photoUrl = await objectStorageService.uploadImage(
-                storageKey, 
-                file.buffer, 
+                storageKey,
+                file.buffer,
                 file.mimetype || getContentType(fileExtension.substring(1))
               );
-              
+
               return {
                 photoUrl,
                 description: req.body[`descriptions[${index}]`] || 'Evidencia de resolución',
@@ -11832,15 +12292,15 @@ export function registerRoutes(app: Express): Server {
       res.json(solicitud);
     } catch (error: any) {
       console.error('Error al subir resolución:', error);
-      
+
       // Handle Zod validation errors
       if (error.name === 'ZodError') {
-        return res.status(400).json({ 
-          message: 'Datos inválidos', 
-          errors: error.errors 
+        return res.status(400).json({
+          message: 'Datos inválidos',
+          errors: error.errors
         });
       }
-      
+
       res.status(500).json({ message: 'Error al subir resolución', error: error.message });
     }
   }));
@@ -11871,7 +12331,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/mantenciones/:id/cerrar', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only admin, supervisor, jefe_planta, mantencion, and produccion can close
       const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
@@ -11895,12 +12355,12 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // ===== NUEVAS FUNCIONALIDADES AVANZADAS OT =====
-  
+
   // Pausar OT (solo admin, supervisor, produccion)
   app.post('/api/mantenciones/:id/pausar', requireAuth, requireRoles(['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion']), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       const pausarSchema = z.object({
         motivo: z.string().min(10, 'El motivo debe tener al menos 10 caracteres'),
         fechaProgramada: z.string().nullable().optional(), // Permitir reasignar fecha al pausar
@@ -11919,14 +12379,14 @@ export function registerRoutes(app: Express): Server {
       res.json(solicitud);
     } catch (error: any) {
       console.error('Error al pausar OT:', error);
-      
+
       if (error.name === 'ZodError') {
-        return res.status(400).json({ 
-          message: 'Datos inválidos', 
-          errors: error.errors 
+        return res.status(400).json({
+          message: 'Datos inválidos',
+          errors: error.errors
         });
       }
-      
+
       res.status(400).json({ message: error.message || 'Error al pausar orden de trabajo' });
     }
   }));
@@ -11935,7 +12395,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/mantenciones/:id/reanudar', requireAuth, requireRoles(['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion']), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       const reanudarSchema = z.object({
         notas: z.string().optional(),
       });
@@ -11952,14 +12412,14 @@ export function registerRoutes(app: Express): Server {
       res.json(solicitud);
     } catch (error: any) {
       console.error('Error al reanudar OT:', error);
-      
+
       if (error.name === 'ZodError') {
-        return res.status(400).json({ 
-          message: 'Datos inválidos', 
-          errors: error.errors 
+        return res.status(400).json({
+          message: 'Datos inválidos',
+          errors: error.errors
         });
       }
-      
+
       res.status(400).json({ message: error.message || 'Error al reanudar orden de trabajo' });
     }
   }));
@@ -11968,7 +12428,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/mantenciones/:id/iniciar-trabajo', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       const solicitud = await storage.iniciarTrabajoMantencion(
         req.params.id,
         user.id,
@@ -12002,7 +12462,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/mantenciones/:id/gastos', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only admin, supervisor, jefe_planta, mantencion, and produccion can add gastos
       const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
@@ -12027,7 +12487,7 @@ export function registerRoutes(app: Express): Server {
       });
 
       const validatedData = gastoSchema.parse(req.body);
-      
+
       // Calcular costoTotal = cantidad * costoUnitario
       const cantidad = parseFloat(validatedData.cantidad);
       const costoUnitario = parseFloat(validatedData.costoUnitario);
@@ -12047,14 +12507,14 @@ export function registerRoutes(app: Express): Server {
       res.status(201).json(gasto);
     } catch (error: any) {
       console.error('Error al agregar gasto:', error);
-      
+
       if (error.name === 'ZodError') {
-        return res.status(400).json({ 
-          message: 'Datos inválidos', 
-          errors: error.errors 
+        return res.status(400).json({
+          message: 'Datos inválidos',
+          errors: error.errors
         });
       }
-      
+
       res.status(500).json({ message: error.message || 'Error al agregar gasto' });
     }
   }));
@@ -12063,7 +12523,7 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/mantenciones/:id/asignacion', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only admin, supervisor, jefe_planta, mantencion, and produccion can update asignacion
       const allowedRoles = ['admin', 'supervisor', 'jefe_planta', 'mantencion', 'produccion'];
       if (!allowedRoles.includes(user.role)) {
@@ -12092,14 +12552,14 @@ export function registerRoutes(app: Express): Server {
       res.json(solicitud);
     } catch (error: any) {
       console.error('Error al actualizar asignación:', error);
-      
+
       if (error.name === 'ZodError') {
-        return res.status(400).json({ 
-          message: 'Datos inválidos', 
-          errors: error.errors 
+        return res.status(400).json({
+          message: 'Datos inválidos',
+          errors: error.errors
         });
       }
-      
+
       res.status(500).json({ message: error.message || 'Error al actualizar asignación' });
     }
   }));
@@ -12109,7 +12569,7 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
 
   // ===== EQUIPOS CRÍTICOS ROUTES =====
-  
+
   // GET all equipos críticos (with filters)
   app.get('/api/cmms/equipos', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
@@ -12258,7 +12718,7 @@ export function registerRoutes(app: Express): Server {
     try {
       // Validate input with Zod schema
       const validatedData = insertEquipoCriticoSchema.parse(req.body);
-      
+
       const equipo = await storage.createEquipoCritico(validatedData);
       res.status(201).json(equipo);
     } catch (error: any) {
@@ -12275,7 +12735,7 @@ export function registerRoutes(app: Express): Server {
     try {
       // Validate input with partial schema for updates
       const validatedData = insertEquipoCriticoSchema.partial().parse(req.body);
-      
+
       const equipo = await storage.updateEquipoCritico(req.params.id, validatedData);
       res.json(equipo);
     } catch (error: any) {
@@ -12299,13 +12759,13 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // ===== PROVEEDORES EXTERNOS ROUTES =====
-  
+
   // GET all proveedores (with filters)
   app.get('/api/cmms/proveedores', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { activo } = req.query;
-      const proveedores = await storage.getProveedoresMantencion({ 
-        activo: activo === 'true' ? true : activo === 'false' ? false : undefined 
+      const proveedores = await storage.getProveedoresMantencion({
+        activo: activo === 'true' ? true : activo === 'false' ? false : undefined
       });
       res.json(proveedores);
     } catch (error: any) {
@@ -12333,7 +12793,7 @@ export function registerRoutes(app: Express): Server {
     try {
       // Validate input with Zod schema
       const validatedData = insertProveedorMantencionSchema.parse(req.body);
-      
+
       const proveedor = await storage.createProveedorMantencion(validatedData);
       res.status(201).json(proveedor);
     } catch (error: any) {
@@ -12350,7 +12810,7 @@ export function registerRoutes(app: Express): Server {
     try {
       // Validate input with partial schema for updates
       const validatedData = insertProveedorMantencionSchema.partial().parse(req.body);
-      
+
       const proveedor = await storage.updateProveedorMantencion(req.params.id, validatedData);
       res.json(proveedor);
     } catch (error: any) {
@@ -12380,14 +12840,14 @@ export function registerRoutes(app: Express): Server {
     try {
       const { anio, area } = req.query;
       const filters: { anio?: number; area?: string } = {};
-      
+
       if (anio) {
         filters.anio = parseInt(anio);
       }
       if (area && area !== 'global') {
         filters.area = area;
       }
-      
+
       const presupuestos = await storage.getPresupuestosMantencion(filters);
       res.json(presupuestos);
     } catch (error: any) {
@@ -12401,7 +12861,7 @@ export function registerRoutes(app: Express): Server {
     try {
       // Validate input with Zod schema
       const validatedData = insertPresupuestoMantencionSchema.parse(req.body);
-      
+
       const presupuesto = await storage.createPresupuestoMantencion(validatedData);
       res.status(201).json(presupuesto);
     } catch (error: any) {
@@ -12418,7 +12878,7 @@ export function registerRoutes(app: Express): Server {
     try {
       // Validate input with partial schema for updates
       const validatedData = insertPresupuestoMantencionSchema.partial().parse(req.body);
-      
+
       const presupuesto = await storage.updatePresupuestoMantencion(req.params.id, validatedData);
       res.json(presupuesto);
     } catch (error: any) {
@@ -12447,12 +12907,12 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/cmms/gastos-materiales', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { otId, area, anio, mes, startDate, endDate, page, pageSize } = req.query;
-      const result = await storage.getGastosMaterialesMantencion({ 
-        otId, 
+      const result = await storage.getGastosMaterialesMantencion({
+        otId,
         area,
         anio,
         mes,
-        startDate, 
+        startDate,
         endDate,
         page: page ? parseInt(page) : undefined,
         pageSize: pageSize ? parseInt(pageSize) : undefined
@@ -12523,9 +12983,9 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/cmms/gastos-materiales-export', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { area, anio, mes } = req.query;
-      
+
       const gastos = await storage.getGastosMaterialesForExport({ area, anio, mes });
-      
+
       const excelData = gastos.map(gasto => ({
         'Fecha': format(new Date(gasto.fecha), 'dd/MM/yyyy'),
         'Item': gasto.item,
@@ -12541,10 +13001,10 @@ export function registerRoutes(app: Express): Server {
         'Gravedad OT': gasto.ot ? gasto.ot.gravedad : '',
         'Proveedor': gasto.proveedor ? gasto.proveedor.nombre : '',
       }));
-      
+
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(excelData);
-      
+
       ws['!cols'] = [
         { wch: 12 }, // Fecha
         { wch: 35 }, // Item
@@ -12560,16 +13020,16 @@ export function registerRoutes(app: Express): Server {
         { wch: 12 }, // Gravedad OT
         { wch: 30 }, // Proveedor
       ];
-      
+
       XLSX.utils.book_append_sheet(wb, ws, 'Gastos de Materiales');
-      
+
       const excelBuffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-      
-      const periodo = mes 
-        ? `${anio}-${String(mes).padStart(2, '0')}` 
+
+      const periodo = mes
+        ? `${anio}-${String(mes).padStart(2, '0')}`
         : anio || 'todos';
       const filename = `gastos_materiales_${periodo}_${format(new Date(), 'yyyyMMdd_HHmmss')}.xlsx`;
-      
+
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -12589,7 +13049,7 @@ export function registerRoutes(app: Express): Server {
     try {
       // Crear workbook y worksheet
       const wb = XLSX.utils.book_new();
-      
+
       // Datos de ejemplo para la plantilla
       const plantillaData = [
         {
@@ -12620,9 +13080,9 @@ export function registerRoutes(app: Express): Server {
           'Proveedor ID': ''
         }
       ];
-      
+
       const ws = XLSX.utils.json_to_sheet(plantillaData);
-      
+
       // Ajustar ancho de columnas
       ws['!cols'] = [
         { wch: 20 }, // Fecha
@@ -12633,9 +13093,9 @@ export function registerRoutes(app: Express): Server {
         { wch: 25 }, // Área
         { wch: 15 }  // Proveedor ID
       ];
-      
+
       XLSX.utils.book_append_sheet(wb, ws, "Gastos Materiales");
-      
+
       // Agregar hoja de instrucciones
       const instrucciones = [
         { Columna: 'Fecha (YYYY-MM-DD)', Descripción: 'Fecha del gasto en formato YYYY-MM-DD (ej: 2025-01-15)', Requerido: 'SÍ' },
@@ -12646,7 +13106,7 @@ export function registerRoutes(app: Express): Server {
         { Columna: 'Área', Descripción: 'Área del gasto: administracion, produccion, laboratorio, bodega_materias_primas, bodega_productos_terminados, servicios_generales, mantencion, comercial', Requerido: 'NO' },
         { Columna: 'Proveedor ID', Descripción: 'ID del proveedor (opcional, dejar vacío si no aplica)', Requerido: 'NO' }
       ];
-      
+
       const wsInstrucciones = XLSX.utils.json_to_sheet(instrucciones);
       wsInstrucciones['!cols'] = [
         { wch: 20 },
@@ -12654,10 +13114,10 @@ export function registerRoutes(app: Express): Server {
         { wch: 10 }
       ];
       XLSX.utils.book_append_sheet(wb, wsInstrucciones, "Instrucciones");
-      
+
       // Generar buffer
       const excelBuffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-      
+
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', 'attachment; filename=plantilla_gastos_materiales.xlsx');
       res.send(excelBuffer);
@@ -12670,50 +13130,50 @@ export function registerRoutes(app: Express): Server {
   // Función compartida para parsear y validar Excel de gastos materiales
   const parseAndValidateGastosExcel = async (fileBuffer: Buffer, mode: 'preview' | 'import' = 'import') => {
     const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
-    
+
     // Leer la primera hoja
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const jsonData = XLSX.utils.sheet_to_json(worksheet);
-    
+
     if (!jsonData || jsonData.length === 0) {
       throw new Error('El archivo Excel está vacío o no tiene el formato correcto');
     }
-    
+
     const gastosValidos = [];
     const errores = [];
     const filasParseadas = mode === 'preview' ? [] : undefined; // Solo crear array en preview
-    
+
     // Procesar cada fila
     for (let i = 0; i < jsonData.length; i++) {
       const row: any = jsonData[i];
       const rowNumber = i + 2; // +2 porque Excel empieza en 1 y hay header
-      
+
       try {
         // Mapear y normalizar columnas del Excel - soportar AMBOS formatos
         // Formato plantilla: "Fecha (YYYY-MM-DD)", "Item", "Costo Unitario", "Área"
         // Formato ERP: "EMISION", "DESCRIPCIO", "TOTAL", "TIPOTRANSA"
-        
+
         let fechaRaw = row['Fecha (YYYY-MM-DD)'] || row['Fecha'] || row['EMISION'];
         const itemRaw = row['Item'] || row['DESCRIPCIO'];
         const descripcionRaw = row['Descripción'] || row['Descripcion'] || row['FAMDOCU'];
         const cantidadRaw = row['Cantidad'] || row['CANTIDAD'];
-        
+
         // Costo unitario puede venir directo o calculado desde TOTAL
         let costoUnitarioRaw = row['Costo Unitario'];
         const totalRaw = row['TOTAL'];
-        
+
         // Si viene del formato ERP (tiene TOTAL pero no Costo Unitario), calcular
         if (!costoUnitarioRaw && totalRaw && cantidadRaw) {
           const cantidad = parseFloat(cantidadRaw);
           const total = parseFloat(totalRaw);
           costoUnitarioRaw = cantidad > 0 ? (total / cantidad) : total;
         }
-        
+
         // Áreas: mapear formato ERP a formato interno
         const areaRaw = row['Área'] || row['Area'] || row['TIPOTRANSA'];
         const proveedorIdRaw = row['Proveedor ID'] || row['ProveedorId'];
-        
+
         // Convertir fecha de número Excel a string YYYY-MM-DD si es necesario
         if (typeof fechaRaw === 'number') {
           const excelDate = new Date((fechaRaw - 25569) * 86400 * 1000);
@@ -12722,12 +13182,12 @@ export function registerRoutes(app: Express): Server {
           const day = String(excelDate.getDate()).padStart(2, '0');
           fechaRaw = `${year}-${month}-${day}`;
         }
-        
+
         // Normalizar strings (trim y verificar vacíos)
         const fecha = typeof fechaRaw === 'string' ? fechaRaw.trim() : fechaRaw;
         const item = typeof itemRaw === 'string' ? itemRaw.trim() : itemRaw;
         const descripcion = typeof descripcionRaw === 'string' && descripcionRaw.trim() !== '' ? descripcionRaw.trim() : null;
-        
+
         // Mapear áreas del formato ERP al formato interno
         let area = null;
         if (typeof areaRaw === 'string' && areaRaw.trim() !== '') {
@@ -12744,12 +13204,12 @@ export function registerRoutes(app: Express): Server {
           };
           area = areaMap[areaUpper] || areaRaw.trim().toLowerCase().replace(/\s+/g, '_');
         }
-        
+
         const proveedorId = typeof proveedorIdRaw === 'string' && proveedorIdRaw.trim() !== '' ? proveedorIdRaw.trim() : null;
-        
+
         // Validar campos requeridos ANTES de parsear
-        if (!fecha || !item || cantidadRaw === undefined || cantidadRaw === null || cantidadRaw === '' || 
-            costoUnitarioRaw === undefined || costoUnitarioRaw === null || costoUnitarioRaw === '') {
+        if (!fecha || !item || cantidadRaw === undefined || cantidadRaw === null || cantidadRaw === '' ||
+          costoUnitarioRaw === undefined || costoUnitarioRaw === null || costoUnitarioRaw === '') {
           const error = 'Faltan campos requeridos (Fecha, Item, Cantidad, Costo Unitario)';
           errores.push({ fila: rowNumber, error });
           if (mode === 'preview') {
@@ -12768,11 +13228,11 @@ export function registerRoutes(app: Express): Server {
           }
           continue;
         }
-        
+
         // Parsear números después de validar que existen
         const cantidad = parseFloat(cantidadRaw);
         const costoUnitario = parseFloat(costoUnitarioRaw);
-        
+
         // Validar que los números son válidos
         if (isNaN(cantidad) || isNaN(costoUnitario)) {
           const error = 'Cantidad y Costo Unitario deben ser números válidos';
@@ -12793,10 +13253,10 @@ export function registerRoutes(app: Express): Server {
           }
           continue;
         }
-        
+
         // Calcular costo total
         const costoTotal = cantidad * costoUnitario;
-        
+
         // Crear el objeto de datos validado
         const gastoData = {
           fecha,
@@ -12810,11 +13270,11 @@ export function registerRoutes(app: Express): Server {
           proveedorId,
           adjuntoUrl: null
         };
-        
+
         // Validar con schema de Zod
         const validatedData = insertGastoMaterialMantencionSchema.parse(gastoData);
         gastosValidos.push(validatedData);
-        
+
         // Solo agregar detalles de fila en modo preview
         if (mode === 'preview') {
           // Crear objeto de datos con nombres de columnas normalizados para el frontend
@@ -12829,13 +13289,13 @@ export function registerRoutes(app: Express): Server {
             'Área': area || '',
             'Area': area || ''
           };
-          filasParseadas!.push({ 
-            fila: rowNumber, 
-            estado: 'valido', 
+          filasParseadas!.push({
+            fila: rowNumber,
+            estado: 'valido',
             datos: datosNormalizados
           });
         }
-        
+
       } catch (error: any) {
         const errorMsg = error.message || 'Error al procesar la fila';
         errores.push({ fila: rowNumber, error: errorMsg });
@@ -12856,7 +13316,7 @@ export function registerRoutes(app: Express): Server {
         }
       }
     }
-    
+
     return {
       totalFilas: jsonData.length,
       filasValidas: gastosValidos.length,
@@ -12873,12 +13333,12 @@ export function registerRoutes(app: Express): Server {
       if (!req.file) {
         return res.status(400).json({ message: 'No se envió ningún archivo' });
       }
-      
+
       const isPreview = req.query.preview === 'true';
-      
+
       // Usar función compartida de parsing y validación
       const resultado = await parseAndValidateGastosExcel(req.file.buffer, isPreview ? 'preview' : 'import');
-      
+
       // Si es preview, solo retornar datos parseados sin guardar
       if (isPreview) {
         return res.json({
@@ -12890,21 +13350,21 @@ export function registerRoutes(app: Express): Server {
           errores: resultado.errores
         });
       }
-      
+
       // Si no es preview, proceder con la importación
       const gastosCreados = [];
       for (const gastoData of resultado.gastosValidos) {
         const gastoCreado = await storage.createGastoMaterialMantencion(gastoData);
         gastosCreados.push(gastoCreado);
       }
-      
+
       res.status(201).json({
         mode: 'import',
         message: `Importación completada: ${gastosCreados.length} gastos creados, ${resultado.filasConError} errores`,
         gastosCreados: gastosCreados.length,
         errores: resultado.errores.length > 0 ? resultado.errores : null
       });
-      
+
     } catch (error: any) {
       console.error('Error al importar Excel:', error);
       res.status(500).json({ message: 'Error al importar Excel', error: error.message });
@@ -12929,10 +13389,10 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/cmms/gastos-materiales', requireAuth, requireCMMSFullAccess, asyncHandler(async (req: any, res: any) => {
     try {
       console.log('[DEBUG] Datos recibidos en POST gastos-materiales:', JSON.stringify(req.body, null, 2));
-      
+
       // Validate input with Zod schema
       const validatedData = insertGastoMaterialMantencionSchema.parse(req.body);
-      
+
       const gasto = await storage.createGastoMaterialMantencion(validatedData);
       res.status(201).json(gasto);
     } catch (error: any) {
@@ -12950,17 +13410,17 @@ export function registerRoutes(app: Express): Server {
     try {
       // Validate input with Zod schema (full update)
       const validatedData = insertGastoMaterialMantencionSchema.parse(req.body);
-      
+
       // Recalculate costoTotal server-side to prevent tampering
       const cantidad = parseFloat(validatedData.cantidad);
       const costoUnitario = parseFloat(validatedData.costoUnitario);
       const costoTotal = (cantidad * costoUnitario).toString();
-      
+
       const dataWithRecalculatedTotal = {
         ...validatedData,
         costoTotal
       };
-      
+
       const gasto = await storage.updateGastoMaterialMantencion(req.params.id, dataWithRecalculatedTotal);
       res.json(gasto);
     } catch (error: any) {
@@ -12977,7 +13437,7 @@ export function registerRoutes(app: Express): Server {
     try {
       // Validate input with partial schema for updates
       const validatedData = insertGastoMaterialMantencionSchema.partial().parse(req.body);
-      
+
       const gasto = await storage.updateGastoMaterialMantencion(req.params.id, validatedData);
       res.json(gasto);
     } catch (error: any) {
@@ -13006,9 +13466,9 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/cmms/planes-preventivos', requireAuth, requireCMMSMaintenance, asyncHandler(async (req: any, res: any) => {
     try {
       const { equipoId, activo } = req.query;
-      const planes = await storage.getPlanesPreventivos({ 
+      const planes = await storage.getPlanesPreventivos({
         equipoId,
-        activo: activo === 'true' ? true : activo === 'false' ? false : undefined 
+        activo: activo === 'true' ? true : activo === 'false' ? false : undefined
       });
       res.json(planes);
     } catch (error: any) {
@@ -13050,28 +13510,28 @@ export function registerRoutes(app: Express): Server {
       console.log('[PLANES-PREVENTIVOS] Datos validados:', JSON.stringify(validatedData, null, 2));
       const plan = await storage.createPlanPreventivo(validatedData);
       console.log('[PLANES-PREVENTIVOS] Plan creado exitosamente:', plan.id);
-      
+
       // 🔧 AUTO-GENERAR OT si el plan está activo y la fecha de próxima ejecución es hoy o anterior
       if (plan.activo && plan.proximaEjecucion) {
         const now = new Date();
         const proximaEjecucion = new Date(plan.proximaEjecucion);
-        
+
         // Comparar solo las fechas (sin horas)
         now.setHours(0, 0, 0, 0);
         proximaEjecucion.setHours(0, 0, 0, 0);
-        
+
         if (proximaEjecucion <= now) {
           console.log(`🔧 [AUTO-GEN] Plan ${plan.id} tiene fecha <= hoy y está activo, generando OT automáticamente...`);
           try {
             const ot = await storage.generateOTFromPlan(plan);
             console.log(`✅ [AUTO-GEN] OT ${ot.id} generada automáticamente para plan ${plan.nombrePlan}`);
-            
+
             // Calcular próxima ejecución
             const nextExecution = storage.calculateNextExecution(
               proximaEjecucion,
               plan.frecuencia
             );
-            
+
             // Actualizar el plan con la nueva próxima ejecución
             await storage.updatePlanPreventivo(plan.id, {
               proximaEjecucion: nextExecution.toISOString().split('T')[0],
@@ -13082,7 +13542,7 @@ export function registerRoutes(app: Express): Server {
           }
         }
       }
-      
+
       res.status(201).json(plan);
     } catch (error: any) {
       if (error.name === 'ZodError') {
@@ -13126,9 +13586,9 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/cmms/planes-preventivos', requireAuth, requireCMMSMaintenance, asyncHandler(async (req: any, res: any) => {
     try {
       const { equipoId, activo } = req.query;
-      const planes = await storage.getPlanesPreventivos({ 
+      const planes = await storage.getPlanesPreventivos({
         equipoId,
-        activo: activo === 'true' ? true : activo === 'false' ? false : undefined 
+        activo: activo === 'true' ? true : activo === 'false' ? false : undefined
       });
       res.json(planes);
     } catch (error: any) {
@@ -13167,7 +13627,7 @@ export function registerRoutes(app: Express): Server {
     try {
       // Validate input with partial schema for updates
       const validatedData = insertPlanPreventivoSchema.partial().parse(req.body);
-      
+
       const plan = await storage.updatePlanPreventivo(req.params.id, validatedData);
       res.json(plan);
     } catch (error: any) {
@@ -13200,7 +13660,7 @@ export function registerRoutes(app: Express): Server {
       if (anio) filters.anio = parseInt(anio);
       if (estado) filters.estado = estado;
       if (area) filters.area = area;
-      
+
       const mantenciones = await storage.getMantencionesPlanificadas(filters);
       res.json(mantenciones);
     } catch (error: any) {
@@ -13230,13 +13690,13 @@ export function registerRoutes(app: Express): Server {
       console.log('[MANTENCION-CREATE] Body recibido:', JSON.stringify(req.body, null, 2));
       const validatedData = insertMantencionPlanificadaSchema.parse(req.body);
       console.log('[MANTENCION-CREATE] Datos validados:', JSON.stringify(validatedData, null, 2));
-      
+
       const nuevaMantencion = await storage.createMantencionPlanificada({
         ...validatedData,
         creadoPorId: user.id,
         creadoPorName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
       });
-      
+
       console.log('[MANTENCION-CREATE] Mantención creada exitosamente:', nuevaMantencion.id);
       res.status(201).json(nuevaMantencion);
     } catch (error: any) {
@@ -13317,8 +13777,8 @@ export function registerRoutes(app: Express): Server {
       console.log('🔧 [MANUAL] Ejecutando scheduler de mantenimiento preventivo...');
       const otsGenerated = await storage.processPreventiveMaintenanceSchedule();
       console.log(`✅ [MANUAL] Scheduler completado - ${otsGenerated} OTs generadas`);
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         otsGenerated,
         message: `Scheduler ejecutado exitosamente. ${otsGenerated} OTs generadas.`
       });
@@ -13331,22 +13791,22 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
   // MARKETING MODULE routes
   // ==================================================================================
-  
+
   // Presupuesto Marketing routes
   app.post('/api/marketing/presupuesto', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only admin can create/update presupuesto
       if (user.role !== 'admin') {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const { mes, anio, presupuestoTotal } = req.body;
-      
+
       // Check if presupuesto already exists for this period
       const existing = await storage.getPresupuestoMarketing(mes, anio);
-      
+
       if (existing) {
         // Update existing
         const updated = await storage.updatePresupuestoMarketing(existing.id, { presupuestoTotal });
@@ -13369,13 +13829,13 @@ export function registerRoutes(app: Express): Server {
     try {
       const mes = parseInt(req.params.mes);
       const anio = parseInt(req.params.anio);
-      
+
       const presupuesto = await storage.getPresupuestoMarketing(mes, anio);
-      
+
       if (!presupuesto) {
         return res.status(404).json({ message: 'Presupuesto no encontrado' });
       }
-      
+
       res.json(presupuesto);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener presupuesto', error: error.message });
@@ -13386,27 +13846,27 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/marketing/solicitudes', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Admin, supervisor and salesperson can create solicitudes
       if (user.role !== 'supervisor' && user.role !== 'admin' && user.role !== 'salesperson') {
         return res.status(403).json({ message: 'Solo administradores, supervisores y vendedores pueden crear solicitudes' });
       }
-      
+
       let solicitanteId = user.id;
       let solicitanteName = `${user.firstName} ${user.lastName}`;
-      
+
       // If admin is creating, they can specify solicitanteId
       if (user.role === 'admin' && req.body.solicitanteId) {
         const solicitante = await storage.getUser(parseInt(req.body.solicitanteId));
         if (!solicitante) {
           return res.status(404).json({ message: 'Solicitante no encontrado' });
         }
-        
+
         // Only allow admin, supervisor or salesperson roles
         if (!['admin', 'supervisor', 'salesperson'].includes(solicitante.role)) {
           return res.status(400).json({ message: 'El usuario seleccionado debe ser administrador, supervisor o vendedor' });
         }
-        
+
         solicitanteId = solicitante.id;
         solicitanteName = `${solicitante.firstName} ${solicitante.lastName}`;
       } else if ((user.role === 'supervisor' || user.role === 'salesperson') && req.body.solicitanteId) {
@@ -13415,43 +13875,43 @@ export function registerRoutes(app: Express): Server {
           return res.status(403).json({ message: 'Solo puedes crear solicitudes a tu nombre' });
         }
       }
-      
+
       // Prepare solicitud data - use supervisorId field for backwards compatibility
       const solicitudData: any = {
         ...req.body,
         supervisorId: solicitanteId.toString(),
         supervisorName: solicitanteName,
       };
-      
+
       // Convert fechaEntrega to proper format if provided
       if (solicitudData.fechaEntrega) {
         // Ensure it's in YYYY-MM-DD format (remove time if present)
         solicitudData.fechaEntrega = solicitudData.fechaEntrega.split('T')[0];
       }
-      
+
       // Validate urgency limit: max 3 "alta" urgency solicitudes per user
       if (solicitudData.urgencia === 'alta') {
         const urgentSolicitudes = await storage.getSolicitudesMarketingByUrgency(solicitanteId.toString(), 'alta');
-        const activeUrgentCount = urgentSolicitudes.filter(s => 
+        const activeUrgentCount = urgentSolicitudes.filter(s =>
           s.estado !== 'completado' && s.estado !== 'rechazado'
         ).length;
-        
+
         if (activeUrgentCount >= 3) {
-          return res.status(400).json({ 
-            message: 'No puedes tener más de 3 solicitudes con urgencia alta activas. Completa o cancela algunas antes de crear una nueva.' 
+          return res.status(400).json({
+            message: 'No puedes tener más de 3 solicitudes con urgencia alta activas. Completa o cancela algunas antes de crear una nueva.'
           });
         }
       }
-      
+
       const solicitud = await storage.createSolicitudMarketing(solicitudData);
-      
+
       // 🔔 Notificación automática: Nueva solicitud de marketing
       await NotifyHelper.notifySolicitudMarketing(
         solicitudData.titulo,
         solicitudData.presupuestoSolicitado || 0,
         solicitanteName
       );
-      
+
       res.status(201).json(solicitud);
     } catch (error: any) {
       console.error('Error creating marketing solicitud:', error);
@@ -13474,18 +13934,18 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const { mes, anio, estado } = req.query;
-      
+
       const filters: any = {};
-      
+
       if (mes) filters.mes = parseInt(mes as string);
       if (anio) filters.anio = parseInt(anio as string);
       if (estado) filters.estado = estado as string;
-      
+
       // Supervisors can only see their own solicitudes
       if (user.role === 'supervisor') {
         filters.supervisorId = user.id;
       }
-      
+
       const solicitudes = await storage.getSolicitudesMarketing(filters);
       res.json(solicitudes);
     } catch (error: any) {
@@ -13496,11 +13956,11 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/marketing/solicitudes/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const solicitud = await storage.getSolicitudMarketingById(req.params.id);
-      
+
       if (!solicitud) {
         return res.status(404).json({ message: 'Solicitud no encontrada' });
       }
-      
+
       res.json(solicitud);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener solicitud', error: error.message });
@@ -13511,34 +13971,34 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const solicitud = await storage.getSolicitudMarketingById(req.params.id);
-      
+
       if (!solicitud) {
         return res.status(404).json({ message: 'Solicitud no encontrada' });
       }
-      
+
       // Only admin can update estado, only supervisor can update their own solicitudes
       if (req.body.estado && user.role !== 'admin') {
         return res.status(403).json({ message: 'Solo admin puede cambiar el estado' });
       }
-      
+
       if (user.role === 'supervisor' && solicitud.supervisorId !== user.id) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       // Validate urgency limit when changing to "alta"
       if (req.body.urgencia === 'alta' && solicitud.urgencia !== 'alta') {
         const urgentSolicitudes = await storage.getSolicitudesMarketingByUrgency(solicitud.supervisorId!, 'alta');
-        const activeUrgentCount = urgentSolicitudes.filter(s => 
+        const activeUrgentCount = urgentSolicitudes.filter(s =>
           s.id !== solicitud.id && s.estado !== 'completado' && s.estado !== 'rechazado'
         ).length;
-        
+
         if (activeUrgentCount >= 3) {
-          return res.status(400).json({ 
-            message: 'No puedes tener más de 3 solicitudes con urgencia alta activas. Completa o cancela algunas antes de cambiar la urgencia.' 
+          return res.status(400).json({
+            message: 'No puedes tener más de 3 solicitudes con urgencia alta activas. Completa o cancela algunas antes de cambiar la urgencia.'
           });
         }
       }
-      
+
       const updated = await storage.updateSolicitudMarketing(req.params.id, req.body);
       res.json(updated);
     } catch (error: any) {
@@ -13549,12 +14009,12 @@ export function registerRoutes(app: Express): Server {
   app.delete('/api/marketing/solicitudes/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only admin can delete
       if (user.role !== 'admin') {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       await storage.deleteSolicitudMarketing(req.params.id);
       res.status(204).send();
     } catch (error: any) {
@@ -13567,20 +14027,20 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const { estado, motivoRechazo, monto, pdfPresupuesto } = req.body;
-      
+
       // Only admin can change estado
       if (user.role !== 'admin') {
         return res.status(403).json({ message: 'Solo admin puede cambiar el estado' });
       }
-      
+
       if (!estado) {
         return res.status(400).json({ message: 'Estado es requerido' });
       }
-      
+
       if (estado === 'rechazado' && !motivoRechazo) {
         return res.status(400).json({ message: 'Motivo de rechazo es requerido' });
       }
-      
+
       const solicitud = await storage.updateSolicitudMarketingEstado(req.params.id, estado, motivoRechazo, monto, pdfPresupuesto);
       res.json(solicitud);
     } catch (error: any) {
@@ -13593,26 +14053,26 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const solicitud = await storage.getSolicitudMarketingById(req.params.id);
-      
+
       if (!solicitud) {
         return res.status(404).json({ message: 'Solicitud no encontrada' });
       }
-      
+
       // Supervisor can update their own solicitudes, admin can update all
       if (user.role === 'supervisor' && solicitud.supervisorId !== user.id) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       if (user.role !== 'admin' && user.role !== 'supervisor') {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const { pasos } = req.body;
-      
+
       if (!Array.isArray(pasos)) {
         return res.status(400).json({ message: 'Pasos debe ser un array' });
       }
-      
+
       const updated = await storage.updateSolicitudMarketing(req.params.id, { pasos });
       res.json(updated);
     } catch (error: any) {
@@ -13625,29 +14085,29 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const solicitud = await storage.getSolicitudMarketingById(req.params.id);
-      
+
       if (!solicitud) {
         return res.status(404).json({ message: 'Solicitud no encontrada' });
       }
-      
+
       // Supervisor can update their own solicitudes, admin can update all
       if (user.role === 'supervisor' && solicitud.supervisorId !== user.id) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       if (user.role !== 'admin' && user.role !== 'supervisor') {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const index = parseInt(req.params.index);
       const pasos = (solicitud.pasos as any[]) || [];
-      
+
       if (index < 0 || index >= pasos.length) {
         return res.status(400).json({ message: 'Índice de paso inválido' });
       }
-      
+
       pasos[index].completado = !pasos[index].completado;
-      
+
       const updated = await storage.updateSolicitudMarketing(req.params.id, { pasos });
       res.json(updated);
     } catch (error: any) {
@@ -13660,22 +14120,22 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const solicitud = await storage.getSolicitudMarketingById(req.params.id);
-      
+
       if (!solicitud) {
         return res.status(404).json({ message: 'Solicitud no encontrada' });
       }
-      
+
       // Supervisor can update their own solicitudes, admin can update all
       if (user.role === 'supervisor' && solicitud.supervisorId !== user.id) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       if (user.role !== 'admin' && user.role !== 'supervisor') {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const { notas } = req.body;
-      
+
       const updated = await storage.updateSolicitudMarketing(req.params.id, { notas });
       res.json(updated);
     } catch (error: any) {
@@ -13688,16 +14148,16 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const solicitud = await storage.getSolicitudMarketingById(req.params.id);
-      
+
       if (!solicitud) {
         return res.status(404).json({ message: 'Solicitud no encontrada' });
       }
-      
+
       // Supervisor can upload to their own solicitudes, admin can upload to all
       if (user.role === 'supervisor' && solicitud.supervisorId !== user.id) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       if (user.role !== 'admin' && user.role !== 'supervisor') {
         return res.status(403).json({ message: 'No autorizado' });
       }
@@ -13713,16 +14173,16 @@ export function registerRoutes(app: Express): Server {
       const uploadResult = await objectStorage.uploadFile(fileName, file.buffer, {
         contentType: file.mimetype,
       });
-      
+
       // Update solicitud with image URL
-      const updated = await storage.updateSolicitudMarketing(req.params.id, { 
-        urlReferencia: uploadResult.publicUrl || fileName 
+      const updated = await storage.updateSolicitudMarketing(req.params.id, {
+        urlReferencia: uploadResult.publicUrl || fileName
       });
-      
-      res.json({ 
-        success: true, 
+
+      res.json({
+        success: true,
         urlReferencia: uploadResult.publicUrl || fileName,
-        solicitud: updated 
+        solicitud: updated
       });
     } catch (error: any) {
       console.error('Error al subir imagen de referencia:', error);
@@ -13735,7 +14195,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const mes = parseInt(req.params.mes);
       const anio = parseInt(req.params.anio);
-      
+
       const metrics = await storage.getMarketingMetrics(mes, anio);
       res.json(metrics);
     } catch (error: any) {
@@ -13747,12 +14207,12 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/marketing/inventario', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only admin can create inventory items
       if (user.role !== 'admin') {
         return res.status(403).json({ message: 'Solo admin puede crear items de inventario' });
       }
-      
+
       const item = await storage.createInventarioMarketing(req.body);
       res.json(item);
     } catch (error: any) {
@@ -13763,11 +14223,11 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/marketing/inventario', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { search, estado } = req.query;
-      
+
       const filters: any = {};
       if (search) filters.search = search as string;
       if (estado) filters.estado = estado as string;
-      
+
       const items = await storage.getInventarioMarketing(filters);
       res.json(items);
     } catch (error: any) {
@@ -13787,11 +14247,11 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/marketing/inventario/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const item = await storage.getInventarioMarketingById(req.params.id);
-      
+
       if (!item) {
         return res.status(404).json({ message: 'Item no encontrado' });
       }
-      
+
       res.json(item);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener item', error: error.message });
@@ -13801,12 +14261,12 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/marketing/inventario/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only admin can update inventory items
       if (user.role !== 'admin') {
         return res.status(403).json({ message: 'Solo admin puede actualizar items de inventario' });
       }
-      
+
       const item = await storage.updateInventarioMarketing(req.params.id, req.body);
       res.json(item);
     } catch (error: any) {
@@ -13817,12 +14277,12 @@ export function registerRoutes(app: Express): Server {
   app.delete('/api/marketing/inventario/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only admin can delete inventory items
       if (user.role !== 'admin') {
         return res.status(403).json({ message: 'Solo admin puede eliminar items de inventario' });
       }
-      
+
       await storage.deleteInventarioMarketing(req.params.id);
       res.json({ message: 'Item eliminado correctamente' });
     } catch (error: any) {
@@ -13838,11 +14298,11 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/marketing/hitos', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { mes, anio } = req.query;
-      
+
       const filters: any = {};
       if (mes) filters.mes = parseInt(mes);
       if (anio) filters.anio = parseInt(anio);
-      
+
       const hitos = await storage.getHitosMarketing(filters);
       res.json(hitos);
     } catch (error: any) {
@@ -13854,11 +14314,11 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/marketing/hitos/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const hito = await storage.getHitoMarketingById(req.params.id);
-      
+
       if (!hito) {
         return res.status(404).json({ message: 'Hito no encontrado' });
       }
-      
+
       res.json(hito);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener hito', error: error.message });
@@ -13869,17 +14329,17 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/marketing/hitos', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only admin and supervisor can create hitos
       if (user.role !== 'admin' && user.role !== 'supervisor') {
         return res.status(403).json({ message: 'No tienes permisos para crear hitos' });
       }
-      
+
       const validatedData = insertHitoMarketingSchema.parse({
         ...req.body,
         createdBy: user.id,
       });
-      
+
       const hito = await storage.createHitoMarketing(validatedData);
       res.status(201).json(hito);
     } catch (error: any) {
@@ -13894,12 +14354,12 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/marketing/hitos/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only admin and supervisor can update hitos
       if (user.role !== 'admin' && user.role !== 'supervisor') {
         return res.status(403).json({ message: 'No tienes permisos para editar hitos' });
       }
-      
+
       const hito = await storage.updateHitoMarketing(req.params.id, req.body);
       res.json(hito);
     } catch (error: any) {
@@ -13911,12 +14371,12 @@ export function registerRoutes(app: Express): Server {
   app.delete('/api/marketing/hitos/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only admin can delete hitos
       if (user.role !== 'admin') {
         return res.status(403).json({ message: 'Solo admin puede eliminar hitos' });
       }
-      
+
       await storage.deleteHitoMarketing(req.params.id);
       res.json({ message: 'Hito eliminado correctamente' });
     } catch (error: any) {
@@ -13996,7 +14456,7 @@ export function registerRoutes(app: Express): Server {
         filters.activo = true; // Por defecto solo activos
       }
       if (search) filters.search = search;
-      
+
       const productos = await storage.getProductosMonitoreo(filters);
       res.json(productos);
     } catch (error: any) {
@@ -14092,7 +14552,7 @@ export function registerRoutes(app: Express): Server {
       if (fechaDesde) filters.fechaDesde = fechaDesde;
       if (fechaHasta) filters.fechaHasta = fechaHasta;
       if (search) filters.search = search;
-      
+
       const precios = await storage.getPreciosCompetencia(filters);
       res.json(precios);
     } catch (error: any) {
@@ -14168,7 +14628,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/marketing/tareas', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const { mes, anio, estado, asignadoAId, incluirPorFechaLimite } = req.query;
-      
+
       const filters: any = {
         tipo: 'marketing', // Solo mostrar tareas de marketing
       };
@@ -14177,7 +14637,7 @@ export function registerRoutes(app: Express): Server {
       if (estado) filters.estado = estado;
       if (asignadoAId) filters.asignadoAId = asignadoAId;
       if (incluirPorFechaLimite === 'true') filters.incluirPorFechaLimite = true;
-      
+
       const tareas = await storage.getTareasMarketing(filters);
       res.json(tareas);
     } catch (error: any) {
@@ -14202,19 +14662,19 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/marketing/tareas', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only admin and supervisor can create tareas
       if (user.role !== 'admin' && user.role !== 'supervisor') {
         return res.status(403).json({ message: 'Solo admin y supervisor pueden crear tareas' });
       }
-      
+
       const tareaData = {
         ...req.body,
         tipo: 'marketing', // Siempre tipo marketing cuando se crea desde el módulo de marketing
         creadoPorId: user.id,
         creadoPorNombre: user.salespersonName || `${user.firstName} ${user.lastName}`,
       };
-      
+
       const tarea = await storage.createTareaMarketing(tareaData);
       res.status(201).json(tarea);
     } catch (error: any) {
@@ -14228,16 +14688,16 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const tarea = await storage.getTareaMarketingById(req.params.id);
-      
+
       if (!tarea) {
         return res.status(404).json({ message: 'Tarea no encontrada' });
       }
-      
+
       // Admin can update any tarea, others can only update if they created it or are assigned
       if (user.role !== 'admin' && tarea.creadoPorId !== user.id && tarea.asignadoAId !== user.id) {
         return res.status(403).json({ message: 'No autorizado para modificar esta tarea' });
       }
-      
+
       const updated = await storage.updateTareaMarketing(req.params.id, req.body);
       res.json(updated);
     } catch (error: any) {
@@ -14250,16 +14710,16 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const tarea = await storage.getTareaMarketingById(req.params.id);
-      
+
       if (!tarea) {
         return res.status(404).json({ message: 'Tarea no encontrada' });
       }
-      
+
       // Admin and supervisor can toggle any tarea, assigned users can toggle their own
       if (user.role !== 'admin' && user.role !== 'supervisor' && tarea.asignadoAId !== user.id) {
         return res.status(403).json({ message: 'No autorizado para modificar el estado de esta tarea' });
       }
-      
+
       const updated = await storage.toggleTareaMarketingEstado(req.params.id);
       res.json(updated);
     } catch (error: any) {
@@ -14271,12 +14731,12 @@ export function registerRoutes(app: Express): Server {
   app.delete('/api/marketing/tareas/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only admin can delete tareas
       if (user.role !== 'admin') {
         return res.status(403).json({ message: 'Solo admin puede eliminar tareas' });
       }
-      
+
       await storage.deleteTareaMarketing(req.params.id);
       res.json({ message: 'Tarea eliminada correctamente' });
     } catch (error: any) {
@@ -14293,18 +14753,18 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const { mes, anio, estado, tipo, asignadoAId } = req.query;
-      
+
       // Solo admin, supervisor y salesperson pueden acceder
       if (!['admin', 'supervisor', 'salesperson'].includes(user.role)) {
         return res.status(403).json({ message: 'No tienes permisos para acceder a las tareas' });
       }
-      
+
       const filters: any = {};
       if (mes) filters.mes = parseInt(mes);
       if (anio) filters.anio = parseInt(anio);
       if (estado) filters.estado = estado;
       if (tipo) filters.tipo = tipo;
-      
+
       // Aplicar filtros según rol
       if (user.role === 'salesperson') {
         // Vendedor solo ve sus propias tareas asignadas
@@ -14323,7 +14783,7 @@ export function registerRoutes(app: Express): Server {
         // Admin puede filtrar por asignadoAId si lo proporciona
         if (asignadoAId) filters.asignadoAId = asignadoAId;
       }
-      
+
       const tareas = await storage.getTareasMarketing(filters);
       res.json(tareas);
     } catch (error: any) {
@@ -14335,13 +14795,13 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/tareas/usuarios-asignables', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (user.role !== 'admin' && user.role !== 'supervisor') {
         return res.status(403).json({ message: 'No tienes permisos para ver usuarios asignables' });
       }
-      
+
       let usuarios: any[] = [];
-      
+
       if (user.role === 'admin') {
         // Admin puede asignar a cualquier usuario con rol comercial
         const allUsers = await storage.getAllUsers();
@@ -14352,7 +14812,7 @@ export function registerRoutes(app: Express): Server {
         const currentUser = await storage.getUserById(user.id);
         usuarios = [currentUser, ...vendedores].filter(Boolean);
       }
-      
+
       res.json(usuarios.map((u: any) => ({
         id: u.id,
         nombre: u.salespersonName || `${u.firstName || ''} ${u.lastName || ''}`.trim(),
@@ -14369,16 +14829,16 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const tarea = await storage.getTareaMarketingById(req.params.id);
-      
+
       if (!tarea) {
         return res.status(404).json({ message: 'Tarea no encontrada' });
       }
-      
+
       // Verificar permisos de visualización
       if (user.role === 'salesperson' && tarea.asignadoAId !== user.id) {
         return res.status(403).json({ message: 'No tienes permisos para ver esta tarea' });
       }
-      
+
       if (user.role === 'supervisor') {
         const vendedores = await storage.getVendedoresBySupervisor(user.id);
         const vendedorIds = vendedores.map(v => v.id);
@@ -14387,7 +14847,7 @@ export function registerRoutes(app: Express): Server {
           return res.status(403).json({ message: 'No tienes permisos para ver esta tarea' });
         }
       }
-      
+
       res.json(tarea);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener tarea', error: error.message });
@@ -14398,14 +14858,14 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/tareas', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Solo admin y supervisor pueden crear tareas
       if (user.role !== 'admin' && user.role !== 'supervisor') {
         return res.status(403).json({ message: 'Solo admin y supervisor pueden crear tareas' });
       }
-      
+
       const { asignadoAId, tipo = 'general' } = req.body;
-      
+
       // Validar que supervisor solo puede asignar a sus vendedores
       if (user.role === 'supervisor' && asignadoAId && asignadoAId !== user.id) {
         const vendedores = await storage.getVendedoresBySupervisor(user.id);
@@ -14414,7 +14874,7 @@ export function registerRoutes(app: Express): Server {
           return res.status(403).json({ message: 'Solo puedes asignar tareas a tus vendedores' });
         }
       }
-      
+
       // Obtener nombre del asignado
       let asignadoANombre = null;
       if (asignadoAId) {
@@ -14423,7 +14883,7 @@ export function registerRoutes(app: Express): Server {
           asignadoANombre = asignadoUser.salespersonName || `${asignadoUser.firstName || ''} ${asignadoUser.lastName || ''}`.trim();
         }
       }
-      
+
       const tareaData = {
         ...req.body,
         tipo,
@@ -14431,7 +14891,7 @@ export function registerRoutes(app: Express): Server {
         creadoPorNombre: user.salespersonName || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
         asignadoANombre,
       };
-      
+
       const tarea = await storage.createTareaMarketing(tareaData);
       res.status(201).json(tarea);
     } catch (error: any) {
@@ -14445,11 +14905,11 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const tarea = await storage.getTareaMarketingById(req.params.id);
-      
+
       if (!tarea) {
         return res.status(404).json({ message: 'Tarea no encontrada' });
       }
-      
+
       // Verificar permisos de edición
       if (user.role === 'salesperson') {
         // Vendedor solo puede cambiar el estado de sus propias tareas
@@ -14467,23 +14927,23 @@ export function registerRoutes(app: Express): Server {
         const updated = await storage.updateTareaMarketing(req.params.id, updates);
         return res.json(updated);
       }
-      
+
       if (user.role === 'supervisor') {
         const vendedores = await storage.getVendedoresBySupervisor(user.id);
         const vendedorIds = vendedores.map(v => v.id);
         vendedorIds.push(user.id);
-        
+
         // Verificar que la tarea pertenece a su equipo
         if (tarea.creadoPorId !== user.id && !vendedorIds.includes(tarea.asignadoAId || '')) {
           return res.status(403).json({ message: 'No tienes permisos para modificar esta tarea' });
         }
-        
+
         // Validar que si cambia asignadoAId, sea a alguien de su equipo
         if (req.body.asignadoAId && !vendedorIds.includes(req.body.asignadoAId)) {
           return res.status(403).json({ message: 'Solo puedes asignar tareas a tus vendedores' });
         }
       }
-      
+
       // Obtener nombre del asignado si cambia
       if (req.body.asignadoAId) {
         const asignadoUser = await storage.getUserById(req.body.asignadoAId);
@@ -14491,7 +14951,7 @@ export function registerRoutes(app: Express): Server {
           req.body.asignadoANombre = asignadoUser.salespersonName || `${asignadoUser.firstName || ''} ${asignadoUser.lastName || ''}`.trim();
         }
       }
-      
+
       const updated = await storage.updateTareaMarketing(req.params.id, req.body);
       res.json(updated);
     } catch (error: any) {
@@ -14504,16 +14964,16 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       const tarea = await storage.getTareaMarketingById(req.params.id);
-      
+
       if (!tarea) {
         return res.status(404).json({ message: 'Tarea no encontrada' });
       }
-      
+
       // Verificar permisos
       if (user.role === 'salesperson' && tarea.asignadoAId !== user.id) {
         return res.status(403).json({ message: 'No tienes permisos para modificar esta tarea' });
       }
-      
+
       if (user.role === 'supervisor') {
         const vendedores = await storage.getVendedoresBySupervisor(user.id);
         const vendedorIds = vendedores.map(v => v.id);
@@ -14522,7 +14982,7 @@ export function registerRoutes(app: Express): Server {
           return res.status(403).json({ message: 'No tienes permisos para modificar esta tarea' });
         }
       }
-      
+
       const updated = await storage.toggleTareaMarketingEstado(req.params.id);
       res.json(updated);
     } catch (error: any) {
@@ -14534,12 +14994,12 @@ export function registerRoutes(app: Express): Server {
   app.delete('/api/tareas/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Solo admin puede eliminar tareas
       if (user.role !== 'admin') {
         return res.status(403).json({ message: 'Solo admin puede eliminar tareas' });
       }
-      
+
       await storage.deleteTareaMarketing(req.params.id);
       res.json({ message: 'Tarea eliminada correctamente' });
     } catch (error: any) {
@@ -14550,16 +15010,16 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
   // INVENTORY routes
   // ==================================================================================
-  
+
   // Get inventory with filters
   app.get('/api/inventory', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const { search, warehouse } = req.query;
-      
+
       const filters: any = {};
       if (search) filters.search = search;
       if (warehouse) filters.warehouse = warehouse;
-      
+
       const inventory = await storage.getInventory(filters);
       res.json(inventory);
     } catch (error: any) {
@@ -14571,12 +15031,12 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/inventory/summary', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const { search, warehouse, branch } = req.query;
-      
+
       const filters: any = {};
       if (search) filters.search = search;
       if (warehouse) filters.warehouse = warehouse;
       if (branch) filters.branch = branch;
-      
+
       const summary = await storage.getInventorySummary(filters);
       res.json(summary);
     } catch (error: any) {
@@ -14588,19 +15048,19 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/inventory-with-prices', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const { search, warehouse, branch } = req.query;
-      
+
       const filters: any = {};
       if (search) filters.search = search;
       if (warehouse) filters.warehouse = warehouse;
       if (branch) filters.branch = branch;
-      
+
       // Auto-sync: Check if we need to sync inventory in background
       const user = req.user;
       if (user && user.id && user.email) {
         const lastSync = await storage.getLastSync();
         const now = Date.now();
         const oneMinute = 60000; // 1 minute in milliseconds
-        
+
         if (!lastSync || (now - new Date(lastSync.createdAt).getTime()) > oneMinute) {
           console.log('🔄 Auto-sync: Last sync was more than 1 minute ago, triggering background sync...');
           // Trigger sync in background without waiting
@@ -14615,10 +15075,10 @@ export function registerRoutes(app: Express): Server {
           });
         }
       }
-      
+
       // Return data immediately (don't wait for sync)
       let inventory = await storage.getInventoryWithPrices(filters);
-      
+
       // Security: Hide price and value data from salespeople
       if (user && user.role === 'salesperson') {
         inventory = inventory.map((item: any) => {
@@ -14626,7 +15086,7 @@ export function registerRoutes(app: Express): Server {
           return rest;
         });
       }
-      
+
       res.json(inventory);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener inventario con precios', error: error.message });
@@ -14637,21 +15097,21 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/inventory/summary-with-prices', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const { search, warehouse, branch, hideNoStock, hideZZProducts } = req.query;
-      
+
       const filters: any = {};
       if (search) filters.search = search;
       if (warehouse) filters.warehouse = warehouse;
       if (branch) filters.branch = branch;
       if (hideNoStock === 'true') filters.hideNoStock = true;
       if (hideZZProducts === 'true') filters.hideZZProducts = true;
-      
+
       // Auto-sync: Check if we need to sync inventory in background
       const user = req.user;
       if (user && user.id && user.email) {
         const lastSync = await storage.getLastSync();
         const now = Date.now();
         const oneMinute = 60000; // 1 minute in milliseconds
-        
+
         if (!lastSync || (now - new Date(lastSync.createdAt).getTime()) > oneMinute) {
           console.log('🔄 Auto-sync: Last sync was more than 1 minute ago, triggering background sync...');
           // Trigger sync in background without waiting
@@ -14666,16 +15126,16 @@ export function registerRoutes(app: Express): Server {
           });
         }
       }
-      
+
       // Return data immediately (don't wait for sync)
       let summary = await storage.getInventorySummaryWithPrices(filters);
-      
+
       // Security: Hide total value from salespeople
       if (user && user.role === 'salesperson') {
         const { totalValue, ...rest } = summary;
         summary = { ...rest, totalValue: 0 };
       }
-      
+
       res.json(summary);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener resumen de inventario con precios', error: error.message });
@@ -14691,9 +15151,9 @@ export function registerRoutes(app: Express): Server {
       }
 
       console.log(`🔄 Starting inventory sync requested by ${user.email}`);
-      
+
       const result = await storage.syncProductsFromERP(user.id, user.email);
-      
+
       if (result.status === 'error') {
         return res.status(500).json({
           message: 'Error al sincronizar catálogo',
@@ -14749,25 +15209,25 @@ export function registerRoutes(app: Express): Server {
 
       // Validate required fields
       if (!startDate || !endDate) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: 'Fechas de inicio y fin son requeridas',
-          error: 'startDate and endDate are required' 
+          error: 'startDate and endDate are required'
         });
       }
 
       // Validate mode
       if (!['incremental', 'full'].includes(mode)) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: 'Modo inválido',
-          error: 'mode must be "incremental" or "full"' 
+          error: 'mode must be "incremental" or "full"'
         });
       }
 
       console.log(`🔄 Starting sales ETL sync requested by ${user.email}`);
       console.log(`📅 Period: ${startDate} to ${endDate} (${mode})`);
-      
+
       const result = await storage.syncSalesFromERP(user.id, user.email, startDate, endDate, mode);
-      
+
       if (result.status === 'error') {
         return res.status(500).json({
           message: 'Error al sincronizar ventas desde ERP',
@@ -14777,8 +15237,8 @@ export function registerRoutes(app: Express): Server {
       }
 
       res.json({
-        message: result.status === 'success' 
-          ? 'Sincronización completada exitosamente' 
+        message: result.status === 'success'
+          ? 'Sincronización completada exitosamente'
           : 'Sincronización completada con advertencias',
         ...result,
       });
@@ -14832,20 +15292,23 @@ export function registerRoutes(app: Express): Server {
       }
 
       console.log(`📦 Starting GDV ETL sync requested by ${user.email}`);
-      
-      const result = await executeGDVETL();
-      
-      if (!result.success) {
-        return res.status(500).json({
-          message: 'Error al sincronizar GDV desde ERP',
-          error: result.error,
-          ...result,
-        });
-      }
 
+      // Execute in background (non-blocking) — like ventas ETL
+      const gdvPromise = executeGDVETL();
+
+      gdvPromise
+        .then((result: any) => {
+          console.log(`✅ GDV ETL completed: ${result.recordsProcessed} records in ${result.executionTimeMs}ms`);
+        })
+        .catch((error) => {
+          console.error('❌ GDV ETL background error:', error.message);
+        });
+
+      // Return immediately
       res.json({
-        message: 'Sincronización de GDV completada exitosamente',
-        ...result,
+        success: true,
+        message: 'Sincronización de GDV iniciada en segundo plano',
+        isRunning: true,
       });
     } catch (error: any) {
       console.error('Error in GDV sync endpoint:', error);
@@ -14950,6 +15413,17 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Get all GDV grouped by salesperson (for main dashboard view)
+  app.get('/api/gdv/all-by-salespeople', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const gdvData = await storage.getAllGdvGroupedBySalespeople();
+      res.json(gdvData);
+    } catch (error: any) {
+      console.error('[GDV All By Salespeople Error]', error);
+      res.status(500).json({ message: 'Error al obtener GDV por vendedor', error: error.message });
+    }
+  }));
+
   // ==================================================================================
   // NVV ETL SYNCHRONIZATION routes
   // ==================================================================================
@@ -14963,9 +15437,9 @@ export function registerRoutes(app: Express): Server {
       }
 
       console.log(`📦 Starting NVV ETL sync requested by ${user.email}`);
-      
+
       const result = await executeNVVETL();
-      
+
       if (!result.success) {
         return res.status(500).json({
           message: 'Error al sincronizar NVV desde ERP',
@@ -15036,7 +15510,7 @@ export function registerRoutes(app: Express): Server {
         minAmount: req.query.minAmount ? parseFloat(req.query.minAmount as string) : undefined,
         maxAmount: req.query.maxAmount ? parseFloat(req.query.maxAmount as string) : undefined,
       };
-      
+
       const summary = await storage.getNvvSummary(filters);
       res.json(summary);
     } catch (error: any) {
@@ -15066,7 +15540,7 @@ export function registerRoutes(app: Express): Server {
         minAmount: req.query.minAmount ? parseFloat(req.query.minAmount as string) : undefined,
         maxAmount: req.query.maxAmount ? parseFloat(req.query.maxAmount as string) : undefined,
       };
-      
+
       const metrics = await storage.getNvvBySucursal(filters);
       res.json(metrics);
     } catch (error: any) {
@@ -15096,7 +15570,7 @@ export function registerRoutes(app: Express): Server {
         minAmount: req.query.minAmount ? parseFloat(req.query.minAmount as string) : undefined,
         maxAmount: req.query.maxAmount ? parseFloat(req.query.maxAmount as string) : undefined,
       };
-      
+
       const metrics = await storage.getNvvByVendedor(filters);
       res.json(metrics);
     } catch (error: any) {
@@ -15126,7 +15600,7 @@ export function registerRoutes(app: Express): Server {
         minAmount: req.query.minAmount ? parseFloat(req.query.minAmount as string) : undefined,
         maxAmount: req.query.maxAmount ? parseFloat(req.query.maxAmount as string) : undefined,
       };
-      
+
       const metrics = await storage.getNvvByBodega(filters);
       res.json(metrics);
     } catch (error: any) {
@@ -15156,7 +15630,7 @@ export function registerRoutes(app: Express): Server {
         minAmount: req.query.minAmount ? parseFloat(req.query.minAmount as string) : undefined,
         maxAmount: req.query.maxAmount ? parseFloat(req.query.maxAmount as string) : undefined,
       };
-      
+
       const metrics = await storage.getNvvBySegmentoCliente(filters);
       res.json(metrics);
     } catch (error: any) {
@@ -15253,12 +15727,12 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/gastos-empresariales/upload-evidencia', requireAuth, upload.single('file'), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only salesperson, supervisor, admin and recursos_humanos can upload evidence
       if (!['salesperson', 'supervisor', 'admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para subir evidencia' });
       }
-      
+
       if (!req.file) {
         return res.status(400).json({ message: 'No se ha subido ningún archivo' });
       }
@@ -15269,7 +15743,7 @@ export function registerRoutes(app: Express): Server {
       const randomId = nanoid(6);
       const fileExtension = path.extname(file.originalname).toLowerCase();
       const userIdShort = user.id.slice(0, 8);
-      
+
       // Estructura organizada: gastos/evidencia_{userId}_{fecha}_{randomId}.{ext}
       const fileName = `gastos/evidencia_${userIdShort}_${dateStr}_${randomId}${fileExtension}`;
 
@@ -15277,9 +15751,9 @@ export function registerRoutes(app: Express): Server {
       const objectStorageService = new ObjectStorageService();
       const imageUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
       console.log(`☁️ [GASTO-EVIDENCIA] Uploaded: ${fileName}`);
-      
+
       let previewUrl: string | null = null;
-      
+
       if (isPdfFile(file.mimetype, file.originalname)) {
         console.log(`📄 [GASTO-EVIDENCIA] PDF detected, generating preview...`);
         try {
@@ -15293,7 +15767,7 @@ export function registerRoutes(app: Express): Server {
           console.warn('⚠️ [GASTO-EVIDENCIA] Failed to generate PDF preview:', previewError);
         }
       }
-      
+
       res.json({ url: imageUrl, fileName, previewUrl });
     } catch (error: any) {
       console.error('Error uploading evidencia:', error);
@@ -15306,12 +15780,12 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/fund-allocations/upload-comprobante', requireAuth, upload.single('file'), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only admin and HR can upload fund transfer receipts
       if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para subir comprobante de fondo' });
       }
-      
+
       if (!req.file) {
         return res.status(400).json({ message: 'No se ha subido ningún archivo' });
       }
@@ -15323,7 +15797,7 @@ export function registerRoutes(app: Express): Server {
       const randomId = nanoid(6);
       const fileExtension = path.extname(file.originalname).toLowerCase();
       const fundIdShort = fundId.slice(0, 8);
-      
+
       // Estructura organizada: fondos/comprobante_{fundId}_{fecha}_{randomId}.{ext}
       const fileName = `fondos/comprobante_${fundIdShort}_${dateStr}_${randomId}${fileExtension}`;
 
@@ -15331,9 +15805,9 @@ export function registerRoutes(app: Express): Server {
       const objectStorageService = new ObjectStorageService();
       const imageUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
       console.log(`☁️ [FONDO-COMPROBANTE] Uploaded: ${fileName}`);
-      
+
       let previewUrl: string | null = null;
-      
+
       if (isPdfFile(file.mimetype, file.originalname)) {
         console.log(`📄 [FONDO-COMPROBANTE] PDF detected, generating preview...`);
         try {
@@ -15347,7 +15821,7 @@ export function registerRoutes(app: Express): Server {
           console.warn('⚠️ [FONDO-COMPROBANTE] Failed to generate PDF preview:', previewError);
         }
       }
-      
+
       res.json({ url: imageUrl, fileName, previewUrl });
     } catch (error: any) {
       console.error('Error uploading comprobante de fondo:', error);
@@ -15360,7 +15834,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/fund-allocations/upload-solicitud', requireAuth, upload.single('file'), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (!req.file) {
         return res.status(400).json({ message: 'No se ha subido ningún archivo' });
       }
@@ -15371,7 +15845,7 @@ export function registerRoutes(app: Express): Server {
       const randomId = nanoid(6);
       const fileExtension = path.extname(file.originalname).toLowerCase();
       const userIdShort = user.id.slice(0, 8);
-      
+
       // Estructura organizada: fondos/solicitud_{userId}_{fecha}_{randomId}.{ext}
       const fileName = `fondos/solicitud_${userIdShort}_${dateStr}_${randomId}${fileExtension}`;
 
@@ -15390,23 +15864,23 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/gastos-empresariales/ocr-extract', requireAuth, upload.single('file'), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (!['salesperson', 'supervisor', 'admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       if (!req.file) {
         return res.status(400).json({ message: 'No se ha subido ningún archivo' });
       }
 
       const file = req.file;
-      
+
       // Check if it's an image (not PDF for now)
       if (!file.mimetype.startsWith('image/')) {
-        return res.json({ 
-          success: false, 
+        return res.json({
+          success: false,
           message: 'OCR solo disponible para imágenes. Por favor ingrese los datos manualmente.',
-          data: null 
+          data: null
         });
       }
 
@@ -15456,7 +15930,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       });
 
       const content = response.choices[0]?.message?.content || '{}';
-      
+
       // Parse the JSON response
       let extractedData;
       try {
@@ -15473,7 +15947,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       }
 
       console.log('🔍 [OCR] Extracted data:', extractedData);
-      
+
       res.json({
         success: true,
         message: 'Datos extraídos correctamente',
@@ -15493,19 +15967,19 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/gastos-empresariales', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only salesperson, supervisor, admin and recursos_humanos can create expenses
       if (!['salesperson', 'supervisor', 'admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para crear gastos' });
       }
-      
+
       // Admin and supervisor can create expenses on behalf of other users
       // Salesperson can only create their own expenses
       let targetUserId = user.id;
       if (['admin', 'supervisor'].includes(user.role) && req.body.userId) {
         targetUserId = req.body.userId;
       }
-      
+
       const validated = insertGastoEmpresarialSchema.parse({
         ...req.body,
         userId: targetUserId,
@@ -15518,7 +15992,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           return res.status(400).json({ message: 'La fecha de emisión debe estar dentro del mes calendario actual' });
         }
       }
-      
+
       const isConFondo = validated.fundingMode === 'con_fondo' && validated.fundAllocationId;
       if (isConFondo) {
         const allocation = await storage.getFundAllocationById(validated.fundAllocationId!);
@@ -15545,9 +16019,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         validated.tipoGasto = 'Reembolso';
         validated.estadoAprobacion = 'pendiente_rrhh';
       }
-      
+
       const gasto = await storage.createGastoEmpresarial(validated);
-      
+
       if (isConFondo && validated.fundAllocationId) {
         await storage.createFundMovement({
           allocationId: validated.fundAllocationId,
@@ -15558,7 +16032,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           creadoPorId: targetUserId,
         });
       }
-      
+
       // 🔔 Notificación automática: Nuevo gasto creado
       const creatorName = user.salespersonName || `${user.firstName} ${user.lastName}` || user.email;
       await NotifyHelper.notifyGastoCreado(
@@ -15566,7 +16040,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         validated.monto,
         creatorName
       );
-      
+
       res.status(201).json(gasto);
     } catch (error: any) {
       if (error.name === 'ZodError') {
@@ -15581,9 +16055,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const { estado, fechaDesde, fechaHasta, categoria, userId, limit, offset } = req.query;
-      
+
       const filters: any = {};
-      
+
       // Salesperson can only see their own expenses
       // Supervisor, recursos_humanos and admin can see all and filter by userId
       if (user.role === 'salesperson') {
@@ -15591,14 +16065,14 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       } else if (userId) {
         filters.userId = userId;
       }
-      
+
       if (estado) filters.estado = estado;
       if (fechaDesde) filters.fechaDesde = fechaDesde;
       if (fechaHasta) filters.fechaHasta = fechaHasta;
       if (categoria) filters.categoria = categoria;
       if (limit) filters.limit = parseInt(limit);
       if (offset) filters.offset = parseInt(offset);
-      
+
       const gastos = await storage.getGastosEmpresariales(filters);
       res.json(gastos);
     } catch (error: any) {
@@ -15611,16 +16085,16 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const gasto = await storage.getGastoEmpresarialById(req.params.id);
-      
+
       if (!gasto) {
         return res.status(404).json({ message: 'Gasto no encontrado' });
       }
-      
+
       // Salesperson can only see their own expense
       if (user.role === 'salesperson' && gasto.userId !== user.id) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       res.json(gasto);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener gasto', error: error.message });
@@ -15632,16 +16106,16 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const gasto = await storage.getGastoEmpresarialById(req.params.id);
-      
+
       if (!gasto) {
         return res.status(404).json({ message: 'Gasto no encontrado' });
       }
-      
+
       // Only the creator can update pending expenses
       if (gasto.estado !== 'pendiente' || gasto.userId !== user.id) {
         return res.status(403).json({ message: 'No se puede modificar este gasto' });
       }
-      
+
       const updated = await storage.updateGastoEmpresarial(req.params.id, req.body);
       res.json(updated);
     } catch (error: any) {
@@ -15654,16 +16128,16 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const gasto = await storage.getGastoEmpresarialById(req.params.id);
-      
+
       if (!gasto) {
         return res.status(404).json({ message: 'Gasto no encontrado' });
       }
-      
+
       // Only the creator can delete pending expenses or admin
       if ((gasto.estado !== 'pendiente' || gasto.userId !== user.id) && user.role !== 'admin') {
         return res.status(403).json({ message: 'No se puede eliminar este gasto' });
       }
-      
+
       await storage.deleteGastoEmpresarial(req.params.id);
       res.json({ message: 'Gasto eliminado correctamente' });
     } catch (error: any) {
@@ -15675,11 +16149,11 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/gastos-empresariales/:id/aprobar', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (!['supervisor', 'admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'Solo supervisores, admin o recursos humanos pueden aprobar gastos' });
       }
-      
+
       const gasto = await storage.aprobarGastoEmpresarial(req.params.id, user.id);
       res.json(gasto);
     } catch (error: any) {
@@ -15691,16 +16165,16 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/gastos-empresariales/:id/rechazar', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (!['supervisor', 'admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'Solo supervisores, admin o recursos humanos pueden rechazar gastos' });
       }
-      
+
       const { comentario } = req.body;
       if (!comentario) {
         return res.status(400).json({ message: 'El comentario es requerido para rechazar' });
       }
-      
+
       const gasto = await storage.rechazarGastoEmpresarial(req.params.id, user.id, comentario);
       res.json(gasto);
     } catch (error: any) {
@@ -15791,11 +16265,11 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.get('/api/gastos-empresariales/reembolsos/pendientes-supervisor', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (!['supervisor', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const reembolsos = await storage.getReembolsosPendientesSupervisor(user.id);
       res.json(reembolsos);
     } catch (error: any) {
@@ -15807,11 +16281,11 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.get('/api/gastos-empresariales/reembolsos/pendientes-rrhh', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const reembolsos = await storage.getReembolsosPendientesRrhh();
       res.json(reembolsos);
     } catch (error: any) {
@@ -15823,23 +16297,23 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/gastos-empresariales/:id/supervisor-approve', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (!['supervisor', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'Solo supervisores pueden aprobar en esta etapa' });
       }
-      
+
       const gasto = await storage.getGastoEmpresarialById(req.params.id);
       if (!gasto) {
         return res.status(404).json({ message: 'Gasto no encontrado' });
       }
-      
+
       if (gasto.estadoAprobacion !== 'pendiente_supervisor') {
         return res.status(400).json({ message: 'Este reembolso no está pendiente de aprobación de supervisor' });
       }
-      
+
       const { comentario } = req.body;
       const result = await storage.aprobarReembolsoSupervisor(req.params.id, user.id, comentario);
-      
+
       // Notificar a RRHH
       try {
         const rrhhUsers = await storage.getUsersByRole('recursos_humanos');
@@ -15855,7 +16329,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       } catch (notifError) {
         console.error('Error al enviar notificación a RRHH:', notifError);
       }
-      
+
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al aprobar reembolso', error: error.message });
@@ -15866,27 +16340,27 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/gastos-empresariales/:id/supervisor-reject', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (!['supervisor', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'Solo supervisores pueden rechazar en esta etapa' });
       }
-      
+
       const gasto = await storage.getGastoEmpresarialById(req.params.id);
       if (!gasto) {
         return res.status(404).json({ message: 'Gasto no encontrado' });
       }
-      
+
       if (gasto.estadoAprobacion !== 'pendiente_supervisor') {
         return res.status(400).json({ message: 'Este reembolso no está pendiente de aprobación de supervisor' });
       }
-      
+
       const { motivoRechazo } = req.body;
       if (!motivoRechazo) {
         return res.status(400).json({ message: 'El motivo del rechazo es requerido' });
       }
-      
+
       const result = await storage.rechazarReembolsoSupervisor(req.params.id, user.id, motivoRechazo);
-      
+
       // Notificar al solicitante
       try {
         await storage.createNotification({
@@ -15899,7 +16373,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       } catch (notifError) {
         console.error('Error al enviar notificación:', notifError);
       }
-      
+
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al rechazar reembolso', error: error.message });
@@ -15910,25 +16384,25 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/gastos-empresariales/:id/rrhh-approve', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'Solo RRHH puede dar aprobación final' });
       }
-      
+
       const gasto = await storage.getGastoEmpresarialById(req.params.id);
       if (!gasto) {
         return res.status(404).json({ message: 'Gasto no encontrado' });
       }
-      
+
       if (!['pendiente_rrhh', 'pendiente_supervisor'].includes(gasto.estadoAprobacion || '')) {
         return res.status(400).json({ message: 'Este gasto no está pendiente de aprobación de RRHH' });
       }
-      
+
       const { comentario } = req.body;
       const comprobanteUrl = gasto.archivoUrl || null;
-      
+
       const result = await storage.aprobarReembolsoRrhh(req.params.id, user.id, comprobanteUrl, comentario);
-      
+
       if (gasto.fundingMode === 'con_fondo' && gasto.fundAllocationId) {
         try {
           const existingMovements = await storage.getFundMovements(gasto.fundAllocationId);
@@ -15953,7 +16427,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           console.error('Error al registrar movimiento de fondo aprobado:', movError);
         }
       }
-      
+
       try {
         await storage.createNotification({
           userId: gasto.userId,
@@ -15965,7 +16439,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       } catch (notifError) {
         console.error('Error al enviar notificación:', notifError);
       }
-      
+
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al aprobar gasto', error: error.message });
@@ -15976,27 +16450,27 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/gastos-empresariales/:id/rrhh-reject', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'Solo RRHH puede rechazar en esta etapa' });
       }
-      
+
       const gasto = await storage.getGastoEmpresarialById(req.params.id);
       if (!gasto) {
         return res.status(404).json({ message: 'Gasto no encontrado' });
       }
-      
+
       if (!['pendiente_rrhh', 'pendiente_supervisor'].includes(gasto.estadoAprobacion || '')) {
         return res.status(400).json({ message: 'Este gasto no está pendiente de aprobación de RRHH' });
       }
-      
+
       const { motivoRechazo } = req.body;
       if (!motivoRechazo) {
         return res.status(400).json({ message: 'El motivo del rechazo es requerido' });
       }
-      
+
       const result = await storage.rechazarReembolsoRrhh(req.params.id, user.id, motivoRechazo);
-      
+
       if (gasto.fundingMode === 'con_fondo' && gasto.fundAllocationId) {
         try {
           const existingMovements = await storage.getFundMovements(gasto.fundAllocationId);
@@ -16012,7 +16486,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           console.error('Error al registrar movimiento de fondo rechazado:', movError);
         }
       }
-      
+
       try {
         await storage.createNotification({
           userId: gasto.userId,
@@ -16024,7 +16498,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       } catch (notifError) {
         console.error('Error al enviar notificación:', notifError);
       }
-      
+
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al rechazar reembolso', error: error.message });
@@ -16036,9 +16510,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const { mes, anio, userId } = req.query;
-      
+
       const filters: any = {};
-      
+
       // Salesperson can only see their own summary
       // Supervisor, recursos_humanos and admin can see all
       if (user.role === 'salesperson') {
@@ -16046,10 +16520,10 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       } else if (userId) {
         filters.userId = userId;
       }
-      
+
       if (mes) filters.mes = parseInt(mes);
       if (anio) filters.anio = parseInt(anio);
-      
+
       const summary = await storage.getGastosEmpresarialesSummary(filters);
       res.json(summary);
     } catch (error: any) {
@@ -16062,9 +16536,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const { mes, anio, userId } = req.query;
-      
+
       const filters: any = {};
-      
+
       // Salesperson can only see their own analytics
       // Supervisor, recursos_humanos and admin can see all
       if (user.role === 'salesperson') {
@@ -16072,10 +16546,10 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       } else if (userId) {
         filters.userId = userId;
       }
-      
+
       if (mes) filters.mes = parseInt(mes);
       if (anio) filters.anio = parseInt(anio);
-      
+
       const data = await storage.getGastosEmpresarialesByCategoria(filters);
       res.json(data);
     } catch (error: any) {
@@ -16091,11 +16565,11 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       if (!userId) {
         return res.status(400).json({ message: 'userId es requerido' });
       }
-      
+
       if (user.role === 'salesperson' && userId !== user.id) {
         userId = user.id;
       }
-      
+
       const results = await db
         .select({
           mes: sql<number>`EXTRACT(MONTH FROM ${gastosEmpresariales.createdAt})`,
@@ -16113,7 +16587,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           desc(sql`EXTRACT(YEAR FROM ${gastosEmpresariales.createdAt})`),
           desc(sql`EXTRACT(MONTH FROM ${gastosEmpresariales.createdAt})`)
         );
-      
+
       res.json(results.map(r => ({
         mes: parseInt(r.mes as any),
         anio: parseInt(r.anio as any),
@@ -16129,13 +16603,13 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.get('/api/gastos-empresariales/analytics/usuarios', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Only admin, recursos_humanos and supervisor can see all users
       if (!['admin', 'recursos_humanos', 'supervisor'].includes(user.role)) {
         // For other roles, just return their own user info
         return res.json([{ userId: user.id, userName: user.fullName || user.username }]);
       }
-      
+
       const data = await storage.getAllUsersWithGastos();
       res.json(data);
     } catch (error: any) {
@@ -16148,9 +16622,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const { mes, anio, userId } = req.query;
-      
+
       const filters: any = {};
-      
+
       // Salesperson can only see their own data
       // Supervisor, recursos_humanos and admin can see all
       if (user.role === 'salesperson') {
@@ -16161,10 +16635,10 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         // Admin/HR/Supervisor can filter by specific user
         filters.userId = userId;
       }
-      
+
       if (mes) filters.mes = parseInt(mes);
       if (anio) filters.anio = parseInt(anio);
-      
+
       const data = await storage.getGastosEmpresarialesByUser(filters);
       res.json(data);
     } catch (error: any) {
@@ -16177,9 +16651,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const { mes, anio, userId } = req.query;
-      
+
       const filters: any = {};
-      
+
       // Salesperson can only see their own analytics
       // Supervisor, recursos_humanos and admin can see all
       if (user.role === 'salesperson') {
@@ -16187,10 +16661,10 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       } else if (userId) {
         filters.userId = userId;
       }
-      
+
       if (mes) filters.mes = parseInt(mes);
       if (anio) filters.anio = parseInt(anio);
-      
+
       const data = await storage.getGastosEmpresarialesByDia(filters);
       res.json(data);
     } catch (error: any) {
@@ -16206,16 +16680,16 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/fund-allocations', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'Solo Admin o Recursos Humanos pueden asignar fondos' });
       }
-      
+
       const validated = insertFundAllocationSchema.parse({
         ...req.body,
         assignedById: user.id,
       });
-      
+
       const allocation = await storage.createFundAllocation(validated);
       res.status(201).json(allocation);
     } catch (error: any) {
@@ -16231,22 +16705,22 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const { assignedToId, estado, limit, offset } = req.query;
-      
+
       const filters: any = {};
-      
+
       // Non-admin/HR users see: funds assigned TO them + their own solicitudes
       if (!['admin', 'recursos_humanos'].includes(user.role)) {
         filters.userScope = user.id; // Will fetch assignedToId=user.id OR (estado='solicitud' AND assignedById=user.id)
       } else if (assignedToId) {
         filters.assignedToId = assignedToId;
       }
-      
+
       if (estado) filters.estado = estado;
       if (limit) filters.limit = parseInt(limit as string);
       if (offset) filters.offset = parseInt(offset as string);
-      
+
       const allocations = await storage.getFundAllocations(filters);
-      
+
       // Enrich with balance info
       const enriched = await Promise.all(
         allocations.map(async (alloc) => {
@@ -16254,7 +16728,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           return { ...alloc, ...balance };
         })
       );
-      
+
       res.json(enriched);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener asignaciones', error: error.message });
@@ -16265,14 +16739,14 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.get('/api/fund-allocations/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const allocation = await storage.getFundAllocationById(req.params.id);
-      
+
       if (!allocation) {
         return res.status(404).json({ message: 'Asignación no encontrada' });
       }
-      
+
       const balance = await storage.getFundAllocationBalance(allocation.id);
       const movements = await storage.getFundMovements(allocation.id);
-      
+
       res.json({ ...allocation, ...balance, movements });
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener asignación', error: error.message });
@@ -16283,7 +16757,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.patch('/api/fund-allocations/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
@@ -16343,11 +16817,11 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/fund-allocations/:id/close', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const closed = await storage.closeFundAllocation(req.params.id);
       res.json(closed);
     } catch (error: any) {
@@ -16360,17 +16834,17 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       console.log('[APPROVE FUND] Request received:', { id: req.params.id, comprobanteUrl: req.body.comprobanteUrl, comprobantePreviewUrl: req.body.comprobantePreviewUrl, userId: user.id });
-      
+
       if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const { comprobanteUrl, comprobantePreviewUrl } = req.body;
-      
+
       if (!comprobanteUrl) {
         return res.status(400).json({ message: 'El comprobante de transferencia es requerido' });
       }
-      
+
       const approved = await storage.approveFundAllocation(req.params.id, comprobanteUrl, user.id, comprobantePreviewUrl);
       console.log('[APPROVE FUND] Result:', approved);
       res.json(approved);
@@ -16384,17 +16858,17 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/fund-allocations/:id/reject', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const { motivoRechazo } = req.body;
-      
+
       if (!motivoRechazo) {
         return res.status(400).json({ message: 'El motivo del rechazo es requerido' });
       }
-      
+
       const rejected = await storage.rejectFundAllocation(req.params.id, motivoRechazo, user.id);
       res.json(rejected);
     } catch (error: any) {
@@ -16406,17 +16880,17 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/fund-allocations/:id/adjust', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const { monto, descripcion } = req.body;
-      
+
       if (!monto || typeof monto !== 'number') {
         return res.status(400).json({ message: 'Monto requerido' });
       }
-      
+
       const movement = await storage.createFundMovement({
         allocationId: req.params.id,
         tipoMovimiento: 'ajuste',
@@ -16424,7 +16898,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         descripcion: descripcion || 'Ajuste manual',
         creadoPorId: user.id,
       });
-      
+
       res.status(201).json(movement);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al crear ajuste', error: error.message });
@@ -16445,16 +16919,16 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.delete('/api/fund-allocations/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (user.role !== 'admin' && user.role !== 'recursos_humanos') {
         return res.status(403).json({ message: 'Solo administradores y RRHH pueden eliminar fondos' });
       }
-      
+
       const allocation = await storage.getFundAllocationById(req.params.id);
       if (!allocation) {
         return res.status(404).json({ message: 'Fondo no encontrado' });
       }
-      
+
       await storage.deleteFundAllocation(req.params.id);
       res.json({ message: 'Fondo eliminado exitosamente' });
     } catch (error: any) {
@@ -16468,12 +16942,12 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const targetUserId = req.params.userId;
-      
+
       // Salesperson and supervisor can only see their own
       if ((user.role === 'salesperson' || user.role === 'supervisor') && user.id !== targetUserId) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const allocations = await storage.getUserActiveFundAllocations(targetUserId);
       res.json(allocations);
     } catch (error: any) {
@@ -16486,16 +16960,16 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const { userId } = req.query;
-      
+
       let targetUserId: string | undefined;
-      
+
       // Salesperson and supervisor can only see their own fund summary
       if (user.role === 'salesperson' || user.role === 'supervisor') {
         targetUserId = user.id;
       } else if (userId) {
         targetUserId = userId as string;
       }
-      
+
       const summary = await storage.getFundAllocationSummary(targetUserId);
       res.json(summary);
     } catch (error: any) {
@@ -16508,17 +16982,17 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const { monto, motivo, centroCostos, fechaTermino, segmentCode } = req.body;
-      
+
       if (!monto || monto <= 0) {
         return res.status(400).json({ message: 'El monto debe ser mayor a 0' });
       }
-      
+
       if (!segmentCode) {
         return res.status(400).json({ message: 'El segmento es requerido para solicitar fondos' });
       }
-      
+
       // All fund allocations go directly to RRHH approval (supervisor step removed)
-      
+
       // Create fund allocation with multi-level approval flow
       const allocation = await storage.createFundAllocation({
         nombre: `Solicitud de ${user.fullName || user.username}`,
@@ -16537,16 +17011,16 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         fechaAprobacionSupervisor: null,
         comentarioSupervisor: null,
       });
-      
+
       try {
         const { db } = await import('./db');
         const { users } = await import('../shared/schema');
         const { or, eq } = await import('drizzle-orm');
-        
+
         const rrhhUsers = await db.select({ id: users.id, role: users.role })
           .from(users)
           .where(or(eq(users.role, 'recursos_humanos'), eq(users.role, 'admin')));
-        
+
         for (const rrhhUser of rrhhUsers) {
           await storage.createNotification({
             userId: rrhhUser.id,
@@ -16560,7 +17034,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       } catch (notifError) {
         console.error('Error sending notification to RRHH:', notifError);
       }
-      
+
       res.status(201).json(allocation);
     } catch (error: any) {
       console.error('Error creating fund request:', error);
@@ -16579,7 +17053,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const { segmentCode } = req.query;
       const supervisors = await storage.getSegmentSupervisors(segmentCode as string | undefined);
       res.json(supervisors);
@@ -16595,12 +17069,12 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const { segmentCode, supervisorUserId } = req.body;
       if (!segmentCode || !supervisorUserId) {
         return res.status(400).json({ message: 'Se requiere segmentCode y supervisorUserId' });
       }
-      
+
       const supervisor = await storage.createSegmentSupervisor({ segmentCode, supervisorUserId });
       res.status(201).json(supervisor);
     } catch (error: any) {
@@ -16615,7 +17089,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       await storage.deleteSegmentSupervisor(req.params.id);
       res.json({ message: 'Asignación eliminada' });
     } catch (error: any) {
@@ -16630,7 +17104,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       if (!['supervisor', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const allocations = await storage.getFundAllocationsPendingSupervisor(user.id);
       res.json(allocations);
     } catch (error: any) {
@@ -16645,7 +17119,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       if (!['recursos_humanos', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const allocations = await storage.getFundAllocationsPendingRRHH();
       res.json(allocations);
     } catch (error: any) {
@@ -16660,21 +17134,21 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       if (!['supervisor', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const { comentario } = req.body;
       const allocation = await storage.supervisorApproveFund(req.params.id, user.id, comentario);
-      
+
       // Send notification to all RRHH and admin users
       try {
         // Query users with role 'rrhh' or 'admin' directly
         const { db } = await import('./db');
         const { users } = await import('../shared/schema');
         const { or, eq } = await import('drizzle-orm');
-        
+
         const rrhhUsers = await db.select({ id: users.id, role: users.role })
           .from(users)
           .where(or(eq(users.role, 'recursos_humanos'), eq(users.role, 'admin')));
-        
+
         for (const rrhhUser of rrhhUsers) {
           await storage.createNotification({
             userId: rrhhUser.id,
@@ -16688,7 +17162,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       } catch (notifError) {
         console.error('Error sending notification:', notifError);
       }
-      
+
       res.json(allocation);
     } catch (error: any) {
       res.status(500).json({ message: error.message || 'Error al aprobar solicitud' });
@@ -16702,14 +17176,14 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       if (!['supervisor', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const { comentario } = req.body;
       if (!comentario) {
         return res.status(400).json({ message: 'Se requiere un comentario para rechazar' });
       }
-      
+
       const allocation = await storage.supervisorRejectFund(req.params.id, user.id, comentario);
-      
+
       // Send notification to requester
       try {
         await storage.createNotification({
@@ -16723,7 +17197,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       } catch (notifError) {
         console.error('Error sending notification:', notifError);
       }
-      
+
       res.json(allocation);
     } catch (error: any) {
       res.status(500).json({ message: error.message || 'Error al rechazar solicitud' });
@@ -16737,14 +17211,14 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       if (!['recursos_humanos', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const { comprobanteUrl, comentario } = req.body;
       if (!comprobanteUrl) {
         return res.status(400).json({ message: 'Se requiere el comprobante de transferencia' });
       }
-      
+
       const allocation = await storage.rrhhApproveFund(req.params.id, user.id, comprobanteUrl, comentario);
-      
+
       // Send notification to requester
       try {
         await storage.createNotification({
@@ -16758,7 +17232,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       } catch (notifError) {
         console.error('Error sending notification:', notifError);
       }
-      
+
       res.json(allocation);
     } catch (error: any) {
       res.status(500).json({ message: error.message || 'Error al aprobar solicitud' });
@@ -16772,14 +17246,14 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       if (!['recursos_humanos', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const { comentario } = req.body;
       if (!comentario) {
         return res.status(400).json({ message: 'Se requiere un comentario para rechazar' });
       }
-      
+
       const allocation = await storage.rrhhRejectFund(req.params.id, user.id, comentario);
-      
+
       // Send notification to requester
       try {
         await storage.createNotification({
@@ -16793,7 +17267,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       } catch (notifError) {
         console.error('Error sending notification:', notifError);
       }
-      
+
       res.json(allocation);
     } catch (error: any) {
       res.status(500).json({ message: error.message || 'Error al rechazar solicitud' });
@@ -16815,18 +17289,18 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const allocationId = req.params.id;
-      
+
       // Solo admin y rrhh pueden recargar fondos
       if (!['admin', 'recursos_humanos'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado para recargar fondos' });
       }
-      
+
       const { rechargeMode, rechargeAmount, newFechaInicio, newFechaTermino, comentario } = req.body;
-      
+
       if (!comentario) {
         return res.status(400).json({ message: 'El comentario es requerido' });
       }
-      
+
       const result = await storage.rechargeFundAllocation({
         allocationId,
         performedById: user.id,
@@ -16837,7 +17311,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         newFechaTermino,
         comentario
       });
-      
+
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ message: error.message || 'Error al recargar fondo' });
@@ -16963,11 +17437,11 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/promesas-compra', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (!['salesperson', 'supervisor', 'admin'].includes(user.role)) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       // Determinar el vendedorId correcto según el rol
       let vendedorId: string;
       if (user.role === 'salesperson') {
@@ -16977,25 +17451,25 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         // Admin/supervisor pueden crear para cualquier vendedor
         vendedorId = req.body.vendedorId || user.id;
       }
-      
+
       const validatedData = insertPromesaCompraSchema.parse({
         ...req.body,
         vendedorId: vendedorId
       });
-      
+
       const promesa = await storage.createPromesaCompra(validatedData);
-      
+
       // Automáticamente agregar el cliente a seguimiento (CRM Lead) si no existe ya
       try {
         const clienteId = validatedData.clienteId;
         const clienteName = validatedData.clienteNombre || 'Cliente';
-        
+
         // Verificar si el cliente ya existe como lead
         const existingLeads = await storage.getLeads({ salespersonId: vendedorId });
         const clienteYaEnSeguimiento = existingLeads.some(
           (lead: any) => lead.clientId === clienteId || lead.clientName === clienteName
         );
-        
+
         if (!clienteYaEnSeguimiento) {
           // Crear un nuevo lead con etapa "promesa"
           await storage.createLead({
@@ -17012,7 +17486,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         // No fallar la creación de promesa si falla el seguimiento
         console.error('Error al agregar cliente a seguimiento:', seguimientoError.message);
       }
-      
+
       res.status(201).json(promesa);
     } catch (error: any) {
       if (error.name === 'ZodError') {
@@ -17027,22 +17501,22 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const { vendedorId, clienteId, semana, anio, limit, offset } = req.query;
-      
+
       const filters: any = {};
-      
+
       // Salesperson can only see their own promesas
       if (user.role === 'salesperson') {
         filters.vendedorId = user.id;
       } else if (vendedorId) {
         filters.vendedorId = vendedorId;
       }
-      
+
       if (clienteId) filters.clienteId = clienteId;
       if (semana) filters.semana = semana;
       if (anio) filters.anio = parseInt(anio);
       if (limit) filters.limit = parseInt(limit);
       if (offset) filters.offset = parseInt(offset);
-      
+
       const promesas = await storage.getPromesasCompra(filters);
       res.json(promesas);
     } catch (error: any) {
@@ -17056,9 +17530,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const { vendedorId, semana, anio, startDate, endDate } = req.query;
-      
+
       const filters: any = {};
-      
+
       // Salesperson can only see their own data
       if (user.role === 'salesperson') {
         filters.vendedorId = user.id;
@@ -17079,7 +17553,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         // Admin can filter by any vendedor
         filters.vendedorId = vendedorId;
       }
-      
+
       // Use startDate/endDate if provided, otherwise use semana/anio
       if (startDate && endDate) {
         filters.startDate = startDate;
@@ -17088,22 +17562,22 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         if (semana) filters.semana = semana;
         if (anio) filters.anio = parseInt(anio);
       }
-      
+
       console.log('🔍 [PROMESAS] Query filters:', JSON.stringify(filters, null, 2));
       console.log('🔍 [PROMESAS] User role:', user.role, '| User ID:', user.id);
-      
+
       const resultados = await storage.getPromesasConCumplimiento(filters);
-      
+
       console.log(`✅ [PROMESAS] Found ${resultados.length} promesas`);
       if (resultados.length > 0) {
         console.log('📊 [PROMESAS] Sample:', JSON.stringify(resultados[0], null, 2));
       }
-      
+
       // Add canDelete flag to each promesa based on user authorization
       const resultadosConPermisos = await Promise.all(
         resultados.map(async (item: any) => {
           let canDelete = false;
-          
+
           if (user.role === 'admin') {
             // Admin can delete any promesa
             canDelete = true;
@@ -17115,14 +17589,14 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
             const salespersonUser = await storage.getSalespersonUserById(item.promesa.vendedorId);
             canDelete = salespersonUser?.supervisorId === user.id;
           }
-          
+
           return {
             ...item,
             canDelete
           };
         })
       );
-      
+
       // Keep the nested structure that the frontend expects
       res.json(resultadosConPermisos);
     } catch (error: any) {
@@ -17136,16 +17610,16 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const promesa = await storage.getPromesaCompraById(req.params.id);
-      
+
       if (!promesa) {
         return res.status(404).json({ message: 'Promesa no encontrada' });
       }
-      
+
       // Check authorization
       if (user.role === 'salesperson' && promesa.vendedorId !== user.id) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       res.json(promesa);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener promesa de compra', error: error.message });
@@ -17157,16 +17631,16 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const promesa = await storage.getPromesaCompraById(req.params.id);
-      
+
       if (!promesa) {
         return res.status(404).json({ message: 'Promesa no encontrada' });
       }
-      
+
       // Check authorization
       if (user.role === 'salesperson' && promesa.vendedorId !== user.id) {
         return res.status(403).json({ message: 'No autorizado' });
       }
-      
+
       const updated = await storage.updatePromesaCompra(req.params.id, req.body);
       res.json(updated);
     } catch (error: any) {
@@ -17179,11 +17653,11 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const promesa = await storage.getPromesaCompraById(req.params.id);
-      
+
       if (!promesa) {
         return res.status(404).json({ message: 'Promesa no encontrada' });
       }
-      
+
       // Check authorization
       if (user.role === 'salesperson') {
         // Salesperson solo puede eliminar sus propias promesas
@@ -17193,18 +17667,18 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       } else if (user.role === 'supervisor') {
         // Supervisor puede eliminar promesas de vendedores bajo su supervisión
         const salespersonUser = await storage.getSalespersonUserById(promesa.vendedorId);
-        
+
         if (!salespersonUser) {
           return res.status(404).json({ message: 'Vendedor no encontrado' });
         }
-        
+
         // Verificar que el vendedor pertenece al supervisor
         if (salespersonUser.supervisorId !== user.id) {
           return res.status(403).json({ message: 'No autorizado para eliminar promesas de este vendedor' });
         }
       }
       // Admin puede eliminar cualquier promesa (no requiere verificación adicional)
-      
+
       await storage.deletePromesaCompra(req.params.id);
       res.status(204).send();
     } catch (error: any) {
@@ -17226,24 +17700,24 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       console.log(`👤 Solicitado por: ${req.user.email}`);
       console.log(`📝 ETL: ${etlName}`);
       console.log(`⏰ Timestamp: ${new Date().toISOString()}\n`);
-      
+
       // 🔀 ROUTER: Ejecutar ETL específico según etlName
       // Execute ETL in background (non-blocking)
-      const etlPromise = etlName === 'nvv' 
-        ? executeNVVETL() 
+      const etlPromise = etlName === 'nvv'
+        ? executeNVVETL()
         : etlName === 'gdv'
-        ? executeGDVETL()
-        : executeIncrementalETL(etlName as string);
-      
+          ? executeGDVETL()
+          : executeIncrementalETL(etlName as string);
+
       etlPromise
         .then((result: any) => {
           console.log('\n╔═══════════════════════════════════════════════════════════════╗');
           console.log('║  ✅ ETL BACKGROUND EXECUTION COMPLETADO                      ║');
           console.log('╚═══════════════════════════════════════════════════════════════╝');
-          
+
           const recordsProcessed = result.recordsProcessed ?? result.records_processed ?? 0;
           const executionTime = result.executionTimeMs ?? result.execution_time_ms ?? 0;
-          
+
           console.log(`📊 Registros procesados: ${recordsProcessed}`);
           console.log(`⏱️  Tiempo de ejecución: ${executionTime}ms`);
           console.log(`📅 Watermark: ${result.watermarkDate}`);
@@ -17258,28 +17732,157 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           console.error('📚 Stack trace:', error.stack);
           console.error('═══════════════════════════════════════════════════════════════\n');
         });
-      
+
       // Return immediately
       console.log('✅ Respuesta enviada al cliente: ETL iniciado en segundo plano\n');
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         message: 'ETL iniciado en segundo plano',
         isRunning: true
       });
     } catch (error: any) {
       console.error('\n❌ ETL EXECUTION ERROR (endpoint):', error);
       console.error('Stack:', error.stack);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false,
-        error: error.message 
+        error: error.message
       });
     }
+  }));
+
+  // ═══════════════════════════════════════════════════════════════
+  // Sync All ETLs — Runs Ventas → GDV → NVV sequentially
+  // ═══════════════════════════════════════════════════════════════
+
+  // Track sync-all state — live per-ETL status for real-time modal
+  let syncAllRunning = false;
+  let syncAllStatus: any = null; // Live status (updated during execution)
+
+  app.post('/api/etl/sync-all', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      if (syncAllRunning) {
+        return res.status(409).json({
+          success: false,
+          message: 'Ya hay una sincronización completa en ejecución',
+        });
+      }
+
+      console.log(`\n🔄 [SYNC-ALL] Iniciado por: ${req.user.email}`);
+      syncAllRunning = true;
+
+      // Initialize live status — all pending (with progress fields)
+      syncAllStatus = {
+        ventas: { status: 'pending', recordsProcessed: 0, executionTimeMs: 0, error: null, progress: 0, progressMessage: '' },
+        gdv: { status: 'pending', recordsProcessed: 0, executionTimeMs: 0, error: null, progress: 0, progressMessage: '' },
+        nvv: { status: 'pending', recordsProcessed: 0, executionTimeMs: 0, error: null, progress: 0, progressMessage: '' },
+        totalRecords: 0,
+        totalTimeMs: 0,
+        completedAt: null,
+      };
+
+      // Run in background
+      (async () => {
+        const startTime = Date.now();
+
+        // 1/3 — Ventas
+        try {
+          syncAllStatus.ventas.status = 'running';
+          console.log('📊 [SYNC-ALL] (1/3) Starting Ventas...');
+          // Listen to progress events
+          const ventasProgressListener = (event: any) => {
+            syncAllStatus.ventas.progress = event.percentage || 0;
+            syncAllStatus.ventas.progressMessage = event.message || '';
+          };
+          etlProgressEmitter.on('progress', ventasProgressListener);
+          try {
+            const ventasResult = await executeIncrementalETL();
+            syncAllStatus.ventas = { status: 'done', recordsProcessed: ventasResult.recordsProcessed, executionTimeMs: ventasResult.executionTimeMs, error: ventasResult.error || null, progress: 100, progressMessage: 'Completado' };
+            console.log(`✅ [SYNC-ALL] Ventas: ${ventasResult.recordsProcessed} registros`);
+          } finally {
+            etlProgressEmitter.off('progress', ventasProgressListener);
+          }
+        } catch (error: any) {
+          syncAllStatus.ventas = { status: 'error', recordsProcessed: 0, executionTimeMs: 0, error: error.message, progress: 0, progressMessage: '' };
+          console.error('[SYNC-ALL] Ventas failed:', error.message);
+        }
+
+        // 2/3 — GDV
+        try {
+          syncAllStatus.gdv.status = 'running';
+          console.log('📊 [SYNC-ALL] (2/3) Starting GDV...');
+          const gdvProgressListener = (event: any) => {
+            syncAllStatus.gdv.progress = event.percentage || 0;
+            syncAllStatus.gdv.progressMessage = event.message || '';
+          };
+          gdvEtlProgressEmitter.on('progress', gdvProgressListener);
+          try {
+            const gdvResult = await executeGDVETL();
+            syncAllStatus.gdv = { status: 'done', recordsProcessed: gdvResult.recordsProcessed, executionTimeMs: gdvResult.executionTimeMs, error: gdvResult.error || null, progress: 100, progressMessage: 'Completado' };
+            console.log(`✅ [SYNC-ALL] GDV: ${gdvResult.recordsProcessed} registros`);
+          } finally {
+            gdvEtlProgressEmitter.off('progress', gdvProgressListener);
+          }
+        } catch (error: any) {
+          syncAllStatus.gdv = { status: 'error', recordsProcessed: 0, executionTimeMs: 0, error: error.message, progress: 0, progressMessage: '' };
+          console.error('[SYNC-ALL] GDV failed:', error.message);
+        }
+
+        // 3/3 — NVV
+        try {
+          syncAllStatus.nvv.status = 'running';
+          console.log('📊 [SYNC-ALL] (3/3) Starting NVV...');
+          const nvvProgressListener = (event: any) => {
+            syncAllStatus.nvv.progress = event.percentage || 0;
+            syncAllStatus.nvv.progressMessage = event.message || '';
+          };
+          nvvEtlProgressEmitter.on('progress', nvvProgressListener);
+          try {
+            const nvvResult = await executeNVVETL();
+            syncAllStatus.nvv = { status: 'done', recordsProcessed: nvvResult.records_processed, executionTimeMs: nvvResult.execution_time_ms, error: nvvResult.error || null, progress: 100, progressMessage: 'Completado' };
+            console.log(`✅ [SYNC-ALL] NVV: ${nvvResult.records_processed} registros`);
+          } finally {
+            nvvEtlProgressEmitter.off('progress', nvvProgressListener);
+          }
+        } catch (error: any) {
+          syncAllStatus.nvv = { status: 'error', recordsProcessed: 0, executionTimeMs: 0, error: error.message, progress: 0, progressMessage: '' };
+          console.error('[SYNC-ALL] NVV failed:', error.message);
+        }
+
+        syncAllStatus.totalRecords = (syncAllStatus.ventas.recordsProcessed || 0) + (syncAllStatus.gdv.recordsProcessed || 0) + (syncAllStatus.nvv.recordsProcessed || 0);
+        syncAllStatus.totalTimeMs = Date.now() - startTime;
+        syncAllStatus.completedAt = new Date().toISOString();
+        syncAllRunning = false;
+
+        console.log(`\n✅ [SYNC-ALL] Completed: ${syncAllStatus.totalRecords} total records in ${(syncAllStatus.totalTimeMs / 1000).toFixed(1)}s`);
+      })().catch((err) => {
+        console.error('[SYNC-ALL] Unexpected error:', err);
+        syncAllRunning = false;
+      });
+
+      res.json({
+        success: true,
+        message: 'Sincronización completa iniciada (Ventas → GDV → NVV)',
+        isRunning: true,
+      });
+    } catch (error: any) {
+      syncAllRunning = false;
+      console.error('[SYNC-ALL] Error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }));
+
+  // Check sync-all live status (polled by frontend modal)
+  app.get('/api/etl/sync-all/status', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    res.json({
+      isRunning: syncAllRunning,
+      etls: syncAllStatus,
+    });
   }));
 
   // ETL Progress Stream (Server-Sent Events) - Real-time progress updates
   app.get('/api/etl/progress', requireAdminOrSupervisor, (req: any, res: any) => {
     const { etlName = 'ventas_incremental' } = req.query;
-    
+
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -17288,8 +17891,8 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
 
     // 🔀 ROUTER: Seleccionar el emitter correcto según etlName
     const emitter = etlName === 'nvv' ? nvvEtlProgressEmitter :
-                    etlName === 'gdv' ? gdvEtlProgressEmitter :
-                    etlProgressEmitter;
+      etlName === 'gdv' ? gdvEtlProgressEmitter :
+        etlProgressEmitter;
 
     // 📼 REPLAY BUFFER: Enviar eventos históricos primero (solo para NVV por ahora)
     if (etlName === 'nvv') {
@@ -17317,14 +17920,14 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const { etlName = 'ventas_incremental', startDate, endDate } = req.query;
       const status = await getETLStatus(
-        etlName as string, 
-        startDate as string | undefined, 
+        etlName as string,
+        startDate as string | undefined,
         endDate as string | undefined
       );
       res.json(status);
     } catch (error: any) {
-      res.status(500).json({ 
-        error: error.message 
+      res.status(500).json({
+        error: error.message
       });
     }
   }));
@@ -17334,32 +17937,32 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const { etlName = 'ventas_incremental' } = req.query;
       console.log(`🚫 ETL cancellation requested by: ${req.user.email} for ETL: ${etlName}`);
-      
+
       // Find the currently running ETL execution
       const runningExecution = await storage.getRunningETLExecution(etlName as string);
-      
+
       if (!runningExecution) {
-        return res.status(404).json({ 
+        return res.status(404).json({
           success: false,
-          message: 'No hay ningún proceso ETL en ejecución para cancelar' 
+          message: 'No hay ningún proceso ETL en ejecución para cancelar'
         });
       }
-      
+
       // Mark the execution as cancelled
       await storage.cancelETLExecution(runningExecution.id, req.user.email, etlName as string);
-      
+
       console.log(`✅ ETL ${etlName} cancelled successfully by ${req.user.email}`);
-      
-      res.json({ 
+
+      res.json({
         success: true,
         message: 'Proceso ETL cancelado exitosamente',
         executionId: runningExecution.id
       });
     } catch (error: any) {
       console.error('ETL cancellation error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false,
-        error: error.message 
+        error: error.message
       });
     }
   }));
@@ -17369,7 +17972,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const { etlName = 'ventas_incremental' } = req.query;
       const { customWatermark, timeoutMinutes, intervalMinutes, keepCustomWatermark } = req.body;
-      
+
       console.log('═══════════════════════════════════════════════════════');
       console.log(`⚙️  ETL config update requested`);
       console.log(`   User: ${req.user?.email || 'unknown'}`);
@@ -17380,7 +17983,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       console.log(`   Interval: ${intervalMinutes || 'no change'} minutes`);
       console.log(`   Keep watermark: ${keepCustomWatermark !== undefined ? keepCustomWatermark : 'no change'}`);
       console.log('═══════════════════════════════════════════════════════');
-      
+
       console.log('⏳ Calling updateETLConfig...');
       const config = await updateETLConfig(
         etlName as string,
@@ -17390,10 +17993,10 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         timeoutMinutes ? parseInt(timeoutMinutes) : undefined,
         intervalMinutes ? parseInt(intervalMinutes) : undefined
       );
-      
+
       console.log('✅ ETL config updated successfully:', config);
-      
-      res.json({ 
+
+      res.json({
         success: true,
         message: 'Configuración ETL actualizada exitosamente',
         config
@@ -17406,7 +18009,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         code: error.code,
         detail: error.detail
       });
-      res.status(500).json({ 
+      res.status(500).json({
         success: false,
         error: error.message,
         details: process.env.NODE_ENV === 'development' ? error.stack : undefined
@@ -17419,7 +18022,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     console.log('\n╔═══════════════════════════════════════════════════════════════╗');
     console.log('║  🔍 DIAGNÓSTICO DE PRODUCCIÓN - ETL SCHEMA NVV               ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝\n');
-    
+
     const diagnosticResults: any = {
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV || 'unknown',
@@ -17452,9 +18055,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       const expectedTables = ['stg_maeedo_nvv', 'stg_maeddo_nvv', 'fact_nvv', 'nvv_sync_log'];
       const foundTables = tablesResult.rows.map((row: any) => row.table_name);
       const missingTables = expectedTables.filter(t => !foundTables.includes(t));
-      
-      diagnosticResults.checks.push({ 
-        name: 'nvv_tables', 
+
+      diagnosticResults.checks.push({
+        name: 'nvv_tables',
         status: missingTables.length === 0 ? 'OK' : 'INCOMPLETE',
         success: missingTables.length === 0,
         totalTables: foundTables.length,
@@ -17476,9 +18079,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     // Calculate summary
     const successful = diagnosticResults.checks.filter((c: any) => c.success).length;
     const errors = diagnosticResults.checks.filter((c: any) => !c.success).length;
-    
+
     diagnosticResults.summary = { successful, errors, warnings: 0, total: diagnosticResults.checks.length };
-    
+
     console.log(`✅ Diagnóstico NVV completado: ${successful} exitosas, ${errors} errores\n`);
     return res.json(diagnosticResults);
   }
@@ -17487,7 +18090,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     console.log('\n╔═══════════════════════════════════════════════════════════════╗');
     console.log('║  🔍 DIAGNÓSTICO DE PRODUCCIÓN - ETL SCHEMA GDV               ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝\n');
-    
+
     const diagnosticResults: any = {
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV || 'unknown',
@@ -17520,9 +18123,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       const expectedTables = ['stg_maeedo_gdv', 'stg_maeddo_gdv', 'fact_gdv', 'gdv_sync_log'];
       const foundTables = tablesResult.rows.map((row: any) => row.table_name);
       const missingTables = expectedTables.filter(t => !foundTables.includes(t));
-      
-      diagnosticResults.checks.push({ 
-        name: 'gdv_tables', 
+
+      diagnosticResults.checks.push({
+        name: 'gdv_tables',
         status: missingTables.length === 0 ? 'OK' : 'INCOMPLETE',
         success: missingTables.length === 0,
         totalTables: foundTables.length,
@@ -17544,9 +18147,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     // Calculate summary
     const successful = diagnosticResults.checks.filter((c: any) => c.success).length;
     const errors = diagnosticResults.checks.filter((c: any) => !c.success).length;
-    
+
     diagnosticResults.summary = { successful, errors, warnings: 0, total: diagnosticResults.checks.length };
-    
+
     console.log(`✅ Diagnóstico GDV completado: ${successful} exitosas, ${errors} errores\n`);
     return res.json(diagnosticResults);
   }
@@ -17555,19 +18158,19 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/etl/diagnostics', requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
     try {
       const { etlName = 'ventas_incremental' } = req.query;
-      
+
       // 🔀 ROUTER: Ejecutar diagnóstico específico según etlName
       if (etlName === 'nvv') {
         return await runNVVDiagnostics(req, res);
       } else if (etlName === 'gdv') {
         return await runGDVDiagnostics(req, res);
       }
-      
+
       // Default: Diagnóstico de Ventas (código existente)
       console.log('\n╔═══════════════════════════════════════════════════════════════╗');
       console.log('║  🔍 DIAGNÓSTICO DE PRODUCCIÓN - ETL SCHEMA VENTAS            ║');
       console.log('╚═══════════════════════════════════════════════════════════════╝\n');
-      
+
       const diagnosticResults: any = {
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'unknown',
@@ -17591,12 +18194,12 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       try {
         const userResult = await db.execute(sql`SELECT current_user, current_database(), current_schema()`);
         const searchPathResult = await db.execute(sql`SHOW search_path`);
-        
+
         console.log('   Usuario actual:', userResult.rows[0]);
         console.log('   Search path:', searchPathResult.rows[0]);
-        
-        diagnosticResults.checks.push({ 
-          name: 'user_and_search_path', 
+
+        diagnosticResults.checks.push({
+          name: 'user_and_search_path',
           status: 'OK',
           searchPath: searchPathResult.rows[0]?.search_path
         });
@@ -17614,15 +18217,15 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           FROM information_schema.schemata 
           ORDER BY schema_name
         `);
-        
+
         console.log('   Schemas encontrados:');
         schemasResult.rows.forEach((row: any) => {
           console.log(`     - ${row.schema_name}`);
         });
-        
+
         const hasVentasSchema = schemasResult.rows.some((row: any) => row.schema_name === 'ventas');
-        diagnosticResults.checks.push({ 
-          name: 'schemas_list', 
+        diagnosticResults.checks.push({
+          name: 'schemas_list',
           status: 'OK',
           hasVentasSchema,
           totalSchemas: schemasResult.rows.length
@@ -17642,23 +18245,23 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           WHERE table_schema = 'ventas'
           ORDER BY table_name
         `);
-        
+
         console.log('   Tablas en schema "ventas":');
         tablesResult.rows.forEach((row: any) => {
           console.log(`     - ${row.table_name}`);
         });
-        
+
         const expectedTables = ['stg_maeedo', 'stg_maeddo', 'fact_ventas', 'etl_config', 'etl_execution_log'];
         const foundTables = tablesResult.rows.map((row: any) => row.table_name);
         const missingTables = expectedTables.filter(t => !foundTables.includes(t));
-        
-        diagnosticResults.checks.push({ 
-          name: 'ventas_schema_tables', 
+
+        diagnosticResults.checks.push({
+          name: 'ventas_schema_tables',
           status: missingTables.length === 0 ? 'OK' : 'INCOMPLETE',
           totalTables: foundTables.length,
           missingTables: missingTables.length > 0 ? missingTables : undefined
         });
-        
+
         if (missingTables.length > 0) {
           console.log(`   ⚠️  Tablas faltantes: ${missingTables.join(', ')}`);
         }
@@ -17673,17 +18276,17 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       try {
         const countResult = await db.execute(sql`SELECT COUNT(*) as count FROM ventas.fact_ventas`);
         const count = countResult.rows[0]?.count;
-        
-        diagnosticResults.checks.push({ 
-          name: 'fact_ventas_access_qualified', 
+
+        diagnosticResults.checks.push({
+          name: 'fact_ventas_access_qualified',
           status: 'OK',
           recordCount: parseInt(count)
         });
         console.log(`   ✅ Acceso exitoso. Registros: ${count}\n`);
       } catch (err: any) {
-        diagnosticResults.checks.push({ 
-          name: 'fact_ventas_access_qualified', 
-          status: 'ERROR', 
+        diagnosticResults.checks.push({
+          name: 'fact_ventas_access_qualified',
+          status: 'ERROR',
           error: err.message,
           errorCode: err.code
         });
@@ -17696,17 +18299,17 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       try {
         const countResult = await db.execute(sql`SELECT COUNT(*) as count FROM fact_ventas`);
         const count = countResult.rows[0]?.count;
-        
-        diagnosticResults.checks.push({ 
-          name: 'fact_ventas_access_unqualified', 
+
+        diagnosticResults.checks.push({
+          name: 'fact_ventas_access_unqualified',
           status: 'OK',
           recordCount: parseInt(count)
         });
         console.log(`   ✅ Acceso exitoso. Registros: ${count}\n`);
       } catch (err: any) {
-        diagnosticResults.checks.push({ 
-          name: 'fact_ventas_access_unqualified', 
-          status: 'ERROR', 
+        diagnosticResults.checks.push({
+          name: 'fact_ventas_access_unqualified',
+          status: 'ERROR',
           error: err.message,
           errorCode: err.code
         });
@@ -17722,28 +18325,28 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           FROM ventas.etl_config 
           WHERE etl_name = 'ventas_incremental'
         `);
-        
+
         if (configResult.rows.length > 0) {
           console.log('   Configuración actual:', configResult.rows[0]);
-          diagnosticResults.checks.push({ 
-            name: 'etl_config_access', 
+          diagnosticResults.checks.push({
+            name: 'etl_config_access',
             status: 'OK',
             hasConfig: true
           });
         } else {
           console.log('   ⚠️  No existe configuración para ventas_incremental');
-          diagnosticResults.checks.push({ 
-            name: 'etl_config_access', 
+          diagnosticResults.checks.push({
+            name: 'etl_config_access',
             status: 'OK',
             hasConfig: false
           });
         }
         console.log('   ✅ Tabla etl_config accesible\n');
       } catch (err: any) {
-        diagnosticResults.checks.push({ 
-          name: 'etl_config_access', 
-          status: 'ERROR', 
-          error: err.message 
+        diagnosticResults.checks.push({
+          name: 'etl_config_access',
+          status: 'ERROR',
+          error: err.message
         });
         console.error('   ❌ Error:', err.message, '\n');
       }
@@ -17756,23 +18359,23 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
             has_schema_privilege(current_user, 'ventas', 'USAGE') as has_usage,
             has_schema_privilege(current_user, 'ventas', 'CREATE') as has_create
         `);
-        
+
         console.log('   Permisos del usuario actual:');
         console.log('     - USAGE en schema "ventas":', permsResult.rows[0]?.has_usage);
         console.log('     - CREATE en schema "ventas":', permsResult.rows[0]?.has_create);
-        
-        diagnosticResults.checks.push({ 
-          name: 'ventas_schema_permissions', 
+
+        diagnosticResults.checks.push({
+          name: 'ventas_schema_permissions',
           status: 'OK',
           hasUsage: permsResult.rows[0]?.has_usage,
           hasCreate: permsResult.rows[0]?.has_create
         });
         console.log('   ✅ Permisos verificados\n');
       } catch (err: any) {
-        diagnosticResults.checks.push({ 
-          name: 'ventas_schema_permissions', 
-          status: 'ERROR', 
-          error: err.message 
+        diagnosticResults.checks.push({
+          name: 'ventas_schema_permissions',
+          status: 'ERROR',
+          error: err.message
         });
         console.error('   ❌ Error:', err.message, '\n');
       }
@@ -17784,17 +18387,17 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           .select({ count: sql<number>`count(*)` })
           .from(factVentas)
           .limit(1);
-        
-        diagnosticResults.checks.push({ 
-          name: 'drizzle_fact_ventas_access', 
+
+        diagnosticResults.checks.push({
+          name: 'drizzle_fact_ventas_access',
           status: 'OK',
           recordCount: drizzleResult[0]?.count
         });
         console.log(`   ✅ Drizzle ORM funciona. Registros: ${drizzleResult[0]?.count}\n`);
       } catch (err: any) {
-        diagnosticResults.checks.push({ 
-          name: 'drizzle_fact_ventas_access', 
-          status: 'ERROR', 
+        diagnosticResults.checks.push({
+          name: 'drizzle_fact_ventas_access',
+          status: 'ERROR',
           error: err.message,
           errorCode: err.code
         });
@@ -17810,8 +18413,8 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         nodeEnv: process.env.NODE_ENV
       };
       console.log('   Variables:', envChecks);
-      diagnosticResults.checks.push({ 
-        name: 'environment_variables', 
+      diagnosticResults.checks.push({
+        name: 'environment_variables',
         status: 'OK',
         ...envChecks
       });
@@ -17820,7 +18423,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       // Summary
       const errorCount = diagnosticResults.checks.filter((c: any) => c.status === 'ERROR').length;
       const warningCount = diagnosticResults.checks.filter((c: any) => c.status === 'INCOMPLETE').length;
-      
+
       console.log('╔═══════════════════════════════════════════════════════════════╗');
       console.log('║  📊 RESUMEN DEL DIAGNÓSTICO                                  ║');
       console.log('╚═══════════════════════════════════════════════════════════════╝');
@@ -17848,23 +18451,23 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         checks: diagnosticResults.checks.map((check: any) => ({
           name: check.name,
           success: check.status === 'OK',
-          details: check.status === 'OK' 
+          details: check.status === 'OK'
             ? `✅ ${check.name.replace(/_/g, ' ')}`
             : check.status === 'INCOMPLETE'
-            ? `⚠️ ${check.name.replace(/_/g, ' ')} - Incompleto`
-            : `❌ ${check.name.replace(/_/g, ' ')}`,
+              ? `⚠️ ${check.name.replace(/_/g, ' ')} - Incompleto`
+              : `❌ ${check.name.replace(/_/g, ' ')}`,
           error: check.error || undefined
         }))
       };
-      
+
       console.log('[DIAGNOSTIC RESPONSE] Enviando respuesta al cliente:', JSON.stringify(response, null, 2));
       res.json(response);
 
     } catch (error: any) {
       console.error('❌ Error fatal en diagnóstico:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false,
-        error: 'Error ejecutando diagnóstico. Ver logs del servidor.' 
+        error: 'Error ejecutando diagnóstico. Ver logs del servidor.'
       });
     }
   }));
@@ -17875,7 +18478,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       console.log('\n╔═══════════════════════════════════════════════════════════════╗');
       console.log('║  🔧 EJECUTANDO MIGRACIONES ETL - SCHEMA VENTAS               ║');
       console.log('╚═══════════════════════════════════════════════════════════════╝\n');
-      
+
       const migrationsExecuted: string[] = [];
       const errors: string[] = [];
 
@@ -18003,7 +18606,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           )
         `);
         console.log('   ✅ Tabla base verificada');
-        
+
         // Add all required columns using ALTER TABLE (safe, preserves data)
         const columnsToAdd = [
           'tido TEXT',
@@ -18106,7 +18709,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
             }
           }
         }
-        
+
         migrationsExecuted.push(`Tabla ventas.fact_ventas completada (${columnsAdded} columnas agregadas/verificadas)`);
         console.log(`   ✅ ${columnsAdded} columnas verificadas/agregadas\n`);
       } catch (err: any) {
@@ -18117,10 +18720,10 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       // 5. Recreate staging tables with correct structure
       console.log('5️⃣  Recreando tablas staging con estructura correcta...');
       console.log('   ⚠️  Las tablas staging son temporales - se limpian en cada ETL');
-      
+
       // Drop existing staging tables first
       const stagingTableNames = ['stg_maeedo', 'stg_maeddo', 'stg_maeen', 'stg_maepr', 'stg_tabbo', 'stg_tabpp', 'stg_tabru', 'stg_maeven'];
-      
+
       for (const tableName of stagingTableNames) {
         try {
           await db.execute(sql.raw(`DROP TABLE IF EXISTS ventas.${tableName} CASCADE`));
@@ -18190,7 +18793,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
             stockfis NUMERIC(18,4)
           )
         `);
-        
+
         // Si la tabla ya existía, asegurar que tiene las columnas correctas
         // Esto corrige tablas creadas con 'caprco' en lugar de 'caprco1' y 'caprco2'
         try {
@@ -18202,7 +18805,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         } catch (alterErr: any) {
           console.warn(`   ⚠️  Error actualizando estructura de stg_maeddo:`, alterErr.message);
         }
-        
+
         console.log(`   ✅ stg_maeddo verificada con caprco1 y caprco2`);
         migrationsExecuted.push('Tabla stg_maeddo verificada/actualizada con estructura correcta (caprco1, caprco2)');
       } catch (err: any) {
@@ -18304,7 +18907,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         console.error(`   ❌ Error stg_tabpp:`, err.message);
       }
 
-      
+
       migrationsExecuted.push('Tablas staging recreadas con estructura correcta');
       console.log('');
 
@@ -18577,8 +19180,8 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
 
       res.json({
         success: errors.length === 0,
-        message: errors.length === 0 
-          ? 'Migraciones ejecutadas exitosamente' 
+        message: errors.length === 0
+          ? 'Migraciones ejecutadas exitosamente'
           : 'Migraciones completadas con algunos errores',
         migrations: migrationsExecuted,
         errors: errors.length > 0 ? errors : undefined
@@ -18586,9 +19189,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
 
     } catch (error: any) {
       console.error('❌ Error fatal en migraciones:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false,
-        error: 'Error ejecutando migraciones. Ver logs del servidor.' 
+        error: 'Error ejecutando migraciones. Ver logs del servidor.'
       });
     }
   }));
@@ -18599,7 +19202,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       console.log('\n╔═══════════════════════════════════════════════════════════════╗');
       console.log('║  🔧 EJECUTANDO MIGRACIONES ETL - SCHEMA NVV                  ║');
       console.log('╚═══════════════════════════════════════════════════════════════╝\n');
-      
+
       const migrationsExecuted: string[] = [];
       const errors: string[] = [];
 
@@ -18693,7 +19296,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
 
       // 4. Create staging tables
       console.log('4️⃣  Creando tablas staging...');
-      
+
       // stg_maeedo_nvv
       try {
         await db.execute(sql`
@@ -18828,8 +19431,8 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
 
       res.json({
         success: errors.length === 0,
-        message: errors.length === 0 
-          ? 'Migraciones NVV ejecutadas exitosamente' 
+        message: errors.length === 0
+          ? 'Migraciones NVV ejecutadas exitosamente'
           : 'Migraciones NVV completadas con algunos errores',
         migrations: migrationsExecuted,
         errors: errors.length > 0 ? errors : undefined
@@ -18837,9 +19440,9 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
 
     } catch (error: any) {
       console.error('❌ Error fatal en migraciones NVV:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false,
-        error: 'Error ejecutando migraciones NVV. Ver logs del servidor.' 
+        error: 'Error ejecutando migraciones NVV. Ver logs del servidor.'
       });
     }
   }));
@@ -18853,13 +19456,13 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const { years, months, salespersonCode, segment, search, limit, offset, onlyWithAllPeriods, sortOrder } = req.query;
-      
+
       const filters: any = {};
-      
+
       if (years) {
         filters.years = years.split(',').map((y: string) => parseInt(y));
       }
-      
+
       if (months) {
         filters.months = months.split(',').map((m: string) => parseInt(m));
       }
@@ -18883,24 +19486,24 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       if (sortOrder && typeof sortOrder === 'string') {
         filters.sortOrder = sortOrder; // desc, asc, az, za
       }
-      
+
       // Role-based filtering
       if (user.role === 'salesperson') {
         // Salespeople can only see their own historical data
         const salespersonUser = await storage.getSalespersonUser(user.id);
         const userSalespersonCode = salespersonUser?.salespersonName || user.salespersonName;
-        
+
         if (!userSalespersonCode) {
-          return res.status(403).json({ 
-            message: "Tu cuenta no tiene un código de vendedor asignado. Contacta al administrador." 
+          return res.status(403).json({
+            message: "Tu cuenta no tiene un código de vendedor asignado. Contacta al administrador."
           });
         }
         filters.salespersonCode = userSalespersonCode;
       } else if (user.role === 'supervisor') {
         // Supervisors can only see data from their segment
         if (!user.assignedSegment) {
-          return res.status(403).json({ 
-            message: "Tu cuenta no tiene un segmento asignado. Contacta al administrador." 
+          return res.status(403).json({
+            message: "Tu cuenta no tiene un segmento asignado. Contacta al administrador."
           });
         }
         filters.segment = user.assignedSegment;
@@ -18914,7 +19517,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           filters.segment = segment;
         }
       }
-      
+
       const data = await storage.getHistoricoVentasPorAnio(filters);
       res.json(data);
     } catch (error: any) {
@@ -18939,7 +19542,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       let salespeople = await storage.getSalespeopleList();
-      
+
       // Filter salespeople by segment for supervisors
       if (user.role === 'supervisor' && user.assignedSegment) {
         // Get salespeople who have sales in the supervisor's segment
@@ -18947,7 +19550,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         const validCodes = new Set(salespeopleInSegment.map((s: any) => s.code));
         salespeople = salespeople.filter(sp => validCodes.has(sp.code));
       }
-      
+
       res.json(salespeople);
     } catch (error: any) {
       console.error('Error fetching salespeople list:', error);
@@ -18971,35 +19574,35 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const { years, months, salespersonCode, segment } = req.query;
-      
+
       const filters: any = {};
-      
+
       if (years) {
         filters.years = years.split(',').map((y: string) => parseInt(y));
       }
-      
+
       if (months) {
         filters.months = months.split(',').map((m: string) => parseInt(m));
       }
-      
+
       // Role-based filtering
       if (user.role === 'salesperson') {
         // Salespeople can only see their own projections
         // Check both salespeople_users table and regular users table with salespersonName
         const salespersonUser = await storage.getSalespersonUser(user.id);
         const userSalespersonCode = salespersonUser?.salespersonName || user.salespersonName;
-        
+
         if (!userSalespersonCode) {
-          return res.status(403).json({ 
-            message: "Tu cuenta no tiene un código de vendedor asignado. Contacta al administrador." 
+          return res.status(403).json({
+            message: "Tu cuenta no tiene un código de vendedor asignado. Contacta al administrador."
           });
         }
         filters.salespersonCode = userSalespersonCode;
       } else if (user.role === 'supervisor') {
         // Supervisors can only see projections from their segment
         if (!user.assignedSegment) {
-          return res.status(403).json({ 
-            message: "Tu cuenta no tiene un segmento asignado. Contacta al administrador." 
+          return res.status(403).json({
+            message: "Tu cuenta no tiene un segmento asignado. Contacta al administrador."
           });
         }
         filters.segment = user.assignedSegment;
@@ -19012,7 +19615,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           filters.segment = segment;
         }
       }
-      
+
       const projections = await storage.getProyeccionesVentas(filters);
       res.json(projections);
     } catch (error: any) {
@@ -19025,44 +19628,44 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/proyecciones/manual', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       // Validate request body
       const validated = insertProyeccionVentaSchema.parse({
         ...req.body,
         createdBy: user.id,
         createdByName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
       });
-      
+
       // Role-based authorization
       if (user.role === 'salesperson') {
         // Salespeople can only create/edit projections for themselves
         // Check both salespeople_users table and regular users table with salespersonName
         const salespersonUser = await storage.getSalespersonUser(user.id);
         const userSalespersonCode = salespersonUser?.salespersonName || user.salespersonName;
-        
+
         if (!userSalespersonCode) {
-          return res.status(403).json({ 
-            message: "Tu usuario no tiene un código de vendedor asignado" 
+          return res.status(403).json({
+            message: "Tu usuario no tiene un código de vendedor asignado"
           });
         }
-        
+
         if (validated.salespersonCode !== userSalespersonCode) {
-          return res.status(403).json({ 
-            message: "No tienes permiso para crear proyecciones para otros vendedores" 
+          return res.status(403).json({
+            message: "No tienes permiso para crear proyecciones para otros vendedores"
           });
         }
       } else if (user.role === 'supervisor') {
         // Supervisors can only create/edit projections for their segment
         if (validated.segment && validated.segment !== user.assignedSegment) {
-          return res.status(403).json({ 
-            message: "No tienes permiso para crear proyecciones fuera de tu segmento" 
+          return res.status(403).json({
+            message: "No tienes permiso para crear proyecciones fuera de tu segmento"
           });
         }
       }
       // Admins can create/edit for anyone
-      
+
       const proyeccion = await storage.upsertProyeccionVenta(validated);
-      
+
       res.status(201).json(proyeccion);
     } catch (error: any) {
       console.error('Error upserting manual projection:', error);
@@ -19081,41 +19684,41 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const { id } = req.params;
-      
+
       // Get the projection to check permissions
       const projection = await storage.getProyeccionById(id);
       if (!projection) {
         return res.status(404).json({ message: "Proyección no encontrada" });
       }
-      
+
       // Role-based authorization
       if (user.role === 'salesperson') {
         // Salespeople can only delete their own projections
         // Check both salespeople_users table and regular users table with salespersonName
         const salespersonUser = await storage.getSalespersonUser(user.id);
         const userSalespersonCode = salespersonUser?.salespersonName || user.salespersonName;
-        
+
         if (!userSalespersonCode) {
-          return res.status(403).json({ 
-            message: "Tu usuario no tiene un código de vendedor asignado" 
+          return res.status(403).json({
+            message: "Tu usuario no tiene un código de vendedor asignado"
           });
         }
-        
+
         if (projection.salespersonCode !== userSalespersonCode) {
-          return res.status(403).json({ 
-            message: "No tienes permiso para eliminar proyecciones de otros vendedores" 
+          return res.status(403).json({
+            message: "No tienes permiso para eliminar proyecciones de otros vendedores"
           });
         }
       } else if (user.role === 'supervisor') {
         // Supervisors can only delete projections from their segment
         if (projection.segment !== user.assignedSegment) {
-          return res.status(403).json({ 
-            message: "No tienes permiso para eliminar proyecciones fuera de tu segmento" 
+          return res.status(403).json({
+            message: "No tienes permiso para eliminar proyecciones fuera de tu segmento"
           });
         }
       }
       // Admins can delete any projection
-      
+
       await storage.deleteProyeccionVenta(id);
       res.json({ success: true });
     } catch (error: any) {
@@ -19129,32 +19732,32 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     try {
       const user = req.user;
       const { years, months, salespersonCode, segment } = req.query;
-      
+
       const filters: any = {};
-      
+
       if (years) {
         filters.years = years.split(',').map((y: string) => parseInt(y));
       }
-      
+
       if (months) {
         filters.months = months.split(',').map((m: string) => parseInt(m));
       }
-      
+
       // Role-based filtering (same as manual projections endpoint)
       if (user.role === 'salesperson') {
         const salespersonUser = await storage.getSalespersonUser(user.id);
         const userSalespersonCode = salespersonUser?.salespersonName || user.salespersonName;
-        
+
         if (!userSalespersonCode) {
-          return res.status(403).json({ 
-            message: "Tu cuenta no tiene un código de vendedor asignado. Contacta al administrador." 
+          return res.status(403).json({
+            message: "Tu cuenta no tiene un código de vendedor asignado. Contacta al administrador."
           });
         }
         filters.salespersonCode = userSalespersonCode;
       } else if (user.role === 'supervisor') {
         if (!user.assignedSegment) {
-          return res.status(403).json({ 
-            message: "Tu cuenta no tiene un segmento asignado. Contacta al administrador." 
+          return res.status(403).json({
+            message: "Tu cuenta no tiene un segmento asignado. Contacta al administrador."
           });
         }
         filters.segment = user.assignedSegment;
@@ -19166,16 +19769,16 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           filters.segment = segment;
         }
       }
-      
+
       // Get all projections (segment and salesperson filters NOT applied in query to preserve save flows)
       const projections = await storage.getProyeccionesVentas({ years: filters.years, months: filters.months });
-      
+
       // Filter projections: only future projections (month !== null)
       let futureProjections = projections.filter(p => p.month !== null);
-      
+
       // Apply salesperson filter post-query (using contains match for flexibility)
       if (filters.salespersonCode) {
-        futureProjections = futureProjections.filter(p => 
+        futureProjections = futureProjections.filter(p =>
           p.salespersonCode && (
             p.salespersonCode === filters.salespersonCode ||
             filters.salespersonCode.includes(p.salespersonCode) ||
@@ -19183,21 +19786,21 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           )
         );
       }
-      
+
       // Apply segment filter post-query (to avoid breaking save functionality)
       if (filters.segment) {
         futureProjections = futureProjections.filter(p => p.segment === filters.segment);
       }
-      
+
       // Aggregate data for charts
       const clientData: Record<string, { clientName: string; segment: string; total: number; byMonth: Record<string, number> }> = {};
       const segmentData: Record<string, { total: number; byMonth: Record<string, number> }> = {};
       const salespersonData: Record<string, { total: number; byMonth: Record<string, number> }> = {};
-      
+
       futureProjections.forEach(proj => {
         const amount = Number(proj.projectedAmount);
         const monthKey = `${proj.year}-${proj.month}`;
-        
+
         // By client
         if (!clientData[proj.clientCode]) {
           clientData[proj.clientCode] = {
@@ -19209,7 +19812,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         }
         clientData[proj.clientCode].total += amount;
         clientData[proj.clientCode].byMonth[monthKey] = (clientData[proj.clientCode].byMonth[monthKey] || 0) + amount;
-        
+
         // By segment
         const segmentKey = proj.segment || 'Sin Segmento';
         if (!segmentData[segmentKey]) {
@@ -19217,7 +19820,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         }
         segmentData[segmentKey].total += amount;
         segmentData[segmentKey].byMonth[monthKey] = (segmentData[segmentKey].byMonth[monthKey] || 0) + amount;
-        
+
         // By salesperson
         if (!salespersonData[proj.salespersonCode]) {
           salespersonData[proj.salespersonCode] = { total: 0, byMonth: {} };
@@ -19225,7 +19828,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         salespersonData[proj.salespersonCode].total += amount;
         salespersonData[proj.salespersonCode].byMonth[monthKey] = (salespersonData[proj.salespersonCode].byMonth[monthKey] || 0) + amount;
       });
-      
+
       res.json({
         byClient: Object.entries(clientData).map(([code, data]) => ({
           clientCode: code,
@@ -19234,13 +19837,13 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           total: data.total,
           byMonth: data.byMonth
         })).sort((a, b) => b.total - a.total),
-        
+
         bySegment: Object.entries(segmentData).map(([segment, data]) => ({
           segment,
           total: data.total,
           byMonth: data.byMonth
         })).sort((a, b) => b.total - a.total),
-        
+
         bySalesperson: Object.entries(salespersonData).map(([code, data]) => ({
           salespersonCode: code,
           total: data.total,
@@ -19254,7 +19857,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   }));
 
   // ==================== SEO TRACKING API ====================
-  
+
   // Get all SEO campaigns
   app.get('/api/seo/campaigns', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const campaigns = await storage.getSeoCampaigns();
@@ -19307,7 +19910,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   // Create keyword (only desktop version to save API credits)
   app.post('/api/seo/keywords', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { campaignId, keyword, urlObjetivo, ubicacion, idioma, activo } = req.body;
-    
+
     // Create desktop version only (to save SerpAPI credits)
     const desktopKeyword = await storage.createSeoKeyword({
       campaignId,
@@ -19318,7 +19921,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       dispositivo: 'desktop',
       activo: activo !== false,
     });
-    
+
     res.status(201).json({ desktop: desktopKeyword });
   }));
 
@@ -19340,7 +19943,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   // Check position using SerpAPI
   app.post('/api/seo/check-position', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { keywordId } = req.body;
-    
+
     const keyword = await storage.getSeoKeyword(keywordId);
     if (!keyword) {
       return res.status(404).json({ error: 'Keyword no encontrada' });
@@ -19367,7 +19970,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       };
 
       const serpLocation = locationMap[keyword.ubicacion] || 'Chile';
-      
+
       const params = new URLSearchParams({
         api_key: serpApiKey,
         engine: 'google',
@@ -19394,7 +19997,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       // Find domain position in results
       const organicResults = serpData.organic_results || [];
       console.log(`[SEO] Found ${organicResults.length} organic results`);
-      
+
       let posicion: number | null = null;
       let urlEncontrada: string | null = null;
       let titulo: string | null = null;
@@ -19415,7 +20018,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           .replace(/^(https?:\/\/)/, '')
           .replace(/^www\./, '')
           .split('/')[0];
-        
+
         // Check if domains match
         if (resultDomain === domainToFind || resultDomain.endsWith('.' + domainToFind)) {
           posicion = result.position || (i + 1);
@@ -19466,7 +20069,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/seo/campaigns/:id/check-all', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const keywords = await storage.getSeoKeywords(req.params.id);
     const activeKeywords = keywords.filter(k => k.activo);
-    
+
     if (activeKeywords.length === 0) {
       return res.json({ message: 'No hay keywords activas para verificar', results: [] });
     }
@@ -19497,7 +20100,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     for (const keyword of activeKeywords) {
       try {
         const serpLocation = locationMap[keyword.ubicacion] || 'Chile';
-        
+
         const params = new URLSearchParams({
           api_key: serpApiKey,
           engine: 'google',
@@ -19529,7 +20132,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
         if (!serpData.error) {
           let allOrganicResults = serpData.organic_results || [];
           console.log(`[SEO] Received ${allOrganicResults.length} organic results (requested 100)`);
-          
+
           let posicion: number | null = null;
           let urlEncontrada: string | null = null;
           let titulo: string | null = null;
@@ -19542,7 +20145,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
               .replace(/^(https?:\/\/)/, '')
               .replace(/^www\./, '')
               .split('/')[0];
-            
+
             if (resultDomain === domainToFind || resultDomain.endsWith('.' + domainToFind)) {
               posicion = result.position || (i + 1);
               urlEncontrada = result.link;
@@ -19552,14 +20155,14 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
               break;
             }
           }
-          
+
           // If not found and we got less than 100 results, try pagination (up to page 5 = position 50)
           if (!posicion && allOrganicResults.length < 50) {
             const maxPages = 5;
             for (let page = 2; page <= maxPages && !posicion; page++) {
               const startPos = (page - 1) * 10;
               console.log(`[SEO] Searching page ${page} (start=${startPos})...`);
-              
+
               const pageParams = new URLSearchParams({
                 api_key: serpApiKey,
                 engine: 'google',
@@ -19572,22 +20175,22 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
                 start: String(startPos),
                 num: '10',
               });
-              
+
               try {
                 const pageResponse = await fetch(`https://serpapi.com/search.json?${pageParams}`);
                 const pageData = await pageResponse.json();
-                
+
                 if (!pageData.error && pageData.organic_results) {
                   const pageResults = pageData.organic_results;
                   console.log(`[SEO] Page ${page}: received ${pageResults.length} results`);
-                  
+
                   for (let i = 0; i < pageResults.length; i++) {
                     const result = pageResults[i];
                     const resultDomain = (result.link || '').toLowerCase()
                       .replace(/^(https?:\/\/)/, '')
                       .replace(/^www\./, '')
                       .split('/')[0];
-                    
+
                     if (resultDomain === domainToFind || resultDomain.endsWith('.' + domainToFind)) {
                       // Calculate absolute position: use result.position if available, otherwise calculate from page offset
                       posicion = result.position || (startPos + i + 1);
@@ -19603,7 +20206,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
                     }
                   }
                 }
-                
+
                 // Small delay between page requests
                 await new Promise(resolve => setTimeout(resolve, 300));
               } catch (pageError) {
@@ -19611,7 +20214,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
               }
             }
           }
-          
+
           if (!posicion) {
             console.log(`[SEO] Not found in top 50 results. First 5 results for debugging:`);
             allOrganicResults.slice(0, 5).forEach((r: any, idx: number) => {
@@ -19778,7 +20381,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
 
     if (mode && token) {
       const config = await storage.getWhatsAppConfig();
-      
+
       if (mode === 'subscribe' && token === config?.webhookVerifyToken) {
         console.log('✅ WhatsApp webhook verified');
         return res.status(200).send(challenge);
@@ -19793,7 +20396,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   // WhatsApp Webhook for incoming messages
   app.post('/api/whatsapp/webhook', asyncHandler(async (req: any, res: any) => {
     const body = req.body;
-    
+
     if (body.object === 'whatsapp_business_account') {
       // Process incoming messages or status updates
       body.entry?.forEach((entry: any) => {
@@ -19812,7 +20415,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           }
         });
       });
-      
+
       return res.sendStatus(200);
     }
     res.sendStatus(404);
@@ -19851,14 +20454,14 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/whatsapp/config', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
       const { phoneNumberId, businessAccountId, accessToken, webhookVerifyToken } = req.body;
-      
+
       await storage.saveWhatsAppConfig({
         phoneNumberId,
         businessAccountId,
         accessToken,
         webhookVerifyToken
       });
-      
+
       res.json({ success: true, message: 'Configuración guardada correctamente' });
     } catch (error: any) {
       res.status(500).json({ message: 'Error al guardar configuración de WhatsApp', error: error.message });
@@ -19869,7 +20472,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/whatsapp/test-connection', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
       const config = await storage.getWhatsAppConfig();
-      
+
       if (!config || !config.phoneNumberId || !config.accessToken) {
         return res.json({
           success: false,
@@ -19889,7 +20492,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       );
 
       const data = await response.json();
-      
+
       if (response.ok && data.id) {
         // Update connection status
         await storage.updateWhatsAppConnectionStatus('connected');
@@ -19917,7 +20520,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/whatsapp/send-test', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
       const { phoneNumber } = req.body;
-      
+
       if (!phoneNumber) {
         return res.json({
           success: false,
@@ -19926,7 +20529,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       }
 
       const config = await storage.getWhatsAppConfig();
-      
+
       if (!config || !config.phoneNumberId || !config.accessToken) {
         return res.json({
           success: false,
@@ -19958,7 +20561,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       );
 
       const data = await response.json();
-      
+
       if (response.ok && data.messages?.[0]?.id) {
         res.json({
           success: true,
@@ -19982,14 +20585,14 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/admin/migrate-pdf-previews', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (user.role !== 'admin') {
         return res.status(403).json({ message: 'Solo administradores pueden ejecutar migraciones' });
       }
-      
+
       const results: any[] = [];
       const objectStorageService = new ObjectStorageService();
-      
+
       // 1. Get PDFs from gastos_empresariales without preview
       const gastosConPdf = await db
         .select({
@@ -20007,43 +20610,43 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
             )
           )
         );
-      
+
       console.log(`[MIGRATION] Found ${gastosConPdf.length} gastos with PDF without preview`);
-      
+
       for (const gasto of gastosConPdf) {
         try {
           if (!gasto.archivoUrl) continue;
-          
+
           // Download PDF from Object Storage
           const pdfResponse = await fetch(`${req.protocol}://${req.get('host')}${gasto.archivoUrl}`, {
             credentials: 'include'
           });
-          
+
           if (!pdfResponse.ok) {
             results.push({ id: gasto.id, type: 'gasto', status: 'error', message: 'No se pudo descargar el PDF' });
             continue;
           }
-          
+
           const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
-          
+
           // Convert to image
           const previewBuffer = await convertPdfToImage(pdfBuffer, 600);
-          
+
           if (!previewBuffer) {
             results.push({ id: gasto.id, type: 'gasto', status: 'error', message: 'No se pudo convertir el PDF' });
             continue;
           }
-          
+
           // Upload preview image
           const previewFileName = gasto.archivoUrl.replace(/\.pdf$/i, '_preview.png').replace(/^\/public-objects\//, '');
           const previewUrl = await objectStorageService.uploadImage(previewFileName, previewBuffer, 'image/png');
-          
+
           // Update database
           await db
             .update(gastosEmpresariales)
             .set({ comprobantePreviewUrl: previewUrl })
             .where(eq(gastosEmpresariales.id, gasto.id));
-          
+
           results.push({ id: gasto.id, type: 'gasto', status: 'success', previewUrl });
           console.log(`[MIGRATION] Gasto ${gasto.id} preview generated: ${previewUrl}`);
         } catch (error: any) {
@@ -20051,7 +20654,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           console.error(`[MIGRATION] Error processing gasto ${gasto.id}:`, error.message);
         }
       }
-      
+
       // 2. Get PDFs from fund_allocations without preview
       const fondosConPdf = await db
         .select({
@@ -20069,43 +20672,43 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
             )
           )
         );
-      
+
       console.log(`[MIGRATION] Found ${fondosConPdf.length} fondos with PDF without preview`);
-      
+
       for (const fondo of fondosConPdf) {
         try {
           if (!fondo.comprobanteUrl) continue;
-          
+
           // Download PDF from Object Storage
           const pdfResponse = await fetch(`${req.protocol}://${req.get('host')}${fondo.comprobanteUrl}`, {
             credentials: 'include'
           });
-          
+
           if (!pdfResponse.ok) {
             results.push({ id: fondo.id, type: 'fondo', status: 'error', message: 'No se pudo descargar el PDF' });
             continue;
           }
-          
+
           const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
-          
+
           // Convert to image
           const previewBuffer = await convertPdfToImage(pdfBuffer, 600);
-          
+
           if (!previewBuffer) {
             results.push({ id: fondo.id, type: 'fondo', status: 'error', message: 'No se pudo convertir el PDF' });
             continue;
           }
-          
+
           // Upload preview image
           const previewFileName = fondo.comprobanteUrl.replace(/\.pdf$/i, '_preview.png').replace(/^\/public-objects\//, '');
           const previewUrl = await objectStorageService.uploadImage(previewFileName, previewBuffer, 'image/png');
-          
+
           // Update database
           await db
             .update(fundAllocations)
             .set({ comprobantePreviewUrl: previewUrl })
             .where(eq(fundAllocations.id, fondo.id));
-          
+
           results.push({ id: fondo.id, type: 'fondo', status: 'success', previewUrl });
           console.log(`[MIGRATION] Fondo ${fondo.id} preview generated: ${previewUrl}`);
         } catch (error: any) {
@@ -20113,10 +20716,10 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           console.error(`[MIGRATION] Error processing fondo ${fondo.id}:`, error.message);
         }
       }
-      
+
       const successCount = results.filter(r => r.status === 'success').length;
       const errorCount = results.filter(r => r.status === 'error').length;
-      
+
       res.json({
         message: `Migración completada: ${successCount} exitosos, ${errorCount} errores`,
         totalProcessed: results.length,
@@ -20134,17 +20737,17 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.get('/api/admin/list-bucket-pdfs', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (user.role !== 'admin') {
         return res.status(403).json({ message: 'Solo administradores' });
       }
-      
+
       const objectStorageService = new ObjectStorageService();
       const prefix = (req.query.prefix as string) || 'fondos/';
-      
+
       const files = await objectStorageService.listFiles(prefix);
       const pdfs = files.filter(f => f.name.toLowerCase().endsWith('.pdf'));
-      
+
       res.json({
         prefix,
         total: files.length,
@@ -20160,57 +20763,57 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   app.post('/api/admin/migrate-bucket-pdfs', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      
+
       if (user.role !== 'admin') {
         return res.status(403).json({ message: 'Solo administradores pueden ejecutar migraciones' });
       }
-      
+
       const objectStorageService = new ObjectStorageService();
       const prefix = (req.body.prefix as string) || 'fondos/';
       const results: any[] = [];
-      
+
       // Listar PDFs en el bucket
       const files = await objectStorageService.listFiles(prefix);
       const pdfs = files.filter(f => f.name.toLowerCase().endsWith('.pdf') && !f.name.includes('_preview'));
-      
+
       console.log(`[BUCKET MIGRATION] Found ${pdfs.length} PDFs in ${prefix}`);
-      
+
       for (const pdf of pdfs) {
         try {
           // Verificar si ya existe preview
           const previewName = pdf.name.replace(/\.pdf$/i, '_preview.png');
           const existingPreviews = files.filter(f => f.name === previewName);
-          
+
           if (existingPreviews.length > 0) {
             results.push({ name: pdf.name, status: 'skipped', message: 'Preview ya existe' });
             continue;
           }
-          
+
           // Descargar PDF
           const pdfUrl = `${req.protocol}://${req.get('host')}/public-objects/${pdf.name.split('/').slice(-2).join('/')}`;
           console.log(`[BUCKET MIGRATION] Downloading: ${pdfUrl}`);
-          
+
           const pdfResponse = await fetch(pdfUrl);
-          
+
           if (!pdfResponse.ok) {
             results.push({ name: pdf.name, status: 'error', message: `No se pudo descargar: ${pdfResponse.status}` });
             continue;
           }
-          
+
           const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
-          
+
           // Convertir a imagen
           const previewBuffer = await convertPdfToImage(pdfBuffer, 600);
-          
+
           if (!previewBuffer) {
             results.push({ name: pdf.name, status: 'error', message: 'No se pudo convertir el PDF' });
             continue;
           }
-          
+
           // Subir preview
           const previewFileName = pdf.name.replace(/\.pdf$/i, '_preview.png');
           const previewUrl = await objectStorageService.uploadImage(previewFileName, previewBuffer, 'image/png');
-          
+
           results.push({ name: pdf.name, status: 'success', previewUrl });
           console.log(`[BUCKET MIGRATION] Preview generated: ${previewUrl}`);
         } catch (error: any) {
@@ -20218,11 +20821,11 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           console.error(`[BUCKET MIGRATION] Error:`, error.message);
         }
       }
-      
+
       const successCount = results.filter(r => r.status === 'success').length;
       const skippedCount = results.filter(r => r.status === 'skipped').length;
       const errorCount = results.filter(r => r.status === 'error').length;
-      
+
       res.json({
         message: `Migración de bucket completada: ${successCount} exitosos, ${skippedCount} omitidos, ${errorCount} errores`,
         prefix,
@@ -20236,6 +20839,319 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       console.error('[BUCKET MIGRATION] Error:', error);
       res.status(500).json({ message: 'Error en la migración', error: error.message });
     }
+  }));
+
+  // ==================================================================================
+  // PRESUPUESTO DE VENTAS - Importación masiva de presupuestos
+  // ==================================================================================
+
+  // GET: List budget records by year
+  app.get('/api/presupuesto-ventas', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const anio = parseInt(req.query.anio as string) || new Date().getFullYear();
+    const records = await db
+      .select()
+      .from(presupuestoVentas)
+      .where(eq(presupuestoVentas.anio, anio))
+      .orderBy(presupuestoVentas.categoria, presupuestoVentas.entidad, presupuestoVentas.mes);
+    res.json(records);
+  }));
+
+  // GET: List available years
+  app.get('/api/presupuesto-ventas/years', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const years = await db
+      .selectDistinct({ anio: presupuestoVentas.anio })
+      .from(presupuestoVentas)
+      .orderBy(desc(presupuestoVentas.anio));
+    res.json(years.map(y => y.anio));
+  }));
+
+  // POST: Bulk upsert budget records
+  app.post('/api/presupuesto-ventas/bulk', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const parsed = bulkPresupuestoVentasSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: 'Datos inválidos',
+          details: parsed.error.errors
+        });
+      }
+
+      const { records } = parsed.data;
+      let upserted = 0;
+
+      // Process in batches of 100 for performance
+      const batchSize = 100;
+      for (let i = 0; i < records.length; i += batchSize) {
+        const batch = records.slice(i, i + batchSize);
+
+        for (const record of batch) {
+          await db
+            .insert(presupuestoVentas)
+            .values({
+              anio: record.anio,
+              mes: record.mes,
+              categoria: record.categoria,
+              entidad: record.entidad,
+              monto: record.monto,
+            })
+            .onConflictDoUpdate({
+              target: [presupuestoVentas.anio, presupuestoVentas.mes, presupuestoVentas.categoria, presupuestoVentas.entidad],
+              set: {
+                monto: sql`EXCLUDED.monto`,
+                updatedAt: sql`NOW()`,
+              },
+            });
+          upserted++;
+        }
+      }
+
+      res.json({
+        success: true,
+        message: `${upserted} registros importados exitosamente`,
+        count: upserted,
+      });
+    } catch (error: any) {
+      console.error('[PRESUPUESTO] Bulk import error:', error);
+      res.status(500).json({ error: 'Error al importar presupuesto: ' + error.message });
+    }
+  }));
+
+  // DELETE: Remove all records for a year
+  app.delete('/api/presupuesto-ventas', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const anio = parseInt(req.query.anio as string);
+    if (!anio) {
+      return res.status(400).json({ error: 'Parámetro anio es requerido' });
+    }
+
+    const deleted = await db
+      .delete(presupuestoVentas)
+      .where(eq(presupuestoVentas.anio, anio))
+      .returning();
+
+    res.json({
+      success: true,
+      message: `${deleted.length} registros eliminados del año ${anio}`,
+      count: deleted.length,
+    });
+  }));
+
+  // ==================================================================================
+  // AI CHAT ASSISTANT ENDPOINTS
+  // ==================================================================================
+
+  // POST /api/chat/message — Send a message to the AI assistant
+  app.post('/api/chat/message', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const userId = req.user?.id;
+    const userRole = req.user?.role || 'salesperson';
+    const salespersonName = req.user?.salespersonName || null;
+    const firstName = req.user?.firstName || '';
+    const lastName = req.user?.lastName || '';
+
+    const { message, sessionId: clientSessionId } = req.body;
+
+    if (!message || typeof message !== 'string' || message.trim().length === 0) {
+      return res.status(400).json({ error: 'El mensaje no puede estar vacío.' });
+    }
+
+    const sessionId = clientSessionId || randomUUID();
+
+    // Save user message to DB
+    await db.insert(chatMessages).values({
+      userId,
+      role: 'user',
+      content: message.trim(),
+      sessionId,
+    });
+
+    // Load conversation history for this session (last 20 messages for context)
+    const history = await db
+      .select()
+      .from(chatMessages)
+      .where(and(
+        eq(chatMessages.userId, userId),
+        eq(chatMessages.sessionId, sessionId)
+      ))
+      .orderBy(chatMessages.createdAt)
+      .limit(20);
+
+    // Build conversation context (exclude the message we just saved — it's the current one)
+    const conversationHistory: AiMessage[] = history
+      .slice(0, -1) // exclude last (current user message)
+      .filter((m: any) => m.role === 'user' || m.role === 'assistant')
+      .map((m: any) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content || '',
+      }));
+
+    // Build user context
+    const userContext: AiUserContext = {
+      userId,
+      role: userRole,
+      salespersonName: salespersonName || undefined,
+      firstName,
+      lastName,
+    };
+
+    // Process with AI agent — include knowledge base content
+    const kbItems = await db.select().from(aiKnowledgeBase);
+    const knowledgeBase = kbItems.map((k: any) => ({
+      title: k.title,
+      content: k.content || '',
+      fileType: k.fileType || 'text',
+    }));
+    const result = await processAgentMessage(message.trim(), conversationHistory, userContext, knowledgeBase);
+
+    // Save assistant response to DB
+    await db.insert(chatMessages).values({
+      userId,
+      role: 'assistant',
+      content: result.response,
+      toolCalls: result.toolsUsed.length > 0 ? result.toolsUsed : null,
+      metadata: { tokensUsed: result.tokensUsed, model: 'gpt-4o-mini' },
+      sessionId,
+    });
+
+    res.json({
+      response: result.response,
+      sessionId,
+      toolsUsed: result.toolsUsed,
+      tokensUsed: result.tokensUsed,
+    });
+  }));
+
+  // GET /api/chat/history — Get chat history for current user
+  app.get('/api/chat/history', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const userId = req.user?.id;
+    const { sessionId, limit: limitStr } = req.query;
+    const limit = Math.min(parseInt(limitStr as string) || 50, 100);
+
+    let query = db
+      .select()
+      .from(chatMessages)
+      .where(
+        sessionId
+          ? and(eq(chatMessages.userId, userId), eq(chatMessages.sessionId, sessionId as string))
+          : eq(chatMessages.userId, userId)
+      )
+      .orderBy(desc(chatMessages.createdAt))
+      .limit(limit);
+
+    const messages = await query;
+
+    // Return in chronological order
+    res.json({
+      messages: messages.reverse().map((m: any) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        toolCalls: m.toolCalls,
+        sessionId: m.sessionId,
+        createdAt: m.createdAt,
+      })),
+      sessionId: sessionId || null,
+    });
+  }));
+
+  // DELETE /api/chat/history — Clear chat history for current user
+  app.delete('/api/chat/history', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const userId = req.user?.id;
+    const { sessionId } = req.query;
+
+    const deleted = await db
+      .delete(chatMessages)
+      .where(
+        sessionId
+          ? and(eq(chatMessages.userId, userId), eq(chatMessages.sessionId, sessionId as string))
+          : eq(chatMessages.userId, userId)
+      )
+      .returning();
+
+    res.json({
+      success: true,
+      message: `${deleted.length} mensajes eliminados.`,
+      count: deleted.length,
+    });
+  }));
+
+  // ═══════════════════════════════════════════════════════════════════
+  // AI KNOWLEDGE BASE ENDPOINTS
+  // ═══════════════════════════════════════════════════════════════════
+
+  // GET /api/ai-knowledge — List all knowledge base items
+  app.get('/api/ai-knowledge', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const items = await db
+      .select()
+      .from(aiKnowledgeBase)
+      .orderBy(desc(aiKnowledgeBase.createdAt));
+
+    res.json({ items });
+  }));
+
+  // POST /api/ai-knowledge — Add a new knowledge base item
+  app.post('/api/ai-knowledge', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+
+    // Only admins can manage knowledge base
+    if (userRole !== 'admin') {
+      return res.status(403).json({ message: 'Solo los administradores pueden gestionar la base de conocimiento.' });
+    }
+
+    const { title, content, fileType } = req.body;
+
+    if (!title || !content) {
+      return res.status(400).json({ message: 'Se requiere título y contenido.' });
+    }
+
+    const [item] = await db.insert(aiKnowledgeBase).values({
+      title,
+      content,
+      fileType: fileType || 'text',
+      userId,
+    }).returning();
+
+    res.json({ success: true, item });
+  }));
+
+  // PUT /api/ai-knowledge/:id — Update a knowledge base item
+  app.put('/api/ai-knowledge/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const userRole = req.user?.role;
+    if (userRole !== 'admin') {
+      return res.status(403).json({ message: 'Solo los administradores pueden gestionar la base de conocimiento.' });
+    }
+
+    const { id } = req.params;
+    const { title, content } = req.body;
+
+    const [updated] = await db.update(aiKnowledgeBase)
+      .set({ title, content, updatedAt: new Date() })
+      .where(eq(aiKnowledgeBase.id, id))
+      .returning();
+
+    if (!updated) {
+      return res.status(404).json({ message: 'Item no encontrado.' });
+    }
+
+    res.json({ success: true, item: updated });
+  }));
+
+  // DELETE /api/ai-knowledge/:id — Delete a knowledge base item
+  app.delete('/api/ai-knowledge/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const userRole = req.user?.role;
+    if (userRole !== 'admin') {
+      return res.status(403).json({ message: 'Solo los administradores pueden gestionar la base de conocimiento.' });
+    }
+
+    const { id } = req.params;
+    const [deleted] = await db.delete(aiKnowledgeBase)
+      .where(eq(aiKnowledgeBase.id, id))
+      .returning();
+
+    if (!deleted) {
+      return res.status(404).json({ message: 'Item no encontrado.' });
+    }
+
+    res.json({ success: true });
   }));
 
   const httpServer = createServer(app);
