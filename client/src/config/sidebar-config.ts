@@ -1,9 +1,9 @@
-import { 
-  LayoutDashboard, 
-  Users, 
+import {
+  LayoutDashboard,
+  Users,
   User,
-  Target, 
-  Package, 
+  Target,
+  Package,
   FileText,
   Settings,
   ShoppingCart,
@@ -27,7 +27,10 @@ import {
   Bell,
   Key,
   Calendar,
-  ExternalLink
+  ExternalLink,
+  FileSpreadsheet,
+  Sparkles,
+  Gift
 } from "lucide-react";
 
 interface SidebarItem {
@@ -44,9 +47,9 @@ interface SidebarItem {
 export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
   admin: [
     {
-      href: "/notificaciones",
-      label: "Notificaciones",
-      icon: Bell,
+      href: "/ai-assistant",
+      label: "Asistente AI",
+      icon: Sparkles,
     },
     {
       href: "/",
@@ -54,25 +57,42 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: LayoutDashboard,
     },
     {
+      href: "/productos",
+      label: "Productos",
+      icon: Package,
+    },
+    {
+      href: "/clientes",
+      label: "Gestión de Clientes",
+      icon: Users,
+    },
+    {
       href: "/facturas",
       label: "Finanzas",
       icon: Receipt,
     },
     {
-      href: "/clientes",
-      label: "Panoramica Market",
-      icon: Users,
+      href: "/ecommerce",
+      label: "eCommerce",
+      icon: ShoppingCart,
+      children: [
+        {
+          href: "/ecommerce",
+          label: "Gestión eCommerce",
+          icon: ShoppingCart,
+        },
+        {
+          href: "/panoramica-market",
+          label: "Panorámica Market",
+          icon: Gift,
+        },
+      ],
+      separator: true,
     },
     {
       href: "/marketing",
       label: "Marketing",
       icon: TrendingUp,
-    },
-    {
-      href: "/ecommerce",
-      label: "eCommerce",
-      icon: ShoppingCart,
-      separator: true,
     },
     {
       href: "/tareas",
@@ -187,6 +207,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       ],
     },
     {
+      href: "/presupuesto-ventas",
+      label: "Presupuesto Ventas",
+      icon: FileSpreadsheet,
+    },
+    {
       href: "/configuracion",
       label: "Configuración",
       icon: Settings,
@@ -196,9 +221,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
 
   jefe_planta: [
     {
-      href: "/notificaciones",
-      label: "Notificaciones",
-      icon: Bell,
+      href: "/ai-assistant",
+      label: "Asistente AI",
+      icon: Sparkles,
     },
     {
       href: "/",
@@ -300,9 +325,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
 
   mantencion: [
     {
-      href: "/notificaciones",
-      label: "Notificaciones",
-      icon: Bell,
+      href: "/ai-assistant",
+      label: "Asistente AI",
+      icon: Sparkles,
     },
     {
       href: "/mantenciones",
@@ -340,9 +365,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
 
   supervisor: [
     {
-      href: "/notificaciones",
-      label: "Notificaciones",
-      icon: Bell,
+      href: "/ai-assistant",
+      label: "Asistente AI",
+      icon: Sparkles,
     },
     {
       href: "/",
@@ -350,9 +375,14 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: LayoutDashboard,
     },
     {
-      href: "/tareas",
-      label: "Tareas",
-      icon: CheckCircle2,
+      href: "/productos",
+      label: "Productos",
+      icon: Package,
+    },
+    {
+      href: "/clientes",
+      label: "Gestión de Clientes",
+      icon: Users,
     },
     {
       href: "/facturas",
@@ -363,12 +393,29 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/ecommerce",
       label: "eCommerce",
       icon: ShoppingCart,
+      children: [
+        {
+          href: "/ecommerce",
+          label: "Gestión eCommerce",
+          icon: ShoppingCart,
+        },
+        {
+          href: "/panoramica-market",
+          label: "Panorámica Market",
+          icon: Gift,
+        },
+      ],
+      separator: true,
     },
     {
-      href: "/clientes",
-      label: "Gestión de Clientes",
-      icon: Users,
-      separator: true, // Separador antes de Tomador de Pedidos
+      href: "/marketing",
+      label: "Marketing",
+      icon: TrendingUp,
+    },
+    {
+      href: "/tareas",
+      label: "Tareas",
+      icon: CheckCircle2,
     },
     {
       href: "/tomador-pedidos",
@@ -437,11 +484,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         },
       ],
     },
-    {
-      href: "/marketing",
-      label: "Marketing",
-      icon: TrendingUp,
-    },
+
     {
       href: "/gastos-empresariales",
       label: "Rendición de Gastos",
@@ -480,14 +523,19 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         },
       ],
     },
+    {
+      href: "/presupuesto-ventas",
+      label: "Presupuesto Ventas",
+      icon: FileSpreadsheet,
+    },
 
   ],
 
   salesperson: [
     {
-      href: "/notificaciones",
-      label: "Notificaciones",
-      icon: Bell,
+      href: "/ai-assistant",
+      label: "Asistente AI",
+      icon: Sparkles,
     },
     {
       href: "/",
@@ -495,9 +543,14 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: LayoutDashboard,
     },
     {
-      href: "/tareas",
-      label: "Tareas",
-      icon: CheckCircle2,
+      href: "/productos",
+      label: "Productos",
+      icon: Package,
+    },
+    {
+      href: "/clientes",
+      label: "Gestión de Clientes",
+      icon: Users,
     },
     {
       href: "/facturas",
@@ -505,20 +558,33 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Receipt,
     },
     {
-      href: "/clientes",
-      label: "Clientes",
-      icon: Users,
-    },
-    {
-      href: "/inventario",
-      label: "Inventario",
-      icon: Warehouse,
+      href: "/ecommerce",
+      label: "eCommerce",
+      icon: ShoppingCart,
+      children: [
+        {
+          href: "/panoramica-market",
+          label: "Panorámica Market",
+          icon: Gift,
+        },
+      ],
+      separator: true,
     },
     {
       href: "/marketing",
       label: "Marketing",
       icon: TrendingUp,
       separator: true, // Separador antes de Tomador de Pedidos
+    },
+    {
+      href: "/tareas",
+      label: "Tareas",
+      icon: CheckCircle2,
+    },
+    {
+      href: "/inventario",
+      label: "Inventario",
+      icon: Warehouse,
     },
     {
       href: "/tomador-pedidos",

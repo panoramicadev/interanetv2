@@ -31,13 +31,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Database, 
-  Loader2, 
-  PlayCircle, 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
+import {
+  Database,
+  Loader2,
+  PlayCircle,
+  CheckCircle,
+  XCircle,
+  Clock,
   RefreshCw,
   TrendingUp,
   Calendar,
@@ -51,7 +51,8 @@ import {
   AlertCircle,
   Package,
   DollarSign,
-  Building2
+  Building2,
+  Zap
 } from "lucide-react";
 import { formatDistanceToNow, format, subDays } from "date-fns";
 import { formatInTimeZone, toZonedTime } from "date-fns-tz";
@@ -234,21 +235,21 @@ const ETL_CONFIGS = [
   {
     id: 'ventas_incremental',
     name: 'Ventas Incremental',
-    description: 'ETL incremental de ventas desde SQL Server (ejecuta cada 15 min)',
+    description: 'ETL incremental de ventas desde SQL Server',
     icon: TrendingUp,
     color: 'blue',
   },
   {
     id: 'gdv',
     name: 'GDV',
-    description: 'Monitoreo de Guías de Despacho de Venta (sucursales 004, 006, 007)',
+    description: 'Guías de Despacho de Venta (sucursales 004, 006, 007)',
     icon: Package,
     color: 'purple',
   },
   {
     id: 'nvv',
     name: 'NVV',
-    description: 'Monitoreo de Notas de Venta pendientes',
+    description: 'Notas de Venta pendientes',
     icon: FileText,
     color: 'orange',
   },
@@ -256,8 +257,102 @@ const ETL_CONFIGS = [
 
 export default function ETLMonitor() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [selectedETL, setSelectedETL] = useState(ETL_CONFIGS[0].id);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<any>(null);
+  const [isSyncAllRunning, setIsSyncAllRunning] = useState(false);
+
+  // Poll sync-all status while modal is open
+  useEffect(() => {
+    if (!showSyncModal) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await apiRequest('/api/etl/sync-all/status');
+        const data = await res.json();
+        // Skip if server hasn't initialized status yet
+        if (!data.etls) return;
+        setSyncStatus(data.etls);
+        if (!data.isRunning) {
+          setIsSyncAllRunning(false);
+          // Refresh all ETL status queries
+          queryClient.invalidateQueries({ queryKey: ['/api/etl/status'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/etl/sync-gdv/history'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/etl/gdv/summary'] });
+          clearInterval(interval);
+        }
+      } catch (err) {
+        // Ignore polling errors
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [showSyncModal]);
+
+  const handleSyncAll = async () => {
+    try {
+      setIsSyncAllRunning(true);
+      setSyncStatus(null);
+      setShowSyncModal(true); // Open modal immediately
+      await apiRequest('/api/etl/sync-all', { method: 'POST' });
+      // Start polling right away
+      try {
+        const res = await apiRequest('/api/etl/sync-all/status');
+        const data = await res.json();
+        setSyncStatus(data.etls);
+      } catch { }
+    } catch (error: any) {
+      setIsSyncAllRunning(false);
+      toast({
+        title: "❌ Error",
+        description: error.message || "No se pudo iniciar la sincronización",
+        variant: "destructive",
+      });
+      setShowSyncModal(false);
+    }
+  };
+
+  // Helper to render ETL status row in the modal
+  const renderETLRow = (label: string, etlStatus: any) => {
+    const status = etlStatus?.status || 'pending';
+    const progress = etlStatus?.progress || 0;
+    const progressMessage = etlStatus?.progressMessage || '';
+    return (
+      <div className="p-4 rounded-lg border bg-card space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {status === 'done' && <CheckCircle className="h-6 w-6 text-green-600 flex-shrink-0" />}
+            {status === 'running' && <Loader2 className="h-6 w-6 animate-spin text-orange-500 flex-shrink-0" />}
+            {status === 'error' && <XCircle className="h-6 w-6 text-red-600 flex-shrink-0" />}
+            {status === 'pending' && <Clock className="h-6 w-6 text-gray-400 flex-shrink-0" />}
+            <div>
+              <p className="font-semibold">{label}</p>
+              <p className={`text-sm ${status === 'done' ? 'text-green-600' : status === 'error' ? 'text-red-600' : status === 'running' ? 'text-orange-500' : 'text-muted-foreground'}`}>
+                {status === 'done' && `✅ ${(etlStatus.recordsProcessed || 0).toLocaleString()} registros en ${((etlStatus.executionTimeMs || 0) / 1000).toFixed(1)}s`}
+                {status === 'running' && (progressMessage || 'Procesando datos desde SQL Server...')}
+                {status === 'error' && (etlStatus.error || 'Error en la ejecución')}
+                {status === 'pending' && 'Esperando turno...'}
+              </p>
+            </div>
+          </div>
+          <Badge className={`
+            ${status === 'done' ? 'bg-green-500 hover:bg-green-600 text-white' : ''}
+            ${status === 'running' ? 'bg-orange-100 text-orange-700 border-orange-300' : ''}
+            ${status === 'error' ? 'bg-red-100 text-red-700 border-red-300' : ''}
+            ${status === 'pending' ? 'bg-gray-100 text-gray-500 border-gray-300' : ''}
+          `}>
+            {status === 'done' && 'Listo'}
+            {status === 'running' && `${progress}%`}
+            {status === 'error' && 'Error'}
+            {status === 'pending' && 'Pendiente'}
+          </Badge>
+        </div>
+        {status === 'running' && (
+          <Progress value={progress} className="h-2" />
+        )}
+      </div>
+    );
+  };
 
   if (!user) {
     return (
@@ -267,7 +362,6 @@ export default function ETLMonitor() {
     );
   }
 
-  // Only admin and supervisor can access ETL monitor
   if (user.role !== 'admin' && user.role !== 'supervisor') {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -281,9 +375,6 @@ export default function ETLMonitor() {
     );
   }
 
-  const currentETL = ETL_CONFIGS.find(etl => etl.id === selectedETL) || ETL_CONFIGS[0];
-  const ETLIcon = currentETL.icon;
-
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
       {/* Header */}
@@ -296,17 +387,31 @@ export default function ETLMonitor() {
           <p className="text-muted-foreground mt-1">
             Monitoreo y control de procesos de extracción, transformación y carga de datos
           </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Sincronización automática: 10:00, 14:00, 18:00 (hora Chile)
+          </p>
         </div>
         <div className="flex items-center gap-2 mt-4 md:mt-0">
           <Button
-            variant="outline"
+            onClick={handleSyncAll}
+            disabled={isSyncAllRunning}
             size="sm"
-            onClick={() => setAutoRefresh(!autoRefresh)}
-            data-testid="button-toggle-refresh"
+            className="bg-orange-500 hover:bg-orange-600 text-white"
+            data-testid="button-sync-all"
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
-            {autoRefresh ? 'Actualización Auto' : 'Actualización Manual'}
+            {isSyncAllRunning ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Sincronizando...
+              </>
+            ) : (
+              <>
+                <Zap className="h-4 w-4 mr-2" />
+                Sincronizar Todo
+              </>
+            )}
           </Button>
+
         </div>
       </div>
 
@@ -316,8 +421,8 @@ export default function ETLMonitor() {
           {ETL_CONFIGS.map((etl) => {
             const Icon = etl.icon;
             return (
-              <TabsTrigger 
-                key={etl.id} 
+              <TabsTrigger
+                key={etl.id}
                 value={etl.id}
                 className="flex items-center justify-center gap-2"
                 data-testid={`tab-${etl.id}`}
@@ -338,7 +443,6 @@ export default function ETLMonitor() {
               <NVVTabContent autoRefresh={autoRefresh} />
             ) : (
               <>
-                {/* Standard ETL Sections */}
                 <ETLStatusSection etlName={etl.id} autoRefresh={autoRefresh} />
                 <ETLHistorySection etlName={etl.id} autoRefresh={autoRefresh} />
               </>
@@ -346,6 +450,44 @@ export default function ETLMonitor() {
           </TabsContent>
         ))}
       </Tabs>
+
+      {/* ═══ Sync All Modal — Real-time per-ETL status ═══ */}
+      <Dialog open={showSyncModal} onOpenChange={(open) => { if (!isSyncAllRunning) setShowSyncModal(open); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <RefreshCw className={`h-5 w-5 ${isSyncAllRunning ? 'animate-spin text-orange-500' : 'text-green-600'}`} />
+              Sincronización Manual
+            </DialogTitle>
+            <DialogDescription>
+              {isSyncAllRunning ? 'Importando datos desde SQL Server...' : 'Resultado de la importación'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            {renderETLRow('Ventas Incremental', syncStatus?.ventas)}
+            {renderETLRow('Guías de Despacho (GDV)', syncStatus?.gdv)}
+            {renderETLRow('Notas de Venta (NVV)', syncStatus?.nvv)}
+          </div>
+
+          {!isSyncAllRunning && syncStatus?.completedAt && (
+            <div className="flex justify-between items-center pt-2 border-t text-sm">
+              <span className="text-muted-foreground">Total registros</span>
+              <span className="font-bold text-lg">{(syncStatus.totalRecords || 0).toLocaleString()}</span>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              onClick={() => setShowSyncModal(false)}
+              disabled={isSyncAllRunning}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -360,13 +502,13 @@ interface ETLProgress {
 }
 
 // ETL Status Section Component
-function ETLStatusSection({ 
-  etlName, 
+function ETLStatusSection({
+  etlName,
   autoRefresh,
   showDocumentTypes = true,
   showBranches = true
-}: { 
-  etlName: string; 
+}: {
+  etlName: string;
   autoRefresh: boolean;
   showDocumentTypes?: boolean;
   showBranches?: boolean;
@@ -378,7 +520,7 @@ function ETLStatusSection({
   const [diagnosticsResults, setDiagnosticsResults] = useState<any>(null);
   const [customWatermark, setCustomWatermark] = useState('');
   const [timeoutMinutes, setTimeoutMinutes] = useState(10);
-  const [intervalMinutes, setIntervalMinutes] = useState(15);
+
   const [keepCustomWatermark, setKeepCustomWatermark] = useState(false);
   const [etlProgress, setEtlProgress] = useState<ETLProgress | null>(null);
   const [isETLExecuting, setIsETLExecuting] = useState(false);
@@ -408,17 +550,17 @@ function ETLStatusSection({
 
     console.log(`🔌 Conectando a SSE para progreso ETL (${etlName})...`);
     const eventSource = new EventSource(`/api/etl/progress?etlName=${etlName}`);
-    
+
     eventSource.onopen = () => {
       console.log('✅ SSE conectado');
     };
-    
+
     eventSource.onmessage = (event) => {
       try {
         const progress = JSON.parse(event.data) as ETLProgress;
         console.log('📊 Progreso recibido:', progress);
         setEtlProgress(progress);
-        
+
         // If we received 100% completion, mark as not executing
         if (progress.percentage === 100) {
           setTimeout(() => {
@@ -586,7 +728,7 @@ function ETLStatusSection({
   useEffect(() => {
     if (showConfigDialog && status?.config) {
       setTimeoutMinutes(status.config.timeoutMinutes);
-      setIntervalMinutes(status.config.intervalMinutes || 15);
+
       setKeepCustomWatermark(status.config.keepCustomWatermark || false);
       setCustomWatermark('');
     }
@@ -604,17 +746,17 @@ function ETLStatusSection({
       });
       return;
     }
-    
+
     // Immediate visual feedback and execution
     setButtonState('starting');
     setIsETLExecuting(true);
-    
+
     // Show immediate toast
     toast({
       title: "🚀 Iniciando ETL...",
       description: "Conectando con SQL Server y preparando extracción de datos",
     });
-    
+
     // Execute immediately
     executeMutation.mutate();
   };
@@ -649,7 +791,7 @@ function ETLStatusSection({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-4">  
+          <div className="space-y-4">
             <div className="flex items-center gap-3">
               {isRunning ? (
                 <>
@@ -704,7 +846,7 @@ function ETLStatusSection({
                 <Settings className="h-4 w-4 mr-2" />
                 Configurar
               </Button>
-              
+
               {user?.role === 'admin' && (
                 <>
                   <Button
@@ -727,7 +869,7 @@ function ETLStatusSection({
                       </>
                     )}
                   </Button>
-                  
+
                   <Button
                     onClick={() => migrationsMutation.mutate()}
                     disabled={migrationsMutation.isPending}
@@ -750,7 +892,7 @@ function ETLStatusSection({
                   </Button>
                 </>
               )}
-              
+
               {isRunning && (
                 <Button
                   onClick={handleCancel}
@@ -773,7 +915,7 @@ function ETLStatusSection({
                   )}
                 </Button>
               )}
-              
+
               {!isRunning && (
                 <Button
                   onClick={handleExecute}
@@ -811,8 +953,8 @@ function ETLStatusSection({
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
-                  <p className="text-xs text-muted-foreground">Intervalo Automático</p>
-                  <p className="font-semibold text-sm">Cada {status.config.intervalMinutes} min</p>
+                  <p className="text-xs text-muted-foreground">Horario Automático</p>
+                  <p className="font-semibold text-sm">10:00, 14:00, 18:00</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Timeout</p>
@@ -872,7 +1014,7 @@ function ETLStatusSection({
               <div>
                 <p className="text-sm text-muted-foreground">Tiempo de Ejecución</p>
                 <p className="font-semibold">
-                  {lastExecution.executionTimeMs 
+                  {lastExecution.executionTimeMs
                     ? `${(lastExecution.executionTimeMs / 1000).toFixed(2)}s`
                     : 'N/A'}
                 </p>
@@ -979,7 +1121,7 @@ function ETLStatusSection({
                 </p>
                 <div className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
                   <p>• Timeout: {status.config.timeoutMinutes} minutos</p>
-                  <p>• Intervalo automático: {status.config.intervalMinutes} minutos</p>
+                  <p>• Horario automático: 10:00, 14:00, 18:00 (hora Chile)</p>
                   {status.config.useCustomWatermark && status.config.customWatermark && (
                     <p>• Watermark personalizado activo: {new Date(status.config.customWatermark).toLocaleDateString('es-CL')}</p>
                   )}
@@ -1006,7 +1148,7 @@ function ETLStatusSection({
                 Si se configura, el ETL procesará datos desde esta fecha solo en la próxima ejecución.
                 Luego volverá automáticamente a modo incremental.
               </p>
-              
+
               {/* Keep Custom Watermark Checkbox */}
               <div className="flex items-center space-x-2 pt-2">
                 <Checkbox
@@ -1046,22 +1188,11 @@ function ETLStatusSection({
               </p>
             </div>
 
-            {/* Interval Configuration */}
-            <div className="space-y-2">
-              <Label htmlFor="interval">
-                Intervalo Automático (minutos)
-              </Label>
-              <Input
-                id="interval"
-                type="number"
-                min="1"
-                max="1440"
-                value={intervalMinutes}
-                onChange={(e) => setIntervalMinutes(parseInt(e.target.value) || 15)}
-                data-testid="input-interval"
-              />
-              <p className="text-xs text-muted-foreground">
-                Frecuencia de ejecución automática del ETL. Requiere reiniciar el servidor para aplicar cambios.
+            {/* Schedule Info */}
+            <div className="rounded-md border p-3 bg-muted/50">
+              <p className="text-sm font-medium">Horario de sincronización automática</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Los 3 ETLs se ejecutan automáticamente a las 10:00, 14:00 y 18:00 (hora Chile). Usa el botón "Sincronizar Todo" para ejecutar manualmente.
               </p>
             </div>
           </div>
@@ -1079,7 +1210,6 @@ function ETLStatusSection({
                 updateConfigMutation.mutate({
                   customWatermark: customWatermark || undefined,
                   timeoutMinutes,
-                  intervalMinutes,
                   keepCustomWatermark,
                 });
               }}
@@ -1172,13 +1302,12 @@ function ETLStatusSection({
               <div className="space-y-2">
                 <h3 className="font-semibold">Detalle de Verificaciones:</h3>
                 {diagnosticsResults.checks?.map((check: any, i: number) => (
-                  <div 
+                  <div
                     key={i}
-                    className={`p-3 rounded-lg border ${
-                      check.success 
-                        ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800' 
-                        : 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800'
-                    }`}
+                    className={`p-3 rounded-lg border ${check.success
+                      ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800'
+                      : 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800'
+                      }`}
                   >
                     <div className="flex items-start gap-2">
                       {check.success ? (
@@ -1227,7 +1356,7 @@ function ETLHistorySection({ etlName, autoRefresh }: { etlName: string; autoRefr
   const [filterEnabled, setFilterEnabled] = useState(false);
 
   // Build query URL with optional date filters
-  const queryUrl = filterEnabled 
+  const queryUrl = filterEnabled
     ? `/api/etl/status?etlName=${etlName}&startDate=${startDate}&endDate=${endDate}`
     : `/api/etl/status?etlName=${etlName}`;
 
@@ -1287,7 +1416,7 @@ function ETLHistorySection({ etlName, autoRefresh }: { etlName: string; autoRefr
           Historial de Ejecuciones
         </CardTitle>
         <CardDescription>
-          {filterEnabled 
+          {filterEnabled
             ? `Mostrando ${history.length} ejecuciones entre ${format(new Date(startDate), 'dd/MM/yyyy', { locale: es })} y ${format(new Date(endDate), 'dd/MM/yyyy', { locale: es })}`
             : `Últimas ${history.length} ejecuciones del ETL`
           }
@@ -1385,7 +1514,7 @@ function ETLHistorySection({ etlName, autoRefresh }: { etlName: string; autoRefr
                       {execution.recordsProcessed?.toLocaleString('es-CL') || '-'}
                     </TableCell>
                     <TableCell className="text-right">
-                      {execution.executionTimeMs 
+                      {execution.executionTimeMs
                         ? `${(execution.executionTimeMs / 1000).toFixed(2)}s`
                         : '-'}
                     </TableCell>
@@ -1438,7 +1567,7 @@ function SyncHistoryRow({ sync, index }: { sync: any; index: number }) {
           </Badge>
         </TableCell>
         <TableCell className="text-sm">
-          {sync.startDate && sync.endDate 
+          {sync.startDate && sync.endDate
             ? `${format(new Date(sync.startDate), 'dd/MM/yy')} - ${format(new Date(sync.endDate), 'dd/MM/yy')}`
             : '-'}
         </TableCell>
@@ -1446,15 +1575,15 @@ function SyncHistoryRow({ sync, index }: { sync: any; index: number }) {
           {sync.recordsNew?.toLocaleString('es-CL') || '-'}
         </TableCell>
         <TableCell className="text-right">
-          {sync.duration 
+          {sync.duration
             ? `${(sync.duration / 1000).toFixed(2)}s`
             : '-'}
         </TableCell>
         <TableCell>
           {hasError && (
             <CollapsibleTrigger asChild>
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="sm"
                 className="h-8 w-8 p-0"
                 data-testid={`button-toggle-error-${index}`}
@@ -1502,8 +1631,8 @@ function SyncHistoryRow({ sync, index }: { sync: any; index: number }) {
 function GDVTabContent({ autoRefresh }: { autoRefresh: boolean }) {
   return (
     <>
-      <ETLStatusSection 
-        etlName="gdv" 
+      <ETLStatusSection
+        etlName="gdv"
         autoRefresh={autoRefresh}
         showDocumentTypes={false}
         showBranches={false}
@@ -1513,11 +1642,11 @@ function GDVTabContent({ autoRefresh }: { autoRefresh: boolean }) {
   );
 }
 
-function GDVStatusSection({ 
-  autoRefresh, 
-  filterState 
-}: { 
-  autoRefresh: boolean; 
+function GDVStatusSection({
+  autoRefresh,
+  filterState
+}: {
+  autoRefresh: boolean;
   filterState: {
     startDate: string;
     setStartDate: (date: string) => void;
@@ -1736,10 +1865,10 @@ function GDVStatusSection({
   );
 }
 
-function GDVMetricsSection({ 
+function GDVMetricsSection({
   autoRefresh,
   filterState
-}: { 
+}: {
   autoRefresh: boolean;
   filterState: {
     startDate: string;
@@ -1916,7 +2045,7 @@ function GDVHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
                     {execution.statusChanges || 0}
                   </TableCell>
                   <TableCell className="text-right" data-testid={`text-gdv-duration-${execution.id}`}>
-                    {execution.executionTimeMs 
+                    {execution.executionTimeMs
                       ? `${(execution.executionTimeMs / 1000).toFixed(2)}s`
                       : '-'
                     }
@@ -1942,8 +2071,8 @@ function GDVHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
 function NVVTabContent({ autoRefresh }: { autoRefresh: boolean }) {
   return (
     <>
-      <ETLStatusSection 
-        etlName="nvv" 
+      <ETLStatusSection
+        etlName="nvv"
         autoRefresh={autoRefresh}
         showDocumentTypes={false}
         showBranches={false}
@@ -1954,11 +2083,11 @@ function NVVTabContent({ autoRefresh }: { autoRefresh: boolean }) {
 }
 
 // Legacy NVV components below - will be removed after backend integration is complete
-function NVVStatusSectionLegacy({ 
-  autoRefresh, 
-  filterState 
-}: { 
-  autoRefresh: boolean; 
+function NVVStatusSectionLegacy({
+  autoRefresh,
+  filterState
+}: {
+  autoRefresh: boolean;
   filterState: {
     startDate: string;
     setStartDate: (date: string) => void;
@@ -2293,10 +2422,10 @@ function NVVStatusSectionLegacy({
   );
 }
 
-function NVVMetricsSection({ 
+function NVVMetricsSection({
   autoRefresh,
   filterState
-}: { 
+}: {
   autoRefresh: boolean;
   filterState: {
     startDate: string;
@@ -2592,7 +2721,7 @@ function NVVMetricsSection({
 
 function NVVHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
   const [activeTab, setActiveTab] = useState('history');
-  
+
   const { data: history, isLoading: historyLoading } = useQuery<NvvSyncLog[]>({
     queryKey: ['/api/etl/sync-nvv/history', 'limit=10'],
     refetchInterval: autoRefresh ? 30000 : false,
@@ -2697,7 +2826,7 @@ function NVVHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
                           {execution.statusChanges || 0}
                         </TableCell>
                         <TableCell className="text-right" data-testid={`text-nvv-duration-${execution.id}`}>
-                          {execution.executionTimeMs 
+                          {execution.executionTimeMs
                             ? `${(execution.executionTimeMs / 1000).toFixed(2)}s`
                             : '-'
                           }

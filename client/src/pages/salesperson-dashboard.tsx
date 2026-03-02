@@ -25,17 +25,18 @@ import { CardWrapper } from "@/components/dashboard/CardWrapper";
 import { SalespersonClientsPanel, SalespersonProductsPanel } from "@/components/salesperson/engagement-panels";
 import { useSalespersonAccordion } from "@/hooks/useSalespersonAccordion";
 import SalespersonNVV from "@/components/salesperson/salesperson-nvv";
+import PendingDocumentsUnified from "@/components/dashboard/pending-documents-unified";
 import PeriodComparisonChart from "@/components/salesperson/period-comparison-chart";
 import type { DateRange } from "react-day-picker";
-import { 
-  TrendingUp, 
-  Users, 
-  DollarSign, 
-  Package, 
-  Calendar as CalendarIcon, 
-  Target, 
-  BarChart3, 
-  FileText, 
+import {
+  TrendingUp,
+  Users,
+  DollarSign,
+  Package,
+  Calendar as CalendarIcon,
+  Target,
+  BarChart3,
+  FileText,
   MessageSquare,
   AlertCircle,
   CheckCircle,
@@ -92,9 +93,9 @@ interface SalespersonSegment {
 type ClientData = any; // Can be refined later if needed
 
 // Component for expandable client details
-function ClientDetailAccordion({ client, idx, salespersonName, expandedValue, onExpandChange }: { 
-  client: any; 
-  idx: number; 
+function ClientDetailAccordion({ client, idx, salespersonName, expandedValue, onExpandChange }: {
+  client: any;
+  idx: number;
   salespersonName: string;
   expandedValue: string[];
   onExpandChange: (value: string[]) => void;
@@ -102,7 +103,7 @@ function ClientDetailAccordion({ client, idx, salespersonName, expandedValue, on
   const clientValue = `client-${idx}`;
   const isExpanded = expandedValue.includes(clientValue);
   const { toast } = useToast();
-  
+
   const { data: purchaseDetails, isLoading } = useQuery<{
     lastPurchaseId: string;
     lastPurchaseDate: string;
@@ -180,14 +181,14 @@ function ClientDetailAccordion({ client, idx, salespersonName, expandedValue, on
                 <p className="font-semibold text-gray-900">{purchaseDetails.lastPurchaseId}</p>
               </div>
             </div>
-            
+
             <div className="mt-3">
               <p className="text-xs font-semibold text-gray-700 mb-2">Productos comprados:</p>
               {purchaseDetails.products && purchaseDetails.products.length > 0 ? (
                 <div className="space-y-1 max-h-48 overflow-y-auto">
                   {purchaseDetails.products.map((product: any, pIdx: number) => (
-                    <div 
-                      key={pIdx} 
+                    <div
+                      key={pIdx}
                       className="flex justify-between items-start text-xs bg-white/80 rounded p-2"
                     >
                       <div className="flex-1 min-w-0 pr-2">
@@ -209,7 +210,7 @@ function ClientDetailAccordion({ client, idx, salespersonName, expandedValue, on
                 <p className="text-xs text-gray-500 text-center py-2">No hay productos registrados</p>
               )}
             </div>
-            
+
           </div>
         ) : (
           <p className="text-xs text-gray-500 text-center py-2">No se pudieron cargar los detalles</p>
@@ -222,10 +223,10 @@ function ClientDetailAccordion({ client, idx, salespersonName, expandedValue, on
 export default function SalespersonDashboard() {
   const { user, isAuthenticated, isLoading } = useAuth() as { user: (User & { salespersonName?: string }) | null; isAuthenticated: boolean; isLoading: boolean };
   const { toast } = useToast();
-  
+
   // Use global filter context
   const { selection, setSelection } = useFilter();
-  
+
   // Derived values from selection
   const selectedPeriod = (() => {
     if ((selection.period === "month" || selection.period === "months") && selection.months && selection.months.length > 0) {
@@ -244,7 +245,7 @@ export default function SalespersonDashboard() {
     }
     return format(new Date(), "yyyy-MM");
   })();
-  
+
   const filterType: "day" | "month" | "year" | "range" = (() => {
     if (selection.period === "day" || selection.period === "days") return "day";
     if (selection.period === "month" || selection.period === "months") return "month";
@@ -252,7 +253,7 @@ export default function SalespersonDashboard() {
     if (selection.period === "custom-range") return "range";
     return "month";
   })();
-  
+
   const selectedDate = (() => {
     if ((selection.period === "day" || selection.period === "days") && selection.days && selection.days.length > 0) {
       const year = selection.years[0];
@@ -262,26 +263,26 @@ export default function SalespersonDashboard() {
     }
     return new Date();
   })();
-  
+
   const dateRange: DateRange | undefined = (() => {
     if (selection.period === "custom-range" && selection.startDate && selection.endDate) {
       return { from: selection.startDate, to: selection.endDate };
     }
     return undefined;
   })();
-  
+
   // Client search state
   const [clientSearch, setClientSearch] = useState("");
-  
+
   // Dialog state
   const [showClientsDialog, setShowClientsDialog] = useState(false);
-  
+
   // Promesas week selector
   const [selectedPromesaWeek, setSelectedPromesaWeek] = useState<Date>(() => new Date());
-  
+
   // Expanded client details accordion state
   const [expandedClients, setExpandedClients] = useState<string[]>([]);
-  
+
   // Reset client search when dialog closes
   useEffect(() => {
     if (!showClientsDialog) {
@@ -311,7 +312,7 @@ export default function SalespersonDashboard() {
   const rawSalespersonName = useMemo(() => {
     return user?.salespersonName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
   }, [user?.salespersonName, user?.firstName, user?.lastName]);
-  
+
   // Fetch salespeople list to get name if not available on user object
   const { data: salespeopleList, isLoading: isLoadingSalespeopleFallback } = useQuery({
     queryKey: ["/api/users/salespeople"],
@@ -322,7 +323,7 @@ export default function SalespersonDashboard() {
     },
     enabled: !rawSalespersonName && !!user?.id,
   });
-  
+
   // Determine final salesperson name using useMemo to prevent hook order issues
   const salespersonName = useMemo(() => {
     if (rawSalespersonName) return rawSalespersonName;
@@ -393,7 +394,7 @@ export default function SalespersonDashboard() {
     },
     enabled: !!salespersonName && !isLoadingSalespeopleFallback,
   });
-  
+
   const transactionsData = Array.isArray(transactionsResponse) ? transactionsResponse : (transactionsResponse?.items || []);
 
   // Fetch smart notifications for sales insights
@@ -473,15 +474,15 @@ export default function SalespersonDashboard() {
   const groupedClients = useMemo(() => {
     const items = Array.isArray(clientsData) ? clientsData : [];
     const clientMap = new Map<string, any>();
-    
+
     items.forEach((client: any) => {
       const clientName = client.clientName || client.name || 'Sin nombre';
-      
+
       if (clientMap.has(clientName)) {
         const existing = clientMap.get(clientName);
         existing.totalSales += client.totalSales || 0;
         existing.transactionCount += client.transactionCount || 0;
-        
+
         // Keep the most recent purchase date
         if (client.lastPurchaseDate) {
           if (!existing.lastPurchaseDate || new Date(client.lastPurchaseDate) > new Date(existing.lastPurchaseDate)) {
@@ -499,7 +500,7 @@ export default function SalespersonDashboard() {
         });
       }
     });
-    
+
     return Array.from(clientMap.values()).sort((a, b) => b.totalSales - a.totalSales);
   }, [clientsData]);
 
@@ -608,46 +609,132 @@ export default function SalespersonDashboard() {
 
   return (
     <>
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200/60 px-3 md:px-4 lg:px-6 py-3 md:py-4 lg:py-6 md:mx-4 md:mt-4 md:rounded-2xl shadow-sm">
-          <div className="flex flex-col space-y-3 md:space-y-4">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 md:gap-4">
-              <div className="flex-1 min-w-0">
-                <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
-                  Hola, {user?.salespersonName || `${user?.firstName} ${user?.lastName}`}
-                </h1>
-                <p className="text-gray-600 text-xs sm:text-sm lg:text-base">
-                  Panel de control personalizado para gestión de ventas
-                </p>
-              </div>
-
+      {/* Header minimalista */}
+      <header className="bg-white border border-gray-100 px-4 md:px-6 lg:px-8 py-4 md:py-5 md:mx-4 md:mt-4 md:rounded-2xl shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          {/* Saludo e info */}
+          <div className="flex items-center gap-3">
+            {/* Avatar con inicial */}
+            <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
+              <span className="text-slate-600 font-bold text-base">
+                {(user?.salespersonName || user?.firstName || 'V')[0].toUpperCase()}
+              </span>
             </div>
-            
-            {/* Year/Month Selector and Period Display - Stacked on Mobile */}
-            <div className="flex flex-col gap-2 sm:gap-3">
-              <div className="w-full sm:w-auto">
-                <YearMonthSelector
-                  value={selection}
-                  onChange={(newSelection) => newSelection && setSelection(newSelection)}
-                />
-              </div>
-              
-              <div className="flex items-center gap-2 flex-wrap">
-                <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                <span className="text-xs sm:text-sm font-medium text-gray-700">
-                  Período actual:
-                </span>
-                <Badge variant="secondary" className="text-xs sm:text-sm font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200">
-                  {getPeriodLabel()}
-                </Badge>
-              </div>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg font-semibold text-gray-900 truncate leading-tight">
+                Hola, {user?.salespersonName || `${user?.firstName} ${user?.lastName}`}
+              </h1>
+              <p className="text-gray-400 text-xs mt-0.5">Panel de ventas</p>
             </div>
           </div>
-        </header>
 
-        {/* Contenido Principal */}
-        <main className="space-y-4 md:space-y-6 px-3 md:px-4 lg:px-6 py-4 md:py-6">
-        
+          {/* Selector de período */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+            <YearMonthSelector
+              value={selection}
+              onChange={(newSelection) => newSelection && setSelection(newSelection)}
+            />
+            <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
+              <CalendarIcon className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+              <span className="text-xs text-gray-600 font-medium whitespace-nowrap">
+                {getPeriodLabel()}
+              </span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+
+      {/* Contenido Principal */}
+      <main className="space-y-4 md:space-y-6 px-3 md:px-4 lg:px-6 py-4 md:py-6">
+
+        {/* KPIs del Vendedor - ARRIBA */}
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3" data-testid="section-kpi-cards">
+
+          {/* Ventas Totales */}
+          <Card className="rounded-2xl shadow-sm border border-emerald-100 bg-emerald-50/60" data-testid="card-ventas-totales">
+            <CardContent className="p-4 flex flex-col gap-2">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center">
+                <DollarSign className="h-4 w-4 text-white" />
+              </div>
+              <div className="text-xl font-bold text-emerald-900 truncate" data-testid="text-ventas-totales">
+                {formatCurrency(salesData.totalSales)}
+              </div>
+              <p className="text-xs text-emerald-600 font-medium">Ventas Totales</p>
+            </CardContent>
+          </Card>
+
+          {/* Clientes */}
+          <Card
+            className="rounded-2xl shadow-sm border border-blue-100 bg-blue-50/60 cursor-pointer hover:shadow-md transition-shadow"
+            data-testid="card-clientes"
+            onClick={() => setShowClientsDialog(true)}
+          >
+            <CardContent className="p-4 flex flex-col gap-2">
+              <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center">
+                <Users className="h-4 w-4 text-white" />
+              </div>
+              <div className="text-xl font-bold text-blue-900" data-testid="text-clientes">
+                {salesData.clientCount}
+              </div>
+              <p className="text-xs text-blue-600 font-medium">Clientes</p>
+            </CardContent>
+          </Card>
+
+          {/* Transacciones */}
+          <Card className="rounded-2xl shadow-sm border border-violet-100 bg-violet-50/60" data-testid="card-transacciones">
+            <CardContent className="p-4 flex flex-col gap-2">
+              <div className="w-8 h-8 rounded-lg bg-violet-500 flex items-center justify-center">
+                <Package className="h-4 w-4 text-white" />
+              </div>
+              <div className="text-xl font-bold text-violet-900" data-testid="text-transacciones">
+                {salesData.transactions}
+              </div>
+              <p className="text-xs text-violet-600 font-medium">Transacciones</p>
+            </CardContent>
+          </Card>
+
+          {/* Días última venta */}
+          <Card className="rounded-2xl shadow-sm border border-amber-100 bg-amber-50/60" data-testid="card-dias-ultima-venta">
+            <CardContent className="p-4 flex flex-col gap-2">
+              <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center">
+                <Clock className="h-4 w-4 text-white" />
+              </div>
+              <div className="text-xl font-bold text-amber-900" data-testid="text-dias-ultima-venta">
+                {salesData.daysSinceLastSale}d
+              </div>
+              <p className="text-xs text-amber-600 font-medium">Días sin venta</p>
+            </CardContent>
+          </Card>
+
+          {/* Ticket Promedio */}
+          <Card className="rounded-2xl shadow-sm border border-indigo-100 bg-indigo-50/60" data-testid="card-ticket-promedio">
+            <CardContent className="p-4 flex flex-col gap-2">
+              <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
+                <TrendingUp className="h-4 w-4 text-white" />
+              </div>
+              <div className="text-xl font-bold text-indigo-900 truncate" data-testid="text-ticket-promedio">
+                {formatCurrency(salesData.avgTicket)}
+              </div>
+              <p className="text-xs text-indigo-600 font-medium">Ticket Promedio</p>
+            </CardContent>
+          </Card>
+
+          {/* Clientes Nuevos */}
+          <Card className="rounded-2xl shadow-sm border border-teal-100 bg-teal-50/60" data-testid="card-clientes-nuevos">
+            <CardContent className="p-4 flex flex-col gap-2">
+              <div className="w-8 h-8 rounded-lg bg-teal-500 flex items-center justify-center">
+                <Users className="h-4 w-4 text-white" />
+              </div>
+              <div className="text-xl font-bold text-teal-900" data-testid="text-clientes-nuevos">
+                {salespersonData?.newClients || 0}
+              </div>
+              <p className="text-xs text-teal-600 font-medium">Clientes Nuevos</p>
+            </CardContent>
+          </Card>
+
+        </div>
+
         <section className="space-y-6" data-testid="section-goals-and-segments">
           <GoalsProgress
             globalFilter={{ type: 'salesperson', value: salespersonName }}
@@ -656,10 +743,11 @@ export default function SalespersonDashboard() {
             isLoading={loadingGoals}
           />
 
-          <SalespersonNVV
-            salespersonName={salespersonName}
+          {/* NVV y GDV Pendientes - Componente unificado */}
+          <PendingDocumentsUnified
             selectedPeriod={selectedPeriod}
             filterType={filterType}
+            salesperson={salespersonName}
           />
 
           <Card className="rounded-xl md:rounded-2xl shadow-md border-0 bg-gradient-to-br from-blue-50 via-blue-100 to-indigo-50" data-testid="card-segment-sales">
@@ -707,486 +795,364 @@ export default function SalespersonDashboard() {
           </Card>
         </section>
 
-        {/* Promesas de Compra Semanales */}
-        <Card className="rounded-xl md:rounded-2xl shadow-md border-0 bg-gradient-to-br from-purple-50/80 via-violet-50/60 to-purple-100/40 lg:col-span-2" data-testid="card-promesas-compra">
-          <CardHeader className="p-3 sm:p-4 md:p-6">
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="bg-purple-500 rounded-full p-1.5 sm:p-2">
-                  <Target className="h-5 w-5 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="text-sm sm:text-base md:text-lg font-bold text-gray-900">Promesas de Compra</CardTitle>
-                  <CardDescription className="text-xs text-gray-600 mt-0.5 truncate">
-                    {getWeekLabel(selectedPromesaWeek)}
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 w-full">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedPromesaWeek(prev => subWeeks(prev, 1))}
-                  className="rounded-lg min-h-[40px] h-10 flex-1 sm:flex-none"
-                  data-testid="button-promesas-prev-week"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedPromesaWeek(new Date())}
-                  disabled={isCurrentWeek(selectedPromesaWeek)}
-                  className="rounded-lg text-xs sm:text-sm px-3 min-h-[40px] h-10 flex-1 sm:flex-none"
-                  data-testid="button-promesas-current-week"
-                >
-                  Hoy
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedPromesaWeek(prev => addWeeks(prev, 1))}
-                  disabled={isCurrentWeek(selectedPromesaWeek)}
-                  className="rounded-lg min-h-[40px] h-10 flex-1 sm:flex-none"
-                  data-testid="button-promesas-next-week"
-                >
-                  <CalendarIcon className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-3 sm:p-4 md:p-6 pt-0">
-            {isLoadingPromesas ? (
-              <div className="text-center py-6 text-gray-500 text-sm">
-                Cargando promesas...
-              </div>
-            ) : promesasVendedor.length === 0 ? (
-              <div className="text-center py-6 text-gray-500 text-sm">
-                No hay promesas registradas para esta semana
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {promesasVendedor.map((item: any) => {
-                  const montoPrometido = parseFloat(item.promesa?.montoPrometido || '0');
-                  const cumplimiento = item.ventasReales > 0 && montoPrometido > 0
-                    ? (item.ventasReales / montoPrometido) * 100 
-                    : 0;
-                  
-                  const estado = 
-                    cumplimiento >= 100 ? 'cumplida' :
-                    cumplimiento >= 80 ? 'cerca' :
-                    cumplimiento >= 50 ? 'parcial' : 'baja';
-                  
-                  const colorClasses = {
-                    cumplida: 'border-emerald-200 bg-emerald-50/50',
-                    cerca: 'border-amber-200 bg-amber-50/50',
-                    parcial: 'border-orange-200 bg-orange-50/50',
-                    baja: 'border-rose-200 bg-rose-50/50'
-                  };
-
-                  const badgeClasses = {
-                    cumplida: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-                    cerca: 'bg-amber-100 text-amber-800 border-amber-200',
-                    parcial: 'bg-orange-100 text-orange-800 border-orange-200',
-                    baja: 'bg-rose-100 text-rose-800 border-rose-200'
-                  };
-
-                  const symbol = {
-                    cumplida: '✓',
-                    cerca: '~',
-                    parcial: '!',
-                    baja: '✗'
-                  };
-
-                  return (
-                    <div 
-                      key={item.promesa?.id} 
-                      className={`border rounded-lg sm:rounded-xl p-3 sm:p-4 ${colorClasses[estado]}`}
-                      data-testid={`promesa-${item.promesa?.id}`}
+        {/* Promesas de Compra Semanales - solo si hay datos */}
+        {
+          promesasVendedor.length > 0 && (
+            <Card className="rounded-xl md:rounded-2xl shadow-md border-0 bg-gradient-to-br from-purple-50/80 via-violet-50/60 to-purple-100/40 lg:col-span-2" data-testid="card-promesas-compra">
+              <CardHeader className="p-3 sm:p-4 md:p-6">
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="bg-purple-500 rounded-full p-1.5 sm:p-2">
+                      <Target className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-sm sm:text-base md:text-lg font-bold text-gray-900">Promesas de Compra</CardTitle>
+                      <CardDescription className="text-xs text-gray-600 mt-0.5 truncate">
+                        {getWeekLabel(selectedPromesaWeek)}
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 w-full">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedPromesaWeek(prev => subWeeks(prev, 1))}
+                      className="rounded-lg min-h-[40px] h-10 flex-1 sm:flex-none"
+                      data-testid="button-promesas-prev-week"
                     >
-                      <div className="flex items-start justify-between gap-2 mb-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                            <h4 className="font-semibold text-gray-900 text-sm sm:text-base truncate">
-                              {item.promesa?.clienteNombre || 'Cliente'}
-                            </h4>
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs w-fit ${badgeClasses[estado]}`}
-                              data-testid={`badge-estado-${item.promesa?.id}`}
-                            >
-                              {estado === 'cumplida' ? 'Cumplida' : 
-                               estado === 'cerca' ? 'Cerca' :
-                               estado === 'parcial' ? 'Parcial' : 'Baja'}
-                            </Badge>
-                            <span className={`sm:hidden text-lg font-bold ${badgeClasses[estado].split(' ')[1]}`}>
-                              {symbol[estado]}
-                            </span>
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
-                            <div>
-                              <span className="text-gray-600">Promesa:</span>
-                              <span className="ml-1 font-semibold text-gray-900">
-                                {formatCurrency(montoPrometido)}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Ventas:</span>
-                              <span className="ml-1 font-semibold text-gray-900">
-                                {formatCurrency(item.ventasReales || 0)}
-                              </span>
-                            </div>
-                          </div>
-                          
-                          <div className="mt-2">
-                            <div className="flex items-center justify-between text-xs mb-1">
-                              <span className="text-gray-600">Cumplimiento</span>
-                              <span className="font-semibold text-gray-900">{cumplimiento.toFixed(0)}%</span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-1.5 sm:h-2">
-                              <div 
-                                className={`h-full rounded-full transition-all ${
-                                  estado === 'cumplida' ? 'bg-emerald-500' :
-                                  estado === 'cerca' ? 'bg-amber-500' :
-                                  estado === 'parcial' ? 'bg-orange-500' : 'bg-rose-500'
-                                }`}
-                                style={{ width: `${Math.min(cumplimiento, 100)}%` }}
-                              />
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedPromesaWeek(new Date())}
+                      disabled={isCurrentWeek(selectedPromesaWeek)}
+                      className="rounded-lg text-xs sm:text-sm px-3 min-h-[40px] h-10 flex-1 sm:flex-none"
+                      data-testid="button-promesas-current-week"
+                    >
+                      Hoy
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedPromesaWeek(prev => addWeeks(prev, 1))}
+                      disabled={isCurrentWeek(selectedPromesaWeek)}
+                      className="rounded-lg min-h-[40px] h-10 flex-1 sm:flex-none"
+                      data-testid="button-promesas-next-week"
+                    >
+                      <CalendarIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-3 sm:p-4 md:p-6 pt-0">
+                {isLoadingPromesas ? (
+                  <div className="text-center py-6 text-gray-500 text-sm">
+                    Cargando promesas...
+                  </div>
+                ) : promesasVendedor.length === 0 ? (
+                  <div className="text-center py-6 text-gray-500 text-sm">
+                    No hay promesas registradas para esta semana
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {promesasVendedor.map((item: any) => {
+                      const montoPrometido = parseFloat(item.promesa?.montoPrometido || '0');
+                      const cumplimiento = item.ventasReales > 0 && montoPrometido > 0
+                        ? (item.ventasReales / montoPrometido) * 100
+                        : 0;
+
+                      const estado =
+                        cumplimiento >= 100 ? 'cumplida' :
+                          cumplimiento >= 80 ? 'cerca' :
+                            cumplimiento >= 50 ? 'parcial' : 'baja';
+
+                      const colorClasses = {
+                        cumplida: 'border-emerald-200 bg-emerald-50/50',
+                        cerca: 'border-amber-200 bg-amber-50/50',
+                        parcial: 'border-orange-200 bg-orange-50/50',
+                        baja: 'border-rose-200 bg-rose-50/50'
+                      };
+
+                      const badgeClasses = {
+                        cumplida: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                        cerca: 'bg-amber-100 text-amber-800 border-amber-200',
+                        parcial: 'bg-orange-100 text-orange-800 border-orange-200',
+                        baja: 'bg-rose-100 text-rose-800 border-rose-200'
+                      };
+
+                      const symbol = {
+                        cumplida: '✓',
+                        cerca: '~',
+                        parcial: '!',
+                        baja: '✗'
+                      };
+
+                      return (
+                        <div
+                          key={item.promesa?.id}
+                          className={`border rounded-lg sm:rounded-xl p-3 sm:p-4 ${colorClasses[estado]}`}
+                          data-testid={`promesa-${item.promesa?.id}`}
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                                <h4 className="font-semibold text-gray-900 text-sm sm:text-base truncate">
+                                  {item.promesa?.clienteNombre || 'Cliente'}
+                                </h4>
+                                <Badge
+                                  variant="outline"
+                                  className={`text-xs w-fit ${badgeClasses[estado]}`}
+                                  data-testid={`badge-estado-${item.promesa?.id}`}
+                                >
+                                  {estado === 'cumplida' ? 'Cumplida' :
+                                    estado === 'cerca' ? 'Cerca' :
+                                      estado === 'parcial' ? 'Parcial' : 'Baja'}
+                                </Badge>
+                                <span className={`sm:hidden text-lg font-bold ${badgeClasses[estado].split(' ')[1]}`}>
+                                  {symbol[estado]}
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
+                                <div>
+                                  <span className="text-gray-600">Promesa:</span>
+                                  <span className="ml-1 font-semibold text-gray-900">
+                                    {formatCurrency(montoPrometido)}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">Ventas:</span>
+                                  <span className="ml-1 font-semibold text-gray-900">
+                                    {formatCurrency(item.ventasReales || 0)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="mt-2">
+                                <div className="flex items-center justify-between text-xs mb-1">
+                                  <span className="text-gray-600">Cumplimiento</span>
+                                  <span className="font-semibold text-gray-900">{cumplimiento.toFixed(0)}%</span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-1.5 sm:h-2">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${estado === 'cumplida' ? 'bg-emerald-500' :
+                                      estado === 'cerca' ? 'bg-amber-500' :
+                                        estado === 'parcial' ? 'bg-orange-500' : 'bg-rose-500'
+                                      }`}
+                                    style={{ width: `${Math.min(cumplimiento, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )
+        }
 
         {/* NVV Pendientes */}
-        {nvvPendingData && nvvPendingData.total > 0 && (
-          <Card className="rounded-xl md:rounded-2xl shadow-md border-0 bg-gradient-to-br from-cyan-50/80 via-sky-50/60 to-blue-100/40 lg:col-span-2" data-testid="card-nvv-pending">
-            <CardHeader className="p-3 sm:p-4 md:p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                <div className="flex items-center gap-2 sm:gap-3 flex-1">
-                  <div className="bg-cyan-500 rounded-full p-1.5 sm:p-2">
-                    <Package className="h-5 w-5 text-white" />
+        {
+          nvvPendingData && nvvPendingData.total > 0 && (
+            <Card className="rounded-xl md:rounded-2xl shadow-md border-0 bg-gradient-to-br from-cyan-50/80 via-sky-50/60 to-blue-100/40 lg:col-span-2" data-testid="card-nvv-pending">
+              <CardHeader className="p-3 sm:p-4 md:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3 flex-1">
+                    <div className="bg-cyan-500 rounded-full p-1.5 sm:p-2">
+                      <Package className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-sm sm:text-base md:text-lg font-bold text-gray-900">NVV Pendientes</CardTitle>
+                      <CardDescription className="text-xs text-gray-600">
+                        Ventas no facturadas
+                      </CardDescription>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-sm sm:text-base md:text-lg font-bold text-gray-900">NVV Pendientes</CardTitle>
-                    <CardDescription className="text-xs text-gray-600">
-                      Ventas no facturadas
+                  <div className="flex items-center justify-between sm:justify-end sm:text-right gap-2">
+                    <div>
+                      <div className="text-xl sm:text-2xl font-bold text-cyan-900">
+                        {formatCurrency(nvvPendingData.total || 0)}
+                      </div>
+                      <p className="text-xs text-gray-600">{nvvPendingData.documentCount} docs</p>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-3 sm:p-4 md:p-6 pt-0">
+                <div className="space-y-3">
+                  {nvvPendingData.clients.slice(0, 10).map((client: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="border border-cyan-200 bg-cyan-50/50 rounded-lg sm:rounded-xl p-3"
+                      data-testid={`nvv-client-${idx}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-gray-900 text-sm truncate">
+                            {client.clientName}
+                          </h4>
+                          <p className="text-xs text-gray-600 mt-1">
+                            {client.documentCount} documento{client.documentCount !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-gray-600">Pendiente</p>
+                          <p className="font-semibold text-sm text-cyan-700">
+                            {formatCurrency(client.totalPending)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {nvvPendingData.clients.length > 10 && (
+                    <p className="text-xs text-center text-gray-600 pt-2">
+                      +{nvvPendingData.clients.length - 10} clientes más
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )
+        }
+
+        {/* Notificaciones Inteligentes de Ventas - solo si hay clientes inactivos */}
+        {
+          smartNotifications && smartNotifications.inactiveClients?.length > 0 && (
+            <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-indigo-50/80 via-purple-50/60 to-pink-100/40 lg:col-span-2" data-testid="card-smart-notifications">
+              <CardHeader className="p-4 sm:p-6">
+                <div className="flex items-center gap-3">
+                  <div className="bg-indigo-500 rounded-full p-2 sm:p-3">
+                    <Bell className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base sm:text-lg font-bold text-gray-900">Oportunidades de Venta</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm text-gray-600">
+                      Insights inteligentes para aumentar tus ventas
                     </CardDescription>
                   </div>
                 </div>
-                <div className="flex items-center justify-between sm:justify-end sm:text-right gap-2">
-                  <div>
-                    <div className="text-xl sm:text-2xl font-bold text-cyan-900">
-                      {formatCurrency(nvvPendingData.total || 0)}
-                    </div>
-                    <p className="text-xs text-gray-600">{nvvPendingData.documentCount} docs</p>
+              </CardHeader>
+              <CardContent className="p-4 sm:p-6 pt-0">
+                <Accordion type="multiple" className="space-y-2">
+                  {/* Clientes que requieren seguimiento */}
+                  {smartNotifications.inactiveClients?.length > 0 && (
+                    <AccordionItem value="inactive-clients" className="border rounded-lg bg-white/40">
+                      <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-orange-500" />
+                          <span className="text-sm font-semibold text-gray-900">
+                            Clientes que requieren seguimiento ({smartNotifications.inactiveClients.length})
+                          </span>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-4 pb-3">
+                        <Accordion
+                          type="multiple"
+                          className="space-y-2"
+                          value={expandedClients}
+                          onValueChange={setExpandedClients}
+                        >
+                          {smartNotifications.inactiveClients.map((client: any, idx: number) => (
+                            <ClientDetailAccordion
+                              key={idx}
+                              client={client}
+                              idx={idx}
+                              salespersonName={salespersonName}
+                              expandedValue={expandedClients}
+                              onExpandChange={setExpandedClients}
+                            />
+                          ))}
+                        </Accordion>
+                      </AccordionContent>
+                    </AccordionItem>
+                  )}
+                </Accordion>
+
+                {!smartNotifications.inactiveClients?.length && (
+                  <div className="text-center py-6 text-gray-500">
+                    <Info className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                    <p className="text-sm">No hay clientes que requieran seguimiento en este momento</p>
                   </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-3 sm:p-4 md:p-6 pt-0">
-              <div className="space-y-3">
-                {nvvPendingData.clients.slice(0, 10).map((client: any, idx: number) => (
-                  <div 
-                    key={idx}
-                    className="border border-cyan-200 bg-cyan-50/50 rounded-lg sm:rounded-xl p-3"
-                    data-testid={`nvv-client-${idx}`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-gray-900 text-sm truncate">
-                          {client.clientName}
-                        </h4>
-                        <p className="text-xs text-gray-600 mt-1">
-                          {client.documentCount} documento{client.documentCount !== 1 ? 's' : ''}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-gray-600">Pendiente</p>
-                        <p className="font-semibold text-sm text-cyan-700">
-                          {formatCurrency(client.totalPending)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {nvvPendingData.clients.length > 10 && (
-                  <p className="text-xs text-center text-gray-600 pt-2">
-                    +{nvvPendingData.clients.length - 10} clientes más
-                  </p>
                 )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Notificaciones Inteligentes de Ventas */}
-        {smartNotifications && (
-          <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-indigo-50/80 via-purple-50/60 to-pink-100/40 lg:col-span-2" data-testid="card-smart-notifications">
-            <CardHeader className="p-4 sm:p-6">
-              <div className="flex items-center gap-3">
-                <div className="bg-indigo-500 rounded-full p-2 sm:p-3">
-                  <Bell className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-                </div>
-                <div>
-                  <CardTitle className="text-base sm:text-lg font-bold text-gray-900">Oportunidades de Venta</CardTitle>
-                  <CardDescription className="text-xs sm:text-sm text-gray-600">
-                    Insights inteligentes para aumentar tus ventas
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 sm:p-6 pt-0">
-              <Accordion type="multiple" className="space-y-2">
-                {/* Clientes que requieren seguimiento */}
-                {smartNotifications.inactiveClients?.length > 0 && (
-                  <AccordionItem value="inactive-clients" className="border rounded-lg bg-white/40">
-                    <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-orange-500" />
-                        <span className="text-sm font-semibold text-gray-900">
-                          Clientes que requieren seguimiento ({smartNotifications.inactiveClients.length})
-                        </span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-4 pb-3">
-                      <Accordion 
-                        type="multiple" 
-                        className="space-y-2"
-                        value={expandedClients}
-                        onValueChange={setExpandedClients}
-                      >
-                        {smartNotifications.inactiveClients.map((client: any, idx: number) => (
-                          <ClientDetailAccordion
-                            key={idx}
-                            client={client}
-                            idx={idx}
-                            salespersonName={salespersonName}
-                            expandedValue={expandedClients}
-                            onExpandChange={setExpandedClients}
-                          />
-                        ))}
-                      </Accordion>
-                    </AccordionContent>
-                  </AccordionItem>
-                )}
-              </Accordion>
-
-              {!smartNotifications.inactiveClients?.length && (
-                <div className="text-center py-6 text-gray-500">
-                  <Info className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                  <p className="text-sm">No hay clientes que requieran seguimiento en este momento</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* KPIs del Vendedor */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-emerald-50/80 to-emerald-100/50" data-testid="card-ventas-totales">
-            <CardContent className="pt-6 pb-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-emerald-700 mb-2">
-                    Ventas Totales
-                  </p>
-                  <div className="text-3xl font-bold text-emerald-900 mb-1" data-testid="text-ventas-totales">
-                    {formatCurrency(salesData.totalSales)}
-                  </div>
-                  <p className="text-xs text-emerald-600">
-                    Este período
-                  </p>
-                </div>
-                <div className="bg-emerald-500 rounded-2xl p-3 shadow-sm">
-                  <DollarSign className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card 
-            className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-blue-50/80 to-blue-100/50 relative cursor-pointer hover:shadow-lg transition-shadow" 
-            data-testid="card-clientes"
-            onClick={() => setShowClientsDialog(true)}
-          >
-            <CardContent className="pt-6 pb-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-blue-700 mb-2">
-                    Clientes
-                  </p>
-                  <div className="text-3xl font-bold text-blue-900 mb-1" data-testid="text-clientes">
-                    {salesData.clientCount}
-                  </div>
-                  <p className="text-xs text-blue-600">
-                    Atendidos
-                  </p>
-                </div>
-                <div className="bg-blue-500 rounded-2xl p-3 shadow-sm">
-                  <Users className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-violet-50/80 to-violet-100/50" data-testid="card-transacciones">
-            <CardContent className="pt-6 pb-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-violet-700 mb-2">
-                    Transacciones
-                  </p>
-                  <div className="text-3xl font-bold text-violet-900 mb-1" data-testid="text-transacciones">
-                    {salesData.transactions}
-                  </div>
-                  <p className="text-xs text-violet-600">
-                    Realizadas
-                  </p>
-                </div>
-                <div className="bg-violet-500 rounded-2xl p-3 shadow-sm">
-                  <Package className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-amber-50/80 to-amber-100/50" data-testid="card-dias-ultima-venta">
-            <CardContent className="pt-6 pb-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-amber-700 mb-2">
-                    Días desde última venta
-                  </p>
-                  <div className="text-3xl font-bold text-amber-900 mb-1" data-testid="text-dias-ultima-venta">
-                    {salesData.daysSinceLastSale} días
-                  </div>
-                  <p className="text-xs text-amber-600">
-                    Promedio
-                  </p>
-                </div>
-                <div className="bg-amber-500 rounded-2xl p-3 shadow-sm">
-                  <Clock className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-indigo-50/80 to-indigo-100/50" data-testid="card-ticket-promedio">
-            <CardContent className="pt-6 pb-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-indigo-700 mb-2">
-                    Ticket Promedio
-                  </p>
-                  <div className="text-3xl font-bold text-indigo-900 mb-1" data-testid="text-ticket-promedio">
-                    {formatCurrency(salesData.avgTicket)}
-                  </div>
-                  <p className="text-xs text-indigo-600">
-                    Por transacción
-                  </p>
-                </div>
-                <div className="bg-indigo-500 rounded-2xl p-3 shadow-sm">
-                  <TrendingUp className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-teal-50/80 to-teal-100/50" data-testid="card-clientes-nuevos">
-            <CardContent className="pt-6 pb-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-teal-700 mb-2">
-                    Clientes Nuevos
-                  </p>
-                  <div className="text-3xl font-bold text-teal-900 mb-1" data-testid="text-clientes-nuevos">
-                    {salespersonData?.newClients || 0}
-                  </div>
-                  <p className="text-xs text-teal-600">
-                    Este período
-                  </p>
-                </div>
-                <div className="bg-teal-500 rounded-2xl p-3 shadow-sm">
-                  <Users className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          )
+        }
 
 
         {/* Tendencia de Ventas - Ancho completo */}
         <CardWrapper className="lg:col-span-2">
-          <SalesChart 
-            selectedPeriod={selectedPeriod} 
+          <SalesChart
+            selectedPeriod={selectedPeriod}
             filterType={filterType}
             salesperson={user?.salespersonName}
           />
         </CardWrapper>
 
         {/* Clientes del Vendedor con Acordeones */}
-        {salespersonName && (
-          <CardWrapper>
-            <SalespersonClientsPanel 
-              salespersonName={salespersonName}
-              selectedPeriod={selectedPeriod}
-              filterType={filterType}
-              showSearchToggle={true}
-              showLoadMore={true}
-              accordionState={accordionState}
-              limit={10}
-            />
-          </CardWrapper>
-        )}
+        {
+          salespersonName && (
+            <CardWrapper>
+              <SalespersonClientsPanel
+                salespersonName={salespersonName}
+                selectedPeriod={selectedPeriod}
+                filterType={filterType}
+                showSearchToggle={true}
+                showLoadMore={true}
+                accordionState={accordionState}
+              />
+            </CardWrapper>
+          )
+        }
 
         {/* Productos del Vendedor con Acordeones */}
-        {salespersonName && (
-          <CardWrapper>
-            <SalespersonProductsPanel 
-              salespersonName={salespersonName}
-              selectedPeriod={selectedPeriod}
-              filterType={filterType}
-              showSearchToggle={true}
-              showLoadMore={true}
-              accordionState={accordionState}
-              limit={10}
-            />
-          </CardWrapper>
-        )}
+        {
+          salespersonName && (
+            <CardWrapper>
+              <SalespersonProductsPanel
+                salespersonName={salespersonName}
+                selectedPeriod={selectedPeriod}
+                filterType={filterType}
+                showSearchToggle={true}
+                showLoadMore={true}
+                accordionState={accordionState}
+              />
+            </CardWrapper>
+          )
+        }
 
         {/* Tabla de Transacciones */}
         <CardWrapper>
-          <TransactionsTable 
-            selectedPeriod={selectedPeriod} 
+          <TransactionsTable
+            selectedPeriod={selectedPeriod}
             filterType={filterType}
             salesperson={user?.salespersonName}
           />
         </CardWrapper>
 
         {/* Comparativa de Períodos */}
-        {salespersonName && (
-          <CardWrapper>
-            <PeriodComparisonChart salespersonName={salespersonName} />
-          </CardWrapper>
-        )}
-      </main>
+        {
+          salespersonName && (
+            <CardWrapper>
+              <PeriodComparisonChart salespersonName={salespersonName} />
+            </CardWrapper>
+          )
+        }
+      </main >
 
       {/* Diálogo de Clientes */}
-      <Dialog open={showClientsDialog} onOpenChange={setShowClientsDialog}>
+      < Dialog open={showClientsDialog} onOpenChange={setShowClientsDialog} >
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader className="space-y-4">
             <DialogTitle className="text-2xl font-bold text-gray-900">
               Clientes del Vendedor
             </DialogTitle>
-            
+
             {/* BUSCADOR - Ahora dentro del DialogHeader para máxima visibilidad */}
             <div className="w-full bg-blue-100 border-4 border-blue-500 rounded-lg p-4">
               <div className="flex items-center gap-2 mb-2">
@@ -1202,7 +1168,7 @@ export default function SalespersonDashboard() {
                 style={{ fontSize: '16px' }}
               />
             </div>
-            
+
             <div className="text-sm text-gray-600">
               Mostrando {clients.filter((client: any) => {
                 const clientName = (client.clientName || client.name || '').toLowerCase();
@@ -1210,7 +1176,7 @@ export default function SalespersonDashboard() {
               }).length} clientes
             </div>
           </DialogHeader>
-          
+
           <div className="mt-4">
             {loadingClients ? (
               <div className="flex items-center justify-center py-8">
@@ -1221,9 +1187,9 @@ export default function SalespersonDashboard() {
                 No hay clientes en este período
               </div>
             ) : clients.filter((client: any) => {
-                const clientName = (client.clientName || client.name || '').toLowerCase();
-                return clientName.includes(clientSearch.toLowerCase());
-              }).length === 0 ? (
+              const clientName = (client.clientName || client.name || '').toLowerCase();
+              return clientName.includes(clientSearch.toLowerCase());
+            }).length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 No se encontraron clientes con "{clientSearch}"
               </div>
@@ -1235,62 +1201,62 @@ export default function SalespersonDashboard() {
                     return clientName.includes(clientSearch.toLowerCase());
                   })
                   .map((client: any, index: number) => (
-                  <Card 
-                    key={index} 
-                    className="hover:shadow-md transition-shadow border-l-4 border-l-green-500"
-                    data-testid={`client-card-${index}`}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-lg text-gray-900" data-testid={`client-name-${index}`}>
-                            {client.clientName || client.name || 'Sin nombre'}
-                          </h3>
-                          {client.segment && (
-                            <Badge variant="outline" className="mt-1">
-                              {client.segment}
-                            </Badge>
-                          )}
+                    <Card
+                      key={index}
+                      className="hover:shadow-md transition-shadow border-l-4 border-l-green-500"
+                      data-testid={`client-card-${index}`}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-lg text-gray-900" data-testid={`client-name-${index}`}>
+                              {client.clientName || client.name || 'Sin nombre'}
+                            </h3>
+                            {client.segment && (
+                              <Badge variant="outline" className="mt-1">
+                                {client.segment}
+                              </Badge>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div className="text-center">
+                              <p className="text-gray-500 text-xs">Ventas Totales</p>
+                              <p className="font-bold text-blue-600" data-testid={`client-sales-${index}`}>
+                                {formatCurrency(client.totalSales || 0)}
+                              </p>
+                            </div>
+
+                            <div className="text-center">
+                              <p className="text-gray-500 text-xs">Transacciones</p>
+                              <p className="font-bold text-green-600" data-testid={`client-transactions-${index}`}>
+                                {client.transactionCount || 0}
+                              </p>
+                            </div>
+
+                            <div className="text-center">
+                              <p className="text-gray-500 text-xs">Ticket Prom.</p>
+                              <p className="font-bold text-purple-600">
+                                {formatCurrency((client.totalSales || 0) / (client.transactionCount || 1))}
+                              </p>
+                            </div>
+
+                            <div className="text-center">
+                              <p className="text-gray-500 text-xs">Última Compra</p>
+                              <p className="font-bold text-orange-600 text-xs">
+                                {client.lastPurchaseDate ? new Date(client.lastPurchaseDate).toLocaleDateString('es-CL') : 'N/A'}
+                              </p>
+                            </div>
+                          </div>
                         </div>
-                        
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div className="text-center">
-                            <p className="text-gray-500 text-xs">Ventas Totales</p>
-                            <p className="font-bold text-blue-600" data-testid={`client-sales-${index}`}>
-                              {formatCurrency(client.totalSales || 0)}
-                            </p>
-                          </div>
-                          
-                          <div className="text-center">
-                            <p className="text-gray-500 text-xs">Transacciones</p>
-                            <p className="font-bold text-green-600" data-testid={`client-transactions-${index}`}>
-                              {client.transactionCount || 0}
-                            </p>
-                          </div>
-                          
-                          <div className="text-center">
-                            <p className="text-gray-500 text-xs">Ticket Prom.</p>
-                            <p className="font-bold text-purple-600">
-                              {formatCurrency((client.totalSales || 0) / (client.transactionCount || 1))}
-                            </p>
-                          </div>
-                          
-                          <div className="text-center">
-                            <p className="text-gray-500 text-xs">Última Compra</p>
-                            <p className="font-bold text-orange-600 text-xs">
-                              {client.lastPurchaseDate ? new Date(client.lastPurchaseDate).toLocaleDateString('es-CL') : 'N/A'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  ))}
               </div>
             )}
           </div>
         </DialogContent>
-      </Dialog>
+      </Dialog >
     </>
   );
 }

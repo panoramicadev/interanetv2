@@ -77,7 +77,7 @@ app.use((req, res, next) => {
   }, () => {
     log(`serving on port ${port}`);
     log('✅ Server ready for health checks');
-    
+
     // Defer all heavy initialization to avoid blocking health checks
     setImmediate(() => {
       initializeBackgroundServices().catch(err => {
@@ -90,7 +90,7 @@ app.use((req, res, next) => {
 // Background services initialization - runs after server is ready
 async function initializeBackgroundServices() {
   log('🚀 Starting background services initialization...');
-  
+
   // Bootstrap de base de datos - crea esquemas y tablas base ANTES de migraciones
   try {
     await bootstrapDatabase();
@@ -98,7 +98,7 @@ async function initializeBackgroundServices() {
     console.error('❌ Error en bootstrap de base de datos:', error.message);
     console.error('La aplicación continuará, pero algunas funciones pueden no estar disponibles');
   }
-  
+
   // Ejecutar migraciones de base de datos
   try {
     await runProductionMigrations();
@@ -106,14 +106,14 @@ async function initializeBackgroundServices() {
     console.error('❌ Error crítico en migraciones:', error.message);
     console.error('La aplicación continuará, pero algunas funciones pueden no estar disponibles');
   }
-  
+
   // Migrar URLs de imágenes de productos a Object Storage
   try {
     await migrateProductImageUrls();
   } catch (error: any) {
     console.error('⚠️ Error al migrar URLs de imágenes:', error.message);
   }
-  
+
   // Subir imágenes locales a Object Storage para persistencia
   try {
     const uploadResult = await uploadLocalImagesToObjectStorage();
@@ -123,7 +123,7 @@ async function initializeBackgroundServices() {
   } catch (error: any) {
     console.error('⚠️ Error al sincronizar imágenes a Object Storage:', error.message);
   }
-  
+
   // Poblar campos de familia y color de productos
   try {
     const familyResult = await populateProductFamilyAndColor();
@@ -133,7 +133,7 @@ async function initializeBackgroundServices() {
   } catch (error: any) {
     console.error('⚠️ Error al clasificar productos:', error.message);
   }
-  
+
   // Sincronizar movimientos de fondos faltantes
   try {
     const syncResult = await syncMissingFundMovements();
@@ -160,94 +160,105 @@ async function initializeBackgroundServices() {
   } catch (error: any) {
     console.error('⚠️ Error al inicializar catálogos públicos:', error.message);
   }
-  
-  // Start ETL automatic scheduler with configurable interval
+
+  // ═══════════════════════════════════════════════════════════════
+  // ETL Time-Based Scheduler — Runs all ETLs at 10:00, 14:00, 18:00 Chile time
+  // ═══════════════════════════════════════════════════════════════
   try {
-    const config = await getETLConfig('ventas_incremental');
-    const intervalMinutes = config.intervalMinutes || 15;
-    const ETL_INTERVAL = intervalMinutes * 60 * 1000;
-    
-    log(`🔄 ETL automatic scheduler initialized (runs every ${intervalMinutes} minutes)`);
-    
+    const SCHEDULE_HOURS = [10, 14, 18]; // Chile time (America/Santiago)
+    const SCHEDULER_CHECK_INTERVAL = 60 * 1000; // Check every 1 minute
+    let lastScheduledRun = ''; // Track last run to prevent duplicates
+
+    const getChileHourMinute = (): { hour: number; minute: number; key: string } => {
+      const now = new Date();
+      const chileTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Santiago' }));
+      const hour = chileTime.getHours();
+      const minute = chileTime.getMinutes();
+      return { hour, minute, key: `${chileTime.toDateString()}-${hour}` };
+    };
+
+    const runAllETLs = async (trigger: string) => {
+      log(`📊 [ETL-SCHEDULER] Running all ETLs (${trigger})...`);
+
+      // Ventas Incremental
+      try {
+        log('📊 [ETL-SCHEDULER] (1/3) Starting Ventas Incremental...');
+        const ventasResult = await executeIncrementalETL();
+        log(`✅ [ETL-SCHEDULER] Ventas: ${ventasResult.recordsProcessed} registros en ${ventasResult.executionTimeMs}ms`);
+      } catch (error: any) {
+        console.error('[ETL-SCHEDULER] Ventas ETL failed:', error.message);
+      }
+
+      // GDV
+      try {
+        const { executeGDVETL } = await import('./etl-gdv');
+        log('📊 [ETL-SCHEDULER] (2/3) Starting GDV...');
+        const gdvResult = await executeGDVETL();
+        log(`✅ [ETL-SCHEDULER] GDV: ${gdvResult.recordsProcessed} registros en ${gdvResult.executionTimeMs}ms`);
+      } catch (error: any) {
+        console.error('[ETL-SCHEDULER] GDV ETL failed:', error.message);
+      }
+
+      // NVV
+      try {
+        log('📊 [ETL-SCHEDULER] (3/3) Starting NVV...');
+        const nvvResult = await executeNVVETL();
+        log(`✅ [ETL-SCHEDULER] NVV: ${nvvResult.records_processed} registros en ${nvvResult.execution_time_ms}ms`);
+      } catch (error: any) {
+        console.error('[ETL-SCHEDULER] NVV ETL failed:', error.message);
+      }
+
+      log('✅ [ETL-SCHEDULER] All ETLs completed');
+    };
+
+    // Time-based scheduler: check every minute if it's time to run
+    setInterval(() => {
+      const { hour, minute, key } = getChileHourMinute();
+
+      // Run if we're at a scheduled hour within the first minute window AND haven't run this slot yet
+      if (SCHEDULE_HOURS.includes(hour) && minute < 2 && lastScheduledRun !== key) {
+        lastScheduledRun = key;
+        runAllETLs(`scheduled ${hour}:00`).catch(err => {
+          console.error('[ETL-SCHEDULER] Scheduled run failed:', err.message);
+        });
+      }
+    }, SCHEDULER_CHECK_INTERVAL);
+
+    // Run initial ETL sync 30 seconds after startup
     setTimeout(async () => {
       try {
-        log('📊 Running initial ETL on startup...');
-        await executeIncrementalETL();
+        await runAllETLs('startup');
       } catch (error: any) {
-        console.error('Initial ETL execution failed:', error.message);
+        console.error('[ETL-SCHEDULER] Initial ETL run failed:', error.message);
       }
     }, 30000);
-    
-    setInterval(async () => {
-      try {
-        log('📊 Running scheduled ETL update...');
-        await executeIncrementalETL();
-      } catch (error: any) {
-        console.error('Scheduled ETL execution failed:', error.message);
-      }
-    }, ETL_INTERVAL);
+
+    const { hour: nowHour } = getChileHourMinute();
+    const nextRun = SCHEDULE_HOURS.find(h => h > nowHour) || SCHEDULE_HOURS[0];
+    log(`🔄 ETL scheduler initialized — runs at ${SCHEDULE_HOURS.map(h => `${h}:00`).join(', ')} Chile time`);
+    log(`🔄 Next scheduled run: ${nextRun}:00 Chile time`);
   } catch (error: any) {
     console.error('Failed to initialize ETL scheduler:', error.message);
-    log('⚠️  ETL scheduler failed to initialize - using default 15 minute interval');
-    
-    const ETL_INTERVAL = 15 * 60 * 1000;
-    setInterval(async () => {
-      try {
-        log('📊 Running scheduled ETL update...');
-        await executeIncrementalETL();
-      } catch (error: any) {
-        console.error('Scheduled ETL execution failed:', error.message);
-      }
-    }, ETL_INTERVAL);
-  }
-
-  // Start NVV ETL automatic scheduler
-  try {
-    const nvvConfig = await getETLConfig('nvv');
-    const nvvIntervalMinutes = nvvConfig.intervalMinutes || 240;
-    const NVV_ETL_INTERVAL = nvvIntervalMinutes * 60 * 1000;
-    
-    log(`🔄 NVV ETL automatic scheduler initialized (runs every ${nvvIntervalMinutes} minutes)`);
-    
-    setTimeout(async () => {
-      try {
-        log('📊 Running initial NVV ETL on startup...');
-        await executeNVVETL();
-      } catch (error: any) {
-        console.error('Initial NVV ETL execution failed:', error.message);
-      }
-    }, 120000);
-    
-    setInterval(async () => {
-      try {
-        log('📊 Running scheduled NVV ETL update...');
-        await executeNVVETL();
-      } catch (error: any) {
-        console.error('Scheduled NVV ETL execution failed:', error.message);
-      }
-    }, NVV_ETL_INTERVAL);
-  } catch (error: any) {
-    console.error('Failed to initialize NVV ETL scheduler:', error.message);
-    log('⚠️  NVV ETL scheduler failed to initialize');
+    log('⚠️  ETL scheduler failed to initialize');
   }
 
   // Start inactive clients update scheduler (runs daily)
   try {
     const INACTIVE_CLIENTS_INTERVAL = 24 * 60 * 60 * 1000;
-    
+
     log('🔔 Inactive clients alert scheduler initialized (runs every 24 hours)');
-    
+
     setTimeout(async () => {
       try {
         log('🔔 Running initial inactive clients update on startup...');
         const count = await storage.updateInactiveClients();
         log(`✅ Updated ${count} inactive clients alerts`);
-        
+
       } catch (error: any) {
         console.error('Initial inactive clients update failed:', error.message);
       }
     }, 60000);
-    
+
     setInterval(async () => {
       try {
         log('🔔 Running scheduled inactive clients update...');
@@ -264,9 +275,9 @@ async function initializeBackgroundServices() {
   // Start low stock check scheduler (runs every hour)
   try {
     const LOW_STOCK_CHECK_INTERVAL = 60 * 60 * 1000;
-    
+
     log('📦 Low stock alert scheduler initialized (runs every hour)');
-    
+
     setTimeout(async () => {
       try {
         log('📦 Running initial low stock check on startup...');
@@ -276,7 +287,7 @@ async function initializeBackgroundServices() {
         console.error('Initial low stock check failed:', error.message);
       }
     }, 120000);
-    
+
     setInterval(async () => {
       try {
         log('📦 Running scheduled low stock check...');
@@ -293,9 +304,9 @@ async function initializeBackgroundServices() {
   // Start preventive maintenance scheduler (runs daily)
   try {
     const PREVENTIVE_MAINTENANCE_INTERVAL = 24 * 60 * 60 * 1000;
-    
+
     log('🔧 Preventive maintenance scheduler initialized (runs daily)');
-    
+
     setTimeout(async () => {
       try {
         log('🔧 Running initial preventive maintenance check on startup...');
@@ -305,7 +316,7 @@ async function initializeBackgroundServices() {
         console.error('Initial preventive maintenance check failed:', error.message);
       }
     }, 150000);
-    
+
     setInterval(async () => {
       try {
         log('🔧 Running scheduled preventive maintenance check...');
@@ -333,11 +344,11 @@ async function initializeBackgroundServices() {
   } catch (error: any) {
     console.error('Failed to initialize daily sales report scheduler:', error.message);
   }
-  
+
   // Start recurring funds scheduler (checks every 6 hours)
   try {
     const RECURRING_FUNDS_INTERVAL = 6 * 60 * 60 * 1000;
-    
+
     setTimeout(async () => {
       try {
         log('🔄 Running initial recurring funds check on startup...');
@@ -347,7 +358,7 @@ async function initializeBackgroundServices() {
         console.error('Initial recurring funds check failed:', error.message);
       }
     }, 60000);
-    
+
     setInterval(async () => {
       try {
         log('🔄 Running scheduled recurring funds check...');
@@ -357,7 +368,7 @@ async function initializeBackgroundServices() {
         console.error('Scheduled recurring funds check failed:', error.message);
       }
     }, RECURRING_FUNDS_INTERVAL);
-    
+
     log('🔄 Recurring funds scheduler initialized (runs every 6 hours)');
   } catch (error: any) {
     console.error('Failed to initialize recurring funds scheduler:', error.message);

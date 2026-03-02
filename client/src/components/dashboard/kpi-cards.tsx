@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { 
-  DollarSign, 
-  ShoppingCart, 
-  Package, 
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
+import {
+  DollarSign,
+  ShoppingCart,
+  Package,
   Users,
-  Loader2
+  Loader2,
+  X
 } from "lucide-react";
 import { format } from "date-fns";
+import SalesProjectionCard from "@/components/dashboard/sales-projection-card";
 
 interface SalesMetrics {
   totalSales: number;
@@ -58,6 +60,7 @@ interface NewClientItem {
 
 export default function KPICards({ selectedPeriod, filterType, segment, salesperson, client, product, comparePeriod }: KPICardsProps) {
   const [showNewClientsModal, setShowNewClientsModal] = useState(false);
+  const [isProjectionModalOpen, setIsProjectionModalOpen] = useState(false);
 
   // Helper function to resolve comparison periods to actual period strings
   const resolveComparisonPeriod = (comparePeriod: string, currentPeriod: string, filterType: string): string => {
@@ -336,6 +339,9 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   });
 
   // Query for yearly totals (with filters for segment, salesperson, client)
+  const currentYear = new Date().getFullYear();
+  const currentYearStr = String(currentYear);
+
   const { data: yearlyTotals } = useQuery<{
     currentYearTotal: number;
     previousYearTotal: number;
@@ -350,6 +356,45 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       if (salesperson) params.append('salesperson', salesperson);
       if (client) params.append('client', client);
       const res = await fetch(`/api/sales/yearly-totals?${params.toString()}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+  });
+
+  // Query for NVV yearly total (current year)
+  const { data: nvvYearlyMetrics } = useQuery<{
+    totalAmount: number;
+    totalQuantity: number;
+    pendingCount: number;
+    confirmedCount: number;
+    deliveredCount: number;
+    cancelledCount: number;
+  }>({
+    queryKey: ['/api/nvv/metrics', 'yearly', currentYearStr, segment, salesperson, client],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', currentYearStr);
+      params.append('filterType', 'year');
+      if (segment) params.append('segment', segment);
+      if (salesperson) params.append('salesperson', salesperson);
+      if (client) params.append('client', client);
+      const res = await fetch(`/api/nvv/metrics?${params.toString()}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+  });
+
+  // Query for GDV yearly total (current year) - uses sales metrics filtered to GDV only
+  const { data: gdvYearlyMetrics } = useQuery<SalesMetrics>({
+    queryKey: ['/api/sales/metrics', currentYearStr, 'year', segment, salesperson, client, 'gdv-yearly'],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', currentYearStr);
+      params.append('filterType', 'year');
+      if (segment) params.append('segment', segment);
+      if (salesperson) params.append('salesperson', salesperson);
+      if (client) params.append('client', client);
+      const res = await fetch(`/api/sales/metrics?${params.toString()}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
@@ -496,10 +541,10 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
     // Check if we have previous data
     if (previous === undefined || previous === null || previous === 0) {
-      return { 
-        percentage: "Sin datos previos", 
+      return {
+        percentage: "Sin datos previos",
         comparisonText: comparisonText, // Always return comparison text
-        color: "text-gray-500" 
+        color: "text-gray-500"
       };
     }
 
@@ -542,17 +587,17 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
   // Custom calculation for YTD comparison with proper text using API data
   const calculateYearlyChange = (
-    current: number, 
+    current: number,
     previous: number,
     comparisonYear?: number,
     comparisonDate?: string,
     isYTD?: boolean
   ) => {
     if (previous === undefined || previous === null || previous === 0) {
-      return { 
-        percentage: "Sin datos previos", 
+      return {
+        percentage: "Sin datos previos",
         comparisonText: "",
-        color: "text-gray-500" 
+        color: "text-gray-500"
       };
     }
 
@@ -577,7 +622,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   };
 
   const yearlyChange = calculateYearlyChange(
-    currentYearTotal, 
+    currentYearTotal,
     previousYearTotal,
     yearlyTotals?.comparisonYear,
     yearlyTotals?.comparisonDate,
@@ -638,60 +683,97 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     const combinedTotal = salesTotal + nvvTotal + gdvSales;
 
     return (
-      <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex-1 mb-2 lg:mb-0 pr-12 sm:pr-16 lg:pr-0">
-            <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 sm:mb-2">
-              {kpi.title}
-            </p>
-            <p 
-              className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
-              data-testid={kpi.testId}
-              title={kpi.value}
-            >
-              {kpi.value}
-            </p>
-            <div className="flex flex-col gap-0.5">
-              <div className="flex items-baseline gap-1.5 flex-wrap">
-                {kpi.change.percentage !== "Sin datos previos" && (
-                  <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
-                    {kpi.change.percentage}
-                  </span>
-                )}
-                {previousSales > 0 && (
-                  <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
-                    {salesDifferenceSign}{salesDifferenceFormatted}
-                  </span>
-                )}
-                {kpi.change.comparisonText && (
-                  <span className="text-[10px] text-gray-500 dark:text-gray-400">
-                    {kpi.change.comparisonText}
-                  </span>
-                )}
-                {kpi.change.percentage === "Sin datos previos" && (
-                  <span className="text-xs sm:text-sm font-semibold text-gray-500">
-                    Sin datos previos
-                  </span>
-                )}
-              </div>
-            </div>
-            {isCurrentMonth() && (
-              <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 overflow-hidden">
-                <div className="grid grid-cols-2 gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
-                  <span className="truncate" title={`NVV: ${formatCurrency(nvvTotal)}`}>NVV: {formatCurrency(nvvTotal)}</span>
-                  <span className="truncate" title={`GDV: ${formatCurrency(gdvSales)}`}>GDV: {formatCurrency(gdvSales)}</span>
+      <>
+        <div
+          key={kpi.title}
+          className={`modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden ${!salesperson && !segment && !client && !product ? 'cursor-pointer ring-green-300 hover:ring-2' : ''} transition-all`}
+          onClick={() => {
+            if (!salesperson && !segment && !client && !product) {
+              setIsProjectionModalOpen(true);
+            }
+          }}
+        >
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex-1 mb-2 lg:mb-0 pr-12 sm:pr-16 lg:pr-0">
+              <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 sm:mb-2">
+                {kpi.title}
+              </p>
+              <p
+                className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
+                data-testid={kpi.testId}
+                title={kpi.value}
+              >
+                {kpi.value}
+              </p>
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-baseline gap-1.5 flex-wrap">
+                  {kpi.change.percentage !== "Sin datos previos" && (
+                    <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
+                      {kpi.change.percentage}
+                    </span>
+                  )}
+                  {previousSales > 0 && (
+                    <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
+                      {salesDifferenceSign}{salesDifferenceFormatted}
+                    </span>
+                  )}
+                  {kpi.change.comparisonText && (
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                      {kpi.change.comparisonText}
+                    </span>
+                  )}
+                  {kpi.change.percentage === "Sin datos previos" && (
+                    <span className="text-xs sm:text-sm font-semibold text-gray-500">
+                      Sin datos previos
+                    </span>
+                  )}
                 </div>
-                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate" title={`Combinado: ${formatCurrency(combinedTotal)}`}>
-                  Combinado: {formatCurrency(combinedTotal)}
-                </p>
               </div>
-            )}
-          </div>
-          <div className={`absolute top-3 right-3 sm:top-4 sm:right-4 lg:static lg:ml-4 w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center transition-transform hover:scale-105`}>
-            <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
+              {isCurrentMonth() && (
+                <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 overflow-hidden">
+                  <div className="grid grid-cols-2 gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    <span className="truncate" title={`NVV: ${formatCurrency(nvvTotal)}`}>NVV: {formatCurrency(nvvTotal)}</span>
+                    <span className="truncate" title={`GDV: ${formatCurrency(gdvSales)}`}>GDV: {formatCurrency(gdvSales)}</span>
+                  </div>
+                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate" title={`Combinado: ${formatCurrency(combinedTotal)}`}>
+                    Combinado: {formatCurrency(combinedTotal)}
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className={`absolute top-3 right-3 sm:top-4 sm:right-4 lg:static lg:ml-4 w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center transition-transform hover:scale-105`}>
+              <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
+            </div>
           </div>
         </div>
-      </div>
+        <Dialog open={isProjectionModalOpen} onOpenChange={setIsProjectionModalOpen}>
+          <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col items-center justify-center p-6 border-none shadow-none bg-transparent sm:bg-transparent [&>button]:hidden">
+            {/* Wrapper for SalesProjectionCard */}
+            <div className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+                <DialogTitle className="flex items-center gap-2 text-xl font-semibold text-slate-800 dark:text-slate-200">
+                  <DollarSign className="h-6 w-6 text-emerald-500" />
+                  Ventas Totales - Proyección
+                </DialogTitle>
+                <DialogClose asChild>
+                  <button className="rounded-full p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" aria-label="Cerrar">
+                    <X className="h-5 w-5 text-slate-500 dark:text-slate-400" />
+                  </button>
+                </DialogClose>
+              </div>
+              <div className="p-6">
+                <SalesProjectionCard
+                  selectedPeriod={selectedPeriod}
+                  filterType={filterType}
+                  segment={segment}
+                  salesperson={salesperson}
+                  client={client}
+                />
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   };
 
@@ -709,8 +791,8 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
     return (
       <>
-        <div 
-          key={kpi.title} 
+        <div
+          key={kpi.title}
           className="modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden cursor-pointer ring-purple-300 hover:ring-2 transition-all"
           onClick={() => setShowNewClientsModal(true)}
         >
@@ -719,7 +801,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 sm:mb-2">
                 {kpi.title}
               </p>
-              <p 
+              <p
                 className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
                 data-testid={kpi.testId}
                 title={kpi.value}
@@ -849,6 +931,11 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     const differenceFormatted = formatCurrency(Math.abs(difference));
     const differenceSign = difference >= 0 ? '+' : '-';
 
+    // NVV and GDV yearly totals
+    const nvvYearTotal = Number(nvvYearlyMetrics?.totalAmount || 0);
+    const gdvYearTotal = Number(gdvYearlyMetrics?.gdvSales || 0);
+    const combinedYearTotal = currentTotal + nvvYearTotal + gdvYearTotal;
+
     return (
       <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift relative overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
@@ -856,12 +943,12 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 sm:mb-2">
               {kpi.title}
             </p>
-            <p 
+            <p
               className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
               data-testid={kpi.testId}
-              title={kpi.value}
+              title={formatCurrency(combinedYearTotal)}
             >
-              {kpi.value}
+              {formatCurrency(combinedYearTotal)}
             </p>
             {previousTotal > 0 && (
               <div className="mt-2 space-y-1 text-xs border-t border-gray-100 dark:border-gray-700 pt-2">
@@ -877,7 +964,15 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 </div>
               </div>
             )}
+            {/* Breakdown: Facturas + GDV + NVV */}
             <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 overflow-hidden">
+              <div className="grid grid-cols-3 gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
+                <span className="truncate" title={`Facturas: ${formatCurrency(currentTotal)}`}>Fact: {formatCurrency(currentTotal)}</span>
+                <span className="truncate" title={`GDV: ${formatCurrency(gdvYearTotal)}`}>GDV: {formatCurrency(gdvYearTotal)}</span>
+                <span className="truncate" title={`NVV: ${formatCurrency(nvvYearTotal)}`}>NVV: {formatCurrency(nvvYearTotal)}</span>
+              </div>
+            </div>
+            <div className="mt-1 pt-1 border-t border-gray-100 dark:border-gray-700 overflow-hidden">
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 truncate">
                 Mejor año: {bestYearValue}
               </p>

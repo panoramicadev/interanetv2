@@ -26,6 +26,7 @@ import {
   crmStages,
   clientesInactivos,
   apiKeys,
+  segmentAveragePrices,
   type User,
   type UpsertUser,
   type InsertUser,
@@ -313,6 +314,14 @@ import {
   integrations,
   type Integration,
   type InsertIntegration,
+  type SegmentAveragePrice,
+  type InsertSegmentAveragePrice,
+  productContent,
+  type ProductContent,
+  type InsertProductContent,
+  productQuestions,
+  type ProductQuestion,
+  type InsertProductQuestion,
 } from "@shared/schema";
 import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from "@shared/reclamosAreas";
 import { db } from "./db";
@@ -1360,6 +1369,25 @@ export interface IStorage {
   getAllProductColors(): Promise<string[]>;
   getPriceListById(id: string): Promise<PriceList | undefined>;
   getPriceListByCodigo(codigo: string): Promise<PriceList | undefined>;
+  updatePriceListItem(id: string, data: Partial<InsertPriceList>): Promise<PriceList>;
+  deletePriceListItem(id: string): Promise<void>;
+  deleteAllPriceListItems(): Promise<void>;
+
+  // Segment Average Prices
+  getSegmentPrices(segmentCode: string): Promise<SegmentAveragePrice[]>;
+  upsertSegmentPrice(data: InsertSegmentAveragePrice): Promise<SegmentAveragePrice>;
+  deleteSegmentPrice(id: string): Promise<void>;
+
+  // Product Content (Fichas Técnicas)
+  getProductContent(codigo: string): Promise<ProductContent | undefined>;
+  upsertProductContent(data: Partial<InsertProductContent> & { codigo: string }): Promise<ProductContent>;
+  getInventoryByProduct(sku: string): Promise<{ bodega: string; nombreBodega: string | null; stock1: number; stock2: number; unidad1: string | null; unidad2: string | null }[]>;
+
+  // Product Questions (AI feedback loop)
+  logProductQuestion(data: { codigo: string; pregunta: string; contexto?: string }): Promise<ProductQuestion>;
+  getProductQuestions(codigo: string): Promise<ProductQuestion[]>;
+  resolveProductQuestion(id: string, resolvedBy: string): Promise<ProductQuestion>;
+
   createPriceListItem(item: InsertPriceListInput): Promise<PriceList>;
   createMultiplePriceListItems(items: InsertPriceListInput[]): Promise<void>;
   updatePriceListItem(id: string, updates: Partial<InsertPriceListInput>): Promise<PriceList>;
@@ -2214,6 +2242,21 @@ export class DatabaseStorage implements IStorage {
     // First, try to find user in the main users table
     const [user] = await db.select().from(users).where(eq(users.id, id));
     if (user) {
+      // Check if this user also exists in salespeopleUsers to get salespersonName
+      const [salesperson] = await db.select().from(salespeopleUsers)
+        .where(eq(salespeopleUsers.email, user.email));
+      if (salesperson) {
+        return {
+          ...user,
+          salespersonName: salesperson.salespersonName,
+          username: salesperson.username,
+          isActive: salesperson.isActive,
+          supervisorId: salesperson.supervisorId,
+          assignedSegment: salesperson.assignedSegment,
+          publicSlug: salesperson.publicSlug,
+          role: salesperson.role, // Use the salesperson role (vendedor)
+        } as User;
+      }
       return user;
     }
 
@@ -2248,6 +2291,21 @@ export class DatabaseStorage implements IStorage {
     // First, try to find user in the main users table
     const [user] = await db.select().from(users).where(eq(users.email, email));
     if (user) {
+      // Check if this user also exists in salespeopleUsers to get salespersonName
+      const [salesperson] = await db.select().from(salespeopleUsers)
+        .where(eq(salespeopleUsers.email, email));
+      if (salesperson) {
+        return {
+          ...user,
+          salespersonName: salesperson.salespersonName,
+          username: salesperson.username,
+          isActive: salesperson.isActive,
+          supervisorId: salesperson.supervisorId,
+          assignedSegment: salesperson.assignedSegment,
+          publicSlug: salesperson.publicSlug,
+          role: salesperson.role, // Use the salesperson role (vendedor)
+        } as User;
+      }
       return user;
     }
 
@@ -3806,6 +3864,384 @@ export class DatabaseStorage implements IStorage {
       totalSales: Number(r.totalSales),
       totalUnits: Number(r.totalUnits),
     }));
+  }
+
+  // ─── Parent Product Helpers ───
+
+  /**
+   * Extracts the parent product name by stripping format and color suffixes.
+   * E.g. "ESMALTE AL AGUA COPPER BLANCO GALON" → "ESMALTE AL AGUA COPPER"
+   */
+  extractParentProductName(fullName: string): string {
+    if (!fullName) return fullName;
+    let name = fullName.trim();
+
+    // Format patterns to strip (order matters — check multi-word first)
+    const formatPatterns = [
+      /\s+4\s*GALONES?\s*$/i,
+      /\s+1\/4\s*(GALON|GALÓN)?\s*$/i,
+      /\s+1\/4\s*$/i,
+      /\s+(GALON|GALÓN)\s*$/i,
+      /\s+GL\s*$/i,
+      /\s+GAL\s*$/i,
+      /\s+BALDE?\s*$/i,
+      /\s+BLD\s*$/i,
+      /\s+BD\s*$/i,
+      /\s+TINETA\s*$/i,
+      /\s+KILO\s*$/i,
+      /\s+KG\s*$/i,
+      /\s+LITROS?\s*$/i,
+      /\s+LTS?\s*$/i,
+      /\s+ONZAS?\s*$/i,
+      /\s+OZ\s*$/i,
+      /\s+METROS?\s*$/i,
+      /\s+MTS?\s*$/i,
+      /\s+CUARTO\s*$/i,
+    ];
+
+    // Color patterns to strip
+    const colorPatterns = [
+      /\s+BLANCO\s*$/i,
+      /\s+NEGRO\s*$/i,
+      /\s+ROJO\s*$/i,
+      /\s+AZUL\s+PACIFICO\s*$/i,
+      /\s+AZUL\s*$/i,
+      /\s+VERDE\s*$/i,
+      /\s+AMARILLO\s*$/i,
+      /\s+GRIS\s*$/i,
+      /\s+CAFE\s*$/i,
+      /\s+CAFÉ\s*$/i,
+      /\s+MARRON\s*$/i,
+      /\s+MARRÓN\s*$/i,
+      /\s+ROSA\s*$/i,
+      /\s+ROSADO\s*$/i,
+      /\s+NARANJA\s*$/i,
+      /\s+ANARANJADO\s*$/i,
+      /\s+VIOLETA\s*$/i,
+      /\s+MORADO\s*$/i,
+      /\s+INCOLORO\s*$/i,
+      /\s+TRANSPARENTE\s*$/i,
+      /\s+BEIGE\s*$/i,
+      /\s+CREMA\s*$/i,
+      /\s+MARFIL\s*$/i,
+      /\s+CELESTE\s*$/i,
+    ];
+
+    // Apply multiple passes (format may appear after color or vice-versa)
+    for (let pass = 0; pass < 3; pass++) {
+      for (const pattern of formatPatterns) {
+        name = name.replace(pattern, '');
+      }
+      for (const pattern of colorPatterns) {
+        name = name.replace(pattern, '');
+      }
+    }
+
+    return name.trim();
+  }
+
+  /**
+   * Search products grouped by parent name (stripping format/color variants).
+   */
+  async searchParentProducts(searchTerm: string, startDate?: string, endDate?: string): Promise<Array<{
+    parentName: string;
+    totalSales: number;
+    totalUnits: number;
+    variantCount: number;
+  }>> {
+    const conditions = [
+      sql`LOWER(${factVentas.nokoprct}) LIKE ${`%${searchTerm.toLowerCase()}%`}`,
+      sql`${factVentas.nokoprct} IS NOT NULL AND ${factVentas.nokoprct} != ''`,
+      sql`${factVentas.tido} != 'GDV'`
+    ];
+
+    if (startDate) {
+      conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
+    }
+    if (endDate) {
+      conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
+    }
+
+    const whereClause = and(...conditions);
+
+    // Get all matching products with their sales
+    const results = await db
+      .select({
+        name: factVentas.nokoprct,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
+      })
+      .from(factVentas)
+      .where(whereClause)
+      .groupBy(factVentas.nokoprct)
+      .orderBy(sql`SUM(${factVentas.monto}) DESC`)
+      .limit(100);
+
+    // Group by parent name
+    const parentMap = new Map<string, {
+      parentName: string;
+      totalSales: number;
+      totalUnits: number;
+      variantCount: number;
+    }>();
+
+    results.forEach(r => {
+      const fullName = r.name || '';
+      const parentName = this.extractParentProductName(fullName);
+      const key = parentName.toUpperCase();
+
+      const existing = parentMap.get(key);
+      if (existing) {
+        existing.totalSales += Number(r.totalSales);
+        existing.totalUnits += Number(r.totalUnits);
+        existing.variantCount += 1;
+      } else {
+        parentMap.set(key, {
+          parentName: parentName || fullName,
+          totalSales: Number(r.totalSales),
+          totalUnits: Number(r.totalUnits),
+          variantCount: 1,
+        });
+      }
+    });
+
+    return Array.from(parentMap.values())
+      .sort((a, b) => b.totalSales - a.totalSales)
+      .slice(0, 20);
+  }
+
+  /**
+   * Get all variants of a parent product with format/color breakdown.
+   */
+  async getParentProductVariants(parentName: string, filters?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<{
+    parentName: string;
+    totalSales: number;
+    totalUnits: number;
+    transactionCount: number;
+    uniqueClients: number;
+    topClient: string | null;
+    topSalesperson: string | null;
+    variants: Array<{
+      fullName: string;
+      format: string;
+      color: string;
+      totalSales: number;
+      totalUnits: number;
+      transactionCount: number;
+    }>;
+    formatBreakdown: Array<{
+      format: string;
+      totalSales: number;
+      totalUnits: number;
+      transactionCount: number;
+      percentage: number;
+    }>;
+    colorBreakdown: Array<{
+      color: string;
+      totalSales: number;
+      totalUnits: number;
+      transactionCount: number;
+      percentage: number;
+    }>;
+  }> {
+    // Get all product names matching this parent
+    // First, get all distinct product names
+    const allProductsQuery = await db
+      .select({ name: factVentas.nokoprct })
+      .from(factVentas)
+      .where(and(
+        sql`${factVentas.nokoprct} IS NOT NULL AND ${factVentas.nokoprct} != ''`,
+        sql`${factVentas.tido} != 'GDV'`
+      ))
+      .groupBy(factVentas.nokoprct);
+
+    // Filter to those whose parent name matches
+    const matchingNames = allProductsQuery
+      .map(r => r.name || '')
+      .filter(name => {
+        const extracted = this.extractParentProductName(name);
+        return extracted.toUpperCase() === parentName.toUpperCase();
+      });
+
+    if (matchingNames.length === 0) {
+      return {
+        parentName,
+        totalSales: 0,
+        totalUnits: 0,
+        transactionCount: 0,
+        uniqueClients: 0,
+        topClient: null,
+        topSalesperson: null,
+        variants: [],
+        formatBreakdown: [],
+        colorBreakdown: [],
+      };
+    }
+
+    // Build conditions for matching variants
+    const conditions: any[] = [
+      sql`${factVentas.tido} != 'GDV'`,
+      inArray(factVentas.nokoprct, matchingNames),
+    ];
+
+    if (filters?.startDate) {
+      conditions.push(sql`${factVentas.feemdo} >= ${filters.startDate}::date`);
+    }
+    if (filters?.endDate) {
+      conditions.push(sql`${factVentas.feemdo} <= ${filters.endDate}::date`);
+    }
+
+    const whereClause = and(...conditions);
+
+    // Get overall metrics
+    const [metrics] = await db
+      .select({
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+        uniqueClients: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
+      })
+      .from(factVentas)
+      .where(whereClause);
+
+    const totalSales = Number(metrics?.totalSales || 0);
+
+    // Get top client
+    const topClients = await db
+      .select({
+        clientName: factVentas.nokoen,
+        sales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+      })
+      .from(factVentas)
+      .where(whereClause)
+      .groupBy(factVentas.nokoen)
+      .orderBy(sql`SUM(${factVentas.monto}) DESC`)
+      .limit(1);
+
+    // Get top salesperson
+    const topSalespeople = await db
+      .select({
+        salespersonName: factVentas.nokofu,
+        sales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+      })
+      .from(factVentas)
+      .where(whereClause)
+      .groupBy(factVentas.nokofu)
+      .orderBy(sql`SUM(${factVentas.monto}) DESC`)
+      .limit(1);
+
+    // Get per-variant breakdown
+    const variantResults = await db
+      .select({
+        fullName: factVentas.nokoprct,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+      })
+      .from(factVentas)
+      .where(whereClause)
+      .groupBy(factVentas.nokoprct)
+      .orderBy(sql`SUM(${factVentas.monto}) DESC`);
+
+    // Extract format and color for each variant
+    const extractFormat = (name: string): string => {
+      const ln = name.toLowerCase();
+      if (ln.includes('4 galones') || ln.includes('4gal')) return '4 Galones';
+      if (ln.includes('1/4') || ln.includes('cuarto')) return '1/4 Galón';
+      if (ln.includes('galón') || ln.includes('galon') || ln.includes(' gl') || ln.endsWith(' gl') || ln.includes(' gal ') || ln.endsWith(' gal')) return 'Galón';
+      if (ln.includes('balde') || ln.includes('bd') || ln.includes('bld')) return 'Balde';
+      if (ln.includes('tineta')) return 'Tineta';
+      if (ln.includes('kilo') || ln.includes(' kg') || ln.endsWith(' kg')) return 'Kilo';
+      if (ln.includes('litro') || ln.includes(' lt') || ln.endsWith(' lt') || ln.includes(' lts')) return 'Litro';
+      if (ln.includes('onza') || ln.includes(' oz')) return 'Onza';
+      if (ln.includes('metro') || ln.includes(' mt') || ln.includes(' m ')) return 'Metro';
+      return 'Otro';
+    };
+
+    const extractColor = (name: string): string => {
+      const ln = name.toLowerCase();
+      if (ln.includes('blanco')) return 'Blanco';
+      if (ln.includes('negro')) return 'Negro';
+      if (ln.includes('rojo')) return 'Rojo';
+      if (ln.includes('azul pacifico')) return 'Azul Pacífico';
+      if (ln.includes('azul')) return 'Azul';
+      if (ln.includes('verde')) return 'Verde';
+      if (ln.includes('amarillo')) return 'Amarillo';
+      if (ln.includes('gris')) return 'Gris';
+      if (ln.includes('cafe') || ln.includes('café') || ln.includes('marron') || ln.includes('marrón')) return 'Café';
+      if (ln.includes('rosa') || ln.includes('rosado')) return 'Rosa';
+      if (ln.includes('naranja') || ln.includes('anaranjado')) return 'Naranja';
+      if (ln.includes('violeta') || ln.includes('morado')) return 'Violeta';
+      if (ln.includes('incoloro') || ln.includes('transparente')) return 'Incoloro';
+      if (ln.includes('beige')) return 'Beige';
+      if (ln.includes('crema')) return 'Crema';
+      if (ln.includes('marfil')) return 'Marfil';
+      if (ln.includes('celeste')) return 'Celeste';
+      return 'Sin especificar';
+    };
+
+    const variants = variantResults.map(r => ({
+      fullName: r.fullName || '',
+      format: extractFormat(r.fullName || ''),
+      color: extractColor(r.fullName || ''),
+      totalSales: Number(r.totalSales),
+      totalUnits: Number(r.totalUnits),
+      transactionCount: Number(r.transactionCount),
+    }));
+
+    // Aggregate by format
+    const formatMap = new Map<string, { totalSales: number; totalUnits: number; transactionCount: number }>();
+    variants.forEach(v => {
+      const existing = formatMap.get(v.format) || { totalSales: 0, totalUnits: 0, transactionCount: 0 };
+      formatMap.set(v.format, {
+        totalSales: existing.totalSales + v.totalSales,
+        totalUnits: existing.totalUnits + v.totalUnits,
+        transactionCount: existing.transactionCount + v.transactionCount,
+      });
+    });
+
+    const formatBreakdown = Array.from(formatMap.entries())
+      .map(([format, data]) => ({
+        format,
+        ...data,
+        percentage: totalSales > 0 ? (data.totalSales / totalSales) * 100 : 0,
+      }))
+      .sort((a, b) => b.totalSales - a.totalSales);
+
+    // Aggregate by color
+    const colorMap = new Map<string, { totalSales: number; totalUnits: number; transactionCount: number }>();
+    variants.forEach(v => {
+      const existing = colorMap.get(v.color) || { totalSales: 0, totalUnits: 0, transactionCount: 0 };
+      colorMap.set(v.color, {
+        totalSales: existing.totalSales + v.totalSales,
+        totalUnits: existing.totalUnits + v.totalUnits,
+        transactionCount: existing.transactionCount + v.transactionCount,
+      });
+    });
+
+    const colorBreakdown = Array.from(colorMap.entries())
+      .map(([color, data]) => ({
+        color,
+        ...data,
+        percentage: totalSales > 0 ? (data.totalSales / totalSales) * 100 : 0,
+      }))
+      .sort((a, b) => b.totalSales - a.totalSales);
+
+    return {
+      parentName,
+      totalSales,
+      totalUnits: Number(metrics?.totalUnits || 0),
+      transactionCount: Number(metrics?.transactionCount || 0),
+      uniqueClients: Number(metrics?.uniqueClients || 0),
+      topClient: topClients[0]?.clientName || null,
+      topSalesperson: topSalespeople[0]?.salespersonName || null,
+      variants,
+      formatBreakdown,
+      colorBreakdown,
+    };
   }
 
   async getSegmentAnalysis(startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
@@ -8935,6 +9371,29 @@ export class DatabaseStorage implements IStorage {
         const stepSize = parseInt(row.constraints_stepSize) || 1;
         const formatUnit = row.packaging_unitName?.trim() || null;
 
+        // Dimensions and Weight
+        const weight = row.dimensions_weight ? parseFloat(row.dimensions_weight) : null;
+        const weightUnit = row.dimensions_weightUnit?.trim() || null;
+        const length = row.dimensions_length ? parseFloat(row.dimensions_length) : null;
+        const lengthUnit = row.dimensions_lengthUnit?.trim() || null;
+        const width = row.dimensions_width ? parseFloat(row.dimensions_width) : null;
+        const widthUnit = row.dimensions_widthUnit?.trim() || null;
+        const height = row.dimensions_height ? parseFloat(row.dimensions_height) : null;
+        const heightUnit = row.dimensions_heightUnit?.trim() || null;
+        const volume = row.dimensions_volume ? parseFloat(row.dimensions_volume) : null;
+        const volumeUnit = row.dimensions_volumeUnit?.trim() || null;
+
+        // Packaging
+        const packagingPackageName = row.packaging_packageName?.trim() || null;
+        const packagingPackageUnit = row.packaging_packageUnit?.trim() || null;
+        const packagingAmountPerPackage = row.packaging_amountPerPackage ? parseInt(row.packaging_amountPerPackage) : null;
+        const packagingBoxName = row.packaging_boxName?.trim() || null;
+        const packagingBoxUnit = row.packaging_boxUnit?.trim() || null;
+        const packagingAmountPerBox = row.packaging_amountPerBox ? parseInt(row.packaging_amountPerBox) : null;
+        const packagingPalletName = row.packaging_palletName?.trim() || null;
+        const packagingPalletUnit = row.packaging_palletUnit?.trim() || null;
+        const packagingAmountPerPallet = row.packaging_amountPerPallet ? parseInt(row.packaging_amountPerPallet) : null;
+
         // Check if priceList entry exists
         const existingPriceList = await db
           .select()
@@ -8995,6 +9454,25 @@ export class DatabaseStorage implements IStorage {
               minUnit: minUnit,
               stepSize: stepSize,
               formatUnit: formatUnit,
+              weight: weight ? weight.toString() : null,
+              weightUnit: weightUnit,
+              length: length ? length.toString() : null,
+              lengthUnit: lengthUnit,
+              width: width ? width.toString() : null,
+              widthUnit: widthUnit,
+              height: height ? height.toString() : null,
+              heightUnit: heightUnit,
+              volume: volume ? volume.toString() : null,
+              volumeUnit: volumeUnit,
+              packagingPackageName: packagingPackageName,
+              packagingPackageUnit: packagingPackageUnit,
+              packagingAmountPerPackage: packagingAmountPerPackage,
+              packagingBoxName: packagingBoxName,
+              packagingBoxUnit: packagingBoxUnit,
+              packagingAmountPerBox: packagingAmountPerBox,
+              packagingPalletName: packagingPalletName,
+              packagingPalletUnit: packagingPalletUnit,
+              packagingAmountPerPallet: packagingAmountPerPallet,
               updatedAt: new Date(),
             })
             .where(eq(ecommerceProducts.id, existingEcomProduct[0].id));
@@ -9016,8 +9494,54 @@ export class DatabaseStorage implements IStorage {
               minUnit: minUnit,
               stepSize: stepSize,
               formatUnit: formatUnit,
+              weight: weight ? weight.toString() : null,
+              weightUnit: weightUnit,
+              length: length ? length.toString() : null,
+              lengthUnit: lengthUnit,
+              width: width ? width.toString() : null,
+              widthUnit: widthUnit,
+              height: height ? height.toString() : null,
+              heightUnit: heightUnit,
+              volume: volume ? volume.toString() : null,
+              volumeUnit: volumeUnit,
+              packagingPackageName: packagingPackageName,
+              packagingPackageUnit: packagingPackageUnit,
+              packagingAmountPerPackage: packagingAmountPerPackage,
+              packagingBoxName: packagingBoxName,
+              packagingBoxUnit: packagingBoxUnit,
+              packagingAmountPerBox: packagingAmountPerBox,
+              packagingPalletName: packagingPalletName,
+              packagingPalletUnit: packagingPalletUnit,
+              packagingAmountPerPallet: packagingAmountPerPallet,
             });
           productsCreated++;
+        }
+
+        // Also update product_content if description is available
+        if (description) {
+          const { productContent } = await import('@shared/schema');
+          const existingContent = await db
+            .select()
+            .from(productContent)
+            .where(eq(productContent.codigo, productId))
+            .limit(1);
+
+          if (existingContent.length > 0) {
+            await db
+              .update(productContent)
+              .set({
+                descripcion: description,
+                updatedAt: new Date(),
+              })
+              .where(eq(productContent.codigo, productId));
+          } else {
+            await db
+              .insert(productContent)
+              .values({
+                codigo: productId,
+                descripcion: description,
+              });
+          }
         }
       } catch (error: any) {
         const errMsg = `Error processing ${row.productId}: ${error.message}`;
@@ -11952,11 +12476,20 @@ export class DatabaseStorage implements IStorage {
     const conditions = [];
 
     if (filters?.search) {
-      const searchTerm = `%${filters.search}%`;
-      conditions.push(
-        sql`(${priceList.codigo} ILIKE ${searchTerm} OR 
-            ${priceList.producto} ILIKE ${searchTerm})`
-      );
+      const searchTerms = filters.search.toLowerCase().trim().split(/\s+/);
+
+      for (const term of searchTerms) {
+        // Handle common unit mappings
+        let mappedTerm = term;
+        if (term === 'galon' || term === 'galón') mappedTerm = 'gl';
+
+        const pattern = `%${mappedTerm}%`;
+        conditions.push(
+          sql`(${priceList.codigo} ILIKE ${pattern} OR 
+               ${priceList.producto} ILIKE ${pattern} OR
+               ${priceList.unidad} ILIKE ${pattern})`
+        );
+      }
     }
 
     if (filters?.unidad) {
@@ -12097,12 +12630,114 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPriceListByCodigo(codigo: string): Promise<PriceList | undefined> {
-    const [item] = await db
-      .select()
-      .from(priceList)
-      .where(eq(priceList.codigo, codigo));
-
+    const [item] = await db.select().from(priceList).where(eq(priceList.codigo, codigo));
     return item;
+  }
+
+  async getSegmentPrices(segmentCode: string): Promise<SegmentAveragePrice[]> {
+    return await db.select().from(segmentAveragePrices).where(eq(segmentAveragePrices.segmentCode, segmentCode));
+  }
+
+  async upsertSegmentPrice(data: InsertSegmentAveragePrice): Promise<SegmentAveragePrice> {
+    const [existing] = await db
+      .select()
+      .from(segmentAveragePrices)
+      .where(
+        and(
+          eq(segmentAveragePrices.segmentCode, data.segmentCode),
+          eq(segmentAveragePrices.codigo, data.codigo)
+        )
+      );
+
+    if (existing) {
+      const [updated] = await db
+        .update(segmentAveragePrices)
+        .set({
+          ...data,
+          lastUpdated: new Date()
+        })
+        .where(eq(segmentAveragePrices.id, existing.id))
+        .returning();
+      return updated;
+    }
+
+    const [inserted] = await db.insert(segmentAveragePrices).values(data).returning();
+    return inserted;
+  }
+
+  async deleteSegmentPrice(id: string): Promise<void> {
+    await db.delete(segmentAveragePrices).where(eq(segmentAveragePrices.id, id));
+  }
+
+  // Product Content (Fichas Técnicas) implementation
+  async getProductContent(codigo: string): Promise<ProductContent | undefined> {
+    const [item] = await db.select().from(productContent).where(eq(productContent.codigo, codigo));
+    return item;
+  }
+
+  async upsertProductContent(data: Partial<InsertProductContent> & { codigo: string }): Promise<ProductContent> {
+    const [existing] = await db.select().from(productContent).where(eq(productContent.codigo, data.codigo));
+
+    if (existing) {
+      const [updated] = await db
+        .update(productContent)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(productContent.codigo, data.codigo))
+        .returning();
+      return updated;
+    }
+
+    const [inserted] = await db.insert(productContent).values(data as InsertProductContent).returning();
+    return inserted;
+  }
+
+  async getInventoryByProduct(sku: string): Promise<{ bodega: string; nombreBodega: string | null; stock1: number; stock2: number; unidad1: string | null; unidad2: string | null }[]> {
+    const rows = await db.select({
+      bodega: inventoryProducts.bodega,
+      nombreBodega: inventoryProducts.nombreBodega,
+      stock1: inventoryProducts.stock1,
+      stock2: inventoryProducts.stock2,
+      unidad1: inventoryProducts.unidad1,
+      unidad2: inventoryProducts.unidad2,
+    })
+      .from(inventoryProducts)
+      .where(eq(inventoryProducts.sku, sku));
+
+    return rows.map(r => ({
+      bodega: r.bodega,
+      nombreBodega: r.nombreBodega ?? null,
+      stock1: Number(r.stock1 ?? 0),
+      stock2: Number(r.stock2 ?? 0),
+      unidad1: r.unidad1 ?? null,
+      unidad2: r.unidad2 ?? null,
+    }));
+  }
+
+  // Product Questions (AI feedback loop)
+  async logProductQuestion(data: { codigo: string; pregunta: string; contexto?: string }): Promise<ProductQuestion> {
+    const [inserted] = await db.insert(productQuestions).values({
+      codigo: data.codigo,
+      pregunta: data.pregunta,
+      contexto: data.contexto || null,
+    }).returning();
+    return inserted;
+  }
+
+  async getProductQuestions(codigo: string): Promise<ProductQuestion[]> {
+    return await db
+      .select()
+      .from(productQuestions)
+      .where(eq(productQuestions.codigo, codigo))
+      .orderBy(productQuestions.resuelta, desc(productQuestions.createdAt));
+  }
+
+  async resolveProductQuestion(id: string, resolvedBy: string): Promise<ProductQuestion> {
+    const [updated] = await db
+      .update(productQuestions)
+      .set({ resuelta: true, resueltaAt: new Date(), resueltaPor: resolvedBy })
+      .where(eq(productQuestions.id, id))
+      .returning();
+    return updated;
   }
 
   async createPriceListItem(item: InsertPriceListInput): Promise<PriceList> {
@@ -12178,9 +12813,13 @@ export class DatabaseStorage implements IStorage {
       creatorEmail: users.email,
       creatorFirstName: users.firstName,
       creatorLastName: users.lastName,
+      // Also get salesperson info as fallback
+      spName: salespeopleUsers.salespersonName,
+      spEmail: salespeopleUsers.email,
     })
       .from(quotes)
-      .leftJoin(users, eq(quotes.createdBy, users.id));
+      .leftJoin(users, eq(quotes.createdBy, users.id))
+      .leftJoin(salespeopleUsers, eq(quotes.createdBy, salespeopleUsers.id));
 
     const conditions = [];
     if (filters?.createdBy) {
@@ -12211,6 +12850,7 @@ export class DatabaseStorage implements IStorage {
     // Flatten the result to include creator info directly on quote object
     return result.map(row => {
       let creatorName = 'Usuario desconocido';
+      let creatorEmail = row.creatorEmail;
 
       if (row.creatorFirstName && row.creatorLastName) {
         creatorName = `${row.creatorFirstName} ${row.creatorLastName}`;
@@ -12218,14 +12858,20 @@ export class DatabaseStorage implements IStorage {
         creatorName = row.creatorFirstName;
       } else if (row.creatorLastName) {
         creatorName = row.creatorLastName;
+      } else if (row.spName) {
+        // Fallback to salespeople_users name
+        creatorName = row.spName;
+        creatorEmail = creatorEmail || row.spEmail;
       } else if (row.creatorEmail) {
-        // Use email username part if no name is available
         creatorName = row.creatorEmail.split('@')[0];
+      } else if (row.spEmail) {
+        creatorName = row.spEmail.split('@')[0];
+        creatorEmail = row.spEmail;
       }
 
       return {
         ...row.quote,
-        creatorEmail: row.creatorEmail,
+        creatorEmail,
         creatorFirstName: row.creatorFirstName,
         creatorLastName: row.creatorLastName,
         creatorName
@@ -12239,16 +12885,19 @@ export class DatabaseStorage implements IStorage {
       email: users.email,
       firstName: users.firstName,
       lastName: users.lastName,
+      spName: salespeopleUsers.salespersonName,
+      spEmail: salespeopleUsers.email,
     })
       .from(quotes)
       .leftJoin(users, eq(quotes.createdBy, users.id))
+      .leftJoin(salespeopleUsers, eq(quotes.createdBy, salespeopleUsers.id))
       .where(isNotNull(quotes.createdBy));
 
     return result.map(row => ({
       id: row.id || '',
       name: row.firstName && row.lastName
         ? `${row.firstName} ${row.lastName}`
-        : row.firstName || row.lastName || row.email?.split('@')[0] || 'Usuario'
+        : row.firstName || row.lastName || row.spName || row.email?.split('@')[0] || row.spEmail?.split('@')[0] || 'Usuario'
     })).filter(creator => creator.id);
   }
 
@@ -23428,6 +24077,99 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('[getGdvBySalesperson] Error:', error);
       throw error;
+    }
+  }
+
+  async getAllGdvGroupedBySalespeople(): Promise<Array<{
+    salespersonCode: string;
+    salespersonName: string;
+    totalAmount: number;
+    totalUnits: number;
+    totalGuias: number;
+    records: Array<{
+      numeroGuia: string;
+      fecha: string;
+      cliente: string;
+      codigoCliente: string;
+      producto: string;
+      cantidad: number;
+      monto: number;
+    }>;
+  }>> {
+    try {
+      const now = new Date();
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const dateFilter = firstDayOfMonth.toISOString().split('T')[0];
+
+      const query = sql.raw(`
+        SELECT 
+          COALESCE(nudo::text, '') as numero_guia,
+          COALESCE(feemdo::text, '') as fecha,
+          COALESCE(nokoen, 'Sin cliente') as cliente,
+          COALESCE(endo, '') as codigo_cliente,
+          COALESCE(nokoprct, 'Sin producto') as producto,
+          COALESCE(caprco2::numeric, 0) as cantidad,
+          COALESCE(vaneli::numeric, 0) as monto,
+          COALESCE(kofulido, '') as codigo_vendedor,
+          COALESCE(nokofu, 'Sin vendedor') as nombre_vendedor
+        FROM gdv.fact_gdv
+        WHERE (eslido IS NULL OR eslido = '')
+          AND cantidad_pendiente = true
+          AND feemdo >= '${dateFilter}'
+        ORDER BY vaneli DESC
+      `);
+
+      const result = await db.execute(query);
+
+      // Get cached vendor names for better display
+      const kofulidoToNameMap = await this.getVendorNamesMap();
+
+      // Group by salesperson
+      const groupedBySalesperson = new Map<string, {
+        salespersonCode: string;
+        salespersonName: string;
+        totalAmount: number;
+        totalUnits: number;
+        totalGuias: number;
+        records: Array<any>;
+      }>();
+
+      result.rows.forEach((row: any) => {
+        const kofulido = (row.codigo_vendedor || '').trim().toUpperCase() || 'SIN_VENDEDOR';
+        const mappedName = kofulidoToNameMap.get(kofulido);
+        const salespersonName = mappedName || (row.nombre_vendedor || '').trim() || 'Sin vendedor';
+
+        if (!groupedBySalesperson.has(kofulido)) {
+          groupedBySalesperson.set(kofulido, {
+            salespersonCode: kofulido,
+            salespersonName,
+            totalAmount: 0,
+            totalUnits: 0,
+            totalGuias: 0,
+            records: []
+          });
+        }
+
+        const group = groupedBySalesperson.get(kofulido)!;
+        group.totalAmount += Number(row.monto) || 0;
+        group.totalUnits += Number(row.cantidad) || 0;
+        group.totalGuias += 1;
+        group.records.push({
+          numeroGuia: String(row.numero_guia || ''),
+          fecha: String(row.fecha || ''),
+          cliente: String(row.cliente || 'Sin cliente'),
+          codigoCliente: String(row.codigo_cliente || ''),
+          producto: String(row.producto || 'Sin producto'),
+          cantidad: Number(row.cantidad || 0),
+          monto: Number(row.monto || 0),
+        });
+      });
+
+      return Array.from(groupedBySalesperson.values())
+        .sort((a, b) => b.totalAmount - a.totalAmount);
+    } catch (error) {
+      console.error('[getAllGdvGroupedBySalespeople] Error:', error);
+      return [];
     }
   }
 
