@@ -54,6 +54,7 @@ import { es } from "date-fns/locale";
 import { formatDateForAPI, parseDateFromAPI } from "@/lib/dateUtils";
 
 import CreatividadesMarketing from "./marketing/creatividades-marketing";
+import PresupuestoTabMarketing from "./marketing/presupuesto-tab-marketing";
 
 interface SolicitudMarketing {
   id: string;
@@ -227,6 +228,17 @@ export default function Marketing() {
                 <Package className="h-4 w-4 shrink-0" />
                 <span className="hidden sm:inline">Inventario</span>
               </TabsTrigger>
+
+              {isAdmin && (
+                <TabsTrigger
+                  value="presupuesto"
+                  data-testid="tab-presupuesto"
+                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+                >
+                  <DollarSign className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">Presupuesto</span>
+                </TabsTrigger>
+              )}
             </TabsList>
           </div>
 
@@ -270,13 +282,6 @@ export default function Marketing() {
               </div>
 
               <MetricsDashboard mes={selectedMes} anio={selectedAnio} />
-
-              {/* Creatividades section in dashboard */}
-              <CreatividadesMarketing
-                mes={selectedMes}
-                anio={selectedAnio}
-                userRole={user.role}
-              />
 
               {/* Creatividades section in dashboard */}
               <CreatividadesMarketing
@@ -364,6 +369,13 @@ export default function Marketing() {
           <TabsContent value="inventario" className="space-y-6">
             <InventarioMarketing userRole={user.role} />
           </TabsContent>
+
+          {/* Tab: Presupuesto (tabla Excel) */}
+          {isAdmin && (
+            <TabsContent value="presupuesto" className="space-y-6">
+              <PresupuestoTabMarketing userRole={user.role} />
+            </TabsContent>
+          )}
         </Tabs>
 
         {/* Dialogs */}
@@ -428,13 +440,15 @@ function MetricsDashboard({ mes, anio }: { mes: number; anio: number }) {
   if (isLoading) {
     return (
       <div className="grid gap-4 md:grid-cols-3">
-        {[1, 2, 3].map((i) => (
-          <Card key={i}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Cargando...</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Loader2 className="h-8 w-8 animate-spin" />
+        {[
+          'bg-gradient-to-br from-indigo-500 to-purple-600',
+          'bg-gradient-to-br from-emerald-500 to-teal-600',
+          'bg-gradient-to-br from-amber-500 to-orange-600',
+        ].map((gradient, i) => (
+          <Card key={i} className={`border-0 shadow-md ${gradient} text-white`}>
+            <CardContent className="pt-6 flex items-center gap-3">
+              <Loader2 className="h-6 w-6 animate-spin text-white/70" />
+              <p className="text-sm text-white/70">Cargando...</p>
             </CardContent>
           </Card>
         ))}
@@ -448,57 +462,48 @@ function MetricsDashboard({ mes, anio }: { mes: number; anio: number }) {
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
-      <Card data-testid="card-presupuesto-total">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Presupuesto Total</CardTitle>
-          <DollarSign className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
+      <Card className="border-0 shadow-md bg-gradient-to-br from-indigo-500 to-purple-600 text-white" data-testid="card-presupuesto-total">
+        <CardContent className="pt-6">
+          <p className="text-sm font-medium text-indigo-100">Presupuesto Total</p>
+          <p className="text-2xl font-bold mt-1">
             ${metrics && metrics.presupuestoTotal != null ? metrics.presupuestoTotal.toLocaleString('es-CL') : '0'}
-          </div>
-          <p className="text-xs text-muted-foreground">
+          </p>
+          <p className="text-xs text-indigo-200 mt-1">
             Presupuesto mensual asignado
           </p>
         </CardContent>
       </Card>
 
-      <Card data-testid="card-presupuesto-utilizado">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Presupuesto Utilizado</CardTitle>
-          <TrendingUp className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
+      <Card className="border-0 shadow-md bg-gradient-to-br from-emerald-500 to-teal-600 text-white" data-testid="card-presupuesto-utilizado">
+        <CardContent className="pt-6">
+          <p className="text-sm font-medium text-emerald-100">Presupuesto Utilizado</p>
+          <p className="text-2xl font-bold mt-1">
             ${metrics && metrics.presupuestoUtilizado != null ? metrics.presupuestoUtilizado.toLocaleString('es-CL') : '0'}
-          </div>
+          </p>
           <div className="mt-2">
-            <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="w-full bg-white/20 rounded-full h-2">
               <div
-                className={`h-2 rounded-full ${presupuestoUtilizadoPct > 90 ? 'bg-red-500' :
-                  presupuestoUtilizadoPct > 70 ? 'bg-yellow-500' :
-                    'bg-green-500'
+                className={`h-2 rounded-full ${presupuestoUtilizadoPct > 90 ? 'bg-red-300' :
+                  presupuestoUtilizadoPct > 70 ? 'bg-yellow-300' :
+                    'bg-white/80'
                   }`}
                 style={{ width: `${Math.min(presupuestoUtilizadoPct, 100)}%` }}
               />
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {presupuestoUtilizadoPct.toFixed(1)}% utilizado
+            <p className="text-xs text-emerald-200 mt-1">
+              {isNaN(presupuestoUtilizadoPct) ? '0.0' : presupuestoUtilizadoPct.toFixed(1)}% utilizado
             </p>
           </div>
         </CardContent>
       </Card>
 
-      <Card data-testid="card-presupuesto-disponible">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Presupuesto Disponible</CardTitle>
-          <FileText className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
+      <Card className="border-0 shadow-md bg-gradient-to-br from-amber-500 to-orange-600 text-white" data-testid="card-presupuesto-disponible">
+        <CardContent className="pt-6">
+          <p className="text-sm font-medium text-amber-100">Presupuesto Disponible</p>
+          <p className="text-2xl font-bold mt-1">
             ${metrics && metrics.presupuestoDisponible != null ? metrics.presupuestoDisponible.toLocaleString('es-CL') : '0'}
-          </div>
-          <p className="text-xs text-muted-foreground">
+          </p>
+          <p className="text-xs text-amber-200 mt-1">
             {metrics?.totalSolicitudes || 0} solicitudes totales
           </p>
         </CardContent>

@@ -57,7 +57,7 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
     const [searchQuery, setSearchQuery] = useState("");
 
     const { data: creatividades = [], isLoading } = useQuery<CreatividadMarketing[]>({
-        queryKey: ['/api/marketing/creatividades', mes, anio],
+        queryKey: ['/api/marketing/creatividades', { mes, anio }],
     });
 
     const filteredData = creatividades.filter(c =>
@@ -68,13 +68,19 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
     const formAction = useMutation({
         mutationFn: async (data: Partial<CreatividadMarketing>) => {
             if (selectedItem) {
-                const res = await apiRequest("PATCH", `/api/marketing/creatividades/${selectedItem.id}`, data);
+                const res = await apiRequest(`/api/marketing/creatividades/${selectedItem.id}`, {
+                    method: "PATCH",
+                    data
+                });
                 return res.json();
             } else {
-                const res = await apiRequest("POST", "/api/marketing/creatividades", {
-                    ...data,
-                    mes,
-                    anio
+                const res = await apiRequest("/api/marketing/creatividades", {
+                    method: "POST",
+                    data: {
+                        ...data,
+                        mes,
+                        anio
+                    }
                 });
                 return res.json();
             }
@@ -92,7 +98,7 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
 
     const deleteAction = useMutation({
         mutationFn: async (id: string) => {
-            await apiRequest("DELETE", `/api/marketing/creatividades/${id}`);
+            await apiRequest(`/api/marketing/creatividades/${id}`, { method: "DELETE" });
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['/api/marketing/creatividades'] });
@@ -243,8 +249,11 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
                                     </Badge>
                                 </div>
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-500" onClick={() => { setSelectedItem(item); setIsDialogOpen(true); }}>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50" onClick={() => { setSelectedItem(item); setIsDialogOpen(true); }}>
                                         <Edit className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-500 hover:text-red-600 hover:bg-red-50" onClick={() => { if (confirm('¿Eliminar esta creatividad?')) deleteAction.mutate(item.id); }}>
+                                        <Trash2 className="h-3.5 w-3.5" />
                                     </Button>
                                 </div>
                             </div>
