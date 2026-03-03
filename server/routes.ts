@@ -523,24 +523,37 @@ export function registerRoutes(app: Express): Server {
       const fileExtension = path.extname(file.originalname);
       const fileName = `upload-${timestamp}-${randomId}${fileExtension}`;
 
-      const objectStorageService = new ObjectStorageService();
-      const fileUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
-      console.log(`☁️ [UPLOAD] File uploaded: ${fileName} -> ${fileUrl}`);
-
+      let fileUrl: string;
       let previewUrl: string | null = null;
 
-      if (isPdfFile(file.mimetype, file.originalname)) {
-        console.log(`📄 [UPLOAD] PDF detected, generating preview image...`);
-        try {
-          const previewBuffer = await convertPdfToImage(file.buffer, 600);
-          if (previewBuffer) {
-            const previewFileName = `upload-${timestamp}-${randomId}-preview.png`;
-            previewUrl = await objectStorageService.uploadImage(previewFileName, previewBuffer, 'image/png');
-            console.log(`🖼️ [UPLOAD] PDF preview generated: ${previewFileName} -> ${previewUrl}`);
+      // Try cloud storage first, fall back to local disk
+      if (process.env.PUBLIC_OBJECT_SEARCH_PATHS) {
+        const objectStorageService = new ObjectStorageService();
+        fileUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
+        console.log(`☁️ [UPLOAD] File uploaded to cloud: ${fileName} -> ${fileUrl}`);
+
+        if (isPdfFile(file.mimetype, file.originalname)) {
+          try {
+            const previewBuffer = await convertPdfToImage(file.buffer, 600);
+            if (previewBuffer) {
+              const previewFileName = `upload-${timestamp}-${randomId}-preview.png`;
+              previewUrl = await objectStorageService.uploadImage(previewFileName, previewBuffer, 'image/png');
+            }
+          } catch (previewError) {
+            console.warn('⚠️ [UPLOAD] Failed to generate PDF preview:', previewError);
           }
-        } catch (previewError) {
-          console.warn('⚠️ [UPLOAD] Failed to generate PDF preview:', previewError);
         }
+      } else {
+        // Local file storage fallback
+        const uploadsDir = path.join(process.cwd(), 'server', 'uploads');
+        const fs = await import('fs');
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        const filePath = path.join(uploadsDir, fileName);
+        fs.writeFileSync(filePath, file.buffer);
+        fileUrl = `/api/uploads/${fileName}`;
+        console.log(`💾 [UPLOAD] File saved locally: ${fileName} -> ${fileUrl}`);
       }
 
       res.json({ url: fileUrl, previewUrl });
@@ -549,6 +562,18 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ message: 'Error al subir archivo', error: error.message });
     }
   }));
+
+  // Serve locally uploaded files
+  app.get('/api/uploads/:filename', (req: any, res: any) => {
+    const uploadsDir = path.join(process.cwd(), 'server', 'uploads');
+    const filePath = path.join(uploadsDir, req.params.filename);
+    const fs = require('fs');
+    if (fs.existsSync(filePath)) {
+      res.sendFile(filePath);
+    } else {
+      res.status(404).json({ message: 'Archivo no encontrado' });
+    }
+  });
 
   // Fast readiness check - responds immediately for Cloud Run health checks
   app.get('/api/ready', (req: any, res: any) => {
@@ -13933,6 +13958,120 @@ export function registerRoutes(app: Express): Server {
       res.status(204).send();
     } catch (error: any) {
       res.status(500).json({ message: 'Error al eliminar creatividad', error: error.message });
+    }
+  }));
+
+  // Gastos Marketing routes
+  app.get('/api/marketing/gastos', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { mes, anio } = req.query;
+      if (!mes || !anio) {
+        return res.status(400).json({ message: 'mes y anio son requeridos' });
+      }
+      const gastos = await storage.getGastosMarketing(parseInt(mes as string), parseInt(anio as string));
+      res.json(gastos);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener gastos', error: error.message });
+    }
+  }));
+
+  app.get('/api/marketing/gastos/anio/:anio', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const gastos = await storage.getGastosMarketingByAnio(parseInt(req.params.anio));
+      res.json(gastos);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener gastos', error: error.message });
+    }
+  }));
+
+  app.post('/api/marketing/gastos', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'Solo admin/supervisor pueden registrar gastos' });
+      }
+      const gasto = await storage.createGastoMarketing({
+        ...req.body,
+        creadoPorId: user.id,
+      });
+      res.json(gasto);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear gasto', error: error.message });
+    }
+  }));
+
+  app.patch('/api/marketing/gastos/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'Solo admin/supervisor pueden editar gastos' });
+      }
+      const gasto = await storage.updateGastoMarketing(req.params.id, req.body);
+      res.json(gasto);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar gasto', error: error.message });
+    }
+  }));
+
+  app.delete('/api/marketing/gastos/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'Solo admin/supervisor pueden eliminar gastos' });
+      }
+      await storage.deleteGastoMarketing(req.params.id);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar gasto', error: error.message });
+    }
+  }));
+
+  // Proveedores Marketing routes
+  app.get('/api/marketing/proveedores', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const proveedores = await storage.getProveedoresMarketing();
+      res.json(proveedores);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener proveedores', error: error.message });
+    }
+  }));
+
+  app.post('/api/marketing/proveedores', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'Solo admin/supervisor pueden crear proveedores' });
+      }
+      const proveedor = await storage.createProveedorMarketing(req.body);
+      res.json(proveedor);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear proveedor', error: error.message });
+    }
+  }));
+
+  app.patch('/api/marketing/proveedores/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'Solo admin/supervisor pueden editar proveedores' });
+      }
+      const proveedor = await storage.updateProveedorMarketing(req.params.id, req.body);
+      res.json(proveedor);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar proveedor', error: error.message });
+    }
+  }));
+
+  app.delete('/api/marketing/proveedores/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'Solo admin/supervisor pueden eliminar proveedores' });
+      }
+      await storage.deleteProveedorMarketing(req.params.id);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar proveedor', error: error.message });
     }
   }));
 
