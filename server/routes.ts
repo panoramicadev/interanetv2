@@ -13843,6 +13843,99 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Presupuesto Marketing Items (tabla Excel) routes
+  app.get('/api/marketing/presupuesto-items/:anio', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const anio = parseInt(req.params.anio);
+      const items = await storage.getPresupuestoMarketingItems(anio);
+      res.json(items);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener items de presupuesto', error: error.message });
+    }
+  }));
+
+  app.post('/api/marketing/presupuesto-items', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      const item = await storage.createPresupuestoMarketingItem(req.body);
+      res.status(201).json(item);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear item de presupuesto', error: error.message });
+    }
+  }));
+
+  app.patch('/api/marketing/presupuesto-items/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      const item = await storage.updatePresupuestoMarketingItem(req.params.id, req.body);
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar item de presupuesto', error: error.message });
+    }
+  }));
+
+  app.delete('/api/marketing/presupuesto-items/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      await storage.deletePresupuestoMarketingItem(req.params.id);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar item de presupuesto', error: error.message });
+    }
+  }));
+
+  // Creatividades Marketing routes
+  app.get('/api/marketing/creatividades', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const mes = parseInt(req.query.mes as string) || new Date().getMonth() + 1;
+      const anio = parseInt(req.query.anio as string) || new Date().getFullYear();
+      const items = await storage.getCreatividadesMarketing(mes, anio);
+      res.json(items);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener creatividades', error: error.message });
+    }
+  }));
+
+  app.post('/api/marketing/creatividades', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const item = await storage.createCreatividadMarketing({
+        ...req.body,
+        creadoPorId: user.id.toString(),
+      });
+      res.status(201).json(item);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear creatividad', error: error.message });
+    }
+  }));
+
+  app.patch('/api/marketing/creatividades/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const item = await storage.updateCreatividadMarketing(req.params.id, req.body);
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar creatividad', error: error.message });
+    }
+  }));
+
+  app.delete('/api/marketing/creatividades/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deleteCreatividadMarketing(req.params.id);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar creatividad', error: error.message });
+    }
+  }));
+
   // Solicitudes Marketing routes
   app.post('/api/marketing/solicitudes', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {

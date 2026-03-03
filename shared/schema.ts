@@ -4547,6 +4547,55 @@ export const insertPresupuestoMarketingSchema = createInsertSchema(presupuestoMa
   presupuestoTotal: z.string().or(z.number()).transform(val => typeof val === 'string' ? parseFloat(val) : val),
 });
 
+// Tabla de items de presupuesto de marketing (vista tipo Excel)
+export const presupuestoMarketingItems = pgTable("presupuesto_marketing_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  anio: integer("anio").notNull(),
+  concepto: varchar("concepto", { length: 255 }).notNull(),
+  categoria: varchar("categoria", { length: 100 }),
+  enero: numeric("enero", { precision: 15, scale: 2 }).default("0"),
+  febrero: numeric("febrero", { precision: 15, scale: 2 }).default("0"),
+  marzo: numeric("marzo", { precision: 15, scale: 2 }).default("0"),
+  abril: numeric("abril", { precision: 15, scale: 2 }).default("0"),
+  mayo: numeric("mayo", { precision: 15, scale: 2 }).default("0"),
+  junio: numeric("junio", { precision: 15, scale: 2 }).default("0"),
+  julio: numeric("julio", { precision: 15, scale: 2 }).default("0"),
+  agosto: numeric("agosto", { precision: 15, scale: 2 }).default("0"),
+  septiembre: numeric("septiembre", { precision: 15, scale: 2 }).default("0"),
+  octubre: numeric("octubre", { precision: 15, scale: 2 }).default("0"),
+  noviembre: numeric("noviembre", { precision: 15, scale: 2 }).default("0"),
+  diciembre: numeric("diciembre", { precision: 15, scale: 2 }).default("0"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  anioIdx: index("IDX_presupuesto_marketing_items_anio").on(table.anio),
+}));
+
+export type PresupuestoMarketingItem = typeof presupuestoMarketingItems.$inferSelect;
+export type InsertPresupuestoMarketingItem = typeof presupuestoMarketingItems.$inferInsert;
+
+export const insertPresupuestoMarketingItemSchema = createInsertSchema(presupuestoMarketingItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  anio: z.number().min(2020).max(2100),
+  concepto: z.string().min(1, "El concepto es requerido"),
+  categoria: z.string().optional().nullable(),
+  enero: z.string().or(z.number()).transform(val => String(val)).optional(),
+  febrero: z.string().or(z.number()).transform(val => String(val)).optional(),
+  marzo: z.string().or(z.number()).transform(val => String(val)).optional(),
+  abril: z.string().or(z.number()).transform(val => String(val)).optional(),
+  mayo: z.string().or(z.number()).transform(val => String(val)).optional(),
+  junio: z.string().or(z.number()).transform(val => String(val)).optional(),
+  julio: z.string().or(z.number()).transform(val => String(val)).optional(),
+  agosto: z.string().or(z.number()).transform(val => String(val)).optional(),
+  septiembre: z.string().or(z.number()).transform(val => String(val)).optional(),
+  octubre: z.string().or(z.number()).transform(val => String(val)).optional(),
+  noviembre: z.string().or(z.number()).transform(val => String(val)).optional(),
+  diciembre: z.string().or(z.number()).transform(val => String(val)).optional(),
+});
+
 export const insertSolicitudMarketingSchema = createInsertSchema(solicitudesMarketing).omit({
   id: true,
   createdAt: true,

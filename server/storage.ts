@@ -208,6 +208,9 @@ import {
   competidores,
   preciosCompetencia,
   productosMonitoreo,
+  creatividadesMarketing,
+  type CreatividadMarketing,
+  type InsertCreatividadMarketing,
   type PresupuestoMarketing,
   type InsertPresupuestoMarketing,
   type SolicitudMarketing,
@@ -222,6 +225,10 @@ import {
   type InsertInventarioMarketing,
   type HitoMarketing,
   type InsertHitoMarketing,
+  // Presupuesto Marketing Items (tabla Excel)
+  presupuestoMarketingItems,
+  type PresupuestoMarketingItem,
+  type InsertPresupuestoMarketingItem,
   // Tareas de marketing
   tareasMarketing,
   type TareaMarketing,
@@ -1694,6 +1701,18 @@ export interface IStorage {
   createPresupuestoMarketing(presupuesto: InsertPresupuestoMarketing): Promise<PresupuestoMarketing>;
   getPresupuestoMarketing(mes: number, anio: number): Promise<PresupuestoMarketing | undefined>;
   updatePresupuestoMarketing(id: string, presupuesto: Partial<InsertPresupuestoMarketing>): Promise<PresupuestoMarketing>;
+
+  // Presupuesto Marketing Items operations (tabla Excel)
+  getPresupuestoMarketingItems(anio: number): Promise<PresupuestoMarketingItem[]>;
+  createPresupuestoMarketingItem(item: InsertPresupuestoMarketingItem): Promise<PresupuestoMarketingItem>;
+  updatePresupuestoMarketingItem(id: string, updates: Partial<InsertPresupuestoMarketingItem>): Promise<PresupuestoMarketingItem>;
+  deletePresupuestoMarketingItem(id: string): Promise<void>;
+
+  // Creatividades Marketing operations
+  getCreatividadesMarketing(mes: number, anio: number): Promise<CreatividadMarketing[]>;
+  createCreatividadMarketing(item: InsertCreatividadMarketing): Promise<CreatividadMarketing>;
+  updateCreatividadMarketing(id: string, updates: Partial<InsertCreatividadMarketing>): Promise<CreatividadMarketing>;
+  deleteCreatividadMarketing(id: string): Promise<void>;
 
   // Solicitudes Marketing operations
   createSolicitudMarketing(solicitud: InsertSolicitudMarketing): Promise<SolicitudMarketing>;
@@ -18354,6 +18373,79 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
+  // Presupuesto Marketing Items operations (tabla Excel)
+  async getPresupuestoMarketingItems(anio: number): Promise<PresupuestoMarketingItem[]> {
+    return await db
+      .select()
+      .from(presupuestoMarketingItems)
+      .where(eq(presupuestoMarketingItems.anio, anio))
+      .orderBy(presupuestoMarketingItems.concepto);
+  }
+
+  async createPresupuestoMarketingItem(item: InsertPresupuestoMarketingItem): Promise<PresupuestoMarketingItem> {
+    const [result] = await db
+      .insert(presupuestoMarketingItems)
+      .values(item)
+      .returning();
+    return result;
+  }
+
+  async updatePresupuestoMarketingItem(id: string, updates: Partial<InsertPresupuestoMarketingItem>): Promise<PresupuestoMarketingItem> {
+    const [result] = await db
+      .update(presupuestoMarketingItems)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(presupuestoMarketingItems.id, id))
+      .returning();
+    return result;
+  }
+
+  async deletePresupuestoMarketingItem(id: string): Promise<void> {
+    await db
+      .delete(presupuestoMarketingItems)
+      .where(eq(presupuestoMarketingItems.id, id));
+  }
+
+  // Creatividades Marketing operations
+  async getCreatividadesMarketing(mes: number, anio: number): Promise<CreatividadMarketing[]> {
+    return await db
+      .select()
+      .from(creatividadesMarketing)
+      .where(and(
+        eq(creatividadesMarketing.mes, mes),
+        eq(creatividadesMarketing.anio, anio)
+      ))
+      .orderBy(creatividadesMarketing.createdAt);
+  }
+
+  async createCreatividadMarketing(item: InsertCreatividadMarketing): Promise<CreatividadMarketing> {
+    const [result] = await db
+      .insert(creatividadesMarketing)
+      .values(item)
+      .returning();
+    return result;
+  }
+
+  async updateCreatividadMarketing(id: string, updates: Partial<InsertCreatividadMarketing>): Promise<CreatividadMarketing> {
+    const [result] = await db
+      .update(creatividadesMarketing)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(creatividadesMarketing.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteCreatividadMarketing(id: string): Promise<void> {
+    await db
+      .delete(creatividadesMarketing)
+      .where(eq(creatividadesMarketing.id, id));
+  }
+
   // Solicitudes Marketing operations
   async createSolicitudMarketing(solicitud: InsertSolicitudMarketing): Promise<SolicitudMarketing> {
     const [result] = await db
@@ -18489,9 +18581,19 @@ export class DatabaseStorage implements IStorage {
       rechazado: number;
     };
   }> {
-    // Get presupuesto
-    const presupuesto = await this.getPresupuestoMarketing(mes, anio);
-    const presupuestoTotal = presupuesto ? parseFloat(presupuesto.presupuestoTotal as any) : 0;
+    // Map month number to column name in presupuesto_marketing_items
+    const mesColumns = [
+      'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+      'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+    ] as const;
+    const mesColumn = mesColumns[mes - 1] || 'enero';
+
+    // Sum the budget for the selected month from presupuesto_marketing_items
+    const budgetItems = await this.getPresupuestoMarketingItems(anio);
+    const presupuestoTotal = budgetItems.reduce((sum, item) => {
+      const val = item[mesColumn as keyof typeof item];
+      return sum + (val ? parseFloat(val as string) : 0);
+    }, 0);
 
     // Get all solicitudes for this period
     const solicitudes = await this.getSolicitudesMarketing({ mes, anio });
