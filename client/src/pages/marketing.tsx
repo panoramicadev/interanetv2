@@ -47,7 +47,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video, History, MinusCircle, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import AdsAnalyticsPage from "./ads-analytics";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
@@ -278,8 +278,8 @@ export default function Marketing() {
                 userRole={user.role}
               />
 
-              {/* Tareas rápidas */}
-              <TareasMarketing
+              {/* Creatividades section in dashboard */}
+              <CreatividadesMarketing
                 mes={selectedMes}
                 anio={selectedAnio}
                 userRole={user.role}
@@ -2385,6 +2385,9 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
   const [search, setSearch] = useState("");
   const [inventarioDialogOpen, setInventarioDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [retiroDialogOpen, setRetiroDialogOpen] = useState(false);
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [movimientoItem, setMovimientoItem] = useState<any>(null);
 
   const { data: items = [], isLoading } = useQuery<any[]>({
     queryKey: ['/api/marketing/inventario', search],
@@ -2426,6 +2429,16 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
     setInventarioDialogOpen(true);
   };
 
+  const handleRetiro = (item: any) => {
+    setMovimientoItem(item);
+    setRetiroDialogOpen(true);
+  };
+
+  const handleHistory = (item: any) => {
+    setMovimientoItem(item);
+    setHistoryDialogOpen(true);
+  };
+
   const handleDelete = async (id: string) => {
     if (confirm("¿Está seguro de eliminar este item?")) {
       deleteMutation.mutate(id);
@@ -2433,247 +2446,464 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
   };
 
   const estadoConfig = {
-    disponible: { label: "Disponible", color: "bg-green-500" },
-    agotado: { label: "Agotado", color: "bg-red-500" },
-    por_llegar: { label: "Por Llegar", color: "bg-yellow-500" },
+    disponible: { label: "Disponible", color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
+    agotado: { label: "Agotado", color: "bg-red-500/10 text-red-600 border-red-500/20" },
+    por_llegar: { label: "Por Llegar", color: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
   };
 
   return (
-    <>
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold">Inventario de Marketing</h2>
-          <p className="text-muted-foreground">Gestión de materiales y suministros de marketing</p>
+    <div className="space-y-6">
+      {/* Header Premium */}
+      <div className="relative overflow-hidden rounded-3xl bg-slate-950 p-8 text-white shadow-2xl">
+        <div className="absolute top-0 right-0 -mr-16 -mt-16 h-64 w-64 rounded-full bg-blue-600/20 blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 -ml-16 -mb-16 h-64 w-64 rounded-full bg-indigo-600/20 blur-3xl"></div>
+
+        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-center gap-5">
+            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <Package className="h-7 w-7 text-white" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight">Inventario de Marketing</h2>
+              <p className="text-blue-100/70 mt-1 font-medium italic">Gestión inteligente de materiales y suministros</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            {userRole === 'admin' && (
+              <Button
+                onClick={() => {
+                  setSelectedItem(null);
+                  setInventarioDialogOpen(true);
+                }}
+                className="bg-white text-slate-950 hover:bg-blue-50 border-none px-6 py-6 rounded-2xl font-bold text-base transition-all hover:scale-105 active:scale-95 shadow-xl"
+              >
+                <Plus className="mr-2 h-5 w-5" />
+                Nuevo Item
+              </Button>
+            )}
+          </div>
         </div>
-        {userRole === 'admin' && (
-          <Button
-            onClick={() => {
-              setSelectedItem(null);
-              setInventarioDialogOpen(true);
-            }}
-            data-testid="button-nuevo-item"
-            className="w-full sm:w-auto"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Nuevo Item
-          </Button>
-        )}
       </div>
 
-      {/* Summary Cards */}
+      {/* Summary Cards Modernas */}
       {summary && (
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Items</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
+        <div className="grid gap-6 md:grid-cols-3">
+          <Card className="border-none shadow-sm bg-white dark:bg-slate-900 overflow-hidden relative group">
+            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+              <Package className="h-24 w-24 -mr-8 -mt-8" />
+            </div>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                Total Items
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{summary.totalItems}</div>
+              <div className="text-4xl font-black text-slate-900 dark:text-white">{summary.totalItems}</div>
+              <p className="text-xs text-slate-400 mt-1 font-medium">Items registrados en sistema</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Stock Bajo</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-yellow-500" />
+
+          <Card className="border-none shadow-sm bg-white dark:bg-slate-900 overflow-hidden relative group">
+            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+              <AlertTriangle className="h-24 w-24 -mr-8 -mt-8" />
+            </div>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-amber-500"></div>
+                Stock Bajo
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{summary.stockBajo}</div>
+              <div className={`text-4xl font-black ${summary.stockBajo > 0 ? 'text-amber-500' : 'text-slate-900 dark:text-white'}`}>
+                {summary.stockBajo}
+              </div>
+              <p className="text-xs text-slate-400 mt-1 font-medium">Items requieren reposición</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Valor Total</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
+
+          <Card className="border-none shadow-sm bg-white dark:bg-slate-900 overflow-hidden relative group">
+            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+              <DollarSign className="h-24 w-24 -mr-8 -mt-8" />
+            </div>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
+                Valorización Total
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-4xl font-black text-emerald-600 dark:text-emerald-400">
                 ${summary.valorTotal.toLocaleString('es-CL')}
               </div>
+              <p className="text-xs text-slate-400 mt-1 font-medium">Basado en costos unitarios</p>
             </CardContent>
           </Card>
         </div>
       )}
 
-      {/* Search */}
-      <Card>
-        <CardContent className="pt-6">
+      {/* Control Panel */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="relative flex-1 group">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
           <Input
             placeholder="Buscar por nombre, descripción o ubicación..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            data-testid="input-search-inventario"
+            className="pl-12 py-6 bg-white dark:bg-slate-900 border-none shadow-sm rounded-2xl text-base focus-visible:ring-blue-500"
           />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Items Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Items de Inventario</CardTitle>
-        </CardHeader>
-        <CardContent>
+      {/* Table Section */}
+      <Card className="border-none shadow-lg overflow-hidden rounded-3xl bg-white dark:bg-slate-900">
+        <CardContent className="p-0">
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin" />
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+              <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
+              <p className="text-slate-500 font-medium">Cargando inventario...</p>
             </div>
           ) : items.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No hay items en el inventario
+            <div className="text-center py-20">
+              <div className="h-20 w-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Package className="h-10 w-10 text-slate-300" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">No hay items</h3>
+              <p className="text-slate-500">No se encontraron items que coincidan con la búsqueda</p>
             </div>
           ) : (
-            <>
-              {/* Desktop Table */}
-              <div className="hidden md:block">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nombre</TableHead>
-                      <TableHead>Descripción</TableHead>
-                      <TableHead>Cantidad</TableHead>
-                      <TableHead>Ubicación</TableHead>
-                      <TableHead>Costo Unitario</TableHead>
-                      <TableHead>Estado</TableHead>
-                      {userRole === 'admin' && <TableHead>Acciones</TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {items.map((item: any) => (
-                      <TableRow key={item.id} data-testid={`row-item-${item.id}`}>
-                        <TableCell className="font-medium">{item.nombre}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {item.descripcion || '-'}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {item.cantidad} {item.unidad}
-                            {item.cantidad <= (item.stockMinimo || 0) && (
-                              <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>{item.ubicacion || '-'}</TableCell>
-                        <TableCell>
-                          {item.costoUnitario
-                            ? `$${parseFloat(item.costoUnitario).toLocaleString('es-CL')}`
-                            : '-'}
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={estadoConfig[item.estado as keyof typeof estadoConfig]?.color}>
-                            {estadoConfig[item.estado as keyof typeof estadoConfig]?.label}
-                          </Badge>
-                        </TableCell>
-                        {userRole === 'admin' && (
-                          <TableCell>
-                            <div className="flex gap-2">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-slate-50/80 dark:bg-slate-800/50 backdrop-blur-sm">
+                  <TableRow className="hover:bg-transparent border-none">
+                    <TableHead className="py-5 font-bold text-slate-900 dark:text-slate-100 pl-8">Producto</TableHead>
+                    <TableHead className="py-5 font-bold text-slate-900 dark:text-slate-100">Stock</TableHead>
+                    <TableHead className="py-5 font-bold text-slate-900 dark:text-slate-100">Ubicación</TableHead>
+                    <TableHead className="py-5 font-bold text-slate-900 dark:text-slate-100">Costo Unit.</TableHead>
+                    <TableHead className="py-5 font-bold text-slate-900 dark:text-slate-100">Estado</TableHead>
+                    <TableHead className="py-5 font-bold text-slate-900 dark:text-slate-100 pr-8 text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {items.map((item: any) => (
+                    <TableRow key={item.id} className="group border-slate-100 dark:border-slate-800 hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors">
+                      <TableCell className="py-4 pl-8">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors">{item.nombre}</span>
+                          <span className="text-xs text-slate-500 line-clamp-1">{item.descripcion || '-'}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-bold ${item.cantidad <= (item.stockMinimo || 0) ? 'text-amber-600' : 'text-slate-700 dark:text-slate-300'}`}>
+                            {item.cantidad}
+                          </span>
+                          <span className="text-xs text-slate-400 font-medium lowercase italic">{item.unidad}</span>
+                          {item.cantidad <= (item.stockMinimo || 0) && (
+                            <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-[10px] scale-90 px-1 py-0 pointer-events-none">
+                              STOCK BAJO
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-4 text-slate-600 dark:text-slate-400 font-medium">
+                        <div className="flex items-center gap-1.5">
+                          <Target className="h-3.5 w-3.5 text-slate-300" />
+                          {item.ubicacion || '-'}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-4 font-mono text-sm text-slate-600 dark:text-slate-400">
+                        {item.costoUnitario
+                          ? `$${parseFloat(item.costoUnitario).toLocaleString('es-CL')}`
+                          : '-'}
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <Badge variant="outline" className={`rounded-full px-3 py-0.5 text-[11px] font-bold ${estadoConfig[item.estado as keyof typeof estadoConfig]?.color}`}>
+                          {estadoConfig[item.estado as keyof typeof estadoConfig]?.label.toUpperCase()}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="py-4 pr-8 text-right">
+                        <div className="flex justify-end gap-1.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleHistory(item)}
+                            title="Ver historial"
+                            className="h-9 w-9 text-slate-400 hover:text-blue-600 hover:bg-blue-100 rounded-xl transition-all"
+                          >
+                            <History className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRetiro(item)}
+                            title="Registrar retiro"
+                            disabled={item.cantidad <= 0}
+                            className="h-9 w-9 text-slate-400 hover:text-amber-600 hover:bg-amber-100 rounded-xl transition-all"
+                          >
+                            <MinusCircle className="h-4 w-4" />
+                          </Button>
+                          {userRole === 'admin' && (
+                            <>
                               <Button
-                                variant="outline"
-                                size="sm"
+                                variant="ghost"
+                                size="icon"
                                 onClick={() => handleEdit(item)}
-                                data-testid={`button-edit-${item.id}`}
+                                className="h-9 w-9 text-slate-400 hover:text-indigo-600 hover:bg-indigo-100 rounded-xl transition-all"
                               >
-                                Editar
+                                <Edit className="h-4 w-4" />
                               </Button>
                               <Button
-                                variant="destructive"
-                                size="sm"
+                                variant="ghost"
+                                size="icon"
                                 onClick={() => handleDelete(item.id)}
                                 disabled={deleteMutation.isPending}
-                                data-testid={`button-delete-${item.id}`}
+                                className="h-9 w-9 text-slate-400 hover:text-red-600 hover:bg-red-100 rounded-xl transition-all"
                               >
-                                Eliminar
+                                <Trash2 className="h-4 w-4" />
                               </Button>
-                            </div>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {/* Mobile Cards */}
-              <div className="md:hidden space-y-4">
-                {items.map((item: any) => (
-                  <Card key={item.id} data-testid={`card-item-${item.id}`}>
-                    <CardContent className="pt-6">
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-start">
-                          <h3 className="font-semibold text-lg">{item.nombre}</h3>
-                          <Badge className={estadoConfig[item.estado as keyof typeof estadoConfig]?.color}>
-                            {estadoConfig[item.estado as keyof typeof estadoConfig]?.label}
-                          </Badge>
+                            </>
+                          )}
                         </div>
-
-                        {item.descripcion && (
-                          <p className="text-sm text-muted-foreground">{item.descripcion}</p>
-                        )}
-
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Cantidad:</span>
-                            <span className="font-medium flex items-center gap-2">
-                              {item.cantidad} {item.unidad}
-                              {item.cantidad <= (item.stockMinimo || 0) && (
-                                <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                              )}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Ubicación:</span>
-                            <span>{item.ubicacion || '-'}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Costo Unitario:</span>
-                            <span className="font-medium">
-                              {item.costoUnitario
-                                ? `$${parseFloat(item.costoUnitario).toLocaleString('es-CL')}`
-                                : '-'}
-                            </span>
-                          </div>
-                        </div>
-
-                        {userRole === 'admin' && (
-                          <div className="flex gap-2 mt-4">
-                            <Button
-                              className="flex-1"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEdit(item)}
-                              data-testid={`button-edit-mobile-${item.id}`}
-                            >
-                              Editar
-                            </Button>
-                            <Button
-                              className="flex-1"
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleDelete(item.id)}
-                              disabled={deleteMutation.isPending}
-                              data-testid={`button-delete-mobile-${item.id}`}
-                            >
-                              Eliminar
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Inventario Dialog */}
+      {/* Modern Dialogs */}
       <InventarioDialog
         open={inventarioDialogOpen}
         onOpenChange={setInventarioDialogOpen}
         item={selectedItem}
       />
-    </>
+
+      <RetiroDialog
+        open={retiroDialogOpen}
+        onOpenChange={setRetiroDialogOpen}
+        item={movimientoItem}
+      />
+
+      <HistorialMovimientosDialog
+        open={historyDialogOpen}
+        onOpenChange={setHistoryDialogOpen}
+        item={movimientoItem}
+      />
+    </div>
+  );
+}
+
+// Retiro Dialog Component
+function RetiroDialog({
+  open,
+  onOpenChange,
+  item,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  item: any | null;
+}) {
+  const { toast } = useToast();
+  const [cantidad, setCantidad] = useState("");
+  const [nota, setNota] = useState("");
+
+  const retiroMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest("POST", `/api/marketing/inventario/${item.id}/movimientos`, {
+        ...data,
+        tipo: 'salida'
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/inventario'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/inventario/summary'] });
+      toast({
+        title: "Retiro registrado",
+        description: `Se han retirado ${cantidad} ${item.unidad} de ${item.nombre}`,
+      });
+      onOpenChange(false);
+      setCantidad("");
+      setNota("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Error al registrar el retiro",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const qty = parseInt(cantidad);
+    if (!qty || qty <= 0) {
+      toast({ title: "Error", description: "La cantidad debe ser mayor a 0", variant: "destructive" });
+      return;
+    }
+    if (qty > item.cantidad) {
+      toast({ title: "Error", description: "No hay suficiente stock para este retiro", variant: "destructive" });
+      return;
+    }
+    retiroMutation.mutate({ cantidad: qty, nota });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[440px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+        <div className="bg-slate-950 p-6 text-white pb-10">
+          <div className="h-12 w-12 rounded-2xl bg-amber-500/20 flex items-center justify-center mb-4">
+            <MinusCircle className="h-6 w-6 text-amber-500" />
+          </div>
+          <DialogTitle className="text-2xl font-bold">Registrar Retiro</DialogTitle>
+          <DialogDescription className="text-slate-400 mt-1">
+            Indica la cantidad a retirar de <strong>{item?.nombre}</strong>.
+          </DialogDescription>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 -mt-6 bg-white dark:bg-slate-900 rounded-t-3xl shadow-2xl">
+          <div className="flex bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl mb-6 items-center justify-between border border-slate-100 dark:border-slate-700">
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-slate-500 uppercase">Stock Actual</span>
+              <span className="text-xl font-black text-slate-950 dark:text-white">{item?.cantidad} {item?.unidad}</span>
+            </div>
+            <Package className="h-8 w-8 text-slate-200" />
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Cantidad a retirar</Label>
+              <Input
+                type="number"
+                value={cantidad}
+                onChange={(e) => setCantidad(e.target.value)}
+                placeholder="0"
+                className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-amber-500"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1">Nota / Destino (Opcional)</Label>
+              <Textarea
+                value={nota}
+                onChange={(e) => setNota(e.target.value)}
+                placeholder="Ej: Evento sucursal, Marketing externo..."
+                className="rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-amber-500 resize-none h-24"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3 mt-8">
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="flex-1 py-6 rounded-2xl font-bold text-slate-500">
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={retiroMutation.isPending} className="flex-1 py-6 rounded-2xl font-bold bg-slate-950 hover:bg-slate-800 text-white shadow-xl">
+              {retiroMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : "Confirmar Retiro"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Historial de Movimientos Dialog Component
+function HistorialMovimientosDialog({
+  open,
+  onOpenChange,
+  item,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  item: any | null;
+}) {
+  const { data: movimientos = [], isLoading } = useQuery<any[]>({
+    queryKey: [`/api/marketing/inventario/${item?.id}/movimientos`],
+    enabled: !!item && open,
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[620px] p-0 rounded-3xl overflow-hidden border-none shadow-2xl max-h-[85vh] flex flex-col">
+        <div className="bg-slate-950 p-6 text-white shrink-0">
+          <div className="flex items-center gap-4 mb-2">
+            <div className="h-10 w-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+              <History className="h-5 w-5 text-blue-500" />
+            </div>
+            <DialogTitle className="text-xl font-bold">Historial de Movimientos</DialogTitle>
+          </div>
+          <DialogDescription className="text-slate-400">
+            Registro total de entradas y retiros para <strong>{item?.nombre}</strong>
+          </DialogDescription>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 bg-white dark:bg-slate-900 overscroll-contain">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Cargando registros...</p>
+            </div>
+          ) : movimientos.length === 0 ? (
+            <div className="text-center py-20 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-100 dark:border-slate-800">
+              <ClipboardList className="h-12 w-12 text-slate-200 mx-auto mb-3" />
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-widest">Sin movimientos</h3>
+              <p className="text-xs text-slate-400 mt-1">Este item aún no registra entradas ni salidas</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {movimientos.map((mov: any) => (
+                <div key={mov.id} className="group p-4 bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700 hover:border-blue-500/30 transition-all hover:shadow-md">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${mov.tipo === 'entrada' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600'}`}>
+                        {mov.tipo === 'entrada' ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownLeft className="h-4 w-4" />}
+                      </div>
+                      <div>
+                        <div className="text-xs font-black uppercase tracking-tighter text-slate-400 italic">
+                          {format(new Date(mov.createdAt), "dd MMM, HH:mm", { locale: es })}
+                        </div>
+                        <div className="text-sm font-bold text-slate-900 dark:text-white">
+                          {mov.tipo === 'entrada' ? 'Ingreso stock' : 'Retiro material'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className={`text-xl font-black ${mov.tipo === 'entrada' ? 'text-emerald-500' : 'text-amber-500'}`}>
+                      {mov.tipo === 'entrada' ? '+' : '-'}{mov.cantidad}
+                      <span className="text-[10px] ml-0.5 opacity-50 font-medium">u</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-50 dark:border-slate-800 flex flex-col gap-2">
+                    <div className="flex items-center gap-2 text-xs">
+                      <div className="h-5 w-5 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-[10px] text-slate-500">
+                        {mov.usuarioNombre?.charAt(0)}
+                      </div>
+                      <span className="text-slate-500">Registrado por: <strong>{mov.usuarioNombre}</strong></span>
+                    </div>
+                    {mov.nota && (
+                      <div className="text-xs text-slate-400 bg-slate-50 dark:bg-slate-800 p-2 rounded-lg italic">
+                        "{mov.nota}"
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 bg-slate-50 dark:bg-slate-800 shrink-0 border-t border-slate-100 dark:border-slate-700">
+          <Button onClick={() => onOpenChange(false)} className="w-full py-6 rounded-2xl font-bold bg-slate-200 text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 border-none transition-all">
+            Cerrar Historial
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -2739,7 +2969,8 @@ function InventarioDialog({
     setStockMinimo("");
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     if (!nombre || !cantidad) {
       toast({
         title: "Error",
@@ -2764,167 +2995,156 @@ function InventarioDialog({
     saveMutation.mutate(data);
   };
 
-  // Load item data when editing
-  if (item && open && nombre === "") {
-    setNombre(item.nombre || "");
-    setDescripcion(item.descripcion || "");
-    setCantidad(item.cantidad?.toString() || "");
-    setUnidad(item.unidad || "unidades");
-    setUbicacion(item.ubicacion || "");
-    setCostoUnitario(item.costoUnitario || "");
-    setProveedor(item.proveedor || "");
-    setEstado(item.estado || "disponible");
-    setStockMinimo(item.stockMinimo?.toString() || "");
-  }
-
-  // Reset form when dialog closes
-  if (!open && nombre !== "") {
-    resetForm();
-  }
+  useEffect(() => {
+    if (item && open) {
+      setNombre(item.nombre || "");
+      setDescripcion(item.descripcion || "");
+      setCantidad(item.cantidad?.toString() || "");
+      setUnidad(item.unidad || "unidades");
+      setUbicacion(item.ubicacion || "");
+      setCostoUnitario(item.costoUnitario?.toString() || "");
+      setProveedor(item.proveedor || "");
+      setEstado(item.estado || "disponible");
+      setStockMinimo(item.stockMinimo?.toString() || "");
+    } else if (!open) {
+      resetForm();
+    }
+  }, [item, open]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl w-[95vw] sm:w-full">
-        <DialogHeader>
-          <DialogTitle>{item ? "Editar Item" : "Nuevo Item"}</DialogTitle>
-          <DialogDescription>
-            {item
-              ? "Actualice la información del item de inventario"
-              : "Complete la información del nuevo item de inventario"}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="nombre">Nombre*</Label>
-              <Input
-                id="nombre"
-                placeholder="Ej: Volantes promocionales"
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                data-testid="input-nombre"
-              />
+      <DialogContent className="sm:max-w-[650px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl max-h-[95vh] flex flex-col">
+        <div className="bg-slate-950 p-6 text-white shrink-0">
+          <div className="flex items-center gap-4 mb-2">
+            <div className="h-12 w-12 rounded-2xl bg-blue-500/20 flex items-center justify-center">
+              {item ? <Edit className="h-6 w-6 text-blue-500" /> : <Plus className="h-6 w-6 text-blue-500" />}
             </div>
             <div>
-              <Label htmlFor="estado">Estado</Label>
-              <Select value={estado} onValueChange={setEstado}>
-                <SelectTrigger id="estado" data-testid="select-estado">
-                  <SelectValue />
+              <DialogTitle className="text-2xl font-bold">{item ? "Editar Item" : "Nuevo Item de Inventario"}</DialogTitle>
+              <DialogDescription className="text-slate-400 mt-1 font-medium italic">
+                {item ? "Actualiza los detalles del producto" : "Registra un nuevo producto en el inventario"}
+              </DialogDescription>
+            </div>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-8 bg-white dark:bg-slate-900 overscroll-contain">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4 md:col-span-2">
+              <div className="space-y-2">
+                <Label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Nombre del Producto</Label>
+                <Input
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  placeholder="Ej: Pendón Roller lona PRO"
+                  className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-blue-500 text-lg font-bold"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Descripción</Label>
+                <Textarea
+                  value={descripcion}
+                  onChange={(e) => setDescripcion(e.target.value)}
+                  placeholder="Detalles adicionales, dimensiones, marca..."
+                  className="rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-blue-500 resize-none h-24"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Stock Inicial</Label>
+              <Input
+                type="number"
+                value={cantidad}
+                onChange={(e) => setCantidad(e.target.value)}
+                placeholder="0"
+                className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-blue-500"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Unidad de Medida</Label>
+              <Select value={unidad} onValueChange={setUnidad}>
+                <SelectTrigger className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-blue-500">
+                  <SelectValue placeholder="Seleccionar unidad" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="disponible">Disponible</SelectItem>
-                  <SelectItem value="agotado">Agotado</SelectItem>
-                  <SelectItem value="por_llegar">Por Llegar</SelectItem>
+                <SelectContent className="rounded-2xl border-none shadow-2xl">
+                  <SelectItem value="unidades">Unidades</SelectItem>
+                  <SelectItem value="metros">Metros</SelectItem>
+                  <SelectItem value="kg">Kilogramos</SelectItem>
+                  <SelectItem value="packs">Packs</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
-          <div>
-            <Label htmlFor="descripcion">Descripción</Label>
-            <Textarea
-              id="descripcion"
-              placeholder="Descripción del item"
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-              rows={2}
-              data-testid="input-descripcion"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="cantidad">Cantidad*</Label>
+            <div className="space-y-2">
+              <Label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Stock Mínimo (Alerta)</Label>
               <Input
-                id="cantidad"
                 type="number"
-                placeholder="100"
-                value={cantidad}
-                onChange={(e) => setCantidad(e.target.value)}
-                data-testid="input-cantidad"
-              />
-            </div>
-            <div>
-              <Label htmlFor="unidad">Unidad</Label>
-              <Input
-                id="unidad"
-                placeholder="unidades"
-                value={unidad}
-                onChange={(e) => setUnidad(e.target.value)}
-                data-testid="input-unidad"
-              />
-            </div>
-            <div>
-              <Label htmlFor="stockMinimo">Stock Mínimo</Label>
-              <Input
-                id="stockMinimo"
-                type="number"
-                placeholder="10"
                 value={stockMinimo}
                 onChange={(e) => setStockMinimo(e.target.value)}
-                data-testid="input-stock-minimo"
+                placeholder="0"
+                className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-blue-500"
               />
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="ubicacion">Ubicación</Label>
+            <div className="space-y-2">
+              <Label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Ubicación</Label>
               <Input
-                id="ubicacion"
-                placeholder="Bodega A - Estante 3"
                 value={ubicacion}
                 onChange={(e) => setUbicacion(e.target.value)}
-                data-testid="input-ubicacion"
+                placeholder="Ej: Estante B-4"
+                className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-blue-500"
               />
             </div>
-            <div>
-              <Label htmlFor="proveedor">Proveedor</Label>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Costo Unitario ($)</Label>
               <Input
-                id="proveedor"
-                placeholder="Nombre del proveedor"
+                type="number"
+                value={costoUnitario}
+                onChange={(e) => setCostoUnitario(e.target.value)}
+                placeholder="0"
+                className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-blue-500"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Estado</Label>
+              <Select value={estado} onValueChange={setEstado}>
+                <SelectTrigger className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-blue-500 font-bold uppercase tracking-wider text-[10px]">
+                  <SelectValue placeholder="Estado inicial" />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-none shadow-2xl">
+                  <SelectItem value="disponible">DISPONIBLE</SelectItem>
+                  <SelectItem value="agotado">AGOTADO</SelectItem>
+                  <SelectItem value="por_llegar">POR LLEGAR</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Proveedor (Opcional)</Label>
+              <Input
                 value={proveedor}
                 onChange={(e) => setProveedor(e.target.value)}
-                data-testid="input-proveedor"
+                placeholder="Nombre del proveedor o tienda"
+                className="py-6 rounded-2xl border-slate-100 dark:border-slate-800 focus-visible:ring-blue-500"
               />
             </div>
           </div>
 
-          <div>
-            <Label htmlFor="costoUnitario">Costo Unitario</Label>
-            <Input
-              id="costoUnitario"
-              type="number"
-              placeholder="1500"
-              value={costoUnitario}
-              onChange={(e) => setCostoUnitario(e.target.value)}
-              data-testid="input-costo-unitario"
-            />
+          <div className="flex gap-4 mt-10">
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="flex-1 py-7 rounded-2xl font-bold text-slate-500 hover:bg-slate-50">
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={saveMutation.isPending} className="flex-1 py-7 rounded-2xl font-bold bg-slate-950 hover:bg-black text-white shadow-xl transition-all shadow-blue-500/10 hover:shadow-blue-500/20 active:scale-95">
+              {saveMutation.isPending ? <Loader2 className="h-6 w-6 animate-spin" /> : item ? "Guardar Cambios" : "Crear Producto"}
+            </Button>
           </div>
-        </div>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            data-testid="button-cancelar-inventario"
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={saveMutation.isPending}
-            data-testid="button-guardar-inventario"
-          >
-            {saveMutation.isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Guardando...
-              </>
-            ) : (
-              'Guardar'
-            )}
-          </Button>
-        </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
@@ -3418,7 +3638,7 @@ function CalendarioHitos({
     },
   });
 
-  const { data: creatividades, isLoading: creatividadesLoading } = useQuery<CreatividadMarketing[]>({
+  const { data: creatividades, isLoading: creatividadesLoading } = useQuery<any[]>({
     queryKey: ['/api/marketing/creatividades', mes, anio, 'calendario'],
     queryFn: async () => {
       const response = await fetch(`/api/marketing/creatividades?mes=${mes}&anio=${anio}`, {

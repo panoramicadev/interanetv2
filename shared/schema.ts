@@ -523,7 +523,7 @@ export const clients = pgTable("clients", {
 
   // Route and collection
   ruen: varchar("ruen"), // Route
-  cpen: numeric("cpen", { precision: 15, scale: 2 }), // Collection percentage
+  cpen: text("cpen"), // Condición de pago (CONTADO, CREDITO 30 DIAS, CHEQUE, etc.)
   cobrador: varchar("cobrador"), // Collector
   diacobra: numeric("diacobra", { precision: 15, scale: 2 }), // Collection day
 
@@ -4577,9 +4577,22 @@ export const inventarioMarketing = pgTable("inventario_marketing", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const inventarioMarketingMovimientos = pgTable("inventario_marketing_movimientos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  itemId: varchar("item_id").notNull(),
+  tipo: varchar("tipo", { length: 50 }).notNull(), // 'entrada' (ingreso), 'salida' (retiro)
+  cantidad: integer("cantidad").notNull(),
+  usuarioId: varchar("usuario_id"),
+  usuarioNombre: varchar("usuario_nombre"),
+  nota: text("nota"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Types
 export type InventarioMarketing = typeof inventarioMarketing.$inferSelect;
 export type InsertInventarioMarketing = typeof inventarioMarketing.$inferInsert;
+export type InventarioMarketingMovimiento = typeof inventarioMarketingMovimientos.$inferSelect;
+export type InsertInventarioMarketingMovimiento = typeof inventarioMarketingMovimientos.$inferInsert;
 
 // Schema de validación
 export const insertInventarioMarketingSchema = createInsertSchema(inventarioMarketing).omit({
@@ -4593,6 +4606,14 @@ export const insertInventarioMarketingSchema = createInsertSchema(inventarioMark
   estado: z.enum(["disponible", "agotado", "por_llegar"]).default("disponible"),
   costoUnitario: z.string().or(z.number()).transform(val => typeof val === 'string' ? parseFloat(val) : val).optional(),
   stockMinimo: z.number().min(0).optional(),
+});
+
+export const insertInventarioMarketingMovimientoSchema = createInsertSchema(inventarioMarketingMovimientos).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  cantidad: z.number().min(1, "La cantidad debe ser mayor a 0"),
+  tipo: z.enum(["entrada", "salida"]),
 });
 
 // Tabla de tareas (unificada para marketing y general)

@@ -66,6 +66,117 @@ interface Branch {
   name: string;
 }
 
+// Reusable content component for embedding in Products page tab
+export function InventarioContent() {
+  const { user } = useAuth();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedWarehouse, setSelectedWarehouse] = useState<string>("all");
+  const [selectedBranch, setSelectedBranch] = useState<string>("all");
+  const [hideNoStock, setHideNoStock] = useState(false);
+  const [hideZZProducts, setHideZZProducts] = useState(false);
+
+  useEffect(() => {
+    setSelectedWarehouse("all");
+  }, [selectedBranch]);
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  const userRole = (user.role as string) || '';
+
+  return (
+    <div className="space-y-4">
+      {/* Sync button */}
+      {(user.role === 'admin' || user.role === 'supervisor' || user.role === 'salesperson' || user.role === 'jefe_planta' || user.role === 'produccion' || user.role === 'laboratorio' || user.role === 'logistica_bodega') && (
+        <div className="flex justify-end">
+          <SyncCatalogButton />
+        </div>
+      )}
+
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Filtros de Búsqueda
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por SKU o nombre de producto..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+                data-testid="input-search"
+              />
+            </div>
+            <BranchFilter
+              selectedBranch={selectedBranch}
+              onBranchChange={setSelectedBranch}
+            />
+            <WarehouseFilter
+              selectedWarehouse={selectedWarehouse}
+              onWarehouseChange={setSelectedWarehouse}
+              selectedBranch={selectedBranch}
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-6 pt-2 border-t">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="hide-no-stock-tab"
+                checked={hideNoStock}
+                onCheckedChange={setHideNoStock}
+              />
+              <Label htmlFor="hide-no-stock-tab" className="text-sm font-medium cursor-pointer">
+                Ocultar productos sin stock
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="hide-zz-products-tab"
+                checked={hideZZProducts}
+                onCheckedChange={setHideZZProducts}
+              />
+              <Label htmlFor="hide-zz-products-tab" className="text-sm font-medium cursor-pointer">
+                Ocultar productos con SKU &quot;ZZ&quot;
+              </Label>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Summary */}
+      <StockSummary
+        searchTerm={searchTerm}
+        selectedWarehouse={selectedWarehouse}
+        selectedBranch={selectedBranch}
+        hideNoStock={hideNoStock}
+        hideZZProducts={hideZZProducts}
+        userRole={userRole}
+      />
+
+      {/* Table */}
+      <InventoryTable
+        searchTerm={searchTerm}
+        selectedWarehouse={selectedWarehouse}
+        selectedBranch={selectedBranch}
+        hideNoStock={hideNoStock}
+        hideZZProducts={hideZZProducts}
+        userRole={userRole}
+      />
+    </div>
+  );
+}
+
 export default function Inventario() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -149,7 +260,7 @@ export default function Inventario() {
               selectedBranch={selectedBranch}
             />
           </div>
-          
+
           {/* Additional Filters */}
           <div className="flex flex-wrap items-center gap-6 pt-2 border-t">
             <div className="flex items-center space-x-2">
@@ -166,7 +277,7 @@ export default function Inventario() {
                 Ocultar productos sin stock
               </Label>
             </div>
-            
+
             <div className="flex items-center space-x-2">
               <Switch
                 id="hide-zz-products"
@@ -186,9 +297,9 @@ export default function Inventario() {
       </Card>
 
       {/* Stock Summary Cards */}
-      <StockSummary 
-        searchTerm={searchTerm} 
-        selectedWarehouse={selectedWarehouse} 
+      <StockSummary
+        searchTerm={searchTerm}
+        selectedWarehouse={selectedWarehouse}
         selectedBranch={selectedBranch}
         hideNoStock={hideNoStock}
         hideZZProducts={hideZZProducts}
@@ -263,7 +374,7 @@ function WarehouseFilter({
       if (selectedBranch && selectedBranch !== 'all') {
         params.append('branch', selectedBranch);
       }
-      
+
       const response = await fetch(`/api/warehouses?${params}`, {
         credentials: 'include'
       });
@@ -309,7 +420,7 @@ function StockSummary({
 }) {
   const hasAccess = hasInventoryAccess(userRole);
   const endpoint = hasAccess ? '/api/inventory/summary-with-prices' : '/api/inventory/summary';
-  
+
   const { data: summary } = useQuery<{
     totalProducts: number;
     totalQuantity: number;
@@ -325,7 +436,7 @@ function StockSummary({
       if (selectedBranch !== 'all') params.append('branch', selectedBranch);
       if (hideNoStock) params.append('hideNoStock', 'true');
       if (hideZZProducts) params.append('hideZZProducts', 'true');
-      
+
       const response = await fetch(`${endpoint}?${params}`, {
         credentials: 'include'
       });
@@ -344,7 +455,7 @@ function StockSummary({
       return response.json();
     },
   });
-  
+
   return (
     <div className={`grid gap-4 ${hasAccess ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
       <Card data-testid="card-total-products" className="rounded-3xl border-0 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/40 dark:to-purple-900/40 shadow-sm hover:shadow-md transition-shadow">
@@ -463,14 +574,14 @@ function InventoryTable({
       return response.json();
     },
   });
-  
+
   const existingSkus = new Set(
     (existingPriceListData?.items || []).map((item) => item.codigo?.toUpperCase()).filter(Boolean)
   );
 
   const hasAccess = hasInventoryAccess(userRole);
   const endpoint = hasAccess ? '/api/inventory-with-prices' : '/api/inventory';
-  
+
   const { data: inventory, isLoading, refetch } = useQuery<ProductStock[]>({
     queryKey: [endpoint, searchTerm, selectedWarehouse, selectedBranch],
     queryFn: async () => {
@@ -478,7 +589,7 @@ function InventoryTable({
       if (searchTerm) params.append('search', searchTerm);
       if (selectedWarehouse !== 'all') params.append('warehouse', selectedWarehouse);
       if (selectedBranch !== 'all') params.append('branch', selectedBranch);
-      
+
       const response = await fetch(`${endpoint}?${params}`, {
         credentials: 'include'
       });
@@ -569,12 +680,12 @@ function InventoryTable({
     if (hideNoStock && item.availableQuantity === 0) {
       return false;
     }
-    
+
     // Filter out products with SKU starting with "ZZ" if hideZZProducts is enabled
     if (hideZZProducts && item.productSku?.toUpperCase().startsWith('ZZ')) {
       return false;
     }
-    
+
     return true;
   }) || [];
 
@@ -621,10 +732,10 @@ function InventoryTable({
                     if (available === 0) statusColor = 'bg-red-500';
                     else if (available < 10) statusColor = 'bg-orange-500';
                     else if (reserved > 0) statusColor = 'bg-blue-500';
-                    
+
                     return (
-                      <TableRow 
-                        key={`${item.branchCode}-${item.productSku}-${item.warehouseCode}-${index}`} 
+                      <TableRow
+                        key={`${item.branchCode}-${item.productSku}-${item.warehouseCode}-${index}`}
                         data-testid={`row-stock-${item.productSku}`}
                         className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors"
                       >
@@ -724,7 +835,7 @@ function InventoryTable({
               Completa los precios para añadir este producto a la lista de precios
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="py-4 space-y-3">
             <div className="flex items-center py-2 border-b">
               <Label className="text-sm font-medium w-1/2">Código</Label>
@@ -865,7 +976,7 @@ function SyncCatalogButton() {
       queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
       queryClient.invalidateQueries({ queryKey: ['/api/inventory/last-sync'] });
       queryClient.invalidateQueries({ queryKey: ['/api/inventory/summary'] });
-      
+
       if (data.status === 'success') {
         toast({
           title: "Sincronización completada",
@@ -884,7 +995,7 @@ function SyncCatalogButton() {
           variant: "destructive",
         });
       }
-      
+
       // Refresh page after sync completes
       setTimeout(() => {
         window.location.reload();
@@ -919,21 +1030,21 @@ function SyncCatalogButton() {
           </>
         )}
       </Button>
-      
+
       {!isLoadingLastSync && lastSync && (
         <p className="text-xs text-muted-foreground" data-testid="text-last-sync">
           Última sincronización:{" "}
           {lastSync.completedAt && !isNaN(new Date(lastSync.completedAt).getTime())
             ? formatDistanceToNow(new Date(lastSync.completedAt), {
-                addSuffix: true,
-                locale: es,
-              })
+              addSuffix: true,
+              locale: es,
+            })
             : "fecha no disponible"}
           {" "}
           ({lastSync.totalProcessed || 0} productos)
         </p>
       )}
-      
+
       {!isLoadingLastSync && !lastSync && (
         <p className="text-xs text-muted-foreground">
           No hay sincronizaciones previas

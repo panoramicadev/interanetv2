@@ -168,8 +168,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
           >
             <Icon className={`w-4 h-4 flex-shrink-0 transition-transform group-hover:scale-110 ${isAi
-                ? "text-blue-500"
-                : isActive && !isNotif ? "text-white" : "text-slate-400"
+              ? "text-blue-500"
+              : isActive && !isNotif ? "text-white" : "text-slate-400"
               }`}
             />
             <span className={`flex-1 text-left ${isAi ? "font-bold tracking-tight" : ""}`}>
@@ -226,25 +226,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               window.location.href = "/";
             }}
           >
-            <img src={logoPath} alt="PANORAMICA" className="h-9 w-auto object-contain" />
+            <img src={logoPath} alt="PANORAMICA" className="h-14 w-auto object-contain" />
           </button>
-        </div>
-
-        {/* User card — at top */}
-        <div className="px-4 pb-3 flex-shrink-0">
-          <div className="bg-[#1a2436] rounded-2xl px-4 py-3 flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-xl ${getRoleColor(user?.role)} flex items-center justify-center flex-shrink-0`}>
-              <span className="text-sm font-bold text-white">
-                {getInitials(user?.firstName, user?.lastName)}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white truncate leading-tight">
-                {getDisplayName(user?.firstName, user?.lastName)}
-              </p>
-              <p className="text-xs text-slate-500 mt-0.5">{getRoleTitle(user?.role)}</p>
-            </div>
-          </div>
         </div>
 
         {/* Navigation — items in card sections */}
@@ -266,34 +249,34 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               Importar Datos
             </button>
           )}
+        </nav>
 
-          {/* Bottom actions in card */}
-          <div className="bg-[#1a2436] rounded-2xl p-2 space-y-0.5">
+        {/* User card — at bottom */}
+        <div className="px-4 py-3 flex-shrink-0 border-t border-slate-700/40">
+          <div className="flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-xl ${getRoleColor(user?.role)} flex items-center justify-center flex-shrink-0`}>
+              <span className="text-sm font-bold text-white">
+                {getInitials(user?.firstName, user?.lastName)}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white truncate leading-tight">
+                {getDisplayName(user?.firstName, user?.lastName)}
+              </p>
+              <p className="text-xs text-slate-500 mt-0.5">{getRoleTitle(user?.role)}</p>
+            </div>
             <button
-              className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-slate-700/60 transition-all duration-150"
-              onClick={() => {
-                setShowChangelogDialog(true);
-                setIsMobileOpen(false);
-              }}
-              data-testid="changelog-button"
-            >
-              <RefreshCw className="w-4 h-4 flex-shrink-0 text-slate-500" />
-              Actualizar versión
-            </button>
-
-            <button
-              className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-rose-400/80 hover:text-rose-400 hover:bg-rose-500/10 transition-all duration-150"
+              className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all duration-150"
               onClick={() => {
                 setIsMobileOpen(false);
                 handleLogout();
               }}
               data-testid="logout-button"
             >
-              <LogOut className="w-4 h-4 flex-shrink-0 text-slate-500" />
-              Cerrar Sesión
+              <LogOut className="w-4 h-4" />
             </button>
           </div>
-        </nav>
+        </div>
       </div>
 
       {/* Main Content */}

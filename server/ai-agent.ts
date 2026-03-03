@@ -39,7 +39,12 @@ function buildSystemPrompt(
     const systemInstructions = knowledgeBase?.filter(k => k.fileType === 'instruction') || [];
     const knowledgeDocs = knowledgeBase?.filter(k => k.fileType !== 'instruction') || [];
 
-    let prompt = `Eres el asistente inteligente de **Pinturas Panorámica**, una empresa chilena de pinturas con más de 30 años de experiencia. Tu nombre es **Panorámica AI**.
+    const isPublic = user.role === "public";
+    const agentName = isPublic ? `asistente inteligente de **${user.salespersonName}**` : `**Panorámica AI**`;
+    const companyInfo = `**Pinturas Panorámica**, una empresa chilena de pinturas con más de 30 años de experiencia.`;
+
+    let prompt = `Eres el ${agentName}, representante de ${companyInfo}.
+${isPublic ? `Eres el TOMADOR DE PEDIDOS DIGITAL de ${user.salespersonName}. Tu misión principal es guiar al cliente paso a paso para armar su pedido de productos.` : `Tu nombre es **Panorámica AI**.`}
 
 ## Contexto del usuario
 - Nombre: ${user.firstName || ""} ${user.lastName || ""}
@@ -55,10 +60,36 @@ ${user.salespersonName ? `- Nombre de vendedor: ${user.salespersonName}` : ""}
 4. Cuando no tengas datos suficientes, dilo honestamente en vez de inventar.
 5. Si te piden crear una cotización: (a) busca los productos con search_products primero, (b) los datos del cliente se auto-completan — solo necesitas el nombre, (c) después de crear, COPIA el campo "message" del resultado TEXTUALMENTE como tu respuesta.
 6. REGLA IMPORTANTE: Cuando una herramienta retorna un campo "message", COPIA ese texto COMPLETO en tu respuesta. NO omitas links ni URLs. Esto es crítico para que los links de PDF aparezcan.
-7. ${user.role === "salesperson" ? "Solo puedes consultar datos del vendedor " + user.salespersonName + ". No tienes acceso a datos de otros vendedores." : "Tienes acceso a datos de todos los vendedores y segmentos."}
+7. ${isPublic ? `ACTÚA SIEMPRE como el asistente personal de ${user.salespersonName}. Si preguntan quién eres, identifícate como su asistente y tomador de pedidos digital.` : (user.role === "salesperson" ? `Solo puedes consultar datos del vendedor ${user.salespersonName}. No tienes acceso a datos de otros vendedores.` : "Tienes acceso a datos de todos los vendedores y segmentos.")}
+${isPublic ? "8. NO tienes acceso a datos internos de la empresa como metas de ventas generales, resúmenes de facturación total, o datos de otros clientes que no sean el actual." : ""}
+
+${isPublic ? `## Flujo de atención al cliente (SEGUIR SIEMPRE)
+Cuando un cliente te dice qué necesita, sigue este flujo conversacional:
+
+**PASO 1 — Entender la necesidad:** Pregunta qué productos necesita. Escucha con atención.
+**PASO 2 — Buscar productos:** Usa \`search_products\` para buscar los productos mencionados. Presenta los resultados en una lista clara con:
+  - Nombre del producto
+  - Colores disponibles
+  - Formatos/tamaños disponibles (ej: 1/4 GL, 1 GL, 1 LT)
+  - Precio de cada formato
+**PASO 3 — Seleccionar formato y color:** Pregunta al cliente qué color y formato necesita de cada producto.
+**PASO 4 — Confirmar cantidad:** Pregunta cuántas unidades de cada producto necesita.
+**PASO 5 — Resumen del pedido:** Muestra un resumen como tabla Markdown con: Producto, Color, Formato, Cantidad, Precio Unitario, Subtotal. Y el total final.
+**PASO 6 — Generar cotización:** Pregunta si desea generar la cotización formal con PDF. Si acepta, usa \`create_quote\` y comparte el link del PDF.
+
+IMPORTANTE:
+- Si el cliente menciona varios productos, búscalos TODOS de una vez.
+- Después de mostrar los productos encontrados, SIEMPRE pregunta por formato, color y cantidad.
+- Sé proactivo: si un producto tiene un solo color, selecciónalo automáticamente.
+- Si no encuentras un producto, sugiérele alternativas similares.
+- Mantén un tono amigable y eficiente, como un vendedor real en la tienda.` : ""}
 
 ## Capacidades
-Tienes acceso a herramientas para:
+${isPublic ? `Tienes acceso a herramientas para:
+- **Buscar productos** en el catálogo con descripciones técnicas, colores, formatos y precios.
+- **Crear cotizaciones/presupuestos** — al crearlos se genera un PDF descargable automáticamente.
+- Consultar inventario disponible.
+- Registrar preguntas técnicas sobre productos para revisión.` : `Tienes acceso a herramientas para:
 - Consultar ventas por período, vendedor o segmento
 - Ver progreso de metas de ventas
 - Ver ranking de clientes top
@@ -68,14 +99,14 @@ Tienes acceso a herramientas para:
 - Listar cotizaciones existentes con links de PDF
 - **Buscar clientes** por nombre, RUT o código — ver datos de contacto, crédito, deuda
 - **Consultar historial de compras** de un cliente en un período
-- Consultar inventario
+- Consultar inventario`}
 
 **IMPORTANTE: SÍ puedes generar PDFs de cotizaciones.** Cuando el usuario pida un PDF, crea la cotización con create_quote y el sistema generará automáticamente un link de descarga. Copiar la URL del campo pdfUrl en tu respuesta.
 
 ## Estilo de respuesta
 - Sé conciso pero completo
 - Cuando muestres datos numéricos, usa tablas Markdown
-- Ofrece análisis breve cuando sea relevante (ej: "Vas al 80% de tu meta, te faltan $X")
+- ${isPublic ? "Enfócate en guiar al cliente hacia concretar su pedido. Sé un vendedor proactivo y atento." : 'Ofrece análisis breve cuando sea relevante (ej: "Vas al 80% de tu meta, te faltan $X")'}
 - Si el usuario pide algo que no puedes hacer, sugiérele qué SÍ puedes hacer`;
 
     // Add static system rules (from ai-system-rules.ts)
@@ -369,11 +400,10 @@ export async function processAgentMessage(
                 toolsUsed.push(toolName);
                 console.log(`[AI Agent] Executing tool: ${toolName}`, toolArgs);
 
-                const toolFn = toolImplementations[toolName];
                 let toolResult: any;
 
-                if (toolFn) {
-                    toolResult = await toolFn(toolArgs, userContext);
+                if ((toolImplementations as any)[toolName]) {
+                    toolResult = await (toolImplementations as any)[toolName](toolArgs, userContext);
                 } else {
                     toolResult = { error: `Herramienta '${toolName}' no disponible.` };
                 }
@@ -387,10 +417,29 @@ export async function processAgentMessage(
             }
 
             // Call LLM again with tool results
+            // Filter tools based on user role (Public restrictions)
+            const publicAllowedTools = [
+                "search_products",
+                "create_quote",
+                "get_inventory_summary",
+                "log_product_question"
+            ];
+
+            const tools: ChatCompletionTool[] = Object.keys(toolImplementations)
+                .filter(name => userContext.role !== "public" || publicAllowedTools.includes(name))
+                .map(name => ({
+                    type: "function",
+                    function: {
+                        name,
+                        description: (toolDefinitions as any)[name].description,
+                        parameters: (toolDefinitions as any)[name].parameters,
+                    },
+                }));
+
             completion = await openai.chat.completions.create({
                 model: "gpt-4o-mini",
                 messages,
-                tools: toolDefinitions,
+                tools: tools, // Use the filtered tools
                 tool_choice: "auto",
                 temperature: 0.3,
                 max_tokens: 2000,

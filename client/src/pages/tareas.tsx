@@ -20,16 +20,16 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  CheckSquare, 
-  Clock, 
+import {
+  CheckSquare,
+  Clock,
   AlertCircle,
-  AlertTriangle, 
-  User, 
-  Users, 
-  Building2, 
+  AlertTriangle,
+  User,
+  Users,
+  Building2,
   Calendar as CalendarIcon,
-  ChevronDown, 
+  ChevronDown,
   ChevronRight,
   ChevronLeft,
   Plus,
@@ -118,21 +118,21 @@ export default function TareasPage() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading, user } = useAuth();
   const [, setLocation] = useLocation();
-  
+
   // Dialog states
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingTask, setEditingTask] = useState<Task & { assignments: TaskAssignment[] } | null>(null);
-  
+
   // View state
   const [viewMode, setViewMode] = useState<"my-tasks" | "all-tasks">(
     user?.role === 'salesperson' ? "my-tasks" : "all-tasks"
   );
-  
+
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [clienteFilter, setClienteFilter] = useState<string>("all");
-  
+
   // Expanded tasks for collapsible assignment details
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   // Filters collapsed state for mobile
@@ -144,7 +144,7 @@ export default function TareasPage() {
   const [editingNoteText, setEditingNoteText] = useState("");
 
   // Confirmación de completar tarea
-  const [confirmCompleteTask, setConfirmCompleteTask] = useState<{taskId: string, assignmentId: string} | null>(null);
+  const [confirmCompleteTask, setConfirmCompleteTask] = useState<{ taskId: string, assignmentId: string } | null>(null);
 
   // Estados para Promesas de Compra
   const [searchClient, setSearchClient] = useState("");
@@ -155,7 +155,7 @@ export default function TareasPage() {
 
   // Estado para vista Calendario
   const [calendarMonth, setCalendarMonth] = useState(new Date());
-  
+
   // Estado para controlar la pestaña activa
   const [activeTab, setActiveTab] = useState("tareas");
 
@@ -193,7 +193,7 @@ export default function TareasPage() {
     return [`/api/tasks${queryString}`];
   };
 
-  const tasksQuery = useQuery<Array<Task & { assignments: TaskAssignment[] }>>({ 
+  const tasksQuery = useQuery<Array<Task & { assignments: TaskAssignment[] }>>({
     queryKey: buildTasksQueryKey(),
     enabled: !!user,
   });
@@ -230,13 +230,13 @@ export default function TareasPage() {
     }
     // Si es supervisor, verificar los segmentos de sus vendedores
     if (user?.role === 'supervisor' && supervisorSalespeople && supervisorSalespeople.length > 0) {
-      return supervisorSalespeople.some(sp => 
+      return supervisorSalespeople.some(sp =>
         sp.assignedSegment?.toLowerCase()?.includes('construcc')
       );
     }
     return false;
   })();
-  const currentPeriod = esConstruccion 
+  const currentPeriod = esConstruccion
     ? `${getYear(selectedWeek)}-${String(selectedWeek.getMonth() + 1).padStart(2, '0')}`
     : `${getYear(selectedWeek)}-${String(getISOWeek(selectedWeek)).padStart(2, '0')}`;
   const currentYear = getYear(selectedWeek);
@@ -335,9 +335,9 @@ export default function TareasPage() {
   // Update assignment status mutation
   const updateAssignmentMutation = useMutation({
     mutationFn: async ({ taskId, assignmentId, status, notes }: { taskId: string; assignmentId: string; status?: string; notes?: string }) => {
-      return await apiRequest("PATCH", `/api/tasks/${taskId}/assignments/${assignmentId}`, { 
-        status: status || undefined, 
-        notes: notes || undefined 
+      return await apiRequest("PATCH", `/api/tasks/${taskId}/assignments/${assignmentId}`, {
+        status: status || undefined,
+        notes: notes || undefined
       });
     },
     onSuccess: () => {
@@ -400,18 +400,18 @@ export default function TareasPage() {
     // View mode filter
     if (viewMode === "my-tasks") {
       // Show tasks assigned to me or that I created
-      const isAssignedToMe = task.assignments.some(assignment => 
+      const isAssignedToMe = task.assignments.some(assignment =>
         (assignment.assigneeType === "supervisor" && assignment.assigneeId === user.id) ||
         (assignment.assigneeType === "salesperson" && assignment.assigneeId === user.id)
       );
       const isCreatedByMe = task.createdByUserId === user.id;
       if (!isAssignedToMe && !isCreatedByMe) return false;
     }
-    
+
     // Cliente filter
     if (clienteFilter === "with-client" && !(task as any).clienteId) return false;
     if (clienteFilter === "without-client" && (task as any).clienteId) return false;
-    
+
     return true;
   }) || [];
 
@@ -442,10 +442,10 @@ export default function TareasPage() {
       bloqueada: "destructive",
       cancelada: "outline",
     };
-    
+
     const labels: Record<string, string> = {
       pendiente: "Pendiente",
-      en_progreso: "En Progreso", 
+      en_progreso: "En Progreso",
       completada: "Completada",
       bloqueada: "Bloqueada",
       cancelada: "Cancelada",
@@ -465,7 +465,7 @@ export default function TareasPage() {
       medium: "secondary",
       high: "destructive",
     };
-    
+
     const labels: Record<string, string> = {
       low: "Baja",
       medium: "Media",
@@ -508,21 +508,28 @@ export default function TareasPage() {
 
   return (
     <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4 space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100 p-6 sm:p-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900" data-testid="page-title">
-              Panel de Tareas
+      {/* Header Premium */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-xl shadow-xl border border-slate-700/50 p-6 sm:p-8 mb-4 relative overflow-hidden group">
+        <div className="absolute inset-0 bg-grid-white/[0.02] bg-[size:20px_20px]" />
+        <div className="absolute -top-24 -right-24 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-all duration-700" />
+
+        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-blue-400 text-sm font-medium mb-1">
+              <div className="w-8 h-[2px] bg-blue-500/50" />
+              <span>Gestión de Equipo</span>
+            </div>
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+              Panel de <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">Tareas</span>
             </h1>
-            <p className="text-gray-600 text-sm md:text-base mt-2">
+            <p className="text-slate-400 text-sm sm:text-base max-w-2xl font-medium">
               Gestiona tareas del equipo, estimaciones semanales y seguimiento de clientes
             </p>
           </div>
           {canCreateTasks && (
             <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
               <DialogTrigger asChild>
-                <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-lg text-white" data-testid="button-create-task">
+                <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-lg text-white font-bold border-none transition-all duration-300 hover:scale-105 active:scale-95" data-testid="button-create-task">
                   <Plus className="h-5 w-5 mr-2" />
                   Nueva Tarea
                 </Button>
@@ -534,272 +541,272 @@ export default function TareasPage() {
                     Completa los detalles para crear una nueva tarea y asignarla a miembros del equipo.
                   </DialogDescription>
                 </DialogHeader>
-              
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col min-h-0 flex-1">
-                  <div className="space-y-4 overflow-y-auto flex-1 pr-1">
-                  {/* Task Details */}
-                  <FormField
-                    control={form.control}
-                    name="title"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Título *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Título de la tarea" {...field} data-testid="input-task-title" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
 
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Descripción</FormLabel>
-                        <FormControl>
-                          <Textarea 
-                            placeholder="Descripción detallada de la tarea" 
-                            className="resize-none" 
-                            rows={3}
-                            {...field} 
-                            data-testid="textarea-task-description"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="priority"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Prioridad</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col min-h-0 flex-1">
+                    <div className="space-y-4 overflow-y-auto flex-1 pr-1">
+                      {/* Task Details */}
+                      <FormField
+                        control={form.control}
+                        name="title"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Título *</FormLabel>
                             <FormControl>
-                              <SelectTrigger data-testid="select-task-priority">
-                                <SelectValue placeholder="Seleccionar prioridad" />
-                              </SelectTrigger>
+                              <Input placeholder="Título de la tarea" {...field} data-testid="input-task-title" />
                             </FormControl>
-                            <SelectContent>
-                              <SelectItem value="low">Baja</SelectItem>
-                              <SelectItem value="medium">Media</SelectItem>
-                              <SelectItem value="high">Alta</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    <FormField
-                      control={form.control}
-                      name="dueDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Fecha Límite</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="datetime-local" 
-                              {...field} 
-                              value={field.value || ""}
-                              data-testid="input-task-due-date"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                      <FormField
+                        control={form.control}
+                        name="description"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Descripción</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Descripción detallada de la tarea"
+                                className="resize-none"
+                                rows={3}
+                                {...field}
+                                data-testid="textarea-task-description"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                  {/* Cliente asociado (opcional) */}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-gray-500" />
-                      Cliente Asociado (Opcional)
-                    </Label>
-                    {selectedClienteTask ? (
-                      <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <div className="flex-1">
-                          <p className="font-medium text-sm text-gray-800">{selectedClienteTask.nokoen}</p>
-                          <p className="text-xs text-gray-500">Código: {selectedClienteTask.koen}</p>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedClienteTask(null);
-                            form.setValue("clienteId", null);
-                            form.setValue("clienteNombre", null);
-                            setSearchClienteTask("");
-                          }}
-                          className="text-red-500 hover:text-red-700"
-                          data-testid="button-remove-cliente"
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </Button>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="priority"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Prioridad</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger data-testid="select-task-priority">
+                                    <SelectValue placeholder="Seleccionar prioridad" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="low">Baja</SelectItem>
+                                  <SelectItem value="medium">Media</SelectItem>
+                                  <SelectItem value="high">Alta</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="dueDate"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Fecha Límite</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="datetime-local"
+                                  {...field}
+                                  value={field.value || ""}
+                                  data-testid="input-task-due-date"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                       </div>
-                    ) : (
+
+                      {/* Cliente asociado (opcional) */}
                       <div className="space-y-2">
-                        <div className="relative">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                          <Input
-                            placeholder="Buscar cliente por nombre o código..."
-                            value={searchClienteTask}
-                            onChange={(e) => setSearchClienteTask(e.target.value)}
-                            className="pl-10"
-                            data-testid="input-search-cliente-task"
-                          />
-                        </div>
-                        {searchClienteTask.length >= 2 && clientesTask.length > 0 && (
-                          <div className="max-h-40 overflow-y-auto border rounded-lg bg-white shadow-sm">
-                            {clientesTask.map((cliente) => (
-                              <button
-                                key={cliente.id}
-                                type="button"
-                                className="w-full px-3 py-2 text-left hover:bg-gray-50 border-b last:border-b-0 transition-colors"
-                                onClick={() => {
-                                  setSelectedClienteTask(cliente);
-                                  form.setValue("clienteId", cliente.koen);
-                                  form.setValue("clienteNombre", cliente.nokoen);
-                                  setSearchClienteTask("");
-                                }}
-                                data-testid={`cliente-option-${cliente.id}`}
-                              >
-                                <p className="font-medium text-sm">{cliente.nokoen}</p>
-                                <p className="text-xs text-gray-500">Código: {cliente.koen}</p>
-                              </button>
-                            ))}
+                        <Label className="text-sm font-medium flex items-center gap-2">
+                          <Building2 className="h-4 w-4 text-gray-500" />
+                          Cliente Asociado (Opcional)
+                        </Label>
+                        {selectedClienteTask ? (
+                          <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div className="flex-1">
+                              <p className="font-medium text-sm text-gray-800">{selectedClienteTask.nokoen}</p>
+                              <p className="text-xs text-gray-500">Código: {selectedClienteTask.koen}</p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedClienteTask(null);
+                                form.setValue("clienteId", null);
+                                form.setValue("clienteNombre", null);
+                                setSearchClienteTask("");
+                              }}
+                              className="text-red-500 hover:text-red-700"
+                              data-testid="button-remove-cliente"
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                              <Input
+                                placeholder="Buscar cliente por nombre o código..."
+                                value={searchClienteTask}
+                                onChange={(e) => setSearchClienteTask(e.target.value)}
+                                className="pl-10"
+                                data-testid="input-search-cliente-task"
+                              />
+                            </div>
+                            {searchClienteTask.length >= 2 && clientesTask.length > 0 && (
+                              <div className="max-h-40 overflow-y-auto border rounded-lg bg-white shadow-sm">
+                                {clientesTask.map((cliente) => (
+                                  <button
+                                    key={cliente.id}
+                                    type="button"
+                                    className="w-full px-3 py-2 text-left hover:bg-gray-50 border-b last:border-b-0 transition-colors"
+                                    onClick={() => {
+                                      setSelectedClienteTask(cliente);
+                                      form.setValue("clienteId", cliente.koen);
+                                      form.setValue("clienteNombre", cliente.nokoen);
+                                      setSearchClienteTask("");
+                                    }}
+                                    data-testid={`cliente-option-${cliente.id}`}
+                                  >
+                                    <p className="font-medium text-sm">{cliente.nokoen}</p>
+                                    <p className="text-xs text-gray-500">Código: {cliente.koen}</p>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {searchClienteTask.length >= 2 && clientesTask.length === 0 && (
+                              <p className="text-xs text-gray-500 italic">No se encontraron clientes</p>
+                            )}
                           </div>
                         )}
-                        {searchClienteTask.length >= 2 && clientesTask.length === 0 && (
-                          <p className="text-xs text-gray-500 italic">No se encontraron clientes</p>
+                      </div>
+
+                      {/* Assignments Section */}
+                      <div className="space-y-3">
+                        <Label className="text-sm font-medium">Asignar a *</Label>
+
+                        {/* Supervisor Assignments */}
+                        {availableSupervisors && availableSupervisors.length > 0 && (
+                          <div className="space-y-2">
+                            <Label className="text-xs text-gray-600 flex items-center gap-2">
+                              <User className="h-3 w-3" />
+                              Supervisores
+                            </Label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded p-2">
+                              {availableSupervisors.map((supervisor) => (
+                                <FormField
+                                  key={`supervisor-${supervisor.id}`}
+                                  control={form.control}
+                                  name="assignments"
+                                  render={({ field }) => (
+                                    <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                                      <FormControl>
+                                        <Checkbox
+                                          checked={field.value?.some(a => a.assigneeType === "supervisor" && a.assigneeId === supervisor.id)}
+                                          onCheckedChange={(checked) => {
+                                            const currentAssignments = field.value || [];
+                                            if (checked) {
+                                              field.onChange([...currentAssignments, { assigneeType: "supervisor", assigneeId: supervisor.id }]);
+                                            } else {
+                                              field.onChange(currentAssignments.filter(a => !(a.assigneeType === "supervisor" && a.assigneeId === supervisor.id)));
+                                            }
+                                          }}
+                                          data-testid={`checkbox-supervisor-${supervisor.id}`}
+                                        />
+                                      </FormControl>
+                                      <FormLabel className="text-xs font-normal truncate">
+                                        {supervisor.salespersonName}
+                                      </FormLabel>
+                                    </FormItem>
+                                  )}
+                                />
+                              ))}
+                            </div>
+                          </div>
                         )}
-                      </div>
-                    )}
-                  </div>
 
-                  {/* Assignments Section */}
-                  <div className="space-y-3">
-                    <Label className="text-sm font-medium">Asignar a *</Label>
-                    
-                    {/* Supervisor Assignments */}
-                    {availableSupervisors && availableSupervisors.length > 0 && (
-                      <div className="space-y-2">
-                        <Label className="text-xs text-gray-600 flex items-center gap-2">
-                          <User className="h-3 w-3" />
-                          Supervisores
-                        </Label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded p-2">
-                          {availableSupervisors.map((supervisor) => (
-                            <FormField
-                              key={`supervisor-${supervisor.id}`}
-                              control={form.control}
-                              name="assignments"
-                              render={({ field }) => (
-                                <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                                  <FormControl>
-                                    <Checkbox
-                                      checked={field.value?.some(a => a.assigneeType === "supervisor" && a.assigneeId === supervisor.id)}
-                                      onCheckedChange={(checked) => {
-                                        const currentAssignments = field.value || [];
-                                        if (checked) {
-                                          field.onChange([...currentAssignments, { assigneeType: "supervisor", assigneeId: supervisor.id }]);
-                                        } else {
-                                          field.onChange(currentAssignments.filter(a => !(a.assigneeType === "supervisor" && a.assigneeId === supervisor.id)));
-                                        }
-                                      }}
-                                      data-testid={`checkbox-supervisor-${supervisor.id}`}
-                                    />
-                                  </FormControl>
-                                  <FormLabel className="text-xs font-normal truncate">
-                                    {supervisor.salespersonName}
-                                  </FormLabel>
-                                </FormItem>
-                              )}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                        {/* Salesperson Assignments */}
+                        {availableUsers && availableUsers.length > 0 && (
+                          <div className="space-y-2">
+                            <Label className="text-xs text-gray-600 flex items-center gap-2">
+                              <User className="h-3 w-3" />
+                              Vendedores
+                            </Label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded p-2">
+                              {availableUsers.map((salesperson) => (
+                                <FormField
+                                  key={`salesperson-${salesperson.id}`}
+                                  control={form.control}
+                                  name="assignments"
+                                  render={({ field }) => (
+                                    <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                                      <FormControl>
+                                        <Checkbox
+                                          checked={field.value?.some(a => a.assigneeType === "salesperson" && a.assigneeId === salesperson.id)}
+                                          onCheckedChange={(checked) => {
+                                            const currentAssignments = field.value || [];
+                                            if (checked) {
+                                              field.onChange([...currentAssignments, { assigneeType: "salesperson", assigneeId: salesperson.id }]);
+                                            } else {
+                                              field.onChange(currentAssignments.filter(a => !(a.assigneeType === "salesperson" && a.assigneeId === salesperson.id)));
+                                            }
+                                          }}
+                                          data-testid={`checkbox-salesperson-${salesperson.id}`}
+                                        />
+                                      </FormControl>
+                                      <FormLabel className="text-xs font-normal truncate">
+                                        {salesperson.salespersonName}
+                                      </FormLabel>
+                                    </FormItem>
+                                  )}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
-                    {/* Salesperson Assignments */}
-                    {availableUsers && availableUsers.length > 0 && (
-                      <div className="space-y-2">
-                        <Label className="text-xs text-gray-600 flex items-center gap-2">
-                          <User className="h-3 w-3" />
-                          Vendedores
-                        </Label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded p-2">
-                          {availableUsers.map((salesperson) => (
-                            <FormField
-                              key={`salesperson-${salesperson.id}`}
-                              control={form.control}
-                              name="assignments"
-                              render={({ field }) => (
-                                <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                                  <FormControl>
-                                    <Checkbox
-                                      checked={field.value?.some(a => a.assigneeType === "salesperson" && a.assigneeId === salesperson.id)}
-                                      onCheckedChange={(checked) => {
-                                        const currentAssignments = field.value || [];
-                                        if (checked) {
-                                          field.onChange([...currentAssignments, { assigneeType: "salesperson", assigneeId: salesperson.id }]);
-                                        } else {
-                                          field.onChange(currentAssignments.filter(a => !(a.assigneeType === "salesperson" && a.assigneeId === salesperson.id)));
-                                        }
-                                      }}
-                                      data-testid={`checkbox-salesperson-${salesperson.id}`}
-                                    />
-                                  </FormControl>
-                                  <FormLabel className="text-xs font-normal truncate">
-                                    {salesperson.salespersonName}
-                                  </FormLabel>
-                                </FormItem>
-                              )}
-                            />
-                          ))}
-                        </div>
+                        <FormMessage>
+                          {form.formState.errors.assignments?.message}
+                        </FormMessage>
                       </div>
-                    )}
-                    
-                    <FormMessage>
-                      {form.formState.errors.assignments?.message}
-                    </FormMessage>
-                  </div>
-                  </div>
+                    </div>
 
-                  <div className="flex justify-end gap-2 pt-4 border-t mt-4 flex-shrink-0">
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      onClick={() => {
-                        setShowCreateDialog(false);
-                        form.reset();
-                        setSelectedClienteTask(null);
-                        setSearchClienteTask("");
-                      }}
-                      data-testid="button-cancel-task"
-                    >
-                      Cancelar
-                    </Button>
-                    <Button 
-                      type="submit" 
-                      disabled={createTaskMutation.isPending}
-                      className="bg-gradient-to-r from-blue-600 to-indigo-600"
-                      data-testid="button-submit-task"
-                    >
-                      {createTaskMutation.isPending ? "Creando..." : "Crear Tarea"}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
+                    <div className="flex justify-end gap-2 pt-4 border-t mt-4 flex-shrink-0">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setShowCreateDialog(false);
+                          form.reset();
+                          setSelectedClienteTask(null);
+                          setSearchClienteTask("");
+                        }}
+                        data-testid="button-cancel-task"
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        type="submit"
+                        disabled={createTaskMutation.isPending}
+                        className="bg-gradient-to-r from-blue-600 to-indigo-600"
+                        data-testid="button-submit-task"
+                      >
+                        {createTaskMutation.isPending ? "Creando..." : "Crear Tarea"}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
               </DialogContent>
             </Dialog>
           )}
@@ -810,15 +817,19 @@ export default function TareasPage() {
       {/* Técnico de Obra no tiene acceso a la pestaña de promesas de compra */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-1 bg-gray-100 ${user?.role === 'tecnico_obra' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
-            <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">Tareas</TabsTrigger>
+          <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-2 bg-slate-100/50 p-1 border border-slate-200/60 rounded-xl ${user?.role === 'tecnico_obra' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+            <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm rounded-lg">
+              <CheckSquare className="h-4 w-4 mr-2 hidden sm:inline" />
+              Tareas
+            </TabsTrigger>
             {user?.role !== 'tecnico_obra' && (
-              <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">
+              <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm rounded-lg">
+                <TrendingUp className="h-4 w-4 mr-2 hidden sm:inline" />
                 {esConstruccion ? 'Estimación Mensual' : 'Estimación Semanal'}
               </TabsTrigger>
             )}
-            <TabsTrigger value="calendario" data-testid="tab-calendario" className="px-4 py-2 text-xs sm:text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600">
-              <CalendarIcon className="h-4 w-4 mr-1.5 hidden sm:inline" />
+            <TabsTrigger value="calendario" data-testid="tab-calendario" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm rounded-lg">
+              <CalendarIcon className="h-4 w-4 mr-2 hidden sm:inline" />
               Calendario
             </TabsTrigger>
           </TabsList>
@@ -826,424 +837,420 @@ export default function TareasPage() {
 
         <TabsContent value="tareas" className="space-y-6">
 
-      {/* Filters and View Toggle */}
-      <Card className="border-0 shadow-sm bg-white">
-        <CardContent className="p-0">
-          {/* Mobile: Collapsible Filters Header */}
-          <div className="lg:hidden">
-            <button
-              onClick={() => setFiltersExpanded(!filtersExpanded)}
-              className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
-              data-testid="button-toggle-filters"
-            >
-              <div className="flex items-center gap-3">
-                <Filter className="h-5 w-5 text-blue-600" />
-                <span className="font-semibold text-sm text-gray-900">Filtros</span>
-                <Badge className="bg-blue-100 text-blue-700 text-xs font-medium">
-                  {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
-                </Badge>
-              </div>
-              <ChevronDown className={`h-4 w-4 transition-transform text-gray-600 ${filtersExpanded ? 'rotate-180' : ''}`} />
-            </button>
-            
-            {filtersExpanded && (
-              <div className="p-4 pt-0 space-y-3 border-t border-gray-200">
-                {/* View Mode Toggle */}
-                {(user.role === 'admin' || user.role === 'supervisor' || user.role === 'tecnico_obra') && (
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-medium text-muted-foreground">Vista:</Label>
-                    <Select value={viewMode} onValueChange={(value: "my-tasks" | "all-tasks") => setViewMode(value)}>
-                      <SelectTrigger className="h-9 text-sm" data-testid="select-view-mode">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="my-tasks">Mis Tareas</SelectItem>
-                        <SelectItem value="all-tasks">Todas las Tareas</SelectItem>
-                      </SelectContent>
-                    </Select>
+          {/* Filters and View Toggle */}
+          <Card className="border-0 shadow-sm bg-white">
+            <CardContent className="p-0">
+              {/* Mobile: Collapsible Filters Header */}
+              <div className="lg:hidden">
+                <button
+                  onClick={() => setFiltersExpanded(!filtersExpanded)}
+                  className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                  data-testid="button-toggle-filters"
+                >
+                  <div className="flex items-center gap-3">
+                    <Filter className="h-5 w-5 text-blue-600" />
+                    <span className="font-semibold text-sm text-gray-900">Filtros</span>
+                    <Badge className="bg-blue-100 text-blue-700 text-xs font-medium">
+                      {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
+                    </Badge>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 transition-transform text-gray-600 ${filtersExpanded ? 'rotate-180' : ''}`} />
+                </button>
+
+                {filtersExpanded && (
+                  <div className="p-4 pt-0 space-y-3 border-t border-gray-200">
+                    {/* View Mode Toggle */}
+                    {(user.role === 'admin' || user.role === 'supervisor' || user.role === 'tecnico_obra') && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium text-muted-foreground">Vista:</Label>
+                        <Select value={viewMode} onValueChange={(value: "my-tasks" | "all-tasks") => setViewMode(value)}>
+                          <SelectTrigger className="h-9 text-sm" data-testid="select-view-mode">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="my-tasks">Mis Tareas</SelectItem>
+                            <SelectItem value="all-tasks">Todas las Tareas</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {/* Status Filter */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium text-muted-foreground">Estado:</Label>
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="h-9 text-sm" data-testid="select-status-filter">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos</SelectItem>
+                          <SelectItem value="pendiente">Pendientes</SelectItem>
+                          <SelectItem value="en_progreso">En Progreso</SelectItem>
+                          <SelectItem value="completada">Completadas</SelectItem>
+                          <SelectItem value="bloqueada">Bloqueadas</SelectItem>
+                          <SelectItem value="cancelada">Canceladas</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Priority Filter */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium text-muted-foreground">Prioridad:</Label>
+                      <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                        <SelectTrigger className="h-9 text-sm" data-testid="select-priority-filter">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todas</SelectItem>
+                          <SelectItem value="high">Alta</SelectItem>
+                          <SelectItem value="medium">Media</SelectItem>
+                          <SelectItem value="low">Baja</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Cliente Filter */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium text-muted-foreground">Cliente:</Label>
+                      <Select value={clienteFilter} onValueChange={setClienteFilter}>
+                        <SelectTrigger className="h-9 text-sm" data-testid="select-cliente-filter">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos</SelectItem>
+                          <SelectItem value="with-client">Con Cliente</SelectItem>
+                          <SelectItem value="without-client">Sin Cliente</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 )}
+              </div>
 
-                {/* Status Filter */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-muted-foreground">Estado:</Label>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="h-9 text-sm" data-testid="select-status-filter">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="pendiente">Pendientes</SelectItem>
-                      <SelectItem value="en_progreso">En Progreso</SelectItem>
-                      <SelectItem value="completada">Completadas</SelectItem>
-                      <SelectItem value="bloqueada">Bloqueadas</SelectItem>
-                      <SelectItem value="cancelada">Canceladas</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Desktop: Always Visible Filters */}
+              <div className="hidden lg:block py-5 px-6">
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                  <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                    {/* View Mode Toggle */}
+                    {(user.role === 'admin' || user.role === 'supervisor' || user.role === 'tecnico_obra') && (
+                      <div className="flex items-center gap-3">
+                        <Label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Vista:</Label>
+                        <Select value={viewMode} onValueChange={(value: "my-tasks" | "all-tasks") => setViewMode(value)}>
+                          <SelectTrigger className="w-40 border-gray-300" data-testid="select-view-mode">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="my-tasks">Mis Tareas</SelectItem>
+                            <SelectItem value="all-tasks">Todas las Tareas</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
 
-                {/* Priority Filter */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-muted-foreground">Prioridad:</Label>
-                  <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                    <SelectTrigger className="h-9 text-sm" data-testid="select-priority-filter">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas</SelectItem>
-                      <SelectItem value="high">Alta</SelectItem>
-                      <SelectItem value="medium">Media</SelectItem>
-                      <SelectItem value="low">Baja</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                    {/* Status Filter */}
+                    <div className="flex items-center gap-3">
+                      <Label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Estado:</Label>
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="w-36 border-gray-300" data-testid="select-status-filter">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos</SelectItem>
+                          <SelectItem value="pendiente">Pendientes</SelectItem>
+                          <SelectItem value="en_progreso">En Progreso</SelectItem>
+                          <SelectItem value="completada">Completadas</SelectItem>
+                          <SelectItem value="bloqueada">Bloqueadas</SelectItem>
+                          <SelectItem value="cancelada">Canceladas</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                {/* Cliente Filter */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-muted-foreground">Cliente:</Label>
-                  <Select value={clienteFilter} onValueChange={setClienteFilter}>
-                    <SelectTrigger className="h-9 text-sm" data-testid="select-cliente-filter">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="with-client">Con Cliente</SelectItem>
-                      <SelectItem value="without-client">Sin Cliente</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    {/* Priority Filter */}
+                    <div className="flex items-center gap-3">
+                      <Label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Prioridad:</Label>
+                      <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                        <SelectTrigger className="w-32 border-gray-300" data-testid="select-priority-filter">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todas</SelectItem>
+                          <SelectItem value="high">Alta</SelectItem>
+                          <SelectItem value="medium">Media</SelectItem>
+                          <SelectItem value="low">Baja</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Cliente Filter */}
+                    <div className="flex items-center gap-3">
+                      <Label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Cliente:</Label>
+                      <Select value={clienteFilter} onValueChange={setClienteFilter}>
+                        <SelectTrigger className="w-36 border-gray-300" data-testid="select-cliente-filter-desktop">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos</SelectItem>
+                          <SelectItem value="with-client">Con Cliente</SelectItem>
+                          <SelectItem value="without-client">Sin Cliente</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <Badge className="bg-blue-100 text-blue-700 text-xs font-medium px-3 py-1">
+                    {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
+                  </Badge>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Tasks List */}
+          <div className="space-y-4">
+            {tasksQuery.isLoading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-10 w-10 border-3 border-blue-200 border-t-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600 font-medium">Cargando tareas...</p>
+              </div>
+            ) : filteredTasks.length === 0 ? (
+              <Card className="border-0 shadow-sm">
+                <CardContent className="py-16 text-center">
+                  <div className="bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                    <CheckSquare className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No hay tareas</h3>
+                  <p className="text-gray-600 mb-6">
+                    {viewMode === "my-tasks" ? "No tienes tareas asignadas." : "No se encontraron tareas."}
+                  </p>
+                  {canCreateTasks && (
+                    <Button
+                      onClick={() => setShowCreateDialog(true)}
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600"
+                      data-testid="button-create-first-task"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Crear primera tarea
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              filteredTasks.map((task) => {
+                const isCompleted = task.status === 'completada';
+                const myAssignment = task.assignments.find(a =>
+                  (a.assigneeType === "supervisor" && a.assigneeId === user.id) ||
+                  (a.assigneeType === "salesperson" && a.assigneeId === user.id)
+                );
+                const canComplete = myAssignment && myAssignment.status !== "completada" &&
+                  (user.role === 'admin' || user.role === 'supervisor' || myAssignment.assigneeId === user.id);
+
+                return (
+                  <Card key={task.id} className={`overflow-hidden border-l-4 shadow-sm hover:shadow-lg transition-all duration-200 ${isCompleted ? 'border-l-green-500 bg-green-50/30' :
+                    task.priority === 'high' ? 'border-l-red-500' :
+                      task.priority === 'low' ? 'border-l-gray-400' : 'border-l-blue-500'
+                    }`}>
+                    <div className="p-4 sm:p-5">
+                      <div className="flex items-start gap-4">
+                        {/* Checkbox To-Do Style */}
+                        <div className="flex-shrink-0 pt-0.5">
+                          {canComplete ? (
+                            <button
+                              onClick={() => setConfirmCompleteTask({ taskId: task.id, assignmentId: myAssignment!.id })}
+                              className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${isCompleted
+                                ? 'bg-green-500 border-green-500 text-white'
+                                : 'border-gray-300 hover:border-green-500 hover:bg-green-50'
+                                }`}
+                              data-testid={`checkbox-complete-task-${task.id}`}
+                            >
+                              {isCompleted && <Check className="h-4 w-4" />}
+                            </button>
+                          ) : (
+                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${isCompleted
+                              ? 'bg-green-500 border-green-500 text-white'
+                              : 'border-gray-200 bg-gray-50'
+                              }`}>
+                              {isCompleted && <Check className="h-4 w-4" />}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          {/* Title Row */}
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <h3 className={`text-base font-semibold leading-tight ${isCompleted ? 'text-gray-500 line-through' : 'text-gray-900'}`} data-testid={`text-task-title-${task.id}`}>
+                              {task.title}
+                            </h3>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              {getPriorityBadge(task.priority ?? 'medium')}
+                              {getStatusBadge(task.status ?? 'pendiente')}
+                            </div>
+                          </div>
+
+                          {/* Cliente Badge - Destacado */}
+                          {(task as any).clienteNombre && (
+                            <div className="mb-2">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-medium">
+                                <Building2 className="h-3.5 w-3.5" />
+                                {(task as any).clienteNombre}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Description */}
+                          {task.description && (
+                            <p className={`text-sm mb-3 line-clamp-2 ${isCompleted ? 'text-gray-400' : 'text-gray-600'}`} data-testid={`text-task-description-${task.id}`}>
+                              {task.description}
+                            </p>
+                          )}
+
+                          {/* Meta Info Row */}
+                          <div className="flex flex-wrap items-center gap-3 text-xs">
+                            {task.dueDate && (
+                              <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${new Date(task.dueDate) < new Date() && !isCompleted
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-gray-100 text-gray-600'
+                                }`}>
+                                <CalendarIcon className="h-3.5 w-3.5" />
+                                <span data-testid={`text-task-due-date-${task.id}`}>
+                                  {format(new Date(task.dueDate), "dd MMM yyyy", { locale: es })}
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-50 text-blue-700">
+                              <User className="h-3.5 w-3.5" />
+                              <span className="text-xs font-medium truncate max-w-[150px]" data-testid={`text-task-assignee-${task.id}`}>
+                                {task.assignments.length > 0
+                                  ? task.assignments.map(a => {
+                                    const assigneeName = availableUsers?.find(s => s.id === a.assigneeId)?.salespersonName ||
+                                      availableSupervisors?.find(s => s.id === a.assigneeId)?.salespersonName ||
+                                      a.assigneeId;
+                                    return assigneeName;
+                                  }).join(', ')
+                                  : 'Sin asignar'}
+                              </span>
+                            </div>
+                            {myAssignment && !myAssignment.readAt && myAssignment.status === "pendiente" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 px-2 text-xs border-blue-300 text-blue-700 hover:bg-blue-50"
+                                onClick={() => markAsReadMutation.mutate({
+                                  taskId: task.id,
+                                  assignmentId: myAssignment.id
+                                })}
+                                disabled={markAsReadMutation.isPending}
+                                data-testid={`button-acknowledge-assignment-${myAssignment.id}`}
+                              >
+                                <Eye className="h-3 w-3 mr-1" />
+                                Acusar Recibo
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Expand Toggle */}
+                        <button
+                          onClick={() => toggleTaskExpanded(task.id)}
+                          className="flex-shrink-0 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                          data-testid={`button-toggle-task-${task.id}`}
+                        >
+                          {expandedTasks.has(task.id) ? (
+                            <ChevronDown className="h-5 w-5 text-gray-500" />
+                          ) : (
+                            <ChevronRight className="h-5 w-5 text-gray-500" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <Collapsible open={expandedTasks.has(task.id)}>
+                      <CollapsibleContent>
+                        <CardContent className="pt-4 bg-gray-50">
+                          <div className="pt-0">
+                            <h4 className="text-sm font-bold mb-3 text-gray-900 uppercase tracking-wide">Asignaciones</h4>
+                            <div className="space-y-3">
+                              {task.assignments.map((assignment) => {
+                                return (
+                                  <div key={assignment.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:border-blue-200 transition-colors">
+                                    <div className="space-y-2">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        {getAssigneeDisplay(assignment)}
+                                        {getStatusBadge(assignment.status ?? 'pendiente')}
+                                        {assignment.readAt && (
+                                          <Badge variant="outline" className="flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                            <Eye className="h-3 w-3" />
+                                            Leída {format(new Date(assignment.readAt), "dd/MM HH:mm", { locale: es })}
+                                          </Badge>
+                                        )}
+                                      </div>
+
+                                      {/* Comments Thread Component */}
+                                      <CommentsThread
+                                        taskId={task.id}
+                                        assignmentId={assignment.id}
+                                        isEditing={editingNoteAssignmentId === assignment.id && editingNoteTaskId === task.id}
+                                        editingText={editingNoteText}
+                                        setEditingText={setEditingNoteText}
+                                        onStartEditing={() => {
+                                          setEditingNoteAssignmentId(assignment.id);
+                                          setEditingNoteTaskId(task.id);
+                                          setEditingNoteText("");
+                                        }}
+                                        onCancelEditing={() => {
+                                          setEditingNoteAssignmentId(null);
+                                          setEditingNoteTaskId(null);
+                                          setEditingNoteText("");
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </Card>
+                );
+              })
             )}
           </div>
 
-          {/* Desktop: Always Visible Filters */}
-          <div className="hidden lg:block py-5 px-6">
-            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-                {/* View Mode Toggle */}
-                {(user.role === 'admin' || user.role === 'supervisor' || user.role === 'tecnico_obra') && (
-                  <div className="flex items-center gap-3">
-                    <Label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Vista:</Label>
-                    <Select value={viewMode} onValueChange={(value: "my-tasks" | "all-tasks") => setViewMode(value)}>
-                      <SelectTrigger className="w-40 border-gray-300" data-testid="select-view-mode">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="my-tasks">Mis Tareas</SelectItem>
-                        <SelectItem value="all-tasks">Todas las Tareas</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Status Filter */}
-                <div className="flex items-center gap-3">
-                  <Label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Estado:</Label>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-36 border-gray-300" data-testid="select-status-filter">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="pendiente">Pendientes</SelectItem>
-                      <SelectItem value="en_progreso">En Progreso</SelectItem>
-                      <SelectItem value="completada">Completadas</SelectItem>
-                      <SelectItem value="bloqueada">Bloqueadas</SelectItem>
-                      <SelectItem value="cancelada">Canceladas</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Priority Filter */}
-                <div className="flex items-center gap-3">
-                  <Label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Prioridad:</Label>
-                  <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                    <SelectTrigger className="w-32 border-gray-300" data-testid="select-priority-filter">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas</SelectItem>
-                      <SelectItem value="high">Alta</SelectItem>
-                      <SelectItem value="medium">Media</SelectItem>
-                      <SelectItem value="low">Baja</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Cliente Filter */}
-                <div className="flex items-center gap-3">
-                  <Label className="text-sm font-semibold text-gray-700 whitespace-nowrap">Cliente:</Label>
-                  <Select value={clienteFilter} onValueChange={setClienteFilter}>
-                    <SelectTrigger className="w-36 border-gray-300" data-testid="select-cliente-filter-desktop">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="with-client">Con Cliente</SelectItem>
-                      <SelectItem value="without-client">Sin Cliente</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <Badge className="bg-blue-100 text-blue-700 text-xs font-medium px-3 py-1">
-                {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
-              </Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Tasks List */}
-      <div className="space-y-4">
-        {tasksQuery.isLoading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-10 w-10 border-3 border-blue-200 border-t-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600 font-medium">Cargando tareas...</p>
-          </div>
-        ) : filteredTasks.length === 0 ? (
-          <Card className="border-0 shadow-sm">
-            <CardContent className="py-16 text-center">
-              <div className="bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <CheckSquare className="h-8 w-8 text-gray-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No hay tareas</h3>
-              <p className="text-gray-600 mb-6">
-                {viewMode === "my-tasks" ? "No tienes tareas asignadas." : "No se encontraron tareas."}
-              </p>
-              {canCreateTasks && (
-                <Button 
-                  onClick={() => setShowCreateDialog(true)}
-                  className="bg-gradient-to-r from-blue-600 to-indigo-600"
-                  data-testid="button-create-first-task"
+          {/* Diálogo de confirmación para completar tarea */}
+          <AlertDialog open={!!confirmCompleteTask} onOpenChange={(open) => !open && setConfirmCompleteTask(null)}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  ¿Deseas marcar esta tarea como completada?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta acción marcará tu asignación como completada. Asegúrate de haber finalizado todas las actividades relacionadas.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-green-600 hover:bg-green-700"
+                  onClick={() => {
+                    if (confirmCompleteTask) {
+                      updateAssignmentMutation.mutate({
+                        taskId: confirmCompleteTask.taskId,
+                        assignmentId: confirmCompleteTask.assignmentId,
+                        status: "completada"
+                      });
+                      setConfirmCompleteTask(null);
+                    }
+                  }}
                 >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Crear primera tarea
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          filteredTasks.map((task) => {
-            const isCompleted = task.status === 'completada';
-            const myAssignment = task.assignments.find(a => 
-              (a.assigneeType === "supervisor" && a.assigneeId === user.id) ||
-              (a.assigneeType === "salesperson" && a.assigneeId === user.id)
-            );
-            const canComplete = myAssignment && myAssignment.status !== "completada" && 
-              (user.role === 'admin' || user.role === 'supervisor' || myAssignment.assigneeId === user.id);
-            
-            return (
-            <Card key={task.id} className={`overflow-hidden border-l-4 shadow-sm hover:shadow-lg transition-all duration-200 ${
-              isCompleted ? 'border-l-green-500 bg-green-50/30' : 
-              task.priority === 'high' ? 'border-l-red-500' : 
-              task.priority === 'low' ? 'border-l-gray-400' : 'border-l-blue-500'
-            }`}>
-              <div className="p-4 sm:p-5">
-                <div className="flex items-start gap-4">
-                  {/* Checkbox To-Do Style */}
-                  <div className="flex-shrink-0 pt-0.5">
-                    {canComplete ? (
-                      <button
-                        onClick={() => setConfirmCompleteTask({taskId: task.id, assignmentId: myAssignment!.id})}
-                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
-                          isCompleted 
-                            ? 'bg-green-500 border-green-500 text-white' 
-                            : 'border-gray-300 hover:border-green-500 hover:bg-green-50'
-                        }`}
-                        data-testid={`checkbox-complete-task-${task.id}`}
-                      >
-                        {isCompleted && <Check className="h-4 w-4" />}
-                      </button>
-                    ) : (
-                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                        isCompleted 
-                          ? 'bg-green-500 border-green-500 text-white' 
-                          : 'border-gray-200 bg-gray-50'
-                      }`}>
-                        {isCompleted && <Check className="h-4 w-4" />}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    {/* Title Row */}
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <h3 className={`text-base font-semibold leading-tight ${isCompleted ? 'text-gray-500 line-through' : 'text-gray-900'}`} data-testid={`text-task-title-${task.id}`}>
-                        {task.title}
-                      </h3>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        {getPriorityBadge(task.priority ?? 'medium')}
-                        {getStatusBadge(task.status ?? 'pendiente')}
-                      </div>
-                    </div>
-
-                    {/* Cliente Badge - Destacado */}
-                    {(task as any).clienteNombre && (
-                      <div className="mb-2">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-medium">
-                          <Building2 className="h-3.5 w-3.5" />
-                          {(task as any).clienteNombre}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Description */}
-                    {task.description && (
-                      <p className={`text-sm mb-3 line-clamp-2 ${isCompleted ? 'text-gray-400' : 'text-gray-600'}`} data-testid={`text-task-description-${task.id}`}>
-                        {task.description}
-                      </p>
-                    )}
-
-                    {/* Meta Info Row */}
-                    <div className="flex flex-wrap items-center gap-3 text-xs">
-                      {task.dueDate && (
-                        <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${
-                          new Date(task.dueDate) < new Date() && !isCompleted
-                            ? 'bg-red-100 text-red-700' 
-                            : 'bg-gray-100 text-gray-600'
-                        }`}>
-                          <CalendarIcon className="h-3.5 w-3.5" />
-                          <span data-testid={`text-task-due-date-${task.id}`}>
-                            {format(new Date(task.dueDate), "dd MMM yyyy", { locale: es })}
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-50 text-blue-700">
-                        <User className="h-3.5 w-3.5" />
-                        <span className="text-xs font-medium truncate max-w-[150px]" data-testid={`text-task-assignee-${task.id}`}>
-                          {task.assignments.length > 0 
-                            ? task.assignments.map(a => {
-                                const assigneeName = availableUsers?.find(s => s.id === a.assigneeId)?.salespersonName || 
-                                                    availableSupervisors?.find(s => s.id === a.assigneeId)?.salespersonName ||
-                                                    a.assigneeId;
-                                return assigneeName;
-                              }).join(', ')
-                            : 'Sin asignar'}
-                        </span>
-                      </div>
-                      {myAssignment && !myAssignment.readAt && myAssignment.status === "pendiente" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-6 px-2 text-xs border-blue-300 text-blue-700 hover:bg-blue-50"
-                          onClick={() => markAsReadMutation.mutate({
-                            taskId: task.id,
-                            assignmentId: myAssignment.id
-                          })}
-                          disabled={markAsReadMutation.isPending}
-                          data-testid={`button-acknowledge-assignment-${myAssignment.id}`}
-                        >
-                          <Eye className="h-3 w-3 mr-1" />
-                          Acusar Recibo
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Expand Toggle */}
-                  <button
-                    onClick={() => toggleTaskExpanded(task.id)}
-                    className="flex-shrink-0 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                    data-testid={`button-toggle-task-${task.id}`}
-                  >
-                    {expandedTasks.has(task.id) ? (
-                      <ChevronDown className="h-5 w-5 text-gray-500" />
-                    ) : (
-                      <ChevronRight className="h-5 w-5 text-gray-500" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <Collapsible open={expandedTasks.has(task.id)}>
-                <CollapsibleContent>
-                  <CardContent className="pt-4 bg-gray-50">
-                    <div className="pt-0">
-                      <h4 className="text-sm font-bold mb-3 text-gray-900 uppercase tracking-wide">Asignaciones</h4>
-                      <div className="space-y-3">
-                        {task.assignments.map((assignment) => {
-                          return (
-                            <div key={assignment.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:border-blue-200 transition-colors">
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  {getAssigneeDisplay(assignment)}
-                                  {getStatusBadge(assignment.status ?? 'pendiente')}
-                                  {assignment.readAt && (
-                                    <Badge variant="outline" className="flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border-blue-200">
-                                      <Eye className="h-3 w-3" />
-                                      Leída {format(new Date(assignment.readAt), "dd/MM HH:mm", { locale: es })}
-                                    </Badge>
-                                  )}
-                                </div>
-                                
-                                {/* Comments Thread Component */}
-                                <CommentsThread
-                                  taskId={task.id}
-                                  assignmentId={assignment.id}
-                                  isEditing={editingNoteAssignmentId === assignment.id && editingNoteTaskId === task.id}
-                                  editingText={editingNoteText}
-                                  setEditingText={setEditingNoteText}
-                                  onStartEditing={() => {
-                                    setEditingNoteAssignmentId(assignment.id);
-                                    setEditingNoteTaskId(task.id);
-                                    setEditingNoteText("");
-                                  }}
-                                  onCancelEditing={() => {
-                                    setEditingNoteAssignmentId(null);
-                                    setEditingNoteTaskId(null);
-                                    setEditingNoteText("");
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </CardContent>
-                </CollapsibleContent>
-              </Collapsible>
-            </Card>
-          );
-          })
-        )}
-      </div>
-
-      {/* Diálogo de confirmación para completar tarea */}
-      <AlertDialog open={!!confirmCompleteTask} onOpenChange={(open) => !open && setConfirmCompleteTask(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-              ¿Deseas marcar esta tarea como completada?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción marcará tu asignación como completada. Asegúrate de haber finalizado todas las actividades relacionadas.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-green-600 hover:bg-green-700"
-              onClick={() => {
-                if (confirmCompleteTask) {
-                  updateAssignmentMutation.mutate({
-                    taskId: confirmCompleteTask.taskId,
-                    assignmentId: confirmCompleteTask.assignmentId,
-                    status: "completada"
-                  });
-                  setConfirmCompleteTask(null);
-                }
-              }}
-            >
-              <Check className="h-4 w-4 mr-2" />
-              Sí, completar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+                  <Check className="h-4 w-4 mr-2" />
+                  Sí, completar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </TabsContent>
 
         {/* Vista Calendario */}
@@ -1333,8 +1340,8 @@ function EstimacionSemanalTab({
 
   // Filtrar promesas válidas y por vendedor
   const promesasValidas = promesasCumplimiento.filter(p => p.promesa != null);
-  const promesasFiltradas = vendedorFilter === "all" 
-    ? promesasValidas 
+  const promesasFiltradas = vendedorFilter === "all"
+    ? promesasValidas
     : promesasValidas.filter(p => p.promesa.vendedorId === vendedorFilter);
 
   // Calcular resumen
@@ -1405,47 +1412,81 @@ function EstimacionSemanalTab({
         </CardHeader>
       </Card>
 
-      {/* Resumen de cumplimiento */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-        <Card>
-          <CardHeader className="pb-2 sm:pb-3 pt-3 sm:pt-6 px-3 sm:px-6">
-            <CardTitle className="text-xs sm:text-sm font-medium">Total Prometido</CardTitle>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <div className="text-lg sm:text-2xl font-bold">${resumen.totalPrometido.toLocaleString('es-CL')}</div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">{resumen.totalPromesas} promesas</p>
+      {/* Resumen de cumplimiento Premium */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        <Card className="relative overflow-hidden border-none shadow-lg group hover:shadow-xl transition-all duration-300">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-700 opacity-95 group-hover:opacity-100 transition-opacity" />
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+            <TrendingUp className="w-16 h-16 text-white" />
+          </div>
+          <CardContent className="relative p-6">
+            <p className="text-blue-100 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" />
+              Total Prometido
+            </p>
+            <h3 className="text-2xl sm:text-3xl font-black text-white mb-2 tracking-tight">
+              ${resumen.totalPrometido.toLocaleString('es-CL')}
+            </h3>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-white/20 text-white border-none text-[10px] font-bold">
+                {resumen.totalPromesas} PROMESAS
+              </Badge>
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2 sm:pb-3 pt-3 sm:pt-6 px-3 sm:px-6">
-            <CardTitle className="text-xs sm:text-sm font-medium">Total Vendido</CardTitle>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <div className="text-lg sm:text-2xl font-bold">${resumen.totalVendido.toLocaleString('es-CL')}</div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">Facturas + NVV</p>
+        <Card className="relative overflow-hidden border-none shadow-lg group hover:shadow-xl transition-all duration-300">
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-violet-700 opacity-95 group-hover:opacity-100 transition-opacity" />
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+            <Building2 className="w-16 h-16 text-white" />
+          </div>
+          <CardContent className="relative p-6">
+            <p className="text-indigo-100 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
+              <Building2 className="w-4 h-4" />
+              Total Vendido
+            </p>
+            <h3 className="text-2xl sm:text-3xl font-black text-white mb-2 tracking-tight">
+              ${resumen.totalVendido.toLocaleString('es-CL')}
+            </h3>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-white/20 text-white border-none text-[10px] font-bold">
+                FACTURAS + NVV
+              </Badge>
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2 sm:pb-3 pt-3 sm:pt-6 px-3 sm:px-6">
-            <CardTitle className="text-xs sm:text-sm font-medium">Cumplidas</CardTitle>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <div className="text-lg sm:text-2xl font-bold text-green-600">{resumen.cumplidas + resumen.superadas + resumen.cumplidasParcialmente}</div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
+        <Card className="relative overflow-hidden border-none shadow-lg group hover:shadow-xl transition-all duration-300">
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500 to-teal-600 opacity-95 group-hover:opacity-100 transition-opacity" />
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+            <CheckCircle className="w-16 h-16 text-white" />
+          </div>
+          <CardContent className="relative p-6">
+            <p className="text-emerald-500 border border-white/20 px-2 py-0.5 rounded bg-white text-[10px] font-black uppercase tracking-wider mb-2 w-fit">
+              Cumplidas
+            </p>
+            <h3 className="text-2xl sm:text-3xl font-black text-white mb-2 tracking-tight">
+              {resumen.cumplidas + resumen.superadas + resumen.cumplidasParcialmente}
+            </h3>
+            <p className="text-emerald-100 text-[10px] sm:text-xs font-medium">
               {resumen.superadas} superadas, {resumen.cumplidasParcialmente} parcial
             </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2 sm:pb-3 pt-3 sm:pt-6 px-3 sm:px-6">
-            <CardTitle className="text-xs sm:text-sm font-medium">Incumplidas</CardTitle>
-          </CardHeader>
-          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <div className="text-lg sm:text-2xl font-bold text-orange-600">{resumen.insuficientes + resumen.noCumplidas}</div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
+        <Card className="relative overflow-hidden border-none shadow-lg group hover:shadow-xl transition-all duration-300">
+          <div className="absolute inset-0 bg-gradient-to-br from-orange-500 to-amber-600 opacity-95 group-hover:opacity-100 transition-opacity" />
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+            <AlertCircle className="w-16 h-16 text-white" />
+          </div>
+          <CardContent className="relative p-6">
+            <p className="text-orange-500 border border-white/20 px-2 py-0.5 rounded bg-white text-[10px] font-black uppercase tracking-wider mb-2 w-fit">
+              Incumplidas
+            </p>
+            <h3 className="text-2xl sm:text-3xl font-black text-white mb-2 tracking-tight">
+              {resumen.insuficientes + resumen.noCumplidas}
+            </h3>
+            <p className="text-orange-100 text-[10px] sm:text-xs font-medium">
               {resumen.insuficientes} insuficientes, {resumen.noCumplidas} sin ventas
             </p>
           </CardContent>
@@ -1499,26 +1540,26 @@ function EstimacionSemanalTab({
           ) : (
             <div className="space-y-4">
               {/* Desktop view */}
-              <div className="hidden lg:block overflow-x-auto">
+              <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-200">
                 <table className="w-full">
-                  <thead className="bg-muted/50">
-                    <tr className="border-b-2 border-border">
+                  <thead className="bg-slate-50/80 backdrop-blur-sm sticky top-0 z-10 border-b border-slate-200">
+                    <tr>
                       {(user?.role === 'admin' || user?.role === 'supervisor') && (
-                        <th className="text-left py-4 px-4 font-bold text-base">Vendedor</th>
+                        <th className="text-left py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Vendedor</th>
                       )}
-                      <th className="text-left py-4 px-4 font-bold text-base">Cliente</th>
-                      <th className="text-right py-4 px-4 font-bold text-base">Prometido</th>
-                      <th className="text-right py-4 px-4 font-bold text-base">Vendido</th>
-                      <th className="text-right py-4 px-4 font-bold text-base">Cumplimiento</th>
-                      <th className="text-center py-4 px-4 font-bold text-base">Estado</th>
-                      <th className="text-left py-4 px-4 font-bold text-base">Observaciones</th>
+                      <th className="text-left py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Cliente</th>
+                      <th className="text-right py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Prometido</th>
+                      <th className="text-right py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Vendido</th>
+                      <th className="text-right py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Cumplimiento</th>
+                      <th className="text-center py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Estado</th>
+                      <th className="text-left py-4 px-6 text-[10px] font-black text-slate-500 uppercase tracking-widest">Observaciones</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-slate-100">
                     {promesasFiltradas.map((item) => (
-                      <tr 
-                        key={item.promesa.id} 
-                        className="border-b hover:bg-muted/50 cursor-pointer transition-colors" 
+                      <tr
+                        key={item.promesa.id}
+                        className="border-b hover:bg-muted/50 cursor-pointer transition-colors"
                         data-testid={`row-promesa-${item.promesa.id}`}
                         onClick={() => {
                           setSelectedPromesa(item);
@@ -1585,9 +1626,9 @@ function EstimacionSemanalTab({
               {/* Mobile view */}
               <div className="lg:hidden space-y-2">
                 {promesasFiltradas.map((item) => (
-                  <Card 
-                    key={item.promesa.id} 
-                    className="cursor-pointer hover:shadow-md transition-shadow" 
+                  <Card
+                    key={item.promesa.id}
+                    className="cursor-pointer hover:shadow-md transition-shadow"
                     data-testid={`card-promesa-${item.promesa.id}`}
                     onClick={() => {
                       setSelectedPromesa(item);
@@ -1724,10 +1765,10 @@ function CreatePromesaDialog({
 
   // Query para obtener lista de vendedores (solo admin/supervisor)
   // Supervisores solo ven vendedores de su segmento, admin ve todos
-  const salespeopleEndpoint = user?.role === 'supervisor' 
-    ? `/api/supervisor/${user.id}/salespeople` 
+  const salespeopleEndpoint = user?.role === 'supervisor'
+    ? `/api/supervisor/${user.id}/salespeople`
     : '/api/users/salespeople';
-  
+
   const { data: salespeople = [] } = useQuery<Array<{ id: string; fullName: string; salespersonName: string }>>({
     queryKey: [salespeopleEndpoint],
     enabled: user?.role === 'admin' || user?.role === 'supervisor',
@@ -1754,14 +1795,14 @@ function CreatePromesaDialog({
     },
     onSuccess: () => {
       // Invalidate all promesas queries with exact and partial matches
-      queryClient.invalidateQueries({ 
+      queryClient.invalidateQueries({
         queryKey: ['/api/promesas-compra']
       });
-      queryClient.invalidateQueries({ 
+      queryClient.invalidateQueries({
         queryKey: ['/api/promesas-compra/cumplimiento/reporte']
       });
       // Force refetch
-      queryClient.refetchQueries({ 
+      queryClient.refetchQueries({
         queryKey: ['/api/promesas-compra/cumplimiento/reporte']
       });
       toast({
@@ -1827,7 +1868,7 @@ function CreatePromesaDialog({
     }
 
     const year = getYear(dialogWeek);
-    
+
     let periodStart: Date;
     let periodEnd: Date;
     let periodKey: string;
@@ -1844,15 +1885,15 @@ function CreatePromesaDialog({
       // Para otros segmentos: períodos semanales
       periodStart = startOfWeek(dialogWeek, { weekStartsOn: 1 });
       periodEnd = endOfWeek(dialogWeek, { weekStartsOn: 1 });
-      
+
       // IMPORTANTE: Si el fin de semana cae en el mes siguiente, cortarlo en el último día del mes actual
       const currentMonth = dialogWeek.getMonth();
       const lastDayOfMonth = new Date(dialogWeek.getFullYear(), currentMonth + 1, 0);
-      
+
       if (periodEnd.getMonth() !== currentMonth) {
         periodEnd = lastDayOfMonth;
       }
-      
+
       const weekNumber = getISOWeek(dialogWeek);
       periodKey = `${year}-${String(weekNumber).padStart(2, '0')}`;
       periodNumber = weekNumber;
@@ -1876,7 +1917,7 @@ function CreatePromesaDialog({
   // Calcular valores para visualización del período
   const displayYear = getYear(dialogWeek);
   const monthName = format(dialogWeek, 'MMMM yyyy', { locale: es });
-  
+
   let displayStart: Date;
   let displayEnd: Date;
   let displayLabel: string;
@@ -1890,14 +1931,14 @@ function CreatePromesaDialog({
     // Para otros segmentos: mostrar semana
     displayStart = startOfWeek(dialogWeek, { weekStartsOn: 1 });
     displayEnd = endOfWeek(dialogWeek, { weekStartsOn: 1 });
-    
+
     const currentMonth = dialogWeek.getMonth();
     const lastDayOfMonth = new Date(dialogWeek.getFullYear(), currentMonth + 1, 0);
-    
+
     if (displayEnd.getMonth() !== currentMonth) {
       displayEnd = lastDayOfMonth;
     }
-    
+
     // Calcular semana del mes (1-5)
     const monthStartDate = new Date(dialogWeek.getFullYear(), dialogWeek.getMonth(), 1);
     const firstMonday = startOfWeek(monthStartDate, { weekStartsOn: 1 });
@@ -1989,26 +2030,24 @@ function CreatePromesaDialog({
           {/* Tipo de Cliente */}
           <div>
             <Label className="text-sm font-semibold mb-3 block">Tipo de Cliente *</Label>
-            <RadioGroup 
-              value={clienteTipo} 
+            <RadioGroup
+              value={clienteTipo}
               onValueChange={handleClienteTipoChange}
               className="grid grid-cols-2 gap-3"
             >
-              <div className={`flex items-center space-x-3 border-2 rounded-lg p-3 cursor-pointer transition-all ${
-                clienteTipo === "activo" 
-                  ? "border-blue-500 bg-blue-50 dark:bg-blue-950" 
-                  : "border-gray-200 dark:border-gray-700 hover:border-gray-300"
-              }`}>
+              <div className={`flex items-center space-x-3 border-2 rounded-lg p-3 cursor-pointer transition-all ${clienteTipo === "activo"
+                ? "border-blue-500 bg-blue-50 dark:bg-blue-950"
+                : "border-gray-200 dark:border-gray-700 hover:border-gray-300"
+                }`}>
                 <RadioGroupItem value="activo" id="activo" data-testid="radio-cliente-activo" />
                 <Label htmlFor="activo" className="font-medium cursor-pointer flex-1">
                   Cliente Activo
                 </Label>
               </div>
-              <div className={`flex items-center space-x-3 border-2 rounded-lg p-3 cursor-pointer transition-all ${
-                clienteTipo === "potencial" 
-                  ? "border-purple-500 bg-purple-50 dark:bg-purple-950" 
-                  : "border-gray-200 dark:border-gray-700 hover:border-gray-300"
-              }`}>
+              <div className={`flex items-center space-x-3 border-2 rounded-lg p-3 cursor-pointer transition-all ${clienteTipo === "potencial"
+                ? "border-purple-500 bg-purple-50 dark:bg-purple-950"
+                : "border-gray-200 dark:border-gray-700 hover:border-gray-300"
+                }`}>
                 <RadioGroupItem value="potencial" id="potencial" data-testid="radio-cliente-potencial" />
                 <Label htmlFor="potencial" className="font-medium cursor-pointer flex-1">
                   Cliente Potencial
@@ -2022,7 +2061,7 @@ function CreatePromesaDialog({
             <Label className="text-sm font-semibold block">
               {clienteTipo === "activo" ? "Seleccionar Cliente *" : "Datos del Cliente Potencial *"}
             </Label>
-            
+
             {clienteTipo === "activo" ? (
               // Cliente Activo - Buscador
               <>
@@ -2032,9 +2071,9 @@ function CreatePromesaDialog({
                       <p className="font-semibold text-green-900 dark:text-green-100">{selectedClient.nokoen}</p>
                       <p className="text-sm text-green-700 dark:text-green-300">Código: {selectedClient.koen}</p>
                     </div>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => setSelectedClient(null)}
                       className="hover:bg-green-100 dark:hover:bg-green-900"
                     >
@@ -2141,20 +2180,20 @@ function CreatePromesaDialog({
 
         <DialogFooter className="flex-col gap-3">
           <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end w-full">
-            <Button 
-              variant="outline" 
-              onClick={() => onOpenChange(false)} 
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
               className="sm:w-auto"
               data-testid="button-cancelar"
             >
               Cancelar
             </Button>
-            <Button 
-              onClick={handleSubmit} 
+            <Button
+              onClick={handleSubmit}
               disabled={
                 createMutation.isPending ||
-                !selectedSalesperson || 
-                (clienteTipo === "activo" && !selectedClient) || 
+                !selectedSalesperson ||
+                (clienteTipo === "activo" && !selectedClient) ||
                 (clienteTipo === "potencial" && !manualClienteNombre.trim()) ||
                 !montoPrometido
               }
@@ -2206,11 +2245,11 @@ function EditPromesaDialog({
       return await apiRequest('PATCH', `/api/promesas-compra/${promesa.promesa.id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ 
+      queryClient.invalidateQueries({
         queryKey: ['/api/promesas-compra/cumplimiento/reporte']
       });
       // Force refetch
-      queryClient.refetchQueries({ 
+      queryClient.refetchQueries({
         queryKey: ['/api/promesas-compra/cumplimiento/reporte']
       });
       toast({
@@ -2233,11 +2272,11 @@ function EditPromesaDialog({
       return await apiRequest('DELETE', `/api/promesas-compra/${promesa.promesa.id}`, {});
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ 
+      queryClient.invalidateQueries({
         queryKey: ['/api/promesas-compra/cumplimiento/reporte']
       });
       // Force refetch
-      queryClient.refetchQueries({ 
+      queryClient.refetchQueries({
         queryKey: ['/api/promesas-compra/cumplimiento/reporte']
       });
       toast({
@@ -2278,7 +2317,7 @@ function EditPromesaDialog({
   const montoPrometido = parseFloat(promesa.promesa.montoPrometido);
   const ventasActuales = ventasRealesManual ? parseFloat(ventasRealesManual) : promesa.ventasReales;
   const cumplimientoActual = montoPrometido > 0 ? (ventasActuales / montoPrometido) * 100 : 0;
-  
+
   let estadoActual: 'cumplido' | 'superado' | 'cumplido_parcialmente' | 'insuficiente' | 'no_cumplido';
   if (cumplimientoActual >= 100) {
     estadoActual = cumplimientoActual > 100 ? 'superado' : 'cumplido';
@@ -2351,8 +2390,8 @@ function EditPromesaDialog({
                   data-testid="input-ventas-reales"
                 />
                 <p className="text-xs text-muted-foreground mt-1.5">
-                  {ventasRealesManual 
-                    ? `Monto manual ingresado` 
+                  {ventasRealesManual
+                    ? `Monto manual ingresado`
                     : `Ventas automáticas detectadas: $${promesa.ventasReales.toLocaleString('es-CL')}`
                   }
                 </p>
@@ -2447,8 +2486,8 @@ function EditPromesaDialog({
             {canEdit && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button 
-                    variant="destructive" 
+                  <Button
+                    variant="destructive"
                     className="sm:w-auto"
                     data-testid="button-eliminar-promesa"
                   >
@@ -2486,17 +2525,17 @@ function EditPromesaDialog({
 
             {/* Botones de acción a la derecha */}
             <div className="flex flex-col-reverse sm:flex-row gap-2">
-              <Button 
-                variant="outline" 
-                onClick={() => onOpenChange(false)} 
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
                 className="sm:w-auto"
                 data-testid="button-cerrar"
               >
                 {canEdit ? 'Cancelar' : 'Cerrar'}
               </Button>
               {canEdit && (
-                <Button 
-                  onClick={handleSubmit} 
+                <Button
+                  onClick={handleSubmit}
                   disabled={updateMutation.isPending}
                   className="sm:w-auto"
                   data-testid="button-actualizar-promesa"
@@ -2618,8 +2657,8 @@ function CommentsThread({
           </div>
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {comments.map((comment) => (
-              <div 
-                key={comment.id} 
+              <div
+                key={comment.id}
                 className="group relative bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-3 border border-blue-100 hover:shadow-sm transition-all"
                 data-testid={`comment-${comment.id}`}
               >
@@ -2727,12 +2766,12 @@ function CalendarViewTab({
 }) {
   const monthStart = startOfMonth(calendarMonth);
   const monthEnd = endOfMonth(calendarMonth);
-  
+
   const getDaysInMonth = () => {
     const days: Date[] = [];
     const firstDayOfWeek = startOfWeek(monthStart, { weekStartsOn: 1 });
     const lastDayOfWeek = endOfWeek(monthEnd, { weekStartsOn: 1 });
-    
+
     let currentDay = firstDayOfWeek;
     while (currentDay <= lastDayOfWeek) {
       days.push(currentDay);
@@ -2852,19 +2891,17 @@ function CalendarViewTab({
               const dayTasks = getTasksForDay(day);
               const isInCurrentMonth = isCurrentMonth(day);
               const isTodayDate = isToday(day);
-              
+
               return (
                 <div
                   key={index}
-                  className={`min-h-[100px] sm:min-h-[120px] border-b border-r p-1 sm:p-2 ${
-                    !isInCurrentMonth ? 'bg-gray-50' : 'bg-white'
-                  } ${isTodayDate ? 'bg-blue-50' : ''}`}
+                  className={`min-h-[100px] sm:min-h-[120px] border-b border-r p-1 sm:p-2 ${!isInCurrentMonth ? 'bg-gray-50' : 'bg-white'
+                    } ${isTodayDate ? 'bg-blue-50' : ''}`}
                 >
                   {/* Número del día */}
                   <div className={`text-right mb-1 ${!isInCurrentMonth ? 'text-gray-400' : ''}`}>
-                    <span className={`inline-flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 text-xs sm:text-sm font-medium rounded-full ${
-                      isTodayDate ? 'bg-blue-600 text-white' : ''
-                    }`}>
+                    <span className={`inline-flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 text-xs sm:text-sm font-medium rounded-full ${isTodayDate ? 'bg-blue-600 text-white' : ''
+                      }`}>
                       {format(day, 'd')}
                     </span>
                   </div>

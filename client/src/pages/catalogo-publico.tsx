@@ -1,11 +1,10 @@
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState } from 'react';
 import { useRoute } from 'wouter';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
@@ -15,70 +14,20 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { 
-  Phone, 
-  Mail, 
-  ShoppingCart, 
-  Plus, 
-  Minus, 
-  Trash2, 
-  Send, 
-  Search,
-  Package,
+  Phone,
+  Mail,
+  ShoppingCart,
   Check,
   CheckCircle2,
   Loader2,
   Building,
-  Palette,
-  Layers,
+  Package,
   Store,
   User,
-  X
 } from 'lucide-react';
 import { SiWhatsapp } from 'react-icons/si';
-import { apiRequest } from '@/lib/queryClient';
-
-type ProductFormat = {
-  id: string;
-  codigo: string;
-  unidad: string;
-  precio: number;
-  imagenUrl: string | null;
-  minUnit: number;
-  stepSize: number;
-  formatUnit: string | null;
-};
-
-type ProductColor = {
-  color: string;
-  formats: ProductFormat[];
-};
-
-type ProductFamily = {
-  family: string;
-  imagenUrl: string | null;
-  categoria: string | null;
-  descripcion: string | null;
-  colors: ProductColor[];
-};
+import AiChatView from '@/components/ai-chat/AiChatView';
+import { useAiChat } from '@/hooks/useAiChat';
 
 type SalespersonProfile = {
   id: string;
@@ -91,49 +40,10 @@ type SalespersonProfile = {
   catalogEnabled: boolean;
 };
 
-type CartItem = {
-  id: string;
-  codigo: string;
-  producto: string;
-  unidad: string;
-  precio: number;
-  imagenUrl: string | null;
-  quantity: number;
-  minUnit: number;
-  stepSize: number;
-};
-
-const quoteFormSchema = z.object({
-  visitorName: z.string().min(1, 'Nombre es requerido'),
-  visitorEmail: z.string().email('Email inválido'),
-  visitorPhone: z.string().optional(),
-  visitorCompany: z.string().optional(),
-  message: z.string().optional(),
-});
-
-type QuoteFormData = z.infer<typeof quoteFormSchema>;
-
 export default function CatalogoPublico() {
   const [, params] = useRoute('/catalogo/:slug');
   const slug = params?.slug || '';
-  const { toast } = useToast();
-  
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [isQuoteDialogOpen, setIsQuoteDialogOpen] = useState(false);
-  const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterCategory, setFilterCategory] = useState<string>('');
-  const [filterFormat, setFilterFormat] = useState<string>('');
-  const [selectedColors, setSelectedColors] = useState<Record<string, string>>({});
-  const [selectedFormats, setSelectedFormats] = useState<Record<string, string>>({});
-  const [flyingProduct, setFlyingProduct] = useState<{ 
-    id: string; 
-    imagenUrl: string | null; 
-    startX: number; 
-    startY: number;
-  } | null>(null);
-  const cartButtonRef = useRef<HTMLButtonElement>(null);
-  
+
   const [isClientDialogOpen, setIsClientDialogOpen] = useState(false);
   const [clientBusinessName, setClientBusinessName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
@@ -152,22 +62,11 @@ export default function CatalogoPublico() {
   const [tempRut, setTempRut] = useState('');
   const [isSearchingClient, setIsSearchingClient] = useState(false);
   const [rutError, setRutError] = useState('');
-  
-  const form = useForm<QuoteFormData>({
-    resolver: zodResolver(quoteFormSchema),
-    defaultValues: {
-      visitorName: '',
-      visitorEmail: '',
-      visitorPhone: '',
-      visitorCompany: '',
-      message: '',
-    },
-  });
+
+  const aiChat = useAiChat({ isPublic: true, salespersonSlug: slug });
 
   const { data, isLoading, error } = useQuery<{
     salesperson: SalespersonProfile;
-    products: ProductFamily[];
-    isGrouped: boolean;
   }>({
     queryKey: ['/api/public/catalogos', slug, 'grouped'],
     queryFn: async () => {
@@ -178,307 +77,9 @@ export default function CatalogoPublico() {
     enabled: !!slug,
   });
 
-  const submitQuoteMutation = useMutation({
-    mutationFn: async (quoteData: QuoteFormData) => {
-      const items = cart.map(item => ({
-        productId: item.id,
-        productName: item.producto,
-        sku: item.codigo,
-        quantity: Number(item.quantity),
-        unitPrice: Number(item.precio),
-      }));
-      
-      // If client is identified, use their data instead of form data
-      const finalData = clientBusinessName
-        ? {
-            visitorName: clientBusinessName,
-            visitorEmail: clientEmail || quoteData.visitorEmail || '',
-            visitorPhone: clientPhone || quoteData.visitorPhone || '',
-            visitorCompany: clientBusinessName,
-            message: quoteData.message || '',
-            items,
-          }
-        : {
-            ...quoteData,
-            items,
-          };
-      
-      return await apiRequest(`/api/public/catalogos/${slug}/cotizacion`, {
-        method: 'POST',
-        data: finalData,
-      });
-    },
-    onSuccess: () => {
-      setIsQuoteDialogOpen(false);
-      setIsSuccessDialogOpen(true);
-      setCart([]);
-      form.reset();
-    },
-    onError: (error: any) => {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: error.message || 'No se pudo enviar la solicitud',
-      });
-    },
-  });
-
-  // Extract unique categories and formats for filters
-  const uniqueCategories = useMemo(() => {
-    if (!data?.products) return [];
-    const categories = new Set<string>();
-    data.products.forEach(family => {
-      if (family.categoria) categories.add(family.categoria);
-    });
-    return Array.from(categories).sort();
-  }, [data?.products]);
-
-  const uniqueFormats = useMemo(() => {
-    if (!data?.products) return [];
-    const formats = new Set<string>();
-    data.products.forEach(family => {
-      family.colors.forEach(color => {
-        color.formats.forEach(format => {
-          if (format.formatUnit) formats.add(format.formatUnit);
-          else if (format.unidad) formats.add(format.unidad);
-        });
-      });
-    });
-    return Array.from(formats).sort();
-  }, [data?.products]);
-
-  const filteredFamilies = useMemo(() => {
-    if (!data?.products) return [];
-    
-    return data.products.filter(family => {
-      // Search filter
-      if (searchTerm && !family.family.toLowerCase().includes(searchTerm.toLowerCase())) {
-        return false;
-      }
-      
-      // Category filter (skip if empty or 'all')
-      if (filterCategory && filterCategory !== 'all' && family.categoria !== filterCategory) {
-        return false;
-      }
-      
-      // Format filter - check if any variant has the selected format (skip if empty or 'all')
-      if (filterFormat && filterFormat !== 'all') {
-        const hasFormat = family.colors.some(color => 
-          color.formats.some(format => 
-            format.formatUnit === filterFormat || format.unidad === filterFormat
-          )
-        );
-        if (!hasFormat) return false;
-      }
-      
-      return true;
-    });
-  }, [data?.products, searchTerm, filterCategory, filterFormat]);
-
-  const getSelectedProduct = useCallback((family: ProductFamily): ProductFormat | null => {
-    const selectedColor = selectedColors[family.family];
-    const selectedFormat = selectedFormats[family.family];
-    
-    if (!selectedColor || !selectedFormat) return null;
-    
-    const colorData = family.colors.find(c => c.color === selectedColor);
-    if (!colorData) return null;
-    
-    return colorData.formats.find(f => f.unidad === selectedFormat) || null;
-  }, [selectedColors, selectedFormats]);
-
-  const addToCart = useCallback((family: ProductFamily, product: ProductFormat, event?: React.MouseEvent) => {
-    if (event && cartButtonRef.current) {
-      const buttonRect = event.currentTarget.getBoundingClientRect();
-      const startX = buttonRect.left + buttonRect.width / 2;
-      const startY = buttonRect.top;
-      
-      setFlyingProduct({
-        id: product.id,
-        imagenUrl: product.imagenUrl,
-        startX,
-        startY,
-      });
-      
-      setTimeout(() => setFlyingProduct(null), 600);
-    }
-    
-    const selectedColor = selectedColors[family.family] || '';
-    const productName = `${family.family} ${selectedColor}`.trim();
-    
-    setCart(prev => {
-      const existing = prev.find(item => item.id === product.id);
-      if (existing) {
-        // Increment by stepSize
-        return prev.map(item =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + (product.stepSize || 1) }
-            : item
-        );
-      }
-      // Start with minUnit as initial quantity
-      return [...prev, { 
-        id: product.id,
-        codigo: product.codigo,
-        producto: productName,
-        unidad: product.unidad,
-        precio: product.precio,
-        imagenUrl: product.imagenUrl,
-        quantity: product.minUnit || 1,
-        minUnit: product.minUnit || 1,
-        stepSize: product.stepSize || 1
-      }];
-    });
-    
-    toast({
-      title: 'Producto agregado',
-      description: `${productName} - ${product.unidad} agregado al carrito`,
-    });
-  }, [selectedColors, toast]);
-
-  const removeFromCart = (productId: string) => {
-    setCart(prev => prev.filter(item => item.id !== productId));
-  };
-
-  const updateQuantity = (productId: string, quantity: number | string, direction?: 'up' | 'down') => {
-    const cartItem = cart.find(item => item.id === productId);
-    if (!cartItem) return;
-    
-    const step = cartItem.stepSize || 1;
-    const min = cartItem.minUnit || 1;
-    
-    let numQuantity: number;
-    if (typeof quantity === 'string') {
-      numQuantity = parseInt(quantity, 10);
-    } else if (direction === 'up') {
-      numQuantity = cartItem.quantity + step;
-    } else if (direction === 'down') {
-      numQuantity = cartItem.quantity - step;
-    } else {
-      numQuantity = quantity;
-    }
-    
-    // Validate minimum
-    if (isNaN(numQuantity) || numQuantity < min) {
-      if (direction === 'down') {
-        removeFromCart(productId);
-      }
-      return;
-    }
-    
-    setCart(prev =>
-      prev.map(item =>
-        item.id === productId ? { ...item, quantity: numQuantity } : item
-      )
-    );
-  };
-
-  const cartTotal = useMemo(() => {
-    return cart.reduce((sum, item) => sum + item.precio * item.quantity, 0);
-  }, [cart]);
-
-  const cartItemCount = useMemo(() => {
-    return cart.reduce((sum, item) => sum + item.quantity, 0);
-  }, [cart]);
-
-  const onSubmitQuote = (formData: QuoteFormData) => {
-    submitQuoteMutation.mutate(formData);
-  };
-
   const getWhatsAppLink = (phone: string) => {
     const cleanPhone = phone.replace(/\D/g, '');
     return `https://wa.me/${cleanPhone}`;
-  };
-
-  const handleColorChange = (familyName: string, color: string) => {
-    setSelectedColors(prev => ({ ...prev, [familyName]: color }));
-    setSelectedFormats(prev => {
-      const newFormats = { ...prev };
-      delete newFormats[familyName];
-      return newFormats;
-    });
-  };
-
-  const handleFormatChange = (familyName: string, format: string) => {
-    setSelectedFormats(prev => ({ ...prev, [familyName]: format }));
-  };
-
-  const getAvailableFormats = (family: ProductFamily): ProductFormat[] => {
-    const selectedColor = selectedColors[family.family];
-    if (!selectedColor) return [];
-    
-    const colorData = family.colors.find(c => c.color === selectedColor);
-    return colorData?.formats || [];
-  };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-400 mx-auto mb-4"></div>
-          <p className="text-slate-400">Cargando catálogo...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800">
-        <Card className="max-w-md w-full mx-4 bg-slate-800 border-slate-700">
-          <CardContent className="pt-6 text-center">
-            <Package className="h-16 w-16 mx-auto mb-4 text-slate-500" />
-            <h2 className="text-xl font-semibold mb-2 text-white">Catálogo no encontrado</h2>
-            <p className="text-slate-400">
-              El catálogo que buscas no existe o no está disponible.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const { salesperson, products } = data;
-
-  const handleClientConfirm = async () => {
-    if (!tempRut.trim()) return;
-    
-    setIsSearchingClient(true);
-    setRutError('');
-    
-    try {
-      const response = await fetch(`/api/public/clients/search-by-rut?rut=${encodeURIComponent(tempRut.trim())}`);
-      const result = await response.json();
-      
-      if (response.ok && result.found) {
-        setClientBusinessName(result.clientName);
-        setClientEmail(result.clientEmail || '');
-        setClientPhone(result.clientPhone || '');
-        setClientLoyaltyTier(result.loyaltyTier || null);
-        setClientNextTier(result.nextTier || null);
-        setClientAmountToNextTier(result.amountToNextTier || 0);
-        setClientTotalSales(result.totalSalesLast90Days || 0);
-        setIsClientDialogOpen(false);
-        setTempRut('');
-      } else {
-        setRutError(result.message || 'Cliente no encontrado. Verifica el RUT ingresado.');
-      }
-    } catch (error) {
-      setRutError('Error al buscar cliente. Intenta nuevamente.');
-    } finally {
-      setIsSearchingClient(false);
-    }
-  };
-
-  const handleClearClient = () => {
-    setClientBusinessName('');
-    setClientEmail('');
-    setClientPhone('');
-    setClientLoyaltyTier(null);
-    setClientNextTier(null);
-    setClientAmountToNextTier(0);
-    setClientTotalSales(0);
-    setRutError('');
   };
 
   const formatCurrency = (amount: number) => {
@@ -503,12 +104,94 @@ export default function CatalogoPublico() {
     }
   };
 
+  const handleClientConfirm = async () => {
+    if (!tempRut.trim()) return;
+
+    setIsSearchingClient(true);
+    setRutError('');
+
+    try {
+      const response = await fetch(`/api/public/clients/search-by-rut?rut=${encodeURIComponent(tempRut.trim())}`);
+      const result = await response.json();
+
+      if (response.ok && result.found) {
+        setClientBusinessName(result.clientName);
+        setClientEmail(result.clientEmail || '');
+        setClientPhone(result.clientPhone || '');
+        setClientLoyaltyTier(result.loyaltyTier || null);
+        setClientNextTier(result.nextTier || null);
+        setClientAmountToNextTier(result.amountToNextTier || 0);
+        setClientTotalSales(result.totalSalesLast90Days || 0);
+        setIsClientDialogOpen(false);
+        setTempRut('');
+      } else {
+        setRutError(result.message || 'Cliente no encontrado. Verifica el RUT ingresado.');
+      }
+    } catch {
+      setRutError('Error al buscar cliente. Intenta nuevamente.');
+    } finally {
+      setIsSearchingClient(false);
+    }
+  };
+
+  const handleClearClient = () => {
+    setClientBusinessName('');
+    setClientEmail('');
+    setClientPhone('');
+    setClientLoyaltyTier(null);
+    setClientNextTier(null);
+    setClientAmountToNextTier(0);
+    setClientTotalSales(0);
+    setRutError('');
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-400 mx-auto mb-4"></div>
+          <p className="text-slate-400">Cargando catálogo...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !data) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800">
+        <Card className="max-w-md w-full mx-4 bg-slate-800 border-slate-700">
+          <CardContent className="pt-6 text-center">
+            <Package className="h-16 w-16 mx-auto mb-4 text-slate-500" />
+            <h2 className="text-xl font-semibold mb-2 text-white">Catálogo no encontrado</h2>
+            <p className="text-slate-400">
+              El catálogo que buscas no existe o no está disponible.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const { salesperson } = data;
+
+  // Suggestions for the public chat
+  const publicSuggestions = [
+    "Necesito pintura para exterior",
+    "¿Qué esmaltes al agua tienen?",
+    "Quiero cotizar productos para una obra",
+    "¿Tienen barniz marino?",
+    "Busco anticorrosivo en galón",
+    "¿Cuáles son sus productos más vendidos?",
+  ];
+
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="h-screen flex flex-col bg-slate-50 overflow-hidden">
       {/* Client Identification Banner */}
       {!clientBusinessName && (
-        <div 
-          className="bg-gradient-to-r from-amber-500 to-orange-500 text-white cursor-pointer hover:from-amber-600 hover:to-orange-600 transition-all"
+        <div
+          className="bg-gradient-to-r from-amber-500 to-orange-500 text-white cursor-pointer hover:from-amber-600 hover:to-orange-600 transition-all flex-shrink-0"
           onClick={() => setIsClientDialogOpen(true)}
           data-testid="banner-client-question"
         >
@@ -590,125 +273,119 @@ export default function CatalogoPublico() {
         </DialogContent>
       </Dialog>
 
-      {/* Hero Banner */}
-      <header className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-1/2 -right-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl"></div>
-          <div className="absolute -bottom-1/2 -left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
+      {/* Premium Digital Business Card Header */}
+      <header className="relative bg-slate-900 overflow-hidden border-b border-white/5 flex-shrink-0">
+        <div className="absolute inset-0">
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2"></div>
+          <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-[120px] translate-y-1/2 -translate-x-1/2"></div>
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
         </div>
-        
-        <div className="relative container mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <div className="relative flex-shrink-0">
-              <img
-                src="/panoramica-icon.png"
-                alt="Pinturas Panorámica"
-                className="w-12 h-12 md:w-16 md:h-16 object-contain"
-                data-testid="company-logo"
-              />
-            </div>
-            
-            <div className="flex-1 min-w-0 overflow-hidden">
-              {clientBusinessName && clientLoyaltyTier && (
-                <div className="mb-1">
-                  <span 
-                    className={`relative inline-block overflow-hidden px-2 py-0.5 rounded-full text-xs font-bold shadow-sm ${getTierBadgeColor(clientLoyaltyTier.code)}`}
-                    style={{ isolation: 'isolate' }}
-                    data-testid="loyalty-tier-badge"
-                  >
-                    <span className="relative z-10">{clientLoyaltyTier.name}</span>
-                    <span className="absolute inset-0 z-0 animate-shine bg-gradient-to-r from-transparent via-white/40 to-transparent" style={{ clipPath: 'inset(0 round 9999px)' }} />
-                  </span>
-                </div>
-              )}
-              <div className="flex items-center gap-2">
-                <h1 className="text-base md:text-xl lg:text-2xl font-bold text-white truncate" data-testid="salesperson-name">
-                  {clientBusinessName || salesperson.salespersonName}
-                </h1>
-                {clientBusinessName && (
-                  <button 
-                    onClick={handleClearClient}
-                    className="px-2 py-0.5 text-xs font-medium bg-white/20 hover:bg-white/30 text-white rounded transition-colors flex-shrink-0"
-                    data-testid="button-clear-client"
-                  >
-                    Salir
-                  </button>
+
+        <div className="relative container mx-auto px-4 py-6 md:py-8">
+          <div className="flex flex-col md:flex-row items-center md:items-start gap-4 md:gap-8">
+            {/* Salesperson Image */}
+            <div className="relative group">
+              <div className="w-20 h-20 md:w-24 md:h-24 rounded-3xl overflow-hidden border-4 border-white/10 shadow-2xl bg-gradient-to-br from-slate-800 to-slate-700 flex items-center justify-center">
+                {salesperson.profileImageUrl ? (
+                  <img
+                    src={salesperson.profileImageUrl}
+                    alt={salesperson.salespersonName}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                  />
+                ) : (
+                  <User className="w-10 h-10 md:w-12 md:h-12 text-white/20" />
                 )}
               </div>
-              
+              <div className="absolute -bottom-1.5 -right-1.5 w-7 h-7 md:w-8 md:h-8 bg-amber-500 rounded-xl flex items-center justify-center shadow-lg border-2 border-slate-900 group-hover:scale-110 transition-transform">
+                <Check className="w-3.5 h-3.5 md:w-4 md:h-4 text-slate-900 font-bold" />
+              </div>
+            </div>
+
+            <div className="flex-1 text-center md:text-left space-y-3 min-w-0">
+              <div className="space-y-0.5">
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
+                  <h1 className="text-xl md:text-3xl font-black text-white tracking-tight drop-shadow-sm" data-testid="salesperson-name">
+                    {clientBusinessName || salesperson.salespersonName}
+                  </h1>
+                  {clientBusinessName && clientLoyaltyTier && (
+                    <Badge className={`${getTierBadgeColor(clientLoyaltyTier.code)} border-none px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest`}>
+                      {clientLoyaltyTier.name}
+                    </Badge>
+                  )}
+                  {clientBusinessName && (
+                    <button
+                      onClick={handleClearClient}
+                      className="ml-1 px-2 py-0.5 text-[10px] font-medium bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors"
+                      data-testid="button-clear-client"
+                    >
+                      Salir
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center justify-center md:justify-start gap-2 text-amber-400/80 font-medium">
+                  <Building className="w-3.5 h-3.5" />
+                  <span className="text-xs md:text-sm">Ejecutivo Comercial · Pinturas Panorámica</span>
+                </div>
+              </div>
+
               {clientBusinessName ? (
-                <p className="text-sm text-amber-300 mt-1" data-testid="attended-by">
-                  Atendido por {salesperson.salespersonName}
-                </p>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate-300 text-xs">
+                  <User className="w-3 h-3 text-amber-500" />
+                  Sesión personalizada · <span className="text-white font-semibold">Atendido por {salesperson.salespersonName}</span>
+                </div>
               ) : salesperson.bio && (
-                <p className="hidden md:block text-sm text-slate-300 mt-1 line-clamp-2" data-testid="salesperson-bio">
+                <p className="max-w-xl text-slate-400 text-xs md:text-sm leading-relaxed line-clamp-1 md:line-clamp-2">
                   {salesperson.bio}
                 </p>
               )}
-              
-              <div className="flex gap-1 mt-2 overflow-x-auto pb-1 hide-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+
+              {/* Contact Buttons */}
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 md:gap-3">
                 {salesperson.publicPhone && (
-                  <a 
+                  <a
                     href={getWhatsAppLink(salesperson.publicPhone)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded-full text-xs font-medium transition-all flex-shrink-0"
-                    data-testid="button-whatsapp"
+                    className="group flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20ba5a] text-white px-3 py-2 rounded-xl text-xs font-bold shadow-lg transition-all hover:-translate-y-0.5 active:scale-95"
                   >
-                    <SiWhatsapp className="w-3.5 h-3.5" />
-                    WhatsApp
+                    <SiWhatsapp className="w-4 h-4" />
+                    <span className="hidden sm:inline">WhatsApp</span>
                   </a>
                 )}
-                
+
                 {salesperson.publicPhone && (
-                  <a 
+                  <a
                     href={`tel:${salesperson.publicPhone}`}
-                    className="inline-flex items-center gap-1 bg-slate-700/80 hover:bg-slate-600 text-white px-2 py-1 rounded-full text-xs font-medium transition-all border border-slate-600 flex-shrink-0"
-                    data-testid="salesperson-phone"
+                    className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-xl text-xs font-bold border border-white/10 backdrop-blur-sm transition-all hover:-translate-y-0.5 active:scale-95"
                   >
-                    <Phone className="w-3 h-3" />
-                    Teléfono
+                    <Phone className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Llamar</span>
                   </a>
                 )}
-                
+
                 {salesperson.publicEmail && (
-                  <a 
+                  <a
                     href={`mailto:${salesperson.publicEmail}`}
-                    className="inline-flex items-center gap-1 bg-slate-700/80 hover:bg-slate-600 text-white px-2 py-1 rounded-full text-xs font-medium transition-all border border-slate-600 flex-shrink-0"
-                    data-testid="salesperson-email"
+                    className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-xl text-xs font-bold border border-white/10 backdrop-blur-sm transition-all hover:-translate-y-0.5 active:scale-95"
                   >
-                    <Mail className="w-3 h-3" />
-                    Correo
+                    <Mail className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Email</span>
                   </a>
                 )}
               </div>
             </div>
-            
-            <div className="flex-shrink-0 ml-2 relative">
-              <Button
-                ref={cartButtonRef}
-                onClick={() => setIsQuoteDialogOpen(true)}
-                disabled={cart.length === 0}
-                size="sm"
-                className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold shadow-md h-9 w-9 p-0 md:w-auto md:px-3 md:gap-1"
-                data-testid="button-open-cart"
-              >
-                <ShoppingCart className="h-4 w-4" />
-                <span className="hidden md:inline">Cotizar</span>
-              </Button>
-              {cartItemCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-white text-amber-600 text-xs h-5 min-w-5 px-1 rounded-full flex items-center justify-center font-semibold shadow-sm">
-                  {cartItemCount}
-                </span>
-              )}
+
+            {/* Company Logo */}
+            <div className="hidden md:block absolute top-4 right-4 md:top-6 md:right-6 opacity-20 md:opacity-30">
+              <img src="/panoramica-logo.png" alt="Panoramica" className="h-6 md:h-8 w-auto brightness-0 invert" />
             </div>
           </div>
         </div>
       </header>
 
-      {/* Progress to Next Tier - Top Bar */}
+      {/* Loyalty Tier Progress */}
       {clientBusinessName && clientNextTier && clientAmountToNextTier > 0 && (
-        <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-amber-500/30" data-testid="next-tier-progress">
+        <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-amber-500/30 flex-shrink-0" data-testid="next-tier-progress">
           <div className="container mx-auto px-4 py-2">
             <div className="flex items-center gap-3">
               <div className="flex-1">
@@ -720,15 +397,15 @@ export default function CatalogoPublico() {
                     {clientNextTier.name}
                   </span>
                 </div>
-                <div className="w-full bg-slate-700 rounded-full h-2.5 overflow-hidden">
-                  <div 
+                <div className="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+                  <div
                     className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-500"
-                    style={{ 
-                      width: `${Math.min(100, Math.max(5, (clientTotalSales / clientNextTier.minAmount) * 100))}%` 
+                    style={{
+                      width: `${Math.min(100, Math.max(5, (clientTotalSales / clientNextTier.minAmount) * 100))}%`
                     }}
                   />
                 </div>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-[10px] text-slate-400 mt-0.5">
                   Compras últimos 90 días: {formatCurrency(clientTotalSales)}
                 </p>
               </div>
@@ -739,498 +416,28 @@ export default function CatalogoPublico() {
 
       {/* Max Tier Message */}
       {clientBusinessName && !clientNextTier && clientLoyaltyTier && (
-        <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white" data-testid="max-tier-message">
-          <div className="container mx-auto px-4 py-2 flex items-center justify-center gap-2">
+        <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white flex-shrink-0" data-testid="max-tier-message">
+          <div className="container mx-auto px-4 py-1.5 flex items-center justify-center gap-2">
             <CheckCircle2 className="w-4 h-4" />
-            <span className="text-sm font-medium">¡Felicitaciones! Ya eres parte de nuestra categoría máxima</span>
+            <span className="text-xs font-medium">¡Felicitaciones! Ya eres parte de nuestra categoría máxima</span>
           </div>
         </div>
       )}
 
-      {/* Flying Product Animation */}
-      {flyingProduct && cartButtonRef.current && (
-        <div
-          className="fixed z-[100] pointer-events-none"
-          style={{
-            left: flyingProduct.startX,
-            top: flyingProduct.startY,
-            animation: 'flyToCart 0.5s ease-in forwards',
-            '--cart-x': `${cartButtonRef.current.getBoundingClientRect().left + cartButtonRef.current.getBoundingClientRect().width / 2 - flyingProduct.startX}px`,
-            '--cart-y': `${cartButtonRef.current.getBoundingClientRect().top + cartButtonRef.current.getBoundingClientRect().height / 2 - flyingProduct.startY}px`,
-          } as React.CSSProperties}
-        >
-          <div className="w-12 h-12 rounded-lg bg-white shadow-xl border-2 border-amber-400 overflow-hidden transform -translate-x-1/2 -translate-y-1/2">
-            {flyingProduct.imagenUrl ? (
-              <img src={flyingProduct.imagenUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-slate-100">
-                <Package className="h-6 w-6 text-amber-500" />
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      <style>{`
-        @keyframes flyToCart {
-          0% { transform: translate(0, 0) scale(1); opacity: 1; }
-          50% { transform: translate(calc(var(--cart-x) * 0.5), calc(var(--cart-y) * 0.5 - 30px)) scale(0.8); opacity: 0.9; }
-          100% { transform: translate(var(--cart-x), var(--cart-y)) scale(0.3); opacity: 0; }
-        }
-        @keyframes shine {
-          0% { transform: translateX(-100%); }
-          50%, 100% { transform: translateX(100%); }
-        }
-        .animate-shine {
-          animation: shine 2.5s ease-in-out infinite;
-        }
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
-      `}</style>
-
-      {/* Search and Filters */}
-      <div className="sticky top-0 z-40 bg-white border-b shadow-sm">
-        <div className="container mx-auto px-2 sm:px-4 py-2 sm:py-3">
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 h-8 text-sm"
-                data-testid="input-search"
-              />
-            </div>
-            
-            <Select value={filterCategory} onValueChange={setFilterCategory}>
-              <SelectTrigger className="w-[100px] sm:w-[140px] h-8 text-xs sm:text-sm" data-testid="select-category-filter">
-                <SelectValue placeholder="Categoría" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
-                {uniqueCategories.map(cat => (
-                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            
-            <Select value={filterFormat} onValueChange={setFilterFormat}>
-              <SelectTrigger className="w-[90px] sm:w-[120px] h-8 text-xs sm:text-sm" data-testid="select-format-filter">
-                <SelectValue placeholder="Tamaño" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                {uniqueFormats.map(fmt => (
-                  <SelectItem key={fmt} value={fmt}>{fmt}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            
-            {(filterCategory || filterFormat) && (
-              <Button 
-                variant="ghost" 
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                onClick={() => { setFilterCategory(''); setFilterFormat(''); }}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-          
-          <p className="text-xs text-muted-foreground mt-1">
-            {filteredFamilies.length} producto{filteredFamilies.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-      </div>
-
-      {/* Products Grid - Grouped View */}
-      <div className="container mx-auto px-2 sm:px-4 py-3 sm:py-6">
-        {filteredFamilies.length === 0 ? (
-          <div className="text-center py-12">
-            <Package className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground">No se encontraron productos</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-4">
-            {filteredFamilies.map(family => {
-              const selectedColor = selectedColors[family.family];
-              const selectedFormat = selectedFormats[family.family];
-              const availableFormats = getAvailableFormats(family);
-              const selectedProduct = getSelectedProduct(family);
-              const cartItem = selectedProduct ? cart.find(item => item.id === selectedProduct.id) : null;
-              const displayImage = selectedProduct?.imagenUrl || family.imagenUrl;
-              
-              return (
-                <Card 
-                  key={family.family} 
-                  className="overflow-hidden hover:shadow-lg transition-shadow"
-                  data-testid={`product-family-${family.family}`}
-                >
-                  {/* Product Image */}
-                  <div className="aspect-square relative bg-slate-100">
-                    {displayImage ? (
-                      <img
-                        src={displayImage}
-                        alt={family.family}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Package className="h-12 w-12 sm:h-16 sm:w-16 text-muted-foreground/30" />
-                      </div>
-                    )}
-                    
-                    {family.categoria && (
-                      <Badge variant="secondary" className="absolute top-1 left-1 sm:top-2 sm:left-2 text-[10px] sm:text-xs px-1.5 py-0.5">
-                        {family.categoria}
-                      </Badge>
-                    )}
-                    
-                    {family.colors.length > 1 && (
-                      <Badge variant="outline" className="absolute top-1 right-1 sm:top-2 sm:right-2 text-[10px] sm:text-xs bg-white/90 px-1.5 py-0.5">
-                        {family.colors.length} colores
-                      </Badge>
-                    )}
-                  </div>
-                  
-                  <CardContent className="p-2 sm:p-4 space-y-2 sm:space-y-3">
-                    {/* Family Name */}
-                    <h3 className="font-semibold text-xs sm:text-base line-clamp-2 leading-tight" title={family.family}>
-                      {family.family}
-                    </h3>
-                    
-                    {/* Color Selector */}
-                    <div className="space-y-0.5 sm:space-y-1">
-                      <label className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1">
-                        <Palette className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                        Color
-                      </label>
-                      <Select
-                        value={selectedColor || ''}
-                        onValueChange={(value) => handleColorChange(family.family, value)}
-                      >
-                        <SelectTrigger className="h-7 sm:h-9 text-xs sm:text-sm" data-testid={`select-color-${family.family}`}>
-                          <SelectValue placeholder="Seleccionar" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {family.colors.map(colorOption => (
-                            <SelectItem key={colorOption.color} value={colorOption.color}>
-                              {colorOption.color}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    {/* Format Selector */}
-                    <div className="space-y-0.5 sm:space-y-1">
-                      <label className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1">
-                        <Layers className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                        Formato
-                      </label>
-                      <Select
-                        value={selectedFormat || ''}
-                        onValueChange={(value) => handleFormatChange(family.family, value)}
-                        disabled={!selectedColor}
-                      >
-                        <SelectTrigger className="h-7 sm:h-9 text-xs sm:text-sm" data-testid={`select-format-${family.family}`}>
-                          <SelectValue placeholder={selectedColor ? "Seleccionar" : "Primero color"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableFormats.map(format => (
-                            <SelectItem key={format.unidad} value={format.unidad}>
-                              {format.unidad} - ${format.precio.toLocaleString('es-CL')}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    {/* Price Display */}
-                    {selectedProduct && (
-                      <div className="flex items-center justify-between pt-1.5 sm:pt-2 border-t">
-                        <div>
-                          <span className="text-sm sm:text-lg font-bold text-primary">
-                            ${selectedProduct.precio.toLocaleString('es-CL')}
-                          </span>
-                          <span className="text-[10px] sm:text-xs text-muted-foreground ml-0.5 sm:ml-1">
-                            /{selectedProduct.unidad}
-                          </span>
-                        </div>
-                        <span className="text-[9px] sm:text-xs text-muted-foreground hidden sm:inline">
-                          SKU: {selectedProduct.codigo}
-                        </span>
-                      </div>
-                    )}
-                    
-                    {/* Add to cart / Quantity controls */}
-                    {selectedProduct && (
-                      cartItem ? (
-                        <div className="flex items-center justify-between">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7 sm:h-9 sm:w-9"
-                            onClick={() => updateQuantity(selectedProduct.id, 0, 'down')}
-                            data-testid={`button-decrease-${selectedProduct.id}`}
-                          >
-                            <Minus className="h-3 w-3 sm:h-4 sm:w-4" />
-                          </Button>
-                          <div className="text-center">
-                            <span className="font-semibold text-sm sm:text-lg">{cartItem.quantity}</span>
-                            {cartItem.stepSize > 1 && (
-                              <span className="block text-[9px] sm:text-xs text-muted-foreground">
-                                (salto: {cartItem.stepSize})
-                              </span>
-                            )}
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7 sm:h-9 sm:w-9"
-                            onClick={() => updateQuantity(selectedProduct.id, 0, 'up')}
-                            data-testid={`button-increase-${selectedProduct.id}`}
-                          >
-                            <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <Button
-                          className="w-full h-8 sm:h-10 text-xs sm:text-sm"
-                          onClick={(e) => addToCart(family, selectedProduct, e)}
-                          data-testid={`button-add-${family.family}`}
-                        >
-                          <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                          <span className="hidden sm:inline">Agregar al carrito</span>
-                          <span className="sm:hidden">Agregar</span>
-                        </Button>
-                      )
-                    )}
-                    
-                    {!selectedProduct && (
-                      <Button className="w-full h-8 sm:h-10 text-xs sm:text-sm" disabled>
-                        <span className="hidden sm:inline">Selecciona color y formato</span>
-                        <span className="sm:hidden">Seleccionar</span>
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Quote Dialog */}
-      <Dialog open={isQuoteDialogOpen} onOpenChange={setIsQuoteDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5" />
-              Solicitar Cotización
-            </DialogTitle>
-            <DialogDescription>
-              Completa tus datos y te contactaremos con la cotización
-            </DialogDescription>
-          </DialogHeader>
-          
-          {/* Cart Summary */}
-          <div className="space-y-3 max-h-48 overflow-y-auto">
-            {cart.map(item => (
-              <div key={item.id} className="flex items-center gap-3 p-2 bg-muted rounded-lg">
-                <div className="w-12 h-12 rounded overflow-hidden bg-slate-100 flex-shrink-0">
-                  {item.imagenUrl ? (
-                    <img src={item.imagenUrl} alt={item.producto} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Package className="h-6 w-6 text-muted-foreground" />
-                    </div>
-                  )}
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">{item.producto}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {item.unidad} x {item.quantity}
-                  </p>
-                </div>
-                
-                <div className="text-right flex-shrink-0">
-                  <p className="font-semibold">
-                    ${(item.precio * item.quantity).toLocaleString('es-CL')}
-                  </p>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => removeFromCart(item.id)}
-                    data-testid={`button-remove-${item.id}`}
-                  >
-                    <Trash2 className="h-3 w-3 text-destructive" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          <div className="flex justify-between items-center py-2 border-t border-b">
-            <span className="font-medium">Total:</span>
-            <span className="text-xl font-bold text-primary">
-              ${cartTotal.toLocaleString('es-CL')}
-            </span>
-          </div>
-          
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmitQuote)} className="space-y-4">
-              {clientBusinessName ? (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-2">
-                  <div className="flex items-center gap-2 text-green-700 font-medium">
-                    <Check className="h-4 w-4" />
-                    Cliente identificado
-                  </div>
-                  <div className="text-sm text-gray-700 space-y-1">
-                    <p><span className="font-medium">Nombre:</span> {clientBusinessName}</p>
-                    {clientEmail && <p><span className="font-medium">Correo:</span> {clientEmail}</p>}
-                    {clientPhone && <p><span className="font-medium">Teléfono:</span> {clientPhone}</p>}
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <FormField
-                    control={form.control}
-                    name="visitorName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nombre completo *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Tu nombre" {...field} data-testid="input-name" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={form.control}
-                    name="visitorEmail"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Correo electrónico *</FormLabel>
-                        <FormControl>
-                          <Input type="email" placeholder="tu@email.com" {...field} data-testid="input-email" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="visitorPhone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Teléfono</FormLabel>
-                          <FormControl>
-                            <Input placeholder="+56 9 1234 5678" {...field} data-testid="input-phone" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="visitorCompany"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Empresa</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Nombre de empresa" {...field} data-testid="input-company" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </>
-              )}
-              
-              <FormField
-                control={form.control}
-                name="message"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Mensaje adicional</FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        placeholder="¿Algún comentario o pregunta?"
-                        className="resize-none"
-                        rows={3}
-                        {...field}
-                        data-testid="input-message"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsQuoteDialogOpen(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={submitQuoteMutation.isPending}
-                  data-testid="button-submit-quote"
-                >
-                  {submitQuoteMutation.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Enviando...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-4 w-4 mr-2" />
-                      Enviar Solicitud
-                    </>
-                  )}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Success Dialog */}
-      <Dialog open={isSuccessDialogOpen} onOpenChange={setIsSuccessDialogOpen}>
-        <DialogContent className="max-w-sm">
-          <div className="text-center py-6">
-            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-              <CheckCircle2 className="h-8 w-8 text-green-600" />
-            </div>
-            <DialogTitle className="mb-2">¡Solicitud Enviada!</DialogTitle>
-            <DialogDescription>
-              Hemos recibido tu solicitud de cotización. {salesperson.salespersonName} se pondrá en contacto contigo pronto.
-            </DialogDescription>
-          </div>
-          <DialogFooter>
-            <Button
-              className="w-full"
-              onClick={() => setIsSuccessDialogOpen(false)}
-              data-testid="button-close-success"
-            >
-              Continuar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Full-Height AI Chat — Main Content */}
+      <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        <AiChatView
+          messages={aiChat.messages}
+          isLoading={aiChat.isLoading}
+          error={aiChat.error}
+          onSendMessage={aiChat.sendMessage}
+          onClearHistory={aiChat.clearHistory}
+          onNewConversation={aiChat.newConversation}
+          suggestions={publicSuggestions}
+          welcomeTitle={`¡Hola! Soy el asistente de ${salesperson.salespersonName}`}
+          welcomeSubtitle="Cuéntame qué productos necesitas y te ayudo a armar tu pedido."
+        />
+      </main>
     </div>
   );
 }

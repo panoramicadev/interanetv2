@@ -101,7 +101,7 @@ export default function EcommerceAdmin() {
   const [editingProduct, setEditingProduct] = useState<ProductoEcommerce | null>(null);
   const [showProductDialog, setShowProductDialog] = useState(false);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
-  
+
   // Estados para edición de producto
   const [productCategoria, setProductCategoria] = useState("");
   const [productDescripcion, setProductDescripcion] = useState("");
@@ -111,11 +111,11 @@ export default function EcommerceAdmin() {
   const [uploadingProductImage, setUploadingProductImage] = useState(false);
   const [productFamily, setProductFamily] = useState("");
   const [productColor, setProductColor] = useState("");
-  
+
   // Estados para nueva categoría
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryDescription, setNewCategoryDescription] = useState("");
-  
+
   // Estados para importador ZIP con sistema de jobs
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ processed: 0, total: 0, results: [] as any[] });
@@ -125,23 +125,23 @@ export default function EcommerceAdmin() {
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [progressData, setProgressData] = useState<any>(null);
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
-  
+
   // Estados para catálogos públicos
   const [catalogSearchTerm, setCatalogSearchTerm] = useState('');
   const [selectedCatalogUser, setSelectedCatalogUser] = useState<SalespersonUser | null>(null);
   const [isCatalogDialogOpen, setIsCatalogDialogOpen] = useState(false);
-  
+
   // Estado para grupos expandidos en la vista de productos
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  
+
   // Estado para importación de productos CSV
   const [csvImporting, setCsvImporting] = useState(false);
   const [csvImportProgress, setCsvImportProgress] = useState<{ status: string; count: number }>({ status: '', count: 0 });
-  
+
   const { toast } = useToast();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  
+
   const catalogForm = useForm<CatalogFormData>({
     resolver: zodResolver(catalogFormSchema),
     defaultValues: {
@@ -161,7 +161,7 @@ export default function EcommerceAdmin() {
       const params = new URLSearchParams();
       if (selectedCategory !== 'all') params.append('categoria', selectedCategory);
       if (selectedStatus !== 'all') params.append('activo', selectedStatus);
-      
+
       const response = await apiRequest(`/api/ecommerce/admin/productos?${params.toString()}`);
       return response.json();
     }
@@ -328,8 +328,8 @@ export default function EcommerceAdmin() {
     return (
       (sp.role === 'salesperson' || sp.role === 'supervisor') &&
       (sp.salespersonName.toLowerCase().includes(search) ||
-       sp.email?.toLowerCase().includes(search) ||
-       sp.publicSlug?.toLowerCase().includes(search))
+        sp.email?.toLowerCase().includes(search) ||
+        sp.publicSlug?.toLowerCase().includes(search))
     );
   });
 
@@ -341,18 +341,18 @@ export default function EcommerceAdmin() {
         updates: data.updates,
         url: `/api/ecommerce/admin/productos/${data.id}`
       });
-      
+
       try {
         const response = await apiRequest(`/api/ecommerce/admin/productos/${data.id}`, {
           method: 'PATCH',
           data: data.updates
         });
-        
+
         console.log('✅ [FRONTEND] Respuesta del servidor recibida:', {
           status: response.status,
           ok: response.ok
         });
-        
+
         const result = await response.json();
         console.log('✅ [FRONTEND] Producto actualizado exitosamente:', result);
         return result;
@@ -378,13 +378,13 @@ export default function EcommerceAdmin() {
     },
     onError: (error: any) => {
       console.error('❌ [FRONTEND] Error en mutación:', error);
-      
+
       // Extract more detailed error information
       let errorMessage = "No se pudo actualizar el producto.";
       if (error?.message) {
         errorMessage += ` (${error.message})`;
       }
-      
+
       toast({
         title: "Error",
         description: errorMessage,
@@ -438,20 +438,20 @@ export default function EcommerceAdmin() {
       setUploadStatus('uploading');
       setCurrentFile('Subiendo archivo ZIP...');
       setUploadError('');
-      
+
       const formData = new FormData();
       formData.append('zipFile', file);
-      
+
       const response = await fetch('/api/ecommerce/admin/upload-images', {
         method: 'POST',
         body: formData
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || 'Error al iniciar importación');
       }
-      
+
       return response.json();
     },
     onSuccess: (data) => {
@@ -460,16 +460,16 @@ export default function EcommerceAdmin() {
       setCurrentJobId(jobId);
       setUploadStatus('scanning');
       setCurrentFile('Escaneando archivo ZIP...');
-      
+
       console.log(`🔄 [ZIP IMPORT] Job iniciado: ${jobId}, comenzando polling...`);
-      
+
       // Iniciar polling cada 1 segundo
       const interval = setInterval(() => {
         pollJobStatus(jobId);
       }, 1000);
-      
+
       setPollingInterval(interval);
-      
+
       toast({
         title: "Importación iniciada",
         description: "El archivo ZIP se está procesando en segundo plano.",
@@ -480,7 +480,7 @@ export default function EcommerceAdmin() {
       setUploadStatus('error');
       setCurrentFile('');
       setUploadError(error.message || "No se pudo iniciar la importación");
-      
+
       toast({
         title: "Error en la importación",
         description: error.message || "No se pudo iniciar la importación.",
@@ -495,12 +495,12 @@ export default function EcommerceAdmin() {
     try {
       const response = await apiRequest(`/api/ecommerce/admin/upload-images/${jobId}/status`);
       const jobData = await response.json();
-      
+
       console.log(`📊 [ZIP IMPORT] Job ${jobId} status:`, jobData.status, `(${jobData.processedFiles}/${jobData.totalFiles})`);
-      
+
       // Actualizar estado basado en el progreso del job
       setProgressData(jobData.progressData);
-      
+
       if (jobData.totalFiles > 0) {
         setUploadProgress({
           processed: jobData.processedFiles,
@@ -508,7 +508,7 @@ export default function EcommerceAdmin() {
           results: jobData.resultData?.results || []
         });
       }
-      
+
       // Actualizar información de archivo actual
       if (jobData.progressData?.currentFile) {
         setCurrentFile(jobData.progressData.currentFile);
@@ -521,7 +521,7 @@ export default function EcommerceAdmin() {
       } else if (jobData.progressData?.phase === 'completed') {
         setCurrentFile('');
       }
-      
+
       // Actualizar estado principal
       if (jobData.status === 'processing') {
         if (jobData.progressData?.phase === 'scanning') {
@@ -533,54 +533,54 @@ export default function EcommerceAdmin() {
         // Job completado
         setUploadStatus('completed');
         setCurrentFile('');
-        
+
         // Limpiar polling
         if (pollingInterval) {
           clearInterval(pollingInterval);
           setPollingInterval(null);
         }
-        
+
         // Invalidar queries para refrescar productos
         queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/productos'] });
-        
+
         // Mostrar resultado final
         const successCount = jobData.successfulFiles || 0;
         const errorCount = jobData.failedFiles || 0;
-        
+
         toast({
           title: "Importación completada",
           description: `✅ ${successCount} imágenes procesadas exitosamente${errorCount > 0 ? `, ❌ ${errorCount} errores` : ''}`,
           variant: errorCount > 0 ? "destructive" : "default"
         });
-        
+
         setIsUploading(false);
         setCurrentJobId(null);
-        
+
       } else if (jobData.status === 'error') {
         // Error en el job
         setUploadStatus('error');
         setCurrentFile('');
         setUploadError(jobData.errorMessage || 'Error procesando ZIP');
-        
+
         // Limpiar polling
         if (pollingInterval) {
           clearInterval(pollingInterval);
           setPollingInterval(null);
         }
-        
+
         toast({
           title: "Error en la importación",
           description: jobData.errorMessage || "Error procesando el archivo ZIP.",
           variant: "destructive",
         });
-        
+
         setIsUploading(false);
         setCurrentJobId(null);
       }
-      
+
     } catch (error) {
       console.error('❌ [ZIP IMPORT] Error consultando status del job:', error);
-      
+
       // En caso de error de polling, continuar intentando por un tiempo
       // pero si falla varias veces, detener el polling
     }
@@ -599,21 +599,21 @@ export default function EcommerceAdmin() {
   const filteredProducts = productos.filter(product => {
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
-      if (!product.codigo.toLowerCase().includes(searchLower) && 
-          !product.producto.toLowerCase().includes(searchLower)) {
+      if (!product.codigo.toLowerCase().includes(searchLower) &&
+        !product.producto.toLowerCase().includes(searchLower)) {
         return false;
       }
     }
-    
+
     if (selectedCategory !== 'all' && product.categoria !== selectedCategory) {
       return false;
     }
-    
+
     if (selectedStatus !== 'all') {
       const isActive = selectedStatus === 'true';
       if (product.activo !== isActive) return false;
     }
-    
+
     return true;
   });
 
@@ -624,7 +624,7 @@ export default function EcommerceAdmin() {
 
     for (const product of filteredProducts) {
       const parentSku = product.variantParentSku;
-      
+
       if (parentSku) {
         if (!groups.has(parentSku)) {
           groups.set(parentSku, {
@@ -636,7 +636,7 @@ export default function EcommerceAdmin() {
         }
         const group = groups.get(parentSku)!;
         group.products.push(product);
-        
+
         // El producto con variantIndex 0 es el principal
         if ((product.variantIndex ?? 0) === 0) {
           group.mainProduct = product;
@@ -683,7 +683,7 @@ export default function EcommerceAdmin() {
 
   const handleSaveProduct = () => {
     if (!editingProduct) return;
-    
+
     const updates: any = {
       categoria: productCategoria,
       descripcion: productDescripcion,
@@ -693,7 +693,7 @@ export default function EcommerceAdmin() {
       productFamily: productFamily.trim() || null,
       color: productColor.trim() || null,
     };
-    
+
     updateProductMutation.mutate({
       id: editingProduct.id,
       updates
@@ -702,7 +702,7 @@ export default function EcommerceAdmin() {
 
   const handleCreateCategory = () => {
     if (!newCategoryName.trim()) return;
-    
+
     createCategoryMutation.mutate({
       nombre: newCategoryName.trim(),
       descripcion: newCategoryDescription.trim() || undefined
@@ -718,22 +718,22 @@ export default function EcommerceAdmin() {
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append('image', file);
-      
+
       const response = await fetch('/api/ecommerce/admin/upload-single-image', {
         method: 'POST',
         body: formData
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || 'Error al subir imagen');
       }
-      
+
       return response.json();
     },
     onSuccess: (data, file) => {
       queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/productos'] });
-      
+
       // Actualizar uploadProgress para mostrar el resultado
       setUploadProgress({
         processed: 1,
@@ -745,7 +745,7 @@ export default function EcommerceAdmin() {
           message: data.message
         }]
       });
-      
+
       toast({
         title: "Imagen importada",
         description: data.matched ? `Imagen asociada a: ${data.productName}` : "Imagen subida pero sin producto asociado",
@@ -763,7 +763,7 @@ export default function EcommerceAdmin() {
           message: error.message
         }]
       });
-      
+
       toast({
         title: "Error al subir imagen",
         description: error.message,
@@ -779,17 +779,17 @@ export default function EcommerceAdmin() {
       formData.append('image', file);
       formData.append('productId', productId);
       formData.append('productCode', productCode);
-      
+
       const response = await fetch('/api/ecommerce/admin/upload-product-image', {
         method: 'POST',
         body: formData
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || 'Error al subir imagen');
       }
-      
+
       return response.json();
     },
     onSuccess: (data) => {
@@ -814,22 +814,22 @@ export default function EcommerceAdmin() {
   // Funciones para importador ZIP e imágenes sueltas
   const handleMultipleFiles = async (files: FileList | File[]) => {
     const filesArray = Array.from(files);
-    
+
     if (filesArray.length === 0) return;
-    
+
     // Si solo hay un archivo, usar lógica simple
     if (filesArray.length === 1) {
       handleFileUpload(filesArray[0]);
       return;
     }
-    
+
     // Filtrar solo imágenes válidas
     const imageFiles = filesArray.filter(file => {
       const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
       const isValidSize = file.size <= 10 * 1024 * 1024; // 10MB
       return isImage && isValidSize;
     });
-    
+
     if (imageFiles.length === 0) {
       toast({
         title: "No hay archivos válidos",
@@ -838,7 +838,7 @@ export default function EcommerceAdmin() {
       });
       return;
     }
-    
+
     // Notificar archivos descartados
     const invalidCount = filesArray.length - imageFiles.length;
     if (invalidCount > 0) {
@@ -847,29 +847,29 @@ export default function EcommerceAdmin() {
         description: `${invalidCount} archivo(s) no válido(s) o muy grande(s).`,
       });
     }
-    
+
     // Resetear progreso
     const allResults: any[] = [];
     setUploadProgress({ processed: 0, total: imageFiles.length, results: [] });
-    
+
     console.log(`📸 [MULTI-IMAGE] Subiendo ${imageFiles.length} imágenes...`);
-    
+
     // Subir cada imagen secuencialmente
     for (let i = 0; i < imageFiles.length; i++) {
       const file = imageFiles[i];
       console.log(`📸 [MULTI-IMAGE] Procesando ${i + 1}/${imageFiles.length}: ${file.name}`);
-      
+
       try {
         const formData = new FormData();
         formData.append('image', file);
-        
+
         const response = await fetch('/api/ecommerce/admin/upload-single-image', {
           method: 'POST',
           body: formData
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
           allResults.push({
             fileName: file.name,
@@ -894,31 +894,31 @@ export default function EcommerceAdmin() {
           message: error.message
         });
       }
-      
+
       // Actualizar progreso
-      setUploadProgress({ 
-        processed: i + 1, 
-        total: imageFiles.length, 
-        results: allResults 
+      setUploadProgress({
+        processed: i + 1,
+        total: imageFiles.length,
+        results: allResults
       });
     }
-    
+
     // Invalidar cache de productos
     queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/productos'] });
-    
+
     const successCount = allResults.filter(r => r.success).length;
     const errorCount = allResults.filter(r => !r.success).length;
-    
+
     toast({
       title: "Importación completada",
       description: `✅ ${successCount} exitosa(s), ${errorCount > 0 ? `❌ ${errorCount} con errores` : ''}`,
     });
   };
-  
+
   const handleFileUpload = (file: File) => {
     const isZip = file.name.toLowerCase().endsWith('.zip');
     const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
-    
+
     if (!isZip && !isImage) {
       toast({
         title: "Archivo inválido",
@@ -927,7 +927,7 @@ export default function EcommerceAdmin() {
       });
       return;
     }
-    
+
     // Validar tamaño según tipo de archivo
     if (isImage && file.size > 10 * 1024 * 1024) { // 10MB limit para imágenes
       toast({
@@ -937,7 +937,7 @@ export default function EcommerceAdmin() {
       });
       return;
     }
-    
+
     if (isZip && file.size > 100 * 1024 * 1024) { // 100MB limit para ZIP
       toast({
         title: "Archivo muy grande",
@@ -946,21 +946,21 @@ export default function EcommerceAdmin() {
       });
       return;
     }
-    
+
     if (isImage) {
       // Subir imagen individual
       console.log('📸 [IMAGE IMPORT] Subiendo imagen individual:', file.name);
       uploadSingleImageMutation.mutate(file);
       return;
     }
-    
+
     // Resetear estados para ZIP
     setIsUploading(true);
     setUploadStatus('uploading');
     setUploadProgress({ processed: 0, total: 0, results: [] });
     setCurrentFile('');
     setUploadError('');
-    
+
     console.log('🚀 [ZIP IMPORT] Iniciando importación de:', file.name);
     uploadZipMutation.mutate(file);
   };
@@ -994,7 +994,7 @@ export default function EcommerceAdmin() {
     try {
       const text = await file.text();
       const Papa = await import('papaparse');
-      
+
       Papa.default.parse(text, {
         header: true,
         skipEmptyLines: true,
@@ -1042,892 +1042,108 @@ export default function EcommerceAdmin() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <ShoppingCart className="h-8 w-8 text-primary" />
-            Panel eCommerce
-          </h1>
-          <p className="text-muted-foreground">
-            Gestiona los productos que aparecen en tu tienda online
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            className="flex items-center gap-2"
-            onClick={() => window.open('/tienda', '_blank')}
-            data-testid="button-view-store"
-          >
-            <ExternalLink className="h-4 w-4" />
-            Ver la Tienda
-          </Button>
-          
-          <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
-            <DialogTrigger asChild>
-              <Button className="flex items-center gap-2" data-testid="button-new-category">
-                <Plus className="h-4 w-4" />
-                Nueva Categoría
-              </Button>
-            </DialogTrigger>
-          </Dialog>
+    <div className="space-y-8 px-2 md:px-4 pb-8">
+      {/* Modern Header with Gradient */}
+      <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 md:p-8 text-white">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-40" />
+        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center">
+              <ShoppingCart className="h-6 w-6 text-emerald-400" />
+            </div>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Configuración eCommerce</h1>
+              <p className="text-slate-300 text-sm md:text-base">Configura catálogos y categorías de tu tienda online</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              className="bg-white/10 border-white/20 text-white hover:bg-white/20 gap-2"
+              onClick={() => window.open('/tienda', '_blank')}
+              data-testid="button-view-store"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Ver la Tienda
+            </Button>
+
+            <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
+              <DialogTrigger asChild>
+                <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2" data-testid="button-new-category">
+                  <Plus className="h-4 w-4" />
+                  Nueva Categoría
+                </Button>
+              </DialogTrigger>
+            </Dialog>
+          </div>
         </div>
       </div>
 
-      {/* Tabs para organizar Productos y Catálogos */}
-      <Tabs defaultValue="productos" className="w-full">
-        <TabsList className={`grid w-full max-w-lg ${isAdmin ? 'grid-cols-2' : 'grid-cols-1'}`}>
-          <TabsTrigger value="productos" data-testid="tab-productos">
-            <Package className="h-4 w-4 mr-2" />
-            Productos
-          </TabsTrigger>
-          {isAdmin && (
-            <TabsTrigger value="catalogos" data-testid="tab-catalogos">
-              <Users className="h-4 w-4 mr-2" />
-              Catálogos
-            </TabsTrigger>
-          )}
-        </TabsList>
-
-        <TabsContent value="productos" className="space-y-6 mt-6">
-      {/* Estadísticas */}
+      {/* Modern Stat Cards */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Productos</CardTitle>
-              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalProductos}</div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 px-1">
+          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-all hover:scale-[1.02] bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/50 dark:to-blue-900/30">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-blue-600/70 dark:text-blue-400/70 uppercase tracking-wider">Total Productos</p>
+                  <p className="text-2xl font-bold mt-1 text-blue-900 dark:text-blue-100">{stats.totalProductos}</p>
+                </div>
+                <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                  <ShoppingCart className="h-5 w-5 text-blue-500" />
+                </div>
+              </div>
             </CardContent>
           </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Productos Activos</CardTitle>
-              <Eye className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.productosActivos}</div>
+
+          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-all hover:scale-[1.02] bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/50 dark:to-emerald-900/30">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-emerald-600/70 dark:text-emerald-400/70 uppercase tracking-wider">Productos Activos</p>
+                  <p className="text-2xl font-bold mt-1 text-emerald-900 dark:text-emerald-100">{stats.productosActivos}</p>
+                </div>
+                <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                  <Eye className="h-5 w-5 text-emerald-500" />
+                </div>
+              </div>
             </CardContent>
           </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Categorías</CardTitle>
-              <Tag className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalCategorias}</div>
+
+          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-all hover:scale-[1.02] bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/50 dark:to-amber-900/30">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-amber-600/70 dark:text-amber-400/70 uppercase tracking-wider">Categorías</p>
+                  <p className="text-2xl font-bold mt-1 text-amber-900 dark:text-amber-100">{stats.totalCategorias}</p>
+                </div>
+                <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                  <Tag className="h-5 w-5 text-amber-500" />
+                </div>
+              </div>
             </CardContent>
           </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pedidos Solicitados</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.ventasMes}</div>
+
+          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-all hover:scale-[1.02] bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/50 dark:to-purple-900/30">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-purple-600/70 dark:text-purple-400/70 uppercase tracking-wider">Pedidos</p>
+                  <p className="text-2xl font-bold mt-1 text-purple-900 dark:text-purple-100">{stats.ventasMes}</p>
+                </div>
+                <div className="h-10 w-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                  <Package className="h-5 w-5 text-purple-500" />
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
       )}
 
-      {/* Importador de Productos CSV */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5 text-primary" />
-            Importar Productos desde CSV
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Sube un archivo CSV con los productos del catálogo. Se crearán o actualizarán los productos automáticamente.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {csvImporting ? (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-center gap-2 text-blue-800">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <span className="font-medium">{csvImportProgress.status}</span>
-                  {csvImportProgress.count > 0 && (
-                    <span className="text-sm">({csvImportProgress.count} productos)</span>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex-1">
-                  <Input
-                    type="file"
-                    accept=".csv"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleCsvImport(file);
-                    }}
-                    data-testid="input-csv-import"
-                    className="cursor-pointer"
-                  />
-                </div>
-                {productos.length > 0 && (
-                  <Button
-                    variant="destructive"
-                    onClick={() => {
-                      if (confirm('¿Estás seguro de eliminar TODOS los productos? Esta acción no se puede deshacer.')) {
-                        clearProductsMutation.mutate();
-                      }
-                    }}
-                    disabled={clearProductsMutation.isPending}
-                    data-testid="button-clear-products"
-                  >
-                    {clearProductsMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : null}
-                    Limpiar Productos
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Importador de Imágenes */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileArchive className="h-5 w-5 text-primary" />
-            Importador de Imágenes
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Sube imágenes de productos. Los archivos deben llamarse igual que el código del producto (ej: PCA106BLANC02.png)
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Estado del progreso y zona de drag & drop */}
-            {uploadStatus === 'error' && uploadError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-3">
-                <div className="flex items-center gap-2 text-red-800">
-                  <XCircle className="h-5 w-5" />
-                  <h4 className="font-medium">Error en la importación</h4>
-                </div>
-                <p className="text-sm text-red-700">{uploadError}</p>
-                <div className="text-xs text-red-600 bg-red-100 p-2 rounded font-mono">
-                  Problema detectado: Fallo en autenticación de almacenamiento en la nube (Error 401 - Unauthorized)
-                </div>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={() => {
-                    setUploadStatus('idle');
-                    setUploadError('');
-                  }}
-                  className="text-red-700 border-red-300 hover:bg-red-50"
-                >
-                  Intentar de nuevo
-                </Button>
-              </div>
-            )}
-            
-            {/* Progress Bar para proceso activo */}
-            {isUploading && uploadStatus !== 'error' && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4">
-                <div className="flex items-center gap-2 text-blue-800">
-                  {uploadStatus === 'uploading' && <CloudUpload className="h-5 w-5 animate-pulse" />}
-                  {uploadStatus === 'scanning' && <Package className="h-5 w-5 animate-bounce" />}
-                  {uploadStatus === 'processing' && <Image className="h-5 w-5 animate-spin" />}
-                  {uploadStatus === 'completed' && <CheckCircle className="h-5 w-5 text-green-600" />}
-                  <h4 className="font-medium">
-                    {uploadStatus === 'uploading' && 'Subiendo imágenes...'}
-                    {uploadStatus === 'scanning' && 'Analizando imágenes...'}
-                    {uploadStatus === 'processing' && 'Procesando y subiendo imágenes...'}
-                    {uploadStatus === 'completed' && 'Importación completada'}
-                  </h4>
-                </div>
-                
-                {currentFile && (
-                  <p className="text-sm text-blue-700">{currentFile}</p>
-                )}
-                
-                {/* Progress bar visual */}
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs text-blue-600">
-                    <span>Progreso</span>
-                    <span>
-                      {uploadProgress.total > 0 
-                        ? `${uploadProgress.processed}/${uploadProgress.total}` 
-                        : 'Preparando...'
-                      }
-                    </span>
-                  </div>
-                  <div className="w-full bg-blue-200 rounded-full h-2">
-                    <div 
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                      style={{
-                        width: uploadProgress.total > 0 
-                          ? `${(uploadProgress.processed / uploadProgress.total) * 100}%`
-                          : uploadStatus === 'uploading' ? '30%' 
-                          : uploadStatus === 'scanning' ? '50%'
-                          : uploadStatus === 'processing' ? '80%' : '100%'
-                      }}
-                    />
-                  </div>
-                </div>
-                
-                {/* Pasos del proceso */}
-                <div className="grid grid-cols-4 gap-2 text-xs">
-                  <div className={`flex items-center gap-1 ${uploadStatus === 'uploading' ? 'text-blue-600 font-medium' : uploadStatus === 'scanning' || uploadStatus === 'processing' || uploadStatus === 'completed' ? 'text-green-600' : 'text-gray-400'}`}>
-                    <CloudUpload className="h-3 w-3" />
-                    <span>Subir</span>
-                  </div>
-                  <div className={`flex items-center gap-1 ${uploadStatus === 'scanning' ? 'text-blue-600 font-medium' : uploadStatus === 'processing' || uploadStatus === 'completed' ? 'text-green-600' : 'text-gray-400'}`}>
-                    <Package className="h-3 w-3" />
-                    <span>Extraer</span>
-                  </div>
-                  <div className={`flex items-center gap-1 ${uploadStatus === 'processing' ? 'text-blue-600 font-medium' : uploadStatus === 'completed' ? 'text-green-600' : 'text-gray-400'}`}>
-                    <Image className="h-3 w-3" />
-                    <span>Procesar</span>
-                  </div>
-                  <div className={`flex items-center gap-1 ${uploadStatus === 'completed' ? 'text-green-600 font-medium' : 'text-gray-400'}`}>
-                    <CheckCircle className="h-3 w-3" />
-                    <span>Completar</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Zona de Drag & Drop */}
-            {!isUploading && uploadStatus !== 'error' && (
-              <div
-                className="border-2 border-dashed rounded-lg p-8 text-center transition-colors border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/20"
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                data-testid="dropzone-images"
-              >
-                <div className="space-y-3">
-                  <Upload className="h-12 w-12 text-muted-foreground mx-auto" />
-                  <div>
-                    <p className="text-lg font-medium">Arrastra imágenes aquí</p>
-                    <p className="text-sm text-muted-foreground">
-                      Imágenes JPG/PNG/GIF/WEBP (max 10MB)
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Las imágenes se asocian automáticamente por nombre de archivo = SKU
-                    </p>
-                  </div>
-                  <input
-                    type="file"
-                    id="image-upload"
-                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => {
-                      const files = e.target.files;
-                      if (files && files.length > 0) {
-                        handleMultipleFiles(files);
-                      }
-                    }}
-                    data-testid="input-zip-file"
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={() => document.getElementById('image-upload')?.click()}
-                    data-testid="button-select-images"
-                  >
-                    Seleccionar Imágenes
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Resultados de la última importación */}
-            {uploadProgress.results.length > 0 && (
-              <div className="border rounded-lg p-4 space-y-3">
-                <h4 className="font-medium flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  Última Importación ({uploadProgress.processed}/{uploadProgress.total})
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-32 overflow-y-auto">
-                  {uploadProgress.results.map((result, index) => (
-                    <div
-                      key={index}
-                      className={`flex items-center gap-2 text-sm p-2 rounded ${
-                        result.success 
-                          ? 'bg-green-50 text-green-800' 
-                          : 'bg-red-50 text-red-800'
-                      }`}
-                    >
-                      {result.success ? (
-                        <CheckCircle className="h-3 w-3" />
-                      ) : (
-                        <AlertCircle className="h-3 w-3" />
-                      )}
-                      <span className="font-mono text-xs">{result.fileName}</span>
-                      {result.success && (
-                        <span>→ {result.productCode}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Filtros */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="flex-1">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar productos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-              data-testid="input-search-products"
-            />
-          </div>
-        </div>
-        
-        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Todas las categorías" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas las categorías</SelectItem>
-            {categorias.filter(cat => cat.nombre?.trim()).map((categoria) => (
-              <SelectItem key={categoria.id} value={categoria.nombre}>
-                {categoria.nombre} ({categoria.productoCount})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        
-        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="Todos los estados" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="true">Activos</SelectItem>
-            <SelectItem value="false">Inactivos</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Tabla de productos agrupados */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            Productos ({filteredProducts.length})
-            {groupedProducts.groups.length > 0 && (
-              <span className="text-sm font-normal text-muted-foreground ml-2">
-                · {groupedProducts.groups.length} grupos
-              </span>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10"></TableHead>
-                <TableHead className="w-20">Imagen</TableHead>
-                <TableHead>Código</TableHead>
-                <TableHead>Producto</TableHead>
-                <TableHead>Categoría</TableHead>
-                <TableHead>Precio</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {/* Productos agrupados */}
-              {groupedProducts.groups.map((group) => {
-                const isExpanded = expandedGroups.has(group.parentSku);
-                const mainProduct = group.mainProduct;
-                const activeCount = group.products.filter(p => p.activo).length;
-                
-                return (
-                  <React.Fragment key={group.parentSku}>
-                    {/* Fila del grupo padre */}
-                    <TableRow 
-                      className="bg-muted/50 cursor-pointer hover:bg-muted"
-                      onClick={() => toggleGroupExpand(group.parentSku)}
-                      data-testid={`group-row-${group.parentSku}`}
-                    >
-                      <TableCell className="p-2">
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                          {isExpanded ? (
-                            <ChevronDown className="h-4 w-4" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </TableCell>
-                      <TableCell>
-                        {mainProduct.imagenUrl ? (
-                          <img 
-                            src={mainProduct.imagenUrl} 
-                            alt={group.displayName}
-                            className="w-12 h-12 object-cover rounded border"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 bg-gray-100 rounded border border-gray-200 flex items-center justify-center">
-                            <Layers className="h-5 w-5 text-gray-400" />
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        <div className="flex items-center gap-2">
-                          {group.parentSku}
-                          <Badge variant="outline" className="text-xs">
-                            {group.products.length} variantes
-                          </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">{group.displayName}</div>
-                      </TableCell>
-                      <TableCell>
-                        {mainProduct.categoria ? (
-                          <Badge variant="secondary">{mainProduct.categoria}</Badge>
-                        ) : (
-                          <span className="text-muted-foreground">Sin categoría</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-medium text-muted-foreground">
-                        Desde {formatPrice(Math.min(...group.products.map(p => p.precio)))}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={activeCount === group.products.length ? "default" : "secondary"} 
-                               className={activeCount === group.products.length ? "bg-green-100 text-green-800" : ""}>
-                          {activeCount}/{group.products.length} activos
-                        </Badge>
-                      </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEditProduct(mainProduct)}
-                          data-testid={`button-edit-group-${group.parentSku}`}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                    
-                    {/* Filas de variantes (solo si está expandido) */}
-                    {isExpanded && group.products.map((product) => (
-                      <TableRow key={product.id} className="bg-background border-l-4 border-l-primary/20">
-                        <TableCell></TableCell>
-                        <TableCell>
-                          {product.imagenUrl ? (
-                            <img 
-                              src={product.imagenUrl} 
-                              alt={product.producto}
-                              className="w-10 h-10 object-cover rounded border"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 bg-gray-100 rounded border border-gray-200 flex items-center justify-center">
-                              <span className="text-[6px] text-gray-400">N/A</span>
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm text-muted-foreground">
-                          {product.codigo}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {product.color && (
-                              <Badge variant="outline" className="text-xs">{product.color}</Badge>
-                            )}
-                            <span className="text-sm">{product.producto}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {product.categoria ? (
-                            <Badge variant="secondary" className="text-xs">{product.categoria}</Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {formatPrice(product.precio)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Switch
-                              checked={product.activo}
-                              onCheckedChange={() => toggleProductMutation.mutate(product.id)}
-                              data-testid={`switch-product-${product.id}`}
-                            />
-                            {product.activo ? (
-                              <Badge variant="default" className="bg-green-100 text-green-800 text-xs">
-                                Activo
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-xs">
-                                Inactivo
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditProduct(product)}
-                            data-testid={`button-edit-${product.id}`}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </React.Fragment>
-                );
-              })}
-              
-              {/* Productos sin grupo (standalone) */}
-              {groupedProducts.standalone.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell></TableCell>
-                  <TableCell>
-                    {product.imagenUrl ? (
-                      <img 
-                        src={product.imagenUrl} 
-                        alt={product.producto}
-                        className="w-12 h-12 object-cover rounded border"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 bg-gray-100 rounded border border-gray-200 flex items-center justify-center">
-                        <span className="text-[8px] text-gray-400 text-center px-1">Sin imagen</span>
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">{product.codigo}</TableCell>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{product.producto}</div>
-                      {product.unidad && (
-                        <div className="text-sm text-muted-foreground">{product.unidad}</div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {product.categoria ? (
-                      <Badge variant="secondary">{product.categoria}</Badge>
-                    ) : (
-                      <span className="text-muted-foreground">Sin categoría</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    {formatPrice(product.precio)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        checked={product.activo}
-                        onCheckedChange={() => toggleProductMutation.mutate(product.id)}
-                        data-testid={`switch-product-${product.id}`}
-                      />
-                      {product.activo ? (
-                        <Badge variant="default" className="bg-green-100 text-green-800">
-                          Activo
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary">
-                          Inactivo
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEditProduct(product)}
-                      data-testid={`button-edit-${product.id}`}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          
-          {filteredProducts.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              No se encontraron productos
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Dialog para editar producto */}
-      <Dialog open={showProductDialog} onOpenChange={setShowProductDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Editar Producto</DialogTitle>
-            <DialogDescription>
-              Configura las propiedades del producto para la tienda online.
-            </DialogDescription>
-          </DialogHeader>
-          
-          {editingProduct && (
-            <div className="space-y-4">
-              <div>
-                <Label>Producto</Label>
-                <div className="p-3 bg-muted rounded-md">
-                  <div className="font-medium">{editingProduct.producto}</div>
-                  <div className="text-sm text-muted-foreground">Código: {editingProduct.codigo}</div>
-                </div>
-              </div>
-              
-              <div>
-                <Label htmlFor="categoria">Categoría</Label>
-                <Select value={productCategoria} onValueChange={setProductCategoria}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar categoría" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sin-categoria">Sin categoría</SelectItem>
-                    {categorias.filter(cat => cat.nombre?.trim()).map((categoria) => (
-                      <SelectItem key={categoria.id} value={categoria.nombre}>
-                        {categoria.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="border-t pt-4">
-                <h3 className="font-medium mb-3 flex items-center gap-2">
-                  <Layers className="h-4 w-4" />
-                  Clasificación para Catálogo Público
-                </h3>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Estos campos determinan cómo se agrupa el producto en el catálogo público de vendedores.
-                </p>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="productFamily">Familia de Producto</Label>
-                    <div className="relative">
-                      <Input
-                        id="productFamily"
-                        value={productFamily}
-                        onChange={(e) => setProductFamily(e.target.value.toUpperCase())}
-                        placeholder="Ej: ANTICORROSIVO ESTRUCTURAL"
-                        list="family-suggestions"
-                        data-testid="input-product-family"
-                      />
-                      <datalist id="family-suggestions">
-                        {uniqueFamilies.map(family => (
-                          <option key={family} value={family} />
-                        ))}
-                      </datalist>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="productColor">Color</Label>
-                    <div className="relative">
-                      <Input
-                        id="productColor"
-                        value={productColor}
-                        onChange={(e) => setProductColor(e.target.value.toUpperCase())}
-                        placeholder="Ej: BLANCO, GRIS"
-                        list="color-suggestions"
-                        data-testid="input-product-color"
-                      />
-                      <datalist id="color-suggestions">
-                        {uniqueColors.map(color => (
-                          <option key={color} value={color} />
-                        ))}
-                      </datalist>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div>
-                <Label htmlFor="precio">Precio eCommerce</Label>
-                <Input
-                  id="precio"
-                  type="number"
-                  step="0.01"
-                  value={productPrecio}
-                  onChange={(e) => setProductPrecio(e.target.value)}
-                  data-testid="input-product-price"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="descripcion">Descripción</Label>
-                <Textarea
-                  id="descripcion"
-                  value={productDescripcion}
-                  onChange={(e) => setProductDescripcion(e.target.value)}
-                  placeholder="Descripción del producto para la tienda..."
-                  data-testid="textarea-product-description"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="imagen">Imagen del Producto</Label>
-                {productImagen && (
-                  <div className="mb-3 p-3 bg-muted rounded-lg">
-                    <img 
-                      src={productImagen} 
-                      alt={editingProduct.producto} 
-                      className="w-full h-48 object-contain rounded"
-                      onError={(e) => {
-                        e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle"%3ESin imagen%3C/text%3E%3C/svg%3E';
-                      }}
-                    />
-                  </div>
-                )}
-                <div className="space-y-2">
-                  <Input
-                    id="imagen"
-                    value={productImagen}
-                    onChange={(e) => setProductImagen(e.target.value)}
-                    placeholder="https://... o sube una imagen"
-                    data-testid="input-product-image"
-                  />
-                  <div className="flex gap-2">
-                    <input
-                      type="file"
-                      id="product-image-upload"
-                      accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file && editingProduct) {
-                          setUploadingProductImage(true);
-                          uploadProductImageMutation.mutate({
-                            file,
-                            productId: editingProduct.id,
-                            productCode: editingProduct.codigo
-                          });
-                        }
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => document.getElementById('product-image-upload')?.click()}
-                      disabled={uploadingProductImage}
-                      data-testid="button-upload-product-image"
-                    >
-                      {uploadingProductImage ? (
-                        <>
-                          <Upload className="h-4 w-4 mr-2 animate-pulse" />
-                          Subiendo...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="h-4 w-4 mr-2" />
-                          Subir Imagen
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-              
-              
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="activo"
-                  checked={productActivo}
-                  onCheckedChange={setProductActivo}
-                  data-testid="switch-product-active"
-                />
-                <Label htmlFor="activo">Producto activo en la tienda</Label>
-              </div>
-              
-              <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline" onClick={() => setShowProductDialog(false)}>
-                  Cancelar
-                </Button>
-                <Button 
-                  onClick={handleSaveProduct}
-                  disabled={updateProductMutation.isPending}
-                  data-testid="button-save-product"
-                >
-                  {updateProductMutation.isPending ? "Guardando..." : "Guardar"}
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog para nueva categoría */}
-      <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Nueva Categoría</DialogTitle>
-            <DialogDescription>
-              Crea una nueva categoría para organizar tus productos.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="category-name">Nombre de la categoría</Label>
-              <Input
-                id="category-name"
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                placeholder="Ej: Pinturas, Herramientas, etc."
-                data-testid="input-category-name"
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="category-description">Descripción (opcional)</Label>
-              <Textarea
-                id="category-description"
-                value={newCategoryDescription}
-                onChange={(e) => setNewCategoryDescription(e.target.value)}
-                placeholder="Descripción de la categoría..."
-                data-testid="textarea-category-description"
-              />
-            </div>
-            
-            <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={() => setShowCategoryDialog(false)}>
-                Cancelar
-              </Button>
-              <Button 
-                onClick={handleCreateCategory}
-                disabled={!newCategoryName.trim() || createCategoryMutation.isPending}
-                data-testid="button-save-category"
-              >
-                {createCategoryMutation.isPending ? "Creando..." : "Crear"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-        </TabsContent>
-
-        {/* Pestaña de Catálogos Públicos - Solo Admin */}
-        {isAdmin && (
-          <TabsContent value="catalogos" className="mt-6">
+      {/* Catálogos Públicos - Solo Admin */}
+      {isAdmin && (
+        <div className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Catálogos Públicos de Vendedores</CardTitle>
@@ -2177,9 +1393,8 @@ export default function EcommerceAdmin() {
                 </Form>
               </DialogContent>
             </Dialog>
-          </TabsContent>
-        )}
-      </Tabs>
+        </div>
+      )}
 
     </div>
   );

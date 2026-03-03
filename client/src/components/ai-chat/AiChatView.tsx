@@ -42,6 +42,9 @@ interface AiChatViewProps {
     onClearHistory: () => void;
     onNewConversation: () => void;
     className?: string;
+    suggestions?: string[];
+    welcomeTitle?: string;
+    welcomeSubtitle?: string;
 }
 
 // ─── Chart Colors ───
@@ -460,6 +463,15 @@ function renderContent(text: string) {
     });
 }
 
+const DEFAULT_SUGGESTIONS = [
+    "¿Cuáles son mis ventas de este mes?",
+    "Busca el cliente Ferretería López",
+    "Busca esmalte al agua y hazme una cotización",
+    "¿Cuánto ha comprado el cliente Juan este mes?",
+    "Busca productos de la línea Élite",
+    "¿Cómo va mi meta de ventas?",
+];
+
 export default function AiChatView({
     messages,
     isLoading,
@@ -468,6 +480,9 @@ export default function AiChatView({
     onClearHistory,
     onNewConversation,
     className = "",
+    suggestions,
+    welcomeTitle,
+    welcomeSubtitle,
 }: AiChatViewProps) {
     const [input, setInput] = useState("");
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -550,23 +565,16 @@ export default function AiChatView({
                             </div>
                         </div>
                         <h3 className="text-3xl font-black text-gray-900 dark:text-white mb-4 tracking-tight">
-                            ¿En qué puedo ayudarte hoy?
+                            {welcomeTitle || "¿En qué puedo ayudarte hoy?"}
                         </h3>
                         <p className="text-lg text-gray-500 dark:text-gray-400 mb-10 max-w-xl leading-relaxed">
-                            Consulto tus <span className="text-blue-600 font-bold">ventas</span>,
-                            <span className="text-blue-600 font-bold"> clientes</span>,
-                            <span className="text-blue-600 font-bold"> productos</span> y
-                            <span className="text-blue-600 font-bold"> presupuestos</span> en tiempo real.
+                            {welcomeSubtitle || (<>Consulto tus <span className="text-blue-600 font-bold">ventas</span>,
+                                <span className="text-blue-600 font-bold"> clientes</span>,
+                                <span className="text-blue-600 font-bold"> productos</span> y
+                                <span className="text-blue-600 font-bold"> presupuestos</span> en tiempo real.</>)}
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
-                            {[
-                                "¿Cuáles son mis ventas de este mes?",
-                                "Busca el cliente Ferretería López",
-                                "Busca esmalte al agua y hazme una cotización",
-                                "¿Cuánto ha comprado el cliente Juan este mes?",
-                                "Busca productos de la línea Élite",
-                                "¿Cómo va mi meta de ventas?",
-                            ].map((suggestion, i) => (
+                            {(suggestions || DEFAULT_SUGGESTIONS).map((suggestion, i) => (
                                 <button
                                     key={i}
                                     onClick={() => onSendMessage(suggestion)}

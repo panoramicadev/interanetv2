@@ -7,13 +7,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { useFilter } from "@/contexts/FilterContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from "@/components/ui/table";
 import {
   Dialog,
@@ -178,7 +178,7 @@ export default function GastosEmpresariales() {
   }, [hasFixedSegment, userAssignedSegment, solicitarFondoForm]);
 
   // Fetch segments for the form
-  const { data: segmentosData = [] } = useQuery<Array<{segment: string, totalSales: number, percentage: number}>>({
+  const { data: segmentosData = [] } = useQuery<Array<{ segment: string, totalSales: number, percentage: number }>>({
     queryKey: ['/api/sales/segments'],
   });
   // Extract just the segment names as strings
@@ -267,7 +267,7 @@ export default function GastosEmpresariales() {
       if (usuarioFilter !== 'todos') params.append('userId', usuarioFilter);
       if (estadoFilter !== 'all') params.append('estado', estadoFilter);
       if (categoriaFilter !== 'all') params.append('categoria', categoriaFilter);
-      
+
       const response = await fetch(`/api/gastos-empresariales?${params}`, {
         credentials: 'include'
       });
@@ -277,7 +277,7 @@ export default function GastosEmpresariales() {
   });
 
   const targetUserId = usuarioFilter !== 'todos' ? usuarioFilter : user?.id;
-  const { data: mesesConGastos = [] } = useQuery<Array<{mes: number, anio: number, cantidad: number, total: number}>>({
+  const { data: mesesConGastos = [] } = useQuery<Array<{ mes: number, anio: number, cantidad: number, total: number }>>({
     queryKey: ['/api/gastos-empresariales/analytics/meses-con-gastos', targetUserId],
     queryFn: async () => {
       const response = await fetch(`/api/gastos-empresariales/analytics/meses-con-gastos?userId=${targetUserId}`, {
@@ -448,11 +448,11 @@ export default function GastosEmpresariales() {
 
   // Filter gastos based on search
   const filteredGastos = gastos.filter(gasto => {
-    const matchesSearch = searchTerm === "" || 
+    const matchesSearch = searchTerm === "" ||
       gasto.descripcion.toLowerCase().includes(searchTerm.toLowerCase()) ||
       gasto.categoria.toLowerCase().includes(searchTerm.toLowerCase()) ||
       gasto.proveedor?.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     return matchesSearch;
   });
 
@@ -468,7 +468,7 @@ export default function GastosEmpresariales() {
           return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Rechazado</Badge>;
       }
     }
-    
+
     switch (gasto.estado) {
       case 'pendiente':
         return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pendiente</Badge>;
@@ -498,12 +498,20 @@ export default function GastosEmpresariales() {
 
   return (
     <>
-      <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Rendición de Gastos</h1>
-            <p className="text-sm text-gray-500 mt-1">Gestiona y controla la rendición de gastos y fondos</p>
+      <div className="space-y-8 px-2 md:px-4 pb-8">
+        {/* Modern Header with Gradient */}
+        <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 md:p-8 text-white">
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-40" />
+          <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center">
+                <Banknote className="h-6 w-6 text-amber-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Rendición de Gastos</h1>
+                <p className="text-slate-300 text-sm md:text-base">Gestiona y controla la rendición de gastos y fondos</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -529,7 +537,7 @@ export default function GastosEmpresariales() {
             </TabsTrigger>
           </TabsList>
 
-          <div className="sticky top-0 z-10 bg-white pt-3 pb-1">
+          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm pt-3 pb-1 rounded-lg">
             <GastosFilterBar
               mes={mes}
               setMes={setMes}
@@ -541,7 +549,7 @@ export default function GastosEmpresariales() {
                 <>
                   {activeMainTab === 'dashboard' && dashboardRef.current?.canExport && (
                     <>
-                      <Button 
+                      <Button
                         size="sm"
                         onClick={() => dashboardRef.current?.handleExportPDF()}
                         disabled={!dashboardRef.current?.hasData || dashboardRef.current?.isGeneratingPDF || dashboardRef.current?.isLoadingUsers}
@@ -554,7 +562,7 @@ export default function GastosEmpresariales() {
                         )}
                         {dashboardRef.current?.isGeneratingPDF ? 'Generando...' : dashboardRef.current?.isLoadingUsers ? 'Cargando...' : 'Exportar PDF'}
                       </Button>
-                      <Button 
+                      <Button
                         size="sm"
                         variant="outline"
                         onClick={() => dashboardRef.current?.handleExportCSV()}
@@ -568,10 +576,10 @@ export default function GastosEmpresariales() {
                   )}
                   {activeMainTab === 'rendicion' && (
                     <>
-                      <Button 
+                      <Button
                         variant="secondary"
                         size="sm"
-                        className="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200" 
+                        className="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200"
                         data-testid="button-solicitar-fondo"
                         onClick={() => setShowSolicitarFondoDialog(true)}
                       >
@@ -587,9 +595,9 @@ export default function GastosEmpresariales() {
                     </>
                   )}
                   {activeMainTab === 'fondos' && (user?.role === 'admin' || user?.role === 'recursos_humanos') && (
-                    <Button 
+                    <Button
                       size="sm"
-                      className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800" 
+                      className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
                       data-testid="button-crear-fondo-top"
                       onClick={() => setShowCrearFondoDialog(true)}
                     >
@@ -609,253 +617,253 @@ export default function GastosEmpresariales() {
           <TabsContent value="rendicion" className="mt-4 space-y-4">
 
             {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
-              placeholder="Buscar por descripción, categoría o proveedor..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-              data-testid="input-search"
-            />
-          </div>
-          <Select value={estadoFilter} onValueChange={setEstadoFilter}>
-            <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-estado">
-              <SelectValue placeholder="Estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los estados</SelectItem>
-              <SelectItem value="pendiente">Pendiente</SelectItem>
-              <SelectItem value="aprobado">Aprobado</SelectItem>
-              <SelectItem value="rechazado">Rechazado</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
-            <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-categoria">
-              <SelectValue placeholder="Categoría" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas las categorías</SelectItem>
-              <SelectItem value="Combustibles">Combustibles</SelectItem>
-              <SelectItem value="Colación">Colación</SelectItem>
-              <SelectItem value="Gestión Ventas">Gestión Ventas</SelectItem>
-              <SelectItem value="Otros">Otros</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input
+                  placeholder="Buscar por descripción, categoría o proveedor..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                  data-testid="input-search"
+                />
+              </div>
+              <Select value={estadoFilter} onValueChange={setEstadoFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-estado">
+                  <SelectValue placeholder="Estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los estados</SelectItem>
+                  <SelectItem value="pendiente">Pendiente</SelectItem>
+                  <SelectItem value="aprobado">Aprobado</SelectItem>
+                  <SelectItem value="rechazado">Rechazado</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-categoria">
+                  <SelectValue placeholder="Categoría" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las categorías</SelectItem>
+                  <SelectItem value="Combustibles">Combustibles</SelectItem>
+                  <SelectItem value="Colación">Colación</SelectItem>
+                  <SelectItem value="Gestión Ventas">Gestión Ventas</SelectItem>
+                  <SelectItem value="Otros">Otros</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-        {/* Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[100px]">Fecha</TableHead>
-                  <TableHead className="min-w-[150px]">Colaborador</TableHead>
-                  <TableHead className="min-w-[200px]">Descripción</TableHead>
-                  <TableHead>Categoría</TableHead>
-                  <TableHead>Tipo Gasto</TableHead>
-                  <TableHead className="text-right">Monto</TableHead>
-                  <TableHead className="min-w-[100px]">Estado</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
-                      Cargando gastos...
-                    </TableCell>
-                  </TableRow>
-                ) : filteredGastos.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
-                      <div className="text-gray-500 space-y-2">
-                        <p>No se encontraron gastos en {['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][parseInt(mes)]} {anio}</p>
-                        {mesesConGastos.length > 0 && (
-                          <div className="text-xs">
-                            <p className="text-gray-400 mb-1">Meses con gastos registrados:</p>
-                            <div className="flex flex-wrap justify-center gap-1">
-                              {mesesConGastos.slice(0, 6).map(m => (
-                                <button
-                                  key={`${m.anio}-${m.mes}`}
-                                  className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
-                                  onClick={() => {
-                                    setMes(m.mes.toString());
-                                    setAnio(m.anio.toString());
-                                  }}
-                                >
-                                  {['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][m.mes]} {m.anio} ({m.cantidad})
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredGastos.map((gasto) => (
-                    <TableRow 
-                      key={gasto.id} 
-                      data-testid={`row-gasto-${gasto.id}`}
-                      className="cursor-pointer hover:bg-gray-50"
-                      onClick={() => {
-                        setSelectedGasto(gasto);
-                        setShowDetailDialog(true);
-                      }}
-                    >
-                      <TableCell className="text-sm">
-                        {format(new Date(gasto.createdAt), 'dd/MM/yyyy', { locale: es })}
-                      </TableCell>
-                      <TableCell className="text-sm font-medium">
-                        {getColaboradorName(gasto.userId)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="max-w-[200px]">
-                          <p className="font-medium text-sm truncate" title={gasto.descripcion}>{gasto.descripcion}</p>
-                          {gasto.proveedor && (
-                            <p className="text-xs text-gray-500 truncate" title={gasto.proveedor}>{gasto.proveedor}</p>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm">{gasto.categoria}</TableCell>
-                      <TableCell className="text-sm">
-                                        {gasto.fundingMode === 'con_fondo' ? (
-                                          <span className="text-blue-600 font-medium">Con Fondos Asignados</span>
-                                        ) : (
-                                          <span>Reembolso</span>
-                                        )}
-                                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {formatCurrency(gasto.monto)}
-                      </TableCell>
-                      <TableCell>{getEstadoBadge(gasto)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          {/* RRHH puede aprobar/rechazar gastos pendientes (incluye pendiente_supervisor legacy) */}
-                          {['admin', 'recursos_humanos'].includes(user?.role || '') && ['pendiente_rrhh', 'pendiente_supervisor'].includes(gasto.estadoAprobacion || '') && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedGasto(gasto);
-                                  setShowApprovalDialog(true);
-                                }}
-                                title="Aprobar"
-                                data-testid={`button-approve-${gasto.id}`}
-                              >
-                                <Check className="h-4 w-4 text-green-600" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedGasto(gasto);
-                                  setComentarioRechazo("");
-                                  setShowRejectionDialog(true);
-                                }}
-                                title="Rechazar"
-                                data-testid={`button-reject-${gasto.id}`}
-                              >
-                                <X className="h-4 w-4 text-red-600" />
-                              </Button>
-                            </>
-                          )}
-                          {/* RRHH puede auditar gastos con fondos asignados ya aprobados */}
-                          {user?.role === 'recursos_humanos' && gasto.fundingMode === 'con_fondo' && gasto.estado === 'aprobado' && !['pendiente_rrhh', 'pendiente_supervisor'].includes(gasto.estadoAprobacion || '') && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedGasto(gasto);
-                                setComentarioRechazo("");
-                                setShowRejectionDialog(true);
-                              }}
-                              title="Auditar/Rechazar"
-                              data-testid={`button-audit-${gasto.id}`}
-                            >
-                              <X className="h-4 w-4 text-orange-600" />
-                            </Button>
-                          )}
-                          {['admin', 'recursos_humanos'].includes(user?.role || '') && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedGasto(gasto);
-                                const createdDate = gasto.createdAt ? new Date(gasto.createdAt) : new Date();
-                                setEditFormData({
-                                  monto: gasto.monto || '',
-                                  descripcion: gasto.descripcion || '',
-                                  categoria: gasto.categoria || '',
-                                  tipoDocumento: gasto.tipoDocumento || '',
-                                  proveedor: gasto.proveedor || '',
-                                  rutProveedor: gasto.rutProveedor || '',
-                                  numeroDocumento: gasto.numeroDocumento || '',
-                                  fechaEmision: gasto.fechaEmision || '',
-                                  ruta: (gasto as any).ruta || '',
-                                  clientes: (gasto as any).clientes || '',
-                                  ciudad: (gasto as any).ciudad || '',
-                                  fundingMode: gasto.fundingMode || 'reembolso',
-                                  fundAllocationId: gasto.fundAllocationId || '',
-                                  createdAt: `${createdDate.getFullYear()}-${String(createdDate.getMonth()+1).padStart(2,'0')}-${String(createdDate.getDate()).padStart(2,'0')}T${String(createdDate.getHours()).padStart(2,'0')}:${String(createdDate.getMinutes()).padStart(2,'0')}`,
-                                });
-                                setShowEditFechaDialog(true);
-                              }}
-                              title="Editar gasto"
-                              data-testid={`button-edit-gasto-${gasto.id}`}
-                            >
-                              <Pencil className="h-4 w-4 text-blue-600" />
-                            </Button>
-                          )}
-                          {canDelete(gasto) && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (confirm('¿Estás seguro de eliminar este gasto?')) {
-                                  deleteMutation.mutate(gasto.id);
-                                }
-                              }}
-                              data-testid={`button-delete-${gasto.id}`}
-                            >
-                              <Trash2 className="h-4 w-4 text-gray-600" />
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedGasto(gasto);
-                              setShowDetailDialog(true);
-                            }}
-                            data-testid={`button-view-${gasto.id}`}
-                          >
-                            <Eye className="h-4 w-4 text-gray-600" />
-                          </Button>
-                        </div>
-                      </TableCell>
+            {/* Table */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead className="min-w-[100px] font-semibold text-xs uppercase tracking-wider">Fecha</TableHead>
+                      <TableHead className="min-w-[150px] font-semibold text-xs uppercase tracking-wider">Colaborador</TableHead>
+                      <TableHead className="min-w-[200px] font-semibold text-xs uppercase tracking-wider">Descripción</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Categoría</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Tipo Gasto</TableHead>
+                      <TableHead className="text-right font-semibold text-xs uppercase tracking-wider">Monto</TableHead>
+                      <TableHead className="min-w-[100px] font-semibold text-xs uppercase tracking-wider">Estado</TableHead>
+                      <TableHead className="text-right font-semibold text-xs uppercase tracking-wider">Acciones</TableHead>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                          Cargando gastos...
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredGastos.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8">
+                          <div className="text-gray-500 space-y-2">
+                            <p>No se encontraron gastos en {['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][parseInt(mes)]} {anio}</p>
+                            {mesesConGastos.length > 0 && (
+                              <div className="text-xs">
+                                <p className="text-gray-400 mb-1">Meses con gastos registrados:</p>
+                                <div className="flex flex-wrap justify-center gap-1">
+                                  {mesesConGastos.slice(0, 6).map(m => (
+                                    <button
+                                      key={`${m.anio}-${m.mes}`}
+                                      className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
+                                      onClick={() => {
+                                        setMes(m.mes.toString());
+                                        setAnio(m.anio.toString());
+                                      }}
+                                    >
+                                      {['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][m.mes]} {m.anio} ({m.cantidad})
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredGastos.map((gasto) => (
+                        <TableRow
+                          key={gasto.id}
+                          data-testid={`row-gasto-${gasto.id}`}
+                          className="cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-950/20 transition-colors"
+                          onClick={() => {
+                            setSelectedGasto(gasto);
+                            setShowDetailDialog(true);
+                          }}
+                        >
+                          <TableCell className="text-sm">
+                            {format(new Date(gasto.createdAt), 'dd/MM/yyyy', { locale: es })}
+                          </TableCell>
+                          <TableCell className="text-sm font-medium">
+                            {getColaboradorName(gasto.userId)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="max-w-[200px]">
+                              <p className="font-medium text-sm truncate" title={gasto.descripcion}>{gasto.descripcion}</p>
+                              {gasto.proveedor && (
+                                <p className="text-xs text-gray-500 truncate" title={gasto.proveedor}>{gasto.proveedor}</p>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm">{gasto.categoria}</TableCell>
+                          <TableCell className="text-sm">
+                            {gasto.fundingMode === 'con_fondo' ? (
+                              <span className="text-blue-600 font-medium">Con Fondos Asignados</span>
+                            ) : (
+                              <span>Reembolso</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {formatCurrency(gasto.monto)}
+                          </TableCell>
+                          <TableCell>{getEstadoBadge(gasto)}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              {/* RRHH puede aprobar/rechazar gastos pendientes (incluye pendiente_supervisor legacy) */}
+                              {['admin', 'recursos_humanos'].includes(user?.role || '') && ['pendiente_rrhh', 'pendiente_supervisor'].includes(gasto.estadoAprobacion || '') && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedGasto(gasto);
+                                      setShowApprovalDialog(true);
+                                    }}
+                                    title="Aprobar"
+                                    data-testid={`button-approve-${gasto.id}`}
+                                  >
+                                    <Check className="h-4 w-4 text-green-600" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedGasto(gasto);
+                                      setComentarioRechazo("");
+                                      setShowRejectionDialog(true);
+                                    }}
+                                    title="Rechazar"
+                                    data-testid={`button-reject-${gasto.id}`}
+                                  >
+                                    <X className="h-4 w-4 text-red-600" />
+                                  </Button>
+                                </>
+                              )}
+                              {/* RRHH puede auditar gastos con fondos asignados ya aprobados */}
+                              {user?.role === 'recursos_humanos' && gasto.fundingMode === 'con_fondo' && gasto.estado === 'aprobado' && !['pendiente_rrhh', 'pendiente_supervisor'].includes(gasto.estadoAprobacion || '') && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedGasto(gasto);
+                                    setComentarioRechazo("");
+                                    setShowRejectionDialog(true);
+                                  }}
+                                  title="Auditar/Rechazar"
+                                  data-testid={`button-audit-${gasto.id}`}
+                                >
+                                  <X className="h-4 w-4 text-orange-600" />
+                                </Button>
+                              )}
+                              {['admin', 'recursos_humanos'].includes(user?.role || '') && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedGasto(gasto);
+                                    const createdDate = gasto.createdAt ? new Date(gasto.createdAt) : new Date();
+                                    setEditFormData({
+                                      monto: gasto.monto || '',
+                                      descripcion: gasto.descripcion || '',
+                                      categoria: gasto.categoria || '',
+                                      tipoDocumento: gasto.tipoDocumento || '',
+                                      proveedor: gasto.proveedor || '',
+                                      rutProveedor: gasto.rutProveedor || '',
+                                      numeroDocumento: gasto.numeroDocumento || '',
+                                      fechaEmision: gasto.fechaEmision || '',
+                                      ruta: (gasto as any).ruta || '',
+                                      clientes: (gasto as any).clientes || '',
+                                      ciudad: (gasto as any).ciudad || '',
+                                      fundingMode: gasto.fundingMode || 'reembolso',
+                                      fundAllocationId: gasto.fundAllocationId || '',
+                                      createdAt: `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(2, '0')}-${String(createdDate.getDate()).padStart(2, '0')}T${String(createdDate.getHours()).padStart(2, '0')}:${String(createdDate.getMinutes()).padStart(2, '0')}`,
+                                    });
+                                    setShowEditFechaDialog(true);
+                                  }}
+                                  title="Editar gasto"
+                                  data-testid={`button-edit-gasto-${gasto.id}`}
+                                >
+                                  <Pencil className="h-4 w-4 text-blue-600" />
+                                </Button>
+                              )}
+                              {canDelete(gasto) && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (confirm('¿Estás seguro de eliminar este gasto?')) {
+                                      deleteMutation.mutate(gasto.id);
+                                    }
+                                  }}
+                                  data-testid={`button-delete-${gasto.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4 text-gray-600" />
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedGasto(gasto);
+                                  setShowDetailDialog(true);
+                                }}
+                                data-testid={`button-view-${gasto.id}`}
+                              >
+                                <Eye className="h-4 w-4 text-gray-600" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="fondos" className="mt-4">
-            <GestionFondosContent 
-              embedded={true} 
+            <GestionFondosContent
+              embedded={true}
               hideTopActions={true}
               externalCreateFundOpen={showCrearFondoDialog}
               onExternalCreateFundClose={() => setShowCrearFondoDialog(false)}
@@ -872,7 +880,7 @@ export default function GastosEmpresariales() {
               Información completa del gasto empresarial
             </DialogDescription>
           </DialogHeader>
-          
+
           {selectedGasto && (
             <div className="space-y-6">
               {/* Estado y Fecha */}
@@ -889,8 +897,8 @@ export default function GastosEmpresariales() {
                   <h3 className="font-semibold text-sm">Evidencia Adjunta</h3>
                   {selectedGasto.archivoUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
                     <div className="border rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
-                      <ImageZoomViewer 
-                        src={selectedGasto.archivoUrl} 
+                      <ImageZoomViewer
+                        src={selectedGasto.archivoUrl}
                         alt="Evidencia del gasto"
                       />
                       <div className="flex justify-center mt-3">
@@ -914,9 +922,9 @@ export default function GastosEmpresariales() {
                         <p className="text-sm font-medium">Documento adjunto</p>
                         <p className="text-xs text-gray-500">Haz clic para abrir el archivo</p>
                       </div>
-                      <a 
-                        href={selectedGasto.archivoUrl} 
-                        target="_blank" 
+                      <a
+                        href={selectedGasto.archivoUrl}
+                        target="_blank"
                         rel="noopener noreferrer"
                         className="p-2 hover:bg-gray-100 rounded-full transition-colors"
                       >
@@ -974,7 +982,7 @@ export default function GastosEmpresariales() {
                     </div>
                   )}
                 </div>
-                
+
                 <div>
                   <p className="text-xs text-gray-500">Descripción</p>
                   <p className="font-medium mt-1">{selectedGasto.descripcion}</p>
@@ -1075,7 +1083,7 @@ export default function GastosEmpresariales() {
                         ciudad: (selectedGasto as any).ciudad || '',
                         fundingMode: selectedGasto.fundingMode || 'reembolso',
                         fundAllocationId: selectedGasto.fundAllocationId || '',
-                        createdAt: `${createdDate.getFullYear()}-${String(createdDate.getMonth()+1).padStart(2,'0')}-${String(createdDate.getDate()).padStart(2,'0')}T${String(createdDate.getHours()).padStart(2,'0')}:${String(createdDate.getMinutes()).padStart(2,'0')}`,
+                        createdAt: `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(2, '0')}-${String(createdDate.getDate()).padStart(2, '0')}T${String(createdDate.getHours()).padStart(2, '0')}:${String(createdDate.getMinutes()).padStart(2, '0')}`,
                       });
                       setShowDetailDialog(false);
                       setShowEditFechaDialog(true);
@@ -1125,7 +1133,7 @@ export default function GastosEmpresariales() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {selectedGasto?.fundingMode === 'reembolso' 
+              {selectedGasto?.fundingMode === 'reembolso'
                 ? 'Aprobar Reembolso (RRHH)'
                 : 'Aprobar Gasto (RRHH)'}
             </DialogTitle>
@@ -1152,7 +1160,7 @@ export default function GastosEmpresariales() {
               <Button
                 onClick={() => {
                   if (selectedGasto) {
-                    aprobarMutation.mutate({ 
+                    aprobarMutation.mutate({
                       gasto: selectedGasto
                     });
                   }
@@ -1171,7 +1179,7 @@ export default function GastosEmpresariales() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {selectedGasto?.fundingMode === 'reembolso' 
+              {selectedGasto?.fundingMode === 'reembolso'
                 ? 'Rechazar Reembolso (RRHH)'
                 : 'Rechazar Gasto (RRHH)'}
             </DialogTitle>
@@ -1280,9 +1288,9 @@ export default function GastosEmpresariales() {
                     {hasFixedSegment ? (
                       <>
                         <FormControl>
-                          <Input 
-                            value={userAssignedSegment} 
-                            disabled 
+                          <Input
+                            value={userAssignedSegment}
+                            disabled
                             className="bg-muted"
                             data-testid="input-segmento-fijo"
                           />
@@ -1366,11 +1374,11 @@ export default function GastosEmpresariales() {
               <div className="space-y-2">
                 <FormLabel>Documentos de respaldo (opcional)</FormLabel>
                 <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 hover:bg-gray-50 transition-colors cursor-pointer text-center group">
-                  <input 
-                    type="file" 
-                    className="hidden" 
-                    id="file-upload-solicitud" 
-                    multiple 
+                  <input
+                    type="file"
+                    className="hidden"
+                    id="file-upload-solicitud"
+                    multiple
                     accept=".pdf,.png,.jpg,.jpeg"
                     onChange={handleFileChange}
                   />
@@ -1404,15 +1412,15 @@ export default function GastosEmpresariales() {
               </div>
 
               <DialogFooter className="sm:justify-end gap-2">
-                <Button 
-                  type="button" 
-                  variant="outline" 
+                <Button
+                  type="button"
+                  variant="outline"
                   onClick={() => setShowSolicitarFondoDialog(false)}
                 >
                   Cancelar
                 </Button>
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={solicitarFondoMutation.isPending}
                   className="bg-amber-600 hover:bg-amber-700"
                   data-testid="button-submit-solicitar-fondo"
@@ -1499,10 +1507,10 @@ export default function GastosEmpresariales() {
                       {userFundAllocations
                         .filter((fund: any) => selectedGasto && fund.assignedToId === selectedGasto.userId)
                         .map((fund: any) => (
-                        <SelectItem key={fund.id} value={fund.id}>
-                          {fund.nombre} ({formatCurrency(fund.saldoDisponible || 0)} disponible)
-                        </SelectItem>
-                      ))}
+                          <SelectItem key={fund.id} value={fund.id}>
+                            {fund.nombre} ({formatCurrency(fund.saldoDisponible || 0)} disponible)
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
