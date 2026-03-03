@@ -52,11 +52,17 @@ interface Client {
   crlt: string | null;
   cren: string | null;
   crsd: string | null;
+  crto: string | null;
+  cpen: string | null;
+  diprve: string | null;
+  fevecren: string | null;
   gien: string | null;
   sien: string | null;
   totalTransactions?: number;
   totalSales?: number;
   lastTransactionDate?: string;
+  salespersonName?: string;
+  lastTransactionAmount?: number;
 }
 
 const formatCurrency = (amount: string | number | null) => {
@@ -432,19 +438,39 @@ export default function Clients() {
     document.body.removeChild(link);
   };
 
-  const getCreditStatus = (available: string | null, limit: string | null, debt: string | null) => {
-    if (!limit) return { status: "sin-limite", text: "Sin límite", color: "bg-gray-500" };
+  const getCreditStatus = (client: Client) => {
+    const cpen = client.cpen?.trim().toUpperCase() || '';
+    const diprve = client.diprve ? parseFloat(client.diprve) : 0;
+    const crsd = client.crsd ? parseFloat(client.crsd) : 0;
+    const crto = client.crto ? parseFloat(client.crto) : 0;
 
-    const availableNum = available ? parseFloat(available) : 0;
-    const limitNum = parseFloat(limit);
-    const debtNum = debt ? parseFloat(debt) : 0;
-
-    const usagePercentage = ((limitNum - availableNum) / limitNum) * 100;
-
-    if (debtNum > 0) return { status: "con-deuda", text: "Con deuda", color: "bg-red-500" };
-    if (usagePercentage > 80) return { status: "limite-alto", text: "Límite alto", color: "bg-orange-500" };
-    if (usagePercentage > 50) return { status: "limite-medio", text: "Uso moderado", color: "bg-yellow-500" };
-    return { status: "limite-bajo", text: "Buen estado", color: "bg-green-500" };
+    // Determine credit type from payment condition
+    if (cpen.includes('CREDITO') || diprve > 0) {
+      // Client has credit
+      const days = diprve > 0 ? diprve : (cpen.match(/(\d+)/) ? parseInt(cpen.match(/(\d+)/)![1]) : 0);
+      if (crsd > 0) {
+        return { status: "credito-con-deuda", text: `Crédito${days > 0 ? ` ${days}d` : ''} - Con deuda`, color: "bg-orange-500" };
+      }
+      return { status: "con-credito", text: `Crédito${days > 0 ? ` ${days} días` : ''}`, color: "bg-blue-500" };
+    }
+    if (cpen.includes('CHEQUE')) {
+      return { status: "cheque", text: "Cheque", color: "bg-yellow-500" };
+    }
+    if (cpen.includes('CONTADO')) {
+      return { status: "contado", text: "Contado", color: "bg-slate-500" };
+    }
+    if (cpen.includes('TRANSFERENCIA')) {
+      return { status: "transferencia", text: "Transferencia", color: "bg-slate-400" };
+    }
+    if (cpen) {
+      // Other payment conditions (EFECTIVO, MERCADO LIBRE, etc.)
+      return { status: "otro", text: cpen.charAt(0) + cpen.slice(1).toLowerCase(), color: "bg-slate-400" };
+    }
+    // No data at all — check if they have credit amounts
+    if (crto > 0 || crsd > 0) {
+      return { status: "con-credito", text: crsd > 0 ? "Con deuda" : "Con crédito", color: crsd > 0 ? "bg-orange-500" : "bg-blue-500" };
+    }
+    return { status: "sin-datos", text: "Sin datos", color: "bg-gray-400" };
   };
 
   const generateSummaryChips = () => {
@@ -479,31 +505,34 @@ export default function Clients() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 overflow-y-auto" data-testid="clients-page">
-      <main className="flex-1 w-full max-w-[1600px] mx-auto p-4 lg:p-8 space-y-6">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-8 px-2 md:px-4 pb-8 pt-8" data-testid="clients-page">
+      {/* Modern Header with Gradient — matches Products page */}
+      <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 md:p-8 text-white">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-40" />
+        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
-              Gestión de Clientes
-            </h1>
-            <p className="text-slate-500 mt-1">
-              Administra tu cartera y accede a beneficios del Market
+            <div className="flex items-center gap-3 mb-2">
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-white/10 backdrop-blur-sm">
+                <Users className="h-5 w-5 text-indigo-400" />
+              </div>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Clientes</h1>
+            </div>
+            <p className="text-slate-300 text-sm md:text-base">
+              Administra tu cartera de clientes y accede a beneficios del Market
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {activeTab === "clientes" && (
               <>
                 <Button
                   variant="outline"
                   onClick={downloadTemplate}
                   size="sm"
-                  className="rounded-xl border-slate-200 bg-white shadow-sm hover:bg-slate-50"
+                  className="bg-white/10 border-white/20 text-white hover:bg-white/20 gap-2"
                 >
-                  <FileDown className="h-4 w-4 mr-2 text-slate-600" />
-                  <span className="hidden sm:inline">Descargar Plantilla</span>
-                  <span className="sm:hidden">Plantilla</span>
+                  <FileDown className="h-4 w-4" />
+                  <span className="hidden sm:inline">Plantilla</span>
                 </Button>
                 <input
                   ref={fileInputRef}
@@ -517,643 +546,717 @@ export default function Clients() {
                   onClick={() => fileInputRef.current?.click()}
                   disabled={previewMutation.isPending || isImporting}
                   size="sm"
-                  className="rounded-xl border-slate-200 bg-white shadow-sm hover:bg-slate-50"
+                  className="bg-white/10 border-white/20 text-white hover:bg-white/20 gap-2"
                 >
                   {previewMutation.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <Upload className="h-4 w-4 mr-2 text-slate-600" />
+                    <Upload className="h-4 w-4" />
                   )}
                   Importar
                 </Button>
                 <Button
                   onClick={() => setIsNewClientModalOpen(true)}
                   size="sm"
-                  className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200/50"
+                  className="bg-indigo-500 hover:bg-indigo-600 text-white border-none gap-2"
                 >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nuevo Cliente
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Nuevo Cliente</span>
                 </Button>
               </>
             )}
           </div>
         </div>
+      </div>
 
-        {/* Clientes Tab Content */}
-        {activeTab === "clientes" && (
-          <>
-            {/* Import Preview */}
-            {showImportPreview && previewData && (
-              <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800">
-                <CardHeader>
-                  <CardTitle className="text-blue-900 dark:text-blue-100 flex items-center">
-                    <Upload className="h-5 w-5 mr-2" />
-                    Vista Previa de Importación
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg">
-                      <div className="text-2xl font-bold text-blue-600">{previewData.totalClients}</div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">Clientes en CSV</div>
-                    </div>
-                    <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg">
-                      <div className="text-2xl font-bold text-green-600">{previewData.wouldInsert}</div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">Nuevos</div>
-                    </div>
-                    <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg">
-                      <div className="text-2xl font-bold text-orange-600">{previewData.wouldUpdate}</div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">Actualizaciones</div>
-                    </div>
-                    <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg">
-                      <div className="text-2xl font-bold text-gray-600">{previewData.existingClients}</div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">Existentes</div>
-                    </div>
-                  </div>
-
-                  {previewData.sampleData && previewData.sampleData.length > 0 && (
-                    <div>
-                      <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Muestra de datos:</h4>
-                      <div className="space-y-2 max-h-32 overflow-y-auto">
-                        {previewData.sampleData.map((client: any, index: number) => (
-                          <div key={index} className="text-sm bg-white dark:bg-gray-800 p-2 rounded">
-                            <span className="font-medium">{client.nokoen}</span>
-                            {client.rten && <span className="text-gray-600 ml-2">({client.rten})</span>}
-                            {client.email && <span className="text-gray-600 ml-2">{client.email}</span>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {isImporting && importProgress && (
-                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <div className="flex items-center">
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin text-blue-600" />
-                        <span className="text-blue-800 font-medium" data-testid="text-import-progress">
-                          {importProgress}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex space-x-3">
-                    <Button
-                      onClick={handleImport}
-                      disabled={isImporting}
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                      data-testid="button-confirm-import"
-                    >
-                      {isImporting ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <Upload className="h-4 w-4 mr-2" />
-                      )}
-                      {isImporting ? "Procesando..." : "Confirmar Importación"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setShowImportPreview(false);
-                        setSelectedFile(null);
-                        setPreviewData(null);
-                        if (fileInputRef.current) fileInputRef.current.value = '';
-                      }}
-                      data-testid="button-cancel-import"
-                    >
-                      Cancelar
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Search and Filters */}
-            <div className="grid grid-cols-1 gap-6">
-              <Card className="rounded-2xl border-slate-200/60 shadow-sm overflow-hidden bg-white">
-                <CardContent className="p-6 space-y-6">
-                  <div className="flex flex-col md:flex-row gap-4">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
-                      <Input
-                        type="text"
-                        placeholder="Buscar por nombre, RUT o código..."
-                        className="pl-10 h-11 rounded-xl border-slate-200 focus:ring-indigo-500"
-                        value={search}
-                        onChange={(e) => handleSearch(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl">
-                        <Checkbox
-                          id="filter-sales"
-                          checked={filterBySales}
-                          onCheckedChange={(checked) => {
-                            setFilterBySales(checked === true);
-                            setCurrentPage(1);
-                          }}
-                        />
-                        <Label
-                          htmlFor="filter-sales"
-                          className="text-sm font-medium text-slate-700 cursor-pointer flex items-center gap-2"
-                        >
-                          <ShoppingCart className="h-4 w-4 text-indigo-500" />
-                          Ventas en:
-                        </Label>
-                        <Select
-                          value={salesPeriod}
-                          onValueChange={(value) => {
-                            setSalesPeriod(value);
-                            if (filterBySales) setCurrentPage(1);
-                          }}
-                          disabled={!filterBySales}
-                        >
-                          <SelectTrigger
-                            className="w-[140px] h-8 text-xs border-none bg-transparent focus:ring-0"
-                          >
-                            <SelectValue placeholder="Período" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="today">Hoy</SelectItem>
-                            <SelectItem value="yesterday">Ayer</SelectItem>
-                            <SelectItem value="this_week">Esta semana</SelectItem>
-                            <SelectItem value="this_month">Este mes</SelectItem>
-                            <SelectItem value="last_30_days">Últimos 30 días</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={clearFilters}
-                        className="h-10 rounded-xl border-slate-200"
-                      >
-                        <RotateCcw className="h-4 w-4 mr-2 text-slate-500" />
-                        Limpiar
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Additional Info / Filters Summary */}
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                    <Badge variant="outline" className="rounded-lg bg-slate-50 text-slate-600 border-slate-200">
-                      {totalCount} Clientes encontrados
-                    </Badge>
-                    {generateSummaryChips().map((chip, idx) => (
-                      <Badge key={idx} variant="secondary" className="rounded-lg bg-indigo-50 text-indigo-700 border-indigo-100">
-                        {chip.label}: {chip.value}
-                      </Badge>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Desktop: Clients Table */}
-            <Card className="hidden sm:block rounded-2xl border-slate-200/60 shadow-sm overflow-hidden bg-white">
-              <Table>
-                <TableHeader className="bg-slate-50/50">
-                  <TableRow className="hover:bg-transparent border-slate-100">
-                    <TableHead className="w-[300px] text-slate-500 font-semibold py-4 pl-6">Cliente</TableHead>
-                    <TableHead className="text-slate-500 font-semibold py-4 text-center">Estado Crédito</TableHead>
-                    <TableHead className="text-slate-500 font-semibold py-4">Tipo Negocio</TableHead>
-                    <TableHead className="text-slate-500 font-semibold py-4 text-right pr-6">Límite</TableHead>
-                    <TableHead className="w-[80px] py-4 pr-6"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {clients?.map((client) => {
-                    const creditStatus = getCreditStatus(client.cren, client.crlt, client.crsd);
-                    return (
-                      <TableRow
-                        key={client.id}
-                        className="group border-slate-50 hover:bg-slate-50/50 transition-colors cursor-pointer"
-                        onClick={() => window.location.href = `/client/${encodeURIComponent(client.nokoen)}`}
-                      >
-                        <TableCell className="py-4 pl-6">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold shrink-0">
-                              {client.nokoen.charAt(0)}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="font-semibold text-slate-900 truncate">{client.nokoen}</p>
-                              <p className="text-xs text-slate-500">#{client.koen || "S/C"}</p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center py-4">
-                          <Badge className={`${creditStatus.color} text-white border-none rounded-lg px-2 py-0.5 text-[10px] uppercase tracking-wider font-bold`}>
-                            {creditStatus.text}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="py-4">
-                          <p className="text-sm text-slate-600 font-medium">{client.gien || "-"}</p>
-                        </TableCell>
-                        <TableCell className="text-right py-4 pr-6">
-                          <p className="text-sm font-bold text-slate-900">{formatCurrency(client.crlt)}</p>
-                        </TableCell>
-                        <TableCell className="text-right py-4 pr-6">
-                          <div className="flex justify-end">
-                            <div className="p-2 rounded-lg group-hover:bg-white group-hover:shadow-sm transition-all text-slate-400 group-hover:text-indigo-600">
-                              <ChevronRight className="h-4 w-4" />
-                            </div>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-
-              {clients?.length === 0 && !isLoading && (
-                <div className="text-center py-20 bg-white">
-                  <Users className="h-12 w-12 text-slate-200 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-slate-900 mb-1">
-                    {search ? "No se encontraron resultados" : "Sin clientes"}
-                  </h3>
-                  <p className="text-slate-500">
-                    {search ? `No hay coincidencias para "${search}"` : "Tu lista de clientes aparecerá aquí."}
+      {/* Modern Stat Cards */}
+      {!isLoading && (
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 px-1">
+          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-all hover:scale-[1.02] bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/50 dark:to-blue-900/30">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-blue-600/70 dark:text-blue-400/70 uppercase tracking-wider">Total Clientes</p>
+                  <p className="text-2xl font-bold mt-1 text-blue-900 dark:text-blue-100">{totalCount.toLocaleString()}</p>
+                </div>
+                <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-blue-500/10 dark:bg-blue-400/10 backdrop-blur-sm">
+                  <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                </div>
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-blue-600" />
+            </CardContent>
+          </Card>
+          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-all hover:scale-[1.02] bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/50 dark:to-amber-900/30">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-amber-600/70 dark:text-amber-400/70 uppercase tracking-wider">Segmentos</p>
+                  <p className="text-2xl font-bold mt-1 text-amber-900 dark:text-amber-100">
+                    {segments?.length || 0}
                   </p>
                 </div>
-              )}
-            </Card>
+                <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-amber-500/10 dark:bg-amber-400/10 backdrop-blur-sm">
+                  <TrendingUp className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                </div>
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-amber-600" />
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-            {/* Mobile: Client Cards */}
-            <div className="sm:hidden space-y-4">
-              {clients?.map((client) => {
-                const creditStatus = getCreditStatus(client.cren, client.crlt, client.crsd);
-                return (
-                  <Card
-                    key={client.id}
-                    className="rounded-2xl border-slate-200/60 shadow-sm overflow-hidden bg-white active:scale-[0.98] transition-transform"
-                    onClick={() => window.location.href = `/client/${encodeURIComponent(client.nokoen)}`}
+      {/* Clientes Tab Content */}
+      {activeTab === "clientes" && (
+        <>
+          {/* Import Preview */}
+          {showImportPreview && previewData && (
+            <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800">
+              <CardHeader>
+                <CardTitle className="text-blue-900 dark:text-blue-100 flex items-center">
+                  <Upload className="h-5 w-5 mr-2" />
+                  Vista Previa de Importación
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">{previewData.totalClients}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Clientes en CSV</div>
+                  </div>
+                  <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">{previewData.wouldInsert}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Nuevos</div>
+                  </div>
+                  <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg">
+                    <div className="text-2xl font-bold text-orange-600">{previewData.wouldUpdate}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Actualizaciones</div>
+                  </div>
+                  <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg">
+                    <div className="text-2xl font-bold text-gray-600">{previewData.existingClients}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Existentes</div>
+                  </div>
+                </div>
+
+                {previewData.sampleData && previewData.sampleData.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Muestra de datos:</h4>
+                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                      {previewData.sampleData.map((client: any, index: number) => (
+                        <div key={index} className="text-sm bg-white dark:bg-gray-800 p-2 rounded">
+                          <span className="font-medium">{client.nokoen}</span>
+                          {client.rten && <span className="text-gray-600 ml-2">({client.rten})</span>}
+                          {client.email && <span className="text-gray-600 ml-2">{client.email}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {isImporting && importProgress && (
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center">
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin text-blue-600" />
+                      <span className="text-blue-800 font-medium" data-testid="text-import-progress">
+                        {importProgress}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex space-x-3">
+                  <Button
+                    onClick={handleImport}
+                    disabled={isImporting}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    data-testid="button-confirm-import"
                   >
-                    <CardContent className="p-4 space-y-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3 min-w-0">
+                    {isImporting ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4 mr-2" />
+                    )}
+                    {isImporting ? "Procesando..." : "Confirmar Importación"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowImportPreview(false);
+                      setSelectedFile(null);
+                      setPreviewData(null);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                    data-testid="button-cancel-import"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Search & Filters */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Buscar por nombre, RUT o código..."
+                className="pl-10 h-11 rounded-xl border-muted bg-muted/30 focus:bg-background transition-colors"
+                value={search}
+                onChange={(e) => handleSearch(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border border-muted rounded-xl">
+                <Checkbox
+                  id="filter-sales"
+                  checked={filterBySales}
+                  onCheckedChange={(checked) => {
+                    setFilterBySales(checked === true);
+                    setCurrentPage(1);
+                  }}
+                />
+                <Label
+                  htmlFor="filter-sales"
+                  className="text-sm font-medium cursor-pointer flex items-center gap-1.5"
+                >
+                  <ShoppingCart className="h-3.5 w-3.5 text-indigo-500" />
+                  Ventas:
+                </Label>
+                <Select
+                  value={salesPeriod}
+                  onValueChange={(value) => {
+                    setSalesPeriod(value);
+                    if (filterBySales) setCurrentPage(1);
+                  }}
+                  disabled={!filterBySales}
+                >
+                  <SelectTrigger className="w-[130px] h-8 text-xs border-none bg-transparent focus:ring-0">
+                    <SelectValue placeholder="Período" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="today">Hoy</SelectItem>
+                    <SelectItem value="yesterday">Ayer</SelectItem>
+                    <SelectItem value="this_week">Esta semana</SelectItem>
+                    <SelectItem value="this_month">Este mes</SelectItem>
+                    <SelectItem value="last_30_days">Últimos 30 días</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearFilters}
+                className="h-10 rounded-xl border-muted"
+              >
+                <RotateCcw className="h-4 w-4 mr-1.5 text-muted-foreground" />
+                Limpiar
+              </Button>
+            </div>
+          </div>
+
+          {/* Results summary */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 px-1">
+            <Badge variant="outline" className="rounded-lg bg-muted/30 text-foreground/70 border-muted">
+              {totalCount} Clientes encontrados
+            </Badge>
+            {generateSummaryChips().map((chip, idx) => (
+              <Badge key={idx} variant="secondary" className="rounded-lg bg-indigo-50 text-indigo-700 border-indigo-100">
+                {chip.label}: {chip.value}
+              </Badge>
+            ))}
+          </div>
+
+          {/* Desktop: Clients Table */}
+          <Card className="hidden sm:block border-0 shadow-sm rounded-xl overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/20 hover:bg-muted/20">
+                  <TableHead className="w-[300px] font-semibold text-xs uppercase tracking-wider pl-6">Cliente</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Segmento</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wider">Vendedor</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Última Compra</TableHead>
+                  <TableHead className="font-semibold text-xs uppercase tracking-wider text-right pr-6">Monto Última Compra</TableHead>
+                  <TableHead className="w-[60px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {clients?.map((client) => {
+                  const creditStatus = getCreditStatus(client);
+                  return (
+                    <TableRow
+                      key={client.id}
+                      className="group hover:bg-muted/30 transition-colors cursor-pointer"
+                      onClick={() => window.location.href = `/client/${encodeURIComponent(client.nokoen)}`}
+                    >
+                      <TableCell className="py-4 pl-6">
+                        <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold shrink-0">
                             {client.nokoen.charAt(0)}
                           </div>
                           <div className="min-w-0">
-                            <p className="font-bold text-slate-900 truncate">{client.nokoen}</p>
-                            <p className="text-xs text-slate-500">#{client.koen}</p>
+                            <p className="font-semibold text-foreground truncate">{client.nokoen}</p>
+                            <p className="text-xs text-muted-foreground">#{client.koen || "S/C"}</p>
                           </div>
                         </div>
-                        <Badge className={`${creditStatus.color} text-white border-none rounded-lg px-2 py-0.5 text-[10px] uppercase font-bold`}>
-                          {creditStatus.text}
+                      </TableCell>
+                      <TableCell className="py-4 text-center">
+                        <Badge variant="outline" className="text-[10px] uppercase font-bold border-indigo-200 text-indigo-700 bg-indigo-50">
+                          {client.sien || "SIN SEGMENTO"}
                         </Badge>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-50">
-                        <div>
-                          <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Límite Crédito</p>
-                          <p className="font-bold text-slate-900">{formatCurrency(client.crlt)}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Tipo Negocio</p>
-                          <p className="text-sm text-slate-600 truncate font-medium">{client.gien || "-"}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-
-            {/* Pagination Controls */}
-            <div className="flex items-center justify-between py-4">
-              <p className="text-sm text-slate-500">
-                Mostrando <span className="font-semibold text-slate-900">{clients?.length}</span> de <span className="font-semibold text-slate-900">{totalCount}</span> clientes
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(prev => prev - 1)}
-                  className="rounded-xl border-slate-200 bg-white"
-                >
-                  Anterior
-                </Button>
-                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 text-xs font-bold">
-                  {currentPage}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={clients && clients.length < itemsPerPage}
-                  onClick={() => setCurrentPage(prev => prev + 1)}
-                  className="rounded-xl border-slate-200 bg-white"
-                >
-                  Siguiente
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Client Details Modal */}
-        <Dialog open={isClientModalOpen} onOpenChange={setIsClientModalOpen}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center space-x-2">
-                <User className="h-5 w-5 text-primary" />
-                <span>Detalles del Cliente</span>
-              </DialogTitle>
-            </DialogHeader>
-
-            {selectedClient && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-lg flex items-center space-x-2">
-                        <Building2 className="h-4 w-4" />
-                        <span>Información Básica</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div>
-                        <label className="text-sm font-medium text-gray-500">Nombre del Cliente</label>
-                        <p className="text-lg font-semibold">{selectedClient.nokoen}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-500">Código Cliente</label>
-                        <p className="font-medium">{selectedClient.koen || "N/A"}</p>
-                      </div>
-                      {selectedClient.rten && (
-                        <div>
-                          <label className="text-sm font-medium text-gray-500">RUT</label>
-                          <p className="font-medium">{selectedClient.rten}</p>
-                        </div>
-                      )}
-                      {selectedClient.gien && (
-                        <div>
-                          <label className="text-sm font-medium text-gray-500">Tipo de Negocio</label>
-                          <p className="font-medium">{selectedClient.gien}</p>
-                        </div>
-                      )}
-                      {selectedClient.sien && (
-                        <div>
-                          <label className="text-sm font-medium text-gray-500">Sector Industrial</label>
-                          <p className="font-medium">{selectedClient.sien}</p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-lg flex items-center space-x-2">
-                        <Phone className="h-4 w-4" />
-                        <span>Información de Contacto</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {selectedClient.email && (
-                        <div>
-                          <label className="text-sm font-medium text-gray-500">Email</label>
-                          <p className="font-medium flex items-center">
-                            <Mail className="h-4 w-4 mr-2 text-gray-400" />
-                            {selectedClient.email}
-                          </p>
-                        </div>
-                      )}
-                      {selectedClient.foen && (
-                        <div>
-                          <label className="text-sm font-medium text-gray-500">Teléfono</label>
-                          <p className="font-medium flex items-center">
-                            <Phone className="h-4 w-4 mr-2 text-gray-400" />
-                            {selectedClient.foen}
-                          </p>
-                        </div>
-                      )}
-                      {selectedClient.dien && (
-                        <div>
-                          <label className="text-sm font-medium text-gray-500">Dirección</label>
-                          <p className="font-medium flex items-start">
-                            <MapPin className="h-4 w-4 mr-2 text-gray-400 mt-0.5" />
-                            <span>{selectedClient.dien}</span>
-                          </p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
-
-                <Separator />
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg flex items-center space-x-2">
-                      <CreditCard className="h-4 w-4" />
-                      <span>Información de Crédito</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                        <div className="text-2xl font-bold text-green-600">
-                          {formatCurrency(selectedClient.crlt)}
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">Límite de Crédito</div>
-                      </div>
-                      <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                        <div className="text-2xl font-bold text-blue-600">
-                          {formatCurrency(selectedClient.cren)}
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">Crédito Disponible</div>
-                      </div>
-                      {selectedClient.crsd && parseFloat(selectedClient.crsd) > 0 && (
-                        <div className="text-center p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                          <div className="text-2xl font-bold text-red-600">
-                            {formatCurrency(selectedClient.crsd)}
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <p className="text-sm text-muted-foreground font-medium">{client.salespersonName || "-"}</p>
+                      </TableCell>
+                      <TableCell className="text-center py-4">
+                        <p className="text-sm text-muted-foreground">
+                          {client.lastTransactionDate
+                            ? new Date(client.lastTransactionDate).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                            : "-"}
+                        </p>
+                      </TableCell>
+                      <TableCell className="text-right py-4 pr-6">
+                        <p className="text-sm font-bold text-foreground">
+                          {client.lastTransactionAmount ? formatCurrency(client.lastTransactionAmount) : "$0"}
+                        </p>
+                      </TableCell>
+                      <TableCell className="text-right py-4 pr-4">
+                        <div className="flex justify-end">
+                          <div className="p-2 rounded-lg group-hover:bg-background group-hover:shadow-sm transition-all text-muted-foreground group-hover:text-indigo-600">
+                            <ChevronRight className="h-4 w-4" />
                           </div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">Deuda Pendiente</div>
                         </div>
-                      )}
-                    </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
 
-                    <div className="mt-4 flex justify-center">
-                      <Badge className={`${getCreditStatus(selectedClient.cren, selectedClient.crlt, selectedClient.crsd).color} text-white`}>
-                        {getCreditStatus(selectedClient.cren, selectedClient.crlt, selectedClient.crsd).text}
-                      </Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Separator />
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg flex items-center space-x-2">
-                      <TrendingUp className="h-4 w-4" />
-                      <span>Estadísticas de Ventas</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="text-center p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
-                        <div className="text-2xl font-bold text-indigo-600">
-                          {formatCurrency(selectedClient.totalSales || 0)}
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">Total en Ventas</div>
-                      </div>
-                      <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                        <div className="text-2xl font-bold text-purple-600">
-                          {selectedClient.totalTransactions || 0}
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">Total Transacciones</div>
-                      </div>
-                      {selectedClient.lastTransactionDate && (
-                        <div className="text-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-                          <div className="text-lg font-bold text-orange-600 flex items-center justify-center">
-                            <Calendar className="h-4 w-4 mr-2" />
-                            {formatDate(selectedClient.lastTransactionDate)}
-                          </div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">Última Compra</div>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+            {clients?.length === 0 && !isLoading && (
+              <div className="text-center py-20">
+                <Users className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-foreground mb-1">
+                  {search ? "No se encontraron resultados" : "Sin clientes"}
+                </h3>
+                <p className="text-muted-foreground">
+                  {search ? `No hay coincidencias para "${search}"` : "Tu lista de clientes aparecerá aquí."}
+                </p>
               </div>
             )}
-          </DialogContent>
-        </Dialog>
+          </Card>
 
-        {/* New Client Modal */}
-        <Dialog open={isNewClientModalOpen} onOpenChange={setIsNewClientModalOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-bold flex items-center">
-                <Plus className="h-5 w-5 mr-2 text-green-600" />
-                Nuevo Cliente
-              </DialogTitle>
-            </DialogHeader>
+          {/* Mobile: Client Cards */}
+          <div className="sm:hidden space-y-3">
+            {clients?.map((client) => {
+              const creditStatus = getCreditStatus(client);
+              return (
+                <Card
+                  key={client.id}
+                  className="border-0 shadow-sm rounded-xl overflow-hidden active:scale-[0.98] transition-transform cursor-pointer"
+                  onClick={() => window.location.href = `/client/${encodeURIComponent(client.nokoen)}`}
+                >
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold shrink-0">
+                          {client.nokoen.charAt(0)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-foreground truncate">{client.nokoen}</p>
+                          <p className="text-xs text-muted-foreground">#{client.koen}</p>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] uppercase font-bold border-indigo-200 text-indigo-700 bg-indigo-50">
+                        {client.sien || "S/S"}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 pt-2 border-t border-muted/30">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Vendedor</p>
+                        <p className="text-sm text-foreground/70 truncate font-medium">{client.salespersonName || "-"}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Última Compra</p>
+                        <p className="text-sm text-foreground/70 font-medium">
+                          {client.lastTransactionDate
+                            ? new Date(client.lastTransactionDate).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                            : "-"}
+                        </p>
+                        {client.lastTransactionAmount && (
+                          <p className="font-bold text-foreground">{formatCurrency(client.lastTransactionAmount)}</p>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
 
-            <div className="space-y-4 py-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Nombre <span className="text-red-500">*</span>
-                </label>
-                <Input
-                  value={newClientData.nokoen}
-                  onChange={(e) => setNewClientData({ ...newClientData, nokoen: e.target.value })}
-                  placeholder="Nombre del cliente"
-                  className="mt-1"
-                  data-testid="input-client-name"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Código de Cliente
-                </label>
-                <Input
-                  value={newClientData.koen}
-                  onChange={(e) => setNewClientData({ ...newClientData, koen: e.target.value })}
-                  placeholder="Código único del cliente"
-                  className="mt-1"
-                  data-testid="input-client-code"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  RUT
-                </label>
-                <Input
-                  value={newClientData.rten}
-                  onChange={(e) => setNewClientData({ ...newClientData, rten: e.target.value })}
-                  placeholder="12.345.678-9"
-                  className="mt-1"
-                  data-testid="input-client-rut"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Email
-                </label>
-                <Input
-                  type="email"
-                  value={newClientData.email}
-                  onChange={(e) => setNewClientData({ ...newClientData, email: e.target.value })}
-                  placeholder="correo@ejemplo.com"
-                  className="mt-1"
-                  data-testid="input-client-email"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Teléfono
-                </label>
-                <Input
-                  value={newClientData.foen}
-                  onChange={(e) => setNewClientData({ ...newClientData, foen: e.target.value })}
-                  placeholder="+56 9 1234 5678"
-                  className="mt-1"
-                  data-testid="input-client-phone"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Dirección
-                </label>
-                <Input
-                  value={newClientData.dien}
-                  onChange={(e) => setNewClientData({ ...newClientData, dien: e.target.value })}
-                  placeholder="Dirección completa"
-                  className="mt-1"
-                  data-testid="input-client-address"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t">
+          {/* Pagination */}
+          <div className="flex items-center justify-between py-2 px-1">
+            <p className="text-sm text-muted-foreground">
+              Mostrando <span className="font-semibold text-foreground">{clients?.length}</span> de <span className="font-semibold text-foreground">{totalCount}</span> clientes
+            </p>
+            <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setIsNewClientModalOpen(false);
-                  setNewClientData({
-                    nokoen: "",
-                    koen: "",
-                    rten: "",
-                    email: "",
-                    foen: "",
-                    dien: "",
-                  });
-                }}
-                data-testid="button-cancel-new-client"
+                size="sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => prev - 1)}
+                className="rounded-xl border-muted"
               >
-                Cancelar
+                Anterior
               </Button>
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 text-xs font-bold">
+                {currentPage}
+              </div>
               <Button
-                onClick={handleCreateClient}
-                disabled={!newClientData.nokoen.trim() || createClientMutation.isPending}
-                className="bg-green-600 hover:bg-green-700 text-white"
-                data-testid="button-save-new-client"
+                variant="outline"
+                size="sm"
+                disabled={clients && clients.length < itemsPerPage}
+                onClick={() => setCurrentPage(prev => prev + 1)}
+                className="rounded-xl border-muted"
               >
-                {createClientMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Guardando...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Crear Cliente
-                  </>
-                )}
+                Siguiente
               </Button>
             </div>
-          </DialogContent>
-        </Dialog>
-      </main>
+          </div>
+        </>
+      )}
+
+      {/* Client Details Modal */}
+      <Dialog open={isClientModalOpen} onOpenChange={setIsClientModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <User className="h-5 w-5 text-primary" />
+              <span>Detalles del Cliente</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedClient && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center space-x-2">
+                      <Building2 className="h-4 w-4" />
+                      <span>Información Básica</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Nombre del Cliente</label>
+                      <p className="text-lg font-semibold">{selectedClient.nokoen}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Código Cliente</label>
+                      <p className="font-medium">{selectedClient.koen || "N/A"}</p>
+                    </div>
+                    {selectedClient.rten && (
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">RUT</label>
+                        <p className="font-medium">{selectedClient.rten}</p>
+                      </div>
+                    )}
+                    {selectedClient.gien && (
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Tipo de Negocio</label>
+                        <p className="font-medium">{selectedClient.gien}</p>
+                      </div>
+                    )}
+                    {selectedClient.sien && (
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Sector Industrial</label>
+                        <p className="font-medium">{selectedClient.sien}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center space-x-2">
+                      <Phone className="h-4 w-4" />
+                      <span>Información de Contacto</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {selectedClient.email && (
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Email</label>
+                        <p className="font-medium flex items-center">
+                          <Mail className="h-4 w-4 mr-2 text-gray-400" />
+                          {selectedClient.email}
+                        </p>
+                      </div>
+                    )}
+                    {selectedClient.foen && (
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Teléfono</label>
+                        <p className="font-medium flex items-center">
+                          <Phone className="h-4 w-4 mr-2 text-gray-400" />
+                          {selectedClient.foen}
+                        </p>
+                      </div>
+                    )}
+                    {selectedClient.dien && (
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Dirección</label>
+                        <p className="font-medium flex items-start">
+                          <MapPin className="h-4 w-4 mr-2 text-gray-400 mt-0.5" />
+                          <span>{selectedClient.dien}</span>
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Separator />
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center space-x-2">
+                    <CreditCard className="h-4 w-4" />
+                    <span>Información de Crédito</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {/* Payment Condition Badge */}
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-wider font-bold text-slate-400 mb-1">Condición de Pago</p>
+                      <p className="text-lg font-semibold text-slate-800">
+                        {selectedClient.cpen?.trim() || "Sin datos"}
+                      </p>
+                    </div>
+                    <Badge className={`${getCreditStatus(selectedClient).color} text-white`}>
+                      {getCreditStatus(selectedClient).text}
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                      <div className="text-xl font-bold text-blue-600">
+                        {selectedClient.diprve && parseFloat(selectedClient.diprve) > 0
+                          ? `${parseFloat(selectedClient.diprve)} días`
+                          : "-"}
+                      </div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">Plazo</div>
+                    </div>
+                    <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                      <div className="text-xl font-bold text-green-600">
+                        {formatCurrency(selectedClient.crto)}
+                      </div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">Crédito Total</div>
+                    </div>
+                    <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                      <div className="text-xl font-bold text-purple-600">
+                        {formatCurrency(selectedClient.crsd)}
+                      </div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">Saldo / Deuda</div>
+                    </div>
+                    <div className="text-center p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                      <div className="text-xl font-bold text-amber-600 text-sm">
+                        {selectedClient.fevecren && selectedClient.fevecren !== "NULL"
+                          ? new Date(selectedClient.fevecren).toLocaleDateString('es-CL')
+                          : "-"}
+                      </div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">Vencimiento Crédito</div>
+                    </div>
+                  </div>
+
+                  {/* Additional legacy fields if they have data */}
+                  {(selectedClient.crlt && parseFloat(selectedClient.crlt as string) > 0) && (
+                    <div className="mt-3 grid grid-cols-2 gap-4">
+                      <div className="text-center p-3 bg-slate-50 rounded-lg">
+                        <div className="text-lg font-bold text-slate-600">{formatCurrency(selectedClient.crlt)}</div>
+                        <div className="text-xs text-gray-500">Límite Formal</div>
+                      </div>
+                      <div className="text-center p-3 bg-slate-50 rounded-lg">
+                        <div className="text-lg font-bold text-slate-600">{formatCurrency(selectedClient.cren)}</div>
+                        <div className="text-xs text-gray-500">Disponible</div>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Separator />
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center space-x-2">
+                    <TrendingUp className="h-4 w-4" />
+                    <span>Estadísticas de Ventas</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="text-center p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
+                      <div className="text-2xl font-bold text-indigo-600">
+                        {formatCurrency(selectedClient.totalSales || 0)}
+                      </div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">Total en Ventas</div>
+                    </div>
+                    <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                      <div className="text-2xl font-bold text-purple-600">
+                        {selectedClient.totalTransactions || 0}
+                      </div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">Total Transacciones</div>
+                    </div>
+                    {selectedClient.lastTransactionDate && (
+                      <div className="text-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                        <div className="text-lg font-bold text-orange-600 flex items-center justify-center">
+                          <Calendar className="h-4 w-4 mr-2" />
+                          {formatDate(selectedClient.lastTransactionDate)}
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Última Compra</div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* New Client Modal */}
+      <Dialog open={isNewClientModalOpen} onOpenChange={setIsNewClientModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center">
+              <Plus className="h-5 w-5 mr-2 text-green-600" />
+              Nuevo Cliente
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Nombre <span className="text-red-500">*</span>
+              </label>
+              <Input
+                value={newClientData.nokoen}
+                onChange={(e) => setNewClientData({ ...newClientData, nokoen: e.target.value })}
+                placeholder="Nombre del cliente"
+                className="mt-1"
+                data-testid="input-client-name"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Código de Cliente
+              </label>
+              <Input
+                value={newClientData.koen}
+                onChange={(e) => setNewClientData({ ...newClientData, koen: e.target.value })}
+                placeholder="Código único del cliente"
+                className="mt-1"
+                data-testid="input-client-code"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                RUT
+              </label>
+              <Input
+                value={newClientData.rten}
+                onChange={(e) => setNewClientData({ ...newClientData, rten: e.target.value })}
+                placeholder="12.345.678-9"
+                className="mt-1"
+                data-testid="input-client-rut"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Email
+              </label>
+              <Input
+                type="email"
+                value={newClientData.email}
+                onChange={(e) => setNewClientData({ ...newClientData, email: e.target.value })}
+                placeholder="correo@ejemplo.com"
+                className="mt-1"
+                data-testid="input-client-email"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Teléfono
+              </label>
+              <Input
+                value={newClientData.foen}
+                onChange={(e) => setNewClientData({ ...newClientData, foen: e.target.value })}
+                placeholder="+56 9 1234 5678"
+                className="mt-1"
+                data-testid="input-client-phone"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Dirección
+              </label>
+              <Input
+                value={newClientData.dien}
+                onChange={(e) => setNewClientData({ ...newClientData, dien: e.target.value })}
+                placeholder="Dirección completa"
+                className="mt-1"
+                data-testid="input-client-address"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsNewClientModalOpen(false);
+                setNewClientData({
+                  nokoen: "",
+                  koen: "",
+                  rten: "",
+                  email: "",
+                  foen: "",
+                  dien: "",
+                });
+              }}
+              data-testid="button-cancel-new-client"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleCreateClient}
+              disabled={!newClientData.nokoen.trim() || createClientMutation.isPending}
+              className="bg-green-600 hover:bg-green-700 text-white"
+              data-testid="button-save-new-client"
+            >
+              {createClientMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Crear Cliente
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

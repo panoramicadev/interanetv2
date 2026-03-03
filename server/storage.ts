@@ -10784,6 +10784,8 @@ export class DatabaseStorage implements IStorage {
     totalTransactions?: number;
     totalSales?: number;
     lastTransactionDate?: string;
+    salespersonName?: string;
+    lastTransactionAmount?: number;
   }>> {
     const conditions = [];
 
@@ -10819,19 +10821,22 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (filters?.creditStatus) {
-      // Map credit status strings to actual credit logic
+      // Map credit status strings to actual credit logic using cpen (payment condition) and diprve (payment days)
       switch (filters.creditStatus) {
-        case 'excellent':
-          conditions.push(sql`${clients.cren} > ${clients.crlt} * 0.8`);
+        case 'con_credito':
+          conditions.push(sql`(TRIM(${clients.cpen}) ILIKE '%CREDITO%' OR ${clients.diprve} > 0)`);
           break;
-        case 'good':
-          conditions.push(sql`${clients.cren} BETWEEN ${clients.crlt} * 0.5 AND ${clients.crlt} * 0.8`);
+        case 'contado':
+          conditions.push(sql`(TRIM(${clients.cpen}) ILIKE '%CONTADO%')`);
           break;
-        case 'limited':
-          conditions.push(sql`${clients.cren} BETWEEN ${clients.crlt} * 0.1 AND ${clients.crlt} * 0.5`);
+        case 'cheque':
+          conditions.push(sql`(TRIM(${clients.cpen}) ILIKE '%CHEQUE%')`);
           break;
-        case 'blocked':
-          conditions.push(sql`${clients.cren} >= ${clients.crlt} OR ${clients.crsd} = 'S'`);
+        case 'con_deuda':
+          conditions.push(sql`${clients.crsd} > 0`);
+          break;
+        case 'sin_datos':
+          conditions.push(sql`(${clients.cpen} IS NULL OR TRIM(${clients.cpen}) = '')`);
           break;
       }
     }
@@ -10876,6 +10881,10 @@ export class DatabaseStorage implements IStorage {
           cren: clients.cren,
           crlt: clients.crlt,
           crsd: clients.crsd,
+          crto: clients.crto,
+          cpen: clients.cpen,
+          diprve: clients.diprve,
+          fevecren: clients.fevecren,
           ruen: clients.ruen,
           createdAt: clients.createdAt,
           updatedAt: clients.updatedAt
@@ -10902,17 +10911,43 @@ export class DatabaseStorage implements IStorage {
 
         const [salesData] = await db
           .select({
-            totalSales: sql<number>`COALESCE(SUM(${factVentas.vabrdo}), 0)`,
+            totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
             lastTransactionDate: sql<string>`MAX(${factVentas.feemdo})::text`
           })
           .from(factVentas)
           .where(eq(factVentas.nokoen, client.nokoen));
 
+        // Get the latest document ID and its salesperson
+        const [latestDoc] = await db
+          .select({
+            idmaeedo: factVentas.idmaeedo,
+            salespersonName: factVentas.nokofu,
+          })
+          .from(factVentas)
+          .where(eq(factVentas.nokoen, client.nokoen))
+          .orderBy(desc(factVentas.feemdo), desc(factVentas.idmaeedo))
+          .limit(1);
+
+        let lastTransactionAmount = 0;
+        if (latestDoc?.idmaeedo) {
+          // Sum all items for this specific document
+          const [docTotal] = await db
+            .select({
+              total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`
+            })
+            .from(factVentas)
+            .where(eq(factVentas.idmaeedo, latestDoc.idmaeedo));
+
+          lastTransactionAmount = Number(docTotal?.total || 0);
+        }
+
         return {
           ...client,
           totalTransactions: Number(transactionCount?.count || 0),
           totalSales: Number(salesData?.totalSales || 0),
-          lastTransactionDate: salesData?.lastTransactionDate || undefined
+          lastTransactionDate: salesData?.lastTransactionDate || undefined,
+          salespersonName: latestDoc?.salespersonName || undefined,
+          lastTransactionAmount: lastTransactionAmount || undefined,
         };
       })
     );
@@ -10963,17 +10998,20 @@ export class DatabaseStorage implements IStorage {
 
     if (filters?.creditStatus) {
       switch (filters.creditStatus) {
-        case 'excellent':
-          conditions.push(sql`${clients.cren} > ${clients.crlt} * 0.8`);
+        case 'con_credito':
+          conditions.push(sql`(TRIM(${clients.cpen}) ILIKE '%CREDITO%' OR ${clients.diprve} > 0)`);
           break;
-        case 'good':
-          conditions.push(sql`${clients.cren} BETWEEN ${clients.crlt} * 0.5 AND ${clients.crlt} * 0.8`);
+        case 'contado':
+          conditions.push(sql`(TRIM(${clients.cpen}) ILIKE '%CONTADO%')`);
           break;
-        case 'limited':
-          conditions.push(sql`${clients.cren} BETWEEN ${clients.crlt} * 0.1 AND ${clients.crlt} * 0.5`);
+        case 'cheque':
+          conditions.push(sql`(TRIM(${clients.cpen}) ILIKE '%CHEQUE%')`);
           break;
-        case 'blocked':
-          conditions.push(sql`${clients.cren} >= ${clients.crlt} OR ${clients.crsd} = 'S'`);
+        case 'con_deuda':
+          conditions.push(sql`${clients.crsd} > 0`);
+          break;
+        case 'sin_datos':
+          conditions.push(sql`(${clients.cpen} IS NULL OR TRIM(${clients.cpen}) = '')`);
           break;
       }
     }
@@ -18590,20 +18628,54 @@ export class DatabaseStorage implements IStorage {
     valorTotal: number;
   }> {
     const items = await this.getInventarioMarketing({});
+    let totalItems = 0;
+    let stockBajo = 0;
+    let valorTotal = 0;
 
-    const totalItems = items.length;
-    const stockBajo = items.filter(item => item.cantidad <= (item.stockMinimo || 0)).length;
-    const valorTotal = items.reduce((sum, item) => {
-      const costo = parseFloat(item.costoUnitario as any) || 0;
-      return sum + (costo * item.cantidad);
-    }, 0);
+    for (const item of items) {
+      totalItems++;
+      if (item.cantidad <= (item.stockMinimo || 0)) {
+        stockBajo++;
+      }
+      if (item.costoUnitario) {
+        valorTotal += parseFloat(item.costoUnitario) * item.cantidad;
+      }
+    }
 
-    return {
-      totalItems,
-      stockBajo,
-      valorTotal,
-    };
+    return { totalItems, stockBajo, valorTotal };
   }
+
+  // Inventario Marketing Movimientos
+  async createInventarioMarketingMovimiento(movimiento: InsertInventarioMarketingMovimiento): Promise<InventarioMarketingMovimiento> {
+    const [result] = await db
+      .insert(inventarioMarketingMovimientos)
+      .values(movimiento)
+      .returning();
+
+    // Al crear un movimiento, debemos actualizar la cantidad en el item de inventario
+    const item = await this.getInventarioMarketingById(movimiento.itemId);
+    if (item) {
+      const nuevaCantidad = movimiento.tipo === 'entrada'
+        ? item.cantidad + movimiento.cantidad
+        : item.cantidad - movimiento.cantidad;
+
+      await this.updateInventarioMarketing(item.id, {
+        cantidad: Math.max(0, nuevaCantidad),
+        estado: nuevaCantidad <= 0 ? 'agotado' : 'disponible'
+      });
+    }
+
+    return result;
+  }
+
+  async getInventarioMarketingMovimientosByItemId(itemId: string): Promise<InventarioMarketingMovimiento[]> {
+    return await db
+      .select()
+      .from(inventarioMarketingMovimientos)
+      .where(eq(inventarioMarketingMovimientos.itemId, itemId))
+      .orderBy(desc(inventarioMarketingMovimientos.createdAt));
+  }
+
 
   // ==================== HITOS DE MARKETING ====================
 

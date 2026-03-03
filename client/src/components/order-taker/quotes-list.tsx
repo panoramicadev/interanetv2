@@ -122,11 +122,11 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
     const params = new URLSearchParams();
     params.set('limit', '500'); // Get more records for client-side filtering
     params.set('offset', '0');
-    
+
     if (statusFilter !== "all") {
       params.set('status', statusFilter);
     }
-    
+
     if (searchTerm.trim()) {
       params.set('clientName', searchTerm.trim());
     }
@@ -142,7 +142,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
     if (dateTo) {
       params.set('dateTo', dateTo);
     }
-    
+
     return params.toString();
   };
 
@@ -151,7 +151,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
   });
 
   // Get unique creators for filter dropdown
-  const { data: creators } = useQuery<Array<{id: string; name: string}>>({
+  const { data: creators } = useQuery<Array<{ id: string; name: string }>>({
     queryKey: ['/api/quotes/creators'],
   });
 
@@ -177,12 +177,12 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
         description: `Nueva cotización #${newQuote?.quoteNumber || 'N/A'} creada para editar. Abriendo editor...`,
       });
       // Invalidate all quote queries (fixes cache invalidation bug)
-      queryClient.invalidateQueries({ 
-        predicate: (query) => 
-          typeof query.queryKey[0] === 'string' && 
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          typeof query.queryKey[0] === 'string' &&
           (query.queryKey[0] as string).startsWith('/api/quotes')
       });
-      
+
       // Navigate immediately to tomador de pedidos with the new quote ID
       if (newQuote?.id) {
         navigate(`/tomador-pedidos?quoteId=${newQuote.id}`);
@@ -214,9 +214,9 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
         description: "La cotización ha sido eliminada exitosamente.",
       });
       // Invalidate all quote queries
-      queryClient.invalidateQueries({ 
-        predicate: (query) => 
-          typeof query.queryKey[0] === 'string' && 
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          typeof query.queryKey[0] === 'string' &&
           (query.queryKey[0] as string).startsWith('/api/quotes')
       });
     },
@@ -250,9 +250,9 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
         description: `Cotización ${updatedQuote?.quoteNumber || 'N/A'} actualizada exitosamente.`,
       });
       // Invalidate all quote queries
-      queryClient.invalidateQueries({ 
-        predicate: (query) => 
-          typeof query.queryKey[0] === 'string' && 
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          typeof query.queryKey[0] === 'string' &&
           (query.queryKey[0] as string).startsWith('/api/quotes')
       });
     },
@@ -273,7 +273,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
       rejected: 'cancelada',
       converted: 'convertida a pedido'
     };
-    
+
     if (window.confirm(`¿Estás seguro de que deseas cambiar el estado de la cotización ${quoteNumber} a "${statusLabels[newStatus]}"?`)) {
       updateStatusMutation.mutate({ quoteId, status: newStatus });
     }
@@ -285,10 +285,10 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
       // Fetch quote details with items
       const quoteResponse = await apiRequest(`/api/quotes/${quoteId}/with-items`);
       const quoteData = await quoteResponse.json();
-      
+
       // Generate PDF as base64
       const pdfBase64 = await generatePDFAsBase64(quoteData);
-      
+
       // Send email
       return await apiRequest(`/api/quotes/${quoteId}/send-email`, {
         method: 'POST',
@@ -323,10 +323,10 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
   const generatePDFAsBase64 = async (quoteData: any): Promise<string> => {
     const quote = quoteData;
     const items = quoteData.items || [];
-    
-    const quoteDate = new Date(quote.createdAt || new Date()).toLocaleDateString('es-CL', { 
+
+    const quoteDate = new Date(quote.createdAt || new Date()).toLocaleDateString('es-CL', {
       day: '2-digit',
-      month: '2-digit', 
+      month: '2-digit',
       year: 'numeric'
     });
 
@@ -346,7 +346,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
     const productRows = items.map((item: any) => {
       const unitPrice = parseFloat(item.unitPrice);
       const lineTotal = parseFloat(item.totalPrice);
-      
+
       return `
         <tr>
           <td>
@@ -458,11 +458,11 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
       const date = new Date(dateString);
       const now = new Date();
       const diffInMs = now.getTime() - date.getTime();
-      
+
       const minutes = Math.floor(diffInMs / (1000 * 60));
       const hours = Math.floor(diffInMs / (1000 * 60 * 60));
       const days = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-      
+
       if (days > 0) {
         return `hace ${days} día${days > 1 ? 's' : ''}`;
       } else if (hours > 0) {
@@ -480,7 +480,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
   const getStatusBadge = (status: Quote['status']) => {
     const config = statusConfig[status];
     const Icon = config.icon;
-    
+
     return (
       <Badge variant="secondary" className={`${config.color} flex items-center gap-1`}>
         <Icon className="w-3 h-3" />
@@ -490,7 +490,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
   };
 
   const getTotalQuotes = () => quotes?.length || 0;
-  const getQuotesByStatus = (status: Quote['status']) => 
+  const getQuotesByStatus = (status: Quote['status']) =>
     quotes?.filter(q => q.status === status).length || 0;
 
   if (error) {
@@ -507,58 +507,10 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
 
   return (
     <div className="space-y-6">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{getTotalQuotes()}</div>
-          </CardContent>
-        </Card>
-        
-        <Card className="hidden md:block">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Borradores</CardTitle>
-            <FileText className="h-4 w-4 text-gray-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{getQuotesByStatus('draft')}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Enviadas</CardTitle>
-            <Send className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{getQuotesByStatus('sent')}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Aceptadas</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{getQuotesByStatus('accepted')}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Convertidas</CardTitle>
-            <Package className="h-4 w-4 text-purple-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{getQuotesByStatus('converted')}</div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Stats Cards - Hidden by request */}
+      {/* <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        ... stats cards hidden ...
+      </div> */}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
@@ -572,7 +524,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
             data-testid="input-search-quotes"
           />
         </div>
-        
+
         <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); handleFilterChange(); }}>
           <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-status-filter">
             <Filter className="w-4 h-4 mr-2" />
@@ -663,7 +615,6 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                   {(user?.role === 'admin' || user?.role === 'supervisor') && (
                     <TableHead className="text-left">Creado por</TableHead>
                   )}
-                  <TableHead className="text-left">Estado</TableHead>
                   <TableHead className="text-left">Creada</TableHead>
                   <TableHead className="text-center">Acciones</TableHead>
                 </TableRow>
@@ -684,8 +635,8 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                   ))
                 ) : displayedQuotes && displayedQuotes.length > 0 ? (
                   displayedQuotes.map((quote) => (
-                    <TableRow 
-                      key={quote.id} 
+                    <TableRow
+                      key={quote.id}
                       className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors cursor-pointer"
                       data-testid={`quote-row-${quote.id}`}
                       onClick={() => handleEditQuote(quote.id)}
@@ -695,13 +646,13 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                           #{quote.quoteNumber}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {quote.notes && quote.notes.length > 50 
-                            ? `${quote.notes.substring(0, 50)}...` 
+                          {quote.notes && quote.notes.length > 50
+                            ? `${quote.notes.substring(0, 50)}...`
                             : quote.notes || 'Sin notas'
                           }
                         </div>
                       </TableCell>
-                      
+
                       <TableCell className="py-4">
                         <div className="font-medium text-gray-900" data-testid={`client-name-${quote.id}`}>
                           {quote.clientName}
@@ -730,11 +681,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                           </div>
                         </TableCell>
                       )}
-                      
-                      <TableCell className="py-4">
-                        {getStatusBadge(quote.status)}
-                      </TableCell>
-                      
+
                       <TableCell className="py-4">
                         <div className="text-sm text-gray-900">
                           {formatDate(quote.createdAt)}
@@ -743,8 +690,8 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                           {getTimeAgo(quote.createdAt)}
                         </div>
                       </TableCell>
-                      
-                      <TableCell 
+
+                      <TableCell
                         className="py-4 text-center"
                         onClick={(e) => e.stopPropagation()} // Prevent row click when clicking actions
                       >
@@ -755,15 +702,15 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               data-testid={`view-${quote.id}`}
                               onClick={() => handleEditQuote(quote.id)}
                             >
                               <FileText className="w-4 h-4 mr-2" />
                               Ver / Editar
                             </DropdownMenuItem>
-                            
-                            <DropdownMenuItem 
+
+                            <DropdownMenuItem
                               data-testid={`send-email-${quote.id}`}
                               onClick={() => handleSendEmail(quote.id, quote.quoteNumber)}
                               disabled={sendEmailMutation.isPending}
@@ -771,10 +718,10 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                               <Mail className="w-4 h-4 mr-2" />
                               {sendEmailMutation.isPending ? 'Compartiendo...' : 'Compartir'}
                             </DropdownMenuItem>
-                            
+
                             {/* Status change options */}
                             {quote.status === 'draft' && (
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 data-testid={`status-sent-${quote.id}`}
                                 onClick={() => handleStatusChange(quote.id, 'sent', quote.quoteNumber)}
                                 disabled={updateStatusMutation.isPending}
@@ -783,10 +730,10 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                                 Marcar como enviada
                               </DropdownMenuItem>
                             )}
-                            
+
                             {quote.status === 'sent' && (
                               <>
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                   data-testid={`status-accepted-${quote.id}`}
                                   onClick={() => handleStatusChange(quote.id, 'accepted', quote.quoteNumber)}
                                   disabled={updateStatusMutation.isPending}
@@ -794,7 +741,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                                   <CheckCircle className="w-4 h-4 mr-2" />
                                   Marcar como aprobada
                                 </DropdownMenuItem>
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                   data-testid={`status-rejected-${quote.id}`}
                                   onClick={() => handleStatusChange(quote.id, 'rejected', quote.quoteNumber)}
                                   disabled={updateStatusMutation.isPending}
@@ -804,9 +751,9 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                                 </DropdownMenuItem>
                               </>
                             )}
-                            
+
                             {(quote.status === 'rejected' || quote.status === 'accepted') && (
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 data-testid={`status-draft-${quote.id}`}
                                 onClick={() => handleStatusChange(quote.id, 'draft', quote.quoteNumber)}
                                 disabled={updateStatusMutation.isPending}
@@ -815,9 +762,9 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                                 Volver a borrador
                               </DropdownMenuItem>
                             )}
-                            
+
                             {(quote.status === 'draft' || quote.status === 'sent' || quote.status === 'accepted' || quote.status === 'rejected') && (
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 data-testid={`button-duplicate-quote-${quote.id}`}
                                 onClick={() => handleDuplicateForEdit(quote.id)}
                                 disabled={duplicateQuoteMutation.isPending}
@@ -827,7 +774,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                               </DropdownMenuItem>
                             )}
                             {(user?.role === 'admin' || user?.role === 'supervisor') && (
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 data-testid={`button-delete-quote-${quote.id}`}
                                 onClick={() => handleDeleteQuote(quote.id, quote.quoteNumber)}
                                 disabled={deleteQuoteMutation.isPending}
@@ -856,7 +803,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                         No hay cotizaciones
                       </h3>
                       <p className="text-gray-500">
-                        {searchTerm || statusFilter !== "all" 
+                        {searchTerm || statusFilter !== "all"
                           ? "No se encontraron cotizaciones con los filtros aplicados."
                           : "Aún no se han creado cotizaciones en el sistema."
                         }

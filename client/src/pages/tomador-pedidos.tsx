@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -24,7 +25,7 @@ import EcommerceOrdersList, { QuoteFromOrderData } from "@/components/order-take
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit, Mail, Download, Share2 } from "lucide-react";
+import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit, Mail, Download, Share2, ChevronRight } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { nanoid } from "nanoid";
@@ -764,8 +765,12 @@ export default function TomadorPedidos() {
     // Helper function to get available tiers from a product
     const getProductTiers = (product: PriceList): PriceTierOption[] => {
       const tiers: PriceTierOption[] = [];
+      // Calculate lista from desc10 if missing (desc10 = lista * 0.90)
+      const listaValue = parseFloat(product.lista?.toString() || '0') > 0
+        ? product.lista
+        : (parseFloat(product.desc10?.toString() || '0') > 0 ? String(Math.round(parseFloat(product.desc10!.toString()) / 0.90)) : product.lista);
       const tierMappings = [
-        { key: 'lista' as PriceTier, label: 'Lista', field: product.lista },
+        { key: 'lista' as PriceTier, label: 'Lista', field: listaValue },
         { key: 'desc10' as PriceTier, label: '10%', field: product.desc10 },
         { key: 'desc10_5' as PriceTier, label: '10%+5%', field: product.desc10_5 },
         { key: 'desc10_5_3' as PriceTier, label: '10%+5%+3%', field: product.desc10_5_3 },
@@ -3339,9 +3344,12 @@ export default function TomadorPedidos() {
   // Helper function to get available price tiers for a product
   const getAvailableTiers = (product: PriceList): PriceTierOption[] => {
     const tiers: PriceTierOption[] = [];
-
+    // Calculate lista from desc10 if missing (desc10 = lista * 0.90)
+    const listaValue = parseFloat(product.lista?.toString() || '0') > 0
+      ? product.lista
+      : (parseFloat(product.desc10?.toString() || '0') > 0 ? String(Math.round(parseFloat(product.desc10!.toString()) / 0.90)) : product.lista);
     const tierMappings = [
-      { key: 'lista' as PriceTier, label: 'Lista', field: product.lista },
+      { key: 'lista' as PriceTier, label: 'Lista', field: listaValue },
       { key: 'desc10' as PriceTier, label: '10%', field: product.desc10 },
       { key: 'desc10_5' as PriceTier, label: '10%+5%', field: product.desc10_5 },
       { key: 'desc10_5_3' as PriceTier, label: '10%+5%+3%', field: product.desc10_5_3 },
@@ -3365,8 +3373,12 @@ export default function TomadorPedidos() {
 
   // Get best available price for display (first non-zero price)
   const getBestDisplayPrice = (product: PriceList): { price: number; tier: PriceTier; label: string } => {
+    // Calculate lista from desc10 if missing (desc10 = lista * 0.90)
+    const listaVal = parseFloat(product.lista?.toString() || '0') > 0
+      ? product.lista
+      : (parseFloat(product.desc10?.toString() || '0') > 0 ? String(Math.round(parseFloat(product.desc10!.toString()) / 0.90)) : product.lista);
     const tierOrder: Array<{ key: PriceTier; label: string; field: string | null | undefined }> = [
-      { key: 'lista', label: 'Lista', field: product.lista },
+      { key: 'lista', label: 'Lista', field: listaVal },
       { key: 'desc10', label: '10%', field: product.desc10 },
       { key: 'desc10_5', label: '10%+5%', field: product.desc10_5 },
       { key: 'desc10_5_3', label: '10%+5%+3%', field: product.desc10_5_3 },
@@ -3411,24 +3423,34 @@ export default function TomadorPedidos() {
 
   return (
     <>
-      <div className={`${isMobile
-        ? 'px-4 py-6'
-        : 'px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4'
-        }`}>
-        <div className={`space-y-6 ${isMobile ? 'space-y-5' : ''}`}>
-          {/* Header */}
-          <div className={`${isMobile ? 'space-y-3' : 'space-y-4'}`}>
+      {/* Premium Header */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-6 py-8 mx-3 sm:mx-4 lg:mx-6 mt-8">
+        {/* Background decorative elements */}
+        <div className="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-orange-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl" />
+
+        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
+              <Calculator className="h-6 w-6 text-white" />
+            </div>
             <div>
-              <h1 className={`font-semibold text-foreground ${isMobile ? 'text-xl mb-1' : 'text-2xl sm:text-3xl'
-                }`}>
+              <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
                 Tomador de Pedidos
               </h1>
-              <p className={`text-muted-foreground ${isMobile ? 'text-sm' : ''
-                }`}>
-                Constructor de presupuestos, cotizaciones y pedidos
+              <p className="text-slate-400 text-sm md:text-base mt-1">
+                Constructor de presupuestos, cotizaciones y pedidos eficientes
               </p>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className={`${isMobile
+        ? 'px-4 pb-12'
+        : 'px-3 sm:px-4 lg:px-6 pb-12 mt-6'
+        }`}>
+        <div className={`space-y-6 ${isMobile ? 'space-y-5' : ''}`}>
 
           {/* Create Quote Button - Hidden in mobile when client search is open */}
           {!(isMobile && showClientSearch) && (
@@ -3809,20 +3831,18 @@ export default function TomadorPedidos() {
           )}
 
           {/* Cotizaciones Recientes */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Cotizaciones Recientes
-              </CardTitle>
-              <CardDescription>
-                Historial de cotizaciones creadas en el sistema
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <QuotesList onEditQuote={loadQuoteForEditing} />
-            </CardContent>
-          </Card>
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-8 w-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                <FileText className="h-4 w-4 text-orange-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Cotizaciones Recientes</h2>
+                <p className="text-sm text-muted-foreground">Historial de cotizaciones creadas en el sistema</p>
+              </div>
+            </div>
+            <QuotesList onEditQuote={loadQuoteForEditing} />
+          </div>
 
           {/* Pedidos de Clientes del Ecommerce */}
           <Card>
@@ -3859,10 +3879,26 @@ export default function TomadorPedidos() {
               {/* Mobile Content */}
               <Tabs defaultValue={defaultMobileTab} className="flex flex-col flex-1 overflow-hidden">
                 <div className="sticky top-0 z-10 bg-background border-b px-4">
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="client" data-testid="tab-client-mobile">Cliente</TabsTrigger>
-                    <TabsTrigger value="products" data-testid="tab-products-mobile">Productos</TabsTrigger>
-                    <TabsTrigger value="cart" data-testid="tab-cart-mobile" className="relative">
+                  <TabsList className="bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl border border-slate-200 dark:border-slate-700/50 w-full grid grid-cols-3">
+                    <TabsTrigger
+                      value="client"
+                      data-testid="tab-client-mobile"
+                      className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm transition-all"
+                    >
+                      Cliente
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="products"
+                      data-testid="tab-products-mobile"
+                      className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm transition-all"
+                    >
+                      Productos
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="cart"
+                      data-testid="tab-cart-mobile"
+                      className="relative rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm transition-all"
+                    >
                       <motion.div
                         animate={showCartAnimation ? {
                           scale: [1, 1.3, 1],
@@ -4497,6 +4533,104 @@ export default function TomadorPedidos() {
               {/* Left Side - Product Search and Client Info */}
               <div className="flex-1 p-6 overflow-y-auto border-r">
                 <div className="space-y-6">
+                  {/* Client Info Section - Move to Top and make Collapsible */}
+                  <Collapsible defaultOpen={!quoteForm.clientName}>
+                    <Card>
+                      <CardHeader className="py-3">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <User className="w-5 h-5 text-orange-500" />
+                            Información del Cliente
+                          </CardTitle>
+                          <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="sm" className="w-9 p-0">
+                              <ChevronRight className="h-4 w-4 transition-transform data-[state=open]:rotate-90" />
+                              <span className="sr-only">Toggle</span>
+                            </Button>
+                          </CollapsibleTrigger>
+                        </div>
+                      </CardHeader>
+                      <CollapsibleContent>
+                        <CardContent className="pt-0">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label htmlFor="modal-client-name">Nombre del Cliente *</Label>
+                              <Input
+                                id="modal-client-name"
+                                value={quoteForm.clientName}
+                                onChange={(e) => setQuoteForm(prev => ({ ...prev, clientName: e.target.value }))}
+                                data-testid="modal-input-client-name"
+                                placeholder="Nombre completo del cliente"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="modal-client-rut">RUT</Label>
+                              <Input
+                                id="modal-client-rut"
+                                value={quoteForm.clientRut}
+                                onChange={(e) => setQuoteForm(prev => ({ ...prev, clientRut: e.target.value }))}
+                                data-testid="modal-input-client-rut"
+                                placeholder="12345678-9"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="modal-client-email">Email</Label>
+                              <Input
+                                id="modal-client-email"
+                                type="email"
+                                value={quoteForm.clientEmail}
+                                onChange={(e) => setQuoteForm(prev => ({ ...prev, clientEmail: e.target.value }))}
+                                data-testid="modal-input-client-email"
+                                placeholder="cliente@email.com"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="modal-client-phone">Teléfono</Label>
+                              <Input
+                                id="modal-client-phone"
+                                value={quoteForm.clientPhone}
+                                onChange={(e) => setQuoteForm(prev => ({ ...prev, clientPhone: e.target.value }))}
+                                data-testid="modal-input-client-phone"
+                                placeholder="+56 9 1234 5678"
+                              />
+                            </div>
+                            <div className="col-span-2">
+                              <Label htmlFor="modal-client-address">Dirección</Label>
+                              <Input
+                                id="modal-client-address"
+                                value={quoteForm.clientAddress}
+                                onChange={(e) => setQuoteForm(prev => ({ ...prev, clientAddress: e.target.value }))}
+                                data-testid="modal-input-client-address"
+                                placeholder="Dirección completa"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="modal-valid-until">Válido hasta</Label>
+                              <Input
+                                id="modal-valid-until"
+                                type="date"
+                                value={quoteForm.validUntil}
+                                onChange={(e) => setQuoteForm(prev => ({ ...prev, validUntil: e.target.value }))}
+                                data-testid="modal-input-valid-until"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="modal-notes">Notas</Label>
+                              <Textarea
+                                id="modal-notes"
+                                rows={2}
+                                value={quoteForm.notes}
+                                onChange={(e) => setQuoteForm(prev => ({ ...prev, notes: e.target.value }))}
+                                data-testid="modal-textarea-notes"
+                                placeholder="Condiciones especiales, términos, etc."
+                              />
+                            </div>
+                          </div>
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Card>
+                  </Collapsible>
+
                   {/* Product Search Section */}
                   <Card>
                     <CardHeader>
@@ -4658,89 +4792,6 @@ export default function TomadorPedidos() {
                           <Plus className="w-4 h-4 mr-2" />
                           Agregar Producto Personalizado
                         </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Client Info Section */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Información del Cliente</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="modal-client-name">Nombre del Cliente *</Label>
-                          <Input
-                            id="modal-client-name"
-                            value={quoteForm.clientName}
-                            onChange={(e) => setQuoteForm(prev => ({ ...prev, clientName: e.target.value }))}
-                            data-testid="modal-input-client-name"
-                            placeholder="Nombre completo del cliente"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="modal-client-rut">RUT</Label>
-                          <Input
-                            id="modal-client-rut"
-                            value={quoteForm.clientRut}
-                            onChange={(e) => setQuoteForm(prev => ({ ...prev, clientRut: e.target.value }))}
-                            data-testid="modal-input-client-rut"
-                            placeholder="12345678-9"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="modal-client-email">Email</Label>
-                          <Input
-                            id="modal-client-email"
-                            type="email"
-                            value={quoteForm.clientEmail}
-                            onChange={(e) => setQuoteForm(prev => ({ ...prev, clientEmail: e.target.value }))}
-                            data-testid="modal-input-client-email"
-                            placeholder="cliente@email.com"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="modal-client-phone">Teléfono</Label>
-                          <Input
-                            id="modal-client-phone"
-                            value={quoteForm.clientPhone}
-                            onChange={(e) => setQuoteForm(prev => ({ ...prev, clientPhone: e.target.value }))}
-                            data-testid="modal-input-client-phone"
-                            placeholder="+56 9 1234 5678"
-                          />
-                        </div>
-                        <div className="col-span-2">
-                          <Label htmlFor="modal-client-address">Dirección</Label>
-                          <Input
-                            id="modal-client-address"
-                            value={quoteForm.clientAddress}
-                            onChange={(e) => setQuoteForm(prev => ({ ...prev, clientAddress: e.target.value }))}
-                            data-testid="modal-input-client-address"
-                            placeholder="Dirección completa"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="modal-valid-until">Válido hasta</Label>
-                          <Input
-                            id="modal-valid-until"
-                            type="date"
-                            value={quoteForm.validUntil}
-                            onChange={(e) => setQuoteForm(prev => ({ ...prev, validUntil: e.target.value }))}
-                            data-testid="modal-input-valid-until"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="modal-notes">Notas</Label>
-                          <Textarea
-                            id="modal-notes"
-                            rows={2}
-                            value={quoteForm.notes}
-                            onChange={(e) => setQuoteForm(prev => ({ ...prev, notes: e.target.value }))}
-                            data-testid="modal-textarea-notes"
-                            placeholder="Condiciones especiales, términos, etc."
-                          />
-                        </div>
                       </div>
                     </CardContent>
                   </Card>

@@ -63,7 +63,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/clientes",
-      label: "Gestión de Clientes",
+      label: "Clientes",
       icon: Users,
     },
     {
@@ -103,11 +103,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/tomador-pedidos",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
-    },
-    {
-      href: "/inventario",
-      label: "Inventario",
-      icon: Warehouse,
     },
     {
       href: "/gastos-empresariales",
@@ -293,9 +288,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       ],
     },
     {
-      href: "/inventario",
-      label: "Inventario",
-      icon: Warehouse,
+      href: "/productos",
+      label: "Productos",
+      icon: Package,
       separator: true,
     },
     {
@@ -381,7 +376,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/clientes",
-      label: "Gestión de Clientes",
+      label: "Clientes",
       icon: Users,
     },
     {
@@ -491,11 +486,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Banknote,
     },
     {
-      href: "/inventario",
-      label: "Inventario",
-      icon: Warehouse,
-    },
-    {
       href: "/etl-monitor",
       label: "Monitor ETL",
       icon: Database,
@@ -549,7 +539,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/clientes",
-      label: "Gestión de Clientes",
+      label: "Clientes",
       icon: Users,
     },
     {
@@ -580,11 +570,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/tareas",
       label: "Tareas",
       icon: CheckCircle2,
-    },
-    {
-      href: "/inventario",
-      label: "Inventario",
-      icon: Warehouse,
     },
     {
       href: "/tomador-pedidos",
@@ -693,7 +678,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/clientes",
-      label: "Gestión de Clientes",
+      label: "Clientes",
       icon: Users,
     },
   ],
@@ -710,9 +695,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: FileCheck,
     },
     {
-      href: "/inventario",
-      label: "Inventario",
-      icon: Warehouse,
+      href: "/productos",
+      label: "Productos",
+      icon: Package,
     },
     {
       href: "/tintometria",
@@ -763,9 +748,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       ],
     },
     {
-      href: "/inventario",
-      label: "Inventario",
-      icon: Warehouse,
+      href: "/productos",
+      label: "Productos",
+      icon: Package,
     },
   ],
 
@@ -781,9 +766,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Receipt,
     },
     {
-      href: "/inventario",
-      label: "Inventario",
-      icon: Warehouse,
+      href: "/productos",
+      label: "Productos",
+      icon: Package,
       separator: true,
     },
     {

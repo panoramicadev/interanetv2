@@ -34,7 +34,7 @@ export default function Login() {
           <img
             src={panoramicaLogo}
             alt="Panoramica - 30 Años"
-            className="mx-auto max-w-full h-auto max-h-28 drop-shadow-xl"
+            className="mx-auto max-w-full h-auto max-h-20 drop-shadow-xl"
           />
         </div>
 

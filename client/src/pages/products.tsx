@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2, Globe, ShoppingCart, Tags, Image, Settings, Link, Palette, BarChart3, Layers, ChevronLeft, ChevronRight, ExternalLink, RefreshCw, BookOpen } from "lucide-react";
 import { PriceList } from "@shared/schema";
 import GroupedCatalog from "@/components/grouped-catalog";
+import { InventarioContent } from "@/pages/inventario";
 
 interface Product {
   id: string;
@@ -668,7 +669,7 @@ export default function ProductsPage() {
   }
 
   return (
-    <div className="space-y-8 px-2 md:px-4 pb-8">
+    <div className="space-y-8 px-2 md:px-4 pb-8 pt-8">
       {/* Modern Header with Gradient */}
       <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 md:p-8 text-white">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-40" />
@@ -833,6 +834,11 @@ export default function ProductsPage() {
             <Tags className="h-4 w-4" />
             <span className="hidden sm:inline">SKUs Totales</span>
             <span className="sm:hidden">SKUs</span>
+          </TabsTrigger>
+          <TabsTrigger value="inventario" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
+            <Package className="h-4 w-4" />
+            <span className="hidden sm:inline">Inventario</span>
+            <span className="sm:hidden">Inv</span>
           </TabsTrigger>
         </TabsList>
 
@@ -1476,6 +1482,11 @@ export default function ProductsPage() {
               </Tabs>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Tab de Inventario */}
+        <TabsContent value="inventario" className="space-y-4 mt-4">
+          <InventarioContent />
         </TabsContent>
       </Tabs>
 

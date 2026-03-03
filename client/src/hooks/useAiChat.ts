@@ -34,7 +34,8 @@ interface ChatHistoryResponse {
     sessionId: string | null;
 }
 
-export function useAiChat() {
+export function useAiChat(options?: { isPublic?: boolean; salespersonSlug?: string }) {
+    const { isPublic, salespersonSlug } = options || {};
     const { user } = useAuth();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -46,9 +47,10 @@ export function useAiChat() {
     // Load history when opening for the first time
     const loadHistory = useCallback(async (sid?: string) => {
         try {
+            const apiBase = isPublic ? "/api/public/chat" : "/api/chat";
             const url = sid
-                ? `/api/chat/history?sessionId=${encodeURIComponent(sid)}&limit=50`
-                : "/api/chat/history?limit=50";
+                ? `${apiBase}/history?sessionId=${encodeURIComponent(sid)}&limit=50`
+                : `${apiBase}/history?limit=50`;
 
             const res = await fetch(url, { credentials: "include" });
             if (!res.ok) return;
@@ -76,7 +78,7 @@ export function useAiChat() {
         } catch (err) {
             console.error("[useAiChat] Error loading history:", err);
         }
-    }, []);
+    }, [isPublic]);
 
     // Send a message to the AI
     const sendMessage = useCallback(
@@ -106,13 +108,15 @@ export function useAiChat() {
             try {
                 abortControllerRef.current = new AbortController();
 
-                const res = await fetch("/api/chat/message", {
+                const apiBase = isPublic ? "/api/public/chat" : "/api/chat";
+                const res = await fetch(`${apiBase}/message`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     credentials: "include",
                     body: JSON.stringify({
                         message: text.trim(),
                         sessionId,
+                        salespersonSlug, // Only used in public mode
                     }),
                     signal: abortControllerRef.current.signal,
                 });
@@ -165,11 +169,19 @@ export function useAiChat() {
                 abortControllerRef.current = null;
             }
         },
-        [isLoading, sessionId]
+        [isLoading, sessionId, isPublic, salespersonSlug]
     );
 
     // Clear conversation
     const clearHistory = useCallback(async () => {
+        if (isPublic) {
+            // Visitors don't have a DELETE endpoint for history yet
+            setMessages([]);
+            setSessionId(null);
+            setError(null);
+            return;
+        }
+
         try {
             const url = sessionId
                 ? `/api/chat/history?sessionId=${encodeURIComponent(sessionId)}`
@@ -186,7 +198,7 @@ export function useAiChat() {
         } catch (err) {
             console.error("[useAiChat] Error clearing history:", err);
         }
-    }, [sessionId]);
+    }, [sessionId, isPublic]);
 
     // New conversation
     const newConversation = useCallback(() => {

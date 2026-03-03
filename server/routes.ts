@@ -1868,13 +1868,14 @@ export function registerRoutes(app: Express): Server {
   // Core client fields for reliable import (essential fields only to avoid parameter limit)
   const coreClientFields = new Set([
     'koen', 'nokoen', 'rten', 'tien', 'gien', 'paen', 'cien', 'cmen', 'dien', 'comuna',
-    'foen', 'email', 'kofuen', 'lcen', 'contab', 'ruen', 'cobrador', 'bloqueado', 'actien'
+    'foen', 'email', 'kofuen', 'lcen', 'contab', 'ruen', 'cobrador', 'bloqueado', 'actien',
+    'cpen', 'fevecren', 'feultr', 'koplcr', 'habilita'
   ]);
 
   // Numeric fields that require strict validation 
   const numericClientFields = new Set([
     'idmaeen', 'crsd', 'crch', 'crlt', 'crpa', 'crto', 'cren', 'nuvecr', 'dccr', 'incr',
-    'popicr', 'porprefen', 'cpen', 'diacobra', 'dimoper', 'imptoret', 'podetrac', 'proteacum',
+    'popicr', 'porprefen', 'diacobra', 'dimoper', 'imptoret', 'podetrac', 'proteacum',
     'protevige', 'diasvenci', 'diprve', 'valivenpag', 'porceliga', 'gpslat', 'gpslon'
   ]);
 
@@ -14290,6 +14291,34 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  app.post('/api/marketing/inventario/:id/movimientos', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const itemId = req.params.id;
+
+      const movementData = {
+        ...req.body,
+        itemId,
+        usuarioId: user.id.toString(),
+        usuarioNombre: `${user.firstName} ${user.lastName}`,
+      };
+
+      const movimiento = await storage.createInventarioMarketingMovimiento(movementData);
+      res.status(201).json(movimiento);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al registrar movimiento', error: error.message });
+    }
+  }));
+
+  app.get('/api/marketing/inventario/:id/movimientos', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const movimientos = await storage.getInventarioMarketingMovimientosByItemId(req.params.id);
+      res.json(movimientos);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener movimientos', error: error.message });
+    }
+  }));
+
   // ==================================================================================
   // HITOS DE MARKETING routes
   // ==================================================================================
@@ -21052,24 +21081,118 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     });
   }));
 
-  // DELETE /api/chat/history — Clear chat history for current user
-  app.delete('/api/chat/history', requireAuth, asyncHandler(async (req: any, res: any) => {
-    const userId = req.user?.id;
-    const { sessionId } = req.query;
+  // ═══════════════════════════════════════════════════════════════════
+  // PUBLIC AI CHAT ENDPOINTS (for visitors in public catalog)
+  // ═══════════════════════════════════════════════════════════════════
 
-    const deleted = await db
-      .delete(chatMessages)
-      .where(
-        sessionId
-          ? and(eq(chatMessages.userId, userId), eq(chatMessages.sessionId, sessionId as string))
-          : eq(chatMessages.userId, userId)
-      )
-      .returning();
+  // POST /api/public/chat/message — Send a message to the AI assistant from public catalog
+  app.post('/api/public/chat/message', asyncHandler(async (req: any, res: any) => {
+    const { message, sessionId: clientSessionId, salespersonSlug } = req.body;
+
+    if (!message || typeof message !== 'string' || message.trim().length === 0) {
+      return res.status(400).json({ error: 'El mensaje no puede estar vacío.' });
+    }
+
+    if (!salespersonSlug) {
+      return res.status(400).json({ error: 'Se requiere el slug del vendedor.' });
+    }
+
+    // Identify salesperson
+    const salesperson = await storage.getPublicSalespersonBySlug(salespersonSlug);
+    if (!salesperson) {
+      return res.status(404).json({ error: 'Vendedor no encontrado.' });
+    }
+
+    const sessionId = clientSessionId || `visitor-${randomUUID()}`;
+
+    // Save user message to DB (userId as null for visitors)
+    await db.insert(chatMessages).values({
+      userId: null,
+      role: 'user',
+      content: message.trim(),
+      sessionId,
+    });
+
+    // Load conversation history for this session
+    const history = await db
+      .select()
+      .from(chatMessages)
+      .where(eq(chatMessages.sessionId, sessionId))
+      .orderBy(chatMessages.createdAt)
+      .limit(20);
+
+    const conversationHistory: AiMessage[] = history
+      .slice(0, -1)
+      .filter((m: any) => m.role === 'user' || m.role === 'assistant')
+      .map((m: any) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content || '',
+      }));
+
+    // Build visitor context
+    const userContext: AiUserContext = {
+      userId: undefined,
+      role: 'public',
+      salespersonName: salesperson.salespersonName,
+      firstName: 'Visitante',
+      lastName: '',
+    };
+
+    // Process with AI agent — include knowledge base
+    const kbItems = await db.select().from(aiKnowledgeBase);
+    const knowledgeBase = kbItems.map((k: any) => ({
+      title: k.title,
+      content: k.content || '',
+      fileType: k.fileType || 'text',
+    }));
+
+    const result = await processAgentMessage(message.trim(), conversationHistory, userContext, knowledgeBase);
+
+    // Save assistant response to DB
+    await db.insert(chatMessages).values({
+      userId: null,
+      role: 'assistant',
+      content: result.response,
+      toolCalls: result.toolsUsed.length > 0 ? result.toolsUsed : null,
+      metadata: { tokensUsed: result.tokensUsed, model: 'gpt-4o-mini', public: true },
+      sessionId,
+    });
 
     res.json({
-      success: true,
-      message: `${deleted.length} mensajes eliminados.`,
-      count: deleted.length,
+      response: result.response,
+      sessionId,
+      toolsUsed: result.toolsUsed,
+      tokensUsed: result.tokensUsed,
+    });
+  }));
+
+  // GET /api/public/chat/history — Get chat history for visitors
+  app.get('/api/public/chat/history', asyncHandler(async (req: any, res: any) => {
+    const { sessionId, limit: limitStr } = req.query;
+
+    if (!sessionId) {
+      return res.json({ messages: [], sessionId: null });
+    }
+
+    const limit = Math.min(parseInt(limitStr as string) || 50, 100);
+
+    const messages = await db
+      .select()
+      .from(chatMessages)
+      .where(eq(chatMessages.sessionId, sessionId as string))
+      .orderBy(desc(chatMessages.createdAt))
+      .limit(limit);
+
+    res.json({
+      messages: messages.reverse().map((m: any) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        toolCalls: m.toolCalls,
+        sessionId: m.sessionId,
+        createdAt: m.createdAt,
+      })),
+      sessionId: sessionId || null,
     });
   }));
 
