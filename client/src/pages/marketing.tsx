@@ -47,7 +47,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video, History, MinusCircle, ArrowUpRight, ArrowDownLeft, Receipt } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video, History, MinusCircle, ArrowUpRight, ArrowDownLeft, Receipt, LayoutGrid, List } from "lucide-react";
 import AdsAnalyticsPage from "./ads-analytics";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
@@ -2412,6 +2412,7 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
   const [retiroDialogOpen, setRetiroDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [movimientoItem, setMovimientoItem] = useState<any>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const { data: items = [], isLoading } = useQuery<any[]>({
     queryKey: ['/api/marketing/inventario', search],
@@ -2434,290 +2435,257 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/marketing/inventario'] });
       queryClient.invalidateQueries({ queryKey: ['/api/marketing/inventario/summary'] });
-      toast({
-        title: "Item eliminado",
-        description: "El item ha sido eliminado correctamente",
-      });
+      toast({ title: "Item eliminado" });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Error al eliminar el item",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
 
-  const handleEdit = (item: any) => {
-    setSelectedItem(item);
-    setInventarioDialogOpen(true);
+  const handleEdit = (item: any) => { setSelectedItem(item); setInventarioDialogOpen(true); };
+  const handleRetiro = (item: any) => { setMovimientoItem(item); setRetiroDialogOpen(true); };
+  const handleHistory = (item: any) => { setMovimientoItem(item); setHistoryDialogOpen(true); };
+  const handleDelete = (id: string) => { if (confirm("¿Eliminar este item?")) deleteMutation.mutate(id); };
+
+  const estadoConfig: Record<string, { label: string; color: string; dot: string }> = {
+    disponible: { label: "Disponible", color: "bg-emerald-50 text-emerald-600 border-emerald-200", dot: "bg-emerald-500" },
+    agotado: { label: "Agotado", color: "bg-red-50 text-red-600 border-red-200", dot: "bg-red-500" },
+    por_llegar: { label: "Por Llegar", color: "bg-amber-50 text-amber-600 border-amber-200", dot: "bg-amber-500" },
   };
 
-  const handleRetiro = (item: any) => {
-    setMovimientoItem(item);
-    setRetiroDialogOpen(true);
-  };
-
-  const handleHistory = (item: any) => {
-    setMovimientoItem(item);
-    setHistoryDialogOpen(true);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (confirm("¿Está seguro de eliminar este item?")) {
-      deleteMutation.mutate(id);
-    }
-  };
-
-  const estadoConfig = {
-    disponible: { label: "Disponible", color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
-    agotado: { label: "Agotado", color: "bg-red-500/10 text-red-600 border-red-500/20" },
-    por_llegar: { label: "Por Llegar", color: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
-  };
+  const filteredItems = items.filter(item =>
+    item.nombre?.toLowerCase().includes(search.toLowerCase()) ||
+    item.descripcion?.toLowerCase().includes(search.toLowerCase()) ||
+    item.ubicacion?.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
-      {/* Header Premium */}
-      <div className="relative overflow-hidden rounded-3xl bg-slate-950 p-8 text-white shadow-2xl">
-        <div className="absolute top-0 right-0 -mr-16 -mt-16 h-64 w-64 rounded-full bg-blue-600/20 blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 -ml-16 -mb-16 h-64 w-64 rounded-full bg-indigo-600/20 blur-3xl"></div>
-
-        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-center gap-5">
-            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <Package className="h-7 w-7 text-white" />
-            </div>
-            <div>
-              <h2 className="text-3xl font-bold tracking-tight">Inventario de Marketing</h2>
-              <p className="text-blue-100/70 mt-1 font-medium italic">Gestión inteligente de materiales y suministros</p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            {userRole === 'admin' && (
-              <Button
-                onClick={() => {
-                  setSelectedItem(null);
-                  setInventarioDialogOpen(true);
-                }}
-                className="bg-white text-slate-950 hover:bg-blue-50 border-none px-6 py-6 rounded-2xl font-bold text-base transition-all hover:scale-105 active:scale-95 shadow-xl"
-              >
-                <Plus className="mr-2 h-5 w-5" />
-                Nuevo Item
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Summary Cards Modernas */}
+      {/* KPI Summary */}
       {summary && (
-        <div className="grid gap-6 md:grid-cols-3">
-          <Card className="border-none shadow-sm bg-white dark:bg-slate-900 overflow-hidden relative group">
-            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-              <Package className="h-24 w-24 -mr-8 -mt-8" />
-            </div>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-blue-500"></div>
-                Total Items
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-4xl font-black text-slate-900 dark:text-white">{summary.totalItems}</div>
-              <p className="text-xs text-slate-400 mt-1 font-medium">Items registrados en sistema</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-sm bg-white dark:bg-slate-900 overflow-hidden relative group">
-            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-              <AlertTriangle className="h-24 w-24 -mr-8 -mt-8" />
-            </div>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-amber-500"></div>
-                Stock Bajo
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-4xl font-black ${summary.stockBajo > 0 ? 'text-amber-500' : 'text-slate-900 dark:text-white'}`}>
-                {summary.stockBajo}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-600 p-5 text-white shadow-lg">
+            <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
+            <div className="relative">
+              <div className="flex items-center gap-2 text-indigo-100 text-xs font-semibold uppercase tracking-wider">
+                <Package className="h-3.5 w-3.5" /> Total Items
               </div>
-              <p className="text-xs text-slate-400 mt-1 font-medium">Items requieren reposición</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-sm bg-white dark:bg-slate-900 overflow-hidden relative group">
-            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-              <DollarSign className="h-24 w-24 -mr-8 -mt-8" />
+              <p className="text-3xl font-bold mt-1">{summary.totalItems}</p>
+              <p className="text-xs text-indigo-200 mt-1">Productos en inventario</p>
             </div>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
-                Valorización Total
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-4xl font-black text-emerald-600 dark:text-emerald-400">
-                ${summary.valorTotal.toLocaleString('es-CL')}
+          </div>
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 p-5 text-white shadow-lg">
+            <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
+            <div className="relative">
+              <div className="flex items-center gap-2 text-amber-100 text-xs font-semibold uppercase tracking-wider">
+                <AlertTriangle className="h-3.5 w-3.5" /> Stock Bajo
               </div>
-              <p className="text-xs text-slate-400 mt-1 font-medium">Basado en costos unitarios</p>
-            </CardContent>
-          </Card>
+              <p className="text-3xl font-bold mt-1">{summary.stockBajo}</p>
+              <p className="text-xs text-amber-200 mt-1">Requieren reposición</p>
+            </div>
+          </div>
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 p-5 text-white shadow-lg">
+            <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
+            <div className="relative">
+              <div className="flex items-center gap-2 text-emerald-100 text-xs font-semibold uppercase tracking-wider">
+                <DollarSign className="h-3.5 w-3.5" /> Valorización
+              </div>
+              <p className="text-3xl font-bold mt-1">${summary.valorTotal.toLocaleString('es-CL')}</p>
+              <p className="text-xs text-emerald-200 mt-1">Valor total del inventario</p>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Control Panel */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1 group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px] max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
             placeholder="Buscar por nombre, descripción o ubicación..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-12 py-6 bg-white dark:bg-slate-900 border-none shadow-sm rounded-2xl text-base focus-visible:ring-blue-500"
+            className="pl-9 rounded-xl"
           />
         </div>
+        <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
+          <Button variant={viewMode === 'grid' ? 'default' : 'ghost'} size="sm" className="h-8 rounded-md" onClick={() => setViewMode('grid')}>
+            <LayoutGrid className="h-4 w-4" />
+          </Button>
+          <Button variant={viewMode === 'list' ? 'default' : 'ghost'} size="sm" className="h-8 rounded-md" onClick={() => setViewMode('list')}>
+            <List className="h-4 w-4" />
+          </Button>
+        </div>
+        {userRole === 'admin' && (
+          <Button onClick={() => { setSelectedItem(null); setInventarioDialogOpen(true); }} className="ml-auto rounded-xl bg-indigo-600 hover:bg-indigo-700">
+            <Plus className="mr-2 h-4 w-4" /> Nuevo Item
+          </Button>
+        )}
       </div>
 
-      {/* Table Section */}
-      <Card className="border-none shadow-lg overflow-hidden rounded-3xl bg-white dark:bg-slate-900">
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-4">
-              <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
-              <p className="text-slate-500 font-medium">Cargando inventario...</p>
-            </div>
-          ) : items.length === 0 ? (
-            <div className="text-center py-20">
-              <div className="h-20 w-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Package className="h-10 w-10 text-slate-300" />
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white">No hay items</h3>
-              <p className="text-slate-500">No se encontraron items que coincidan con la búsqueda</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-slate-50/80 dark:bg-slate-800/50 backdrop-blur-sm">
-                  <TableRow className="hover:bg-transparent border-none">
-                    <TableHead className="py-5 font-bold text-slate-900 dark:text-slate-100 pl-8">Producto</TableHead>
-                    <TableHead className="py-5 font-bold text-slate-900 dark:text-slate-100">Stock</TableHead>
-                    <TableHead className="py-5 font-bold text-slate-900 dark:text-slate-100">Ubicación</TableHead>
-                    <TableHead className="py-5 font-bold text-slate-900 dark:text-slate-100">Costo Unit.</TableHead>
-                    <TableHead className="py-5 font-bold text-slate-900 dark:text-slate-100">Estado</TableHead>
-                    <TableHead className="py-5 font-bold text-slate-900 dark:text-slate-100 pr-8 text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {items.map((item: any) => (
-                    <TableRow key={item.id} className="group border-slate-100 dark:border-slate-800 hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors">
-                      <TableCell className="py-4 pl-8">
-                        <div className="flex flex-col">
-                          <span className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors">{item.nombre}</span>
-                          <span className="text-xs text-slate-500 line-clamp-1">{item.descripcion || '-'}</span>
+      {/* Content */}
+      {isLoading ? (
+        <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-indigo-500" /></div>
+      ) : filteredItems.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+          <Package className="h-12 w-12 mb-4 opacity-30" />
+          <p className="text-lg font-medium">Sin items en inventario</p>
+          <p className="text-sm">Agrega materiales y suministros de marketing.</p>
+        </div>
+      ) : viewMode === 'grid' ? (
+        /* ──── GRID VIEW ──── */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filteredItems.map((item: any) => {
+            const isLowStock = item.cantidad <= (item.stockMinimo || 0);
+            const stockPercent = item.stockMinimo ? Math.min(100, (item.cantidad / item.stockMinimo) * 100) : 100;
+            const est = estadoConfig[item.estado as keyof typeof estadoConfig] || estadoConfig.disponible;
+
+            return (
+              <Card key={item.id} className={`group relative overflow-hidden border transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 ${isLowStock ? 'border-amber-200 bg-amber-50/30' : 'border-slate-200 bg-white dark:bg-slate-900'}`}>
+                {/* Low stock ribbon */}
+                {isLowStock && (
+                  <div className="absolute top-0 right-0 bg-amber-500 text-white text-[9px] font-bold px-2.5 py-0.5 rounded-bl-lg">
+                    STOCK BAJO
+                  </div>
+                )}
+
+                <CardContent className="p-4">
+                  {/* Name + Description */}
+                  <div className="mb-3">
+                    <h3 className="font-semibold text-sm text-slate-900 dark:text-white line-clamp-1 leading-snug">{item.nombre}</h3>
+                    <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">{item.descripcion || '—'}</p>
+                  </div>
+
+                  {/* Stock bar */}
+                  <div className="mb-3">
+                    <div className="flex justify-between items-baseline mb-1">
+                      <span className="text-2xl font-bold text-slate-900 dark:text-white">{item.cantidad}</span>
+                      <span className="text-[11px] text-slate-400 font-medium">{item.unidad}</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${isLowStock ? 'bg-amber-500' : stockPercent > 60 ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                        style={{ width: `${Math.max(5, stockPercent)}%` }}
+                      />
+                    </div>
+                    {item.stockMinimo > 0 && (
+                      <p className="text-[10px] text-slate-400 mt-1">Mín: {item.stockMinimo}</p>
+                    )}
+                  </div>
+
+                  {/* Meta row */}
+                  <div className="flex items-center justify-between text-[11px] mb-3">
+                    <div className="flex items-center gap-1 text-slate-500">
+                      <Target className="h-3 w-3" />
+                      <span className="truncate max-w-[100px]">{item.ubicacion || '—'}</span>
+                    </div>
+                    <span className="font-mono text-slate-600 font-medium">
+                      {item.costoUnitario ? `$${parseFloat(item.costoUnitario).toLocaleString('es-CL')}` : '—'}
+                    </span>
+                  </div>
+
+                  {/* Status + Actions */}
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+                    <Badge variant="outline" className={`text-[10px] rounded-full px-2 py-0 ${est.color}`}>
+                      <span className={`inline-block h-1.5 w-1.5 rounded-full mr-1 ${est.dot}`} />
+                      {est.label}
+                    </Badge>
+                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" title="Historial" onClick={() => handleHistory(item)}>
+                        <History className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-amber-600" title="Retirar" disabled={item.cantidad <= 0} onClick={() => handleRetiro(item)}>
+                        <MinusCircle className="h-3.5 w-3.5" />
+                      </Button>
+                      {userRole === 'admin' && (
+                        <>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" onClick={() => handleEdit(item)}>
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={() => handleDelete(item.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      ) : (
+        /* ──── LIST VIEW ──── */
+        <Card className="border-0 shadow-md overflow-hidden rounded-2xl">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-slate-50 dark:bg-slate-800/50 border-b">
+                  <TableHead className="py-3 pl-6 font-semibold text-slate-600">Producto</TableHead>
+                  <TableHead className="py-3 font-semibold text-slate-600">Stock</TableHead>
+                  <TableHead className="py-3 font-semibold text-slate-600">Ubicación</TableHead>
+                  <TableHead className="py-3 font-semibold text-slate-600">Costo Unit.</TableHead>
+                  <TableHead className="py-3 font-semibold text-slate-600">Estado</TableHead>
+                  <TableHead className="py-3 pr-6 text-right font-semibold text-slate-600">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredItems.map((item: any) => {
+                  const isLowStock = item.cantidad <= (item.stockMinimo || 0);
+                  const est = estadoConfig[item.estado as keyof typeof estadoConfig] || estadoConfig.disponible;
+                  return (
+                    <TableRow key={item.id} className="group border-slate-100 hover:bg-slate-50/80 transition-colors">
+                      <TableCell className="py-3 pl-6">
+                        <div>
+                          <span className="font-semibold text-sm text-slate-900 dark:text-white">{item.nombre}</span>
+                          <span className="text-xs text-slate-400 block line-clamp-1">{item.descripcion || '—'}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="py-4">
+                      <TableCell className="py-3">
                         <div className="flex items-center gap-2">
-                          <span className={`font-bold ${item.cantidad <= (item.stockMinimo || 0) ? 'text-amber-600' : 'text-slate-700 dark:text-slate-300'}`}>
-                            {item.cantidad}
-                          </span>
-                          <span className="text-xs text-slate-400 font-medium lowercase italic">{item.unidad}</span>
-                          {item.cantidad <= (item.stockMinimo || 0) && (
-                            <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-[10px] scale-90 px-1 py-0 pointer-events-none">
-                              STOCK BAJO
-                            </Badge>
+                          <span className={`font-bold text-sm ${isLowStock ? 'text-amber-600' : 'text-slate-800'}`}>{item.cantidad}</span>
+                          <span className="text-[11px] text-slate-400">{item.unidad}</span>
+                          {isLowStock && (
+                            <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-[9px] px-1.5 py-0">BAJO</Badge>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="py-4 text-slate-600 dark:text-slate-400 font-medium">
-                        <div className="flex items-center gap-1.5">
-                          <Target className="h-3.5 w-3.5 text-slate-300" />
-                          {item.ubicacion || '-'}
-                        </div>
+                      <TableCell className="py-3 text-sm text-slate-600">
+                        <div className="flex items-center gap-1.5"><Target className="h-3 w-3 text-slate-300" />{item.ubicacion || '—'}</div>
                       </TableCell>
-                      <TableCell className="py-4 font-mono text-sm text-slate-600 dark:text-slate-400">
-                        {item.costoUnitario
-                          ? `$${parseFloat(item.costoUnitario).toLocaleString('es-CL')}`
-                          : '-'}
+                      <TableCell className="py-3 font-mono text-sm text-slate-600">
+                        {item.costoUnitario ? `$${parseFloat(item.costoUnitario).toLocaleString('es-CL')}` : '—'}
                       </TableCell>
-                      <TableCell className="py-4">
-                        <Badge variant="outline" className={`rounded-full px-3 py-0.5 text-[11px] font-bold ${estadoConfig[item.estado as keyof typeof estadoConfig]?.color}`}>
-                          {estadoConfig[item.estado as keyof typeof estadoConfig]?.label.toUpperCase()}
+                      <TableCell className="py-3">
+                        <Badge variant="outline" className={`text-[10px] rounded-full px-2 ${est.color}`}>
+                          <span className={`inline-block h-1.5 w-1.5 rounded-full mr-1 ${est.dot}`} />{est.label}
                         </Badge>
                       </TableCell>
-                      <TableCell className="py-4 pr-8 text-right">
-                        <div className="flex justify-end gap-1.5">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleHistory(item)}
-                            title="Ver historial"
-                            className="h-9 w-9 text-slate-400 hover:text-blue-600 hover:bg-blue-100 rounded-xl transition-all"
-                          >
-                            <History className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRetiro(item)}
-                            title="Registrar retiro"
-                            disabled={item.cantidad <= 0}
-                            className="h-9 w-9 text-slate-400 hover:text-amber-600 hover:bg-amber-100 rounded-xl transition-all"
-                          >
-                            <MinusCircle className="h-4 w-4" />
-                          </Button>
+                      <TableCell className="py-3 pr-6 text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => handleHistory(item)}><History className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-amber-600" disabled={item.cantidad <= 0} onClick={() => handleRetiro(item)}><MinusCircle className="h-3.5 w-3.5" /></Button>
                           {userRole === 'admin' && (
                             <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleEdit(item)}
-                                className="h-9 w-9 text-slate-400 hover:text-indigo-600 hover:bg-indigo-100 rounded-xl transition-all"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDelete(item.id)}
-                                disabled={deleteMutation.isPending}
-                                className="h-9 w-9 text-slate-400 hover:text-red-600 hover:bg-red-100 rounded-xl transition-all"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" onClick={() => handleEdit(item)}><Edit className="h-3.5 w-3.5" /></Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={() => handleDelete(item.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                             </>
                           )}
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
+      )}
 
-      {/* Modern Dialogs */}
-      <InventarioDialog
-        open={inventarioDialogOpen}
-        onOpenChange={setInventarioDialogOpen}
-        item={selectedItem}
-      />
-
-      <RetiroDialog
-        open={retiroDialogOpen}
-        onOpenChange={setRetiroDialogOpen}
-        item={movimientoItem}
-      />
-
-      <HistorialMovimientosDialog
-        open={historyDialogOpen}
-        onOpenChange={setHistoryDialogOpen}
-        item={movimientoItem}
-      />
+      {/* Dialogs */}
+      <InventarioDialog open={inventarioDialogOpen} onOpenChange={setInventarioDialogOpen} item={selectedItem} />
+      <RetiroDialog open={retiroDialogOpen} onOpenChange={setRetiroDialogOpen} item={movimientoItem} />
+      <HistorialMovimientosDialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen} item={movimientoItem} />
     </div>
   );
 }

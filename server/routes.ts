@@ -14026,6 +14026,70 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Creatividades approval routes
+  app.patch('/api/marketing/creatividades/:id/aprobar', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'Solo admin/supervisor pueden aprobar ideas' });
+      }
+      const result = await storage.updateCreatividadMarketing(req.params.id, {
+        estadoAprobacion: 'aprobada',
+        aprobadoPorId: user.id,
+        motivoRechazo: null,
+      });
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al aprobar', error: error.message });
+    }
+  }));
+
+  app.patch('/api/marketing/creatividades/:id/rechazar', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'Solo admin/supervisor pueden rechazar ideas' });
+      }
+      const { motivoRechazo } = req.body;
+      const result = await storage.updateCreatividadMarketing(req.params.id, {
+        estadoAprobacion: 'rechazada',
+        aprobadoPorId: user.id,
+        motivoRechazo: motivoRechazo || 'Sin motivo especificado',
+      });
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al rechazar', error: error.message });
+    }
+  }));
+
+  // Guiones Marketing routes
+  app.get('/api/marketing/guiones/:creatividadId', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const guion = await storage.getGuionByCreatividadId(req.params.creatividadId);
+      res.json(guion);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener guión', error: error.message });
+    }
+  }));
+
+  app.post('/api/marketing/guiones', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const guion = await storage.createGuionMarketing(req.body);
+      res.json(guion);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear guión', error: error.message });
+    }
+  }));
+
+  app.patch('/api/marketing/guiones/:id', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const guion = await storage.updateGuionMarketing(req.params.id, req.body);
+      res.json(guion);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar guión', error: error.message });
+    }
+  }));
+
   // Proveedores Marketing routes
   app.get('/api/marketing/proveedores', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
     try {

@@ -237,6 +237,10 @@ import {
   proveedoresMarketing,
   type ProveedorMarketing,
   type InsertProveedorMarketing,
+  // Guiones Marketing
+  guionesMarketing,
+  type GuionMarketing,
+  type InsertGuionMarketing,
   // Tareas de marketing
   tareasMarketing,
   type TareaMarketing,
@@ -1734,6 +1738,11 @@ export interface IStorage {
   createProveedorMarketing(data: InsertProveedorMarketing): Promise<ProveedorMarketing>;
   updateProveedorMarketing(id: string, updates: Partial<InsertProveedorMarketing>): Promise<ProveedorMarketing>;
   deleteProveedorMarketing(id: string): Promise<void>;
+
+  // Guiones Marketing operations
+  getGuionByCreatividadId(creatividadId: string): Promise<GuionMarketing | null>;
+  createGuionMarketing(data: InsertGuionMarketing): Promise<GuionMarketing>;
+  updateGuionMarketing(id: string, updates: Partial<InsertGuionMarketing>): Promise<GuionMarketing>;
 
   // Solicitudes Marketing operations
   createSolicitudMarketing(solicitud: InsertSolicitudMarketing): Promise<SolicitudMarketing>;
@@ -18542,6 +18551,32 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(proveedoresMarketing)
       .where(eq(proveedoresMarketing.id, id));
+  }
+
+  // Guiones Marketing operations
+  async getGuionByCreatividadId(creatividadId: string): Promise<GuionMarketing | null> {
+    const results = await db
+      .select()
+      .from(guionesMarketing)
+      .where(eq(guionesMarketing.creatividadId, creatividadId));
+    return results[0] || null;
+  }
+
+  async createGuionMarketing(data: InsertGuionMarketing): Promise<GuionMarketing> {
+    const [result] = await db
+      .insert(guionesMarketing)
+      .values(data)
+      .returning();
+    return result;
+  }
+
+  async updateGuionMarketing(id: string, updates: Partial<InsertGuionMarketing>): Promise<GuionMarketing> {
+    const [result] = await db
+      .update(guionesMarketing)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(guionesMarketing.id, id))
+      .returning();
+    return result;
   }
 
   // Solicitudes Marketing operations
