@@ -4742,6 +4742,10 @@ export const creatividadesMarketing = pgTable("creatividades_marketing", {
   creadoPorId: varchar("creado_por_id").references(() => users.id).notNull(),
   mes: integer("mes").notNull(),
   anio: integer("anio").notNull(),
+  // Approval flow
+  estadoAprobacion: varchar("estado_aprobacion", { length: 50 }).default("pendiente"), // pendiente, aprobada, rechazada
+  motivoRechazo: text("motivo_rechazo"),
+  aprobadoPorId: varchar("aprobado_por_id").references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -4843,6 +4847,25 @@ export const proveedoresMarketing = pgTable("proveedores_marketing", {
 
 export type ProveedorMarketing = typeof proveedoresMarketing.$inferSelect;
 export type InsertProveedorMarketing = typeof proveedoresMarketing.$inferInsert;
+
+// Tabla de guiones de marketing (scripts para creatividades aprobadas)
+export const guionesMarketing = pgTable("guiones_marketing", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  creatividadId: varchar("creatividad_id").notNull().references(() => creatividadesMarketing.id, { onDelete: 'cascade' }),
+  actor: varchar("actor", { length: 255 }),
+  locacion: varchar("locacion", { length: 255 }),
+  insumos: text("insumos"),
+  vestuario: text("vestuario"),
+  guion: text("guion"),
+  notas: text("notas"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  creatividadIdx: index("IDX_guiones_marketing_creatividad").on(table.creatividadId),
+}));
+
+export type GuionMarketing = typeof guionesMarketing.$inferSelect;
+export type InsertGuionMarketing = typeof guionesMarketing.$inferInsert;
 
 // ========================================
 // SISTEMA DE GESTIÓN DE FONDOS
