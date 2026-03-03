@@ -229,6 +229,14 @@ import {
   presupuestoMarketingItems,
   type PresupuestoMarketingItem,
   type InsertPresupuestoMarketingItem,
+  // Gastos Marketing
+  gastosMarketing,
+  type GastoMarketing,
+  type InsertGastoMarketing,
+  // Proveedores Marketing
+  proveedoresMarketing,
+  type ProveedorMarketing,
+  type InsertProveedorMarketing,
   // Tareas de marketing
   tareasMarketing,
   type TareaMarketing,
@@ -1713,6 +1721,19 @@ export interface IStorage {
   createCreatividadMarketing(item: InsertCreatividadMarketing): Promise<CreatividadMarketing>;
   updateCreatividadMarketing(id: string, updates: Partial<InsertCreatividadMarketing>): Promise<CreatividadMarketing>;
   deleteCreatividadMarketing(id: string): Promise<void>;
+
+  // Gastos Marketing operations
+  getGastosMarketing(mes: number, anio: number): Promise<GastoMarketing[]>;
+  createGastoMarketing(gasto: InsertGastoMarketing): Promise<GastoMarketing>;
+  updateGastoMarketing(id: string, updates: Partial<InsertGastoMarketing>): Promise<GastoMarketing>;
+  deleteGastoMarketing(id: string): Promise<void>;
+  getGastosMarketingByAnio(anio: number): Promise<GastoMarketing[]>;
+
+  // Proveedores Marketing operations
+  getProveedoresMarketing(): Promise<ProveedorMarketing[]>;
+  createProveedorMarketing(data: InsertProveedorMarketing): Promise<ProveedorMarketing>;
+  updateProveedorMarketing(id: string, updates: Partial<InsertProveedorMarketing>): Promise<ProveedorMarketing>;
+  deleteProveedorMarketing(id: string): Promise<void>;
 
   // Solicitudes Marketing operations
   createSolicitudMarketing(solicitud: InsertSolicitudMarketing): Promise<SolicitudMarketing>;
@@ -18446,6 +18467,83 @@ export class DatabaseStorage implements IStorage {
       .where(eq(creatividadesMarketing.id, id));
   }
 
+  // Gastos Marketing operations
+  async getGastosMarketing(mes: number, anio: number): Promise<GastoMarketing[]> {
+    return await db
+      .select()
+      .from(gastosMarketing)
+      .where(and(
+        eq(gastosMarketing.mes, mes),
+        eq(gastosMarketing.anio, anio),
+      ))
+      .orderBy(gastosMarketing.createdAt);
+  }
+
+  async getGastosMarketingByAnio(anio: number): Promise<GastoMarketing[]> {
+    return await db
+      .select()
+      .from(gastosMarketing)
+      .where(eq(gastosMarketing.anio, anio))
+      .orderBy(gastosMarketing.createdAt);
+  }
+
+  async createGastoMarketing(gasto: InsertGastoMarketing): Promise<GastoMarketing> {
+    const [result] = await db
+      .insert(gastosMarketing)
+      .values(gasto)
+      .returning();
+    return result;
+  }
+
+  async updateGastoMarketing(id: string, updates: Partial<InsertGastoMarketing>): Promise<GastoMarketing> {
+    const [result] = await db
+      .update(gastosMarketing)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(gastosMarketing.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteGastoMarketing(id: string): Promise<void> {
+    await db
+      .delete(gastosMarketing)
+      .where(eq(gastosMarketing.id, id));
+  }
+
+  // Proveedores Marketing operations
+  async getProveedoresMarketing(): Promise<ProveedorMarketing[]> {
+    return await db
+      .select()
+      .from(proveedoresMarketing)
+      .orderBy(proveedoresMarketing.nombre);
+  }
+
+  async createProveedorMarketing(data: InsertProveedorMarketing): Promise<ProveedorMarketing> {
+    const [result] = await db
+      .insert(proveedoresMarketing)
+      .values(data)
+      .returning();
+    return result;
+  }
+
+  async updateProveedorMarketing(id: string, updates: Partial<InsertProveedorMarketing>): Promise<ProveedorMarketing> {
+    const [result] = await db
+      .update(proveedoresMarketing)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(proveedoresMarketing.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteProveedorMarketing(id: string): Promise<void> {
+    await db
+      .delete(proveedoresMarketing)
+      .where(eq(proveedoresMarketing.id, id));
+  }
+
   // Solicitudes Marketing operations
   async createSolicitudMarketing(solicitud: InsertSolicitudMarketing): Promise<SolicitudMarketing> {
     const [result] = await db
@@ -18598,10 +18696,11 @@ export class DatabaseStorage implements IStorage {
     // Get all solicitudes for this period
     const solicitudes = await this.getSolicitudesMarketing({ mes, anio });
 
-    // Calculate presupuesto utilizado (only completado and en_proceso)
-    const presupuestoUtilizado = solicitudes
-      .filter(s => s.estado === 'completado' || s.estado === 'en_proceso')
-      .reduce((sum, s) => sum + parseFloat(s.monto as any), 0);
+    // Calculate presupuesto utilizado from gastos facturados
+    const gastosDelMes = await this.getGastosMarketing(mes, anio);
+    const presupuestoUtilizado = gastosDelMes
+      .filter(g => g.estado === 'facturado')
+      .reduce((sum, g) => sum + parseFloat(g.monto as any || '0'), 0);
 
     // Count by estado
     const solicitudesPorEstado = {

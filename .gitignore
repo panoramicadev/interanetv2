@@ -8,3 +8,4 @@ vite.config.ts.*
 .envapi/index.mjs
 package-lock.json
 .env
+server/uploads

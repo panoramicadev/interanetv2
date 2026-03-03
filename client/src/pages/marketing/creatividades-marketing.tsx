@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Eye } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -55,6 +56,7 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
     const [selectedItem, setSelectedItem] = useState<CreatividadMarketing | null>(null);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [searchQuery, setSearchQuery] = useState("");
+    const [viewItem, setViewItem] = useState<CreatividadMarketing | null>(null);
 
     const { data: creatividades = [], isLoading } = useQuery<CreatividadMarketing[]>({
         queryKey: ['/api/marketing/creatividades', { mes, anio }],
@@ -257,7 +259,7 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
                                     </Button>
                                 </div>
                             </div>
-                            <CardContent className="p-4 pt-3 flex flex-col justify-between h-[160px]">
+                            <CardContent className="p-4 pt-3 flex flex-col justify-between h-[160px] cursor-pointer" onClick={() => setViewItem(item)}>
                                 <div>
                                     <h3 className="font-semibold text-base line-clamp-1 mb-1">{item.titulo}</h3>
                                     <p className="text-sm text-slate-500 line-clamp-2">{item.descripcion || "Sin descripción"}</p>
@@ -269,7 +271,7 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
                                     <div className="flex justify-between items-center text-xs font-medium text-slate-500 border-t border-slate-100 dark:border-slate-800 pt-3">
                                         <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> {item.fechaPublicacion ? format(new Date(item.fechaPublicacion), "dd MMM, yyyy", { locale: es }) : "TBD"}</span>
                                         {item.urlPublicacion && (
-                                            <a href={item.urlPublicacion} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-fuchsia-600 hover:underline">
+                                            <a href={item.urlPublicacion} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-fuchsia-600 hover:underline" onClick={(e) => e.stopPropagation()}>
                                                 Ver post <ExternalLink className="h-3 w-3" />
                                             </a>
                                         )}
@@ -280,6 +282,54 @@ export default function CreatividadesMarketing({ mes, anio, userRole }: Props) {
                     ))}
                 </div>
             )}
+
+            {/* Detail View Modal */}
+            <Dialog open={!!viewItem} onOpenChange={(open) => { if (!open) setViewItem(null); }}>
+                <DialogContent className="sm:max-w-[520px] rounded-2xl p-6 pt-8">
+                    {viewItem && (
+                        <div className="space-y-5">
+                            {/* Title + meta */}
+                            <div>
+                                <h2 className="text-lg font-semibold text-slate-900 dark:text-white leading-snug pr-6">
+                                    {viewItem.titulo}
+                                </h2>
+                                <div className="flex flex-wrap items-center gap-2 mt-3">
+                                    {plataformaIcons[viewItem.plataforma as keyof typeof plataformaIcons]}
+                                    <Badge variant="outline" className={`text-[10px] ${tipoColors[viewItem.tipo as keyof typeof tipoColors] || ''}`}>
+                                        {viewItem.tipo.toUpperCase()}
+                                    </Badge>
+                                    <Badge variant="secondary" className={`text-[10px] ${estadoColors[viewItem.estado as keyof typeof estadoColors] || ''}`}>
+                                        {viewItem.estado.replace('_', ' ').charAt(0).toUpperCase() + viewItem.estado.slice(1)}
+                                    </Badge>
+                                    <span className="text-xs text-slate-400 ml-auto flex items-center gap-1">
+                                        <Calendar className="h-3 w-3" />
+                                        {viewItem.fechaPublicacion ? format(new Date(viewItem.fechaPublicacion), "dd MMM yyyy", { locale: es }) : "Sin fecha"}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Divider */}
+                            <div className="h-px bg-slate-100 dark:bg-slate-800" />
+
+                            {/* Description */}
+                            <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                                {viewItem.descripcion || 'Sin descripción'}
+                            </p>
+
+                            {/* Link */}
+                            {viewItem.urlPublicacion && (
+                                <>
+                                    <div className="h-px bg-slate-100 dark:bg-slate-800" />
+                                    <a href={viewItem.urlPublicacion} target="_blank" rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700 transition-colors">
+                                        <ExternalLink className="h-3.5 w-3.5" /> Ver publicación
+                                    </a>
+                                </>
+                            )}
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
 
             {/* Editor Dialog */}
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

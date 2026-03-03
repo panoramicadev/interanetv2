@@ -47,7 +47,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video, History, MinusCircle, ArrowUpRight, ArrowDownLeft } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight, ClipboardList, Play, Check, Target, Search, ExternalLink, BarChart3, Video, History, MinusCircle, ArrowUpRight, ArrowDownLeft, Receipt } from "lucide-react";
 import AdsAnalyticsPage from "./ads-analytics";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
@@ -55,6 +55,7 @@ import { formatDateForAPI, parseDateFromAPI } from "@/lib/dateUtils";
 
 import CreatividadesMarketing from "./marketing/creatividades-marketing";
 import PresupuestoTabMarketing from "./marketing/presupuesto-tab-marketing";
+import GastosTabMarketing from "./marketing/gastos-tab-marketing";
 
 interface SolicitudMarketing {
   id: string;
@@ -239,6 +240,17 @@ export default function Marketing() {
                   <span className="hidden sm:inline">Presupuesto</span>
                 </TabsTrigger>
               )}
+
+              {isAdmin && (
+                <TabsTrigger
+                  value="gastos"
+                  data-testid="tab-gastos"
+                  className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
+                >
+                  <Receipt className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">Gastos</span>
+                </TabsTrigger>
+              )}
             </TabsList>
           </div>
 
@@ -374,6 +386,13 @@ export default function Marketing() {
           {isAdmin && (
             <TabsContent value="presupuesto" className="space-y-6">
               <PresupuestoTabMarketing userRole={user.role} />
+            </TabsContent>
+          )}
+
+          {/* Tab: Gastos */}
+          {isAdmin && (
+            <TabsContent value="gastos" className="space-y-6">
+              <GastosTabMarketing userRole={user.role} />
             </TabsContent>
           )}
         </Tabs>

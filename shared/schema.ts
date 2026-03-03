@@ -4795,6 +4795,55 @@ export const insertCreatividadMarketingSchema = createInsertSchema(creatividades
   }).optional().nullable(),
 });
 
+// Tabla de gastos de marketing
+export const gastosMarketing = pgTable("gastos_marketing", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  concepto: varchar("concepto", { length: 500 }).notNull(),
+  descripcion: text("descripcion"),
+  monto: numeric("monto", { precision: 15, scale: 2 }).notNull().default("0"),
+  categoria: varchar("categoria", { length: 100 }), // DIGITAL, MEDIOS TRADICIONALES, etc.
+  proveedor: varchar("proveedor", { length: 255 }),
+  mes: integer("mes").notNull(),
+  anio: integer("anio").notNull(),
+  estado: varchar("estado", { length: 50 }).notNull().default("pendiente"), // pendiente, con_oc, facturado
+  // Document URLs
+  urlCotizacion: text("url_cotizacion"),
+  urlOrdenCompra: text("url_orden_compra"),
+  urlFactura: text("url_factura"),
+  // Metadata
+  numeroFactura: varchar("numero_factura", { length: 100 }),
+  fechaFactura: date("fecha_factura"),
+  creadoPorId: varchar("creado_por_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  mesAnioIdx: index("IDX_gastos_marketing_mes_anio").on(table.mes, table.anio),
+  estadoIdx: index("IDX_gastos_marketing_estado").on(table.estado),
+  categoriaIdx: index("IDX_gastos_marketing_categoria").on(table.categoria),
+}));
+
+export type GastoMarketing = typeof gastosMarketing.$inferSelect;
+export type InsertGastoMarketing = typeof gastosMarketing.$inferInsert;
+
+// Tabla de proveedores de marketing
+export const proveedoresMarketing = pgTable("proveedores_marketing", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nombre: varchar("nombre", { length: 255 }).notNull(),
+  contacto: varchar("contacto", { length: 255 }),
+  email: varchar("email", { length: 255 }),
+  telefono: varchar("telefono", { length: 100 }),
+  rut: varchar("rut", { length: 50 }),
+  rubro: varchar("rubro", { length: 255 }),
+  notas: text("notas"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  nombreIdx: index("IDX_proveedores_marketing_nombre").on(table.nombre),
+}));
+
+export type ProveedorMarketing = typeof proveedoresMarketing.$inferSelect;
+export type InsertProveedorMarketing = typeof proveedoresMarketing.$inferInsert;
+
 // ========================================
 // SISTEMA DE GESTIÓN DE FONDOS
 // ========================================
