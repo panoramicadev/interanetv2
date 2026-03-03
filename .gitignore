@@ -7,3 +7,4 @@ vite.config.ts.*
 .env.local
 .envapi/index.mjs
 package-lock.json
+.env
