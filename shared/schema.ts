@@ -4807,6 +4807,7 @@ export const gastosMarketing = pgTable("gastos_marketing", {
   monto: numeric("monto", { precision: 15, scale: 2 }).notNull().default("0"),
   categoria: varchar("categoria", { length: 100 }), // DIGITAL, MEDIOS TRADICIONALES, etc.
   proveedor: varchar("proveedor", { length: 255 }),
+  fecha: date("fecha"), // Fecha específica del gasto dentro del mes
   mes: integer("mes").notNull(),
   anio: integer("anio").notNull(),
   estado: varchar("estado", { length: 50 }).notNull().default("pendiente"), // pendiente, con_oc, facturado

@@ -56,7 +56,7 @@ export default function GastosFilterBar({
 
   const canSeeUserFilter = user?.role && !['salesperson', 'Salesperson', 'Vendedor', 'vendedor'].includes(user.role);
 
-  const { data: todosUsuariosConGastos = [] } = useQuery<{userId: string; userName: string}[]>({
+  const { data: todosUsuariosConGastos = [] } = useQuery<{ userId: string; userName: string }[]>({
     queryKey: ['/api/gastos-empresariales/analytics/usuarios'],
     queryFn: async () => {
       const response = await fetch('/api/gastos-empresariales/analytics/usuarios', { credentials: 'include' });
@@ -67,12 +67,14 @@ export default function GastosFilterBar({
   });
 
   return (
-    <div className="w-full bg-gray-50 border rounded-lg px-4 py-3">
+    <div className="w-full bg-white/80 dark:bg-slate-900/60 backdrop-blur-sm border border-gray-100 dark:border-slate-800 rounded-xl px-4 py-3 shadow-sm">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <Calendar className="h-4 w-4 text-gray-500 flex-shrink-0" />
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-slate-800 flex items-center justify-center">
+            <Calendar className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+          </div>
           <Select value={mes} onValueChange={setMes}>
-            <SelectTrigger className="w-[120px] bg-white">
+            <SelectTrigger className="w-[120px] bg-gray-50/80 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700 rounded-lg">
               <SelectValue placeholder="Mes" />
             </SelectTrigger>
             <SelectContent>
@@ -84,7 +86,7 @@ export default function GastosFilterBar({
             </SelectContent>
           </Select>
           <Select value={anio} onValueChange={setAnio}>
-            <SelectTrigger className="w-[85px] bg-white">
+            <SelectTrigger className="w-[85px] bg-gray-50/80 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700 rounded-lg">
               <SelectValue placeholder="Año" />
             </SelectTrigger>
             <SelectContent>
@@ -98,10 +100,12 @@ export default function GastosFilterBar({
 
           {canSeeUserFilter && (
             <>
-              <div className="hidden sm:block w-px h-6 bg-gray-300 mx-1" />
-              <Users className="h-4 w-4 text-gray-500 flex-shrink-0" />
+              <div className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-slate-700 mx-1" />
+              <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-slate-800 flex items-center justify-center">
+                <Users className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+              </div>
               <Select value={usuarioFilter} onValueChange={setUsuarioFilter}>
-                <SelectTrigger className="w-[160px] bg-white">
+                <SelectTrigger className="w-[160px] bg-gray-50/80 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700 rounded-lg">
                   <SelectValue placeholder="Usuario" />
                 </SelectTrigger>
                 <SelectContent>
