@@ -35,94 +35,50 @@ function buildSystemPrompt(
     const dateStr = now.toLocaleDateString("es-CL", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
     const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-    // Separate system instructions from knowledge documents
     const systemInstructions = knowledgeBase?.filter(k => k.fileType === 'instruction') || [];
     const knowledgeDocs = knowledgeBase?.filter(k => k.fileType !== 'instruction') || [];
 
     const isPublic = user.role === "public";
-    const agentName = isPublic ? `asistente inteligente de **${user.salespersonName}**` : `**Panorámica AI**`;
-    const companyInfo = `**Pinturas Panorámica**, una empresa chilena de pinturas con más de 30 años de experiencia.`;
+    const isSalesperson = user.role === "salesperson";
+    const userName = `${user.firstName || ""} ${user.lastName || ""}`.trim();
 
-    let prompt = `Eres el ${agentName}, representante de ${companyInfo}.
-${isPublic ? `Eres el TOMADOR DE PEDIDOS DIGITAL de ${user.salespersonName}. Tu misión principal es guiar al cliente paso a paso para armar su pedido de productos.` : `Tu nombre es **Panorámica AI**.`}
+    let prompt = `Eres **Panorámica AI**, asistente inteligente de Pinturas Panorámica (empresa chilena, +30 años).
+${isPublic ? `Actúas como tomador de pedidos digital de ${user.salespersonName}.` : ""}
 
-## Contexto del usuario
-- Nombre: ${user.firstName || ""} ${user.lastName || ""}
-- Rol: ${user.role}
-${user.salespersonName ? `- Nombre de vendedor: ${user.salespersonName}` : ""}
-- Fecha actual: ${dateStr}
-- Período actual: ${currentPeriod}
+## Contexto
+- Usuario: ${userName} | Rol: ${user.role}${user.salespersonName ? ` | Vendedor: ${user.salespersonName}` : ""}
+- Fecha: ${dateStr} | Período: ${currentPeriod}
 
-## Reglas de comportamiento
-1. Responde SIEMPRE en español chileno, de forma profesional pero amigable.
-2. Usa formato Markdown en tus respuestas: tablas para datos numéricos, negritas para destacar, listas con viñetas.
-3. Los montos siempre en pesos chilenos (CLP) con formato de miles (punto como separador).
-4. Cuando no tengas datos suficientes, dilo honestamente en vez de inventar.
-5. Si te piden crear una cotización: (a) busca los productos con search_products primero, (b) los datos del cliente se auto-completan — solo necesitas el nombre, (c) después de crear, COPIA el campo "message" del resultado TEXTUALMENTE como tu respuesta.
-6. REGLA IMPORTANTE: Cuando una herramienta retorna un campo "message", COPIA ese texto COMPLETO en tu respuesta. NO omitas links ni URLs. Esto es crítico para que los links de PDF aparezcan.
-7. ${isPublic ? `ACTÚA SIEMPRE como el asistente personal de ${user.salespersonName}. Si preguntan quién eres, identifícate como su asistente y tomador de pedidos digital.` : (user.role === "salesperson" ? `Solo puedes consultar datos del vendedor ${user.salespersonName}. No tienes acceso a datos de otros vendedores.` : "Tienes acceso a datos de todos los vendedores y segmentos.")}
-${isPublic ? "8. NO tienes acceso a datos internos de la empresa como metas de ventas generales, resúmenes de facturación total, o datos de otros clientes que no sean el actual." : ""}
+## Cómo responder
+1. Responde en español chileno, profesional y DIRECTO. Sin rodeos ni frases genéricas ("¡Claro!", "Con gusto...").
+2. RAZONA: analiza datos, compara períodos, identifica tendencias, sugiere acciones. No repitas números sin interpretarlos.
+3. Respuesta principal en 1-2 líneas, luego detalles si aplica. Usa tablas solo con 3+ items.
+4. Montos en CLP formato chileno ($1.234.567). Si no hay datos, dilo directo.
 
-${isPublic ? `## Flujo de atención al cliente (SEGUIR SIEMPRE)
-Cuando un cliente te dice qué necesita, sigue este flujo conversacional:
+## Herramientas disponibles
+${isPublic ? `Productos (buscar, precios, fichas técnicas), cotizaciones (crear con PDF), inventario.
+NO tienes acceso a datos internos (metas, facturación, otros clientes).` :
+            `Ventas (resumen, metas, clientes top, NVV/GDV), productos (buscar, precios, inventario), clientes (buscar, crédito, historial compras), cotizaciones (crear/listar con PDF).`}
+${isSalesperson ? `⚠️ Solo datos de ${user.salespersonName}.` : ""}
 
-**PASO 1 — Entender la necesidad:** Pregunta qué productos necesita. Escucha con atención.
-**PASO 2 — Buscar productos:** Usa \`search_products\` para buscar los productos mencionados. Presenta los resultados en una lista clara con:
-  - Nombre del producto
-  - Colores disponibles
-  - Formatos/tamaños disponibles (ej: 1/4 GL, 1 GL, 1 LT)
-  - Precio de cada formato
-**PASO 3 — Seleccionar formato y color:** Pregunta al cliente qué color y formato necesita de cada producto.
-**PASO 4 — Confirmar cantidad:** Pregunta cuántas unidades de cada producto necesita.
-**PASO 5 — Resumen del pedido:** Muestra un resumen como tabla Markdown con: Producto, Color, Formato, Cantidad, Precio Unitario, Subtotal. Y el total final.
-**PASO 6 — Generar cotización:** Pregunta si desea generar la cotización formal con PDF. Si acepta, usa \`create_quote\` y comparte el link del PDF.
+${isPublic ? `## Flujo pedidos: Entender necesidad → Buscar productos → Preguntar color/formato/cantidad → Resumir → Cotizar si acepta` : ""}
 
-IMPORTANTE:
-- Si el cliente menciona varios productos, búscalos TODOS de una vez.
-- Después de mostrar los productos encontrados, SIEMPRE pregunta por formato, color y cantidad.
-- Sé proactivo: si un producto tiene un solo color, selecciónalo automáticamente.
-- Si no encuentras un producto, sugiérele alternativas similares.
-- Mantén un tono amigable y eficiente, como un vendedor real en la tienda.` : ""}
+## Reglas críticas
+- Cuando una herramienta devuelve "message", cópialo TEXTUALMENTE incluyendo links/URLs.
+- Antes de cotizar: busca productos con search_products para códigos y precios.
+- Datos de cliente se auto-completan; solo pide nombre, productos, cantidades y tier de precio.`;
 
-## Capacidades
-${isPublic ? `Tienes acceso a herramientas para:
-- **Buscar productos** en el catálogo con descripciones técnicas, colores, formatos y precios.
-- **Crear cotizaciones/presupuestos** — al crearlos se genera un PDF descargable automáticamente.
-- Consultar inventario disponible.
-- Registrar preguntas técnicas sobre productos para revisión.` : `Tienes acceso a herramientas para:
-- Consultar ventas por período, vendedor o segmento
-- Ver progreso de metas de ventas
-- Ver ranking de clientes top
-- Consultar documentos pendientes (NVV y GDV)
-- **Buscar productos** en la lista de precios con todos los tiers de precio
-- **Crear cotizaciones/presupuestos** con productos y precios — al crearlas se genera automáticamente un link de PDF descargable
-- Listar cotizaciones existentes con links de PDF
-- **Buscar clientes** por nombre, RUT o código — ver datos de contacto, crédito, deuda
-- **Consultar historial de compras** de un cliente en un período
-- Consultar inventario`}
-
-**IMPORTANTE: SÍ puedes generar PDFs de cotizaciones.** Cuando el usuario pida un PDF, crea la cotización con create_quote y el sistema generará automáticamente un link de descarga. Copiar la URL del campo pdfUrl en tu respuesta.
-
-## Estilo de respuesta
-- Sé conciso pero completo
-- Cuando muestres datos numéricos, usa tablas Markdown
-- ${isPublic ? "Enfócate en guiar al cliente hacia concretar su pedido. Sé un vendedor proactivo y atento." : 'Ofrece análisis breve cuando sea relevante (ej: "Vas al 80% de tu meta, te faltan $X")'}
-- Si el usuario pide algo que no puedes hacer, sugiérele qué SÍ puedes hacer`;
-
-    // Add static system rules (from ai-system-rules.ts)
     prompt += `\n\n${AI_SYSTEM_RULES}`;
 
-    // Add custom system instructions from admin
     if (systemInstructions.length > 0) {
-        prompt += `\n\n## Instrucciones personalizadas del administrador`;
+        prompt += `\n\n## Instrucciones del administrador`;
         for (const inst of systemInstructions) {
             prompt += `\n### ${inst.title}\n${inst.content}`;
         }
     }
 
-    // Add knowledge base documents
     if (knowledgeDocs.length > 0) {
-        prompt += `\n\n## Base de conocimiento adicional\nUsa la siguiente información como referencia para responder consultas:`;
+        prompt += `\n\n## Base de conocimiento`;
         for (const doc of knowledgeDocs) {
             prompt += `\n\n### ${doc.title}\n${doc.content}`;
         }
@@ -391,33 +347,36 @@ export async function processAgentMessage(
             // Add assistant message with tool calls to conversation
             messages.push(responseMessage as any);
 
-            // Execute each tool call
-            for (const toolCall of responseMessage.tool_calls) {
-                const tc = toolCall as any;
-                const toolName = tc.function.name;
-                const toolArgs = JSON.parse(tc.function.arguments);
+            // Execute ALL tool calls in parallel for speed
+            const toolResults = await Promise.all(
+                responseMessage.tool_calls.map(async (toolCall: any) => {
+                    const toolName = toolCall.function.name;
+                    const toolArgs = JSON.parse(toolCall.function.arguments);
 
-                toolsUsed.push(toolName);
-                console.log(`[AI Agent] Executing tool: ${toolName}`, toolArgs);
+                    toolsUsed.push(toolName);
+                    console.log(`[AI Agent] Executing tool: ${toolName}`, toolArgs);
 
-                let toolResult: any;
+                    let toolResult: any;
+                    if ((toolImplementations as any)[toolName]) {
+                        toolResult = await (toolImplementations as any)[toolName](toolArgs, userContext);
+                    } else {
+                        toolResult = { error: `Herramienta '${toolName}' no disponible.` };
+                    }
 
-                if ((toolImplementations as any)[toolName]) {
-                    toolResult = await (toolImplementations as any)[toolName](toolArgs, userContext);
-                } else {
-                    toolResult = { error: `Herramienta '${toolName}' no disponible.` };
-                }
+                    return { toolCallId: toolCall.id, result: toolResult };
+                })
+            );
 
-                // Add tool result to conversation
+            // Add all tool results to conversation
+            for (const { toolCallId, result } of toolResults) {
                 messages.push({
                     role: "tool",
-                    tool_call_id: toolCall.id,
-                    content: JSON.stringify(toolResult),
+                    tool_call_id: toolCallId,
+                    content: JSON.stringify(result),
                 } as any);
             }
 
-            // Call LLM again with tool results
-            // Filter tools based on user role (Public restrictions)
+            // Filter tools based on user role for subsequent calls
             const publicAllowedTools = [
                 "search_products",
                 "create_quote",
@@ -425,24 +384,17 @@ export async function processAgentMessage(
                 "log_product_question"
             ];
 
-            const tools: ChatCompletionTool[] = Object.keys(toolImplementations)
-                .filter(name => userContext.role !== "public" || publicAllowedTools.includes(name))
-                .map(name => ({
-                    type: "function",
-                    function: {
-                        name,
-                        description: (toolDefinitions as any)[name].description,
-                        parameters: (toolDefinitions as any)[name].parameters,
-                    },
-                }));
+            const filteredToolDefs = toolDefinitions.filter(t =>
+                userContext.role !== "public" || publicAllowedTools.includes((t as any).function.name)
+            );
 
             completion = await openai.chat.completions.create({
                 model: "gpt-4o-mini",
                 messages,
-                tools: tools, // Use the filtered tools
+                tools: filteredToolDefs,
                 tool_choice: "auto",
                 temperature: 0.3,
-                max_tokens: 2000,
+                max_tokens: 1500,
             });
 
             responseMessage = completion.choices[0].message;

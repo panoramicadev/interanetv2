@@ -565,13 +565,29 @@ export function registerRoutes(app: Express): Server {
 
   // Serve locally uploaded files
   app.get('/api/uploads/:filename', (req: any, res: any) => {
-    const uploadsDir = path.join(process.cwd(), 'server', 'uploads');
-    const filePath = path.join(uploadsDir, req.params.filename);
+    const filename = req.params.filename;
+    // Use path.resolve to ensure absolute path from project root
+    const uploadsDir = path.resolve(process.cwd(), 'server', 'uploads');
+    const filePath = path.join(uploadsDir, filename);
+
+    console.log(`📂 [GET-UPLOAD] Requesting: ${filename}`);
+    console.log(`📂 [GET-UPLOAD] Full path: ${filePath}`);
+
     const fs = require('fs');
     if (fs.existsSync(filePath)) {
+      // Set content type based on extension if possible, or let sendFile handle it
+      // Adding Content-Disposition: inline allows previewing in browser instead of forced download
+      res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
       res.sendFile(filePath);
     } else {
-      res.status(404).json({ message: 'Archivo no encontrado' });
+      console.warn(`❌ [GET-UPLOAD] File NOT found: ${filePath}`);
+      // Send a more descriptive but still JSON error if preferred, 
+      // though for a direct file access, a 404 is standard.
+      res.status(404).json({
+        message: 'Archivo no encontrado en el servidor',
+        filename,
+        path: filePath // Sending path for debugging, remove in production if sensitive
+      });
     }
   });
 

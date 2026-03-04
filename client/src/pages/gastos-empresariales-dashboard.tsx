@@ -1476,123 +1476,83 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
       )}
 
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-blue-500">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-900/20 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5">
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-blue-500 to-blue-600 rounded-l-lg" />
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Gastos</CardTitle>
-            <TrendingUp className="h-4 w-4 text-blue-500" />
+            <CardTitle className="text-sm font-semibold text-blue-900/70 dark:text-blue-200/70 uppercase tracking-wider">Total Gastos</CardTitle>
+            <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
+              <TrendingUp className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" data-testid="text-total-gastos">
+            <div className="text-2xl lg:text-3xl font-bold text-blue-700 dark:text-blue-300" data-testid="text-total-gastos">
               {isLoadingSummary ? '...' : formatCurrency(summary?.total || 0)}
             </div>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-blue-600/60 dark:text-blue-400/60 mt-1.5 font-medium">
               {summary?.count || 0} registro{(summary?.count || 0) !== 1 ? 's' : ''}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-yellow-500">
+        <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/40 dark:to-amber-900/20 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5">
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-amber-400 to-amber-500 rounded-l-lg" />
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pendiente</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-500" />
+            <CardTitle className="text-sm font-semibold text-amber-900/70 dark:text-amber-200/70 uppercase tracking-wider">Pendiente</CardTitle>
+            <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center">
+              <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600" data-testid="text-total-pendiente">
+            <div className="text-2xl lg:text-3xl font-bold text-amber-700 dark:text-amber-300" data-testid="text-total-pendiente">
               {isLoadingSummary ? '...' : formatCurrency(summary?.totalPendiente || 0)}
             </div>
-            <p className="text-xs text-gray-500 mt-1">Por aprobar</p>
+            <p className="text-xs text-amber-600/60 dark:text-amber-400/60 mt-1.5 font-medium">Por aprobar</p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-green-500">
+        <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/40 dark:to-emerald-900/20 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5">
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-emerald-400 to-emerald-500 rounded-l-lg" />
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Aprobado</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-500" />
+            <CardTitle className="text-sm font-semibold text-emerald-900/70 dark:text-emerald-200/70 uppercase tracking-wider">Aprobado</CardTitle>
+            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+              <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600" data-testid="text-total-aprobado">
+            <div className="text-2xl lg:text-3xl font-bold text-emerald-700 dark:text-emerald-300" data-testid="text-total-aprobado">
               {isLoadingSummary ? '...' : formatCurrency(summary?.totalAprobado || 0)}
             </div>
-            <p className="text-xs text-gray-500 mt-1">Aprobados</p>
+            <p className="text-xs text-emerald-600/60 dark:text-emerald-400/60 mt-1.5 font-medium">Aprobados</p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-red-500">
+        <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-950/40 dark:to-rose-900/20 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5">
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-rose-400 to-rose-500 rounded-l-lg" />
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Rechazado</CardTitle>
-            <XCircle className="h-4 w-4 text-red-500" />
+            <CardTitle className="text-sm font-semibold text-rose-900/70 dark:text-rose-200/70 uppercase tracking-wider">Rechazado</CardTitle>
+            <div className="w-9 h-9 rounded-lg bg-rose-500/10 flex items-center justify-center">
+              <XCircle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600" data-testid="text-total-rechazado">
+            <div className="text-2xl lg:text-3xl font-bold text-rose-700 dark:text-rose-300" data-testid="text-total-rechazado">
               {isLoadingSummary ? '...' : formatCurrency(summary?.totalRechazado || 0)}
             </div>
-            <p className="text-xs text-gray-500 mt-1">Rechazados</p>
+            <p className="text-xs text-rose-600/60 dark:text-rose-400/60 mt-1.5 font-medium">Rechazados</p>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5" />
-            Gastos del Período ({filteredGastos.length})
-            {(estadoFilter !== 'todos' || categoriaFilter !== 'todos') && (
-              <Badge variant="secondary" className="ml-2 text-xs">Filtrado</Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {filteredGastos.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Fecha</TableHead>
-                    <TableHead>Descripción</TableHead>
-                    <TableHead>Categoría</TableHead>
-                    <TableHead>Proveedor</TableHead>
-                    <TableHead className="text-right">Monto</TableHead>
-                    <TableHead className="text-center">Estado</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredGastos.map((gasto) => (
-                    <TableRow key={gasto.id} data-testid={`row-gasto-${gasto.id}`}>
-                      <TableCell className="whitespace-nowrap">
-                        {formatFullDate(gasto.createdAt as any)}
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate">
-                        {gasto.descripcion}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{gasto.categoria}</Badge>
-                      </TableCell>
-                      <TableCell>{gasto.proveedor || '-'}</TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(parseFloat(gasto.monto as any))}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {getEstadoBadge(gasto.estado)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-32 text-gray-500">
-              {gastosRecientes.length > 0 ? 'No hay gastos que coincidan con los filtros' : 'No hay gastos registrados'}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
+      {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <PieChartIcon className="h-5 w-5" />
+        <Card className="border-0 shadow-sm hover:shadow-md transition-shadow duration-300 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-bold flex items-center gap-2.5 text-slate-800 dark:text-slate-200">
+              <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
+                <PieChartIcon className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+              </div>
               Distribución por Estado
             </CardTitle>
           </CardHeader>
@@ -1601,7 +1561,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
               {hasData ? (
                 <Doughnut data={statusChartData} options={pieOptions} />
               ) : (
-                <div className="flex items-center justify-center h-full text-gray-500">
+                <div className="flex items-center justify-center h-full text-gray-400 text-sm">
                   No hay datos disponibles
                 </div>
               )}
@@ -1609,10 +1569,12 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
+        <Card className="lg:col-span-2 border-0 shadow-sm hover:shadow-md transition-shadow duration-300 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-bold flex items-center gap-2.5 text-slate-800 dark:text-slate-200">
+              <div className="w-8 h-8 rounded-lg bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center">
+                <BarChart3 className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+              </div>
               Gastos por Categoría
             </CardTitle>
           </CardHeader>
@@ -1621,7 +1583,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
               {porCategoria.length > 0 ? (
                 <Bar data={categoriaChartData} options={barOptions} />
               ) : (
-                <div className="flex items-center justify-center h-full text-gray-500">
+                <div className="flex items-center justify-center h-full text-gray-400 text-sm">
                   No hay datos disponibles
                 </div>
               )}
@@ -1632,10 +1594,12 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {user?.role !== 'salesperson' && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Users className="h-5 w-5" />
+          <Card className="border-0 shadow-sm hover:shadow-md transition-shadow duration-300 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-bold flex items-center gap-2.5 text-slate-800 dark:text-slate-200">
+                <div className="w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
+                  <Users className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                </div>
                 Top 10 Vendedores con más Gastos
               </CardTitle>
             </CardHeader>
@@ -1644,7 +1608,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
                 {porUsuario.length > 0 ? (
                   <Bar data={usuarioChartData} options={horizontalBarOptions} />
                 ) : (
-                  <div className="flex items-center justify-center h-full text-gray-500">
+                  <div className="flex items-center justify-center h-full text-gray-400 text-sm">
                     No hay datos disponibles
                   </div>
                 )}
@@ -1653,10 +1617,12 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
           </Card>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
+        <Card className="border-0 shadow-sm hover:shadow-md transition-shadow duration-300 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-bold flex items-center gap-2.5 text-slate-800 dark:text-slate-200">
+              <div className="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                <Calendar className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+              </div>
               Evolución Diaria del Mes
             </CardTitle>
           </CardHeader>
@@ -1665,7 +1631,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
               {porDia.length > 0 ? (
                 <Line data={diaChartData} options={lineOptions} />
               ) : (
-                <div className="flex items-center justify-center h-full text-gray-500">
+                <div className="flex items-center justify-center h-full text-gray-400 text-sm">
                   No hay datos disponibles
                 </div>
               )}

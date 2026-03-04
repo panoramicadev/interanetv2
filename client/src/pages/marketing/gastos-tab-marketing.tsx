@@ -35,7 +35,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
     Plus, Trash2, Loader2, Receipt, Upload, FileText,
     TrendingDown, CheckCircle2, Clock, ShoppingCart, Pencil,
-    Users, Phone, Mail, Building2,
+    Users, Phone, Mail, Building2, Eye, Download, X, RefreshCw,
 } from "lucide-react";
 
 interface GastoMarketing {
@@ -45,6 +45,7 @@ interface GastoMarketing {
     monto: string;
     categoria: string | null;
     proveedor: string | null;
+    fecha: string | null;
     mes: number;
     anio: number;
     estado: string;
@@ -104,9 +105,15 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [deleteType, setDeleteType] = useState<"gasto" | "proveedor">("gasto");
-    const [uploading, setUploading] = useState<string | null>(null);
+    const [uploading, setUploading] = useState<string | null>(null); // Format: "gastoId-field"
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploadTarget, setUploadTarget] = useState<{ id: string; field: string } | null>(null);
+
+    // PDF/document preview modal state
+    const [previewOpen, setPreviewOpen] = useState(false);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [previewTitle, setPreviewTitle] = useState("");
+    const [detailGasto, setDetailGasto] = useState<GastoMarketing | null>(null);
 
     // Proveedores state
     const [provDialogOpen, setProvDialogOpen] = useState(false);
@@ -115,12 +122,21 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
 
     const isAdmin = userRole === "admin" || userRole === "supervisor";
 
+    const getDefaultFecha = () => {
+        const today = new Date();
+        if (today.getMonth() + 1 === selectedMes && today.getFullYear() === selectedAnio) {
+            return `${selectedAnio}-${String(selectedMes).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        }
+        return `${selectedAnio}-${String(selectedMes).padStart(2, '0')}-01`;
+    };
+
     const [formData, setFormData] = useState({
         concepto: "",
         descripcion: "",
         monto: "",
         categoria: "DIGITAL",
         proveedor: "",
+        fecha: getDefaultFecha(),
         estado: "pendiente",
         numeroFactura: "",
     });
@@ -207,7 +223,7 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
     const resetForm = () => {
         setDialogOpen(false);
         setEditingGasto(null);
-        setFormData({ concepto: "", descripcion: "", monto: "", categoria: "DIGITAL", proveedor: "", estado: "pendiente", numeroFactura: "" });
+        setFormData({ concepto: "", descripcion: "", monto: "", categoria: "DIGITAL", proveedor: "", fecha: getDefaultFecha(), estado: "pendiente", numeroFactura: "" });
     };
 
     const resetProvForm = () => {
@@ -224,6 +240,7 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
             monto: formData.monto,
             categoria: formData.categoria,
             proveedor: formData.proveedor.trim() || null,
+            fecha: formData.fecha || null,
             estado: formData.estado,
             numeroFactura: formData.numeroFactura.trim() || null,
             mes: selectedMes,
@@ -262,6 +279,7 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
             monto: gasto.monto,
             categoria: gasto.categoria || "DIGITAL",
             proveedor: gasto.proveedor || "",
+            fecha: gasto.fecha || getDefaultFecha(),
             estado: gasto.estado,
             numeroFactura: gasto.numeroFactura || "",
         });
@@ -285,7 +303,8 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files?.[0] || !uploadTarget) return;
         const file = e.target.files[0];
-        setUploading(uploadTarget.field);
+        const uploadKey = `${uploadTarget.id}-${uploadTarget.field}`;
+        setUploading(uploadKey);
         try {
             const fd = new FormData();
             fd.append("file", file);
@@ -299,7 +318,7 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
             });
             queryClient.invalidateQueries({ queryKey: ["/api/marketing/gastos"] });
             queryClient.invalidateQueries({ queryKey: ["/api/marketing/metrics"] });
-            toast({ title: "Documento subido" });
+            toast({ title: "Documento subido correctamente" });
         } catch {
             toast({ title: "Error", description: "No se pudo subir el archivo.", variant: "destructive" });
         } finally {
@@ -312,6 +331,73 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
     const triggerUpload = (id: string, field: string) => {
         setUploadTarget({ id, field });
         setTimeout(() => fileInputRef.current?.click(), 100);
+    };
+
+    const openPreview = (url: string, title: string) => {
+        setPreviewUrl(url);
+        setPreviewTitle(title);
+        setPreviewOpen(true);
+    };
+
+    const isPdfUrl = (url: string) => {
+        const path = url.split('?')[0].toLowerCase();
+        return path.endsWith('.pdf') || url.includes('application/pdf');
+    };
+
+    const isImageUrl = (url: string) => {
+        const path = url.split('?')[0].toLowerCase();
+        return /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(path);
+    };
+
+    const renderDocButton = (gasto: GastoMarketing, field: 'urlCotizacion' | 'urlOrdenCompra' | 'urlFactura', label: string, colorClass: string, iconColorClass: string) => {
+        const url = gasto[field];
+        const uploadKey = `${gasto.id}-${field}`;
+        const isUploading = uploading === uploadKey;
+
+        if (url) {
+            // Document exists — show badge to preview + replace button
+            return (
+                <div className="flex items-center gap-0.5">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`h-6 text-[10px] px-1.5 ${colorClass} hover:opacity-80`}
+                        onClick={() => openPreview(url, `${label} — ${gasto.concepto}`)}
+                    >
+                        <Eye className="h-2.5 w-2.5 mr-0.5" />{label}
+                    </Button>
+                    {isAdmin && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`h-5 w-5 p-0 ${iconColorClass} opacity-50 hover:opacity-100`}
+                            onClick={() => triggerUpload(gasto.id, field)}
+                            disabled={isUploading}
+                            title={`Reemplazar ${label}`}
+                        >
+                            {isUploading ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <RefreshCw className="h-2.5 w-2.5" />}
+                        </Button>
+                    )}
+                </div>
+            );
+        }
+
+        // No document — show upload button (admin only)
+        if (isAdmin) {
+            return (
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`h-6 text-[10px] px-1.5 text-slate-400 ${iconColorClass}`}
+                    onClick={() => triggerUpload(gasto.id, field)}
+                    disabled={isUploading}
+                >
+                    {isUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3 mr-0.5" />}{label}
+                </Button>
+            );
+        }
+
+        return <Badge variant="outline" className="text-[9px] text-slate-300">—</Badge>;
     };
 
     // Calculations
@@ -413,6 +499,7 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
                                         <th className="px-3 py-3 text-left font-bold text-slate-700 w-[120px]">Categoría</th>
                                         <th className="px-3 py-3 text-left font-bold text-slate-700 w-[140px]">Proveedor</th>
                                         <th className="px-3 py-3 text-right font-bold text-slate-700 w-[110px]">Monto</th>
+                                        <th className="px-3 py-3 text-center font-bold text-slate-700 w-[100px]">N° Factura</th>
                                         <th className="px-3 py-3 text-center font-bold text-slate-700 w-[100px]">Estado</th>
                                         <th className="px-3 py-3 text-center font-bold text-slate-700 w-[200px]">Documentos</th>
                                         {isAdmin && <th className="px-2 py-3 text-center w-[80px]"></th>}
@@ -425,12 +512,18 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
                                         return (
                                             <tr key={gasto.id} className={`border-b border-slate-100 hover:bg-blue-50/50 transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}>
                                                 <td className="px-4 py-3">
-                                                    <div className="font-medium text-slate-800">{gasto.concepto}</div>
+                                                    <button
+                                                        onClick={() => setDetailGasto(gasto)}
+                                                        className="font-medium text-slate-800 hover:text-indigo-600 transition-colors text-left"
+                                                    >
+                                                        {gasto.concepto}
+                                                    </button>
                                                     {gasto.descripcion && <div className="text-xs text-slate-500 mt-0.5 line-clamp-1">{gasto.descripcion}</div>}
                                                 </td>
                                                 <td className="px-3 py-3"><span className="text-xs font-medium text-slate-600">{gasto.categoria || "—"}</span></td>
                                                 <td className="px-3 py-3"><span className="text-xs text-slate-600">{gasto.proveedor || "—"}</span></td>
                                                 <td className="px-3 py-3 text-right tabular-nums font-semibold text-slate-800">{formatCLP(parseFloat(gasto.monto || "0"))}</td>
+                                                <td className="px-3 py-3 text-center"><span className="text-xs text-slate-500">{gasto.numeroFactura || "—"}</span></td>
                                                 <td className="px-3 py-3 text-center">
                                                     <Badge variant="outline" className={`text-[10px] px-2 py-0.5 ${estadoInfo.color}`}>
                                                         <EstadoIcon className="h-3 w-3 mr-1" />{estadoInfo.label}
@@ -438,44 +531,9 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
                                                 </td>
                                                 <td className="px-3 py-3">
                                                     <div className="flex items-center justify-center gap-1">
-                                                        {/* Cotización */}
-                                                        {gasto.urlCotizacion ? (
-                                                            <a href={gasto.urlCotizacion} target="_blank" rel="noopener noreferrer">
-                                                                <Badge variant="outline" className="text-[9px] bg-purple-50 text-purple-700 border-purple-300 cursor-pointer hover:bg-purple-100">
-                                                                    <FileText className="h-2.5 w-2.5 mr-0.5" />Cotiz.
-                                                                </Badge>
-                                                            </a>
-                                                        ) : isAdmin ? (
-                                                            <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-slate-400 hover:text-purple-600" onClick={() => triggerUpload(gasto.id, "urlCotizacion")} disabled={uploading === "urlCotizacion"}>
-                                                                {uploading === "urlCotizacion" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3 mr-0.5" />}Cotiz.
-                                                            </Button>
-                                                        ) : <Badge variant="outline" className="text-[9px] text-slate-300">—</Badge>}
-
-                                                        {/* Orden de Compra */}
-                                                        {gasto.urlOrdenCompra ? (
-                                                            <a href={gasto.urlOrdenCompra} target="_blank" rel="noopener noreferrer">
-                                                                <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-700 border-blue-300 cursor-pointer hover:bg-blue-100">
-                                                                    <FileText className="h-2.5 w-2.5 mr-0.5" />OC
-                                                                </Badge>
-                                                            </a>
-                                                        ) : isAdmin ? (
-                                                            <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-slate-400 hover:text-blue-600" onClick={() => triggerUpload(gasto.id, "urlOrdenCompra")} disabled={uploading === "urlOrdenCompra"}>
-                                                                {uploading === "urlOrdenCompra" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3 mr-0.5" />}OC
-                                                            </Button>
-                                                        ) : <Badge variant="outline" className="text-[9px] text-slate-300">—</Badge>}
-
-                                                        {/* Factura */}
-                                                        {gasto.urlFactura ? (
-                                                            <a href={gasto.urlFactura} target="_blank" rel="noopener noreferrer">
-                                                                <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-300 cursor-pointer hover:bg-emerald-100">
-                                                                    <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />Factura
-                                                                </Badge>
-                                                            </a>
-                                                        ) : isAdmin ? (
-                                                            <Button variant="ghost" size="sm" className="h-6 text-[10px] px-1.5 text-slate-400 hover:text-emerald-600" onClick={() => triggerUpload(gasto.id, "urlFactura")} disabled={uploading === "urlFactura"}>
-                                                                {uploading === "urlFactura" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3 mr-0.5" />}Factura
-                                                            </Button>
-                                                        ) : <Badge variant="outline" className="text-[9px] text-slate-300">—</Badge>}
+                                                        {renderDocButton(gasto, 'urlCotizacion', 'Cotiz.', 'bg-purple-50 text-purple-700 border-purple-300', 'hover:text-purple-600')}
+                                                        {renderDocButton(gasto, 'urlOrdenCompra', 'OC', 'bg-blue-50 text-blue-700 border-blue-300', 'hover:text-blue-600')}
+                                                        {renderDocButton(gasto, 'urlFactura', 'Factura', 'bg-emerald-50 text-emerald-700 border-emerald-300', 'hover:text-emerald-600')}
                                                     </div>
                                                 </td>
                                                 {isAdmin && (
@@ -606,6 +664,17 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
                                 </Select>
                             </div>
                         </div>
+                        <div>
+                            <Label>Fecha</Label>
+                            <Input
+                                type="date"
+                                value={formData.fecha}
+                                onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
+                                min={`${selectedAnio}-${String(selectedMes).padStart(2, '0')}-01`}
+                                max={`${selectedAnio}-${String(selectedMes).padStart(2, '0')}-${String(new Date(selectedAnio, selectedMes, 0).getDate()).padStart(2, '0')}`}
+                                className="mt-1"
+                            />
+                        </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <Label>Proveedor</Label>
@@ -731,6 +800,109 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Document Preview Modal */}
+            <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+                <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center justify-between pr-8">
+                            <span className="flex items-center gap-2 text-sm truncate">
+                                <FileText className="h-4 w-4 text-indigo-600 shrink-0" />
+                                {previewTitle}
+                            </span>
+                            {previewUrl && (
+                                <a
+                                    href={previewUrl}
+                                    download
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 text-xs font-medium bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors shrink-0"
+                                >
+                                    <Download className="h-3.5 w-3.5" />
+                                    Descargar
+                                </a>
+                            )}
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-slate-200 bg-slate-50">
+                        {previewUrl && (
+                            isPdfUrl(previewUrl) ? (
+                                <iframe
+                                    src={previewUrl}
+                                    className="w-full h-[65vh] rounded-lg"
+                                    title="Vista previa del documento"
+                                />
+                            ) : isImageUrl(previewUrl) ? (
+                                <div className="flex items-center justify-center p-4">
+                                    <img
+                                        src={previewUrl}
+                                        alt="Vista previa"
+                                        className="max-w-full max-h-[60vh] object-contain rounded-lg shadow-sm"
+                                    />
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                                    <FileText className="h-16 w-16 mb-4 opacity-30" />
+                                    <p className="font-medium">Vista previa no disponible para este tipo de archivo</p>
+                                    <p className="text-sm mt-1">Usa el botón de descargar para ver el archivo</p>
+                                </div>
+                            )
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Gasto Detail Dialog */}
+            <Dialog open={!!detailGasto} onOpenChange={(open) => { if (!open) setDetailGasto(null); }}>
+                <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <FileText className="h-5 w-5 text-indigo-600" />
+                            Detalle del Gasto
+                        </DialogTitle>
+                    </DialogHeader>
+                    {detailGasto && (
+                        <div className="space-y-4 py-4">
+                            <div>
+                                <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Concepto</Label>
+                                <p className="text-lg font-semibold text-slate-800">{detailGasto.concepto}</p>
+                            </div>
+                            <div>
+                                <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Descripción / Detalle</Label>
+                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mt-1">
+                                    <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">
+                                        {detailGasto.descripcion || "Sin detalle adicional."}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Monto</Label>
+                                    <p className="font-bold text-indigo-600 text-lg">{formatCLP(parseFloat(detailGasto.monto))}</p>
+                                </div>
+                                <div>
+                                    <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Proveedor</Label>
+                                    <p className="text-slate-700 font-medium">{detailGasto.proveedor || "—"}</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Categoría</Label>
+                                    <p className="text-slate-700">{detailGasto.categoria || "—"}</p>
+                                </div>
+                                <div>
+                                    <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">N° Factura</Label>
+                                    <p className="text-slate-700">{detailGasto.numeroFactura || "—"}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button onClick={() => setDetailGasto(null)}>Cerrar</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
         </div>
     );
 }

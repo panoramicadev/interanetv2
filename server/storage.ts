@@ -18705,6 +18705,7 @@ export class DatabaseStorage implements IStorage {
   async getMarketingMetrics(mes: number, anio: number): Promise<{
     presupuestoTotal: number;
     presupuestoUtilizado: number;
+    presupuestoComprometido: number;
     presupuestoDisponible: number;
     totalSolicitudes: number;
     solicitudesPorEstado: {
@@ -18737,6 +18738,11 @@ export class DatabaseStorage implements IStorage {
       .filter(g => g.estado === 'facturado')
       .reduce((sum, g) => sum + parseFloat(g.monto as any || '0'), 0);
 
+    // Calculate presupuesto comprometido (cotización o orden de compra, sin factura aún)
+    const presupuestoComprometido = gastosDelMes
+      .filter(g => g.estado === 'pendiente' || g.estado === 'con_oc')
+      .reduce((sum, g) => sum + parseFloat(g.monto as any || '0'), 0);
+
     // Count by estado
     const solicitudesPorEstado = {
       solicitado: solicitudes.filter(s => s.estado === 'solicitado').length,
@@ -18748,6 +18754,7 @@ export class DatabaseStorage implements IStorage {
     return {
       presupuestoTotal,
       presupuestoUtilizado,
+      presupuestoComprometido,
       presupuestoDisponible: presupuestoTotal - presupuestoUtilizado,
       totalSolicitudes: solicitudes.length,
       solicitudesPorEstado,

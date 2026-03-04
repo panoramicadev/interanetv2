@@ -81,6 +81,7 @@ interface SolicitudMarketing {
 interface MarketingMetrics {
   presupuestoTotal: number;
   presupuestoUtilizado: number;
+  presupuestoComprometido: number;
   presupuestoDisponible: number;
   totalSolicitudes: number;
   solicitudesPorEstado: {
@@ -443,6 +444,8 @@ export default function Marketing() {
 
 // Metrics Dashboard Component
 function MetricsDashboard({ mes, anio }: { mes: number; anio: number }) {
+  const [gastosModalOpen, setGastosModalOpen] = useState(false);
+
   const { data: metrics, isLoading } = useQuery<MarketingMetrics>({
     queryKey: ['/api/marketing/metrics', mes, anio],
     queryFn: async () => {
@@ -454,6 +457,16 @@ function MetricsDashboard({ mes, anio }: { mes: number; anio: number }) {
       }
       return response.json();
     },
+  });
+
+  const { data: gastos = [] } = useQuery<any[]>({
+    queryKey: ['/api/marketing/gastos', mes, anio],
+    queryFn: async () => {
+      const res = await fetch(`/api/marketing/gastos?mes=${mes}&anio=${anio}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Error al cargar gastos');
+      return res.json();
+    },
+    enabled: gastosModalOpen,
   });
 
   if (isLoading) {
@@ -480,54 +493,138 @@ function MetricsDashboard({ mes, anio }: { mes: number; anio: number }) {
     : 0;
 
   return (
-    <div className="grid gap-4 md:grid-cols-3">
-      <Card className="border-0 shadow-md bg-gradient-to-br from-indigo-500 to-purple-600 text-white" data-testid="card-presupuesto-total">
-        <CardContent className="pt-6">
-          <p className="text-sm font-medium text-indigo-100">Presupuesto Total</p>
-          <p className="text-2xl font-bold mt-1">
-            ${metrics && metrics.presupuestoTotal != null ? metrics.presupuestoTotal.toLocaleString('es-CL') : '0'}
-          </p>
-          <p className="text-xs text-indigo-200 mt-1">
-            Presupuesto mensual asignado
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card className="border-0 shadow-md bg-gradient-to-br from-emerald-500 to-teal-600 text-white" data-testid="card-presupuesto-utilizado">
-        <CardContent className="pt-6">
-          <p className="text-sm font-medium text-emerald-100">Presupuesto Utilizado</p>
-          <p className="text-2xl font-bold mt-1">
-            ${metrics && metrics.presupuestoUtilizado != null ? metrics.presupuestoUtilizado.toLocaleString('es-CL') : '0'}
-          </p>
-          <div className="mt-2">
-            <div className="w-full bg-white/20 rounded-full h-2">
-              <div
-                className={`h-2 rounded-full ${presupuestoUtilizadoPct > 90 ? 'bg-red-300' :
-                  presupuestoUtilizadoPct > 70 ? 'bg-yellow-300' :
-                    'bg-white/80'
-                  }`}
-                style={{ width: `${Math.min(presupuestoUtilizadoPct, 100)}%` }}
-              />
-            </div>
-            <p className="text-xs text-emerald-200 mt-1">
-              {isNaN(presupuestoUtilizadoPct) ? '0.0' : presupuestoUtilizadoPct.toFixed(1)}% utilizado
+    <>
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="border-0 shadow-md bg-gradient-to-br from-indigo-500 to-purple-600 text-white" data-testid="card-presupuesto-total">
+          <CardContent className="pt-6">
+            <p className="text-sm font-medium text-indigo-100">Presupuesto Total</p>
+            <p className="text-2xl font-bold mt-1">
+              ${metrics && metrics.presupuestoTotal != null ? metrics.presupuestoTotal.toLocaleString('es-CL') : '0'}
             </p>
-          </div>
-        </CardContent>
-      </Card>
+            <p className="text-xs text-indigo-200 mt-1">
+              Presupuesto mensual asignado
+            </p>
+          </CardContent>
+        </Card>
 
-      <Card className="border-0 shadow-md bg-gradient-to-br from-amber-500 to-orange-600 text-white" data-testid="card-presupuesto-disponible">
-        <CardContent className="pt-6">
-          <p className="text-sm font-medium text-amber-100">Presupuesto Disponible</p>
-          <p className="text-2xl font-bold mt-1">
-            ${metrics && metrics.presupuestoDisponible != null ? metrics.presupuestoDisponible.toLocaleString('es-CL') : '0'}
-          </p>
-          <p className="text-xs text-amber-200 mt-1">
-            {metrics?.totalSolicitudes || 0} solicitudes totales
-          </p>
-        </CardContent>
-      </Card>
-    </div>
+        <Card
+          className="border-0 shadow-md bg-gradient-to-br from-emerald-500 to-teal-600 text-white cursor-pointer hover:brightness-110 transition-all active:scale-[0.98]"
+          data-testid="card-presupuesto-utilizado"
+          onClick={() => setGastosModalOpen(true)}
+        >
+          <CardContent className="pt-6">
+            <p className="text-sm font-medium text-emerald-100">Presupuesto Utilizado</p>
+            <p className="text-2xl font-bold mt-1">
+              ${metrics && metrics.presupuestoUtilizado != null ? metrics.presupuestoUtilizado.toLocaleString('es-CL') : '0'}
+            </p>
+            <div className="mt-2">
+              <div className="w-full bg-white/20 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full ${presupuestoUtilizadoPct > 90 ? 'bg-red-300' :
+                    presupuestoUtilizadoPct > 70 ? 'bg-yellow-300' :
+                      'bg-white/80'
+                    }`}
+                  style={{ width: `${Math.min(presupuestoUtilizadoPct, 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-emerald-200 mt-1">
+                {isNaN(presupuestoUtilizadoPct) ? '0.0' : presupuestoUtilizadoPct.toFixed(1)}% utilizado &middot; <span className="underline underline-offset-2">Ver detalle</span>
+              </p>
+            </div>
+            {metrics && metrics.presupuestoComprometido > 0 && (
+              <div className="mt-3 pt-2 border-t border-white/20">
+                <p className="text-xs text-emerald-100">
+                  Comprometido (cotización/OC): <span className="font-semibold">${metrics.presupuestoComprometido.toLocaleString('es-CL')}</span>
+                </p>
+                <p className="text-xs text-emerald-200 mt-0.5">
+                  Total con comprometido: <span className="font-semibold">${(metrics.presupuestoUtilizado + metrics.presupuestoComprometido).toLocaleString('es-CL')}</span>
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-md bg-gradient-to-br from-amber-500 to-orange-600 text-white" data-testid="card-presupuesto-disponible">
+          <CardContent className="pt-6">
+            <p className="text-sm font-medium text-amber-100">Presupuesto Disponible</p>
+            <p className="text-2xl font-bold mt-1">
+              ${metrics && metrics.presupuestoDisponible != null ? metrics.presupuestoDisponible.toLocaleString('es-CL') : '0'}
+            </p>
+            <p className="text-xs text-amber-200 mt-1">
+              {metrics?.totalSolicitudes || 0} solicitudes totales
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Gastos Detail Modal */}
+      <Dialog open={gastosModalOpen} onOpenChange={setGastosModalOpen}>
+        <DialogContent className="sm:max-w-[750px] max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-emerald-600" />
+              Gastos — {['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][mes - 1]} {anio}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-auto">
+            {gastos.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                <Receipt className="h-12 w-12 mb-3 opacity-30" />
+                <p className="font-medium">Sin gastos registrados para este mes</p>
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="border-b-2 border-slate-200">
+                    <th className="px-3 py-2 text-left font-bold text-slate-600">Concepto</th>
+                    <th className="px-3 py-2 text-left font-bold text-slate-600">Categoría</th>
+                    <th className="px-3 py-2 text-left font-bold text-slate-600">Proveedor</th>
+                    <th className="px-3 py-2 text-center font-bold text-slate-600">N° Factura</th>
+                    <th className="px-3 py-2 text-center font-bold text-slate-600">Estado</th>
+                    <th className="px-3 py-2 text-right font-bold text-slate-600">Monto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gastos.map((g: any, idx: number) => (
+                    <tr key={g.id} className={`border-b border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
+                      <td className="px-3 py-2">
+                        <div className="font-medium text-slate-800">{g.concepto}</div>
+                        {g.descripcion && <div className="text-xs text-slate-400 line-clamp-1">{g.descripcion}</div>}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-slate-600">{g.categoria || '—'}</td>
+                      <td className="px-3 py-2 text-xs text-slate-600">{g.proveedor || '—'}</td>
+                      <td className="px-3 py-2 text-center text-xs text-slate-500">{g.numeroFactura || '—'}</td>
+                      <td className="px-3 py-2 text-center">
+                        <span className={`inline-block text-[10px] px-2 py-0.5 rounded-full font-medium border ${g.estado === 'facturado' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' :
+                          g.estado === 'con_oc' ? 'bg-blue-50 text-blue-700 border-blue-300' :
+                            'bg-yellow-50 text-yellow-700 border-yellow-300'
+                          }`}>
+                          {g.estado === 'facturado' ? 'Facturado' : g.estado === 'con_oc' ? 'Con OC' : 'Pendiente'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums font-semibold text-slate-800">
+                        ${parseFloat(g.monto || '0').toLocaleString('es-CL', { maximumFractionDigits: 0 })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-800 text-white">
+                    <td className="px-3 py-2 font-bold" colSpan={5}>Total</td>
+                    <td className="px-3 py-2 text-right font-bold tabular-nums">
+                      ${gastos.reduce((sum: number, g: any) => sum + parseFloat(g.monto || '0'), 0).toLocaleString('es-CL', { maximumFractionDigits: 0 })}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setGastosModalOpen(false)}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
