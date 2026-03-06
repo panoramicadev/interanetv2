@@ -6316,8 +6316,16 @@ export class DatabaseStorage implements IStorage {
     purchaseFrequency: number;
     segments: string[];
   }> {
+    // Normalize client name for comparison - handle URL encoding
+    const normalizedClientName = decodeURIComponent(clientName).trim();
+    
+    // Try multiple variations: exact, normalized (hyphens to spaces), and partial match
+    const normalizedForExactSearch = normalizedClientName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+    
+    console.log('[getClientDetails] Client:', normalizedClientName, 'Normalized:', normalizedForExactSearch, 'Period:', period, 'FilterType:', filterType);
+    
     const conditions = [
-      eq(factVentas.nokoen, clientName),
+      sql`(${factVentas.nokoen} ILIKE ${normalizedForExactSearch} OR REPLACE(${factVentas.nokoen}, '-', ' ') ILIKE ${normalizedForExactSearch} OR ${factVentas.nokoen} ILIKE ${'%' + normalizedForExactSearch + '%'})`,
       sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
 
@@ -6422,8 +6430,12 @@ export class DatabaseStorage implements IStorage {
     lastPurchase: string;
     daysSinceLastPurchase: number;
   }>> {
+    // Normalize client name for comparison - handle URL encoding
+    const normalizedClientName = decodeURIComponent(clientName).trim();
+    const normalizedForExactSearch = normalizedClientName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+    
     const conditions = [
-      eq(factVentas.nokoen, clientName),
+      sql`(${factVentas.nokoen} ILIKE ${normalizedForExactSearch} OR REPLACE(${factVentas.nokoen}, '-', ' ') ILIKE ${normalizedForExactSearch} OR ${factVentas.nokoen} ILIKE ${'%' + normalizedForExactSearch + '%'})`,
       sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
 
@@ -10966,11 +10978,12 @@ export class DatabaseStorage implements IStorage {
           .from(factVentas)
           .where(eq(factVentas.nokoen, client.nokoen));
 
-        // Get the latest document ID and its salesperson
+        // Get the latest document ID, its salesperson and segment
         const [latestDoc] = await db
           .select({
             idmaeedo: factVentas.idmaeedo,
             salespersonName: factVentas.nokofu,
+            segmentName: factVentas.noruen,
           })
           .from(factVentas)
           .where(eq(factVentas.nokoen, client.nokoen))
@@ -10997,6 +11010,7 @@ export class DatabaseStorage implements IStorage {
           lastTransactionDate: salesData?.lastTransactionDate || undefined,
           salespersonName: latestDoc?.salespersonName || undefined,
           lastTransactionAmount: lastTransactionAmount || undefined,
+          salesSegment: latestDoc?.segmentName || undefined,
         };
       })
     );
@@ -13812,6 +13826,8 @@ export class DatabaseStorage implements IStorage {
   async getAllNvvGroupedBySalespeople(options?: {
     startDate?: Date;
     endDate?: Date;
+    segment?: string;
+    salesperson?: string;
   }): Promise<Array<{
     salespersonCode: string;
     salespersonName: string;
@@ -13846,28 +13862,40 @@ export class DatabaseStorage implements IStorage {
         conditions.push(sql`feemdo <= ${options.endDate.toISOString().split('T')[0]}`);
       }
 
+      // Add salesperson filter if provided
+      if (options?.salesperson) {
+        const normalizedSalesperson = options.salesperson.trim().toUpperCase();
+        conditions.push(sql`(UPPER(nvv.nombre_vendedor) LIKE ${'%' + normalizedSalesperson + '%'} OR UPPER(nvv.kofulido) LIKE ${'%' + normalizedSalesperson + '%'})`);
+      }
+
+      // Add segment filter if provided - joins with dim_segment if needed
+      if (options?.segment) {
+        const normalizedSegment = options.segment.trim().toUpperCase();
+        conditions.push(sql`UPPER(nvv.segmento) = ${normalizedSegment}`);
+      }
+
       const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
 
       // Query from nvv.fact_nvv (ETL data)
       const queryResults = await db.execute(sql`
         SELECT 
-          id,
-          nudo as "NUDO",
-          tido as "TIDO",
-          feemdo as "FEEMDO",
-          endo as "ENDO",
-          nokoen as "NOKOEN",
-          nokopr as "NOKOPR",
-          koprct as "KOPRCT",
-          kofulido as "KOFULIDO",
-          nombre_vendedor,
-          caprex2 as "CAPREX2",
-          caprco2 as "CAPRCO2",
-          ppprne as "PPPRNE",
-          monto as total_pendiente
-        FROM nvv.fact_nvv
+          nvv.id,
+          nvv.nudo as "NUDO",
+          nvv.tido as "TIDO",
+          nvv.feemdo as "FEEMDO",
+          nvv.endo as "ENDO",
+          nvv.nokoen as "NOKOEN",
+          nvv.nokopr as "NOKOPR",
+          nvv.koprct as "KOPRCT",
+          nvv.kofulido as "KOFULIDO",
+          nvv.nombre_vendedor,
+          nvv.caprex2 as "CAPREX2",
+          nvv.caprco2 as "CAPRCO2",
+          nvv.ppprne as "PPPRNE",
+          nvv.monto as total_pendiente
+        FROM nvv.fact_nvv nvv
         ${whereClause}
-        ORDER BY feemdo DESC
+        ORDER BY nvv.feemdo DESC
       `);
 
       const results = queryResults.rows as any[];
@@ -24395,7 +24423,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getAllGdvGroupedBySalespeople(): Promise<Array<{
+  async getAllGdvGroupedBySalespeople(segment?: string, salesperson?: string): Promise<Array<{
     salespersonCode: string;
     salespersonName: string;
     totalAmount: number;
@@ -24416,22 +24444,35 @@ export class DatabaseStorage implements IStorage {
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const dateFilter = firstDayOfMonth.toISOString().split('T')[0];
 
+      // Build WHERE clause with filters
+      let whereClause = `WHERE (gdv.eslido IS NULL OR gdv.eslido = '')
+        AND gdv.cantidad_pendiente = true
+        AND gdv.feemdo >= '${dateFilter}'`;
+
+      if (salesperson) {
+        const normalizedSalesperson = salesperson.trim().toUpperCase();
+        whereClause += ` AND (UPPER(gdv.nokofu) LIKE '%${normalizedSalesperson}%' OR UPPER(gdv.kofulido) LIKE '%${normalizedSalesperson}%')`;
+      }
+
+      if (segment) {
+        const normalizedSegment = segment.trim().toUpperCase();
+        whereClause += ` AND UPPER(gdv.segmento) = '${normalizedSegment}'`;
+      }
+
       const query = sql.raw(`
         SELECT 
-          COALESCE(nudo::text, '') as numero_guia,
-          COALESCE(feemdo::text, '') as fecha,
-          COALESCE(nokoen, 'Sin cliente') as cliente,
-          COALESCE(endo, '') as codigo_cliente,
-          COALESCE(nokoprct, 'Sin producto') as producto,
-          COALESCE(caprco2::numeric, 0) as cantidad,
-          COALESCE(vaneli::numeric, 0) as monto,
-          COALESCE(kofulido, '') as codigo_vendedor,
-          COALESCE(nokofu, 'Sin vendedor') as nombre_vendedor
-        FROM gdv.fact_gdv
-        WHERE (eslido IS NULL OR eslido = '')
-          AND cantidad_pendiente = true
-          AND feemdo >= '${dateFilter}'
-        ORDER BY vaneli DESC
+          COALESCE(gdv.nudo::text, '') as numero_guia,
+          COALESCE(gdv.feemdo::text, '') as fecha,
+          COALESCE(gdv.nokoen, 'Sin cliente') as cliente,
+          COALESCE(gdv.endo, '') as codigo_cliente,
+          COALESCE(gdv.nokoprct, 'Sin producto') as producto,
+          COALESCE(gdv.caprco2::numeric, 0) as cantidad,
+          COALESCE(gdv.vaneli::numeric, 0) as monto,
+          COALESCE(gdv.kofulido, '') as codigo_vendedor,
+          COALESCE(gdv.nokofu, 'Sin vendedor') as nombre_vendedor
+        FROM gdv.fact_gdv gdv
+        ${whereClause}
+        ORDER BY gdv.vaneli DESC
       `);
 
       const result = await db.execute(query);

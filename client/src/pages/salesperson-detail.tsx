@@ -17,6 +17,7 @@ import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import ComparativeSalespersonTable from "@/components/dashboard/comparative-salesperson-table";
 import SalespersonPendingNVV from "@/components/dashboard/salesperson-pending-nvv";
 import SalespersonPendingGDV from "@/components/dashboard/salesperson-pending-gdv";
+import PendingDocumentsUnified from "@/components/dashboard/pending-documents-unified";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -1643,51 +1644,13 @@ export default function SalespersonDetail({
                 </Card>
               )}
 
-              {/* NVV y GDV Pendientes - Secciones colapsables (solo en mes actual) */}
-              {salespersonName && isCurrentMonth() && (
-                <div className="space-y-4">
-                  {/* NVV Colapsable */}
-                  <Collapsible defaultOpen={false} className="rounded-2xl shadow-md border-0 bg-white overflow-hidden">
-                    <CollapsibleTrigger className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors group" data-testid="trigger-nvv-collapsible">
-                      <div className="flex items-center gap-3">
-                        <div className="bg-amber-500 rounded-full p-2">
-                          <ShoppingCart className="h-5 w-5 text-white" />
-                        </div>
-                        <div className="text-left">
-                          <h3 className="font-semibold text-gray-900">Notas de Venta Pendientes</h3>
-                          <p className="text-sm text-gray-500">Pedidos por entregar</p>
-                        </div>
-                      </div>
-                      <ChevronDown className="h-5 w-5 text-gray-500 transition-transform duration-200 group-data-[state=open]:rotate-180" />
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <div className="border-t border-gray-200">
-                        <SalespersonPendingNVV salesperson={salespersonName} applyPeriodFilter={false} />
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-
-                  {/* GDV Colapsable */}
-                  <Collapsible defaultOpen={false} className="rounded-2xl shadow-md border-0 bg-white overflow-hidden">
-                    <CollapsibleTrigger className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors group" data-testid="trigger-gdv-collapsible">
-                      <div className="flex items-center gap-3">
-                        <div className="bg-purple-500 rounded-full p-2">
-                          <Truck className="h-5 w-5 text-white" />
-                        </div>
-                        <div className="text-left">
-                          <h3 className="font-semibold text-gray-900">Guías de Despacho Pendientes</h3>
-                          <p className="text-sm text-gray-500">Guías por facturar</p>
-                        </div>
-                      </div>
-                      <ChevronDown className="h-5 w-5 text-gray-500 transition-transform duration-200 group-data-[state=open]:rotate-180" />
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <div className="border-t border-gray-200">
-                        <SalespersonPendingGDV salesperson={salespersonName} />
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </div>
+              {/* Documentos Pendientes Unificado (NVV + GDV) */}
+              {salespersonName && (
+                <PendingDocumentsUnified
+                  selectedPeriod={selectedPeriod}
+                  filterType={filterType}
+                  salesperson={salespersonName}
+                />
               )}
 
               {/* Promesas de Compra - Always show for salespeople */}

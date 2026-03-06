@@ -566,7 +566,6 @@ export function registerRoutes(app: Express): Server {
   // Serve locally uploaded files
   app.get('/api/uploads/:filename', (req: any, res: any) => {
     const filename = req.params.filename;
-    // Use path.resolve to ensure absolute path from project root
     const uploadsDir = path.resolve(process.cwd(), 'server', 'uploads');
     const filePath = path.join(uploadsDir, filename);
 
@@ -575,18 +574,39 @@ export function registerRoutes(app: Express): Server {
 
     const fs = require('fs');
     if (fs.existsSync(filePath)) {
-      // Set content type based on extension if possible, or let sendFile handle it
-      // Adding Content-Disposition: inline allows previewing in browser instead of forced download
-      res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+      // Set proper Content-Type based on file extension
+      const ext = path.extname(filename).toLowerCase();
+      const contentTypes: Record<string, string> = {
+        '.pdf': 'application/pdf',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+        '.doc': 'application/msword',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.xls': 'application/vnd.ms-excel',
+        '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      };
+      
+      const contentType = contentTypes[ext] || 'application/octet-stream';
+      res.setHeader('Content-Type', contentType);
+      
+      // Check if download is requested via query param, otherwise inline for preview
+      const wantsDownload = req.query.download === 'true';
+      if (wantsDownload) {
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      } else {
+        res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+      }
+      
       res.sendFile(filePath);
     } else {
       console.warn(`❌ [GET-UPLOAD] File NOT found: ${filePath}`);
-      // Send a more descriptive but still JSON error if preferred, 
-      // though for a direct file access, a 404 is standard.
       res.status(404).json({
         message: 'Archivo no encontrado en el servidor',
         filename,
-        path: filePath // Sending path for debugging, remove in production if sensitive
+        path: filePath
       });
     }
   });
@@ -8474,12 +8494,34 @@ export function registerRoutes(app: Express): Server {
   app.get("/public-objects/:filePath(*)", asyncHandler(async (req: any, res: any) => {
     const filePath = req.params.filePath;
     const objectStorageService = new ObjectStorageService();
+    const wantsDownload = req.query.download === 'true';
 
     try {
       // First try Object Storage
       const file = await objectStorageService.searchPublicObject(filePath);
       if (file) {
-        return objectStorageService.downloadObject(file, res);
+        // Get metadata to check content type
+        const [metadata] = await file.getMetadata();
+        const contentType = metadata.contentType || 'application/octet-stream';
+        
+        // Set Content-Type header
+        res.setHeader('Content-Type', contentType);
+        
+        // Set Content-Disposition for download if requested
+        if (wantsDownload) {
+          const fileName = filePath.split('/').pop() || 'download';
+          res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        } else {
+          res.setHeader('Content-Disposition', 'inline');
+        }
+        
+        // Stream the file
+        const stream = file.createReadStream();
+        stream.on('error', (err) => {
+          console.error('Stream error:', err);
+          if (!res.headersSent) res.status(500).json({ error: 'Error streaming file' });
+        });
+        return stream.pipe(res);
       }
     } catch (error) {
       console.warn("Object Storage search failed, trying local fallback:", error);
@@ -8491,6 +8533,23 @@ export function registerRoutes(app: Express): Server {
       try {
         const fs = await import('fs/promises');
         await fs.access(localPath);
+        
+        // Set Content-Type based on extension
+        const ext = path.extname(filePath).toLowerCase();
+        const contentTypes: Record<string, string> = {
+          '.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+          '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp',
+        };
+        const contentType = contentTypes[ext] || 'application/octet-stream';
+        res.setHeader('Content-Type', contentType);
+        
+        if (wantsDownload) {
+          const fileName = filePath.split('/').pop() || 'download';
+          res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        } else {
+          res.setHeader('Content-Disposition', 'inline');
+        }
+        
         return res.sendFile(localPath);
       } catch {
         // File doesn't exist locally either
@@ -9675,7 +9734,7 @@ export function registerRoutes(app: Express): Server {
 
   // Get all NVV grouped by salespeople
   app.get('/api/nvv/all-by-salespeople', requireAuth, asyncHandler(async (req: any, res: any) => {
-    const { period, filterType } = req.query;
+    const { period, filterType, segment, salesperson } = req.query;
 
     // Get date range for filtering if provided
     let startDate: Date | undefined;
@@ -9694,7 +9753,9 @@ export function registerRoutes(app: Express): Server {
 
     const nvvData = await storage.getAllNvvGroupedBySalespeople({
       startDate,
-      endDate
+      endDate,
+      segment: segment as string | undefined,
+      salesperson: salesperson as string | undefined
     });
 
     res.json(nvvData);
@@ -15757,7 +15818,8 @@ export function registerRoutes(app: Express): Server {
   // Get all GDV grouped by salesperson (for main dashboard view)
   app.get('/api/gdv/all-by-salespeople', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const gdvData = await storage.getAllGdvGroupedBySalespeople();
+      const { segment, salesperson } = req.query;
+      const gdvData = await storage.getAllGdvGroupedBySalespeople(segment as string | undefined, salesperson as string | undefined);
       res.json(gdvData);
     } catch (error: any) {
       console.error('[GDV All By Salespeople Error]', error);

@@ -88,6 +88,7 @@ interface PendingDocumentsUnifiedProps {
     selectedPeriod: string;
     filterType: "day" | "month" | "year" | "range";
     salesperson?: string;
+    segment?: string;
 }
 
 // ─── Helpers ───
@@ -143,7 +144,7 @@ const groupGdvByClient = (records: GDVRecord[]): GDVClientGroup[] => {
 };
 
 // ─── Component ───
-export default function PendingDocumentsUnified({ selectedPeriod, filterType, salesperson }: PendingDocumentsUnifiedProps) {
+export default function PendingDocumentsUnified({ selectedPeriod, filterType, salesperson, segment }: PendingDocumentsUnifiedProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<"nvv" | "gdv">("nvv");
     const [showAllNvv, setShowAllNvv] = useState(false);
@@ -151,33 +152,44 @@ export default function PendingDocumentsUnified({ selectedPeriod, filterType, sa
 
     const normalize = (s: string) => s?.trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') || '';
 
+    // Build query params
+    const buildQueryParams = () => {
+        const params = new URLSearchParams();
+        if (selectedPeriod) params.append('period', selectedPeriod);
+        if (filterType) params.append('filterType', filterType);
+        if (salesperson) params.append('salesperson', salesperson);
+        if (segment) params.append('segment', segment);
+        return params.toString();
+    };
+
     // ─── NVV Data ───
     const { data: nvvDataRaw, isLoading: isLoadingNvv } = useQuery<NVVSalespersonGroup[]>({
-        queryKey: ['/api/nvv/all-by-salespeople'],
+        queryKey: ['/api/nvv/all-by-salespeople', selectedPeriod, filterType, salesperson, segment],
         queryFn: async () => {
-            const response = await fetch('/api/nvv/all-by-salespeople', { credentials: 'include' });
+            const params = buildQueryParams();
+            const response = await fetch(`/api/nvv/all-by-salespeople?${params}`, { credentials: 'include' });
             if (!response.ok) throw new Error('Error al cargar NVV');
             return response.json();
-        }
+        },
+        staleTime: 60000,
+        refetchOnWindowFocus: false
     });
 
     // ─── GDV Data ───
     const { data: gdvDataRaw, isLoading: isLoadingGdv } = useQuery<GDVSalespersonGroup[]>({
-        queryKey: ['/api/gdv/all-by-salespeople'],
+        queryKey: ['/api/gdv/all-by-salespeople', selectedPeriod, filterType, salesperson, segment],
         queryFn: async () => {
-            const response = await fetch('/api/gdv/all-by-salespeople', { credentials: 'include' });
+            const params = buildQueryParams();
+            const response = await fetch(`/api/gdv/all-by-salespeople?${params}`, { credentials: 'include' });
             if (!response.ok) throw new Error('Error al cargar GDV');
             return response.json();
-        }
+        },
+        staleTime: 60000,
+        refetchOnWindowFocus: false
     });
 
-    // Filter by salesperson if provided
-    const nvvData = salesperson
-        ? nvvDataRaw?.filter(sp => normalize(sp.salespersonName) === normalize(salesperson))
-        : nvvDataRaw;
-    const gdvData = salesperson
-        ? gdvDataRaw?.filter(sp => normalize(sp.salespersonName) === normalize(salesperson))
-        : gdvDataRaw;
+    const nvvData = nvvDataRaw;
+    const gdvData = gdvDataRaw;
 
     // ─── NVV Totals ───
     const nvvTotalAmount = nvvData?.reduce((s, sp) => s + sp.totalAmount, 0) || 0;
