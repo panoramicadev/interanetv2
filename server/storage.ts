@@ -13868,10 +13868,10 @@ export class DatabaseStorage implements IStorage {
         conditions.push(sql`(UPPER(nvv.nombre_vendedor) LIKE ${'%' + normalizedSalesperson + '%'} OR UPPER(nvv.kofulido) LIKE ${'%' + normalizedSalesperson + '%'})`);
       }
 
-      // Add segment filter if provided - joins with dim_segment if needed
+      // Add segment filter if provided - uses nombre_segmento_cliente field
       if (options?.segment) {
-        const normalizedSegment = options.segment.trim().toUpperCase();
-        conditions.push(sql`UPPER(nvv.segmento) = ${normalizedSegment}`);
+        const normalizedSegment = options.segment.trim();
+        conditions.push(sql`UPPER(nvv.nombre_segmento_cliente) = ${normalizedSegment.toUpperCase()}`);
       }
 
       const whereClause = sql`WHERE ${sql.join(conditions, sql` AND `)}`;
@@ -24454,9 +24454,12 @@ export class DatabaseStorage implements IStorage {
         whereClause += ` AND (UPPER(gdv.nokofu) LIKE '%${normalizedSalesperson}%' OR UPPER(gdv.kofulido) LIKE '%${normalizedSalesperson}%')`;
       }
 
+      // For GDV, segment filter needs to join with nvv.fact_nvv which has the segmento info
+      // We'll use a subquery approach - get endo values that match the segment from nvv
       if (segment) {
         const normalizedSegment = segment.trim().toUpperCase();
-        whereClause += ` AND UPPER(gdv.segmento) = '${normalizedSegment}'`;
+        // Filter by endo codes that belong to the segment in nvv table
+        whereClause += ` AND gdv.endo IN (SELECT endo FROM nvv.fact_nvv WHERE UPPER(COALESCE(nombre_segmento_cliente, '')) = '${normalizedSegment}' GROUP BY endo)`;
       }
 
       const query = sql.raw(`
