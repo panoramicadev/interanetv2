@@ -446,8 +446,14 @@ function renderContent(text: string) {
                             .replace(/`(.*?)`/g, '<code class="bg-gray-200/50 dark:bg-slate-700 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded text-xs font-mono">$1</code>')
                             .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-blue-600 hover:text-blue-700 underline font-medium">$1</a>')
                             .replace(
+                                // Convert bare PDF API URLs to orange button
                                 /(\/api\/quotes\/[a-zA-Z0-9-]+\/pdf)/g,
                                 '<a href="$1" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-xs font-bold no-underline transition-colors shadow-sm mt-1">📄 Ver / Imprimir PDF</a>'
+                            )
+                            .replace(
+                                // Also convert markdown-style links to PDF
+                                /\[([^\]]*)\]\((\/api\/quotes\/[a-zA-Z0-9-]+\/pdf)\)/g,
+                                '<a href="$2" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-xs font-bold no-underline transition-colors shadow-sm mt-1">📄 Ver / Imprimir PDF</a>'
                             ),
                     }}
                 />

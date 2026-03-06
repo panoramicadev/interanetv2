@@ -423,6 +423,14 @@ export async function processAgentMessage(
             }
         }
 
+        // ── POST-PROCESSING: Strip AI-generated HTML `<a>` tags around PDF links ──
+        // gpt-4o-mini sometimes outputs HTML <a href="...">...</a> instead of plain URLs.
+        // This leaks the surrounding HTML as plain text in the chat renderer.
+        processedContent = processedContent.replace(
+            /<a[^>]*href="(\/api\/quotes\/[^"]+\/pdf)"[^>]*>[\s\S]*?<\/a>/gi,
+            '$1'
+        );
+
         return {
             response: processedContent,
             toolsUsed,

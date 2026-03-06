@@ -58,11 +58,13 @@ interface Client {
   fevecren: string | null;
   gien: string | null;
   sien: string | null;
+  ruen: string | null;
   totalTransactions?: number;
   totalSales?: number;
   lastTransactionDate?: string;
   salespersonName?: string;
   lastTransactionAmount?: number;
+  salesSegment?: string;
 }
 
 const formatCurrency = (amount: string | number | null) => {
@@ -172,6 +174,7 @@ export default function Clients() {
 
   const clients = clientsData?.clients;
   const totalCount = clientsData?.totalCount || 0;
+  const totalPages = clientsData?.totalPages || 1;
 
   const { data: segments } = useQuery<string[]>({
     queryKey: ['/api/goals/data/segments'],
@@ -804,7 +807,7 @@ export default function Clients() {
                       </TableCell>
                       <TableCell className="py-4 text-center">
                         <Badge variant="outline" className="text-[10px] uppercase font-bold border-indigo-200 text-indigo-700 bg-indigo-50">
-                          {client.sien || "SIN SEGMENTO"}
+                          {client.salesSegment || "SIN SEGMENTO"}
                         </Badge>
                       </TableCell>
                       <TableCell className="py-4">
@@ -870,7 +873,7 @@ export default function Clients() {
                         </div>
                       </div>
                       <Badge variant="outline" className="text-[10px] uppercase font-bold border-indigo-200 text-indigo-700 bg-indigo-50">
-                        {client.sien || "S/S"}
+                        {client.salesSegment || "S/S"}
                       </Badge>
                     </div>
                     <div className="grid grid-cols-2 gap-3 pt-2 border-t border-muted/30">
@@ -897,31 +900,161 @@ export default function Clients() {
           </div>
 
           {/* Pagination */}
-          <div className="flex items-center justify-between py-2 px-1">
-            <p className="text-sm text-muted-foreground">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-3 px-1">
+            <p className="text-sm text-muted-foreground order-2 sm:order-1">
               Mostrando <span className="font-semibold text-foreground">{clients?.length}</span> de <span className="font-semibold text-foreground">{totalCount}</span> clientes
+              <span className="hidden sm:inline text-muted-foreground/70 ml-1">
+                (página {currentPage} de {totalPages})
+              </span>
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 order-1 sm:order-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(1)}
+                className="rounded-lg border-muted w-8 h-8 p-0"
+                title="Primera página"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="11 17 6 12 11 7"></polyline>
+                  <polyline points="18 17 13 12 18 7"></polyline>
+                </svg>
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(prev => prev - 1)}
-                className="rounded-xl border-muted"
+                className="rounded-lg border-muted h-8"
               >
-                Anterior
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                  <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+                <span className="hidden sm:inline">Anterior</span>
               </Button>
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 text-xs font-bold">
-                {currentPage}
-              </div>
+              
+              {/* Page numbers */}
+              {totalPages <= 7 ? (
+                Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  <Button
+                    key={page}
+                    variant={currentPage === page ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCurrentPage(page)}
+                    className={`rounded-lg w-8 h-8 p-0 ${currentPage === page ? "bg-indigo-600 hover:bg-indigo-700" : "border-muted"}`}
+                  >
+                    {page}
+                  </Button>
+                ))
+              ) : (
+                <>
+                  {currentPage <= 3 ? (
+                    <>
+                      {[1, 2, 3, 4].map(page => (
+                        <Button
+                          key={page}
+                          variant={currentPage === page ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(page)}
+                          className={`rounded-lg w-8 h-8 p-0 ${currentPage === page ? "bg-indigo-600 hover:bg-indigo-700" : "border-muted"}`}
+                        >
+                          {page}
+                        </Button>
+                      ))}
+                      <span className="text-muted-foreground px-1">...</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(totalPages)}
+                        className="rounded-lg w-8 h-8 p-0 border-muted"
+                      >
+                        {totalPages}
+                      </Button>
+                    </>
+                  ) : currentPage >= totalPages - 2 ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(1)}
+                        className="rounded-lg w-8 h-8 p-0 border-muted"
+                      >
+                        1
+                      </Button>
+                      <span className="text-muted-foreground px-1">...</span>
+                      {[totalPages - 3, totalPages - 2, totalPages - 1, totalPages].map(page => (
+                        <Button
+                          key={page}
+                          variant={currentPage === page ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(page)}
+                          className={`rounded-lg w-8 h-8 p-0 ${currentPage === page ? "bg-indigo-600 hover:bg-indigo-700" : "border-muted"}`}
+                        >
+                          {page}
+                        </Button>
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(1)}
+                        className="rounded-lg w-8 h-8 p-0 border-muted"
+                      >
+                        1
+                      </Button>
+                      <span className="text-muted-foreground px-1">...</span>
+                      {[currentPage - 1, currentPage, currentPage + 1].map(page => (
+                        <Button
+                          key={page}
+                          variant={currentPage === page ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(page)}
+                          className={`rounded-lg w-8 h-8 p-0 ${currentPage === page ? "bg-indigo-600 hover:bg-indigo-700" : "border-muted"}`}
+                        >
+                          {page}
+                        </Button>
+                      ))}
+                      <span className="text-muted-foreground px-1">...</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(totalPages)}
+                        className="rounded-lg w-8 h-8 p-0 border-muted"
+                      >
+                        {totalPages}
+                      </Button>
+                    </>
+                  )}
+                </>
+              )}
+              
               <Button
                 variant="outline"
                 size="sm"
-                disabled={clients && clients.length < itemsPerPage}
+                disabled={currentPage >= totalPages}
                 onClick={() => setCurrentPage(prev => prev + 1)}
-                className="rounded-xl border-muted"
+                className="rounded-lg border-muted h-8"
               >
-                Siguiente
+                <span className="hidden sm:inline">Siguiente</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-1">
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+                className="rounded-lg border-muted w-8 h-8 p-0"
+                title="Última página"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="13 17 18 12 13 7"></polyline>
+                  <polyline points="6 17 11 12 6 7"></polyline>
+                </svg>
               </Button>
             </div>
           </div>
