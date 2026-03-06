@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import path from "path";
+import fs from "fs";
 import { storage } from "./storage";
 import { setupAuth, requireAuth, requireAdminOrSupervisor, requireCommercialAccess, requirePlantOperationsAccess, requireRoles, requireCMMSFullAccess, requireCMMSMaintenance, requireCMMSPlantStaff } from "./auth";
 // import { setupAuth as setupReplitAuth } from "./replitAuth"; // Disabled - conflicts with email/password auth
@@ -572,7 +573,6 @@ export function registerRoutes(app: Express): Server {
     console.log(`📂 [GET-UPLOAD] Requesting: ${filename}`);
     console.log(`📂 [GET-UPLOAD] Full path: ${filePath}`);
 
-    const fs = require('fs');
     if (fs.existsSync(filePath)) {
       // Set proper Content-Type based on file extension
       const ext = path.extname(filename).toLowerCase();
