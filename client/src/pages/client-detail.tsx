@@ -32,11 +32,9 @@ export default function ClientDetail() {
   const { clientName } = useParams();
   const { user } = useAuth();
 
-  // Date filter states
-  const [selectedPeriod, setSelectedPeriod] = useState(() => {
-    return format(new Date(), "yyyy-MM");
-  });
-  const [filterType, setFilterType] = useState<"day" | "month" | "year" | "range">("month");
+  // Date filter states - default to last 30 days for better initial data display
+  const [selectedPeriod, setSelectedPeriod] = useState<string>("last-30-days");
+  const [filterType, setFilterType] = useState<"day" | "month" | "year" | "range">("range");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [startDate, setStartDate] = useState<Date | undefined>();
@@ -61,7 +59,7 @@ export default function ClientDetail() {
         }
         break;
       case "month":
-        if (!selectedPeriod || selectedPeriod.includes("_") || selectedPeriod === "current-month" || selectedPeriod === "last-month") {
+        if (!selectedPeriod || selectedPeriod.includes("_") || selectedPeriod === "current-month" || selectedPeriod === "last-month" || selectedPeriod === "last-30-days" || selectedPeriod === "last-7-days") {
           setSelectedPeriod(format(new Date(), "yyyy-MM"));
         }
         break;
@@ -71,24 +69,24 @@ export default function ClientDetail() {
       case "range":
         if (startDate && endDate) {
           setSelectedPeriod(`${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`);
-        } else {
-          setSelectedPeriod("last-30-days");
         }
         break;
     }
   }, [filterType, selectedDate, selectedYear, startDate, endDate]);
 
+  const decodedClientName = clientName ? decodeURIComponent(clientName) : '';
+
   const { data: details, isLoading: isLoadingDetails } = useQuery<ClientDetails>({
-    queryKey: [`/api/sales/client/${clientName}/details?period=${selectedPeriod}&filterType=${filterType}`],
-    enabled: !!clientName,
+    queryKey: [`/api/sales/client/${encodeURIComponent(decodedClientName)}/details?period=${selectedPeriod}&filterType=${filterType}`],
+    enabled: !!decodedClientName,
   });
 
   const { data: products = [], isLoading: isLoadingProducts } = useQuery<ClientProduct[]>({
-    queryKey: [`/api/sales/client/${clientName}/products?period=${selectedPeriod}&filterType=${filterType}`],
-    enabled: !!clientName,
+    queryKey: [`/api/sales/client/${encodeURIComponent(decodedClientName)}/products?period=${selectedPeriod}&filterType=${filterType}`],
+    enabled: !!decodedClientName,
   });
 
-  if (!clientName) {
+  if (!decodedClientName) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -149,13 +147,13 @@ export default function ClientDetail() {
                 <span>›</span>
                 <span className="hidden sm:inline">Cliente</span>
                 <span className="hidden sm:inline">›</span>
-                <span className="font-medium text-gray-900 truncate">{decodeURIComponent(clientName)}</span>
+                <span className="font-medium text-gray-900 truncate">{decodedClientName}</span>
               </nav>
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
                 Análisis de Cliente
               </h1>
               <p className="text-gray-600 text-sm font-semibold truncate">
-                {decodeURIComponent(clientName)}
+                {decodedClientName}
               </p>
               <p className="text-gray-600 text-sm">
                 {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : filterType === "year" ? "Análisis anual" : "Análisis por rango"}

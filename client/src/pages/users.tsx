@@ -333,55 +333,63 @@ export default function UsersPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto p-6 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
-            <p className="text-muted-foreground">
-              Administra las cuentas de acceso de los vendedores al sistema
-            </p>
-          </div>
-          <div className="flex-shrink-0">
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-create-user">
-                <Plus className="w-4 h-4 mr-2" />
-                Nuevo Usuario
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Crear Nuevo Usuario</DialogTitle>
-                <DialogDescription>
-                  Crea una cuenta de acceso para un vendedor del sistema
-                </DialogDescription>
-              </DialogHeader>
-              <Form {...createForm}>
-                <form onSubmit={createForm.handleSubmit(handleCreateSubmit)} className="space-y-4">
-                  <FormField
-                    control={createForm.control}
-                    name="role"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Rol de Usuario</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value ?? "salesperson"}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-role">
-                              <SelectValue placeholder="Selecciona un rol" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="admin">Administrador</SelectItem>
-                            <SelectItem value="supervisor">Supervisor</SelectItem>
-                            <SelectItem value="salesperson">Vendedor</SelectItem>
-                            <SelectItem value="tecnico_obra">Técnico de Obra</SelectItem>
-                            <SelectItem value="jefe_planta">Jefe de Planta</SelectItem>
-                            <SelectItem value="mantencion">Mantención</SelectItem>
-                            <SelectItem value="laboratorio">Laboratorio</SelectItem>
-                            <SelectItem value="produccion">Producción</SelectItem>
-                            <SelectItem value="logistica_bodega">Logística y Bodega</SelectItem>
-                            <SelectItem value="planificacion">Planificación</SelectItem>
-                            <SelectItem value="bodega_materias_primas">Bodega Materias Primas</SelectItem>
-                            <SelectItem value="prevencion_riesgos">Prevención de Riesgos</SelectItem>
+        {/* Modern Header */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 text-white">
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-40" />
+          <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20">
+                <Users className="h-7 w-7 text-indigo-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
+                <p className="text-slate-300 text-sm md:text-base mt-1">
+                  Administra las cuentas de acceso y permisos del sistema
+                </p>
+              </div>
+            </div>
+            <div className="flex-shrink-0">
+              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button data-testid="button-create-user" className="bg-indigo-600 hover:bg-indigo-700 border-0">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Nuevo Usuario
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Crear Nuevo Usuario</DialogTitle>
+                    <DialogDescription>
+                      Crea una cuenta de acceso para un vendedor del sistema
+                    </DialogDescription>
+                  </DialogHeader>
+                  <Form {...createForm}>
+                    <form onSubmit={createForm.handleSubmit(handleCreateSubmit)} className="space-y-4">
+                      <FormField
+                        control={createForm.control}
+                        name="role"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Rol de Usuario</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value ?? "salesperson"}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-role">
+                                  <SelectValue placeholder="Selecciona un rol" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="admin">Administrador</SelectItem>
+                                <SelectItem value="supervisor">Supervisor</SelectItem>
+                                <SelectItem value="salesperson">Vendedor</SelectItem>
+                                <SelectItem value="tecnico_obra">Técnico de Obra</SelectItem>
+                                <SelectItem value="jefe_planta">Jefe de Planta</SelectItem>
+                                <SelectItem value="mantencion">Mantención</SelectItem>
+                                <SelectItem value="laboratorio">Laboratorio</SelectItem>
+                                <SelectItem value="produccion">Producción</SelectItem>
+                                <SelectItem value="logistica_bodega">Logística y Bodega</SelectItem>
+                                <SelectItem value="planificacion">Planificación</SelectItem>
+                                <SelectItem value="bodega_materias_primas">Bodega Materias Primas</SelectItem>
+                                <SelectItem value="prevencion_riesgos">Prevención de Riesgos</SelectItem>
                             <SelectItem value="recursos_humanos">Recursos Humanos</SelectItem>
                             <SelectItem value="client">Cliente</SelectItem>
                             <SelectItem value="reception">Recepción</SelectItem>
@@ -671,8 +679,9 @@ export default function UsersPage() {
               </Form>
             </DialogContent>
           </Dialog>
+            </div>
+          </div>
         </div>
-      </div>
 
 
       {/* Dialog de edición */}
@@ -861,19 +870,19 @@ export default function UsersPage() {
         {/* Filters and Summary Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
           <div className="lg:col-span-2">
-            <Card>
-              <CardHeader className="p-3 sm:p-4 lg:p-6">
+            <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+              <CardHeader className="pb-3">
                 <CardTitle className="flex items-center text-sm sm:text-base">
-                  <Users className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                  <Users className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-indigo-600" />
                   Filtros de Usuario
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-3 sm:p-4 lg:p-6 pt-0">
+              <CardContent className="pt-0">
                 <div className="flex flex-col gap-3 sm:gap-4">
                   <div className="flex-1">
-                    <label className="text-xs sm:text-sm font-medium mb-2 block">Filtrar por rol</label>
+                    <label className="text-xs sm:text-sm font-medium mb-2 block text-muted-foreground">Filtrar por rol</label>
                     <Select value={roleFilter} onValueChange={setRoleFilter}>
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-muted/30 border-muted focus:ring-indigo-500">
                         <SelectValue placeholder="Selecciona un rol" />
                       </SelectTrigger>
                       <SelectContent>
@@ -923,23 +932,26 @@ export default function UsersPage() {
           </div>
           
           <div>
-            <Card>
-              <CardHeader className="p-3 sm:p-4 lg:p-6">
-                <CardTitle className="text-xs sm:text-sm">Resumen</CardTitle>
+            <Card className="border-0 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-indigo-50 to-indigo-100/50 dark:from-indigo-950/50 dark:to-indigo-900/30">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xs sm:text-sm flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                  Resumen
+                </CardTitle>
               </CardHeader>
-              <CardContent className="p-3 sm:p-4 lg:p-6 pt-0">
-                <div className="space-y-2 sm:space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs sm:text-sm text-muted-foreground">Total usuarios:</span>
-                    <Badge variant="outline" className="text-xs">{salespeopleUsers.length}</Badge>
+              <CardContent className="pt-0">
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center p-2 rounded-lg bg-white/50 dark:bg-black/20">
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Total usuarios:</span>
+                    <span className="text-lg font-bold text-indigo-700 dark:text-indigo-300">{salespeopleUsers.length}</span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs sm:text-sm text-muted-foreground">Usuarios activos:</span>
-                    <Badge variant="default" className="text-xs">{salespeopleUsers.filter(u => u.isActive).length}</Badge>
+                  <div className="flex justify-between items-center p-2 rounded-lg bg-green-50/50 dark:bg-green-950/30">
+                    <span className="text-xs sm:text-sm font-medium text-green-700 dark:text-green-400">Activos:</span>
+                    <span className="text-lg font-bold text-green-600 dark:text-green-300">{salespeopleUsers.filter(u => u.isActive).length}</span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs sm:text-sm text-muted-foreground">Usuarios inactivos:</span>
-                    <Badge variant="destructive" className="text-xs">{salespeopleUsers.filter(u => !u.isActive).length}</Badge>
+                  <div className="flex justify-between items-center p-2 rounded-lg bg-red-50/50 dark:bg-red-950/30">
+                    <span className="text-xs sm:text-sm font-medium text-red-700 dark:text-red-400">Inactivos:</span>
+                    <span className="text-lg font-bold text-red-600 dark:text-red-300">{salespeopleUsers.filter(u => !u.isActive).length}</span>
                   </div>
                 </div>
               </CardContent>
@@ -948,14 +960,24 @@ export default function UsersPage() {
         </div>
 
       {/* Users Table */}
-      <Card>
-        <CardHeader className="p-3 sm:p-4 lg:p-6">
-          <CardTitle className="text-lg sm:text-xl">Lista de Usuarios</CardTitle>
-          <CardDescription className="text-xs sm:text-sm">
-            Gestiona los usuarios y sus permisos de acceso
-          </CardDescription>
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg sm:text-xl flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                Lista de Usuarios
+              </CardTitle>
+              <CardDescription className="text-xs sm:text-sm mt-1">
+                Gestiona los usuarios y sus permisos de acceso
+              </CardDescription>
+            </div>
+            <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+              {filteredUsers.length} usuarios
+            </Badge>
+          </div>
         </CardHeader>
-        <CardContent className="p-3 sm:p-4 lg:p-6 pt-0">
+        <CardContent className="p-0">
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
               <div className="text-center">
@@ -966,28 +988,28 @@ export default function UsersPage() {
           ) : (
             <>
               {/* Desktop Table */}
-              <div className="hidden lg:block rounded-md border">
+              <div className="hidden lg:block rounded-lg overflow-hidden border">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Nombre</TableHead>
-                      <TableHead>Usuario</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Rol</TableHead>
-                      <TableHead>Supervisor</TableHead>
-                      <TableHead>Segmento</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>Acciones</TableHead>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Nombre</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Usuario</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Email</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Rol</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Supervisor</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Segmento</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider">Estado</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider w-[100px]">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredUsers.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell>{user.salespersonName}</TableCell>
-                        <TableCell>{user.username || "Sin usuario"}</TableCell>
-                        <TableCell>{user.email || "Sin email"}</TableCell>
+                      <TableRow key={user.id} className="hover:bg-muted/20 transition-colors">
+                        <TableCell className="font-medium">{user.salespersonName}</TableCell>
+                        <TableCell className="text-muted-foreground">{user.username || "Sin usuario"}</TableCell>
+                        <TableCell className="text-muted-foreground">{user.email || "Sin email"}</TableCell>
                         <TableCell>
-                          <Badge variant={user.role === 'admin' || user.role === 'supervisor' ? 'default' : 'secondary'}>
+                          <Badge variant={user.role === 'admin' ? 'default' : user.role === 'supervisor' ? 'default' : 'secondary'} className={user.role === 'admin' || user.role === 'supervisor' ? 'bg-indigo-600 hover:bg-indigo-700' : ''}>
                             {user.role === 'admin' ? 'Administrador' : 
                              user.role === 'supervisor' ? 'Supervisor' :
                              user.role === 'tecnico_obra' ? 'Técnico de Obra' :
@@ -1004,37 +1026,45 @@ export default function UsersPage() {
                              user.role === 'reception' ? 'Recepción' : 'Vendedor'}
                           </Badge>
                         </TableCell>
-                        <TableCell>{getSupervisorName(user.supervisorId)}</TableCell>
+                        <TableCell className="text-muted-foreground">{getSupervisorName(user.supervisorId)}</TableCell>
                         <TableCell>
-                          <span className={!user.assignedSegment ? "text-blue-600 font-medium" : ""}>
-                            {getSegmentSuggestion(user.assignedSegment)}
-                          </span>
-                          {!user.assignedSegment && segmentsData[0] && (
-                            <div className="text-xs text-muted-foreground mt-1">
-                              Sugerencia: {segmentsData[0].segment} (Top ventas)
+                          {user.assignedSegment ? (
+                            <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
+                              {user.assignedSegment}
+                            </span>
+                          ) : (
+                            <div>
+                              <span className="text-blue-600 font-medium text-xs">Sin asignar</span>
+                              {segmentsData[0] && (
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  Sugerencia: {segmentsData[0].segment}
+                                </div>
+                              )}
                             </div>
                           )}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={user.isActive ? 'default' : 'destructive'}>
+                          <Badge variant={user.isActive ? 'default' : 'destructive'} className={user.isActive ? 'bg-green-600 hover:bg-green-700' : ''}>
                             {user.isActive ? 'Activo' : 'Inactivo'}
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center gap-1">
                             <Button
-                              variant="outline"
+                              variant="ghost"
                               size="sm"
                               onClick={() => handleEdit(user)}
                               data-testid={`button-edit-${user.id}`}
+                              className="h-8 w-8 p-0 hover:bg-indigo-50 hover:text-indigo-600"
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
                             <Button
-                              variant="destructive"
+                              variant="ghost"
                               size="sm"
                               onClick={() => handleDelete(user.id)}
                               data-testid={`button-delete-${user.id}`}
+                              className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600 text-muted-foreground"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
