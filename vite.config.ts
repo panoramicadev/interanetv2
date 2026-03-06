@@ -4,8 +4,15 @@ import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import { execSync } from "child_process";
 
-const commitHash = execSync('git rev-parse --short HEAD').toString().trim();
-const commitDate = execSync('git log -1 --format="%cd" --date=format:"%d/%m/%y %H:%M"').toString().trim();
+let commitHash = 'unknown';
+let commitDate = 'unknown';
+
+try {
+  commitHash = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).toString().trim();
+  commitDate = execSync('git log -1 --format="%cd" --date=format:"%d/%m/%y %H:%M"', { encoding: 'utf-8' }).toString().trim();
+} catch (e) {
+  // Not a git repository, use defaults
+}
 
 export default defineConfig({
   define: {
