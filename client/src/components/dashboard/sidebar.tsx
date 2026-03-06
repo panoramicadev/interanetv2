@@ -401,6 +401,9 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
                                         user?.role === 'client' ? 'Cliente' :
                                           user?.role === 'reception' ? 'Recepción' : 'Usuario'}
                   </p>
+                  <p className="text-[10px] text-slate-500 mt-0.5 font-mono">
+                    {(__COMMIT_DATE__)} - {(__COMMIT_HASH__)}
+                  </p>
                 </div>
                 <Button
                   variant="ghost"

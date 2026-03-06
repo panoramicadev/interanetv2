@@ -2,18 +2,26 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+import { execSync } from "child_process";
+
+const commitHash = execSync('git rev-parse --short HEAD').toString().trim();
+const commitDate = execSync('git log -1 --format="%cd" --date=format:"%d/%m/%y %H:%M"').toString().trim();
 
 export default defineConfig({
+  define: {
+    __COMMIT_HASH__: JSON.stringify(commitHash),
+    __COMMIT_DATE__: JSON.stringify(commitDate),
+  },
   plugins: [
     react(),
     runtimeErrorOverlay(),
     ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
+      process.env.REPL_ID !== undefined
       ? [
-          await import("@replit/vite-plugin-cartographer").then((m) =>
-            m.cartographer(),
-          ),
-        ]
+        await import("@replit/vite-plugin-cartographer").then((m) =>
+          m.cartographer(),
+        ),
+      ]
       : []),
   ],
   resolve: {
