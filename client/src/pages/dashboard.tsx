@@ -1031,12 +1031,13 @@ export default function Dashboard() {
                               key={localSelectedFilter}
                               value={(localGlobalFilter.type === localSelectedFilter && localGlobalFilter.value) ? localGlobalFilter.value : ""}
                               onValueChange={(value) => {
+                                const trimmedValue = value.trim();
                                 if (localSelectedFilter === "segment") {
-                                  setLocalGlobalFilter({ type: "segment", value });
+                                  setLocalGlobalFilter({ type: "segment", value: trimmedValue });
                                 } else if (localSelectedFilter === "branch") {
-                                  setLocalGlobalFilter({ type: "branch", value });
+                                  setLocalGlobalFilter({ type: "branch", value: trimmedValue });
                                 } else if (localSelectedFilter === "salesperson") {
-                                  setLocalGlobalFilter({ type: "salesperson", value });
+                                  setLocalGlobalFilter({ type: "salesperson", value: trimmedValue });
                                 }
                               }}
                             >
@@ -1755,12 +1756,13 @@ export default function Dashboard() {
               </CardWrapper>
             )}
 
-            {/* Documentos Pendientes (NVV + GDV) - Para cualquier vista en el mes actual */}
-            {isCurrentMonth() && !selectedClient && globalFilter.type !== "product" && (
+            {/* Documentos Pendientes (NVV + GDV) - Siempre mostrar en dashboard principal */}
+            {!selectedClient && globalFilter.type !== "product" && (
               <PendingDocumentsUnified
                 selectedPeriod={selectedPeriod}
                 filterType={filterType}
                 salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
               />
             )}
 

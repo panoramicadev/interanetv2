@@ -308,9 +308,13 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
         try {
             const fd = new FormData();
             fd.append("file", file);
+            // Log for debugging
+            console.log('Uploading file:', file.name, file.type, file.size);
             const res = await fetch("/api/upload", { method: "POST", credentials: "include", body: fd });
-            if (!res.ok) throw new Error("Upload failed");
-            const { url } = await res.json();
+            const responseData = await res.json();
+            console.log('Upload response:', responseData);
+            if (!res.ok) throw new Error(responseData.message || "Upload failed");
+            const { url } = responseData;
             await apiRequest("PATCH", `/api/marketing/gastos/${uploadTarget.id}`, {
                 [uploadTarget.field]: url,
                 ...(uploadTarget.field === "urlOrdenCompra" ? { estado: "con_oc" } : {}),
@@ -319,8 +323,9 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
             queryClient.invalidateQueries({ queryKey: ["/api/marketing/gastos"] });
             queryClient.invalidateQueries({ queryKey: ["/api/marketing/metrics"] });
             toast({ title: "Documento subido correctamente" });
-        } catch {
-            toast({ title: "Error", description: "No se pudo subir el archivo.", variant: "destructive" });
+        } catch (error: any) {
+            console.error('Upload error:', error);
+            toast({ title: "Error", description: error.message || "No se pudo subir el archivo.", variant: "destructive" });
         } finally {
             setUploading(null);
             setUploadTarget(null);
@@ -340,11 +345,13 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
     };
 
     const isPdfUrl = (url: string) => {
+        if (!url) return false;
         const path = url.split('?')[0].toLowerCase();
-        return path.endsWith('.pdf') || url.includes('application/pdf');
+        return path.endsWith('.pdf') || url.toLowerCase().includes('application/pdf') || url.toLowerCase().includes('.pdf');
     };
 
     const isImageUrl = (url: string) => {
+        if (!url) return false;
         const path = url.split('?')[0].toLowerCase();
         return /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(path);
     };
@@ -810,28 +817,24 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
                                 <FileText className="h-4 w-4 text-indigo-600 shrink-0" />
                                 {previewTitle}
                             </span>
-                            {previewUrl && (
-                                <a
-                                    href={previewUrl}
-                                    download
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1.5 text-xs font-medium bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors shrink-0"
-                                >
-                                    <Download className="h-3.5 w-3.5" />
-                                    Descargar
-                                </a>
-                            )}
+                            {previewUrl && (() => {
+                                const downloadUrl = previewUrl.includes('?') 
+                                    ? `${previewUrl}&download=true` 
+                                    : `${previewUrl}?download=true`;
+                                return <a href={downloadUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-medium bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors shrink-0"><Download className="h-3.5 w-3.5" />Descargar</a>;
+                            })()}
                         </DialogTitle>
                     </DialogHeader>
                     <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-slate-200 bg-slate-50">
                         {previewUrl && (
                             isPdfUrl(previewUrl) ? (
-                                <iframe
-                                    src={previewUrl}
-                                    className="w-full h-[65vh] rounded-lg"
-                                    title="Vista previa del documento"
-                                />
+                                <div className="w-full h-[65vh] rounded-lg overflow-hidden bg-white">
+                                    <iframe
+                                        src={`${previewUrl}${previewUrl.includes('?') ? '&' : '?'}_t=${Date.now()}`}
+                                        className="w-full h-full"
+                                        title="Vista previa del documento"
+                                    />
+                                </div>
                             ) : isImageUrl(previewUrl) ? (
                                 <div className="flex items-center justify-center p-4">
                                     <img

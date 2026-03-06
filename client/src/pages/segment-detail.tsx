@@ -1449,10 +1449,11 @@ export default function SegmentDetail({
               )}
 
               {/* Documentos Pendientes (NVV + GDV) */}
-              {segmentName && isCurrentMonth() && (
+              {segmentName && (
                 <PendingDocumentsUnified
                   selectedPeriod={selectedPeriod}
                   filterType={filterType}
+                  segment={segmentName}
                 />
               )}
 
