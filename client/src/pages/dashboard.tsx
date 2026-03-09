@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useFilter } from "@/contexts/FilterContext";
 import KPICards from "@/components/dashboard/kpi-cards";
 import SalesProjectionCard from "@/components/dashboard/sales-projection-card";
@@ -41,7 +41,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, RefreshCw, Eye, AlertCircle, DollarSign, ChevronDown, ShoppingCart, Truck, Search, Check, ChevronsUpDown, Menu, Database, Package } from "lucide-react";
+import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, Eye, AlertCircle, DollarSign, ChevronDown, ShoppingCart, Truck, Search, Check, ChevronsUpDown, Menu, Database, Package, Zap, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -301,65 +301,40 @@ export default function Dashboard() {
     },
   });
 
-  // Subtle refresh functionality state
+  // Subtle refresh functionality state (Old implementation, kept for backward compatibility if needed)
   const [lastUpdated, setLastUpdated] = useState<string | null>(() =>
     localStorage.getItem('dashboard-last-updated')
   );
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // ETL sync state
-  const [isRunningETL, setIsRunningETL] = useState(false);
-
-  // Function to run all ETLs
-  const handleRunAllETL = async () => {
-    if (isRunningETL) return;
-
-    setIsRunningETL(true);
-    toast({
-      title: "Actualizando datos",
-      description: "Ejecutando sincronización de todos los ETL...",
-    });
-
-    try {
-      // Run all 3 ETLs in parallel
-      const results = await Promise.allSettled([
-        fetch('/api/etl/execute?etlName=ventas_incremental', { method: 'POST', credentials: 'include' }),
-        fetch('/api/etl/execute?etlName=nvv', { method: 'POST', credentials: 'include' }),
-        fetch('/api/etl/execute?etlName=gdv', { method: 'POST', credentials: 'include' }),
-      ]);
-
-      const successCount = results.filter(r => r.status === 'fulfilled').length;
-
-      if (successCount === 3) {
-        toast({
-          title: "Actualización iniciada",
-          description: "Los 3 ETL se están ejecutando en segundo plano. Los datos se actualizarán en unos minutos.",
-        });
-      } else {
-        toast({
-          title: "Actualización parcial",
-          description: `${successCount} de 3 ETL iniciados correctamente.`,
-          variant: "destructive",
-        });
-      }
-
-      // Refresh dashboard data after a delay
+  // ETL sync state using mutation pointing to sync-all
+  const syncAllMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('/api/etl/sync-all', { method: 'POST' });
+    },
+    onSuccess: () => {
+      // It starts successfully in the background
+      toast({
+        title: "Actualización iniciada",
+        description: "El proceso de sincronización sincronizará Ventas, GDVs y NVVs. Esto puede demorar unos minutos.",
+      });
+      // Invalidate dashboard queries to fetch the fresh data immediately and then 5s later just in case small things finished
+      queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/nvv'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gdv'] });
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/nvv'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/gdv'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
       }, 5000);
-
-    } catch (error) {
+    },
+    onError: (error: any) => {
       toast({
-        title: "Error",
-        description: "No se pudo iniciar la actualización de datos.",
+        title: "Error de Sincronización",
+        description: error.message || "No se pudo iniciar la actualización de datos.",
         variant: "destructive",
       });
-    } finally {
-      setIsRunningETL(false);
     }
-  };
+  });
 
   // Mobile detection and drawer state
   const isMobile = useIsMobile();
@@ -384,6 +359,9 @@ export default function Dashboard() {
     } else if (filterParam === 'salesperson') {
       setSelectedFilter('salesperson');
       setGlobalFilter({ type: 'salesperson', value: undefined });
+    } else if (filterParam === 'branch') {
+      setSelectedFilter('branch');
+      setGlobalFilter({ type: 'branch', value: undefined });
     }
   }, [currentLocation, setGlobalFilter]);
 
@@ -415,32 +393,8 @@ export default function Dashboard() {
       display: format(now, "MMMM yyyy")
     });
     setLocalSelectedFilter("all");
-    setLocalGlobalFilter({ type: "all" });
+    setLocalGlobalFilter({ type: "all", value: "" });
     setLocalComparePeriod("none");
-  };
-
-  // Subtle refresh functionality
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      // Invalidate all sales-related queries to refresh data
-      await queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/files/last-upload', 'sales'] });
-
-      // Don't update timestamp manually - let it be controlled by file upload data
-      // The timestamp should reflect when the data file was uploaded, not when refreshed
-
-      // Subtle success notification
-      toast({
-        description: "Datos actualizados",
-        duration: 2000,
-      });
-    } catch (error) {
-      console.error('Error refreshing dashboard:', error);
-    } finally {
-      setIsRefreshing(false);
-    }
   };
 
   // Format last updated time with date and time
@@ -910,20 +864,8 @@ export default function Dashboard() {
               />
             </button>
 
-            {/* Actions: ETL Button + Filters Menu */}
+            {/* Actions: Filters Menu */}
             <div className="flex items-center gap-2">
-              {/* ETL Sync Button */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRunAllETL}
-                disabled={isRunningETL}
-                className="h-9 px-2.5 rounded-lg border-gray-200 dark:border-gray-700"
-                data-testid="button-mobile-etl-sync"
-              >
-                <Database className={`h-4 w-4 ${isRunningETL ? 'animate-pulse text-blue-500' : 'text-gray-600 dark:text-gray-400'}`} />
-                {isRunningETL && <RefreshCw className="h-3 w-3 ml-1 animate-spin text-blue-500" />}
-              </Button>
 
               {/* Filters Menu Button */}
               <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
@@ -962,17 +904,17 @@ export default function Dashboard() {
                             onValueChange={(value) => {
                               setLocalSelectedFilter(value);
                               if (value === "all") {
-                                setLocalGlobalFilter({ type: "all" });
+                                setLocalGlobalFilter({ type: "all", value: "" });
                               } else if (value === "segment") {
-                                setLocalGlobalFilter({ type: "segment", value: undefined });
+                                setLocalGlobalFilter({ type: "segment", value: "" });
                               } else if (value === "branch") {
-                                setLocalGlobalFilter({ type: "branch", value: undefined });
+                                setLocalGlobalFilter({ type: "branch", value: "" });
                               } else if (value === "salesperson") {
-                                setLocalGlobalFilter({ type: "salesperson", value: undefined });
+                                setLocalGlobalFilter({ type: "salesperson", value: "" });
                               } else if (value === "client") {
-                                setLocalGlobalFilter({ type: "client", value: undefined });
+                                setLocalGlobalFilter({ type: "client", value: "" });
                               } else if (value === "product") {
-                                setLocalGlobalFilter({ type: "product", value: undefined });
+                                setLocalGlobalFilter({ type: "product", value: "" });
                               }
                             }}
                           >
@@ -1353,17 +1295,17 @@ export default function Dashboard() {
                   onValueChange={(value) => {
                     setSelectedFilter(value);
                     if (value === "all") {
-                      setGlobalFilter({ type: "all" });
+                      setGlobalFilter({ type: "all", value: "" });
                     } else if (value === "segment") {
-                      setGlobalFilter({ type: "segment", value: undefined });
+                      setGlobalFilter({ type: "segment", value: "" });
                     } else if (value === "branch") {
-                      setGlobalFilter({ type: "branch", value: undefined });
+                      setGlobalFilter({ type: "branch", value: "" });
                     } else if (value === "salesperson") {
-                      setGlobalFilter({ type: "salesperson", value: undefined });
+                      setGlobalFilter({ type: "salesperson", value: "" });
                     } else if (value === "client") {
-                      setGlobalFilter({ type: "client", value: undefined });
+                      setGlobalFilter({ type: "client", value: "" });
                     } else if (value === "product") {
-                      setGlobalFilter({ type: "product", value: undefined });
+                      setGlobalFilter({ type: "product", value: "" });
                     }
                   }}
                 >
@@ -1383,14 +1325,12 @@ export default function Dashboard() {
                         <span>Por segmento</span>
                       </div>
                     </SelectItem>
-                    {/* Temporalmente oculto
                     <SelectItem value="branch">
                       <div className="flex items-center space-x-2">
                         <Building className="h-3.5 w-3.5 text-blue-500" />
                         <span>Por sucursal</span>
                       </div>
                     </SelectItem>
-                    */}
                     <SelectItem value="salesperson">
                       <div className="flex items-center space-x-2">
                         <Users className="h-3.5 w-3.5 text-purple-500" />
@@ -1620,26 +1560,35 @@ export default function Dashboard() {
                 <span className="text-sm font-medium text-gray-700">Período:</span>
                 <YearMonthSelector
                   value={selection}
-                  onChange={setSelection}
+                  onChange={(val) => val && setSelection(val)}
                 />
               </div>
+              {/* Sync All Button aligned to the right alongside the other filters */}
+              <div className="flex-shrink-0">
+                <Button
+                  variant="outline"
+                  onClick={() => syncAllMutation.mutate()}
+                  disabled={syncAllMutation.isPending}
+                  className="h-9 text-sm font-medium hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-colors rounded-lg border-gray-200 dark:border-gray-700"
+                  data-testid="button-desktop-sync-all"
+                >
+                  {syncAllMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 text-orange-500 animate-spin" />
+                      Sincronizando...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="h-4 w-4 mr-2 text-orange-500" />
+                      Sincronizar todo
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
-
-            {/* Display Selected Filters as chips removed per user feedback */}
           </div>
         </header>
       )}
-
-      {/* Subtle refresh button - always visible but discrete */}
-      <button
-        onClick={handleRefresh}
-        disabled={isRefreshing}
-        className="absolute top-2 right-2 opacity-30 hover:opacity-60 transition-opacity text-gray-300 hover:text-gray-400 p-1 z-50"
-        title="Actualizar datos"
-        data-testid="button-subtle-refresh"
-      >
-        <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
-      </button>
 
       {/* Main Content */}
       <main className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 space-y-3 sm:space-y-4 lg:space-y-6 relative">
@@ -1697,7 +1646,7 @@ export default function Dashboard() {
               periods={comparativePeriods}
               segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
               salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-              client={selectedClient}
+              client={selectedClient ?? undefined}
             />
 
             {/* Comparative KPI Cards con gráficos */}
@@ -1706,7 +1655,7 @@ export default function Dashboard() {
                 periods={comparativePeriods}
                 segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
                 salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-                client={selectedClient}
+                client={selectedClient ?? undefined}
               />
             </div>
 

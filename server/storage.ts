@@ -864,7 +864,8 @@ export interface IStorage {
     totalProducts: number;
     transactionCount: number;
     averageTicket: number;
-    purchaseFrequency: number; // days between purchases
+    purchaseFrequency: number;
+    lastPurchaseDate?: string;
   }>;
   getClientProducts(clientName: string, period?: string, filterType?: string): Promise<Array<{
     productName: string;
@@ -2816,7 +2817,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getYearlyTotals(year: number, filters?: { segment?: string; salesperson?: string; client?: string }): Promise<{
+  async getYearlyTotals(year: number, filters?: { segment?: string; salesperson?: string; client?: string }, endDateStr?: string): Promise<{
     currentYearTotal: number;
     previousYearTotal: number;
     comparisonYear: number;
@@ -2835,7 +2836,23 @@ export class DatabaseStorage implements IStorage {
     let previousYearStart: string;
     let previousYearEnd: string;
 
-    if (isCurrentYear) {
+    console.log(`[getYearlyTotals] year: ${year}, endDateStr: ${endDateStr}`);
+
+    if (endDateStr) {
+      requestedYearStart = `${year}-01-01`;
+      requestedYearEnd = endDateStr;
+
+      previousYearStart = `${previousYear}-01-01`;
+      const endDateObj = new Date(endDateStr);
+      // Generate previous year end date
+      const prevYearEndObj = new Date(endDateObj);
+      prevYearEndObj.setFullYear(previousYear);
+      // Handle leap year edge case
+      if (endDateObj.getMonth() === 1 && endDateObj.getDate() === 29 && prevYearEndObj.getMonth() === 2) {
+        prevYearEndObj.setMonth(1, 28); // February 28
+      }
+      previousYearEnd = prevYearEndObj.toISOString().split('T')[0];
+    } else if (isCurrentYear) {
       // Year-to-date comparison: current year up to today vs last year up to same date
       requestedYearStart = `${year}-01-01`;
       requestedYearEnd = today.toISOString().split('T')[0]; // Today's date
@@ -6315,15 +6332,16 @@ export class DatabaseStorage implements IStorage {
     averageTicket: number;
     purchaseFrequency: number;
     segments: string[];
+    lastPurchaseDate?: string;
   }> {
     // Normalize client name for comparison - handle URL encoding
     const normalizedClientName = decodeURIComponent(clientName).trim();
-    
+
     // Try multiple variations: exact, normalized (hyphens to spaces), and partial match
     const normalizedForExactSearch = normalizedClientName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
-    
+
     console.log('[getClientDetails] Client:', normalizedClientName, 'Normalized:', normalizedForExactSearch, 'Period:', period, 'FilterType:', filterType);
-    
+
     const conditions = [
       sql`(${factVentas.nokoen} ILIKE ${normalizedForExactSearch} OR REPLACE(${factVentas.nokoen}, '-', ' ') ILIKE ${normalizedForExactSearch} OR ${factVentas.nokoen} ILIKE ${'%' + normalizedForExactSearch + '%'})`,
       sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
@@ -6418,7 +6436,8 @@ export class DatabaseStorage implements IStorage {
       transactionCount: Number(result.transactionCount),
       averageTicket: Number(result.averageTicket),
       purchaseFrequency: Number(purchaseFrequency.toFixed(1)),
-      segments
+      segments,
+      lastPurchaseDate: result.lastPurchase ? String(result.lastPurchase).substring(0, 10) : undefined
     };
   }
 
@@ -6433,7 +6452,7 @@ export class DatabaseStorage implements IStorage {
     // Normalize client name for comparison - handle URL encoding
     const normalizedClientName = decodeURIComponent(clientName).trim();
     const normalizedForExactSearch = normalizedClientName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
-    
+
     const conditions = [
       sql`(${factVentas.nokoen} ILIKE ${normalizedForExactSearch} OR REPLACE(${factVentas.nokoen}, '-', ' ') ILIKE ${normalizedForExactSearch} OR ${factVentas.nokoen} ILIKE ${'%' + normalizedForExactSearch + '%'})`,
       sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
@@ -6529,6 +6548,10 @@ export class DatabaseStorage implements IStorage {
     monto: string;
     nokofu: string;
   } | null> {
+    // Normalize client name for comparison - handle URL encoding
+    const normalizedClientName = decodeURIComponent(clientName).trim();
+    const normalizedForExactSearch = normalizedClientName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+
     const [result] = await db
       .select({
         id: factVentas.id,
@@ -6539,7 +6562,10 @@ export class DatabaseStorage implements IStorage {
         nokofu: factVentas.nokofu
       })
       .from(factVentas)
-      .where(eq(factVentas.nokoen, clientName))
+      .where(and(
+        sql`(${factVentas.nokoen} ILIKE ${normalizedForExactSearch} OR REPLACE(${factVentas.nokoen}, '-', ' ') ILIKE ${normalizedForExactSearch} OR ${factVentas.nokoen} ILIKE ${'%' + normalizedForExactSearch + '%'})`,
+        sql`${factVentas.tido} != 'GDV'`
+      ))
       .orderBy(desc(factVentas.feemdo))
       .limit(1);
 
@@ -6563,6 +6589,10 @@ export class DatabaseStorage implements IStorage {
     monto: string;
     nokofu: string;
   }>> {
+    // Normalize client name for comparison - handle URL encoding
+    const normalizedClientName = decodeURIComponent(clientName).trim();
+    const normalizedForExactSearch = normalizedClientName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+
     const result = await db
       .select({
         id: factVentas.id,
@@ -6573,7 +6603,10 @@ export class DatabaseStorage implements IStorage {
         nokofu: factVentas.nokofu
       })
       .from(factVentas)
-      .where(eq(factVentas.nokoen, clientName))
+      .where(and(
+        sql`(${factVentas.nokoen} ILIKE ${normalizedForExactSearch} OR REPLACE(${factVentas.nokoen}, '-', ' ') ILIKE ${normalizedForExactSearch} OR ${factVentas.nokoen} ILIKE ${'%' + normalizedForExactSearch + '%'})`,
+        sql`${factVentas.tido} != 'GDV'`
+      ))
       .orderBy(desc(factVentas.feemdo))
       .limit(limit);
 

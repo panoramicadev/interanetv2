@@ -58,11 +58,19 @@ import { type Task, type TaskAssignment, type InsertTaskAssignment, type TaskCom
 import { z } from "zod";
 
 // SECURITY: Frontend schema that excludes createdByUserId to prevent user impersonation
+const SEGMENTOS = [
+  { value: "ferreterias", label: "Ferreterías" },
+  { value: "construccion", label: "Construcción" },
+  { value: "digital", label: "Digital" },
+  { value: "marketing", label: "Marketing" },
+] as const;
+
 const createTaskWithAssignmentsSchema = z.object({
   title: z.string().min(1, "Título es requerido"),
   description: z.string().optional(),
   type: z.enum(["texto", "formulario", "visita"]).default("texto"),
   priority: z.enum(["low", "medium", "high"]).default("medium"),
+  segmento: z.string().optional().or(z.null()),
   dueDate: z.string().refine((date) => {
     if (!date) return true; // Allow empty dates
     // Accept datetime-local format (YYYY-MM-DDTHH:mm) and ISO format
@@ -72,8 +80,8 @@ const createTaskWithAssignmentsSchema = z.object({
   }, {
     message: "Formato de fecha inválido. Use el selector de fecha.",
   }).optional().or(z.null()),
-  clienteId: z.string().optional().or(z.null()), // Cliente asociado (opcional)
-  clienteNombre: z.string().optional().or(z.null()), // Nombre del cliente (opcional)
+  clienteId: z.string().optional().or(z.null()),
+  clienteNombre: z.string().optional().or(z.null()),
   assignments: z.array(z.object({
     assigneeType: z.enum(["supervisor", "salesperson"]),
     assigneeId: z.string().min(1, "Destinatario requerido"),
@@ -132,6 +140,7 @@ export default function TareasPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [clienteFilter, setClienteFilter] = useState<string>("all");
+  const [segmentoFilter, setSegmentoFilter] = useState<string>("all");
 
   // Expanded tasks for collapsible assignment details
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
@@ -299,6 +308,7 @@ export default function TareasPage() {
       title: "",
       description: "",
       priority: "medium",
+      segmento: null,
       dueDate: "",
       clienteId: null,
       clienteNombre: null,
@@ -411,6 +421,11 @@ export default function TareasPage() {
     // Cliente filter
     if (clienteFilter === "with-client" && !(task as any).clienteId) return false;
     if (clienteFilter === "without-client" && (task as any).clienteId) return false;
+
+    // Segmento filter
+    if (segmentoFilter !== "all") {
+      if (!(task as any).segmento || (task as any).segmento !== segmentoFilter) return false;
+    }
 
     return true;
   }) || [];
@@ -534,258 +549,293 @@ export default function TareasPage() {
                   Nueva Tarea
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-4 sm:p-6">
-                <DialogHeader className="flex-shrink-0">
-                  <DialogTitle className="text-2xl">Crear Nueva Tarea</DialogTitle>
-                  <DialogDescription>
-                    Completa los detalles para crear una nueva tarea y asignarla a miembros del equipo.
-                  </DialogDescription>
-                </DialogHeader>
+              <DialogContent className="sm:max-w-[650px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
+                {/* Premium Header */}
+                <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-6 py-5 relative overflow-hidden">
+                  <div className="absolute -top-12 -right-12 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl" />
+                  <div className="relative flex items-center gap-3">
+                    <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-2.5 shadow-lg">
+                      <Plus className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <DialogTitle className="text-xl font-bold text-white">Nueva Tarea</DialogTitle>
+                      <DialogDescription className="text-slate-400 text-sm">
+                        Completa los detalles y asigna a miembros del equipo
+                      </DialogDescription>
+                    </div>
+                  </div>
+                </div>
 
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col min-h-0 flex-1">
-                    <div className="space-y-4 overflow-y-auto flex-1 pr-1">
-                      {/* Task Details */}
-                      <FormField
-                        control={form.control}
-                        name="title"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Título *</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Título de la tarea" {...field} data-testid="input-task-title" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                    <div className="space-y-5 overflow-y-auto flex-1 px-6 py-5">
 
-                      <FormField
-                        control={form.control}
-                        name="description"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Descripción</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                placeholder="Descripción detallada de la tarea"
-                                className="resize-none"
-                                rows={3}
-                                {...field}
-                                data-testid="textarea-task-description"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <FormField
-                          control={form.control}
-                          name="priority"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Prioridad</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      {/* Section: Información */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                          <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                          Información de la tarea
+                        </div>
+                        <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4 space-y-4">
+                          <FormField
+                            control={form.control}
+                            name="title"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Título *</FormLabel>
                                 <FormControl>
-                                  <SelectTrigger data-testid="select-task-priority">
-                                    <SelectValue placeholder="Seleccionar prioridad" />
-                                  </SelectTrigger>
+                                  <Input placeholder="Ej: Visita cliente zona sur" className="bg-white border-slate-200 focus:border-blue-400 focus:ring-blue-400/20" {...field} data-testid="input-task-title" />
                                 </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="low">Baja</SelectItem>
-                                  <SelectItem value="medium">Media</SelectItem>
-                                  <SelectItem value="high">Alta</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="dueDate"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Fecha Límite</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="datetime-local"
-                                  {...field}
-                                  value={field.value || ""}
-                                  data-testid="input-task-due-date"
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="description"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Descripción</FormLabel>
+                                <FormControl>
+                                  <Textarea
+                                    placeholder="Agrega detalles, instrucciones o contexto..."
+                                    className="resize-none bg-white border-slate-200 focus:border-blue-400 focus:ring-blue-400/20"
+                                    rows={3}
+                                    {...field}
+                                    data-testid="textarea-task-description"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
                       </div>
 
-                      {/* Cliente asociado (opcional) */}
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium flex items-center gap-2">
-                          <Building2 className="h-4 w-4 text-gray-500" />
-                          Cliente Asociado (Opcional)
-                        </Label>
-                        {selectedClienteTask ? (
-                          <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                            <div className="flex-1">
-                              <p className="font-medium text-sm text-gray-800">{selectedClienteTask.nokoen}</p>
-                              <p className="text-xs text-gray-500">Código: {selectedClienteTask.koen}</p>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedClienteTask(null);
-                                form.setValue("clienteId", null);
-                                form.setValue("clienteNombre", null);
-                                setSearchClienteTask("");
-                              }}
-                              className="text-red-500 hover:text-red-700"
-                              data-testid="button-remove-cliente"
-                            >
-                              <XCircle className="h-4 w-4" />
-                            </Button>
+                      {/* Section: Clasificación */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                          Clasificación y plazo
+                        </div>
+                        <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <FormField
+                              control={form.control}
+                              name="segmento"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Segmento</FormLabel>
+                                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                                    <FormControl>
+                                      <SelectTrigger className="bg-white border-slate-200" data-testid="select-task-segmento">
+                                        <SelectValue placeholder="Seleccionar" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {SEGMENTOS.map((seg) => (
+                                        <SelectItem key={seg.value} value={seg.value}>{seg.label}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="dueDate"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Fecha Límite</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="datetime-local"
+                                      className="bg-white border-slate-200"
+                                      {...field}
+                                      value={field.value || ""}
+                                      data-testid="input-task-due-date"
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
                           </div>
-                        ) : (
-                          <div className="space-y-2">
-                            <div className="relative">
-                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                              <Input
-                                placeholder="Buscar cliente por nombre o código..."
-                                value={searchClienteTask}
-                                onChange={(e) => setSearchClienteTask(e.target.value)}
-                                className="pl-10"
-                                data-testid="input-search-cliente-task"
-                              />
+                        </div>
+                      </div>
+
+                      {/* Section: Cliente */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          Asociaciones
+                        </div>
+                        <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4 space-y-3">
+                          <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                            <Building2 className="h-3.5 w-3.5" />
+                            Cliente Asociado (Opcional)
+                          </Label>
+                          {selectedClienteTask ? (
+                            <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                              <div className="flex-1">
+                                <p className="font-medium text-sm text-gray-800">{selectedClienteTask.nokoen}</p>
+                                <p className="text-xs text-gray-500">Código: {selectedClienteTask.koen}</p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedClienteTask(null);
+                                  form.setValue("clienteId", null);
+                                  form.setValue("clienteNombre", null);
+                                  setSearchClienteTask("");
+                                }}
+                                className="text-red-500 hover:text-red-700"
+                                data-testid="button-remove-cliente"
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </Button>
                             </div>
-                            {searchClienteTask.length >= 2 && clientesTask.length > 0 && (
-                              <div className="max-h-40 overflow-y-auto border rounded-lg bg-white shadow-sm">
-                                {clientesTask.map((cliente) => (
-                                  <button
-                                    key={cliente.id}
-                                    type="button"
-                                    className="w-full px-3 py-2 text-left hover:bg-gray-50 border-b last:border-b-0 transition-colors"
-                                    onClick={() => {
-                                      setSelectedClienteTask(cliente);
-                                      form.setValue("clienteId", cliente.koen);
-                                      form.setValue("clienteNombre", cliente.nokoen);
-                                      setSearchClienteTask("");
-                                    }}
-                                    data-testid={`cliente-option-${cliente.id}`}
-                                  >
-                                    <p className="font-medium text-sm">{cliente.nokoen}</p>
-                                    <p className="text-xs text-gray-500">Código: {cliente.koen}</p>
-                                  </button>
+                          ) : (
+                            <div className="space-y-2">
+                              <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <Input
+                                  placeholder="Buscar cliente por nombre o código..."
+                                  value={searchClienteTask}
+                                  onChange={(e) => setSearchClienteTask(e.target.value)}
+                                  className="pl-10 bg-white border-slate-200"
+                                  data-testid="input-search-cliente-task"
+                                />
+                              </div>
+                              {searchClienteTask.length >= 2 && clientesTask.length > 0 && (
+                                <div className="max-h-40 overflow-y-auto border rounded-lg bg-white shadow-sm">
+                                  {clientesTask.map((cliente) => (
+                                    <button
+                                      key={cliente.id}
+                                      type="button"
+                                      className="w-full px-3 py-2 text-left hover:bg-blue-50 border-b last:border-b-0 transition-colors"
+                                      onClick={() => {
+                                        setSelectedClienteTask(cliente);
+                                        form.setValue("clienteId", cliente.koen);
+                                        form.setValue("clienteNombre", cliente.nokoen);
+                                        setSearchClienteTask("");
+                                      }}
+                                      data-testid={`cliente-option-${cliente.id}`}
+                                    >
+                                      <p className="font-medium text-sm">{cliente.nokoen}</p>
+                                      <p className="text-xs text-gray-500">Código: {cliente.koen}</p>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              {searchClienteTask.length >= 2 && clientesTask.length === 0 && (
+                                <p className="text-xs text-gray-500 italic">No se encontraron clientes</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Section: Equipo */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                          Equipo asignado *
+                        </div>
+                        <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4 space-y-4">
+                          {availableSupervisors && availableSupervisors.length > 0 && (
+                            <div className="space-y-2">
+                              <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                                <User className="h-3.5 w-3.5" />
+                                Supervisores
+                              </Label>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto bg-white border border-slate-200 rounded-lg p-2.5">
+                                {availableSupervisors.map((supervisor) => (
+                                  <FormField
+                                    key={`supervisor-${supervisor.id}`}
+                                    control={form.control}
+                                    name="assignments"
+                                    render={({ field }) => (
+                                      <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                                        <FormControl>
+                                          <Checkbox
+                                            checked={field.value?.some(a => a.assigneeType === "supervisor" && a.assigneeId === supervisor.id)}
+                                            onCheckedChange={(checked) => {
+                                              const currentAssignments = field.value || [];
+                                              if (checked) {
+                                                field.onChange([...currentAssignments, { assigneeType: "supervisor", assigneeId: supervisor.id }]);
+                                              } else {
+                                                field.onChange(currentAssignments.filter(a => !(a.assigneeType === "supervisor" && a.assigneeId === supervisor.id)));
+                                              }
+                                            }}
+                                            data-testid={`checkbox-supervisor-${supervisor.id}`}
+                                          />
+                                        </FormControl>
+                                        <FormLabel className="text-xs font-normal truncate">
+                                          {supervisor.salespersonName}
+                                        </FormLabel>
+                                      </FormItem>
+                                    )}
+                                  />
                                 ))}
                               </div>
-                            )}
-                            {searchClienteTask.length >= 2 && clientesTask.length === 0 && (
-                              <p className="text-xs text-gray-500 italic">No se encontraron clientes</p>
-                            )}
-                          </div>
-                        )}
+                            </div>
+                          )}
+                          {availableUsers && availableUsers.length > 0 && (
+                            <div className="space-y-2">
+                              <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                                <Users className="h-3.5 w-3.5" />
+                                Vendedores
+                              </Label>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto bg-white border border-slate-200 rounded-lg p-2.5">
+                                {availableUsers.map((salesperson) => (
+                                  <FormField
+                                    key={`salesperson-${salesperson.id}`}
+                                    control={form.control}
+                                    name="assignments"
+                                    render={({ field }) => (
+                                      <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                                        <FormControl>
+                                          <Checkbox
+                                            checked={field.value?.some(a => a.assigneeType === "salesperson" && a.assigneeId === salesperson.id)}
+                                            onCheckedChange={(checked) => {
+                                              const currentAssignments = field.value || [];
+                                              if (checked) {
+                                                field.onChange([...currentAssignments, { assigneeType: "salesperson", assigneeId: salesperson.id }]);
+                                              } else {
+                                                field.onChange(currentAssignments.filter(a => !(a.assigneeType === "salesperson" && a.assigneeId === salesperson.id)));
+                                              }
+                                            }}
+                                            data-testid={`checkbox-salesperson-${salesperson.id}`}
+                                          />
+                                        </FormControl>
+                                        <FormLabel className="text-xs font-normal truncate">
+                                          {salesperson.salespersonName}
+                                        </FormLabel>
+                                      </FormItem>
+                                    )}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          <FormMessage>
+                            {form.formState.errors.assignments?.message}
+                          </FormMessage>
+                        </div>
                       </div>
 
-                      {/* Assignments Section */}
-                      <div className="space-y-3">
-                        <Label className="text-sm font-medium">Asignar a *</Label>
-
-                        {/* Supervisor Assignments */}
-                        {availableSupervisors && availableSupervisors.length > 0 && (
-                          <div className="space-y-2">
-                            <Label className="text-xs text-gray-600 flex items-center gap-2">
-                              <User className="h-3 w-3" />
-                              Supervisores
-                            </Label>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded p-2">
-                              {availableSupervisors.map((supervisor) => (
-                                <FormField
-                                  key={`supervisor-${supervisor.id}`}
-                                  control={form.control}
-                                  name="assignments"
-                                  render={({ field }) => (
-                                    <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                                      <FormControl>
-                                        <Checkbox
-                                          checked={field.value?.some(a => a.assigneeType === "supervisor" && a.assigneeId === supervisor.id)}
-                                          onCheckedChange={(checked) => {
-                                            const currentAssignments = field.value || [];
-                                            if (checked) {
-                                              field.onChange([...currentAssignments, { assigneeType: "supervisor", assigneeId: supervisor.id }]);
-                                            } else {
-                                              field.onChange(currentAssignments.filter(a => !(a.assigneeType === "supervisor" && a.assigneeId === supervisor.id)));
-                                            }
-                                          }}
-                                          data-testid={`checkbox-supervisor-${supervisor.id}`}
-                                        />
-                                      </FormControl>
-                                      <FormLabel className="text-xs font-normal truncate">
-                                        {supervisor.salespersonName}
-                                      </FormLabel>
-                                    </FormItem>
-                                  )}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Salesperson Assignments */}
-                        {availableUsers && availableUsers.length > 0 && (
-                          <div className="space-y-2">
-                            <Label className="text-xs text-gray-600 flex items-center gap-2">
-                              <User className="h-3 w-3" />
-                              Vendedores
-                            </Label>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded p-2">
-                              {availableUsers.map((salesperson) => (
-                                <FormField
-                                  key={`salesperson-${salesperson.id}`}
-                                  control={form.control}
-                                  name="assignments"
-                                  render={({ field }) => (
-                                    <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                                      <FormControl>
-                                        <Checkbox
-                                          checked={field.value?.some(a => a.assigneeType === "salesperson" && a.assigneeId === salesperson.id)}
-                                          onCheckedChange={(checked) => {
-                                            const currentAssignments = field.value || [];
-                                            if (checked) {
-                                              field.onChange([...currentAssignments, { assigneeType: "salesperson", assigneeId: salesperson.id }]);
-                                            } else {
-                                              field.onChange(currentAssignments.filter(a => !(a.assigneeType === "salesperson" && a.assigneeId === salesperson.id)));
-                                            }
-                                          }}
-                                          data-testid={`checkbox-salesperson-${salesperson.id}`}
-                                        />
-                                      </FormControl>
-                                      <FormLabel className="text-xs font-normal truncate">
-                                        {salesperson.salespersonName}
-                                      </FormLabel>
-                                    </FormItem>
-                                  )}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        <FormMessage>
-                          {form.formState.errors.assignments?.message}
-                        </FormMessage>
-                      </div>
                     </div>
 
-                    <div className="flex justify-end gap-2 pt-4 border-t mt-4 flex-shrink-0">
+                    {/* Premium Footer */}
+                    <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex-shrink-0">
                       <Button
                         type="button"
                         variant="outline"
+                        className="border-slate-200 text-slate-600 hover:bg-slate-100"
                         onClick={() => {
                           setShowCreateDialog(false);
                           form.reset();
@@ -799,10 +849,14 @@ export default function TareasPage() {
                       <Button
                         type="submit"
                         disabled={createTaskMutation.isPending}
-                        className="bg-gradient-to-r from-blue-600 to-indigo-600"
+                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-blue-200/50 px-6 font-semibold transition-all duration-200 hover:shadow-lg"
                         data-testid="button-submit-task"
                       >
-                        {createTaskMutation.isPending ? "Creando..." : "Crear Tarea"}
+                        {createTaskMutation.isPending ? (
+                          <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creando...</>
+                        ) : (
+                          <><Plus className="h-4 w-4 mr-2" /> Crear Tarea</>
+                        )}
                       </Button>
                     </div>
                   </form>
@@ -836,6 +890,31 @@ export default function TareasPage() {
         </div>
 
         <TabsContent value="tareas" className="space-y-6">
+
+          {/* Segment Tabs */}
+          <div className="grid grid-cols-5 gap-1.5">
+            <button
+              onClick={() => setSegmentoFilter("all")}
+              className={`px-4 py-2.5 rounded-lg text-sm font-semibold whitespace-nowrap transition-all duration-200 ${segmentoFilter === "all"
+                ? "bg-blue-600 text-white shadow-md shadow-blue-200"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+            >
+              Todas
+            </button>
+            {SEGMENTOS.map((seg) => (
+              <button
+                key={seg.value}
+                onClick={() => setSegmentoFilter(seg.value)}
+                className={`px-4 py-2.5 rounded-lg text-sm font-semibold whitespace-nowrap transition-all duration-200 ${segmentoFilter === seg.value
+                  ? "bg-blue-600 text-white shadow-md shadow-blue-200"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+              >
+                {seg.label}
+              </button>
+            ))}
+          </div>
 
           {/* Filters and View Toggle */}
           <Card className="border-0 shadow-sm bg-white">

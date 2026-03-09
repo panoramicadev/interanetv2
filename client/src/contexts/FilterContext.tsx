@@ -12,8 +12,8 @@ export interface YearMonthSelection {
 }
 
 export interface GlobalFilter {
-  type: "all" | "segment" | "salesperson" | "client" | "product";
-  value: string;
+  type: "all" | "segment" | "branch" | "salesperson" | "client" | "product" | "global";
+  value?: string;
 }
 
 export interface GastosFilter {
@@ -69,18 +69,18 @@ export function FilterProvider({ children }: { children: ReactNode }) {
         // Convert date strings back to Date objects
         if (parsed.startDate) parsed.startDate = new Date(parsed.startDate);
         if (parsed.endDate) parsed.endDate = new Date(parsed.endDate);
-        
+
         // Migration: convert old format with singular 'month' to 'months' array
         if (parsed.month !== undefined && !parsed.months) {
           parsed.months = [parsed.month];
           delete parsed.month;
         }
-        
+
         // Ensure months is always an array
         if (parsed.months && !Array.isArray(parsed.months)) {
           parsed.months = [parsed.months];
         }
-        
+
         return parsed;
       }
     } catch (e) {
@@ -146,14 +146,14 @@ export function FilterProvider({ children }: { children: ReactNode }) {
       new: newSelection
     });
     console.trace("📍 Stack trace de setSelection");
-    
+
     // Comparación profunda para evitar actualizaciones innecesarias
     const isSame = JSON.stringify(selection) === JSON.stringify(newSelection);
     if (isSame) {
       console.log("⏭️  [FilterContext] Valor idéntico, ignorando actualización");
       return;
     }
-    
+
     console.log("✅ [FilterContext] Actualizando selection state");
     setSelectionState(newSelection);
   };

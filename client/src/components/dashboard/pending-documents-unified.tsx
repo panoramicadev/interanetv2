@@ -152,19 +152,18 @@ export default function PendingDocumentsUnified({ selectedPeriod, filterType, sa
 
     const normalize = (s: string) => s?.trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') || '';
 
-    // Build query params
+    // Build query params - NO date filters, show ALL pending documents
     const buildQueryParams = () => {
         const params = new URLSearchParams();
-        if (selectedPeriod) params.append('period', selectedPeriod);
-        if (filterType) params.append('filterType', filterType);
+        // No period/filterType - always show ALL pending documents
         if (salesperson) params.append('salesperson', salesperson);
         if (segment) params.append('segment', segment);
         return params.toString();
     };
 
-    // ─── NVV Data ───
+    // ─── NVV Data (ALL pending, no date filter) ───
     const { data: nvvDataRaw, isLoading: isLoadingNvv } = useQuery<NVVSalespersonGroup[]>({
-        queryKey: ['/api/nvv/all-by-salespeople', selectedPeriod, filterType, salesperson, segment],
+        queryKey: ['/api/nvv/all-by-salespeople', 'all-pending', salesperson, segment],
         queryFn: async () => {
             const params = buildQueryParams();
             const response = await fetch(`/api/nvv/all-by-salespeople?${params}`, { credentials: 'include' });
@@ -175,9 +174,9 @@ export default function PendingDocumentsUnified({ selectedPeriod, filterType, sa
         refetchOnWindowFocus: false
     });
 
-    // ─── GDV Data ───
+    // ─── GDV Data (ALL pending, no date filter) ───
     const { data: gdvDataRaw, isLoading: isLoadingGdv } = useQuery<GDVSalespersonGroup[]>({
-        queryKey: ['/api/gdv/all-by-salespeople', selectedPeriod, filterType, salesperson, segment],
+        queryKey: ['/api/gdv/all-by-salespeople', 'all-pending', salesperson, segment],
         queryFn: async () => {
             const params = buildQueryParams();
             const response = await fetch(`/api/gdv/all-by-salespeople?${params}`, { credentials: 'include' });
@@ -203,8 +202,27 @@ export default function PendingDocumentsUnified({ selectedPeriod, filterType, sa
     const gdvTotalGuias = gdvData?.reduce((s, sp) => s + sp.totalGuias, 0) || 0;
     const gdvTotalSalespeople = gdvData?.length || 0;
 
-    // Combined total for the collapsed header
-    const combinedTotal = nvvTotalAmount + gdvTotalAmount;
+    // ─── Sales Metrics (to match KPI card's "Combinado") ───
+    const { data: salesMetrics } = useQuery<{ totalSales: number }>({
+        queryKey: ['/api/sales/metrics', selectedPeriod, filterType, salesperson, segment],
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            params.append('period', selectedPeriod);
+            params.append('filterType', filterType);
+            if (salesperson) params.append('salesperson', salesperson);
+            if (segment) params.append('segment', segment);
+            const response = await fetch(`/api/sales/metrics?${params}`, { credentials: 'include' });
+            if (!response.ok) throw new Error('Error al cargar ventas');
+            return response.json();
+        },
+        staleTime: 60000,
+        refetchOnWindowFocus: false
+    });
+
+    const salesTotalAmount = salesMetrics?.totalSales || 0;
+
+    // Combined total for the collapsed header (Sales + NVV + GDV, matching KPI card)
+    const combinedTotal = salesTotalAmount + nvvTotalAmount + gdvTotalAmount;
 
     const isLoading = isLoadingNvv || isLoadingGdv;
 
@@ -227,6 +245,10 @@ export default function PendingDocumentsUnified({ selectedPeriod, filterType, sa
                         <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">
                                 {formatCurrency(combinedTotal)}
+                            </span>
+                            <span className="text-xs text-gray-400">•</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                                Fact: {formatCurrency(salesTotalAmount)}
                             </span>
                             <span className="text-xs text-gray-400">•</span>
                             <span className="text-xs text-gray-500 dark:text-gray-400">

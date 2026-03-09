@@ -1341,6 +1341,7 @@ export const tasks = pgTable("tasks", {
   assignedToUserId: varchar("assigned_to_user_id"), // FK to users.id (nullable)
   clienteId: varchar("cliente_id"), // FK opcional a clientes (código koen)
   clienteNombre: text("cliente_nombre"), // Nombre del cliente asociado (opcional)
+  segmento: varchar("segmento"), // 'ferreterias', 'construccion', 'digital', 'marketing'
   payload: jsonb("payload"), // Type-specific data
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1351,6 +1352,7 @@ export const tasks = pgTable("tasks", {
   typeIdx: index("IDX_tasks_type").on(table.type),
   dueDateIdx: index("IDX_tasks_due_date").on(table.dueDate),
   clienteIdIdx: index("IDX_tasks_cliente_id").on(table.clienteId),
+  segmentoIdx: index("IDX_tasks_segmento").on(table.segmento),
 }));
 
 export const taskAssignments = pgTable("task_assignments", {
@@ -4818,6 +4820,8 @@ export const gastosMarketing = pgTable("gastos_marketing", {
   // Metadata
   numeroFactura: varchar("numero_factura", { length: 100 }),
   fechaFactura: date("fecha_factura"),
+  // Comments
+  comentarios: jsonb("comentarios").$type<{ autor: string; autorId: string; contenido: string; fecha: string }[]>().default(sql`'[]'::jsonb`),
   creadoPorId: varchar("creado_por_id").references(() => users.id).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

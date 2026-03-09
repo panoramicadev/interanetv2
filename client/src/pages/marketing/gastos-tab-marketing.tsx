@@ -35,7 +35,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
     Plus, Trash2, Loader2, Receipt, Upload, FileText,
     TrendingDown, CheckCircle2, Clock, ShoppingCart, Pencil,
-    Users, Phone, Mail, Building2, Eye, Download, X, RefreshCw,
+    Users, Phone, Mail, Building2, Eye, Download, X, RefreshCw, Send,
 } from "lucide-react";
 
 interface GastoMarketing {
@@ -54,6 +54,7 @@ interface GastoMarketing {
     urlFactura: string | null;
     numeroFactura: string | null;
     fechaFactura: string | null;
+    comentarios: { autor: string; autorId: string; contenido: string; fecha: string }[] | null;
     creadoPorId: string;
     createdAt: string;
     updatedAt: string;
@@ -108,12 +109,15 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
     const [uploading, setUploading] = useState<string | null>(null); // Format: "gastoId-field"
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploadTarget, setUploadTarget] = useState<{ id: string; field: string } | null>(null);
+    const uploadTargetRef = useRef<{ id: string; field: string } | null>(null);
+    const [fileInputKey, setFileInputKey] = useState(0);
 
     // PDF/document preview modal state
     const [previewOpen, setPreviewOpen] = useState(false);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [previewTitle, setPreviewTitle] = useState("");
     const [detailGasto, setDetailGasto] = useState<GastoMarketing | null>(null);
+    const [newComment, setNewComment] = useState("");
 
     // Proveedores state
     const [provDialogOpen, setProvDialogOpen] = useState(false);
@@ -253,6 +257,22 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
         }
     };
 
+    const addCommentMutation = useMutation({
+        mutationFn: async ({ id, contenido }: { id: string; contenido: string }) => {
+            const res = await apiRequest("POST", `/api/marketing/gastos/${id}/comentarios`, { contenido });
+            return await res.json();
+        },
+        onSuccess: (updatedGasto) => {
+            queryClient.invalidateQueries({ queryKey: ["/api/marketing/gastos"] });
+            setDetailGasto(updatedGasto);
+            setNewComment("");
+            toast({ title: "Comentario agregado" });
+        },
+        onError: (error: any) => {
+            toast({ title: "Error", description: error.message, variant: "destructive" });
+        }
+    });
+
     const handleProvSubmit = () => {
         if (!provForm.nombre.trim()) return;
         const payload = {
@@ -301,41 +321,56 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files?.[0] || !uploadTarget) return;
+        const currentTarget = uploadTargetRef.current;
+        if (!e.target.files?.[0] || !currentTarget) {
+            console.warn('[Upload] No file or no upload target. uploadTarget:', currentTarget);
+            return;
+        }
         const file = e.target.files[0];
-        const uploadKey = `${uploadTarget.id}-${uploadTarget.field}`;
+        const targetId = currentTarget.id;
+        const targetField = currentTarget.field;
+        const uploadKey = `${targetId}-${targetField}`;
         setUploading(uploadKey);
         try {
             const fd = new FormData();
             fd.append("file", file);
-            // Log for debugging
-            console.log('Uploading file:', file.name, file.type, file.size);
+            console.log('[Upload] Uploading file:', file.name, file.type, file.size, 'to gasto:', targetId, 'field:', targetField);
             const res = await fetch("/api/upload", { method: "POST", credentials: "include", body: fd });
             const responseData = await res.json();
-            console.log('Upload response:', responseData);
+            console.log('[Upload] Upload response:', responseData);
             if (!res.ok) throw new Error(responseData.message || "Upload failed");
             const { url } = responseData;
-            await apiRequest("PATCH", `/api/marketing/gastos/${uploadTarget.id}`, {
-                [uploadTarget.field]: url,
-                ...(uploadTarget.field === "urlOrdenCompra" ? { estado: "con_oc" } : {}),
-                ...(uploadTarget.field === "urlFactura" ? { estado: "facturado" } : {}),
+            console.log('[Upload] PATCHing gasto:', targetId, 'with', targetField, '=', url);
+            await apiRequest("PATCH", `/api/marketing/gastos/${targetId}`, {
+                [targetField]: url,
+                ...(targetField === "urlOrdenCompra" ? { estado: "con_oc" } : {}),
+                ...(targetField === "urlFactura" ? { estado: "facturado" } : {}),
             });
             queryClient.invalidateQueries({ queryKey: ["/api/marketing/gastos"] });
             queryClient.invalidateQueries({ queryKey: ["/api/marketing/metrics"] });
             toast({ title: "Documento subido correctamente" });
         } catch (error: any) {
-            console.error('Upload error:', error);
+            console.error('[Upload] Error:', error);
             toast({ title: "Error", description: error.message || "No se pudo subir el archivo.", variant: "destructive" });
         } finally {
             setUploading(null);
             setUploadTarget(null);
-            if (fileInputRef.current) fileInputRef.current.value = "";
+            uploadTargetRef.current = null;
+            setFileInputKey(prev => prev + 1);
         }
     };
 
     const triggerUpload = (id: string, field: string) => {
-        setUploadTarget({ id, field });
-        setTimeout(() => fileInputRef.current?.click(), 100);
+        const target = { id, field };
+        uploadTargetRef.current = target;
+        setUploadTarget(target);
+        setFileInputKey(prev => prev + 1);
+        setTimeout(() => {
+            if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+                fileInputRef.current.click();
+            }
+        }, 150);
     };
 
     const openPreview = (url: string, title: string) => {
@@ -418,7 +453,7 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
 
     return (
         <div className="space-y-6">
-            <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" onChange={handleFileUpload} />
+            <input key={fileInputKey} type="file" ref={fileInputRef} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" onChange={handleFileUpload} />
 
             {/* Controls */}
             <div className="flex flex-wrap items-end gap-4">
@@ -818,8 +853,8 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
                                 {previewTitle}
                             </span>
                             {previewUrl && (() => {
-                                const downloadUrl = previewUrl.includes('?') 
-                                    ? `${previewUrl}&download=true` 
+                                const downloadUrl = previewUrl.includes('?')
+                                    ? `${previewUrl}&download=true`
                                     : `${previewUrl}?download=true`;
                                 return <a href={downloadUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-medium bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors shrink-0"><Download className="h-3.5 w-3.5" />Descargar</a>;
                             })()}
@@ -865,7 +900,7 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
                         </DialogTitle>
                     </DialogHeader>
                     {detailGasto && (
-                        <div className="space-y-4 py-4">
+                        <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto">
                             <div>
                                 <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Concepto</Label>
                                 <p className="text-lg font-semibold text-slate-800">{detailGasto.concepto}</p>
@@ -898,10 +933,61 @@ export default function GastosTabMarketing({ userRole }: { userRole: string }) {
                                     <p className="text-slate-700">{detailGasto.numeroFactura || "—"}</p>
                                 </div>
                             </div>
+
+                            {/* Comments Section */}
+                            <div className="border-t border-slate-200 pt-4">
+                                <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 block">Comentarios</Label>
+                                {/* Comment list */}
+                                <div className="space-y-2 mb-3 max-h-[200px] overflow-y-auto">
+                                    {(!detailGasto.comentarios || detailGasto.comentarios.length === 0) ? (
+                                        <p className="text-sm text-slate-400 italic py-2">Sin comentarios aún.</p>
+                                    ) : (
+                                        detailGasto.comentarios.map((c, i) => (
+                                            <div key={i} className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className="text-xs font-semibold text-indigo-600">{c.autor}</span>
+                                                    <span className="text-[10px] text-slate-400">
+                                                        {new Date(c.fecha).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                                <p className="text-sm text-slate-700 whitespace-pre-wrap">{c.contenido}</p>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                                {/* Add comment input */}
+                                <div className="flex gap-2">
+                                    <Textarea
+                                        value={newComment}
+                                        onChange={(e) => setNewComment(e.target.value)}
+                                        placeholder="Escribe un comentario..."
+                                        className="flex-1 min-h-[40px] text-sm resize-none"
+                                        rows={2}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !e.shiftKey && newComment.trim()) {
+                                                e.preventDefault();
+                                                addCommentMutation.mutate({ id: detailGasto.id, contenido: newComment });
+                                            }
+                                        }}
+                                    />
+                                    <Button
+                                        size="sm"
+                                        className="self-end h-10 px-3"
+                                        disabled={!newComment.trim() || addCommentMutation.isPending}
+                                        onClick={() => addCommentMutation.mutate({ id: detailGasto.id, contenido: newComment })}
+                                    >
+                                        {addCommentMutation.isPending ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Send className="h-4 w-4" />
+                                        )}
+                                    </Button>
+                                </div>
+                            </div>
                         </div>
                     )}
                     <DialogFooter>
-                        <Button onClick={() => setDetailGasto(null)}>Cerrar</Button>
+                        <Button onClick={() => { setDetailGasto(null); setNewComment(""); }}>Cerrar</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

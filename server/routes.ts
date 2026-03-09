@@ -51,6 +51,8 @@ import {
   // AI Chat
   chatMessages,
   aiKnowledgeBase,
+  // Marketing
+  gastosMarketing,
 } from "../shared/schema";
 import { eq, and, isNotNull, isNull, ne, sql, desc, or, sum, countDistinct } from "drizzle-orm";
 import { emailService } from "./services/email";
@@ -588,10 +590,10 @@ export function registerRoutes(app: Express): Server {
         '.xls': 'application/vnd.ms-excel',
         '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       };
-      
+
       const contentType = contentTypes[ext] || 'application/octet-stream';
       res.setHeader('Content-Type', contentType);
-      
+
       // Check if download is requested via query param, otherwise inline for preview
       const wantsDownload = req.query.download === 'true';
       if (wantsDownload) {
@@ -599,7 +601,7 @@ export function registerRoutes(app: Express): Server {
       } else {
         res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
       }
-      
+
       res.sendFile(filePath);
     } else {
       console.warn(`❌ [GET-UPLOAD] File NOT found: ${filePath}`);
@@ -922,8 +924,13 @@ export function registerRoutes(app: Express): Server {
   // When current year has minimal data (early in year), shows previous year as main reference
   app.get('/api/sales/yearly-totals', requireCommercialAccess, async (req, res) => {
     try {
-      const { segment, salesperson, client } = req.query;
-      const currentYear = new Date().getFullYear();
+      const { segment, salesperson, client, endDateStr } = req.query;
+
+      let currentYear = new Date().getFullYear();
+      if (typeof endDateStr === 'string' && endDateStr.match(/^\d{4}/)) {
+        currentYear = parseInt(endDateStr.substring(0, 4), 10);
+      }
+
       const filters = {
         segment: segment as string,
         salesperson: salesperson as string,
@@ -931,16 +938,18 @@ export function registerRoutes(app: Express): Server {
       };
 
       // First get current year totals
-      const currentTotals = await storage.getYearlyTotals(currentYear, filters);
+      const currentTotals = await storage.getYearlyTotals(currentYear, filters, endDateStr as string);
+      console.log(`[getYearlyTotals API] Req endDateStr: ${endDateStr}, Year: ${currentYear}, Totals: `, currentTotals);
 
       // If we're in the first days of a new year and current year has very little data,
       // return previous year as the main reference for better UX
-      const isEarlyInYear = new Date().getMonth() === 0 && new Date().getDate() <= 15; // First 15 days of January
+      // ONLY apply this if no specific historical period was requested (endDateStr represents an interactive filter)
+      const isEarlyInYear = !endDateStr && new Date().getMonth() === 0 && new Date().getDate() <= 15; // First 15 days of January
       const hasMinimalCurrentData = Math.abs(currentTotals.currentYearTotal) < 1000000; // Less than 1M in sales
 
       if (isEarlyInYear && hasMinimalCurrentData) {
         // Get previous year as main reference
-        const previousYearTotals = await storage.getYearlyTotals(currentYear - 1, filters);
+        const previousYearTotals = await storage.getYearlyTotals(currentYear - 1, filters, endDateStr as string);
         res.json({
           ...previousYearTotals,
           note: `Mostrando ${currentYear - 1} como referencia principal (${currentYear} recién inicia)`
@@ -5036,6 +5045,7 @@ export function registerRoutes(app: Express): Server {
         ep.min_unit,
         ep.step_size,
         ep.format_unit,
+        ep.packaging_unit_name,
         ep.weight, ep.weight_unit,
         ep.length, ep.length_unit,
         ep.width, ep.width_unit,
@@ -5048,32 +5058,51 @@ export function registerRoutes(app: Express): Server {
         pl.codigo as sku,
         pl.producto as product_name,
         pl.unidad as unit,
-        pl.lista as price_list,
-        epg.nombre as group_display_name,
-        epg.categoria as group_category
+        pl.lista as price_list
       FROM ecommerce_products ep
       INNER JOIN price_list pl ON ep.price_list_id = pl.id
-      LEFT JOIN ecommerce_product_groups epg ON ep.group_id = epg.id
       WHERE ep.categoria IS NOT NULL
-      ORDER BY ep.categoria, ep.variant_generic_display_name, ep.variant_index
+      ORDER BY ep.variant_generic_display_name, ep.format_unit, ep.variant_index
     `);
 
     const rows = Array.isArray(result) ? result : (result as any).rows || [];
 
-    const groupsMap = new Map<string, {
-      groupName: string;
-      products: Map<string, {
-        genericName: string;
-        parentSku: string | null;
-        groupId: string | null;
-        variants: any[];
-      }>;
+    // New structure: Product -> Formats -> Colors
+    const productsMap = new Map<string, {
+      genericName: string;
+      parentSku: string | null;
+      groupName: string | null;
+      formats: Map<string, any[]>;
     }>();
 
     for (const row of rows as any[]) {
-      const groupName = row.group_name || 'Sin Grupo';
-      const genericName = row.variant_generic_display_name || row.product_name || 'Sin Nombre';
+      const groupName = row.group_name || null;
       const parentSku = row.variant_parent_sku || row.sku;
+
+      // Obtener el formato limpio desde packaging_unit_name
+      const formatUnit = row.packaging_unit_name || row.format_unit || row.unit || 'Sin formato';
+
+      // Extraer nombre base desde product_name (quitando el color al final)
+      const fullName = row.product_name || 'Sin Nombre';
+
+      // Lista de colores conocidos para quitar del final del nombre
+      const colorSuffixes = [
+        'NATURAL', 'BLANCO', 'NEGRO', 'GRIS', 'ROJO', 'AZUL', 'VERDE', 'AMARILLO', 'CAFE',
+        'OCRE', 'NARANJO', 'BERMELLON', 'ROBLE', 'NOGAL', 'MAPLE', 'CAOBA', 'ALERCE',
+        'BLANCO HOSPITALARIO', 'BEIGE HOSPITALARIO', 'CELESTE CLINICO', 'GRIS BOX',
+        'ROSA MATERNO', 'VERDE URGENCIA', 'BASE OSCURA', 'BASE INCOLORA', 'INCOLORO',
+        'GRIS OSCURO', 'AZUL CANADA', 'CAFE', 'GRIS MAQUINARIA'
+      ];
+
+      let baseName = fullName;
+      for (const color of colorSuffixes) {
+        if (baseName.toUpperCase().endsWith(' ' + color)) {
+          baseName = baseName.substring(0, baseName.length - color.length - 1).trim();
+          break;
+        }
+      }
+      const genericName = baseName || fullName;
+      const unit = formatUnit;
 
       if (search) {
         const s = (search as string).toLowerCase();
@@ -5081,34 +5110,34 @@ export function registerRoutes(app: Express): Server {
           row.sku?.toLowerCase().includes(s) ||
           row.product_name?.toLowerCase().includes(s) ||
           genericName.toLowerCase().includes(s) ||
-          row.color?.toLowerCase().includes(s) ||
-          groupName.toLowerCase().includes(s);
+          (row.color && row.color.toLowerCase().includes(s)) ||
+          (groupName && groupName.toLowerCase().includes(s));
         if (!matches) continue;
       }
 
       if (groupFilter && groupFilter !== 'all' && groupName !== groupFilter) continue;
 
-      if (!groupsMap.has(groupName)) {
-        groupsMap.set(groupName, { groupName, products: new Map() });
-      }
-      const group = groupsMap.get(groupName)!;
-
-      const productKey = genericName;
-      if (!group.products.has(productKey)) {
-        group.products.set(productKey, {
+      if (!productsMap.has(genericName)) {
+        productsMap.set(genericName, {
           genericName,
           parentSku,
-          groupId: row.group_id,
-          variants: [],
+          groupName,
+          formats: new Map(),
         });
       }
+      const product = productsMap.get(genericName)!;
 
-      group.products.get(productKey)!.variants.push({
+      if (!product.formats.has(unit)) {
+        product.formats.set(unit, []);
+      }
+
+      product.formats.get(unit)!.push({
         ecomId: row.ecom_id,
         sku: row.sku,
         name: row.product_name,
         color: row.color,
-        unit: row.unit || row.format_unit,
+        unit: unit,
+        groupName: groupName,
         price: row.precio,
         priceList: row.price_list,
         minUnit: row.min_unit,
@@ -5137,16 +5166,12 @@ export function registerRoutes(app: Express): Server {
       });
     }
 
-    const catalog = Array.from(groupsMap.values()).map(g => ({
-      groupName: g.groupName,
-      productCount: Array.from(g.products.values()).reduce((acc, p) => acc + p.variants.length, 0),
-      products: Array.from(g.products.values()).map(p => ({
-        genericName: p.genericName,
-        parentSku: p.parentSku,
-        groupId: p.groupId,
-        variantCount: p.variants.length,
-        variants: p.variants,
-      })),
+    // Convert Map to object for JSON response
+    const catalog = Array.from(productsMap.values()).map(p => ({
+      genericName: p.genericName,
+      parentSku: p.parentSku,
+      groupName: p.groupName,
+      formats: Object.fromEntries(p.formats),
     }));
 
     const availableGroups = [...new Set((rows as any[]).map((r: any) => r.group_name).filter(Boolean))].sort();
@@ -8503,10 +8528,10 @@ export function registerRoutes(app: Express): Server {
         // Get metadata to check content type
         const [metadata] = await file.getMetadata();
         const contentType = metadata.contentType || 'application/octet-stream';
-        
+
         // Set Content-Type header
         res.setHeader('Content-Type', contentType);
-        
+
         // Set Content-Disposition for download if requested
         if (wantsDownload) {
           const fileName = filePath.split('/').pop() || 'download';
@@ -8514,7 +8539,7 @@ export function registerRoutes(app: Express): Server {
         } else {
           res.setHeader('Content-Disposition', 'inline');
         }
-        
+
         // Stream the file
         const stream = file.createReadStream();
         stream.on('error', (err) => {
@@ -8533,7 +8558,7 @@ export function registerRoutes(app: Express): Server {
       try {
         const fs = await import('fs/promises');
         await fs.access(localPath);
-        
+
         // Set Content-Type based on extension
         const ext = path.extname(filePath).toLowerCase();
         const contentTypes: Record<string, string> = {
@@ -8542,14 +8567,14 @@ export function registerRoutes(app: Express): Server {
         };
         const contentType = contentTypes[ext] || 'application/octet-stream';
         res.setHeader('Content-Type', contentType);
-        
+
         if (wantsDownload) {
           const fileName = filePath.split('/').pop() || 'download';
           res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
         } else {
           res.setHeader('Content-Disposition', 'inline');
         }
-        
+
         return res.sendFile(localPath);
       } catch {
         // File doesn't exist locally either
@@ -14100,6 +14125,43 @@ export function registerRoutes(app: Express): Server {
       res.status(204).send();
     } catch (error: any) {
       res.status(500).json({ message: 'Error al eliminar gasto', error: error.message });
+    }
+  }));
+
+  // Add comment to a marketing gasto
+  app.post('/api/marketing/gastos/:id/comentarios', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { contenido } = req.body;
+      if (!contenido || !contenido.trim()) {
+        return res.status(400).json({ message: 'El comentario no puede estar vacío' });
+      }
+
+      // Get current gasto by ID
+      const [currentGasto] = await db
+        .select()
+        .from(gastosMarketing)
+        .where(eq(gastosMarketing.id, req.params.id));
+
+      if (!currentGasto) {
+        return res.status(404).json({ message: 'Gasto no encontrado' });
+      }
+
+      const existingComments = (currentGasto.comentarios as any[]) || [];
+      const newComment = {
+        autor: user.name || user.username || 'Usuario',
+        autorId: user.id,
+        contenido: contenido.trim(),
+        fecha: new Date().toISOString(),
+      };
+
+      const updatedGasto = await storage.updateGastoMarketing(req.params.id, {
+        comentarios: [...existingComments, newComment],
+      } as any);
+
+      res.json(updatedGasto);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al agregar comentario', error: error.message });
     }
   }));
 

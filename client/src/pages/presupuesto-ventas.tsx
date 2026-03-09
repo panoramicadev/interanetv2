@@ -124,9 +124,9 @@ export default function PresupuestoVentas() {
         reader.onload = (e) => {
             try {
                 const data = new Uint8Array(e.target?.result as ArrayBuffer);
-                const workbook = XLSX.read(data, { type: "array" });
+                const workbook = XLSX.read(data, { type: "array", raw: true });
                 const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                const json: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                const json: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true });
 
                 if (!json || json.length < 3) {
                     toast({ title: "Error", description: "El archivo no tiene suficientes filas.", variant: "destructive" });
@@ -179,8 +179,17 @@ export default function PresupuestoVentas() {
                         continue;
                     }
 
-                    // Skip TOTAL and META rows
-                    if (SKIP_ROWS.includes(firstCell) || SKIP_ROWS.includes(secondCell)) continue;
+                    // Skip META row always
+                    if (firstCell === "META" || secondCell === "META") {
+                        continue;
+                    }
+
+                    // Skip TOTAL rows (except for FABRICACION MODULAR which only has a total)
+                    if (firstCell === "TOTAL" || secondCell === "TOTAL") {
+                        if (!currentCategory.includes("FABRICACION MODULAR") && !currentCategory.includes("FABRICACIÓN MODULAR")) {
+                            continue;
+                        }
+                    }
 
                     // Skip empty or numeric-only first cells (empty rows)
                     // Check if this row has a name in column A or B and month values
@@ -190,23 +199,12 @@ export default function PresupuestoVentas() {
                     // Entity name could be in column A (index 0) or column B (index 1)
                     if (firstCell && !firstCell.match(/^\$?[\d.,]+$/)) {
                         entityName = row[0] ? String(row[0]).trim() : "";
-                        // Find where month data starts (look for numeric values)
-                        for (let c = 1; c < Math.min(row.length, 14); c++) {
-                            const val = row[c];
-                            if (val !== null && val !== undefined && val !== "" && !isNaN(Number(String(val).replace(/[$.,]/g, "")))) {
-                                monthStartCol = c;
-                                break;
-                            }
-                        }
+                        // Los meses empiezan directamente en la próxima columna
+                        monthStartCol = 1;
                     } else if (secondCell && !secondCell.match(/^\$?[\d.,]+$/)) {
                         entityName = row[1] ? String(row[1]).trim() : "";
-                        for (let c = 2; c < Math.min(row.length, 15); c++) {
-                            const val = row[c];
-                            if (val !== null && val !== undefined && val !== "" && !isNaN(Number(String(val).replace(/[$.,]/g, "")))) {
-                                monthStartCol = c;
-                                break;
-                            }
-                        }
+                        // Los meses empiezan directamente en la próxima columna
+                        monthStartCol = 2;
                     }
 
                     if (!entityName || monthStartCol === -1) continue;
@@ -219,7 +217,37 @@ export default function PresupuestoVentas() {
                         let monto = 0;
                         if (rawVal !== null && rawVal !== undefined && rawVal !== "") {
                             // Handle formatted numbers like "$15.000.000" or plain numbers
-                            const cleaned = String(rawVal).replace(/[$\s]/g, "").replace(/\./g, "").replace(",", ".");
+                            let cleaned = String(rawVal).replace(/[$\s]/g, "");
+
+                            // Si el string incluye comas y puntos (ej. 1,500.50 o 1.500,50), estandarizamos
+                            // Caso CL/ES: 15.000.000,00 -> removemos puntos, cambiamos coma a punto
+                            if (cleaned.includes('.') && cleaned.includes(',')) {
+                                const lastDotIdx = cleaned.lastIndexOf('.');
+                                const lastCommaIdx = cleaned.lastIndexOf(',');
+                                if (lastCommaIdx > lastDotIdx) {
+                                    // Formato EU: 1.000.000,00
+                                    cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+                                } else {
+                                    // Formato US: 1,000,000.00
+                                    cleaned = cleaned.replace(/,/g, "");
+                                }
+                            } else if (cleaned.includes('.')) {
+                                // Si solo hay puntos pero varios (ej: 15.000.000), son separadores de miles
+                                const parts = cleaned.split('.');
+                                if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+                                    cleaned = cleaned.replace(/\./g, "");
+                                }
+                                // De lo contrario es un punto decimal: 1500.50 (se deja igual)
+                            } else if (cleaned.includes(',')) {
+                                // Si solo hay comas pero varias (15,000,000) o una al final (1500,50)
+                                const parts = cleaned.split(',');
+                                if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+                                    cleaned = cleaned.replace(/,/g, "");
+                                } else {
+                                    cleaned = cleaned.replace(",", ".");
+                                }
+                            }
+
                             monto = parseFloat(cleaned) || 0;
                         }
 
@@ -289,10 +317,10 @@ export default function PresupuestoVentas() {
         e.preventDefault();
         setIsDragging(false);
         const file = e.dataTransfer.files?.[0];
-        if (file && (file.name.endsWith(".xlsx") || file.name.endsWith(".xls"))) {
+        if (file && (file.name.endsWith(".xlsx") || file.name.endsWith(".xls") || file.name.endsWith(".csv"))) {
             parseExcel(file);
         } else {
-            toast({ title: "Formato inválido", description: "Solo se aceptan archivos .xlsx o .xls", variant: "destructive" });
+            toast({ title: "Formato inválido", description: "Solo se aceptan archivos .xlsx, .xls o .csv", variant: "destructive" });
         }
     };
 
@@ -420,15 +448,15 @@ export default function PresupuestoVentas() {
                             >
                                 <Upload className="h-10 w-10 mx-auto mb-4 text-muted-foreground" />
                                 <p className="text-sm font-medium mb-1">
-                                    Arrastra tu archivo Excel aquí o haz clic para seleccionar
+                                    Arrastra tu archivo Excel / CSV aquí o haz clic para seleccionar
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                    Formato: .xlsx o .xls — Estructura esperada: Categorías como secciones, entidades como filas, meses como columnas
+                                    Formato: .xlsx, .xls, o .csv — Estructura esperada: Categorías como secciones, entidades como filas, meses como columnas
                                 </p>
                                 <input
                                     id="file-input"
                                     type="file"
-                                    accept=".xlsx,.xls"
+                                    accept=".xlsx,.xls,.csv"
                                     className="hidden"
                                     onChange={handleFileChange}
                                 />

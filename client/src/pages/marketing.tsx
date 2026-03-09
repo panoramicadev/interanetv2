@@ -56,27 +56,27 @@ import { formatDateForAPI, parseDateFromAPI } from "@/lib/dateUtils";
 import CreatividadesMarketing from "./marketing/creatividades-marketing";
 import PresupuestoTabMarketing from "./marketing/presupuesto-tab-marketing";
 import GastosTabMarketing from "./marketing/gastos-tab-marketing";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 
-interface SolicitudMarketing {
-  id: string;
-  titulo: string;
-  descripcion: string;
-  monto: string | null;
-  urgencia: 'baja' | 'media' | 'alta';
-  urlReferencia: string | null;
-  pdfPresupuesto: string | null;
-  pasos: { nombre: string; completado: boolean; orden: number }[] | null;
-  notas: string | null;
-  estado: string;
-  supervisorId: string | null;
-  supervisorName: string | null;
-  fechaSolicitud: string;
-  fechaEntrega: string | null;
-  fechaCompletado: string | null;
-  motivoRechazo: string | null;
-  mes: number;
-  anio: number;
-}
+// Zod schema para Tareas de Marketing
+const createMarketingTaskSchema = z.object({
+  title: z.string().min(1, "Título es requerido"),
+  description: z.string().optional(),
+  type: z.enum(["texto", "formulario", "visita"]).default("texto"),
+  priority: z.enum(["low", "medium", "high"]).default("medium"),
+  dueDate: z.string().optional().or(z.null()),
+  clienteId: z.string().optional().or(z.null()),
+  clienteNombre: z.string().optional().or(z.null()),
+  assignments: z.array(z.object({
+    assigneeType: z.enum(["supervisor", "salesperson"]),
+    assigneeId: z.string().min(1, "Destinatario requerido"),
+  })).min(1, "Debe asignar al menos un destinatario"),
+});
+
+type CreateMarketingTaskInput = z.infer<typeof createMarketingTaskSchema>;
 
 interface MarketingMetrics {
   presupuestoTotal: number;
@@ -133,11 +133,6 @@ export default function Marketing() {
   const [selectedEstado, setSelectedEstado] = useState<string>("todos");
   const [presupuestoDialogOpen, setPresupuestoDialogOpen] = useState(false);
   const [solicitudDialogOpen, setSolicitudDialogOpen] = useState(false);
-  const [estadoDialogOpen, setEstadoDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [viewDialogOpen, setViewDialogOpen] = useState(false);
-  const [selectedSolicitud, setSelectedSolicitud] = useState<SolicitudMarketing | null>(null);
 
   if (!user) {
     return (
@@ -203,12 +198,12 @@ export default function Marketing() {
               )}
 
               <TabsTrigger
-                value="solicitudes"
-                data-testid="tab-solicitudes"
+                value="tareas"
+                data-testid="tab-tareas-marketing"
                 className="flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all"
               >
                 <FileText className="h-4 w-4 shrink-0" />
-                <span className="hidden sm:inline">Solicitudes</span>
+                <span className="hidden sm:inline">Tareas</span>
               </TabsTrigger>
 
               {isAdmin && (
@@ -306,7 +301,7 @@ export default function Marketing() {
           )}
 
           {/* Tab: Solicitudes */}
-          <TabsContent value="solicitudes" className="space-y-6">
+          <TabsContent value="tareas" className="space-y-6">
             <div className="flex flex-wrap items-end gap-4">
               <div className="flex-1 min-w-[140px]">
                 <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Mes</Label>
@@ -336,33 +331,11 @@ export default function Marketing() {
                 className="rounded-xl bg-indigo-600 hover:bg-indigo-700"
               >
                 <Plus className="mr-2 h-4 w-4" />
-                Nueva Solicitud
+                Nueva Tarea
               </Button>
             </div>
 
-            <SolicitudesList
-              mes={selectedMes}
-              anio={selectedAnio}
-              selectedEstado={selectedEstado}
-              onEstadoChange={setSelectedEstado}
-              onEditEstado={(solicitud) => {
-                setSelectedSolicitud(solicitud);
-                setEstadoDialogOpen(true);
-              }}
-              onEdit={(solicitud) => {
-                setSelectedSolicitud(solicitud);
-                setEditDialogOpen(true);
-              }}
-              onDelete={(solicitud) => {
-                setSelectedSolicitud(solicitud);
-                setDeleteDialogOpen(true);
-              }}
-              onView={(solicitud) => {
-                setSelectedSolicitud(solicitud);
-                setViewDialogOpen(true);
-              }}
-              userRole={user.role}
-            />
+            <MarketingTasksList mes={selectedMes} anio={selectedAnio} userRole={user.role} />
           </TabsContent>
 
           {/* Tab: Calendario (Hitos + Tareas + Creatividades) */}
@@ -406,37 +379,7 @@ export default function Marketing() {
           anio={selectedAnio}
         />
 
-        <SolicitudDialog
-          open={solicitudDialogOpen}
-          onOpenChange={setSolicitudDialogOpen}
-          mes={selectedMes}
-          anio={selectedAnio}
-        />
-
-        <EstadoDialog
-          open={estadoDialogOpen}
-          onOpenChange={setEstadoDialogOpen}
-          solicitud={selectedSolicitud}
-        />
-
-        <EditSolicitudDialog
-          open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
-          solicitud={selectedSolicitud}
-        />
-
-        <DeleteSolicitudDialog
-          open={deleteDialogOpen}
-          onOpenChange={setDeleteDialogOpen}
-          solicitud={selectedSolicitud}
-        />
-
-        <ViewSolicitudDialog
-          open={viewDialogOpen}
-          onOpenChange={setViewDialogOpen}
-          solicitud={selectedSolicitud}
-          userRole={user.role}
-        />
+        <MarketingTaskDialog open={solicitudDialogOpen} onOpenChange={setSolicitudDialogOpen} />
       </div>
     </div>
   );
@@ -687,338 +630,51 @@ function PasosChecklist({
   );
 }
 
-// Solicitudes List Component
-function SolicitudesList({
-  mes,
-  anio,
-  selectedEstado,
-  onEstadoChange,
-  onEditEstado,
-  onEdit,
-  onDelete,
-  onView,
-  userRole,
-}: {
-  mes: number;
-  anio: number;
-  selectedEstado: string;
-  onEstadoChange: (estado: string) => void;
-  onEditEstado: (solicitud: SolicitudMarketing) => void;
-  onEdit: (solicitud: SolicitudMarketing) => void;
-  onDelete: (solicitud: SolicitudMarketing) => void;
-  onView: (solicitud: SolicitudMarketing) => void;
-  userRole: string;
-}) {
-  const { data: solicitudes, isLoading } = useQuery<SolicitudMarketing[]>({
-    queryKey: ['/api/marketing/solicitudes', mes, anio, selectedEstado],
+// Marketing Tasks List Component
+function MarketingTasksList({ mes, anio, userRole }: { mes: number; anio: number; userRole: string; }) {
+  const { data: tasks, isLoading } = useQuery<any[]>({
+    queryKey: ['/api/tasks/marketing', mes, anio],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      params.append('mes', mes.toString());
-      params.append('anio', anio.toString());
-      if (selectedEstado !== 'todos') {
-        params.append('estado', selectedEstado);
-      }
-
-      const response = await fetch(`/api/marketing/solicitudes?${params}`, {
-        credentials: 'include'
-      });
+      const response = await fetch('/api/tasks');
       if (!response.ok) {
-        throw new Error('Error al cargar solicitudes');
+        throw new Error('Error al cargar tareas');
       }
-      return response.json();
+      const allTasks = await response.json();
+      return allTasks.filter((t: any) => t.segmento === 'marketing');
     },
   });
 
-  const estadosConfig = {
-    solicitado: { label: "Solicitado", variant: "secondary" as const },
-    en_proceso: { label: "En Proceso", variant: "default" as const },
-    completado: { label: "Completado", variant: "default" as const },
-    rechazado: { label: "destructive" as const, variant: "destructive" as const },
-  };
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-8">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <CardTitle>Solicitudes de Marketing</CardTitle>
-          <Select value={selectedEstado} onValueChange={onEstadoChange}>
-            <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-estado-filter">
-              <SelectValue placeholder="Filtrar por estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos los estados</SelectItem>
-              <SelectItem value="solicitado">Solicitado</SelectItem>
-              <SelectItem value="en_proceso">En Proceso</SelectItem>
-              <SelectItem value="completado">Completado</SelectItem>
-              <SelectItem value="rechazado">Rechazado</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <CardTitle>Tareas de Marketing</CardTitle>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin" />
+        {tasks && tasks.length > 0 ? (
+          <div className="space-y-4">
+            {tasks.map((task: any) => (
+              <Card key={task.id} className="p-4 hover:shadow-md transition-shadow">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-semibold text-lg">{task.title}</h3>
+                    <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
+                  </div>
+                  <Badge>{task.status}</Badge>
+                </div>
+              </Card>
+            ))}
           </div>
-        ) : solicitudes && solicitudes.length > 0 ? (
-          <>
-            {/* Desktop Table */}
-            <div className="hidden md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Título</TableHead>
-                    <TableHead>Supervisor</TableHead>
-                    <TableHead>Monto</TableHead>
-                    <TableHead>Urgencia</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Fecha Solicitud</TableHead>
-                    <TableHead>Fecha Entrega</TableHead>
-                    <TableHead>Pasos</TableHead>
-                    {(userRole === 'admin' || userRole === 'supervisor') && <TableHead>Acciones</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {solicitudes.map((solicitud) => (
-                    <TableRow
-                      key={solicitud.id}
-                      data-testid={`row-solicitud-${solicitud.id}`}
-                      className="cursor-pointer"
-                      onClick={() => onView(solicitud)}
-                    >
-                      <TableCell className="font-medium">{solicitud.titulo}</TableCell>
-                      <TableCell>{solicitud.supervisorName}</TableCell>
-                      <TableCell>
-                        {solicitud.monto
-                          ? `$${parseFloat(solicitud.monto).toLocaleString('es-CL')}`
-                          : <span className="text-muted-foreground italic">Pendiente</span>
-                        }
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          className={
-                            solicitud.urgencia === 'alta' ? 'bg-red-500 text-white hover:bg-red-600' :
-                              solicitud.urgencia === 'media' ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
-                                'bg-green-500 text-white hover:bg-green-600'
-                          }
-                          data-testid={`badge-urgencia-${solicitud.id}`}
-                        >
-                          {solicitud.urgencia === 'alta' && 'Alta'}
-                          {solicitud.urgencia === 'media' && 'Media'}
-                          {solicitud.urgencia === 'baja' && 'Normal'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          className={
-                            solicitud.estado === 'rechazado' ? 'bg-red-500 text-white hover:bg-red-600' :
-                              solicitud.estado === 'completado' ? 'bg-green-500 text-white hover:bg-green-600' :
-                                'bg-yellow-500 text-white hover:bg-yellow-600'
-                          }
-                        >
-                          {solicitud.estado === 'solicitado' && 'Solicitado'}
-                          {solicitud.estado === 'en_proceso' && 'En Proceso'}
-                          {solicitud.estado === 'completado' && 'Completado'}
-                          {solicitud.estado === 'rechazado' && 'Rechazado'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {format(new Date(solicitud.fechaSolicitud), 'dd/MM/yyyy', { locale: es })}
-                      </TableCell>
-                      <TableCell>
-                        {solicitud.fechaEntrega
-                          ? format(new Date(solicitud.fechaEntrega), 'dd/MM/yyyy', { locale: es })
-                          : '-'}
-                      </TableCell>
-                      <TableCell>
-                        {solicitud.pasos && solicitud.pasos.length > 0 ? (
-                          <span className="text-sm">
-                            {solicitud.pasos.filter(p => p.completado).length}/{solicitud.pasos.length}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">-</span>
-                        )}
-                      </TableCell>
-                      {(userRole === 'admin' || userRole === 'supervisor') && (
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onEdit(solicitud);
-                              }}
-                              data-testid={`button-editar-${solicitud.id}`}
-                              title="Editar solicitud"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onEditEstado(solicitud);
-                              }}
-                              data-testid={`button-cambiar-estado-${solicitud.id}`}
-                              title="Cambiar estado"
-                            >
-                              <CheckCircle className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onDelete(solicitud);
-                              }}
-                              data-testid={`button-eliminar-${solicitud.id}`}
-                              title="Eliminar solicitud"
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            {/* Mobile Cards */}
-            <div className="md:hidden space-y-4">
-              {solicitudes.map((solicitud) => (
-                <Card
-                  key={solicitud.id}
-                  data-testid={`card-solicitud-${solicitud.id}`}
-                  className="cursor-pointer hover:bg-accent/50 transition-colors"
-                  onClick={() => onView(solicitud)}
-                >
-                  <CardContent className="pt-6">
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-start">
-                        <h3 className="font-semibold text-lg">{solicitud.titulo}</h3>
-                        <Badge
-                          className={
-                            solicitud.estado === 'rechazado' ? 'bg-red-500 text-white hover:bg-red-600' :
-                              solicitud.estado === 'completado' ? 'bg-green-500 text-white hover:bg-green-600' :
-                                'bg-yellow-500 text-white hover:bg-yellow-600'
-                          }
-                        >
-                          {solicitud.estado === 'solicitado' && 'Solicitado'}
-                          {solicitud.estado === 'en_proceso' && 'En Proceso'}
-                          {solicitud.estado === 'completado' && 'Completado'}
-                          {solicitud.estado === 'rechazado' && 'Rechazado'}
-                        </Badge>
-                      </div>
-
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Supervisor:</span>
-                          <span className="font-medium">{solicitud.supervisorName}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Monto:</span>
-                          <span className="font-medium">
-                            {solicitud.monto
-                              ? `$${parseFloat(solicitud.monto).toLocaleString('es-CL')}`
-                              : <span className="text-muted-foreground italic">Pendiente</span>
-                            }
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Urgencia:</span>
-                          <Badge
-                            className={
-                              solicitud.urgencia === 'alta' ? 'bg-red-500 text-white hover:bg-red-600' :
-                                solicitud.urgencia === 'media' ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
-                                  'bg-green-500 text-white hover:bg-green-600'
-                            }
-                            data-testid={`badge-urgencia-mobile-${solicitud.id}`}
-                          >
-                            {solicitud.urgencia === 'alta' && 'Alta'}
-                            {solicitud.urgencia === 'media' && 'Media'}
-                            {solicitud.urgencia === 'baja' && 'Normal'}
-                          </Badge>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Fecha Solicitud:</span>
-                          <span>{format(new Date(solicitud.fechaSolicitud), 'dd/MM/yyyy', { locale: es })}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Fecha Entrega:</span>
-                          <span>
-                            {solicitud.fechaEntrega
-                              ? format(new Date(solicitud.fechaEntrega), 'dd/MM/yyyy', { locale: es })
-                              : '-'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {(solicitud.pasos && solicitud.pasos.length > 0) && (
-                        <div className="flex justify-between pt-3 border-t">
-                          <span className="text-sm font-medium text-muted-foreground">Pasos:</span>
-                          <span className="text-sm font-medium">
-                            {solicitud.pasos.filter(p => p.completado).length}/{solicitud.pasos.length}
-                          </span>
-                        </div>
-                      )}
-
-                      {(userRole === 'admin' || userRole === 'supervisor') && (
-                        <div className="flex gap-2 mt-4" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            className="flex-1"
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onEdit(solicitud);
-                            }}
-                            data-testid={`button-editar-mobile-${solicitud.id}`}
-                          >
-                            <Edit className="h-4 w-4 mr-2" />
-                            Editar
-                          </Button>
-                          <Button
-                            className="flex-1"
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onEditEstado(solicitud);
-                            }}
-                            data-testid={`button-cambiar-estado-mobile-${solicitud.id}`}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-2" />
-                            Estado
-                          </Button>
-                          <Button
-                            className="flex-1"
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDelete(solicitud);
-                            }}
-                            data-testid={`button-eliminar-mobile-${solicitud.id}`}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Eliminar
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </>
         ) : (
           <div className="text-center py-8 text-muted-foreground">
-            No hay solicitudes para mostrar
+            No hay tareas de marketing registradas en este mes.
           </div>
         )}
       </CardContent>
@@ -1201,1300 +857,227 @@ function PresupuestoDialog({
   );
 }
 
-// Solicitud Dialog Component
-function SolicitudDialog({
-  open,
-  onOpenChange,
-  mes,
-  anio,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  mes: number;
-  anio: number;
-}) {
+
+// Marketing Task Dialog
+function MarketingTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void; }) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [titulo, setTitulo] = useState("");
-  const [descripcion, setDescripcion] = useState("");
-  const [urgencia, setUrgencia] = useState("baja");
-  const [fechaEntrega, setFechaEntrega] = useState("");
-  const [imagenReferencia, setImagenReferencia] = useState<File | null>(null);
-  const [imagenPreview, setImagenPreview] = useState<string | null>(null);
-  const [selectedSolicitanteId, setSelectedSolicitanteId] = useState("");
-  const [pasos, setPasos] = useState<{ nombre: string; completado: boolean; orden: number }[]>([]);
-  const [nuevoPaso, setNuevoPaso] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
-
-  // Obtener lista de solicitantes (admin, supervisor, vendedor)
-  const { data: solicitantes = [] } = useQuery<any[]>({
-    queryKey: ['/api/marketing/solicitantes'],
+  
+  const { data: users = [] } = useQuery<any[]>({
+    queryKey: ['/api/users'],
+    queryFn: async () => {
+      const res = await fetch('/api/users');
+      return res.json();
+    }
   });
 
-  // Para no-admin, autoseleccionar al usuario actual
-  useEffect(() => {
-    if (open && user) {
-      if (user.role !== 'admin') {
-        // Supervisores y vendedores solo pueden seleccionarse a sí mismos
-        setSelectedSolicitanteId(user.id.toString());
-      } else {
-        setSelectedSolicitanteId("");
-      }
-    }
-  }, [open, user]);
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImagenReferencia(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagenPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const uploadImage = async (solicitudId: string, file: File) => {
-    const formData = new FormData();
-    formData.append('imagen', file);
-
-    const response = await fetch(`/api/marketing/solicitudes/${solicitudId}/imagen`, {
-      method: 'POST',
-      body: formData,
-      credentials: 'include',
-    });
-
-    if (!response.ok) {
-      throw new Error('Error al subir imagen');
-    }
-
-    return await response.json();
-  };
+  const form = useForm<CreateMarketingTaskInput>({
+    resolver: zodResolver(createMarketingTaskSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+      type: "texto",
+      priority: "medium",
+      dueDate: null,
+      clienteId: null,
+      clienteNombre: null,
+      assignments: [],
+    },
+  });
 
   const createMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await apiRequest('POST', '/api/marketing/solicitudes', data);
-      return response;
-    },
-    onSuccess: async (response: any) => {
-      try {
-        // Si hay imagen, subirla después de crear la solicitud
-        if (imagenReferencia && response.id) {
-          setIsUploading(true);
-          await uploadImage(response.id, imagenReferencia);
-        }
-
-        queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/marketing/metrics'] });
-        toast({
-          title: "Solicitud creada",
-          description: imagenReferencia
-            ? "La solicitud ha sido enviada con la imagen de referencia"
-            : "La solicitud ha sido enviada correctamente",
-        });
-        onOpenChange(false);
-        // Reset form
-        setTitulo("");
-        setDescripcion("");
-        setUrgencia("baja");
-        setFechaEntrega("");
-        setImagenReferencia(null);
-        setImagenPreview(null);
-        setSelectedSolicitanteId("");
-        setPasos([]);
-        setNuevoPaso("");
-      } catch (uploadError) {
-        console.error('Error uploading image:', uploadError);
-        toast({
-          title: "Solicitud creada",
-          description: "La solicitud fue creada pero hubo un error al subir la imagen",
-          variant: "default",
-        });
-        onOpenChange(false);
-      } finally {
-        setIsUploading(false);
-      }
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message || "No se pudo crear la solicitud",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleSubmit = () => {
-    if (!titulo || !descripcion) {
-      toast({
-        title: "Error",
-        description: "Complete todos los campos requeridos",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Debe haber un solicitante seleccionado
-    if (!selectedSolicitanteId) {
-      toast({
-        title: "Error",
-        description: "Debe seleccionar un solicitante",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const data: any = {
-      titulo,
-      descripcion,
-      urgencia,
-      mes,
-      anio,
-      fechaEntrega: formatDateForAPI(fechaEntrega),
-      pasos,
-      solicitanteId: selectedSolicitanteId,
-    };
-
-    createMutation.mutate(data);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl w-[95vw] sm:w-full max-h-[calc(100vh-4rem)] flex flex-col" data-testid="dialog-nueva-solicitud">
-        <DialogHeader>
-          <DialogTitle>Nueva Solicitud de Marketing</DialogTitle>
-          <DialogDescription>
-            Complete el formulario para crear una nueva solicitud
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex-1 overflow-y-auto pr-2">
-          <div className="space-y-4 py-4">
-            <div>
-              <Label htmlFor="titulo">Título*</Label>
-              <Input
-                id="titulo"
-                placeholder="Ej: Campaña publicitaria digital"
-                value={titulo}
-                onChange={(e) => setTitulo(e.target.value)}
-                data-testid="input-titulo"
-              />
-            </div>
-            <div>
-              <Label htmlFor="descripcion">Descripción*</Label>
-              <Textarea
-                id="descripcion"
-                placeholder="Describa la solicitud en detalle"
-                value={descripcion}
-                onChange={(e) => setDescripcion(e.target.value)}
-                rows={4}
-                data-testid="input-descripcion"
-              />
-            </div>
-            <div>
-              <Label htmlFor="urgencia">Nivel de Urgencia*</Label>
-              <Select value={urgencia} onValueChange={setUrgencia}>
-                <SelectTrigger data-testid="select-urgencia">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="baja" data-testid="option-urgencia-baja">
-                    Normal
-                  </SelectItem>
-                  <SelectItem value="media" data-testid="option-urgencia-media">
-                    Media
-                  </SelectItem>
-                  <SelectItem value="alta" data-testid="option-urgencia-alta">
-                    Alta
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Máximo 3 solicitudes con urgencia alta activas por usuario
-              </p>
-            </div>
-            <div>
-              <Label htmlFor="solicitante">Solicitante*</Label>
-              <Select
-                value={selectedSolicitanteId}
-                onValueChange={setSelectedSolicitanteId}
-                disabled={user?.role !== 'admin'}
-              >
-                <SelectTrigger data-testid="select-solicitante">
-                  <SelectValue placeholder="Seleccione un solicitante" />
-                </SelectTrigger>
-                <SelectContent>
-                  {user?.role === 'admin' ? (
-                    // Admin puede ver y seleccionar todos los solicitantes
-                    solicitantes.map((solicitante: any) => (
-                      <SelectItem key={solicitante.id} value={solicitante.id.toString()} data-testid={`option-solicitante-${solicitante.id}`}>
-                        {solicitante.name} ({solicitante.role === 'admin' ? 'Administrador' : solicitante.role === 'supervisor' ? 'Supervisor' : 'Vendedor'})
-                      </SelectItem>
-                    ))
-                  ) : (
-                    // Supervisor/Vendedor solo puede ver su propio nombre
-                    <SelectItem value={user?.id?.toString() || ""} data-testid={`option-solicitante-${user?.id}`}>
-                      {user?.firstName} {user?.lastName}
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                {user?.role === 'admin'
-                  ? "Seleccione quién realiza la solicitud"
-                  : "La solicitud será registrada a su nombre"}
-              </p>
-            </div>
-            <div>
-              <Label htmlFor="fechaEntrega">Fecha de Entrega Esperada</Label>
-              <Input
-                id="fechaEntrega"
-                type="date"
-                value={fechaEntrega}
-                onChange={(e) => setFechaEntrega(e.target.value)}
-                data-testid="input-fecha-entrega"
-              />
-            </div>
-            <div>
-              <Label htmlFor="imagenReferencia">Imagen de Referencia (Opcional)</Label>
-              <div className="space-y-2">
-                <Input
-                  id="imagenReferencia"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  data-testid="input-imagen-referencia"
-                  className="cursor-pointer"
-                />
-                {imagenPreview && (
-                  <div className="relative w-full max-w-xs">
-                    <img
-                      src={imagenPreview}
-                      alt="Vista previa"
-                      className="w-full h-auto rounded-md border"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      className="absolute top-1 right-1"
-                      onClick={() => {
-                        setImagenReferencia(null);
-                        setImagenPreview(null);
-                      }}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Puede subir una imagen de referencia con detalles de la solicitud
-                </p>
-              </div>
-            </div>
-            <div>
-              <Label>Pasos / Checklist (Opcional)</Label>
-              <div className="space-y-2 mt-2">
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Ej: Diseño, Impresión, Cotización..."
-                    value={nuevoPaso}
-                    onChange={(e) => setNuevoPaso(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        if (nuevoPaso.trim()) {
-                          setPasos([...pasos, { nombre: nuevoPaso.trim(), completado: false, orden: pasos.length }]);
-                          setNuevoPaso("");
-                        }
-                      }
-                    }}
-                    data-testid="input-nuevo-paso"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      if (nuevoPaso.trim()) {
-                        setPasos([...pasos, { nombre: nuevoPaso.trim(), completado: false, orden: pasos.length }]);
-                        setNuevoPaso("");
-                      }
-                    }}
-                    data-testid="button-agregar-paso"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-                {pasos.length > 0 && (
-                  <div className="border rounded-md p-2 space-y-1">
-                    {pasos.map((paso, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
-                        <span className="text-sm">{paso.nombre}</span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setPasos(pasos.filter((_, i) => i !== index))}
-                          data-testid={`button-eliminar-paso-${index}`}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Agregue pasos o tareas que se deben completar para esta solicitud
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            data-testid="button-cancelar-solicitud"
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={createMutation.isPending || isUploading}
-            data-testid="button-crear-solicitud"
-          >
-            {createMutation.isPending || isUploading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {isUploading ? 'Subiendo imagen...' : 'Creando...'}
-              </>
-            ) : (
-              'Crear Solicitud'
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// Estado Dialog Component
-function EstadoDialog({
-  open,
-  onOpenChange,
-  solicitud,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  solicitud: SolicitudMarketing | null;
-}) {
-  const { toast } = useToast();
-  const [nuevoEstado, setNuevoEstado] = useState("");
-  const [motivoRechazo, setMotivoRechazo] = useState("");
-  const [monto, setMonto] = useState("");
-  const [pdfPresupuesto, setPdfPresupuesto] = useState("");
-
-  const updateMutation = useMutation({
-    mutationFn: async (data: { estado: string; motivoRechazo?: string; monto?: number; pdfPresupuesto?: string }) => {
-      return await apiRequest('POST', `/api/marketing/solicitudes/${solicitud?.id}/estado`, data);
+    mutationFn: async (data: CreateMarketingTaskInput & { segmento: string }) => {
+      const res = await apiRequest("POST", "/api/tasks", data);
+      return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/marketing/metrics'] });
-      toast({
-        title: "Estado actualizado",
-        description: "El estado de la solicitud ha sido actualizado",
-      });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/marketing'] });
+      toast({ title: "Tarea de marketing creada" });
       onOpenChange(false);
-      setNuevoEstado("");
-      setMotivoRechazo("");
-      setMonto("");
-      setPdfPresupuesto("");
+      form.reset();
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message || "No se pudo actualizar el estado",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
 
-  const handleSubmit = () => {
-    if (!nuevoEstado) {
-      toast({
-        title: "Error",
-        description: "Seleccione un estado",
-        variant: "destructive",
-      });
-      return;
-    }
+  const onSubmit = (data: CreateMarketingTaskInput) => {
+    createMutation.mutate({ ...data, segmento: "marketing" });
+  };
 
-    if (nuevoEstado === 'rechazado' && !motivoRechazo) {
-      toast({
-        title: "Error",
-        description: "Debe ingresar un motivo de rechazo",
-        variant: "destructive",
-      });
-      return;
+  const handleUserToggle = (userId: string, role: string) => {
+    const currentAssignments = form.getValues('assignments') || [];
+    const existingIndex = currentAssignments.findIndex((a) => a.assigneeId === userId);
+    if (existingIndex >= 0) {
+      form.setValue(
+        'assignments',
+        currentAssignments.filter((a) => a.assigneeId !== userId),
+        { shouldValidate: true }
+      );
+    } else {
+      form.setValue(
+        'assignments',
+        [...currentAssignments, { assigneeType: role === 'supervisor' || role === 'admin' ? 'supervisor' : 'salesperson', assigneeId: userId }],
+        { shouldValidate: true }
+      );
     }
-
-    // Validar monto solo si se ingresó algún valor
-    if (monto && monto.trim() !== '') {
-      const montoNum = parseFloat(monto);
-      if (isNaN(montoNum) || montoNum <= 0) {
-        toast({
-          title: "Error",
-          description: "Ingrese un monto válido",
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-
-    updateMutation.mutate({
-      estado: nuevoEstado,
-      motivoRechazo: nuevoEstado === 'rechazado' ? motivoRechazo : undefined,
-      monto: monto && monto.trim() !== '' ? parseFloat(monto) : undefined,
-      pdfPresupuesto: pdfPresupuesto || undefined,
-    });
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-testid="dialog-cambiar-estado" className="w-[95vw] sm:w-full">
-        <DialogHeader>
-          <DialogTitle>Cambiar Estado de Solicitud</DialogTitle>
-          <DialogDescription>
-            {solicitud?.titulo}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div>
-            <Label>Estado Actual</Label>
-            <div className="mt-2">
-              <Badge>
-                {solicitud?.estado === 'solicitado' && 'Solicitado'}
-                {solicitud?.estado === 'en_proceso' && 'En Proceso'}
-                {solicitud?.estado === 'completado' && 'Completado'}
-                {solicitud?.estado === 'rechazado' && 'Rechazado'}
-              </Badge>
+      <DialogContent className="sm:max-w-[650px] p-0 overflow-hidden bg-slate-50/50">
+        <DialogHeader className="p-6 pb-4 bg-slate-900 border-b relative overflow-hidden">
+          <div className="absolute inset-0 bg-grid-white/[0.02] bg-[length:16px_16px]" />
+          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 blur-[50px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+          
+          <div className="relative flex items-start gap-4">
+            <div className="p-2.5 bg-blue-500/20 rounded-xl border border-blue-500/20 shadow-inner">
+              <CheckSquare className="h-6 w-6 text-blue-400" />
+            </div>
+            <div>
+              <DialogTitle className="text-xl text-white font-semibold">Nueva Tarea de Marketing</DialogTitle>
+              <DialogDescription className="text-slate-400 mt-1">
+                Completa los detalles de la tarea (Segmento: Marketing por defecto)
+              </DialogDescription>
             </div>
           </div>
-          <div>
-            <Label htmlFor="nuevoEstado">Nuevo Estado*</Label>
-            <Select value={nuevoEstado} onValueChange={setNuevoEstado}>
-              <SelectTrigger data-testid="select-nuevo-estado">
-                <SelectValue placeholder="Seleccione un estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="solicitado">Solicitado</SelectItem>
-                <SelectItem value="en_proceso">En Proceso</SelectItem>
-                <SelectItem value="completado">Completado</SelectItem>
-                <SelectItem value="rechazado">Rechazado</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {!solicitud?.monto && (nuevoEstado === 'en_proceso' || nuevoEstado === 'completado') && (
-            <div>
-              <Label htmlFor="monto">Monto Presupuestado (CLP) - Opcional</Label>
-              <Input
-                id="monto"
-                type="number"
-                placeholder="Ej: 500000"
-                value={monto}
-                onChange={(e) => setMonto(e.target.value)}
-                data-testid="input-monto-aprobacion"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Puede ingresar el monto ahora o más adelante
-              </p>
-            </div>
-          )}
-          {(nuevoEstado === 'en_proceso' || nuevoEstado === 'completado') && (
-            <div>
-              <Label htmlFor="pdfPresupuesto">URL del PDF Presupuestado (Opcional)</Label>
-              <Input
-                id="pdfPresupuesto"
-                placeholder="https://ejemplo.com/presupuesto.pdf"
-                value={pdfPresupuesto}
-                onChange={(e) => setPdfPresupuesto(e.target.value)}
-                data-testid="input-pdf-presupuesto"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Suba el PDF con el presupuesto detallado
-              </p>
-            </div>
-          )}
-          {nuevoEstado === 'rechazado' && (
-            <div>
-              <Label htmlFor="motivoRechazo">Motivo de Rechazo*</Label>
-              <Textarea
-                id="motivoRechazo"
-                placeholder="Explique el motivo del rechazo"
-                value={motivoRechazo}
-                onChange={(e) => setMotivoRechazo(e.target.value)}
-                rows={3}
-                data-testid="input-motivo-rechazo"
-              />
-            </div>
-          )}
-        </div>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            data-testid="button-cancelar-estado"
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={updateMutation.isPending}
-            data-testid="button-guardar-estado"
-          >
-            {updateMutation.isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Guardando...
-              </>
-            ) : (
-              'Guardar'
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// Edit Solicitud Dialog Component
-function EditSolicitudDialog({
-  open,
-  onOpenChange,
-  solicitud,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  solicitud: SolicitudMarketing | null;
-}) {
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const [titulo, setTitulo] = useState("");
-  const [descripcion, setDescripcion] = useState("");
-  const [urgencia, setUrgencia] = useState("baja");
-  const [fechaEntrega, setFechaEntrega] = useState("");
-  const [imagenReferencia, setImagenReferencia] = useState<File | null>(null);
-  const [imagenPreview, setImagenPreview] = useState<string | null>(null);
-  const [imagenExistente, setImagenExistente] = useState<string | null>(null);
-  const [monto, setMonto] = useState("");
-  const [pasos, setPasos] = useState<{ nombre: string; completado: boolean; orden: number }[]>([]);
-  const [nuevoPaso, setNuevoPaso] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
-
-  // Pre-cargar datos cuando se abre el diálogo
-  useEffect(() => {
-    if (solicitud && open) {
-      setTitulo(solicitud.titulo || "");
-      setDescripcion(solicitud.descripcion || "");
-      setUrgencia(solicitud.urgencia || "baja");
-      setFechaEntrega(solicitud.fechaEntrega || "");
-      setImagenExistente(solicitud.urlReferencia || null);
-      setImagenReferencia(null);
-      setImagenPreview(null);
-      setMonto(solicitud.monto?.toString() || "");
-      setPasos(solicitud.pasos || []);
-      setNuevoPaso("");
-    }
-  }, [solicitud, open]);
-
-  const handleEditImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImagenReferencia(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagenPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const uploadEditImage = async (solicitudId: string, file: File) => {
-    const formData = new FormData();
-    formData.append('imagen', file);
-
-    const response = await fetch(`/api/marketing/solicitudes/${solicitudId}/imagen`, {
-      method: 'POST',
-      body: formData,
-      credentials: 'include',
-    });
-
-    if (!response.ok) {
-      throw new Error('Error al subir imagen');
-    }
-
-    return await response.json();
-  };
-
-  const updateMutation = useMutation({
-    mutationFn: async (data: any) => {
-      return await apiRequest('PATCH', `/api/marketing/solicitudes/${solicitud?.id}`, data);
-    },
-    onSuccess: async () => {
-      try {
-        // Si hay nueva imagen, subirla después de actualizar
-        if (imagenReferencia && solicitud?.id) {
-          setIsUploading(true);
-          await uploadEditImage(solicitud.id, imagenReferencia);
-        }
-
-        queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/marketing/metrics'] });
-        toast({
-          title: "Solicitud actualizada",
-          description: imagenReferencia
-            ? "Los cambios y la nueva imagen han sido guardados"
-            : "Los cambios han sido guardados correctamente",
-        });
-        onOpenChange(false);
-      } catch (uploadError) {
-        console.error('Error uploading image:', uploadError);
-        toast({
-          title: "Solicitud actualizada",
-          description: "Los cambios fueron guardados pero hubo un error al subir la imagen",
-          variant: "default",
-        });
-        onOpenChange(false);
-      } finally {
-        setIsUploading(false);
-      }
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message || "No se pudo actualizar la solicitud",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleSubmit = () => {
-    if (!titulo || !descripcion) {
-      toast({
-        title: "Error",
-        description: "Complete todos los campos requeridos",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    updateMutation.mutate({
-      titulo,
-      descripcion,
-      urgencia,
-      fechaEntrega: formatDateForAPI(fechaEntrega),
-      monto: monto ? parseFloat(monto) : null,
-      pasos,
-    });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl w-[95vw] sm:w-full max-h-[calc(100vh-4rem)] flex flex-col" data-testid="dialog-editar-solicitud">
-        <DialogHeader>
-          <DialogTitle>Editar Solicitud de Marketing</DialogTitle>
-          <DialogDescription>
-            Modifique los campos necesarios
-          </DialogDescription>
         </DialogHeader>
-        <div className="flex-1 overflow-y-auto pr-2">
-          <div className="space-y-4 py-4">
-            <div>
-              <Label htmlFor="edit-titulo">Título*</Label>
-              <Input
-                id="edit-titulo"
-                placeholder="Ej: Campaña publicitaria redes sociales"
-                value={titulo}
-                onChange={(e) => setTitulo(e.target.value)}
-                data-testid="input-edit-titulo"
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-descripcion">Descripción*</Label>
-              <Textarea
-                id="edit-descripcion"
-                placeholder="Describa los detalles de la solicitud..."
-                value={descripcion}
-                onChange={(e) => setDescripcion(e.target.value)}
-                rows={4}
-                data-testid="input-edit-descripcion"
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-urgencia">Nivel de Urgencia*</Label>
-              <Select value={urgencia} onValueChange={setUrgencia}>
-                <SelectTrigger data-testid="select-edit-urgencia">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="baja" data-testid="option-edit-urgencia-baja">
-                    Normal
-                  </SelectItem>
-                  <SelectItem value="media" data-testid="option-edit-urgencia-media">
-                    Media
-                  </SelectItem>
-                  <SelectItem value="alta" data-testid="option-edit-urgencia-alta">
-                    Alta
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Máximo 3 solicitudes con urgencia alta activas por usuario
-              </p>
-            </div>
-            <div>
-              <Label htmlFor="edit-fechaEntrega">Fecha de Entrega Esperada</Label>
-              <Input
-                id="edit-fechaEntrega"
-                type="date"
-                value={fechaEntrega}
-                onChange={(e) => setFechaEntrega(e.target.value)}
-                data-testid="input-edit-fecha-entrega"
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-imagenReferencia">Imagen de Referencia</Label>
-              <div className="space-y-2">
-                {imagenExistente && !imagenPreview && (
-                  <div className="relative w-full max-w-xs">
-                    <img
-                      src={imagenExistente}
-                      alt="Imagen actual"
-                      className="w-full h-auto rounded-md border"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">Imagen actual</p>
-                  </div>
-                )}
-                <Input
-                  id="edit-imagenReferencia"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleEditImageChange}
-                  data-testid="input-edit-imagen-referencia"
-                  className="cursor-pointer"
-                />
-                {imagenPreview && (
-                  <div className="relative w-full max-w-xs">
-                    <img
-                      src={imagenPreview}
-                      alt="Vista previa nueva imagen"
-                      className="w-full h-auto rounded-md border"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      className="absolute top-1 right-1"
-                      onClick={() => {
-                        setImagenReferencia(null);
-                        setImagenPreview(null);
-                      }}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                    <p className="text-xs text-green-600 mt-1">Nueva imagen a subir</p>
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  {imagenExistente ? 'Suba una nueva imagen para reemplazar la actual' : 'Puede subir una imagen de referencia'}
-                </p>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="p-4 sm:p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+            
+            {/* Sección 1: Info Básica */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                Información de la tarea
               </div>
-            </div>
-            {user?.role === 'admin' && (
-              <div>
-                <Label htmlFor="edit-monto">Precio / Monto Estimado (CLP)</Label>
-                <Input
-                  id="edit-monto"
-                  type="number"
-                  placeholder="Ej: 500000"
-                  value={monto}
-                  onChange={(e) => setMonto(e.target.value)}
-                  data-testid="input-edit-monto"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Solo el administrador puede modificar este campo
-                </p>
-              </div>
-            )}
-            <div>
-              <Label>Pasos / Checklist</Label>
-              <div className="space-y-2 mt-2">
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Ej: Diseño, Impresión, Cotización..."
-                    value={nuevoPaso}
-                    onChange={(e) => setNuevoPaso(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        if (nuevoPaso.trim()) {
-                          setPasos([...pasos, { nombre: nuevoPaso.trim(), completado: false, orden: pasos.length }]);
-                          setNuevoPaso("");
-                        }
-                      }
-                    }}
-                    data-testid="input-edit-nuevo-paso"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      if (nuevoPaso.trim()) {
-                        setPasos([...pasos, { nombre: nuevoPaso.trim(), completado: false, orden: pasos.length }]);
-                        setNuevoPaso("");
-                      }
-                    }}
-                    data-testid="button-edit-agregar-paso"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-                {pasos.length > 0 && (
-                  <div className="border rounded-md p-2 space-y-1">
-                    {pasos.map((paso, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
-                        <span className="text-sm">{paso.nombre}</span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setPasos(pasos.filter((_, i) => i !== index))}
-                          data-testid={`button-edit-eliminar-paso-${index}`}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Agregue o elimine pasos según sea necesario
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            data-testid="button-cancelar-editar"
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={updateMutation.isPending || isUploading}
-            data-testid="button-guardar-editar"
-          >
-            {updateMutation.isPending || isUploading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {isUploading ? 'Subiendo imagen...' : 'Guardando...'}
-              </>
-            ) : (
-              'Guardar Cambios'
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// Delete Solicitud Dialog Component
-function DeleteSolicitudDialog({
-  open,
-  onOpenChange,
-  solicitud,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  solicitud: SolicitudMarketing | null;
-}) {
-  const { toast } = useToast();
-
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      return await apiRequest('DELETE', `/api/marketing/solicitudes/${solicitud?.id}`, {});
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/marketing/metrics'] });
-      toast({
-        title: "Solicitud eliminada",
-        description: "La solicitud ha sido eliminada correctamente",
-      });
-      onOpenChange(false);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message || "No se pudo eliminar la solicitud",
-        variant: "destructive",
-      });
-    },
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-testid="dialog-eliminar-solicitud">
-        <DialogHeader>
-          <DialogTitle>Confirmar Eliminación</DialogTitle>
-          <DialogDescription>
-            ¿Está seguro que desea eliminar esta solicitud?
-          </DialogDescription>
-        </DialogHeader>
-        <div className="py-4">
-          <p className="text-sm">
-            <strong>Título:</strong> {solicitud?.titulo}
-          </p>
-          <p className="text-sm text-muted-foreground mt-2">
-            Esta acción no se puede deshacer.
-          </p>
-        </div>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            data-testid="button-cancelar-eliminar"
-          >
-            Cancelar
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={() => deleteMutation.mutate()}
-            disabled={deleteMutation.isPending}
-            data-testid="button-confirmar-eliminar"
-          >
-            {deleteMutation.isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Eliminando...
-              </>
-            ) : (
-              'Eliminar'
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// View Solicitud Dialog Component
-function ViewSolicitudDialog({
-  open,
-  onOpenChange,
-  solicitud,
-  userRole,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  solicitud: SolicitudMarketing | null;
-  userRole: string;
-}) {
-  const { toast } = useToast();
-  const [notas, setNotas] = useState("");
-  const [isEditingNotas, setIsEditingNotas] = useState(false);
-
-  useEffect(() => {
-    if (solicitud) {
-      setNotas(solicitud.notas || "");
-    }
-  }, [solicitud]);
-
-  const updateNotasMutation = useMutation({
-    mutationFn: async (newNotas: string) => {
-      return await apiRequest('PATCH', `/api/marketing/solicitudes/${solicitud!.id}/notas`, { notas: newNotas });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
-      toast({
-        title: "Notas actualizadas",
-        description: "Las notas se han guardado correctamente",
-      });
-      setIsEditingNotas(false);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message || "No se pudieron guardar las notas",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleSaveNotas = () => {
-    updateNotasMutation.mutate(notas);
-  };
-
-  const handleCancelNotas = () => {
-    setNotas(solicitud?.notas || "");
-    setIsEditingNotas(false);
-  };
-
-  if (!solicitud) return null;
-
-  const canEditNotas = userRole === 'admin' || userRole === 'supervisor';
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-[95vw] sm:w-full max-h-[calc(100vh-4rem)] flex flex-col" data-testid="dialog-ver-solicitud">
-        <DialogHeader>
-          <DialogTitle>Detalles de la Solicitud</DialogTitle>
-          <DialogDescription>
-            Información completa de la solicitud de marketing
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex-1 overflow-y-auto pr-2">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 py-4">
-            {/* Columna principal (2/3) */}
-            <div className="lg:col-span-2 space-y-4">
-              {/* Título */}
-              <div>
-                <Label className="text-muted-foreground text-sm">Título</Label>
-                <p className="text-lg font-semibold mt-1">{solicitud.titulo}</p>
-              </div>
-
-              {/* Descripción */}
-              <div>
-                <Label className="text-muted-foreground text-sm">Descripción</Label>
-                <p className="text-base mt-1 whitespace-pre-wrap">{solicitud.descripcion}</p>
-              </div>
-
-              {/* Info Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Supervisor */}
-                <div>
-                  <Label className="text-muted-foreground text-sm">Supervisor</Label>
-                  <p className="text-base mt-1">{solicitud.supervisorName}</p>
-                </div>
-
-                {/* Urgencia */}
-                <div>
-                  <Label className="text-muted-foreground text-sm">Nivel de Urgencia</Label>
-                  <div className="mt-1">
-                    <Badge
-                      className={
-                        solicitud.urgencia === 'alta' ? 'bg-red-500 text-white' :
-                          solicitud.urgencia === 'media' ? 'bg-yellow-500 text-white' :
-                            'bg-green-500 text-white'
-                      }
-                    >
-                      {solicitud.urgencia === 'alta' && 'Alta'}
-                      {solicitud.urgencia === 'media' && 'Media'}
-                      {solicitud.urgencia === 'baja' && 'Normal'}
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* Estado */}
-                <div>
-                  <Label className="text-muted-foreground text-sm">Estado</Label>
-                  <div className="mt-1">
-                    <Badge
-                      className={
-                        solicitud.estado === 'rechazado' ? 'bg-red-500 text-white' :
-                          solicitud.estado === 'completado' ? 'bg-green-500 text-white' :
-                            'bg-yellow-500 text-white'
-                      }
-                    >
-                      {solicitud.estado === 'solicitado' && 'Solicitado'}
-                      {solicitud.estado === 'en_proceso' && 'En Proceso'}
-                      {solicitud.estado === 'completado' && 'Completado'}
-                      {solicitud.estado === 'rechazado' && 'Rechazado'}
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* Monto */}
-                <div>
-                  <Label className="text-muted-foreground text-sm">Monto</Label>
-                  <p className="text-base mt-1">
-                    {solicitud.monto
-                      ? `$${parseFloat(solicitud.monto).toLocaleString('es-CL')}`
-                      : <span className="text-muted-foreground italic">Pendiente</span>
-                    }
-                  </p>
-                </div>
-
-                {/* Fecha Solicitud */}
-                <div>
-                  <Label className="text-muted-foreground text-sm">Fecha de Solicitud</Label>
-                  <p className="text-base mt-1">
-                    {format(new Date(solicitud.fechaSolicitud), 'dd/MM/yyyy', { locale: es })}
-                  </p>
-                </div>
-
-                {/* Fecha Entrega */}
-                <div>
-                  <Label className="text-muted-foreground text-sm">Fecha de Entrega Esperada</Label>
-                  <p className="text-base mt-1">
-                    {solicitud.fechaEntrega
-                      ? format(new Date(solicitud.fechaEntrega), 'dd/MM/yyyy', { locale: es })
-                      : <span className="text-muted-foreground">-</span>}
-                  </p>
-                </div>
-              </div>
-
-              {/* Imagen de Referencia */}
-              {solicitud.urlReferencia && (
-                <div>
-                  <Label className="text-muted-foreground text-sm">Imagen de Referencia</Label>
-                  <div className="mt-2">
-                    <a
-                      href={solicitud.urlReferencia}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <img
-                        src={solicitud.urlReferencia}
-                        alt="Imagen de referencia"
-                        className="max-w-full max-h-64 rounded-lg border shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                        data-testid="img-referencia"
-                      />
-                    </a>
-                    <p className="text-xs text-muted-foreground mt-1">Click en la imagen para ver en tamaño completo</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Pasos / Checklist */}
-              {solicitud.pasos && solicitud.pasos.length > 0 && (
-                <div>
-                  <Label className="text-muted-foreground text-sm font-semibold">Pasos / Checklist</Label>
-                  <div className="mt-2 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                    <div className="space-y-3">
-                      {solicitud.pasos.map((paso, index) => (
-                        <div key={index} className="flex items-start gap-3 group">
-                          <div className="flex-shrink-0 mt-0.5">
-                            <input
-                              type="checkbox"
-                              checked={paso.completado}
-                              onChange={() => {
-                                if (userRole === 'admin' || userRole === 'supervisor') {
-                                  const toggleMutation = async () => {
-                                    await apiRequest('PATCH', `/api/marketing/solicitudes/${solicitud.id}/pasos/${index}/toggle`, {});
-                                    queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
-                                  };
-                                  toggleMutation();
-                                }
-                              }}
-                              disabled={userRole !== 'admin' && userRole !== 'supervisor'}
-                              className="h-5 w-5 rounded border-2 border-blue-400 text-blue-600 focus:ring-2 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                              data-testid={`checkbox-paso-${index}`}
-                            />
-                          </div>
-                          <span className={`flex-1 text-base transition-all ${paso.completado ? 'line-through text-muted-foreground' : 'text-foreground font-medium'}`}>
-                            {paso.nombre}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-4 pt-3 border-t border-blue-200 dark:border-blue-800">
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="text-muted-foreground">Progreso:</span>
-                        <span className="font-semibold text-blue-600 dark:text-blue-400">
-                          {solicitud.pasos.filter(p => p.completado).length} / {solicitud.pasos.length} completados
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Motivo de Rechazo */}
-              {solicitud.estado === 'rechazado' && solicitud.motivoRechazo && (
-                <div className="border-l-4 border-red-500 bg-red-50 dark:bg-red-950 p-4 rounded">
-                  <Label className="text-red-700 dark:text-red-400 font-semibold">Motivo de Rechazo</Label>
-                  <p className="text-sm mt-1 text-red-600 dark:text-red-300">{solicitud.motivoRechazo}</p>
-                </div>
-              )}
-            </div>
-
-            {/* Columna de Notas (1/3) */}
-            <div className="lg:col-span-1">
-              <div className="sticky top-0 bg-muted/50 border border-border rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <Label className="text-sm font-semibold">Notas de Actividad</Label>
-                  {canEditNotas && !isEditingNotas && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setIsEditingNotas(true)}
-                      data-testid="button-editar-notas"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
+              <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4 space-y-4">
+                <FormField
+                  control={form.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">TÍTULO *</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Ej: Revisar campaña de redes sociales..."
+                          className="bg-white border-slate-200"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )}
-                </div>
-                {isEditingNotas ? (
-                  <div className="space-y-3">
-                    <Textarea
-                      value={notas}
-                      onChange={(e) => setNotas(e.target.value)}
-                      placeholder="Escribe notas sobre la actividad de esta solicitud..."
-                      className="min-h-[200px] resize-none"
-                      data-testid="textarea-notas"
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={handleSaveNotas}
-                        disabled={updateNotasMutation.isPending}
-                        data-testid="button-guardar-notas"
-                        className="flex-1"
-                      >
-                        {updateNotasMutation.isPending ? (
-                          <>
-                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                            Guardando...
-                          </>
-                        ) : (
-                          'Guardar'
-                        )}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleCancelNotas}
-                        disabled={updateNotasMutation.isPending}
-                        data-testid="button-cancelar-notas"
-                      >
-                        Cancelar
-                      </Button>
-                    </div>
-                  </div>
+                />
+
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">DESCRIPCIÓN</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Agrega detalles, instrucciones o contexto..."
+                          className="min-h-[100px] resize-none bg-white border-slate-200"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
+            {/* Sección 2: Plazos (2 columnas porque quitamos segmento y prioridad visualmente) */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                Fecha Límite
+              </div>
+              <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4">
+                <FormField
+                  control={form.control}
+                  name="dueDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">FECHA LÍMITE</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="datetime-local"
+                          className="bg-white border-slate-200"
+                          {...field}
+                          value={field.value || ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
+            {/* Sección 3: Asignaciones */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <div className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+                Equipo Asignado *
+              </div>
+              <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4">
+                <FormField
+                  control={form.control}
+                  name="assignments"
+                  render={() => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        SELECCIONAR DESTINATARIOS
+                      </FormLabel>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                        {users.filter(u => u.active).map((u) => {
+                          const isSelected = form.watch('assignments')?.some((a) => a.assigneeId === u.id);
+                          return (
+                            <div
+                              key={u.id}
+                              onClick={() => handleUserToggle(u.id, u.role)}
+                              className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${isSelected ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-white border-slate-200 hover:border-indigo-100 hover:bg-slate-50'}`}
+                            >
+                              <div className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center ${isSelected ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300'}`}>
+                                {isSelected && <Check className="h-3 w-3 text-white" />}
+                              </div>
+                              <div className="min-w-0">
+                                <p className={`text-sm font-medium truncate ${isSelected ? 'text-indigo-900' : 'text-slate-700'}`}>
+                                  {u.nombre || u.username}
+                                </p>
+                                <p className="text-[10px] text-slate-500 uppercase tracking-wider">{u.role}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="sticky bottom-0 bg-white pt-4 mt-6 border-t border-slate-100 flex items-center justify-end gap-3 sm:justify-end">
+              <Button type="button" variant="outline" className="rounded-xl font-medium" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending} className="rounded-xl font-medium bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-500/20">
+                {createMutation.isPending ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creando...</>
                 ) : (
-                  <div className="text-sm text-muted-foreground whitespace-pre-wrap min-h-[100px]">
-                    {notas || <span className="italic">No hay notas registradas</span>}
-                  </div>
+                  <><Plus className="h-4 w-4 mr-2" /> Crear Tarea</>
                 )}
-              </div>
-            </div>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            data-testid="button-cerrar-ver-solicitud"
-          >
-            Cerrar
-          </Button>
-        </DialogFooter>
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

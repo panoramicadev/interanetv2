@@ -1,13 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { ArrowLeft, TrendingUp, ShoppingBag, Package, DollarSign, Clock, CalendarIcon, Tag } from "lucide-react";
+import { ArrowLeft, TrendingUp, ShoppingBag, Package, DollarSign, Clock, CalendarIcon, Tag, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";
 
 interface ClientDetails {
@@ -17,6 +18,7 @@ interface ClientDetails {
   averageTicket: number;
   purchaseFrequency: number; // days between purchases
   segments: string[];
+  lastPurchaseDate?: string;
 }
 
 interface ClientProduct {
@@ -26,6 +28,15 @@ interface ClientProduct {
   averagePrice: number;
   lastPurchase: string;
   daysSinceLastPurchase: number;
+}
+
+interface LastOrder {
+  id: string;
+  nudo: string;
+  feemdo: string;
+  nokopr: string;
+  monto: string;
+  nokofu: string;
 }
 
 export default function ClientDetail() {
@@ -39,6 +50,7 @@ export default function ClientDetail() {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
+  const [isLastPurchaseActive, setIsLastPurchaseActive] = useState(false);
 
   // Fetch available periods
   const { data: availablePeriods } = useQuery<{
@@ -46,6 +58,14 @@ export default function ClientDetail() {
     years: Array<{ value: string; label: string }>;
   }>({
     queryKey: ['/api/sales/available-periods'],
+  });
+
+  const decodedClientName = clientName ? decodeURIComponent(clientName) : '';
+
+  // Fetch last order to get the global last purchase date (independent of period filters)
+  const { data: lastOrder } = useQuery<LastOrder>({
+    queryKey: [`/api/sales/client/${encodeURIComponent(decodedClientName)}/last-order`],
+    enabled: !!decodedClientName,
   });
 
   // Update selected period when filter type changes
@@ -74,7 +94,26 @@ export default function ClientDetail() {
     }
   }, [filterType, selectedDate, selectedYear, startDate, endDate]);
 
-  const decodedClientName = clientName ? decodeURIComponent(clientName) : '';
+  // Handler for "Mes Ultima Compra" button
+  const handleLastPurchaseMonth = useCallback(() => {
+    if (!lastOrder?.feemdo) return;
+    const lastDate = new Date(lastOrder.feemdo);
+    const monthPeriod = format(lastDate, "yyyy-MM");
+    setFilterType("month");
+    setSelectedPeriod(monthPeriod);
+    setIsLastPurchaseActive(true);
+  }, [lastOrder]);
+
+  // Track when user manually changes filters to deactivate the highlight
+  const handleFilterTypeChange = useCallback((value: "day" | "month" | "year" | "range") => {
+    setFilterType(value);
+    setIsLastPurchaseActive(false);
+  }, []);
+
+  const handlePeriodChange = useCallback((value: string) => {
+    setSelectedPeriod(value);
+    setIsLastPurchaseActive(false);
+  }, []);
 
   const { data: details, isLoading: isLoadingDetails } = useQuery<ClientDetails>({
     queryKey: [`/api/sales/client/${encodeURIComponent(decodedClientName)}/details?period=${selectedPeriod}&filterType=${filterType}`],
@@ -121,7 +160,7 @@ export default function ClientDetail() {
 
   const getFrequencyDescription = (days: number) => {
     if (days < 1) return 'Diario';
-    if (days < 7) return `Cada ${Math.round(days)} días`;
+    if (days < 7) return `Cada ${Math.round(days)} dias`;
     if (days < 30) return `Cada ${Math.round(days / 7)} semanas`;
     return `Cada ${Math.round(days / 30)} meses`;
   };
@@ -131,6 +170,11 @@ export default function ClientDetail() {
     if (days <= 30) return 'text-yellow-600';
     return 'text-red-600';
   };
+
+  // Format the last purchase month label for the button tooltip
+  const lastPurchaseLabel = lastOrder?.feemdo
+    ? format(new Date(lastOrder.feemdo), "MMMM yyyy", { locale: es })
+    : null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -144,19 +188,19 @@ export default function ClientDetail() {
                 <Link href="/" className="hover:text-blue-600 transition-colors">
                   Dashboard
                 </Link>
-                <span>›</span>
+                <span>&rsaquo;</span>
                 <span className="hidden sm:inline">Cliente</span>
-                <span className="hidden sm:inline">›</span>
+                <span className="hidden sm:inline">&rsaquo;</span>
                 <span className="font-medium text-gray-900 truncate">{decodedClientName}</span>
               </nav>
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
-                Análisis de Cliente
+                Analisis de Cliente
               </h1>
               <p className="text-gray-600 text-sm font-semibold truncate">
                 {decodedClientName}
               </p>
               <p className="text-gray-600 text-sm">
-                {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : filterType === "year" ? "Análisis anual" : "Análisis por rango"}
+                {filterType === "day" ? "Analisis diario" : filterType === "month" ? "Analisis mensual" : filterType === "year" ? "Analisis anual" : "Analisis por rango"}
               </p>
             </div>
 
@@ -181,14 +225,14 @@ export default function ClientDetail() {
               <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
                 Filtrar:
               </label>
-              <Select value={filterType} onValueChange={(value: "day" | "month" | "year" | "range") => setFilterType(value)}>
+              <Select value={filterType} onValueChange={handleFilterTypeChange}>
                 <SelectTrigger className="w-24 rounded-xl border-gray-200 shadow-sm text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-gray-200">
-                  <SelectItem value="day">Día</SelectItem>
+                  <SelectItem value="day">Dia</SelectItem>
                   <SelectItem value="month">Mes</SelectItem>
-                  <SelectItem value="year">Año</SelectItem>
+                  <SelectItem value="year">Ano</SelectItem>
                   <SelectItem value="range">Rango</SelectItem>
                 </SelectContent>
               </Select>
@@ -197,7 +241,7 @@ export default function ClientDetail() {
             {/* Period Selector */}
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                Período:
+                Periodo:
               </label>
               {filterType === "day" ? (
                 <Popover>
@@ -284,7 +328,7 @@ export default function ClientDetail() {
                   </SelectContent>
                 </Select>
               ) : (
-                <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+                <Select value={selectedPeriod} onValueChange={handlePeriodChange}>
                   <SelectTrigger className="w-44 rounded-xl border-gray-200 shadow-sm text-sm">
                     <SelectValue />
                   </SelectTrigger>
@@ -298,6 +342,29 @@ export default function ClientDetail() {
                 </Select>
               )}
             </div>
+
+            {/* Last Purchase Month Button */}
+            {lastOrder?.feemdo && (
+              <Button
+                variant={isLastPurchaseActive ? "default" : "outline"}
+                size="sm"
+                onClick={handleLastPurchaseMonth}
+                className={`rounded-xl shadow-sm text-sm whitespace-nowrap ${
+                  isLastPurchaseActive
+                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                    : "border-blue-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400"
+                }`}
+                title={lastPurchaseLabel ? `Ir a ${lastPurchaseLabel}` : undefined}
+              >
+                <History className="mr-2 h-4 w-4" />
+                Mes Ultima Compra
+                {lastPurchaseLabel && (
+                  <span className={`ml-1.5 text-xs ${isLastPurchaseActive ? "text-blue-100" : "text-blue-500"}`}>
+                    ({lastPurchaseLabel})
+                  </span>
+                )}
+              </Button>
+            )}
           </div>
         </header>
 
@@ -355,7 +422,7 @@ export default function ClientDetail() {
                     {isLoadingDetails ? 'Cargando...' : getFrequencyDescription(details?.purchaseFrequency || 0)}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {isLoadingDetails ? '' : `${details?.purchaseFrequency || 0} días promedio`}
+                    {isLoadingDetails ? '' : `${details?.purchaseFrequency || 0} dias promedio`}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center ml-4">
@@ -454,7 +521,7 @@ export default function ClientDetail() {
                               Precio promedio: {formatCurrency(product.averagePrice)}
                             </p>
                             <p className={`text-xs ${getDaysColor(product.daysSinceLastPurchase)}`}>
-                              Última compra: {product.daysSinceLastPurchase} días
+                              Ultima compra: {product.daysSinceLastPurchase} dias
                             </p>
                           </div>
                         </div>
