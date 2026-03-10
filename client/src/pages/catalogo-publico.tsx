@@ -32,6 +32,7 @@ import AiChatView from '@/components/ai-chat/AiChatView';
 import { useAiChat } from '@/hooks/useAiChat';
 import PublicCatalogProducts from '@/components/public-catalog-products';
 import { useCartItemCount } from '@/hooks/useCart';
+import FloatingCart from '@/components/cart/FloatingCart';
 
 type SalespersonProfile = {
   id: string;
@@ -70,6 +71,7 @@ export default function CatalogoPublico() {
   const aiChat = useAiChat({ isPublic: true, salespersonSlug: slug });
   const [activeTab, setActiveTab] = useState<'productos' | 'ia'>('productos');
   const cartItemCount = useCartItemCount();
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery<{
     salesperson: SalespersonProfile;
@@ -477,12 +479,12 @@ export default function CatalogoPublico() {
           )}
         </div>
 
-        {/* Floating Cart Badge */}
+        {/* Floating Cart Button + Panel */}
         {cartItemCount > 0 && (
           <div className="fixed bottom-6 right-6 z-50">
             <Button
               className="h-14 w-14 rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-xl shadow-orange-500/30 relative"
-              onClick={() => setActiveTab('productos')}
+              onClick={() => setIsCartOpen(true)}
             >
               <ShoppingCart className="h-6 w-6" />
               <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">
@@ -491,6 +493,7 @@ export default function CatalogoPublico() {
             </Button>
           </div>
         )}
+        <FloatingCart isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
       </main>
     </div>
   );

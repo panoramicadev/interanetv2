@@ -33,7 +33,7 @@ interface GenericProduct {
 
 interface CatalogResponse {
     catalog: GenericProduct[];
-    availableGroups: string[];
+    availableGroups?: string[];
     totalProducts: number;
 }
 
@@ -44,27 +44,27 @@ function QuantitySelector({ value, onChange, min = 1, step = 1 }: {
     step?: number;
 }) {
     return (
-        <div className="flex items-center gap-1">
+        <div className="inline-flex items-center border border-slate-200 rounded-md overflow-hidden">
             <button
                 onClick={() => onChange(Math.max(min, value - step))}
-                className="w-7 h-7 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-100 text-slate-500 transition-colors"
+                className="w-6 h-6 flex items-center justify-center hover:bg-slate-100 text-slate-500 transition-colors"
                 disabled={value <= min}
             >
-                <Minus className="w-3 h-3" />
+                <Minus className="w-2.5 h-2.5" />
             </button>
             <input
                 type="number"
                 value={value}
                 onChange={e => onChange(Math.max(min, parseInt(e.target.value) || min))}
-                className="w-14 h-7 text-center text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500"
+                className="w-10 h-6 text-center text-xs border-x border-slate-200 focus:outline-none"
                 min={min}
                 step={step}
             />
             <button
                 onClick={() => onChange(value + step)}
-                className="w-7 h-7 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-100 text-slate-500 transition-colors"
+                className="w-6 h-6 flex items-center justify-center hover:bg-slate-100 text-slate-500 transition-colors"
             >
-                <Plus className="w-3 h-3" />
+                <Plus className="w-2.5 h-2.5" />
             </button>
         </div>
     );
@@ -73,22 +73,55 @@ function QuantitySelector({ value, onChange, min = 1, step = 1 }: {
 export default function PublicCatalogProducts() {
     const [search, setSearch] = useState("");
     const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
+    const [expandedColors, setExpandedColors] = useState<Set<string>>(new Set());
     const [quantities, setQuantities] = useState<Map<string, number>>(new Map());
     const { toast } = useToast();
     const { addItem } = useCart();
 
-    const { data, isLoading } = useQuery<CatalogResponse>({
-        queryKey: ["/api/public/products/grouped", { search }],
+    const { data, isLoading } = useQuery<any>({
+        queryKey: ["/api/public/products/grouped"],
         queryFn: async () => {
-            const params = new URLSearchParams();
-            if (search) params.set("search", search);
-            const res = await fetch(`/api/public/products/grouped?${params}`);
+            const res = await fetch(`/api/public/products/grouped`);
             if (!res.ok) throw new Error("Error fetching catalog");
             return res.json();
         },
     });
 
-    const catalog = data?.catalog || [];
+    // Normalize response — API may return array (old format) or {catalog} (new format)
+    const catalog: GenericProduct[] = useMemo(() => {
+        if (!data) return [];
+        // New format: {catalog: [...]}
+        if (data.catalog) return data.catalog;
+        // Old format: array of {family, colors: [{color, formats: [...]}]}
+        if (Array.isArray(data)) {
+            return data.map((item: any) => ({
+                genericName: item.family || 'Sin Nombre',
+                groupName: item.categoria || null,
+                colors: (item.colors || []).reduce((acc: any, c: any) => {
+                    acc[c.color || 'Sin Color'] = (c.formats || []).map((f: any) => ({
+                        ecomId: f.id || '',
+                        sku: f.codigo || '',
+                        name: item.family || '',
+                        color: c.color || 'Sin Color',
+                        format: f.formatUnit || f.unidad || 'Sin formato',
+                        groupName: item.categoria || null,
+                        price: f.precio?.toString() || null,
+                        priceList: null,
+                        stock: Number(f.stock) || 0,
+                        minUnit: f.minUnit || 1,
+                        stepSize: f.stepSize || 1,
+                        description: item.descripcion || null,
+                    }));
+                    return acc;
+                }, {} as Record<string, FormatVariant[]>),
+            }));
+        }
+        return [];
+    }, [data]);
+
+    const totalProducts = useMemo(() => {
+        return catalog.reduce((sum, p) => sum + Object.values(p.colors).flat().length, 0);
+    }, [catalog]);
 
     const filteredCatalog = useMemo(() => {
         if (!search.trim()) return catalog;
@@ -108,9 +141,23 @@ export default function PublicCatalogProducts() {
         });
     };
 
-    const getQuantity = (sku: string) => quantities.get(sku) || 1;
+    const toggleColor = (productName: string, color: string) => {
+        const key = `${productName}-${color}`;
+        setExpandedColors(prev => {
+            const s = new Set(prev);
+            s.has(key) ? s.delete(key) : s.add(key);
+            return s;
+        });
+    };
+
+    const getQuantity = (sku: string, defaultMin?: number) => quantities.get(sku) || defaultMin || 1;
     const setQuantity = (sku: string, val: number) => {
         setQuantities(prev => new Map(prev).set(sku, val));
+    };
+
+    const getStock = (variant: FormatVariant): number => {
+        const s = Number(variant.stock);
+        return isNaN(s) ? 0 : Math.round(s);
     };
 
     const handleAddToCart = (variant: FormatVariant, productName: string) => {
@@ -136,8 +183,8 @@ export default function PublicCatalogProducts() {
     return (
         <div className="flex flex-col h-full">
             {/* Search bar */}
-            <div className="p-3 border-b bg-white flex-shrink-0">
-                <div className="relative max-w-lg mx-auto">
+            <div className="px-4 py-3 border-b bg-white flex-shrink-0">
+                <div className="relative max-w-md mx-auto">
                     <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                     <Input
                         placeholder="Buscar producto, color o SKU..."
@@ -146,14 +193,9 @@ export default function PublicCatalogProducts() {
                         className="pl-10 h-9 text-sm"
                     />
                 </div>
-                <div className="flex items-center justify-center gap-3 mt-2 text-xs text-slate-500">
-                    <span className="flex items-center gap-1">
-                        <Package className="h-3.5 w-3.5" />
-                        {filteredCatalog.length} producto{filteredCatalog.length !== 1 ? "s" : ""}
-                    </span>
-                    <span>·</span>
-                    <span>{data?.totalProducts || 0} SKUs</span>
-                </div>
+                <p className="text-center text-xs text-slate-400 mt-1.5">
+                    {filteredCatalog.length} productos · {totalProducts} SKUs
+                </p>
             </div>
 
             {/* Product list */}
@@ -179,102 +221,104 @@ export default function PublicCatalogProducts() {
 
                     return (
                         <div key={product.genericName} className="border-b border-slate-100">
-                            {/* Product row - Excel style */}
+                            {/* Product row */}
                             <div
-                                className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-orange-50/50 transition-colors"
+                                className="flex items-center gap-2 px-4 py-2.5 cursor-pointer hover:bg-orange-50/50 transition-colors"
                                 onClick={() => toggleProduct(product.genericName)}
                             >
-                                {isExpanded ? (
-                                    <ChevronDown className="h-4 w-4 text-orange-500 flex-shrink-0" />
-                                ) : (
-                                    <ChevronRight className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                                )}
-                                <Package className={`h-4 w-4 flex-shrink-0 ${isExpanded ? "text-orange-500" : "text-slate-400"}`} />
-                                <span className={`font-medium text-sm flex-1 ${isExpanded ? "text-orange-700" : "text-slate-800"}`}>
+                                {isExpanded
+                                    ? <ChevronDown className="h-4 w-4 text-orange-500 flex-shrink-0" />
+                                    : <ChevronRight className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                                }
+                                <span className={`text-sm font-medium flex-1 truncate ${isExpanded ? "text-orange-700" : "text-slate-800"}`}>
                                     {product.genericName}
                                 </span>
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-slate-200">
-                                        {colorKeys.length} color{colorKeys.length !== 1 ? "es" : ""}
-                                    </Badge>
-                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-slate-200">
-                                        {totalVariants} SKU{totalVariants !== 1 ? "s" : ""}
-                                    </Badge>
-                                </div>
+                                <span className="text-[10px] text-slate-400 flex-shrink-0">
+                                    {colorKeys.length}c · {totalVariants}f
+                                </span>
                             </div>
 
-                            {/* Expanded content: colors → formats */}
+                            {/* Expanded: colors → formats */}
                             {isExpanded && (
-                                <div className="bg-slate-50/50">
+                                <div className="bg-slate-50/80">
                                     {colorKeys.map(color => {
                                         const variants = product.colors[color];
+                                        const isColorExpanded = expandedColors.has(`${product.genericName}-${color}`);
+
                                         return (
-                                            <div key={color} className="border-t border-slate-100">
+                                            <div key={color}>
                                                 {/* Color header */}
-                                                <div className="flex items-center gap-2 px-8 py-2 bg-slate-50">
-                                                    <Palette className="h-3.5 w-3.5 text-orange-500" />
-                                                    <span className="text-xs font-semibold text-slate-700">{color}</span>
-                                                    <span className="text-[10px] text-slate-400">
-                                                        ({variants.length} formato{variants.length !== 1 ? "s" : ""})
-                                                    </span>
+                                                <div
+                                                    className="flex items-center gap-1.5 px-6 py-1.5 bg-slate-100/90 border-t border-slate-200/60 cursor-pointer hover:bg-slate-200/60 transition-colors"
+                                                    onClick={() => toggleColor(product.genericName, color)}
+                                                >
+                                                    {isColorExpanded
+                                                        ? <ChevronDown className="h-3.5 w-3.5 text-orange-500" />
+                                                        : <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                                                    }
+                                                    <Palette className="h-3 w-3 text-orange-500 ml-0.5" />
+                                                    <span className="text-xs font-bold text-slate-700">{color}</span>
+                                                    <span className="text-[10px] text-slate-400 ml-auto">{variants.map(v => v.format).join(' · ')}</span>
                                                 </div>
 
-                                                {/* Format table header */}
-                                                <div className="grid grid-cols-[1fr_80px_70px_100px_80px] gap-2 px-8 py-1.5 text-[10px] uppercase font-semibold text-slate-400 tracking-wide bg-slate-100/50">
-                                                    <span>Formato</span>
-                                                    <span className="text-center">SKU</span>
-                                                    <span className="text-center">Stock</span>
-                                                    <span className="text-center">Cantidad</span>
-                                                    <span className="text-center">Acción</span>
-                                                </div>
-
-                                                {/* Format rows */}
-                                                {variants.map(variant => (
-                                                    <div
-                                                        key={variant.sku}
-                                                        className="grid grid-cols-[1fr_80px_70px_100px_80px] gap-2 items-center px-8 py-2 border-t border-slate-100 hover:bg-orange-50/30 transition-colors"
-                                                    >
-                                                        <div className="flex items-center gap-2">
-                                                            <Box className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
-                                                            <span className="text-sm font-medium text-slate-700">{variant.format}</span>
-                                                        </div>
-                                                        <span className="text-[10px] text-center font-mono text-slate-400 truncate" title={variant.sku}>
-                                                            {variant.sku.length > 10 ? variant.sku.slice(-8) : variant.sku}
-                                                        </span>
-                                                        <div className="text-center">
-                                                            <Badge
-                                                                variant="outline"
-                                                                className={`text-[10px] px-1.5 py-0 ${variant.stock > 0
-                                                                    ? "border-emerald-200 text-emerald-700 bg-emerald-50"
-                                                                    : "border-red-200 text-red-600 bg-red-50"
-                                                                    }`}
-                                                            >
-                                                                {Math.round(variant.stock)}
-                                                            </Badge>
-                                                        </div>
-                                                        <div className="flex justify-center">
-                                                            <QuantitySelector
-                                                                value={getQuantity(variant.sku)}
-                                                                onChange={val => setQuantity(variant.sku, val)}
-                                                                min={variant.minUnit || 1}
-                                                                step={variant.stepSize || 1}
-                                                            />
-                                                        </div>
-                                                        <div className="flex justify-center">
-                                                            <Button
-                                                                size="sm"
-                                                                className="h-7 px-2 text-[10px] font-semibold bg-orange-500 hover:bg-orange-600 text-white gap-1"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleAddToCart(variant, product.genericName);
-                                                                }}
-                                                            >
-                                                                <ShoppingCart className="h-3 w-3" />
-                                                                Añadir
-                                                            </Button>
-                                                        </div>
+                                                {/* Format rows – compact table */}
+                                                {isColorExpanded && (
+                                                    <div className="overflow-hidden">
+                                                        <table className="w-full text-xs">
+                                                            <thead>
+                                                                <tr className="text-[10px] uppercase text-slate-400 tracking-wider bg-white">
+                                                                    <th className="text-left pl-8 pr-2 py-1.5 font-semibold">Formato</th>
+                                                                    <th className="text-center px-2 py-1.5 font-semibold w-16">Stock</th>
+                                                                    <th className="text-center px-1 py-1.5 font-semibold w-24">Cant.</th>
+                                                                    <th className="text-center pr-4 py-1.5 font-semibold w-16"></th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="bg-white">
+                                                                {variants.map(variant => {
+                                                                    const stock = getStock(variant);
+                                                                    return (
+                                                                        <tr key={variant.sku} className="border-t border-slate-100 hover:bg-orange-50/40 transition-colors">
+                                                                            <td className="pl-8 pr-2 py-1.5">
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    <Box className="h-3 w-3 text-blue-400 flex-shrink-0" />
+                                                                                    <span className="font-medium text-slate-700">{variant.format}</span>
+                                                                                </div>
+                                                                            </td>
+                                                                            <td className="text-center px-2 py-1.5">
+                                                                                <span className={`inline-block min-w-[28px] text-center text-[10px] font-bold px-1.5 py-0.5 rounded-full ${stock > 0
+                                                                                    ? "bg-emerald-100 text-emerald-700"
+                                                                                    : "bg-red-100 text-red-600"
+                                                                                    }`}>
+                                                                                    {stock}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="text-center px-1 py-1.5">
+                                                                                <QuantitySelector
+                                                                                    value={getQuantity(variant.sku, variant.minUnit || 1)}
+                                                                                    onChange={val => setQuantity(variant.sku, val)}
+                                                                                    min={variant.minUnit || 1}
+                                                                                    step={variant.stepSize || 1}
+                                                                                />
+                                                                            </td>
+                                                                            <td className="text-center pr-4 py-1.5">
+                                                                                <button
+                                                                                    className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-colors shadow-sm"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        handleAddToCart(variant, product.genericName);
+                                                                                    }}
+                                                                                    title="Añadir al carrito"
+                                                                                >
+                                                                                    <ShoppingCart className="h-3.5 w-3.5" />
+                                                                                </button>
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
                                                     </div>
-                                                ))}
+                                                )}
                                             </div>
                                         );
                                     })}
