@@ -5274,7 +5274,7 @@ export function registerRoutes(app: Express): Server {
         await db.execute(sql`
           INSERT INTO ecommerce_products (
             price_list_id, activo, categoria, descripcion,
-            variant_generic_display_name, color, format_unit, packaging_unit_name,
+            variant_generic_display_name, color, format_unit,
             precio_ecommerce, min_unit, step_size,
             weight, weight_unit, length, length_unit,
             width, width_unit, height, height_unit,
@@ -5285,7 +5285,7 @@ export function registerRoutes(app: Express): Server {
             updated_at
           ) VALUES (
             ${finalPlId!.toString()}, true, ${groupName || 'Sin Categoría'}, ${description},
-            ${groupName || productName}, ${color}, ${packagingUnitName}, ${packagingUnitName},
+            ${groupName || productName}, ${color}, ${packagingUnitName},
             ${pricePerUnit}, ${minUnit}, ${stepSize},
             ${weight}, ${weightUnit}, ${length}, ${lengthUnit},
             ${width}, ${widthUnit}, ${height}, ${heightUnit},
@@ -5302,7 +5302,6 @@ export function registerRoutes(app: Express): Server {
             variant_generic_display_name = EXCLUDED.variant_generic_display_name,
             color = EXCLUDED.color,
             format_unit = EXCLUDED.format_unit,
-            packaging_unit_name = EXCLUDED.packaging_unit_name,
             precio_ecommerce = EXCLUDED.precio_ecommerce,
             min_unit = EXCLUDED.min_unit,
             step_size = EXCLUDED.step_size,
