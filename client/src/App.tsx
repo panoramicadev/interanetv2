@@ -75,6 +75,7 @@ import Notificaciones from "@/pages/notificaciones";
 import AiAssistantPage from "@/pages/ai-assistant";
 import AdminCatalogos from "@/pages/admin-catalogos";
 import Reception from "@/pages/reception";
+import ClientPortal from "@/pages/client-portal";
 import TintometriaAdmin from "@/pages/tintometria-admin";
 import TintometriaCalculadora from "@/pages/tintometria-calculadora";
 import TintometriaSelector from "@/pages/tintometria-selector";
@@ -135,9 +136,7 @@ function Router() {
                 case 'reception':
                   return <Reception />;
                 case 'client':
-                  // Los clientes van directamente al ecommerce
-                  window.location.replace('/tienda');
-                  return null;
+                  return <ClientPortal />;
                 case 'jefe_planta':
                 case 'mantencion':
                   // Roles de mantención van al módulo de mantenciones
@@ -333,6 +332,7 @@ function Router() {
             {/* Rutas específicas de cliente */}
             <Route path="/mis-pedidos" component={() => <div className="p-6"><h1 className="text-2xl font-bold">Mis Pedidos</h1><p>Página en construcción</p></div>} />
             <Route path="/solicitar-cotizacion" component={() => <div className="p-6"><h1 className="text-2xl font-bold">Solicitar Cotización</h1><p>Página en construcción</p></div>} />
+            <Route path="/client-portal" component={ClientPortal} />
 
             {/* 404 para rutas no encontradas */}
             <Route component={NotFound} />
