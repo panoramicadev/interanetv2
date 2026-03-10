@@ -335,26 +335,40 @@ export default function GroupedCatalog() {
                                 <div className="p-4 bg-muted/10">
                                     <div className="flex items-center gap-2 mb-3">
                                         <Palette className="h-4 w-4 text-muted-foreground" />
-                                        <span className="text-sm font-medium text-muted-foreground">Seleccionar color:</span>
+                                        <span className="text-sm font-medium text-muted-foreground">Colores y formatos disponibles:</span>
                                     </div>
-                                    <div className="flex flex-wrap gap-2">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                                         {colorKeys.map(color => {
                                             const isActive = activeColor === color;
-                                            const formatCount = product.colors[color].length;
+                                            const variants = product.colors[color];
+                                            const formats = variants.map(v => v.format);
                                             return (
-                                                <Button
+                                                <div
                                                     key={color}
-                                                    variant={isActive ? "default" : "outline"}
-                                                    size="sm"
+                                                    className={`p-3 rounded-lg border cursor-pointer transition-all ${isActive
+                                                            ? "border-orange-500 bg-orange-50 dark:bg-orange-950/30 shadow-sm"
+                                                            : "border-border hover:border-orange-300 hover:bg-muted/30"
+                                                        }`}
                                                     onClick={() => selectColor(product.genericName, color)}
-                                                    className={`gap-1.5 ${isActive ? "bg-orange-600 hover:bg-orange-700 text-white" : ""}`}
                                                 >
-                                                    <Palette className="h-3.5 w-3.5" />
-                                                    {color}
-                                                    <Badge variant="secondary" className={`ml-1 text-xs ${isActive ? "bg-orange-800 text-orange-100" : ""}`}>
-                                                        {formatCount}
-                                                    </Badge>
-                                                </Button>
+                                                    <div className="flex items-center gap-2 mb-1.5">
+                                                        <Palette className={`h-4 w-4 ${isActive ? "text-orange-600" : "text-muted-foreground"}`} />
+                                                        <span className={`font-semibold text-sm ${isActive ? "text-orange-700 dark:text-orange-400" : ""}`}>
+                                                            {color}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {formats.map((f, i) => (
+                                                            <Badge
+                                                                key={i}
+                                                                variant="secondary"
+                                                                className={`text-xs font-normal ${isActive ? "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-200" : ""}`}
+                                                            >
+                                                                {f}
+                                                            </Badge>
+                                                        ))}
+                                                    </div>
+                                                </div>
                                             );
                                         })}
                                     </div>
