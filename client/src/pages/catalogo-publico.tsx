@@ -24,10 +24,14 @@ import {
   Package,
   Store,
   User,
+  Sparkles,
+  ListOrdered,
 } from 'lucide-react';
 import { SiWhatsapp } from 'react-icons/si';
 import AiChatView from '@/components/ai-chat/AiChatView';
 import { useAiChat } from '@/hooks/useAiChat';
+import PublicCatalogProducts from '@/components/public-catalog-products';
+import { useCartItemCount } from '@/hooks/useCart';
 
 type SalespersonProfile = {
   id: string;
@@ -64,6 +68,8 @@ export default function CatalogoPublico() {
   const [rutError, setRutError] = useState('');
 
   const aiChat = useAiChat({ isPublic: true, salespersonSlug: slug });
+  const [activeTab, setActiveTab] = useState<'productos' | 'ia'>('productos');
+  const cartItemCount = useCartItemCount();
 
   const { data, isLoading, error } = useQuery<{
     salesperson: SalespersonProfile;
@@ -424,19 +430,67 @@ export default function CatalogoPublico() {
         </div>
       )}
 
-      {/* Full-Height AI Chat — Main Content */}
+      {/* Tab Navigation + Main Content */}
       <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        <AiChatView
-          messages={aiChat.messages}
-          isLoading={aiChat.isLoading}
-          error={aiChat.error}
-          onSendMessage={aiChat.sendMessage}
-          onClearHistory={aiChat.clearHistory}
-          onNewConversation={aiChat.newConversation}
-          suggestions={publicSuggestions}
-          welcomeTitle={`¡Hola! Soy el asistente de ${salesperson.salespersonName}`}
-          welcomeSubtitle="Cuéntame qué productos necesitas y te ayudo a armar tu pedido."
-        />
+        {/* Tab Bar */}
+        <div className="flex-shrink-0 bg-white border-b border-slate-200 shadow-sm">
+          <div className="flex">
+            <button
+              onClick={() => setActiveTab('productos')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition-all border-b-2 ${activeTab === 'productos'
+                ? 'border-orange-500 text-orange-600 bg-orange-50/50'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                }`}
+            >
+              <ListOrdered className="h-4 w-4" />
+              Productos
+            </button>
+            <button
+              onClick={() => setActiveTab('ia')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition-all border-b-2 ${activeTab === 'ia'
+                ? 'border-blue-500 text-blue-600 bg-blue-50/50'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                }`}
+            >
+              <Sparkles className="h-4 w-4" />
+              Asistente IA
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          {activeTab === 'productos' ? (
+            <PublicCatalogProducts />
+          ) : (
+            <AiChatView
+              messages={aiChat.messages}
+              isLoading={aiChat.isLoading}
+              error={aiChat.error}
+              onSendMessage={aiChat.sendMessage}
+              onClearHistory={aiChat.clearHistory}
+              onNewConversation={aiChat.newConversation}
+              suggestions={publicSuggestions}
+              welcomeTitle={`¡Hola! Soy el asistente de ${salesperson.salespersonName}`}
+              welcomeSubtitle="Cuéntame qué productos necesitas y te ayudo a armar tu pedido."
+            />
+          )}
+        </div>
+
+        {/* Floating Cart Badge */}
+        {cartItemCount > 0 && (
+          <div className="fixed bottom-6 right-6 z-50">
+            <Button
+              className="h-14 w-14 rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-xl shadow-orange-500/30 relative"
+              onClick={() => setActiveTab('productos')}
+            >
+              <ShoppingCart className="h-6 w-6" />
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">
+                {cartItemCount}
+              </span>
+            </Button>
+          </div>
+        )}
       </main>
     </div>
   );

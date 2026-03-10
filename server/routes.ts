@@ -4888,8 +4888,81 @@ export function registerRoutes(app: Express): Server {
   // Get grouped products for public catalog
   app.get('/api/public/products/grouped', async (req: any, res) => {
     try {
-      const groupedProducts = await storage.getGroupedCatalogProducts();
-      res.json(groupedProducts);
+      const { search } = req.query;
+      const result = await db.execute(sql`
+        SELECT
+          ep.id as ecom_id,
+          ep.categoria as group_name,
+          ep.descripcion as description,
+          ep.variant_generic_display_name,
+          ep.color,
+          ep.format_unit,
+          ep.min_unit,
+          ep.step_size,
+          ep.price_list_id,
+          pl.codigo as sku,
+          pl.producto as product_name,
+          pl.unidad as unit,
+          COALESCE(stk.total_stock, 0) as total_stock
+        FROM ecommerce_products ep
+        LEFT JOIN price_list pl ON ep.price_list_id = pl.id
+        LEFT JOIN (
+          SELECT kopr, SUM(COALESCE(physical_stock2, 0)) as total_stock
+          FROM product_stock
+          GROUP BY kopr
+        ) stk ON stk.kopr = pl.codigo
+        WHERE ep.categoria IS NOT NULL AND ep.activo = true
+        ORDER BY ep.variant_generic_display_name, ep.color, ep.format_unit
+      `);
+      const rows = Array.isArray(result) ? result : (result as any).rows || [];
+
+      const productsMap = new Map<string, {
+        genericName: string;
+        groupName: string | null;
+        colors: Map<string, any[]>;
+      }>();
+
+      for (const row of rows as any[]) {
+        const groupName = row.group_name || null;
+        const genericName = (row.variant_generic_display_name || row.product_name || 'Sin Nombre').trim();
+        const color = (row.color || 'Sin Color').trim();
+        const formatUnit = row.format_unit || row.unit || 'Sin formato';
+        const sku = row.sku || row.price_list_id || '';
+
+        if (search) {
+          const s = (search as string).toLowerCase();
+          if (!(sku.toLowerCase().includes(s) || genericName.toLowerCase().includes(s) || color.toLowerCase().includes(s))) continue;
+        }
+
+        if (!productsMap.has(genericName)) {
+          productsMap.set(genericName, { genericName, groupName, colors: new Map() });
+        }
+        const product = productsMap.get(genericName)!;
+        if (!product.colors.has(color)) {
+          product.colors.set(color, []);
+        }
+
+        product.colors.get(color)!.push({
+          ecomId: row.ecom_id,
+          sku,
+          name: row.product_name || genericName,
+          color,
+          format: formatUnit,
+          groupName,
+          stock: parseFloat(row.total_stock) || 0,
+          minUnit: row.min_unit,
+          stepSize: row.step_size,
+          description: row.description,
+        });
+      }
+
+      const catalog = Array.from(productsMap.values()).map(p => ({
+        genericName: p.genericName,
+        groupName: p.groupName,
+        colors: Object.fromEntries(p.colors),
+      }));
+
+      res.json({ catalog, totalProducts: (rows as any[]).length });
     } catch (error) {
       console.error('Error fetching grouped products:', error);
       res.status(500).json({ message: 'Error al cargar productos agrupados' });
