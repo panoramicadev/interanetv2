@@ -6452,6 +6452,7 @@ export function registerRoutes(app: Express): Server {
           const isoDatetimeRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/;
           return datetimeLocalRegex.test(date) || isoDatetimeRegex.test(date) || !isNaN(Date.parse(date));
         }, "Fecha debe ser formato válido").optional().or(z.null()),
+        segmento: z.string().optional(),
         payload: z.any().optional(), // Optional payload - will use defaults if not provided
         assignments: z.array(z.object({
           assigneeType: z.enum(["supervisor", "salesperson"]),
@@ -6468,7 +6469,7 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      const { title, description, type, dueDate, priority, payload, assignments } = validation.data;
+      const { title, description, type, dueDate, priority, payload, assignments, segmento } = validation.data;
 
       // Additional validation: formulario tasks must have formKey='compras_potenciales'
       if (type === 'formulario' && payload && 'formKey' in payload) {
@@ -6488,6 +6489,7 @@ export function registerRoutes(app: Express): Server {
         priority: priority || 'medium',
         status: 'pendiente' as const,
         payload, // Now properly validated payload based on task type
+        segmento,
         createdByUserId: user.id,
       };
 

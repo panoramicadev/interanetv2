@@ -37,15 +37,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, Eye, AlertCircle, DollarSign, ChevronDown, ShoppingCart, Truck, Search, Check, ChevronsUpDown, Menu, Database, Package, Zap, Loader2 } from "lucide-react";
+import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, Eye, AlertCircle, DollarSign, ChevronDown, ShoppingCart, Truck, Search, Check, ChevronsUpDown, Menu, Database, Package, Zap, Loader2, RefreshCw, CheckCircle, XCircle, Clock } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useIsMobile } from "@/hooks/use-mobile";
 import panoramicaLogo from "@assets/Diseno-sin-titulo-12-1-e1733933035809_1759422274944.webp";
+import { Progress } from "@/components/ui/progress";
 
 interface YearMonthSelection {
   years: number[];
@@ -307,34 +316,100 @@ export default function Dashboard() {
   );
 
   // ETL sync state using mutation pointing to sync-all
-  const syncAllMutation = useMutation({
-    mutationFn: async () => {
-      return await apiRequest('/api/etl/sync-all', { method: 'POST' });
-    },
-    onSuccess: () => {
-      // It starts successfully in the background
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<any>(null);
+  const [isSyncAllRunning, setIsSyncAllRunning] = useState(false);
+
+  // Poll sync-all status while modal is open
+  useEffect(() => {
+    if (!showSyncModal) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await apiRequest('/api/etl/sync-all/status');
+        const data = await res.json();
+        // Skip if server hasn't initialized status yet
+        if (!data.etls) return;
+        setSyncStatus(data.etls);
+        if (!data.isRunning) {
+          setIsSyncAllRunning(false);
+          // Refresh all dashboard queries to fetch the fresh data immediately
+          queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/nvv'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/gdv'] });
+          clearInterval(interval);
+        }
+      } catch (err) {
+        // Ignore polling errors
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [showSyncModal]);
+
+  const handleSyncAll = async () => {
+    try {
+      setIsSyncAllRunning(true);
+      setSyncStatus(null);
+      setShowSyncModal(true); // Open modal immediately
+      await apiRequest('/api/etl/sync-all', { method: 'POST' });
+      // Start polling right away
+      try {
+        const res = await apiRequest('/api/etl/sync-all/status');
+        const data = await res.json();
+        setSyncStatus(data.etls);
+      } catch { }
+    } catch (error: any) {
+      setIsSyncAllRunning(false);
       toast({
-        title: "Actualización iniciada",
-        description: "El proceso de sincronización sincronizará Ventas, GDVs y NVVs. Esto puede demorar unos minutos.",
-      });
-      // Invalidate dashboard queries to fetch the fresh data immediately and then 5s later just in case small things finished
-      queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/nvv'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/gdv'] });
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
-      }, 5000);
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error de Sincronización",
-        description: error.message || "No se pudo iniciar la actualización de datos.",
+        title: "❌ Error",
+        description: error.message || "No se pudo iniciar la sincronización",
         variant: "destructive",
       });
+      setShowSyncModal(false);
     }
-  });
+  };
+
+  // Helper to render ETL status row in the modal
+  const renderETLRow = (label: string, etlStatus: any) => {
+    const status = etlStatus?.status || 'pending';
+    const progress = etlStatus?.progress || 0;
+    const progressMessage = etlStatus?.progressMessage || '';
+    return (
+      <div className="p-4 rounded-lg border bg-card space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {status === 'done' && <CheckCircle className="h-6 w-6 text-green-600 flex-shrink-0" />}
+            {status === 'running' && <Loader2 className="h-6 w-6 animate-spin text-orange-500 flex-shrink-0" />}
+            {status === 'error' && <XCircle className="h-6 w-6 text-red-600 flex-shrink-0" />}
+            {status === 'pending' && <Clock className="h-6 w-6 text-gray-400 flex-shrink-0" />}
+            <div>
+              <p className="font-semibold">{label}</p>
+              <p className={`text-sm ${status === 'done' ? 'text-green-600' : status === 'error' ? 'text-red-600' : status === 'running' ? 'text-orange-500' : 'text-muted-foreground'}`}>
+                {status === 'done' && `✅ ${(etlStatus.recordsProcessed || 0).toLocaleString()} registros en ${((etlStatus.executionTimeMs || 0) / 1000).toFixed(1)}s`}
+                {status === 'running' && (progressMessage || 'Procesando datos desde SQL Server...')}
+                {status === 'error' && (etlStatus.error || 'Error en la ejecución')}
+                {status === 'pending' && 'Esperando turno...'}
+              </p>
+            </div>
+          </div>
+          <Badge className={`
+            ${status === 'done' ? 'bg-green-500 hover:bg-green-600 text-white' : ''}
+            ${status === 'running' ? 'bg-orange-100 text-orange-700 border-orange-300' : ''}
+            ${status === 'error' ? 'bg-red-100 text-red-700 border-red-300' : ''}
+            ${status === 'pending' ? 'bg-gray-100 text-gray-500 border-gray-300' : ''}
+          `}>
+            {status === 'done' && 'Listo'}
+            {status === 'running' && `${progress}%`}
+            {status === 'error' && 'Error'}
+            {status === 'pending' && 'Pendiente'}
+          </Badge>
+        </div>
+        {status === 'running' && (
+          <Progress value={progress} className="h-2" />
+        )}
+      </div>
+    );
+  };
 
   // Mobile detection and drawer state
   const isMobile = useIsMobile();
@@ -1567,12 +1642,12 @@ export default function Dashboard() {
               <div className="flex-shrink-0">
                 <Button
                   variant="outline"
-                  onClick={() => syncAllMutation.mutate()}
-                  disabled={syncAllMutation.isPending}
+                  onClick={handleSyncAll}
+                  disabled={isSyncAllRunning}
                   className="h-9 text-sm font-medium hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-colors rounded-lg border-gray-200 dark:border-gray-700"
                   data-testid="button-desktop-sync-all"
                 >
-                  {syncAllMutation.isPending ? (
+                  {isSyncAllRunning ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 text-orange-500 animate-spin" />
                       Sincronizando...
@@ -1809,6 +1884,44 @@ export default function Dashboard() {
           </>
         )}
       </main>
+
+      {/* ═══ Sync All Modal — Real-time per-ETL status ═══ */}
+      <Dialog open={showSyncModal} onOpenChange={(open) => { if (!isSyncAllRunning) setShowSyncModal(open); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <RefreshCw className={`h-5 w-5 ${isSyncAllRunning ? 'animate-spin text-orange-500' : 'text-green-600'}`} />
+              Sincronización Manual
+            </DialogTitle>
+            <DialogDescription>
+              {isSyncAllRunning ? 'Importando datos desde SQL Server...' : 'Resultado de la importación'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            {renderETLRow('Ventas Incremental', syncStatus?.ventas)}
+            {renderETLRow('Guías de Despacho (GDV)', syncStatus?.gdv)}
+            {renderETLRow('Notas de Venta (NVV)', syncStatus?.nvv)}
+          </div>
+
+          {!isSyncAllRunning && syncStatus?.completedAt && (
+            <div className="flex justify-between items-center pt-2 border-t text-sm">
+              <span className="text-muted-foreground">Total registros</span>
+              <span className="font-bold text-lg">{(syncStatus.totalRecords || 0).toLocaleString()}</span>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              onClick={() => setShowSyncModal(false)}
+              disabled={isSyncAllRunning}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
