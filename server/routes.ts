@@ -5045,7 +5045,6 @@ export function registerRoutes(app: Express): Server {
         ep.min_unit,
         ep.step_size,
         ep.format_unit,
-        ep.packaging_unit_name,
         ep.weight, ep.weight_unit,
         ep.length, ep.length_unit,
         ep.width, ep.width_unit,
@@ -5079,8 +5078,8 @@ export function registerRoutes(app: Express): Server {
       const groupName = row.group_name || null;
       const parentSku = row.variant_parent_sku || row.sku;
 
-      // Obtener el formato limpio desde packaging_unit_name
-      const formatUnit = row.packaging_unit_name || row.format_unit || row.unit || 'Sin formato';
+      // Obtener el formato limpio desde format_unit
+      const formatUnit = row.format_unit || row.unit || 'Sin formato';
 
       // Extraer nombre base desde product_name (quitando el color al final)
       const fullName = row.product_name || 'Sin Nombre';
