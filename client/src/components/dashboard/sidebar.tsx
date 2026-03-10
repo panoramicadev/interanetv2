@@ -231,7 +231,7 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
                   </Button>
                 </Link>
 
-                {['admin', 'supervisor', 'salesperson'].includes(user?.role || '') && (
+                {['admin', 'supervisor', 'salesperson', 'marketing'].includes(user?.role || '') && (
                   <Link href="/marketing">
                     <Button
                       variant="ghost"
@@ -398,8 +398,9 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
                                   user?.role === 'planificacion' ? 'Planificación' :
                                     user?.role === 'bodega_materias_primas' ? 'Bodega Materias Primas' :
                                       user?.role === 'prevencion_riesgos' ? 'Prevención de Riesgos' :
-                                        user?.role === 'client' ? 'Cliente' :
-                                          user?.role === 'reception' ? 'Recepción' : 'Usuario'}
+                                        user?.role === 'marketing' ? 'Marketing' :
+                                          user?.role === 'client' ? 'Cliente' :
+                                            user?.role === 'reception' ? 'Recepción' : 'Usuario'}
                   </p>
                   <p className="text-[10px] text-slate-500 mt-0.5 font-mono">
                     {(__COMMIT_DATE__)} - {(__COMMIT_HASH__)}
