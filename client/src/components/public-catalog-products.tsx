@@ -230,7 +230,7 @@ export default function PublicCatalogProducts() {
                                     ? <ChevronDown className="h-4 w-4 text-orange-500 flex-shrink-0" />
                                     : <ChevronRight className="h-4 w-4 text-slate-400 flex-shrink-0" />
                                 }
-                                <span className={`text-sm font-medium flex-1 truncate ${isExpanded ? "text-orange-700" : "text-slate-800"}`}>
+                                <span className={`text-sm font-medium flex-1 truncate uppercase ${isExpanded ? "text-orange-700" : "text-slate-800"}`}>
                                     {product.genericName}
                                 </span>
                                 <span className="text-[10px] text-slate-400 flex-shrink-0">
@@ -257,7 +257,7 @@ export default function PublicCatalogProducts() {
                                                         : <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
                                                     }
                                                     <Palette className="h-3 w-3 text-orange-500 ml-0.5" />
-                                                    <span className="text-xs font-bold text-slate-700">{color}</span>
+                                                    <span className="text-xs font-bold text-slate-700 uppercase">{color}</span>
                                                     <span className="text-[10px] text-slate-400 ml-auto">{variants.map(v => v.format).join(' · ')}</span>
                                                 </div>
 

@@ -31,8 +31,11 @@ import { SiWhatsapp } from 'react-icons/si';
 import AiChatView from '@/components/ai-chat/AiChatView';
 import { useAiChat } from '@/hooks/useAiChat';
 import PublicCatalogProducts from '@/components/public-catalog-products';
-import { useCartItemCount } from '@/hooks/useCart';
-import FloatingCart from '@/components/cart/FloatingCart';
+import { useCartItemCount, useCart } from '@/hooks/useCart';
+import { BillingSummary } from '@/components/cart';
+import { Trash2, Minus, Plus } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 
 type SalespersonProfile = {
   id: string;
@@ -44,6 +47,105 @@ type SalespersonProfile = {
   bio?: string | null;
   catalogEnabled: boolean;
 };
+
+const formatCurrency = (price: number): string => {
+  return `$${new Intl.NumberFormat('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(price)}`;
+};
+
+function CartCheckoutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const { state, removeItem, updateQuantity } = useCart();
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b">
+          <DialogTitle className="flex items-center gap-2 text-lg">
+            <ShoppingCart className="w-5 h-5 text-orange-500" />
+            Mi Pedido — {state.itemCount} producto{state.itemCount !== 1 ? 's' : ''}
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Revisa tu pedido y confirma
+          </DialogDescription>
+        </DialogHeader>
+
+        {state.items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+            <ShoppingCart className="h-12 w-12 text-slate-300 mb-4" />
+            <p className="text-lg font-medium text-slate-700">Tu carrito está vacío</p>
+            <p className="text-sm text-slate-500 mt-1">Agrega productos para crear tu pedido</p>
+            <Button onClick={onClose} className="mt-6 bg-orange-500 hover:bg-orange-600 text-white">Seguir comprando</Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-0 overflow-hidden" style={{ maxHeight: 'calc(90vh - 100px)' }}>
+            {/* Left: Cart Items */}
+            <div className="lg:col-span-3 border-r overflow-y-auto" style={{ maxHeight: 'calc(90vh - 100px)' }}>
+              <div className="divide-y">
+                {state.items.map((item) => (
+                  <div key={item.id} className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-sm uppercase">{item.productName}</h4>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {item.selectedColor && <span className="uppercase">{item.selectedColor}</span>}
+                          {item.selectedColor && item.selectedPackaging && ' · '}
+                          {item.selectedPackaging}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">SKU: {item.productCode || 'N/A'}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeItem(item.id)}
+                        className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50 flex-shrink-0"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                    <div className="flex items-center justify-between mt-3">
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => updateQuantity(item.id, Math.max(item.minQuantity, item.quantity - (item.quantityStep || 1)))}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </Button>
+                        <Input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || item.minQuantity)}
+                          className="h-8 w-14 text-center text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => updateQuantity(item.id, item.quantity + (item.quantityStep || 1))}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </Button>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-slate-400">{formatCurrency(item.unitPrice)} c/u</p>
+                        <p className="text-sm font-bold text-orange-600">{formatCurrency(item.subtotal)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: Billing Summary */}
+            <div className="lg:col-span-2 overflow-y-auto bg-slate-50" style={{ maxHeight: 'calc(90vh - 100px)' }}>
+              <BillingSummary />
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function CatalogoPublico() {
   const [, params] = useRoute('/catalogo/:slug');
@@ -479,7 +581,7 @@ export default function CatalogoPublico() {
           )}
         </div>
 
-        {/* Floating Cart Button + Panel */}
+        {/* Floating Cart Button */}
         {cartItemCount > 0 && (
           <div className="fixed bottom-6 right-6 z-50">
             <Button
@@ -493,7 +595,9 @@ export default function CatalogoPublico() {
             </Button>
           </div>
         )}
-        <FloatingCart isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+
+        {/* Cart Checkout Modal */}
+        <CartCheckoutModal isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
       </main>
     </div>
   );
