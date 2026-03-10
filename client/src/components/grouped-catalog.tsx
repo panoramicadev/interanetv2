@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useState, useRef } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,9 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useToast } from "@/hooks/use-toast";
 import {
     Search, ChevronDown, ChevronRight, Package, Palette,
-    Weight, Ruler, Box, Truck, Info, Loader2
+    Weight, Ruler, Box, Truck, Info, Loader2, Upload
 } from "lucide-react";
 
 interface Variant {
@@ -122,12 +123,52 @@ function PackagingInfo({ p }: { p: Variant["packaging"] }) {
     );
 }
 
+// Parse CSV handling quoted fields with commas
+function parseGroupedCSV(text: string): Record<string, string>[] {
+    const lines = text.split('\n').filter(l => l.trim());
+    if (lines.length < 2) return [];
+
+    // Parse a CSV line respecting quotes
+    const parseLine = (line: string): string[] => {
+        const result: string[] = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"') {
+                inQuotes = !inQuotes;
+            } else if (ch === ',' && !inQuotes) {
+                result.push(current.trim());
+                current = '';
+            } else {
+                current += ch;
+            }
+        }
+        result.push(current.trim());
+        return result;
+    };
+
+    const headers = parseLine(lines[0]);
+    const rows: Record<string, string>[] = [];
+    for (let i = 1; i < lines.length; i++) {
+        const values = parseLine(lines[i]);
+        const row: Record<string, string> = {};
+        headers.forEach((h, idx) => {
+            row[h] = values[idx] || '';
+        });
+        rows.push(row);
+    }
+    return rows;
+}
+
 export default function GroupedCatalog() {
     const [search, setSearch] = useState("");
     const [groupFilter, setGroupFilter] = useState("all");
     const [selectedFormats, setSelectedFormats] = useState<Set<string>>(new Set());
     const [expandedVariants, setExpandedVariants] = useState<Set<string>>(new Set());
     const [, setLocation] = useLocation();
+    const { toast } = useToast();
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const { data, isLoading } = useQuery<CatalogResponse>({
         queryKey: ["/api/products/grouped-catalog", { search, groupFilter }],
@@ -139,6 +180,46 @@ export default function GroupedCatalog() {
             return res.json();
         },
     });
+
+    // Import mutation
+    const importMutation = useMutation({
+        mutationFn: async (products: Record<string, string>[]) => {
+            const res = await apiRequest("POST", "/api/products/import-grouped-catalog", { products });
+            return res.json();
+        },
+        onSuccess: (data: any) => {
+            queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog"] });
+            toast({
+                title: "Importación completada",
+                description: `${data.imported} productos importados, ${data.skipped} omitidos de ${data.total} filas.`,
+            });
+        },
+        onError: () => {
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "No se pudo importar el catálogo CSV.",
+            });
+        },
+    });
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+            const text = await file.text();
+            const rows = parseGroupedCSV(text);
+            if (rows.length === 0) {
+                toast({ variant: "destructive", title: "CSV vacío", description: "El archivo no contiene datos válidos." });
+                return;
+            }
+            importMutation.mutate(rows);
+        } catch {
+            toast({ variant: "destructive", title: "Error", description: "No se pudo leer el archivo CSV." });
+        }
+        // Reset the input so the same file can be re-imported
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
 
     const catalog = data?.catalog || [];
     const availableGroups = data?.availableGroups || [];
@@ -202,6 +283,27 @@ export default function GroupedCatalog() {
                         <div className="flex gap-2">
                             <Button variant="outline" size="sm" onClick={expandAll}>Expandir todo</Button>
                             <Button variant="outline" size="sm" onClick={collapseAll}>Colapsar todo</Button>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".csv"
+                                className="hidden"
+                                onChange={handleFileChange}
+                            />
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={importMutation.isPending}
+                                className="gap-1.5"
+                            >
+                                {importMutation.isPending ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <Upload className="h-3.5 w-3.5" />
+                                )}
+                                {importMutation.isPending ? "Importando..." : "Importar CSV"}
+                            </Button>
                         </div>
                     </div>
                 </CardContent>
@@ -227,7 +329,7 @@ export default function GroupedCatalog() {
 
             {!isLoading && catalog.map(product => {
                 const formatKeys = Object.keys(product.formats);
-                const selectedFormatKey = selectedFormats.has(product.genericName) 
+                const selectedFormatKey = selectedFormats.has(product.genericName)
                     ? Array.from(selectedFormats).find((k: string) => k.startsWith(product.genericName + "::"))?.split("::")[1]
                     : null;
 
@@ -245,7 +347,7 @@ export default function GroupedCatalog() {
                                     )}
                                 </div>
                             </div>
-                            <Select 
+                            <Select
                                 value={selectedFormatKey || ""}
                                 onValueChange={(format) => {
                                     toggleFormat(`${product.genericName}::${format}`);

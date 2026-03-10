@@ -5179,6 +5179,173 @@ export function registerRoutes(app: Express): Server {
     res.json({ catalog, availableGroups, totalProducts: (rows as any[]).length });
   }));
 
+  // Import grouped catalog CSV into ecommerce_products
+  app.post('/api/products/import-grouped-catalog', requireAuth, asyncHandler(async (req: any, res: any) => {
+    // Only admin can import
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ message: 'Solo administradores pueden importar el catálogo' });
+    }
+
+    const { products } = req.body;
+    if (!products || !Array.isArray(products) || products.length === 0) {
+      return res.status(400).json({ message: 'No se recibieron productos para importar' });
+    }
+
+    console.log(`📦 Importando catálogo agrupado: ${products.length} filas`);
+
+    // Build a map of price_list.codigo -> price_list.id
+    const plResult = await db.execute(sql`SELECT id, codigo FROM price_list`);
+    const plRows = Array.isArray(plResult) ? plResult : (plResult as any).rows || [];
+    const priceListMap = new Map<string, number>();
+    for (const row of plRows as any[]) {
+      if (row.codigo) {
+        priceListMap.set(row.codigo.trim().toUpperCase(), row.id);
+      }
+    }
+
+    let imported = 0;
+    let skipped = 0;
+    let notFound = 0;
+    const notFoundSkus: string[] = [];
+
+    for (const row of products) {
+      const sku = (row.productId || '').trim();
+      if (!sku) { skipped++; continue; }
+
+      const plId = priceListMap.get(sku.toUpperCase());
+
+      // If SKU not found in price_list, insert it first
+      let finalPlId = plId;
+      if (!finalPlId) {
+        // Create a price_list entry for this SKU
+        const insertResult = await db.execute(sql`
+          INSERT INTO price_list (codigo, producto, unidad)
+          VALUES (${sku}, ${(row.name || '').trim()}, ${(row.packaging_unitName || '').trim()})
+          ON CONFLICT (codigo) DO UPDATE SET producto = EXCLUDED.producto
+          RETURNING id
+        `);
+        const insertRows = Array.isArray(insertResult) ? insertResult : (insertResult as any).rows || [];
+        if (insertRows.length > 0) {
+          finalPlId = (insertRows[0] as any).id;
+          priceListMap.set(sku.toUpperCase(), finalPlId);
+        } else {
+          notFound++;
+          if (notFoundSkus.length < 20) notFoundSkus.push(sku);
+          continue;
+        }
+      }
+
+      const groupName = (row['Nombre Producto - Grupo'] || row.groupName || '').trim();
+      const color = (row.variant_features_0_value || row.color || '').trim() || null;
+      const description = (row.description || '').trim() || null;
+      const productName = (row.name || '').trim();
+      const packagingUnitName = (row.packaging_unitName || '').trim() || null;
+      const pricePerUnit = row.pricePerUnit ? parseFloat(row.pricePerUnit) : null;
+
+      // Dimensions
+      const weight = row.dimensions_weight ? parseFloat(row.dimensions_weight) : null;
+      const weightUnit = (row.dimensions_weightUnit || '').trim() || null;
+      const length = row.dimensions_length ? parseFloat(row.dimensions_length) : null;
+      const lengthUnit = (row.dimensions_lengthUnit || '').trim() || null;
+      const width = row.dimensions_width ? parseFloat(row.dimensions_width) : null;
+      const widthUnit = (row.dimensions_widthUnit || '').trim() || null;
+      const height = row.dimensions_height ? parseFloat(row.dimensions_height) : null;
+      const heightUnit = (row.dimensions_heightUnit || '').trim() || null;
+      const volume = row.dimensions_volume ? parseFloat(row.dimensions_volume) : null;
+      const volumeUnit = (row.dimensions_volumeUnit || '').trim() || null;
+
+      // Constraints
+      const minUnit = row.constraints_minUnit ? parseInt(row.constraints_minUnit) : 1;
+      const stepSize = row.constraints_stepSize ? parseInt(row.constraints_stepSize) : 1;
+
+      // Packaging
+      const pkgUnit = (row.packaging_unit || '').trim() || null;
+      const pkgPackageName = (row.packaging_packageName || '').trim() || null;
+      const pkgPackageUnit = (row.packaging_packageUnit || '').trim() || null;
+      const pkgAmountPerPackage = row.packaging_amountPerPackage ? parseInt(row.packaging_amountPerPackage) : null;
+      const pkgBoxName = (row.packaging_boxName || '').trim() || null;
+      const pkgBoxUnit = (row.packaging_boxUnit || '').trim() || null;
+      const pkgAmountPerBox = row.packaging_amountPerBox ? parseInt(row.packaging_amountPerBox) : null;
+      const pkgPalletName = (row.packaging_palletName || '').trim() || null;
+      const pkgPalletUnit = (row.packaging_palletUnit || '').trim() || null;
+      const pkgAmountPerPallet = row.packaging_amountPerPallet ? parseInt(row.packaging_amountPerPallet) : null;
+
+      try {
+        await db.execute(sql`
+          INSERT INTO ecommerce_products (
+            price_list_id, activo, categoria, descripcion,
+            variant_generic_display_name, color, format_unit, packaging_unit_name,
+            precio_ecommerce, min_unit, step_size,
+            weight, weight_unit, length, length_unit,
+            width, width_unit, height, height_unit,
+            volume, volume_unit,
+            packaging_package_name, packaging_package_unit, packaging_amount_per_package,
+            packaging_box_name, packaging_box_unit, packaging_amount_per_box,
+            packaging_pallet_name, packaging_pallet_unit, packaging_amount_per_pallet,
+            updated_at
+          ) VALUES (
+            ${finalPlId!.toString()}, true, ${groupName || 'Sin Categoría'}, ${description},
+            ${groupName || productName}, ${color}, ${packagingUnitName}, ${packagingUnitName},
+            ${pricePerUnit}, ${minUnit}, ${stepSize},
+            ${weight}, ${weightUnit}, ${length}, ${lengthUnit},
+            ${width}, ${widthUnit}, ${height}, ${heightUnit},
+            ${volume}, ${volumeUnit},
+            ${pkgPackageName}, ${pkgPackageUnit}, ${pkgAmountPerPackage},
+            ${pkgBoxName}, ${pkgBoxUnit}, ${pkgAmountPerBox},
+            ${pkgPalletName}, ${pkgPalletUnit}, ${pkgAmountPerPallet},
+            NOW()
+          )
+          ON CONFLICT (price_list_id) DO UPDATE SET
+            activo = true,
+            categoria = EXCLUDED.categoria,
+            descripcion = EXCLUDED.descripcion,
+            variant_generic_display_name = EXCLUDED.variant_generic_display_name,
+            color = EXCLUDED.color,
+            format_unit = EXCLUDED.format_unit,
+            packaging_unit_name = EXCLUDED.packaging_unit_name,
+            precio_ecommerce = EXCLUDED.precio_ecommerce,
+            min_unit = EXCLUDED.min_unit,
+            step_size = EXCLUDED.step_size,
+            weight = EXCLUDED.weight,
+            weight_unit = EXCLUDED.weight_unit,
+            length = EXCLUDED.length,
+            length_unit = EXCLUDED.length_unit,
+            width = EXCLUDED.width,
+            width_unit = EXCLUDED.width_unit,
+            height = EXCLUDED.height,
+            height_unit = EXCLUDED.height_unit,
+            volume = EXCLUDED.volume,
+            volume_unit = EXCLUDED.volume_unit,
+            packaging_package_name = EXCLUDED.packaging_package_name,
+            packaging_package_unit = EXCLUDED.packaging_package_unit,
+            packaging_amount_per_package = EXCLUDED.packaging_amount_per_package,
+            packaging_box_name = EXCLUDED.packaging_box_name,
+            packaging_box_unit = EXCLUDED.packaging_box_unit,
+            packaging_amount_per_box = EXCLUDED.packaging_amount_per_box,
+            packaging_pallet_name = EXCLUDED.packaging_pallet_name,
+            packaging_pallet_unit = EXCLUDED.packaging_pallet_unit,
+            packaging_amount_per_pallet = EXCLUDED.packaging_amount_per_pallet,
+            updated_at = NOW()
+        `);
+        imported++;
+      } catch (err: any) {
+        console.warn(`⚠️ Error importando SKU ${sku}:`, err.message);
+        skipped++;
+      }
+    }
+
+    console.log(`✅ Importación catálogo agrupado: ${imported} importados, ${skipped} omitidos, ${notFound} SKUs no encontrados`);
+
+    res.json({
+      message: 'Importación completada',
+      imported,
+      skipped,
+      notFound,
+      notFoundSkus,
+      total: products.length,
+    });
+  }));
+
   // Product routes
   app.get('/api/products', requireAuth, async (req: any, res) => {
     try {
