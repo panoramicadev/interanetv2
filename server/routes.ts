@@ -5217,8 +5217,8 @@ export function registerRoutes(app: Express): Server {
         }
       }
 
-      const groupName = (row['Nombre Producto - Grupo'] || row.groupName || '').trim();
-      const color = (row.variant_features_0_value || row.color || '').trim() || null;
+      const groupName = (row['Nombre Producto - Grupo'] || row.groupName || '').trim().toUpperCase();
+      const color = ((row.variant_features_0_value || row.color || '').trim() || null)?.toUpperCase() || null;
       const description = (row.description || '').trim() || null;
       const productName = (row.name || '').trim();
       const packagingUnitName = (row.packaging_unitName || '').trim() || null;
