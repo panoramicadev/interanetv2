@@ -5054,62 +5054,39 @@ export function registerRoutes(app: Express): Server {
         ep.packaging_box_name, ep.packaging_box_unit, ep.packaging_amount_per_box,
         ep.packaging_pallet_name, ep.packaging_pallet_unit, ep.packaging_amount_per_pallet,
         ep.group_id,
+        ep.price_list_id,
         pl.codigo as sku,
         pl.producto as product_name,
         pl.unidad as unit,
         pl.lista as price_list
       FROM ecommerce_products ep
-      INNER JOIN price_list pl ON ep.price_list_id = pl.id
+      LEFT JOIN price_list pl ON ep.price_list_id = pl.id
       WHERE ep.categoria IS NOT NULL
-      ORDER BY ep.variant_generic_display_name, ep.format_unit, ep.variant_index
+      ORDER BY ep.variant_generic_display_name, ep.color, ep.format_unit
     `);
 
     const rows = Array.isArray(result) ? result : (result as any).rows || [];
 
-    // New structure: Product -> Formats -> Colors
+    // Structure: Product Group → Colors → Formats
     const productsMap = new Map<string, {
       genericName: string;
-      parentSku: string | null;
       groupName: string | null;
-      formats: Map<string, any[]>;
+      colors: Map<string, any[]>;
     }>();
 
     for (const row of rows as any[]) {
       const groupName = row.group_name || null;
-      const parentSku = row.variant_parent_sku || row.sku;
-
-      // Obtener el formato limpio desde format_unit
+      const genericName = (row.variant_generic_display_name || row.product_name || 'Sin Nombre').trim();
+      const color = (row.color || 'Sin Color').trim();
       const formatUnit = row.format_unit || row.unit || 'Sin formato';
-
-      // Extraer nombre base desde product_name (quitando el color al final)
-      const fullName = row.product_name || 'Sin Nombre';
-
-      // Lista de colores conocidos para quitar del final del nombre
-      const colorSuffixes = [
-        'NATURAL', 'BLANCO', 'NEGRO', 'GRIS', 'ROJO', 'AZUL', 'VERDE', 'AMARILLO', 'CAFE',
-        'OCRE', 'NARANJO', 'BERMELLON', 'ROBLE', 'NOGAL', 'MAPLE', 'CAOBA', 'ALERCE',
-        'BLANCO HOSPITALARIO', 'BEIGE HOSPITALARIO', 'CELESTE CLINICO', 'GRIS BOX',
-        'ROSA MATERNO', 'VERDE URGENCIA', 'BASE OSCURA', 'BASE INCOLORA', 'INCOLORO',
-        'GRIS OSCURO', 'AZUL CANADA', 'CAFE', 'GRIS MAQUINARIA'
-      ];
-
-      let baseName = fullName;
-      for (const color of colorSuffixes) {
-        if (baseName.toUpperCase().endsWith(' ' + color)) {
-          baseName = baseName.substring(0, baseName.length - color.length - 1).trim();
-          break;
-        }
-      }
-      const genericName = baseName || fullName;
-      const unit = formatUnit;
+      const sku = row.sku || row.price_list_id || '';
 
       if (search) {
         const s = (search as string).toLowerCase();
         const matches =
-          row.sku?.toLowerCase().includes(s) ||
-          row.product_name?.toLowerCase().includes(s) ||
+          sku.toLowerCase().includes(s) ||
           genericName.toLowerCase().includes(s) ||
-          (row.color && row.color.toLowerCase().includes(s)) ||
+          color.toLowerCase().includes(s) ||
           (groupName && groupName.toLowerCase().includes(s));
         if (!matches) continue;
       }
@@ -5119,30 +5096,27 @@ export function registerRoutes(app: Express): Server {
       if (!productsMap.has(genericName)) {
         productsMap.set(genericName, {
           genericName,
-          parentSku,
           groupName,
-          formats: new Map(),
+          colors: new Map(),
         });
       }
       const product = productsMap.get(genericName)!;
 
-      if (!product.formats.has(unit)) {
-        product.formats.set(unit, []);
+      if (!product.colors.has(color)) {
+        product.colors.set(color, []);
       }
 
-      product.formats.get(unit)!.push({
+      product.colors.get(color)!.push({
         ecomId: row.ecom_id,
-        sku: row.sku,
-        name: row.product_name,
-        color: row.color,
-        unit: unit,
-        groupName: groupName,
+        sku,
+        name: row.product_name || genericName,
+        color,
+        format: formatUnit,
+        groupName,
         price: row.precio,
         priceList: row.price_list,
         minUnit: row.min_unit,
         stepSize: row.step_size,
-        variantIndex: row.variant_index,
-        isMainVariant: row.is_main_variant,
         description: row.description,
         dimensions: {
           weight: row.weight, weightUnit: row.weight_unit,
@@ -5165,17 +5139,26 @@ export function registerRoutes(app: Express): Server {
       });
     }
 
-    // Convert Map to object for JSON response
+    // Convert to JSON-friendly format
     const catalog = Array.from(productsMap.values()).map(p => ({
       genericName: p.genericName,
-      parentSku: p.parentSku,
       groupName: p.groupName,
-      formats: Object.fromEntries(p.formats),
+      colors: Object.fromEntries(p.colors),
     }));
 
     const availableGroups = [...new Set((rows as any[]).map((r: any) => r.group_name).filter(Boolean))].sort();
 
     res.json({ catalog, availableGroups, totalProducts: (rows as any[]).length });
+  }));
+
+  // Clean ecommerce_products table (admin only)
+  app.delete('/api/products/grouped-catalog', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ message: 'Solo administradores' });
+    }
+    await db.execute(sql`DELETE FROM ecommerce_products`);
+    console.log('🗑️ Tabla ecommerce_products limpiada');
+    res.json({ message: 'Tabla limpiada' });
   }));
 
   // Import grouped catalog CSV into ecommerce_products
