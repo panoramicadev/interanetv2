@@ -5058,9 +5058,15 @@ export function registerRoutes(app: Express): Server {
         pl.codigo as sku,
         pl.producto as product_name,
         pl.unidad as unit,
-        pl.lista as price_list
+        pl.lista as price_list,
+        COALESCE(stk.total_stock, 0) as total_stock
       FROM ecommerce_products ep
       LEFT JOIN price_list pl ON ep.price_list_id = pl.id
+      LEFT JOIN (
+        SELECT kopr, SUM(COALESCE(physical_stock2, 0)) as total_stock
+        FROM product_stock
+        GROUP BY kopr
+      ) stk ON stk.kopr = pl.codigo
       WHERE ep.categoria IS NOT NULL
       ORDER BY ep.variant_generic_display_name, ep.color, ep.format_unit
     `);
@@ -5115,6 +5121,7 @@ export function registerRoutes(app: Express): Server {
         groupName,
         price: row.precio,
         priceList: row.price_list,
+        stock: parseFloat(row.total_stock) || 0,
         minUnit: row.min_unit,
         stepSize: row.step_size,
         description: row.description,

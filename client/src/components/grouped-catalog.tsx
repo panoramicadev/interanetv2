@@ -22,6 +22,7 @@ interface FormatVariant {
     groupName: string | null;
     price: string | null;
     priceList: string | null;
+    stock: number;
     minUnit: number;
     stepSize: number;
     description: string | null;
@@ -341,13 +342,12 @@ export default function GroupedCatalog() {
                                         {colorKeys.map(color => {
                                             const isActive = activeColor === color;
                                             const variants = product.colors[color];
-                                            const formats = variants.map(v => v.format);
                                             return (
                                                 <div
                                                     key={color}
                                                     className={`p-3 rounded-lg border cursor-pointer transition-all ${isActive
-                                                            ? "border-orange-500 bg-orange-50 dark:bg-orange-950/30 shadow-sm"
-                                                            : "border-border hover:border-orange-300 hover:bg-muted/30"
+                                                        ? "border-orange-500 bg-orange-50 dark:bg-orange-950/30 shadow-sm"
+                                                        : "border-border hover:border-orange-300 hover:bg-muted/30"
                                                         }`}
                                                     onClick={() => selectColor(product.genericName, color)}
                                                 >
@@ -357,14 +357,17 @@ export default function GroupedCatalog() {
                                                             {color}
                                                         </span>
                                                     </div>
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {formats.map((f, i) => (
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {variants.map((v, i) => (
                                                             <Badge
                                                                 key={i}
                                                                 variant="secondary"
-                                                                className={`text-xs font-normal ${isActive ? "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-200" : ""}`}
+                                                                className={`text-xs font-normal gap-1 ${isActive ? "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-200" : ""}`}
                                                             >
-                                                                {f}
+                                                                {v.format}
+                                                                <span className={`text-[10px] font-semibold ${v.stock > 0 ? "text-emerald-600" : "text-red-500"}`}>
+                                                                    ({Math.round(v.stock)})
+                                                                </span>
                                                             </Badge>
                                                         ))}
                                                     </div>
