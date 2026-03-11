@@ -201,11 +201,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         },
       ],
     },
-    {
-      href: "/presupuesto-ventas",
-      label: "Presupuesto Ventas",
-      icon: FileSpreadsheet,
-    },
+
     {
       href: "/configuracion",
       label: "Configuración",
@@ -513,11 +509,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         },
       ],
     },
-    {
-      href: "/presupuesto-ventas",
-      label: "Presupuesto Ventas",
-      icon: FileSpreadsheet,
-    },
+
 
   ],
 

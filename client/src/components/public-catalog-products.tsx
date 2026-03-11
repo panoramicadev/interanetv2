@@ -70,7 +70,7 @@ function QuantitySelector({ value, onChange, min = 1, step = 1 }: {
     );
 }
 
-export default function PublicCatalogProducts() {
+export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scrollTop: number) => void }) {
     const [search, setSearch] = useState("");
     const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
     const [expandedColors, setExpandedColors] = useState<Set<string>>(new Set());
@@ -169,7 +169,7 @@ export default function PublicCatalogProducts() {
             selectedPackaging: variant.format,
             selectedColor: variant.color,
             unit: variant.format,
-            unitPrice: variant.price ? parseFloat(variant.price) : 0,
+            unitPrice: 0, // Prices hidden in public catalog — each client has personalized pricing
             quantity: qty,
             minQuantity: variant.minUnit || 1,
             quantityStep: variant.stepSize || 1,
@@ -182,24 +182,23 @@ export default function PublicCatalogProducts() {
 
     return (
         <div className="flex flex-col h-full">
-            {/* Search bar */}
-            <div className="px-4 py-3 border-b bg-white flex-shrink-0">
-                <div className="relative max-w-md mx-auto">
-                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                    <Input
-                        placeholder="Buscar producto, color o SKU..."
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        className="pl-10 h-9 text-sm"
-                    />
-                </div>
-                <p className="text-center text-xs text-slate-400 mt-1.5">
-                    {filteredCatalog.length} productos · {totalProducts} SKUs
-                </p>
-            </div>
-
             {/* Product list */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto" onScroll={e => onScroll?.((e.target as HTMLDivElement).scrollTop)}>
+                {/* Search bar — scrolls with content */}
+                <div className="px-4 py-3 border-b bg-white">
+                    <div className="relative max-w-md mx-auto">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                        <Input
+                            placeholder="Buscar producto, color o SKU..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            className="pl-10 h-9 text-sm"
+                        />
+                    </div>
+                    <p className="text-center text-xs text-slate-400 mt-1.5">
+                        {filteredCatalog.length} productos · {totalProducts} SKUs
+                    </p>
+                </div>
                 {isLoading && (
                     <div className="flex items-center justify-center py-16">
                         <Loader2 className="h-6 w-6 animate-spin text-slate-400" />

@@ -47,13 +47,14 @@ export interface OrderItem {
 
 export interface EcommerceOrder {
   id: string;
+  clientId?: string;
   clientName: string;
   clientEmail?: string;
   clientPhone?: string;
   clientCompany?: string;
   assignedSalespersonId?: string;
   assignedSalespersonName?: string;
-  status: "pending" | "approved" | "modified" | "rejected" | "sent";
+  status: string;
   total: string;
   items: OrderItem[] | string;
   notes?: string;
@@ -78,8 +79,13 @@ interface EcommerceOrdersListProps {
   onGenerateQuote?: (data: QuoteFromOrderData) => void;
 }
 
-const statusConfig = {
+const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
   pending: {
+    label: "Pendiente",
+    color: "bg-yellow-100 text-yellow-800",
+    icon: Clock,
+  },
+  pendiente: {
     label: "Pendiente",
     color: "bg-yellow-100 text-yellow-800",
     icon: Clock,
@@ -104,6 +110,10 @@ const statusConfig = {
     color: "bg-purple-100 text-purple-800",
     icon: ShoppingCart,
   },
+};
+
+const isFromCatalog = (order: EcommerceOrder) => {
+  return order.notes?.includes('[CATÁLOGO') || order.notes?.includes('[CATÁLOGO PÚBLICO]') || order.clientId === 'VISITANTE_PUBLICO';
 };
 
 export default function EcommerceOrdersList({ onGenerateQuote }: EcommerceOrdersListProps) {
@@ -186,7 +196,7 @@ export default function EcommerceOrdersList({ onGenerateQuote }: EcommerceOrders
           <CardTitle className="flex items-center justify-between">
             <span className="flex items-center gap-2">
               <ShoppingCart className="h-5 w-5" />
-              Pedidos de Clientes (Ecommerce)
+              Pedidos de Clientes
             </span>
           </CardTitle>
         </CardHeader>
@@ -218,6 +228,7 @@ export default function EcommerceOrdersList({ onGenerateQuote }: EcommerceOrders
               <TableHeader>
                 <TableRow>
                   <TableHead>Cliente</TableHead>
+                  <TableHead>Origen</TableHead>
                   <TableHead>Vendedor</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>Total</TableHead>
@@ -243,10 +254,22 @@ export default function EcommerceOrdersList({ onGenerateQuote }: EcommerceOrders
                       <TableCell>
                         <div>
                           <div className="font-medium">{order.clientName}</div>
+                          {order.clientCompany && (
+                            <div className="text-xs text-gray-500">{order.clientCompany}</div>
+                          )}
                           {order.clientEmail && (
-                            <div className="text-xs text-gray-500">{order.clientEmail}</div>
+                            <div className="text-xs text-gray-400">{order.clientEmail}</div>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {isFromCatalog(order) ? (
+                          <Badge className="bg-orange-100 text-orange-800 text-xs">
+                            📋 Catálogo
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs">eCommerce</Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         {order.assignedSalespersonName || (
@@ -343,19 +366,32 @@ export default function EcommerceOrdersList({ onGenerateQuote }: EcommerceOrders
                 </div>
               </div>
 
-              {/* Estado del pedido */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Estado:</span>
-                {(() => {
-                  const status = statusConfig[selectedOrder.status] || statusConfig.pending;
-                  const Icon = status.icon;
-                  return (
-                    <Badge className={status.color}>
-                      <Icon className="h-3 w-3 mr-1" />
-                      {status.label}
-                    </Badge>
-                  );
-                })()}
+              {/* Estado y Origen del pedido */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Estado:</span>
+                  {(() => {
+                    const status = statusConfig[selectedOrder.status] || statusConfig.pending;
+                    const Icon = status.icon;
+                    return (
+                      <Badge className={status.color}>
+                        <Icon className="h-3 w-3 mr-1" />
+                        {status.label}
+                      </Badge>
+                    );
+                  })()}
+                </div>
+                {isFromCatalog(selectedOrder) && (
+                  <Badge className="bg-orange-100 text-orange-800 text-xs">
+                    📋 Desde Catálogo
+                  </Badge>
+                )}
+                {selectedOrder.assignedSalespersonName && (
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                    <span>Vendedor:</span>
+                    <span className="font-medium text-foreground">{selectedOrder.assignedSalespersonName}</span>
+                  </div>
+                )}
               </div>
 
               <Separator />

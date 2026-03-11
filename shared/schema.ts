@@ -1756,7 +1756,8 @@ export type InsertSegmentAveragePrice = typeof segmentAveragePrices.$inferInsert
 // Product Content table - stores rich product information for the AI and product detail pages
 export const productContent = pgTable("product_content", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  codigo: varchar("codigo").notNull().unique(), // KOPR, matches price_list.codigo
+  codigo: varchar("codigo").unique(), // KOPR, matches price_list.codigo (null for family-level entries)
+  productFamily: varchar("product_family"), // Family name for shared technical sheets (inheritable)
   // Core content
   descripcion: text("descripcion"), // Long description of the product
   usos: text("usos"), // Applications and uses
@@ -1773,6 +1774,7 @@ export const productContent = pgTable("product_content", {
   // File attachments (stored as JSON array: [{name, url, type, uploadedAt}])
   fichasTecnicas: jsonb("fichas_tecnicas").default([]), // Technical data sheets
   hojasSeguridad: jsonb("hojas_seguridad").default([]), // Safety data sheets
+  preguntasFrecuentes: jsonb("preguntas_frecuentes").default([]), // FAQ: [{pregunta, respuesta}]
   // Metadata
   updatedBy: varchar("updated_by"),
   updatedAt: timestamp("updated_at").defaultNow(),

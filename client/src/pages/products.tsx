@@ -645,7 +645,7 @@ export default function ProductsPage() {
   const formatPrice = (price: string | number | null) => {
     if (!price || price === "0" || price === 0) return "Sin precio";
     const numPrice = typeof price === 'string' ? parseFloat(price) : price;
-    return `$${numPrice.toLocaleString()}`;
+    return `$${numPrice.toLocaleString('de-DE', { maximumFractionDigits: 0 })}`;
   };
 
   const formatStock = (stock: number | undefined) => {
@@ -820,21 +820,6 @@ export default function ProductsPage() {
             <span className="hidden sm:inline">Catálogo Agrupado</span>
             <span className="sm:hidden">Agrupado</span>
           </TabsTrigger>
-          <TabsTrigger value="products" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
-            <Globe className="h-4 w-4" />
-            <span className="hidden sm:inline">eCommerce</span>
-            <span className="sm:hidden">eCom</span>
-          </TabsTrigger>
-          <TabsTrigger value="warehouses" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
-            <Warehouse className="h-4 w-4" />
-            <span className="hidden sm:inline">Stock por Bodega</span>
-            <span className="sm:hidden">Stock</span>
-          </TabsTrigger>
-          <TabsTrigger value="skus" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
-            <Tags className="h-4 w-4" />
-            <span className="hidden sm:inline">SKUs Totales</span>
-            <span className="sm:hidden">SKUs</span>
-          </TabsTrigger>
           <TabsTrigger value="inventario" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
             <Package className="h-4 w-4" />
             <span className="hidden sm:inline">Inventario</span>
@@ -921,34 +906,33 @@ export default function ProductsPage() {
                             title={`Ver ficha de ${item.producto}`}
                           >
                             <TableCell className="font-mono text-sm font-semibold text-orange-600 dark:text-orange-400">{item.codigo}</TableCell>
-                            <TableCell className="font-medium text-sm max-w-[250px] truncate">{item.producto}</TableCell>
+                            <TableCell className="font-medium text-sm">{item.producto}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-xs font-normal rounded-md">{item.unidad}</Badge>
                             </TableCell>
                             <TableCell className="text-right tabular-nums font-medium">
                               {(() => {
                                 const lista = Number(item.lista);
-                                if (lista > 0) return `$${lista.toLocaleString()}`;
-                                // Calculate lista from desc10 if available (desc10 = lista * 0.90)
+                                if (lista > 0) return `$${lista.toLocaleString('de-DE', { maximumFractionDigits: 0 })}`;
                                 const desc10 = Number(item.desc10);
                                 if (desc10 > 0) {
                                   const calculatedLista = Math.round(desc10 / 0.90);
-                                  return `$${calculatedLista.toLocaleString()}`;
+                                  return `$${calculatedLista.toLocaleString('de-DE', { maximumFractionDigits: 0 })}`;
                                 }
                                 return <span className="text-muted-foreground">-</span>;
                               })()}
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
-                              {Number(item.desc10) > 0 ? `$${Number(item.desc10).toLocaleString()}` : '-'}
+                              {Number(item.desc10) > 0 ? `$${Number(item.desc10).toLocaleString('de-DE', { maximumFractionDigits: 0 })}` : '-'}
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
-                              {Number(item.desc10_5) > 0 ? `$${Number(item.desc10_5).toLocaleString()}` : '-'}
+                              {Number(item.desc10_5) > 0 ? `$${Number(item.desc10_5).toLocaleString('de-DE', { maximumFractionDigits: 0 })}` : '-'}
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
-                              {Number(item.desc10_5_3) > 0 ? `$${Number(item.desc10_5_3).toLocaleString()}` : '-'}
+                              {Number(item.desc10_5_3) > 0 ? `$${Number(item.desc10_5_3).toLocaleString('de-DE', { maximumFractionDigits: 0 })}` : '-'}
                             </TableCell>
                             <TableCell className="text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">
-                              {Number(item.minimo) > 0 ? `$${Number(item.minimo).toLocaleString()}` : '-'}
+                              {Number(item.minimo) > 0 ? `$${Number(item.minimo).toLocaleString('de-DE', { maximumFractionDigits: 0 })}` : '-'}
                             </TableCell>
                             <TableCell className="text-center">
                               <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
@@ -959,37 +943,66 @@ export default function ProductsPage() {
                     </Table>
                   </div>
 
-                  {priceListResponse && priceListResponse.totalCount > itemsPerPage && (
-                    <div className="flex items-center justify-between px-6 py-4 border-t bg-muted/10">
-                      <p className="text-sm text-muted-foreground">
-                        <span className="font-medium text-foreground">{priceListPage * itemsPerPage + 1}-{Math.min((priceListPage + 1) * itemsPerPage, priceListResponse.totalCount)}</span>
-                        {' '}de{' '}
-                        <span className="font-medium text-foreground">{priceListResponse.totalCount.toLocaleString()}</span>
-                        {' '}productos
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline" size="sm"
-                          className="h-8 w-8 p-0 rounded-lg"
-                          onClick={() => setPriceListPage(p => p - 1)}
-                          disabled={priceListPage === 0}
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                        <span className="text-sm font-medium px-2">
-                          Pág. {priceListPage + 1}
-                        </span>
-                        <Button
-                          variant="outline" size="sm"
-                          className="h-8 w-8 p-0 rounded-lg"
-                          onClick={() => setPriceListPage(p => p + 1)}
-                          disabled={!priceListResponse.hasMore}
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
+                  {priceListResponse && priceListResponse.totalCount > itemsPerPage && (() => {
+                    const totalPages = Math.ceil(priceListResponse.totalCount / itemsPerPage);
+                    const currentPage = priceListPage;
+                    // Generate page numbers to show
+                    const pages: (number | 'ellipsis')[] = [];
+                    if (totalPages <= 7) {
+                      for (let i = 0; i < totalPages; i++) pages.push(i);
+                    } else {
+                      pages.push(0);
+                      if (currentPage > 2) pages.push('ellipsis');
+                      for (let i = Math.max(1, currentPage - 1); i <= Math.min(totalPages - 2, currentPage + 1); i++) {
+                        pages.push(i);
+                      }
+                      if (currentPage < totalPages - 3) pages.push('ellipsis');
+                      pages.push(totalPages - 1);
+                    }
+                    return (
+                      <div className="flex items-center justify-between px-6 py-4 border-t bg-muted/10">
+                        <p className="text-sm text-muted-foreground">
+                          <span className="font-medium text-foreground">{priceListPage * itemsPerPage + 1}-{Math.min((priceListPage + 1) * itemsPerPage, priceListResponse.totalCount)}</span>
+                          {' '}de{' '}
+                          <span className="font-medium text-foreground">{priceListResponse.totalCount.toLocaleString('de-DE')}</span>
+                          {' '}productos
+                        </p>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline" size="sm"
+                            className="h-8 w-8 p-0 rounded-lg"
+                            onClick={() => setPriceListPage(p => p - 1)}
+                            disabled={priceListPage === 0}
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </Button>
+                          {pages.map((page, idx) =>
+                            page === 'ellipsis' ? (
+                              <span key={`e-${idx}`} className="px-1 text-muted-foreground">…</span>
+                            ) : (
+                              <Button
+                                key={page}
+                                variant={page === currentPage ? 'default' : 'outline'}
+                                size="sm"
+                                className={`h-8 min-w-[2rem] px-2 rounded-lg text-xs ${page === currentPage ? 'bg-orange-500 hover:bg-orange-600 text-white' : ''}`}
+                                onClick={() => setPriceListPage(page)}
+                              >
+                                {page + 1}
+                              </Button>
+                            )
+                          )}
+                          <Button
+                            variant="outline" size="sm"
+                            className="h-8 w-8 p-0 rounded-lg"
+                            onClick={() => setPriceListPage(p => p + 1)}
+                            disabled={!priceListResponse.hasMore}
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </>
               )}
             </CardContent>
@@ -1001,488 +1014,6 @@ export default function ProductsPage() {
           <GroupedCatalog />
         </TabsContent>
 
-        {/* Tab de Productos eCommerce */}
-        <TabsContent value="products" className="space-y-4 mt-4">
-          {/* Inline Search & Filters */}
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por SKU, KOPR o nombre del producto..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 h-11 rounded-xl border-muted bg-muted/30 focus:bg-background transition-colors"
-                  data-testid="input-search-products"
-                />
-              </div>
-              <Select value={filterActive} onValueChange={setFilterActive}>
-                <SelectTrigger className="w-[150px] h-11 rounded-xl border-muted" data-testid="select-filter-active">
-                  <SelectValue placeholder="Estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="true">Activos</SelectItem>
-                  <SelectItem value="false">Inactivos</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={filterEcomActive} onValueChange={setFilterEcomActive}>
-                <SelectTrigger className="w-[170px] h-11 rounded-xl border-muted" data-testid="select-filter-ecom-active">
-                  <SelectValue placeholder="eCommerce" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="true">eCom Activo</SelectItem>
-                  <SelectItem value="false">eCom Inactivo</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={filterCategory} onValueChange={setFilterCategory}>
-                <SelectTrigger className="w-[180px] h-11 rounded-xl border-muted" data-testid="select-filter-category">
-                  <SelectValue placeholder="Categoría" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  {uniqueCategories.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Products Table */}
-          <Card className="border-0 shadow-sm rounded-xl overflow-hidden">
-            <CardHeader className="bg-muted/30 border-b px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-lg">Productos eCommerce</CardTitle>
-                  <CardDescription className="mt-0.5">
-                    {filteredProducts.length} producto{filteredProducts.length !== 1 ? 's' : ''} encontrado{filteredProducts.length !== 1 ? 's' : ''}
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              {productsLoading ? (
-                <div className="flex flex-col items-center justify-center py-16 gap-3">
-                  <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
-                  <p className="text-sm text-muted-foreground">Cargando productos...</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/20 hover:bg-muted/20">
-                        <TableHead className="font-semibold text-xs uppercase tracking-wider">SKU/KOPR</TableHead>
-                        <TableHead className="font-semibold text-xs uppercase tracking-wider">Nombre</TableHead>
-                        <TableHead className="font-semibold text-xs uppercase tracking-wider">Categoría</TableHead>
-                        <TableHead className="font-semibold text-xs uppercase tracking-wider">Precio</TableHead>
-                        <TableHead className="font-semibold text-xs uppercase tracking-wider">eCommerce</TableHead>
-                        <TableHead className="font-semibold text-xs uppercase tracking-wider">Stock</TableHead>
-                        <TableHead className="font-semibold text-xs uppercase tracking-wider">Estado</TableHead>
-                        <TableHead className="font-semibold text-xs uppercase tracking-wider text-center">Acciones</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredProducts.map((product, i) => (
-                        <TableRow key={product.id} className={`hover:bg-muted/30 transition-colors ${i % 2 === 0 ? '' : 'bg-muted/10'}`} data-testid={`row-product-${product.kopr || product.sku}`}>
-                          <TableCell className="font-mono text-sm">
-                            <div className="flex flex-col">
-                              <span className="font-semibold text-orange-600 dark:text-orange-400">{product.kopr || product.sku}</span>
-                              {product.kopr && product.sku && product.kopr !== product.sku && (
-                                <span className="text-xs text-muted-foreground">{product.sku}</span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="max-w-xs">
-                            <div className="flex flex-col">
-                              <span className="truncate font-medium text-sm" title={product.name}>{product.name}</span>
-                              {product.slug && (
-                                <div className="flex items-center gap-1 mt-0.5">
-                                  <Link className="h-3 w-3 text-muted-foreground" />
-                                  <span className="text-xs text-muted-foreground">{product.slug}</span>
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {product.category ? (
-                              <Badge variant="outline" className="text-xs rounded-md font-normal">
-                                {product.category}
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground text-xs">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col gap-0.5">
-                              {product.ecomPrice && (
-                                <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">${product.ecomPrice.toLocaleString()}</span>
-                              )}
-                              {product.priceProduct && (
-                                <span className="text-xs text-muted-foreground tabular-nums">
-                                  Lista: ${product.priceProduct.toLocaleString()}
-                                </span>
-                              )}
-                              {!product.ecomPrice && !product.priceProduct && (
-                                <span className="text-muted-foreground text-xs">Sin precio</span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col gap-1">
-                              <Badge
-                                variant={product.ecomActive ? "default" : "secondary"}
-                                className={`text-xs w-fit ${product.ecomActive ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-400' : ''}`}
-                              >
-                                {product.ecomActive ? "Activo" : "Inactivo"}
-                              </Badge>
-                              {product.ecomActive && product.tags && product.tags.length > 0 && (
-                                <span className="text-xs text-muted-foreground">{product.tags.length} tags</span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="tabular-nums font-medium">{formatStock(product.totalStock)}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={product.active ? "default" : "secondary"}
-                              className={`text-xs ${product.active ? 'bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-400' : ''}`}
-                            >
-                              {product.active ? "Activo" : "Inactivo"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-1.5 justify-center">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 rounded-lg hover:bg-muted"
-                                onClick={() => {
-                                  setSelectedProduct(product);
-                                  setNewPrice((product.priceProduct || product.pricePerUnit || product.price)?.toString() || "");
-                                  setNewOfferPrice(product.priceOffer?.toString() || "");
-                                  setShowInStore(product.showInStore || false);
-                                  setShowPriceDialog(true);
-                                }}
-                                data-testid={`button-edit-price-${product.kopr || product.sku}`}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 rounded-lg hover:bg-muted"
-                                onClick={() => {
-                                  setSelectedProduct(product);
-                                  initializeEcommerceForm(product);
-                                  setShowEcomDialog(true);
-                                }}
-                                data-testid={`button-edit-ecom-${product.kopr || product.sku}`}
-                              >
-                                <Globe className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Tab de Stock por Bodega */}
-        <TabsContent value="warehouses" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <Card className="cursor-pointer hover:shadow-lg transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Funcionalidad de Bodegas
-                </CardTitle>
-                <Building2 className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    La funcionalidad de gestión de stock por bodega será implementada en una futura actualización.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Tab de SKUs Disponibles */}
-        <TabsContent value="skus" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>SKUs Disponibles</CardTitle>
-              <CardDescription>
-                Lista de SKUs únicos en el sistema con información básica
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {/* Filtros para SKUs */}
-              <div className="flex flex-col gap-4 mb-6">
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="flex-1">
-                    <div className="relative">
-                      <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Buscar por SKU o nombre de producto..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-8"
-                        data-testid="input-search-skus"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Select value={filterActive} onValueChange={setFilterActive}>
-                      <SelectTrigger className="w-32">
-                        <SelectValue placeholder="Estado" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        <SelectItem value="true">Activos</SelectItem>
-                        <SelectItem value="false">Inactivos</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select value={filterPrices} onValueChange={setFilterPrices}>
-                      <SelectTrigger className="w-32">
-                        <SelectValue placeholder="Precios" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        <SelectItem value="true">Con precio</SelectItem>
-                        <SelectItem value="false">Sin precio</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Acciones de selección múltiple */}
-                {selectedProducts.length > 0 && (
-                  <div className="flex items-center gap-4 p-3 bg-muted rounded-lg">
-                    <span className="text-sm font-medium">
-                      {selectedProducts.length} producto(s) seleccionado(s)
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedProducts([])}
-                    >
-                      Deseleccionar todo
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        // Aquí se podría agregar funcionalidad de edición masiva
-                        toast({ title: "Funcionalidad de edición masiva próximamente" });
-                      }}
-                    >
-                      Editar seleccionados
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              {/* Tabla de SKUs */}
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">
-                      <input
-                        type="checkbox"
-                        checked={selectedProducts.length === filteredProducts.length && filteredProducts.length > 0}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedProducts(filteredProducts.map(p => p.sku));
-                          } else {
-                            setSelectedProducts([]);
-                          }
-                        }}
-                        className="rounded"
-                      />
-                    </TableHead>
-                    <TableHead>SKU</TableHead>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Precio</TableHead>
-                    <TableHead>Precio Oferta</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Stock Total</TableHead>
-                    <TableHead>Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredProducts.map((product) => (
-                    <TableRow key={product.sku} className="cursor-pointer hover:bg-muted/50">
-                      <TableCell>
-                        <input
-                          type="checkbox"
-                          checked={selectedProducts.includes(product.sku)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedProducts([...selectedProducts, product.sku]);
-                            } else {
-                              setSelectedProducts(selectedProducts.filter(id => id !== product.sku));
-                            }
-                          }}
-                          className="rounded"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </TableCell>
-                      <TableCell className="font-mono text-sm font-medium">{product.sku}</TableCell>
-                      <TableCell>
-                        <div className="max-w-60 truncate">{product.name}</div>
-                      </TableCell>
-                      <TableCell>{formatPrice(product.price || null)}</TableCell>
-                      <TableCell>
-                        {product.priceOffer ? formatPrice(product.priceOffer) : "-"}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Badge variant={product.active ? "default" : "secondary"} className="text-xs">
-                            {product.active ? "Activo" : "Inactivo"}
-                          </Badge>
-                          {product.showInStore && (
-                            <Badge variant="outline" className="text-xs">
-                              En tienda
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>{product.totalStock?.toLocaleString() || 0}</TableCell>
-                      <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedProduct(product);
-                            setNewPrice(product.price || "");
-                            setNewOfferPrice(product.priceOffer?.toString() || "");
-                            setShowInStore(product.showInStore || false);
-                            setShowPriceDialog(true);
-                          }}
-                          data-testid={`button-edit-sku-${product.sku}`}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        {/* Tab de Segmentos */}
-        <TabsContent value="segments" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Precios por Segmento</CardTitle>
-              <CardDescription>
-                Gestiona los precios promedio establecidos para segmentos específicos
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Tabs value={activeSegment} onValueChange={setActiveSegment} className="w-full">
-                <TabsList>
-                  <TabsTrigger value="FERRETERIAS">Ferretería</TabsTrigger>
-                  <TabsTrigger value="CONSTRUCCION">Construcción</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value={activeSegment} className="pt-4 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-medium">
-                      Segmento {activeSegment === "FERRETERIAS" ? "Ferretería" : "Construcción"}
-                    </h3>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => {
-                        const input = document.createElement('input');
-                        input.type = 'file';
-                        input.accept = '.csv';
-                        input.onchange = async (e) => {
-                          const file = (e.target as HTMLInputElement).files?.[0];
-                          if (!file) return;
-                          const formData = new FormData();
-                          formData.append('file', file);
-                          formData.append('segment', activeSegment);
-
-                          try {
-                            const response = await fetch('/api/segment-prices/import', {
-                              method: 'POST',
-                              body: formData
-                            });
-                            if (response.ok) {
-                              toast({ title: "Importación exitosa", description: "Los precios se han actualizado" });
-                              queryClient.invalidateQueries({ queryKey: ['/api/segment-prices', activeSegment] });
-                            } else {
-                              toast({ title: "Error en importación", variant: "destructive" });
-                            }
-                          } catch (err) {
-                            toast({ title: "Error de red", variant: "destructive" });
-                          }
-                        };
-                        input.click();
-                      }}>
-                        <Upload className="h-4 w-4 mr-2" />
-                        Importar Precios Promedio
-                      </Button>
-                    </div>
-                  </div>
-
-                  {segmentPricesLoading ? (
-                    <div className="text-center py-8 text-muted-foreground">Cargando precios...</div>
-                  ) : segmentPrices.length === 0 ? (
-                    <Alert>
-                      {activeSegment === "FERRETERIAS" ? <TrendingUp className="h-4 w-4" /> : <Building2 className="h-4 w-4" />}
-                      <AlertTitle>Sin datos</AlertTitle>
-                      <AlertDescription>
-                        No hay precios promedio cargados para este segmento. Sube un CSV con las columnas "codigo" y "precioPromedio".
-                      </AlertDescription>
-                    </Alert>
-                  ) : (
-                    <div className="border rounded-md">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Código</TableHead>
-                            <TableHead>Producto</TableHead>
-                            <TableHead>Unidad</TableHead>
-                            <TableHead className="text-right">Precio Promedio</TableHead>
-                            <TableHead className="text-right">Última Actualización</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {segmentPrices.map((item) => (
-                            <TableRow key={item.id}>
-                              <TableCell className="font-mono">{item.codigo}</TableCell>
-                              <TableCell>{item.producto || "-"}</TableCell>
-                              <TableCell>{item.unidad || "-"}</TableCell>
-                              <TableCell className="text-right font-semibold">
-                                ${Number(item.precioPromedio).toLocaleString()}
-                              </TableCell>
-                              <TableCell className="text-right text-xs text-muted-foreground">
-                                {new Date(item.lastUpdated).toLocaleDateString()}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* Tab de Inventario */}
         <TabsContent value="inventario" className="space-y-4 mt-4">

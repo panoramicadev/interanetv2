@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { ArrowLeft, Save, Upload, Package, Warehouse, FileText, Bot, Pencil, CheckCircle, AlertCircle, MessageCircle, Check } from "lucide-react";
+import { ArrowLeft, Save, Upload, Package, Warehouse, FileText, Bot, Pencil, CheckCircle, AlertCircle, MessageCircle, Check, Users, Link2, Plus, Trash2, HelpCircle } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -47,9 +48,17 @@ interface ProductQuestion {
     createdAt: string;
 }
 
+interface ProductContentMeta {
+    productFamily: string | null;
+    familySiblingCount: number;
+    isInherited: boolean;
+    isFamilyLevel: boolean;
+}
+
 interface ProductContentData {
     id?: string;
     codigo: string;
+    productFamily?: string | null;
     descripcion?: string;
     usos?: string;
     presentacion?: string;
@@ -62,14 +71,17 @@ interface ProductContentData {
     observaciones?: string;
     fichasTecnicas?: Array<{ name: string; url: string; type: string; uploadedAt: string }>;
     hojasSeguridad?: Array<{ name: string; url: string; uploadedAt: string }>;
+    preguntasFrecuentes?: Array<{ pregunta: string; respuesta: string }>;
     updatedAt?: string;
     updatedBy?: string;
+    _meta?: ProductContentMeta;
 }
 
 const fmtCurrency = (val: string | null | undefined) => {
     if (!val) return "—";
     const n = Number(val);
-    return isNaN(n) ? "—" : new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0 }).format(n);
+    if (isNaN(n) || n === 0) return "—";
+    return `$${n.toLocaleString('de-DE', { maximumFractionDigits: 0 })}`;
 };
 
 export default function ProductCatalogDetail() {
@@ -83,6 +95,8 @@ export default function ProductCatalogDetail() {
     const [form, setForm] = useState<Partial<ProductContentData>>({});
     const [isDirty, setIsDirty] = useState(false);
     const [newQ, setNewQ] = useState("");
+    const [applyToFamily, setApplyToFamily] = useState(true); // Default: apply to entire family
+    const [meta, setMeta] = useState<ProductContentMeta | null>(null);
 
     // Fetch product questions
     const { data: questions = [], isLoading: questionsLoading } = useQuery<ProductQuestion[]>({
@@ -156,7 +170,13 @@ export default function ProductCatalogDetail() {
     // Sync content into form state when loaded
     useEffect(() => {
         if (content) {
-            setForm(content);
+            const { _meta, ...formData } = content;
+            setForm(formData);
+            if (_meta) {
+                setMeta(_meta);
+                // If content is family-level or inherited, default toggle ON
+                setApplyToFamily(_meta.isFamilyLevel || _meta.isInherited || !_meta.productFamily ? true : true);
+            }
         }
     }, [content]);
 
@@ -167,12 +187,14 @@ export default function ProductCatalogDetail() {
             return res.json();
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['/api/product-content', codigo] });
+            // Invalidate ALL product-content queries (siblings may have been updated too)
+            queryClient.invalidateQueries({ queryKey: ['/api/product-content'] });
             setIsDirty(false);
             toast({ title: "Ficha guardada", description: "La información del producto fue actualizada." });
         },
-        onError: () => {
-            toast({ title: "Error al guardar", variant: "destructive" });
+        onError: (error: any) => {
+            console.error('[PRODUCT-CONTENT SAVE ERROR]', error);
+            toast({ title: "Error al guardar", description: error?.message || "Error desconocido", variant: "destructive" });
         }
     });
 
@@ -182,7 +204,8 @@ export default function ProductCatalogDetail() {
     };
 
     const handleSave = () => {
-        saveMutation.mutate(form);
+        const { _meta, ...saveData } = form;
+        saveMutation.mutate({ ...saveData, applyToFamily: applyToFamily && !!meta?.productFamily } as any);
     };
 
     // Build AI preview text
@@ -268,7 +291,7 @@ export default function ProductCatalogDetail() {
             {/* Content */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
                 <Tabs defaultValue="info" className="space-y-6">
-                    <TabsList className="grid grid-cols-5 w-full max-w-2xl">
+                    <TabsList className="grid grid-cols-4 w-full max-w-2xl">
                         <TabsTrigger value="info">
                             <Package className="h-4 w-4 mr-1.5" />
                             Información
@@ -280,15 +303,6 @@ export default function ProductCatalogDetail() {
                         <TabsTrigger value="archivos">
                             <Upload className="h-4 w-4 mr-1.5" />
                             Archivos
-                        </TabsTrigger>
-                        <TabsTrigger value="preguntas" className="relative">
-                            <MessageCircle className="h-4 w-4 mr-1.5" />
-                            Preguntas IA
-                            {pendingCount > 0 && (
-                                <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                                    {pendingCount}
-                                </span>
-                            )}
                         </TabsTrigger>
                         <TabsTrigger value="ia">
                             <Bot className="h-4 w-4 mr-1.5" />
@@ -310,7 +324,13 @@ export default function ProductCatalogDetail() {
                                         <div className="space-y-3">
                                             <div className="grid grid-cols-2 gap-3">
                                                 {[
-                                                    { label: "Lista", val: product.lista },
+                                                    { label: "Lista", val: (() => {
+                                                        const lista = Number(product.lista);
+                                                        if (lista > 0) return product.lista;
+                                                        const desc10 = Number(product.desc10);
+                                                        if (desc10 > 0) return String(Math.round(desc10 / 0.90));
+                                                        return null;
+                                                    })() },
                                                     { label: "Desc. 10%", val: product.desc10 },
                                                     { label: "Desc. 10%+5%", val: product.desc10_5 },
                                                     { label: "Desc. 10%+5%+3%", val: product.desc10_5_3 },
@@ -398,6 +418,49 @@ export default function ProductCatalogDetail() {
 
                     {/* ── Tab: Ficha Técnica ── */}
                     <TabsContent value="ficha" className="space-y-6">
+                        {/* Family toggle */}
+                        {meta?.productFamily && (
+                            <Alert className={`border-blue-200 ${applyToFamily ? 'bg-blue-50' : 'bg-slate-50 border-slate-200'}`}>
+                                <Users className={`h-4 w-4 ${applyToFamily ? 'text-blue-600' : 'text-slate-500'}`} />
+                                <AlertTitle className={applyToFamily ? 'text-blue-800' : 'text-slate-700'}>
+                                    <div className="flex items-center justify-between">
+                                        <span>
+                                            {applyToFamily
+                                                ? `Ficha compartida con toda la familia`
+                                                : `Ficha individual para este SKU`}
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-normal">
+                                                Aplicar a toda la familia
+                                            </span>
+                                            <Switch
+                                                checked={applyToFamily}
+                                                onCheckedChange={(checked) => {
+                                                    setApplyToFamily(checked);
+                                                    setIsDirty(true);
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                </AlertTitle>
+                                <AlertDescription className={applyToFamily ? 'text-blue-700' : 'text-slate-600'}>
+                                    {applyToFamily ? (
+                                        <>
+                                            <strong>"{meta.productFamily}"</strong> — esta ficha técnica se aplica a los{' '}
+                                            <strong>{meta.familySiblingCount} SKUs</strong> de esta familia.
+                                            {meta.isInherited && (
+                                                <span className="ml-1 inline-flex items-center gap-1 text-xs">
+                                                    <Link2 className="h-3 w-3" /> Heredada
+                                                </span>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <>Al guardar, esta ficha solo se aplicará a <strong>{codigo}</strong>. Los demás SKUs de la familia no se verán afectados.</>
+                                    )}
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
                         {isDirty && (
                             <Alert className="border-orange-200 bg-orange-50">
                                 <Pencil className="h-4 w-4 text-orange-600" />
@@ -529,6 +592,81 @@ export default function ProductCatalogDetail() {
                             </div>
                         </div>
 
+                        {/* ── Preguntas Frecuentes ── */}
+                        <Card>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-base flex items-center gap-2">
+                                    <HelpCircle className="h-4 w-4 text-purple-600" />
+                                    Preguntas Frecuentes
+                                </CardTitle>
+                                <CardDescription>Agrega preguntas frecuentes de clientes sobre este producto. Se comparten con toda la familia.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                {(form.preguntasFrecuentes || []).map((faq, idx) => (
+                                    <div key={idx} className="border rounded-lg p-3 space-y-2 bg-muted/30 relative group">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const updated = [...(form.preguntasFrecuentes || [])];
+                                                updated.splice(idx, 1);
+                                                setForm(prev => ({ ...prev, preguntasFrecuentes: updated }));
+                                                setIsDirty(true);
+                                            }}
+                                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-600 p-1 rounded"
+                                            title="Eliminar pregunta"
+                                        >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold text-purple-700">Pregunta</Label>
+                                            <Input
+                                                placeholder="Ej: ¿Cuánto rinde por galón?"
+                                                value={faq.pregunta}
+                                                onChange={e => {
+                                                    const updated = [...(form.preguntasFrecuentes || [])];
+                                                    updated[idx] = { ...updated[idx], pregunta: e.target.value };
+                                                    setForm(prev => ({ ...prev, preguntasFrecuentes: updated }));
+                                                    setIsDirty(true);
+                                                }}
+                                                className="text-sm"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold text-green-700">Respuesta</Label>
+                                            <Textarea
+                                                placeholder="Respuesta para el cliente..."
+                                                value={faq.respuesta}
+                                                onChange={e => {
+                                                    const updated = [...(form.preguntasFrecuentes || [])];
+                                                    updated[idx] = { ...updated[idx], respuesta: e.target.value };
+                                                    setForm(prev => ({ ...prev, preguntasFrecuentes: updated }));
+                                                    setIsDirty(true);
+                                                }}
+                                                rows={2}
+                                                className="text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        setForm(prev => ({
+                                            ...prev,
+                                            preguntasFrecuentes: [...(prev.preguntasFrecuentes || []), { pregunta: '', respuesta: '' }]
+                                        }));
+                                        setIsDirty(true);
+                                    }}
+                                    className="gap-1.5"
+                                >
+                                    <Plus className="h-3.5 w-3.5" />
+                                    Agregar pregunta
+                                </Button>
+                            </CardContent>
+                        </Card>
+
                         <div className="flex justify-end">
                             <Button onClick={handleSave} disabled={saveMutation.isPending || !isDirty}>
                                 <Save className="h-4 w-4 mr-2" />
@@ -608,100 +746,7 @@ export default function ProductCatalogDetail() {
                         </div>
                     </TabsContent>
 
-                    {/* ── Tab: Preguntas IA ── */}
-                    <TabsContent value="preguntas" className="space-y-4">
-                        <Alert className="border-purple-200 bg-purple-50">
-                            <MessageCircle className="h-4 w-4 text-purple-600" />
-                            <AlertTitle className="text-purple-800">Preguntas sin respuesta completa</AlertTitle>
-                            <AlertDescription className="text-purple-700">
-                                El asistente IA registra aquí las preguntas que recibe sobre este producto que no pudo resolver completamente por falta de información en la ficha técnica. Resuélvelas completando la Ficha Técnica y márcalas como resueltas.
-                            </AlertDescription>
-                        </Alert>
 
-                        {/* Log manual question */}
-                        <Card>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-base">Registrar pregunta manualmente</CardTitle>
-                                <CardDescription>Anota preguntas frecuentes de clientes que aún no están cubiertas en la ficha técnica</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="flex gap-2">
-                                    <textarea
-                                        className="flex-1 border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-                                        rows={2}
-                                        placeholder="Ej: ¿Cuál es el rendimiento en m² por litro de este producto?"
-                                        value={newQ}
-                                        onChange={e => setNewQ(e.target.value)}
-                                    />
-                                    <Button
-                                        size="sm"
-                                        disabled={!newQ.trim() || logQuestion.isPending}
-                                        onClick={() => newQ.trim() && logQuestion.mutate(newQ.trim())}
-                                        className="self-start mt-0.5"
-                                    >
-                                        Registrar
-                                    </Button>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Questions list */}
-                        {questionsLoading ? (
-                            <div className="space-y-3">
-                                {[1, 2, 3].map(i => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)}
-                            </div>
-                        ) : questions.length === 0 ? (
-                            <Card>
-                                <CardContent className="py-10 text-center">
-                                    <CheckCircle className="h-8 w-8 text-green-500 mx-auto mb-2" />
-                                    <p className="text-sm font-medium">Sin preguntas pendientes</p>
-                                    <p className="text-xs text-muted-foreground mt-1">La IA no ha registrado preguntas sin resolver para este producto.</p>
-                                </CardContent>
-                            </Card>
-                        ) : (
-                            <div className="space-y-3">
-                                {questions.map(q => (
-                                    <Card key={q.id} className={q.resuelta ? "opacity-60" : ""}>
-                                        <CardContent className="pt-4 pb-4">
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        {q.resuelta ? (
-                                                            <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">Resuelta</Badge>
-                                                        ) : (
-                                                            <Badge variant="destructive" className="text-xs">Pendiente</Badge>
-                                                        )}
-                                                        <span className="text-xs text-muted-foreground">
-                                                            {new Date(q.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-sm font-medium">{q.pregunta}</p>
-                                                    {q.contexto && (
-                                                        <p className="text-xs text-muted-foreground mt-1 italic">{q.contexto}</p>
-                                                    )}
-                                                    {q.resuelta && q.resueltaPor && (
-                                                        <p className="text-xs text-green-700 mt-1">Resuelta por {q.resueltaPor}</p>
-                                                    )}
-                                                </div>
-                                                {!q.resuelta && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="shrink-0 text-green-700 border-green-300 hover:bg-green-50"
-                                                        disabled={resolveQuestion.isPending}
-                                                        onClick={() => resolveQuestion.mutate(q.id)}
-                                                    >
-                                                        <Check className="h-3.5 w-3.5 mr-1" />
-                                                        Resuelta
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                ))}
-                            </div>
-                        )}
-                    </TabsContent>
 
                     {/* ── Tab: Vista IA ── */}
                     <TabsContent value="ia" className="space-y-4">

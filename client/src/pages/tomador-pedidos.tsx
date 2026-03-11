@@ -3844,7 +3844,7 @@ export default function TomadorPedidos() {
             <QuotesList onEditQuote={loadQuoteForEditing} />
           </div>
 
-          {/* Pedidos de Clientes del Ecommerce */}
+          {/* Pedidos de Clientes (eCommerce + Catálogo) */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -3852,7 +3852,7 @@ export default function TomadorPedidos() {
                 Pedidos de Clientes
               </CardTitle>
               <CardDescription>
-                Pedidos realizados por clientes desde la tienda online
+                Pedidos realizados desde eCommerce y catálogos de vendedores
               </CardDescription>
             </CardHeader>
             <CardContent>

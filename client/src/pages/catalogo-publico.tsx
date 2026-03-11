@@ -5,6 +5,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -26,16 +28,19 @@ import {
   User,
   Sparkles,
   ListOrdered,
+  Send,
+  Trash2,
+  Minus,
+  Plus,
 } from 'lucide-react';
 import { SiWhatsapp } from 'react-icons/si';
 import AiChatView from '@/components/ai-chat/AiChatView';
 import { useAiChat } from '@/hooks/useAiChat';
 import PublicCatalogProducts from '@/components/public-catalog-products';
 import { useCartItemCount, useCart } from '@/hooks/useCart';
-import { BillingSummary } from '@/components/cart';
-import { Trash2, Minus, Plus } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { useToast } from '@/hooks/use-toast';
 
 type SalespersonProfile = {
   id: string;
@@ -48,99 +53,266 @@ type SalespersonProfile = {
   catalogEnabled: boolean;
 };
 
-const formatCurrency = (price: number): string => {
-  return `$${new Intl.NumberFormat('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(price)}`;
-};
+function PublicOrderModal({ isOpen, onClose, slug }: { isOpen: boolean; onClose: () => void; slug: string }) {
+  const { state, removeItem, updateQuantity, clearCart } = useCart();
+  const { toast } = useToast();
+  const [visitorName, setVisitorName] = useState('');
+  const [visitorEmail, setVisitorEmail] = useState('');
+  const [visitorPhone, setVisitorPhone] = useState('');
+  const [visitorCompany, setVisitorCompany] = useState('');
+  const [message, setMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [orderSent, setOrderSent] = useState(false);
 
-function CartCheckoutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const { state, removeItem, updateQuantity } = useCart();
+  const handleSubmitOrder = async () => {
+    if (!visitorName.trim() || !visitorEmail.trim()) return;
+    if (state.items.length === 0) return;
+
+    setIsSending(true);
+    try {
+      const payload = {
+        visitorName: visitorName.trim(),
+        visitorEmail: visitorEmail.trim(),
+        visitorPhone: visitorPhone.trim() || undefined,
+        visitorCompany: visitorCompany.trim() || undefined,
+        message: message.trim() || undefined,
+        items: state.items.map(item => ({
+          productId: item.productCode || item.productId,
+          productName: item.productName,
+          sku: item.productCode || '',
+          quantity: item.quantity,
+          unitPrice: 0,
+        })),
+      };
+
+      const response = await fetch(`/api/public/catalogos/${slug}/cotizacion`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || 'Error al enviar pedido');
+      }
+
+      setOrderSent(true);
+      clearCart();
+      toast({ title: '¡Pedido enviado!', description: 'Tu pedido fue enviado al vendedor. Te contactará pronto.' });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'No se pudo enviar el pedido.', variant: 'destructive' });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (orderSent) {
+      setOrderSent(false);
+      setVisitorName('');
+      setVisitorEmail('');
+      setVisitorPhone('');
+      setVisitorCompany('');
+      setMessage('');
+    }
+    onClose();
+  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden p-0 w-[calc(100%-2rem)] rounded-2xl">
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
           <DialogTitle className="flex items-center gap-2 text-lg">
             <ShoppingCart className="w-5 h-5 text-orange-500" />
             Mi Pedido — {state.itemCount} producto{state.itemCount !== 1 ? 's' : ''}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Revisa tu pedido y confirma
+            Revisa tu pedido y envíalo al vendedor
           </DialogDescription>
         </DialogHeader>
 
-        {state.items.length === 0 ? (
+        {/* Success state */}
+        {orderSent ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+              <CheckCircle2 className="h-8 w-8 text-green-600" />
+            </div>
+            <p className="text-lg font-semibold text-slate-800">¡Pedido enviado exitosamente!</p>
+            <p className="text-sm text-slate-500 mt-2 max-w-sm">Tu pedido fue enviado al vendedor. Se pondrá en contacto contigo pronto para confirmar los detalles y precios.</p>
+            <Button onClick={handleClose} className="mt-6 bg-orange-500 hover:bg-orange-600 text-white">Cerrar</Button>
+          </div>
+        ) : state.items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center px-6">
             <ShoppingCart className="h-12 w-12 text-slate-300 mb-4" />
             <p className="text-lg font-medium text-slate-700">Tu carrito está vacío</p>
             <p className="text-sm text-slate-500 mt-1">Agrega productos para crear tu pedido</p>
-            <Button onClick={onClose} className="mt-6 bg-orange-500 hover:bg-orange-600 text-white">Seguir comprando</Button>
+            <Button onClick={handleClose} className="mt-6 bg-orange-500 hover:bg-orange-600 text-white">Seguir comprando</Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-0 overflow-hidden" style={{ maxHeight: 'calc(90vh - 100px)' }}>
-            {/* Left: Cart Items */}
-            <div className="lg:col-span-3 border-r overflow-y-auto" style={{ maxHeight: 'calc(90vh - 100px)' }}>
-              <div className="divide-y">
-                {state.items.map((item) => (
-                  <div key={item.id} className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-sm uppercase">{item.productName}</h4>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {item.selectedColor && <span className="uppercase">{item.selectedColor}</span>}
-                          {item.selectedColor && item.selectedPackaging && ' · '}
-                          {item.selectedPackaging}
-                        </p>
-                        <p className="text-xs text-slate-400 mt-0.5">SKU: {item.productCode || 'N/A'}</p>
+          <ScrollArea className="max-h-[calc(90vh-100px)]">
+            <div className="px-6 py-4 space-y-4">
+              {/* Cart Items */}
+              <div>
+                <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-3">Productos seleccionados</h3>
+                <div className="divide-y border rounded-lg overflow-hidden">
+                  {state.items.map((item) => (
+                    <div key={item.id} className="p-3 bg-white">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-base uppercase text-slate-900">{item.productName}</h4>
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            {item.selectedColor && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-orange-100 text-orange-700 text-xs font-semibold uppercase">
+                                {item.selectedColor}
+                              </span>
+                            )}
+                            {item.selectedPackaging && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-semibold">
+                                {item.selectedPackaging}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-400 mt-1">SKU: {item.productCode || 'N/A'}</p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeItem(item.id)}
+                          className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50 flex-shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeItem(item.id)}
-                        className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50 flex-shrink-0"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
+                      <div className="flex items-center mt-2">
+                        <span className="text-xs text-slate-500 mr-2">Cantidad:</span>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => updateQuantity(item.id, Math.max(item.minQuantity, item.quantity - (item.quantityStep || 1)))}
+                            className="h-7 w-7 p-0"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </Button>
+                          <Input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || item.minQuantity)}
+                            className="h-7 w-12 text-center text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => updateQuantity(item.id, item.quantity + (item.quantityStep || 1))}
+                            className="h-7 w-7 p-0"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between mt-3">
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => updateQuantity(item.id, Math.max(item.minQuantity, item.quantity - (item.quantityStep || 1)))}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Minus className="w-3 h-3" />
-                        </Button>
-                        <Input
-                          type="number"
-                          value={item.quantity}
-                          onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || item.minQuantity)}
-                          className="h-8 w-14 text-center text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => updateQuantity(item.id, item.quantity + (item.quantityStep || 1))}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Plus className="w-3 h-3" />
-                        </Button>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-slate-400">{formatCurrency(item.unitPrice)} c/u</p>
-                        <p className="text-sm font-bold text-orange-600">{formatCurrency(item.subtotal)}</p>
-                      </div>
+                  ))}
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Visitor Information Form */}
+              <div>
+                <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-3">Tus datos de contacto</h3>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="visitor-name" className="text-sm font-medium">Nombre *</Label>
+                      <Input
+                        id="visitor-name"
+                        placeholder="Tu nombre completo"
+                        value={visitorName}
+                        onChange={(e) => setVisitorName(e.target.value)}
+                        disabled={isSending}
+                        data-testid="input-visitor-name"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="visitor-email" className="text-sm font-medium">Email *</Label>
+                      <Input
+                        id="visitor-email"
+                        type="email"
+                        placeholder="tu@email.com"
+                        value={visitorEmail}
+                        onChange={(e) => setVisitorEmail(e.target.value)}
+                        disabled={isSending}
+                        data-testid="input-visitor-email"
+                      />
                     </div>
                   </div>
-                ))}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="visitor-phone" className="text-sm font-medium">Teléfono</Label>
+                      <Input
+                        id="visitor-phone"
+                        placeholder="+56 9 1234 5678"
+                        value={visitorPhone}
+                        onChange={(e) => setVisitorPhone(e.target.value)}
+                        disabled={isSending}
+                        data-testid="input-visitor-phone"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="visitor-company" className="text-sm font-medium">Empresa</Label>
+                      <Input
+                        id="visitor-company"
+                        placeholder="Nombre de tu empresa"
+                        value={visitorCompany}
+                        onChange={(e) => setVisitorCompany(e.target.value)}
+                        disabled={isSending}
+                        data-testid="input-visitor-company"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="visitor-message" className="text-sm font-medium">Mensaje o notas (opcional)</Label>
+                    <Textarea
+                      id="visitor-message"
+                      placeholder="Detalles adicionales sobre tu pedido..."
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      rows={2}
+                      disabled={isSending}
+                      className="resize-none"
+                      data-testid="textarea-visitor-message"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <div className="pt-2 pb-2">
+                <Button
+                  onClick={handleSubmitOrder}
+                  disabled={isSending || !visitorName.trim() || !visitorEmail.trim() || state.items.length === 0}
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 text-base"
+                  size="lg"
+                  data-testid="button-submit-order"
+                >
+                  {isSending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Enviando pedido...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4 mr-2" />
+                      Enviar pedido al vendedor
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-slate-400 text-center mt-2">
+                  El vendedor recibirá tu pedido y te contactará con los precios y detalles.
+                </p>
               </div>
             </div>
-
-            {/* Right: Billing Summary */}
-            <div className="lg:col-span-2 overflow-y-auto bg-slate-50" style={{ maxHeight: 'calc(90vh - 100px)' }}>
-              <BillingSummary />
-            </div>
-          </div>
+          </ScrollArea>
         )}
       </DialogContent>
     </Dialog>
@@ -174,6 +346,7 @@ export default function CatalogoPublico() {
   const [activeTab, setActiveTab] = useState<'productos' | 'ia'>('productos');
   const cartItemCount = useCartItemCount();
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
 
   const { data, isLoading, error } = useQuery<{
     salesperson: SalespersonProfile;
@@ -383,15 +556,16 @@ export default function CatalogoPublico() {
         </DialogContent>
       </Dialog>
 
-      {/* Premium Digital Business Card Header */}
-      <header className="relative bg-slate-900 overflow-hidden border-b border-white/5 flex-shrink-0">
+      {/* Premium Digital Business Card Header — collapses on scroll */}
+      <header className={`relative bg-slate-900 overflow-hidden border-b border-white/5 flex-shrink-0 transition-all duration-300 ease-in-out ${isScrolled ? 'py-0' : ''}`}>
         <div className="absolute inset-0">
           <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2"></div>
           <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-[120px] translate-y-1/2 -translate-x-1/2"></div>
           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
         </div>
 
-        <div className="relative container mx-auto px-4 py-6 md:py-8">
+        {/* Full header — shown when NOT scrolled */}
+        <div className={`relative container mx-auto px-4 transition-all duration-300 ease-in-out overflow-hidden ${isScrolled ? 'max-h-0 py-0 opacity-0' : 'max-h-[500px] py-6 md:py-8 opacity-100'}`}>
           <div className="flex flex-col md:flex-row items-center md:items-start gap-4 md:gap-8">
             {/* Salesperson Image */}
             <div className="relative group">
@@ -491,6 +665,72 @@ export default function CatalogoPublico() {
             </div>
           </div>
         </div>
+
+        {/* Compact header — shown when scrolled */}
+        <div className={`relative container mx-auto px-4 transition-all duration-300 ease-in-out overflow-hidden ${isScrolled ? 'max-h-[80px] py-2.5 opacity-100' : 'max-h-0 py-0 opacity-0'}`}>
+          <div className="flex items-center gap-3">
+            {/* Small profile image */}
+            <div className="relative flex-shrink-0">
+              <div className="w-9 h-9 rounded-xl overflow-hidden border-2 border-white/10 bg-gradient-to-br from-slate-800 to-slate-700 flex items-center justify-center">
+                {salesperson.profileImageUrl ? (
+                  <img
+                    src={salesperson.profileImageUrl}
+                    alt={salesperson.salespersonName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <User className="w-4 h-4 text-white/30" />
+                )}
+              </div>
+              <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-amber-500 rounded-md flex items-center justify-center border border-slate-900">
+                <Check className="w-2 h-2 text-slate-900" />
+              </div>
+            </div>
+
+            {/* Name + role */}
+            <div className="flex-1 min-w-0">
+              <h2 className="text-sm font-bold text-white truncate">
+                {clientBusinessName || salesperson.salespersonName}
+                {clientBusinessName && clientLoyaltyTier && (
+                  <Badge className={`${getTierBadgeColor(clientLoyaltyTier.code)} border-none ml-2 px-1.5 py-0 text-[8px] font-bold uppercase`}>
+                    {clientLoyaltyTier.name}
+                  </Badge>
+                )}
+              </h2>
+              <p className="text-[10px] text-amber-400/70 font-medium truncate">Ejecutivo Comercial · Pinturas Panorámica</p>
+            </div>
+
+            {/* Compact contact buttons */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {salesperson.publicPhone && (
+                <a
+                  href={getWhatsAppLink(salesperson.publicPhone)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-8 h-8 flex items-center justify-center bg-[#25D366] hover:bg-[#20ba5a] text-white rounded-lg transition-colors"
+                >
+                  <SiWhatsapp className="w-3.5 h-3.5" />
+                </a>
+              )}
+              {salesperson.publicPhone && (
+                <a
+                  href={`tel:${salesperson.publicPhone}`}
+                  className="w-8 h-8 flex items-center justify-center bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/10 transition-colors"
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                </a>
+              )}
+              {clientBusinessName && (
+                <button
+                  onClick={handleClearClient}
+                  className="px-2 py-1 text-[10px] font-medium bg-white/15 hover:bg-white/25 text-white rounded-lg transition-colors"
+                >
+                  Salir
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       </header>
 
       {/* Loyalty Tier Progress */}
@@ -565,7 +805,7 @@ export default function CatalogoPublico() {
         {/* Tab Content */}
         <div className="flex-1 min-h-0 overflow-hidden">
           {activeTab === 'productos' ? (
-            <PublicCatalogProducts />
+            <PublicCatalogProducts onScroll={(scrollTop) => setIsScrolled(scrollTop > 20)} />
           ) : (
             <AiChatView
               messages={aiChat.messages}
@@ -596,8 +836,8 @@ export default function CatalogoPublico() {
           </div>
         )}
 
-        {/* Cart Checkout Modal */}
-        <CartCheckoutModal isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+        {/* Public Order Modal */}
+        <PublicOrderModal isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} slug={slug} />
       </main>
     </div>
   );

@@ -1400,6 +1400,7 @@ export interface IStorage {
 
   // Product Content (Fichas Técnicas)
   getProductContent(codigo: string): Promise<ProductContent | undefined>;
+  getProductContentByFamily(family: string): Promise<ProductContent | undefined>;
   upsertProductContent(data: Partial<InsertProductContent> & { codigo: string }): Promise<ProductContent>;
   getInventoryByProduct(sku: string): Promise<{ bodega: string; nombreBodega: string | null; stock1: number; stock2: number; unidad1: string | null; unidad2: string | null }[]>;
 
@@ -11047,6 +11048,25 @@ export class DatabaseStorage implements IStorage {
         };
       })
     );
+    // Sort: manual clients (no transactions) first, then by last purchase date DESC
+    clientsWithMetrics.sort((a, b) => {
+      const aManual = !a.totalTransactions || a.totalTransactions === 0;
+      const bManual = !b.totalTransactions || b.totalTransactions === 0;
+      
+      // Manual clients first
+      if (aManual && !bManual) return -1;
+      if (!aManual && bManual) return 1;
+      
+      // Both manual: sort by creation date DESC
+      if (aManual && bManual) {
+        return 0; // Keep original order (by updatedAt DESC from query)
+      }
+      
+      // Both have transactions: sort by lastTransactionDate DESC
+      const aDate = a.lastTransactionDate ? new Date(a.lastTransactionDate).getTime() : 0;
+      const bDate = b.lastTransactionDate ? new Date(b.lastTransactionDate).getTime() : 0;
+      return bDate - aDate;
+    });
 
     return clientsWithMetrics;
   }
@@ -12648,7 +12668,17 @@ export class DatabaseStorage implements IStorage {
     }
 
     const items = await query
-      .orderBy(priceList.codigo)
+      .orderBy(
+        sql`CASE 
+          WHEN ${priceList.unidad} ILIKE '%1/4%' THEN 1
+          WHEN ${priceList.unidad} ILIKE '%balde%' OR ${priceList.unidad} ILIKE '%BD%' THEN 3
+          WHEN ${priceList.unidad} ILIKE '%galon%' OR ${priceList.unidad} = 'GL' THEN 2
+          WHEN ${priceList.unidad} IN ('UN', 'Unidad') THEN 4
+          ELSE 5
+        END`,
+        priceList.producto,
+        priceList.codigo
+      )
       .limit(limit)
       .offset(offset);
 
@@ -12806,22 +12836,44 @@ export class DatabaseStorage implements IStorage {
   // Product Content (Fichas Técnicas) implementation
   async getProductContent(codigo: string): Promise<ProductContent | undefined> {
     const [item] = await db.select().from(productContent).where(eq(productContent.codigo, codigo));
+    return item || undefined;
+  }
+
+  async getProductContentByFamily(family: string): Promise<ProductContent | undefined> {
+    const [item] = await db.select().from(productContent)
+      .where(eq(productContent.productFamily, family))
+      .limit(1);
     return item;
   }
 
   async upsertProductContent(data: Partial<InsertProductContent> & { codigo: string }): Promise<ProductContent> {
-    const [existing] = await db.select().from(productContent).where(eq(productContent.codigo, data.codigo));
+    // Sanitize: only pass known columns to DB
+    const sanitized: Record<string, any> = {};
+    const allowedFields = [
+      'codigo', 'productFamily', 'descripcion', 'usos', 'presentacion', 'rendimiento',
+      'preparacionSuperficie', 'modoAplicacion', 'tiempoSecado', 'dilucion', 'capas',
+      'observaciones', 'fichasTecnicas', 'hojasSeguridad', 'preguntasFrecuentes', 'updatedBy'
+    ];
+    for (const key of allowedFields) {
+      if (key in data) {
+        sanitized[key] = (data as any)[key];
+      }
+    }
+
+    const [existing] = await db.select().from(productContent).where(eq(productContent.codigo, sanitized.codigo));
 
     if (existing) {
       const [updated] = await db
         .update(productContent)
-        .set({ ...data, updatedAt: new Date() })
-        .where(eq(productContent.codigo, data.codigo))
+        .set({ ...sanitized, updatedAt: new Date() })
+        .where(eq(productContent.codigo, sanitized.codigo))
         .returning();
       return updated;
     }
 
-    const [inserted] = await db.insert(productContent).values(data as InsertProductContent).returning();
+    const [inserted] = await db.insert(productContent)
+      .values({ ...sanitized, updatedAt: new Date(), createdAt: new Date() } as InsertProductContent)
+      .returning();
     return inserted;
   }
 
@@ -15736,7 +15788,7 @@ export class DatabaseStorage implements IStorage {
       sum + (item.quantity * item.unitPrice), 0
     );
 
-    // Create the order with "pendiente" status
+    // Create the order with "pending" status
     const [newOrder] = await db
       .insert(ecommerceOrders)
       .values({
@@ -15744,16 +15796,17 @@ export class DatabaseStorage implements IStorage {
         clientName: quoteData.visitorName,
         clientEmail: quoteData.visitorEmail,
         clientPhone: quoteData.visitorPhone,
+        clientCompany: quoteData.visitorCompany || null,
         assignedSalespersonId: salesperson.id,
         assignedSalespersonName: salesperson.salespersonName,
-        status: 'pendiente',
+        status: 'pending',
         items: quoteData.items,
         subtotal: subtotal.toString(),
-        tax: '0', // Sin impuesto para cotizaciones públicas
+        tax: '0',
         total: subtotal.toString(),
         notes: quoteData.message
-          ? `[CATÁLOGO PÚBLICO]\nEmpresa: ${quoteData.visitorCompany || 'N/A'}\nMensaje: ${quoteData.message}`
-          : `[CATÁLOGO PÚBLICO]\nEmpresa: ${quoteData.visitorCompany || 'N/A'}`,
+          ? `[CATÁLOGO: ${salesperson.salespersonName}]\nEmpresa: ${quoteData.visitorCompany || 'N/A'}\nMensaje: ${quoteData.message}`
+          : `[CATÁLOGO: ${salesperson.salespersonName}]\nEmpresa: ${quoteData.visitorCompany || 'N/A'}`,
       })
       .returning();
 

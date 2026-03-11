@@ -405,6 +405,37 @@ export default function Clients() {
     }
   });
 
+  const deleteClientMutation = useMutation({
+    mutationFn: async (clientId: string) => {
+      const response = await fetch(`/api/clients/${clientId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al eliminar cliente');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/clients'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/clients/search'] });
+      toast({
+        title: "Cliente eliminado",
+        description: "El cliente ha sido eliminado exitosamente.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "No se pudo eliminar el cliente",
+        variant: "destructive",
+      });
+    }
+  });
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -826,7 +857,21 @@ export default function Clients() {
                         </p>
                       </TableCell>
                       <TableCell className="text-right py-4 pr-4">
-                        <div className="flex justify-end">
+                        <div className="flex justify-end gap-1">
+                          {(!client.totalTransactions || client.totalTransactions === 0) && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (window.confirm(`¿Estás seguro de eliminar a "${client.nokoen}"?`)) {
+                                  deleteClientMutation.mutate(client.id);
+                                }
+                              }}
+                              className="p-2 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-all opacity-0 group-hover:opacity-100"
+                              title="Eliminar cliente"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
                           <div className="p-2 rounded-lg group-hover:bg-background group-hover:shadow-sm transition-all text-muted-foreground group-hover:text-indigo-600">
                             <ChevronRight className="h-4 w-4" />
                           </div>

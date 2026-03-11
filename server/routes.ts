@@ -17,6 +17,7 @@ import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { comunaRegionService } from "./comunaRegionService";
 import { db } from "./db";
 import {
+  clients,
   ecommerceProducts,
   salesTransactions,
   fileUploads,
@@ -1426,6 +1427,37 @@ export function registerRoutes(app: Express): Server {
       if (error.code === '23505') {
         return res.status(409).json({ error: 'El código de cliente ya existe' });
       }
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+
+  // Delete a manually created client (only if no transactions exist)
+  app.delete('/api/clients/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+
+      // Get client first
+      const [client] = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
+      if (!client) {
+        return res.status(404).json({ error: 'Cliente no encontrado' });
+      }
+
+      // Check if client has any transactions in factVentas
+      const [txCount] = await db
+        .select({ count: sql`COUNT(*)`.as('count') })
+        .from(factVentas)
+        .where(eq(factVentas.nokoen, client.nokoen));
+
+      if (Number(txCount?.count || 0) > 0) {
+        return res.status(400).json({ error: 'No se puede eliminar un cliente con historial de ventas' });
+      }
+
+      // Delete the client
+      await db.delete(clients).where(eq(clients.id, id));
+
+      res.json({ success: true, message: 'Cliente eliminado exitosamente' });
+    } catch (error) {
+      console.error('Error al eliminar cliente:', error);
       res.status(500).json({ error: 'Error interno del servidor' });
     }
   });
@@ -8578,8 +8610,39 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/product-content/:codigo', requireAuth, async (req, res) => {
     try {
       const { codigo } = req.params;
+      
+      // Look up the product's generic display name (same grouping as grouped catalog)
+      const { ecommerceProducts, priceList } = await import('@shared/schema');
+      const [ecomProduct] = await db
+        .select({ genericName: ecommerceProducts.variantGenericDisplayName })
+        .from(ecommerceProducts)
+        .innerJoin(priceList, eq(ecommerceProducts.priceListId, priceList.id))
+        .where(eq(priceList.codigo, codigo))
+        .limit(1);
+      
+      const familyName = ecomProduct?.genericName || null;
+      
+      // Count sibling SKUs with the same variant_generic_display_name
+      let familySiblingCount = 0;
+      if (familyName) {
+        const countResult = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(ecommerceProducts)
+          .where(eq(ecommerceProducts.variantGenericDisplayName, familyName));
+        familySiblingCount = Number(countResult[0]?.count) || 0;
+      }
+
       const content = await storage.getProductContent(codigo);
-      res.json(content || { codigo, fichasTecnicas: [], hojasSeguridad: [] });
+      
+      res.json({
+        ...(content || { codigo, fichasTecnicas: [], hojasSeguridad: [] }),
+        _meta: {
+          productFamily: familyName,
+          familySiblingCount,
+          isInherited: false,
+          isFamilyLevel: content?.productFamily ? true : false,
+        }
+      });
     } catch (error) {
       console.error("Error fetching product content:", error);
       res.status(500).json({ message: "Failed to fetch product content" });
@@ -8590,7 +8653,46 @@ export function registerRoutes(app: Express): Server {
     try {
       const { codigo } = req.params;
       const user = req.user;
-      const data = { ...req.body, codigo, updatedBy: user.username };
+      const { applyToFamily, _meta, id, ...contentData } = req.body;
+      
+      if (applyToFamily) {
+        // Find ALL sibling SKUs with the same variant_generic_display_name
+        // This is the EXACT same grouping logic as the grouped catalog panel
+        const { ecommerceProducts, priceList } = await import('@shared/schema');
+        const [ecomProduct] = await db
+          .select({ genericName: ecommerceProducts.variantGenericDisplayName })
+          .from(ecommerceProducts)
+          .innerJoin(priceList, eq(ecommerceProducts.priceListId, priceList.id))
+          .where(eq(priceList.codigo, codigo))
+          .limit(1);
+        
+        const familyName = ecomProduct?.genericName || null;
+        
+        if (familyName) {
+          // Get ALL sibling SKUs
+          const siblings = await db
+            .select({ codigo: priceList.codigo })
+            .from(ecommerceProducts)
+            .innerJoin(priceList, eq(ecommerceProducts.priceListId, priceList.id))
+            .where(eq(ecommerceProducts.variantGenericDisplayName, familyName));
+          
+          // Replicate content to EVERY sibling
+          const results = [];
+          for (const sibling of siblings) {
+            if (!sibling.codigo) continue;
+            const data = { ...contentData, codigo: sibling.codigo, productFamily: familyName, updatedBy: user.username };
+            const result = await storage.upsertProductContent(data);
+            results.push(result);
+          }
+          
+          // Return the result for the current product
+          const current = results.find(r => r.codigo === codigo) || results[0];
+          return res.json(current);
+        }
+      }
+      
+      // Individual save (no family or applyToFamily is false)
+      const data = { ...contentData, codigo, productFamily: null, updatedBy: user.username };
       const result = await storage.upsertProductContent(data);
       res.json(result);
     } catch (error) {
