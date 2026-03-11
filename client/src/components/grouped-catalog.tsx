@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import {
     Search, Package, Palette, ChevronDown, ChevronRight,
-    Weight, Ruler, Truck, Loader2, Upload, Trash2, Box
+    Weight, Ruler, Truck, Loader2, Upload, Trash2, Box, Tag
 } from "lucide-react";
 
 interface FormatVariant {
@@ -43,6 +43,7 @@ interface FormatVariant {
 interface GenericProduct {
     genericName: string;
     groupName: string | null;
+    tags: string[];
     colors: { [color: string]: FormatVariant[] };
 }
 
@@ -160,6 +161,48 @@ export default function GroupedCatalog() {
         },
         onError: () => {
             toast({ variant: "destructive", title: "Error", description: "No se pudo limpiar la tabla." });
+        },
+    });
+
+    const AVAILABLE_TAGS = ["Mejor Precio", "Rápida Rotación", "Pocas Unidades"];
+    const TAG_STYLES: Record<string, { active: string; inactive: string }> = {
+        "Mejor Precio": { 
+            active: "bg-green-500 text-white border-green-600 shadow-green-200 shadow-md ring-2 ring-green-300",
+            inactive: "bg-white text-green-700 border-dashed border-green-300 hover:bg-green-50 hover:border-green-400"
+        },
+        "Rápida Rotación": { 
+            active: "bg-blue-500 text-white border-blue-600 shadow-blue-200 shadow-md ring-2 ring-blue-300",
+            inactive: "bg-white text-blue-700 border-dashed border-blue-300 hover:bg-blue-50 hover:border-blue-400"
+        },
+        "Pocas Unidades": { 
+            active: "bg-amber-500 text-white border-amber-600 shadow-amber-200 shadow-md ring-2 ring-amber-300",
+            inactive: "bg-white text-amber-700 border-dashed border-amber-300 hover:bg-amber-50 hover:border-amber-400"
+        },
+    };
+
+    const tagMutation = useMutation({
+        mutationFn: async ({ productFamily, tag, action }: { productFamily: string; tag: string; action: 'add' | 'remove' }) => {
+            const res = await fetch("/api/products/grouped-catalog/tags", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ productFamily, tag, action }),
+                credentials: "include",
+            });
+            if (!res.ok) {
+                const err = await res.text();
+                console.error('Tag mutation error:', res.status, err);
+                throw new Error(err);
+            }
+            return res.json();
+        },
+        onSuccess: (data) => {
+            console.log('Tag updated:', data);
+            queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/public/products/grouped"] });
+        },
+        onError: (error) => {
+            console.error('Tag mutation onError:', error);
+            toast({ variant: "destructive", title: "Error", description: String(error) });
         },
     });
 
@@ -327,11 +370,47 @@ export default function GroupedCatalog() {
                                     {product.groupName}
                                 </Badge>
                             )}
+                            {(product.tags || []).map(tag => (
+                                <Badge key={tag} className={`text-[10px] font-bold border ${
+                                    tag === 'Mejor Precio' ? 'bg-green-500 text-white border-green-600' :
+                                    tag === 'Rápida Rotación' ? 'bg-blue-500 text-white border-blue-600' :
+                                    tag === 'Pocas Unidades' ? 'bg-amber-500 text-white border-amber-600' :
+                                    'bg-gray-100 text-gray-700'
+                                }`}>
+                                    {tag}
+                                </Badge>
+                            ))}
                         </div>
 
                         {/* Colors section */}
                         {isExpanded && (
                             <div className="border-t">
+                                {/* Tag toggles */}
+                                <div className="p-3 bg-muted/20 border-b flex items-center gap-2 flex-wrap">
+                                    <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                                    <span className="text-xs font-medium text-muted-foreground mr-1">Etiquetas:</span>
+                                    {AVAILABLE_TAGS.map(tag => {
+                                        const isActive = (product.tags || []).includes(tag);
+                                        const styles = TAG_STYLES[tag] || { active: 'bg-gray-500 text-white', inactive: 'bg-white text-gray-600 border-dashed border-gray-300' };
+                                        return (
+                                            <button
+                                                key={tag}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    tagMutation.mutate({
+                                                        productFamily: product.genericName,
+                                                        tag,
+                                                        action: isActive ? 'remove' : 'add',
+                                                    });
+                                                }}
+                                                disabled={tagMutation.isPending}
+                                                className={`text-[11px] px-2.5 py-1 rounded-full border font-semibold transition-all duration-200 ${isActive ? styles.active : styles.inactive}`}
+                                            >
+                                                {isActive ? '✓ ' : '+ '}{tag}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                                 {/* Color pills */}
                                 <div className="p-4 bg-muted/10">
                                     <div className="flex items-center gap-2 mb-3">

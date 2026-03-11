@@ -59,6 +59,7 @@ interface ProductContentData {
     id?: string;
     codigo: string;
     productFamily?: string | null;
+    breveResena?: string;
     descripcion?: string;
     usos?: string;
     presentacion?: string;
@@ -183,7 +184,17 @@ export default function ProductCatalogDetail() {
     // Save mutation
     const saveMutation = useMutation({
         mutationFn: async (data: Partial<ProductContentData>) => {
-            const res = await apiRequest('PUT', `/api/product-content/${encodeURIComponent(codigo!)}`, data);
+            console.log('[PRODUCT-CONTENT SAVE] Sending data:', JSON.stringify(data, null, 2));
+            const res = await fetch(`/api/product-content/${encodeURIComponent(codigo!)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+                credentials: 'include',
+            });
+            if (!res.ok) {
+                const errText = await res.text();
+                throw new Error(errText || `Error ${res.status}`);
+            }
             return res.json();
         },
         onSuccess: () => {
@@ -280,10 +291,9 @@ export default function ProductCatalogDetail() {
                         </div>
                     </div>
                     {isDirty && (
-                        <Button onClick={handleSave} disabled={saveMutation.isPending} className="shrink-0">
-                            <Save className="h-4 w-4 mr-2" />
-                            {saveMutation.isPending ? "Guardando..." : "Guardar Cambios"}
-                        </Button>
+                        <Badge variant="destructive" className="text-xs animate-pulse">
+                            Cambios sin guardar
+                        </Badge>
                     )}
                 </div>
             </div>
@@ -414,6 +424,65 @@ export default function ProductCatalogDetail() {
                                 </CardContent>
                             </Card>
                         </div>
+
+                        {/* Read-only Ficha Técnica Summary */}
+                        {(form.breveResena || form.descripcion || form.usos || form.rendimiento || form.modoAplicacion) && (
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-base flex items-center gap-2">
+                                        <FileText className="h-4 w-4 text-blue-600" />
+                                        Resumen Ficha Técnica
+                                    </CardTitle>
+                                    <CardDescription>Información técnica del producto (editable en la pestaña Ficha Técnica)</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-3 text-sm">
+                                        {form.breveResena && (
+                                            <div>
+                                                <span className="font-semibold text-slate-700">Breve Reseña:</span>
+                                                <p className="text-slate-600 mt-0.5">{form.breveResena}</p>
+                                            </div>
+                                        )}
+                                        {form.descripcion && (
+                                            <div>
+                                                <span className="font-semibold text-slate-700">Descripción:</span>
+                                                <p className="text-slate-600 mt-0.5">{form.descripcion}</p>
+                                            </div>
+                                        )}
+                                        {form.usos && (
+                                            <div>
+                                                <span className="font-semibold text-slate-700">Usos:</span>
+                                                <p className="text-slate-600 mt-0.5">{form.usos}</p>
+                                            </div>
+                                        )}
+                                        {form.rendimiento && (
+                                            <div>
+                                                <span className="font-semibold text-slate-700">Rendimiento:</span>
+                                                <p className="text-slate-600 mt-0.5">{form.rendimiento}</p>
+                                            </div>
+                                        )}
+                                        {form.modoAplicacion && (
+                                            <div>
+                                                <span className="font-semibold text-slate-700">Modo de Aplicación:</span>
+                                                <p className="text-slate-600 mt-0.5">{form.modoAplicacion}</p>
+                                            </div>
+                                        )}
+                                        {form.tiempoSecado && (
+                                            <div>
+                                                <span className="font-semibold text-slate-700">Tiempo de Secado:</span>
+                                                <p className="text-slate-600 mt-0.5">{form.tiempoSecado}</p>
+                                            </div>
+                                        )}
+                                        {(form.preguntasFrecuentes || []).length > 0 && (
+                                            <div>
+                                                <span className="font-semibold text-slate-700">Preguntas Frecuentes:</span>
+                                                <span className="text-slate-500 ml-1">{form.preguntasFrecuentes!.length} registradas</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
                     </TabsContent>
 
                     {/* ── Tab: Ficha Técnica ── */}
@@ -466,7 +535,7 @@ export default function ProductCatalogDetail() {
                                 <Pencil className="h-4 w-4 text-orange-600" />
                                 <AlertTitle className="text-orange-800">Cambios sin guardar</AlertTitle>
                                 <AlertDescription className="text-orange-700">
-                                    Hay cambios pendientes. Haz click en "Guardar Cambios" para confirmar.
+                                    Hay cambios pendientes. Usa la barra inferior para guardar.
                                 </AlertDescription>
                             </Alert>
                         )}
@@ -479,6 +548,17 @@ export default function ProductCatalogDetail() {
                                         <CardTitle className="text-base">Descripción del Producto</CardTitle>
                                     </CardHeader>
                                     <CardContent className="space-y-4">
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="breveResena">Breve Reseña</Label>
+                                            <Textarea
+                                                id="breveResena"
+                                                placeholder="Una breve reseña del producto que se mostrará en el catálogo del vendedor..."
+                                                value={form.breveResena || ""}
+                                                onChange={e => handleChange('breveResena', e.target.value)}
+                                                rows={2}
+                                            />
+                                            <p className="text-[10px] text-muted-foreground">Se muestra debajo del nombre del producto en el catálogo del vendedor.</p>
+                                        </div>
                                         <div className="space-y-1.5">
                                             <Label htmlFor="descripcion">Descripción General</Label>
                                             <Textarea
@@ -666,13 +746,6 @@ export default function ProductCatalogDetail() {
                                 </Button>
                             </CardContent>
                         </Card>
-
-                        <div className="flex justify-end">
-                            <Button onClick={handleSave} disabled={saveMutation.isPending || !isDirty}>
-                                <Save className="h-4 w-4 mr-2" />
-                                {saveMutation.isPending ? "Guardando..." : "Guardar Ficha Técnica"}
-                            </Button>
-                        </div>
                     </TabsContent>
 
                     {/* ── Tab: Archivos ── */}
@@ -780,6 +853,59 @@ export default function ProductCatalogDetail() {
                     </TabsContent>
                 </Tabs>
             </div>
+
+            {/* Sticky save bar */}
+            {isDirty && (
+                <div className="fixed bottom-0 left-0 lg:left-64 right-0 z-40 bg-white/95 backdrop-blur-sm border-t shadow-lg">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 bg-orange-500 rounded-full animate-pulse" />
+                            <span className="text-sm text-muted-foreground">
+                                Cambios sin guardar
+                                {meta?.productFamily && applyToFamily && (
+                                    <span className="ml-1 text-blue-600">
+                                        · Se aplicará a toda la familia "{meta.productFamily}"
+                                    </span>
+                                )}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                    if (content) {
+                                        const { _meta, ...formData } = content;
+                                        setForm(formData);
+                                    }
+                                    setIsDirty(false);
+                                }}
+                            >
+                                Descartar
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={handleSave}
+                                disabled={saveMutation.isPending}
+                                className="bg-green-600 hover:bg-green-700 text-white gap-2"
+                            >
+                                {saveMutation.isPending ? (
+                                    <>
+                                        <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        Guardando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Save className="h-4 w-4" />
+                                        Guardar Cambios
+                                    </>
+                                )}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

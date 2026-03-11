@@ -12852,7 +12852,7 @@ export class DatabaseStorage implements IStorage {
     const allowedFields = [
       'codigo', 'productFamily', 'descripcion', 'usos', 'presentacion', 'rendimiento',
       'preparacionSuperficie', 'modoAplicacion', 'tiempoSecado', 'dilucion', 'capas',
-      'observaciones', 'fichasTecnicas', 'hojasSeguridad', 'preguntasFrecuentes', 'updatedBy'
+      'observaciones', 'breveResena', 'fichasTecnicas', 'hojasSeguridad', 'preguntasFrecuentes', 'updatedBy'
     ];
     for (const key of allowedFields) {
       if (key in data) {

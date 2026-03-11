@@ -55,7 +55,7 @@ import {
   // Marketing
   gastosMarketing,
 } from "../shared/schema";
-import { eq, and, isNotNull, isNull, ne, sql, desc, or, sum, countDistinct } from "drizzle-orm";
+import { eq, and, isNotNull, isNull, ne, sql, desc, or, sum, countDistinct, inArray } from "drizzle-orm";
 import { emailService } from "./services/email";
 import { executeIncrementalETL, getETLStatus, updateETLConfig, etlProgressEmitter, sqlServerBreaker } from "./etl-incremental";
 import { executeGDVETL, gdvEtlProgressEmitter, gdvSqlServerBreaker } from "./etl-gdv";
@@ -4932,6 +4932,7 @@ export function registerRoutes(app: Express): Server {
           ep.min_unit,
           ep.step_size,
           ep.price_list_id,
+          ep.tags,
           pl.codigo as sku,
           pl.producto as product_name,
           pl.unidad as unit,
@@ -4951,6 +4952,7 @@ export function registerRoutes(app: Express): Server {
       const productsMap = new Map<string, {
         genericName: string;
         groupName: string | null;
+        tags: string[];
         colors: Map<string, any[]>;
       }>();
 
@@ -4960,6 +4962,8 @@ export function registerRoutes(app: Express): Server {
         const color = (row.color || 'Sin Color').trim();
         const formatUnit = row.format_unit || row.unit || 'Sin formato';
         const sku = row.sku || row.price_list_id || '';
+        let rowTags: string[] = [];
+        try { rowTags = JSON.parse(row.tags || '[]'); } catch { rowTags = []; }
 
         if (search) {
           const s = (search as string).toLowerCase();
@@ -4967,9 +4971,10 @@ export function registerRoutes(app: Express): Server {
         }
 
         if (!productsMap.has(genericName)) {
-          productsMap.set(genericName, { genericName, groupName, colors: new Map() });
+          productsMap.set(genericName, { genericName, groupName, tags: rowTags, colors: new Map() });
         }
         const product = productsMap.get(genericName)!;
+        if (rowTags.length > 0 && product.tags.length === 0) product.tags = rowTags;
         if (!product.colors.has(color)) {
           product.colors.set(color, []);
         }
@@ -4991,6 +4996,7 @@ export function registerRoutes(app: Express): Server {
       const catalog = Array.from(productsMap.values()).map(p => ({
         genericName: p.genericName,
         groupName: p.groupName,
+        tags: p.tags,
         colors: Object.fromEntries(p.colors),
       }));
 
@@ -4998,6 +5004,72 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Error fetching grouped products:', error);
       res.status(500).json({ message: 'Error al cargar productos agrupados' });
+    }
+  });
+
+  // Public product content (ficha técnica) by family name - for salesperson catalog
+  app.get('/api/public/product-content/:familyName', async (req: any, res) => {
+    try {
+      const { familyName } = req.params;
+      const decodedFamily = decodeURIComponent(familyName);
+      console.log('[PUBLIC PRODUCT-CONTENT] Looking up family:', decodedFamily);
+
+      // Step 1: Find all SKU codes that belong to this family via ecommerce_products
+      const { ecommerceProducts, priceList } = await import('@shared/schema');
+      const familySkus = await db
+        .select({ codigo: priceList.codigo })
+        .from(ecommerceProducts)
+        .innerJoin(priceList, eq(ecommerceProducts.priceListId, priceList.id))
+        .where(eq(ecommerceProducts.variantGenericDisplayName, decodedFamily));
+      
+      const skuCodes = familySkus.map(s => s.codigo);
+      console.log('[PUBLIC PRODUCT-CONTENT] Found SKU codes:', skuCodes.length);
+
+      if (skuCodes.length === 0) {
+        return res.json(null);
+      }
+
+      // Step 2: Find product_content for any of these SKU codes (prefer one with descripcion)
+      const { productContent } = await import('@shared/schema');
+      const allContent = await db.select().from(productContent)
+        .where(inArray(productContent.codigo, skuCodes));
+      
+      // Pick the best: one with actual description content, or any non-empty one
+      const content = allContent.find(c => c.descripcion) || allContent[0] || null;
+      console.log('[PUBLIC PRODUCT-CONTENT] Found content:', content ? content.codigo : 'NONE');
+
+      if (!content) {
+        return res.json(null);
+      }
+
+      // Step 3: Also fetch breve_resena via raw SQL in case Drizzle doesn't have it mapped
+      let breveResena = (content as any).breveResena || null;
+      if (!breveResena) {
+        const rawResult = await db.execute(
+          sql`SELECT breve_resena FROM product_content WHERE codigo = ${content.codigo} LIMIT 1`
+        );
+        const rawRows = Array.isArray(rawResult) ? rawResult : (rawResult as any).rows || [];
+        breveResena = (rawRows[0] as any)?.breve_resena || null;
+      }
+
+      // Return only the fields needed for the public modal
+      res.json({
+        breveResena,
+        descripcion: content.descripcion || null,
+        usos: content.usos || null,
+        presentacion: content.presentacion || null,
+        rendimiento: content.rendimiento || null,
+        preparacionSuperficie: content.preparacionSuperficie || null,
+        modoAplicacion: content.modoAplicacion || null,
+        tiempoSecado: content.tiempoSecado || null,
+        dilucion: content.dilucion || null,
+        capas: content.capas || null,
+        observaciones: content.observaciones || null,
+        preguntasFrecuentes: content.preguntasFrecuentes || [],
+      });
+    } catch (error) {
+      console.error('Error fetching public product content:', error);
+      res.status(500).json({ message: 'Error al cargar contenido del producto' });
     }
   });
 
@@ -5150,6 +5222,7 @@ export function registerRoutes(app: Express): Server {
         ep.min_unit,
         ep.step_size,
         ep.format_unit,
+        ep.tags,
         ep.weight, ep.weight_unit,
         ep.length, ep.length_unit,
         ep.width, ep.width_unit,
@@ -5182,6 +5255,7 @@ export function registerRoutes(app: Express): Server {
     const productsMap = new Map<string, {
       genericName: string;
       groupName: string | null;
+      tags: string[];
       colors: Map<string, any[]>;
     }>();
 
@@ -5191,6 +5265,8 @@ export function registerRoutes(app: Express): Server {
       const color = (row.color || 'Sin Color').trim();
       const formatUnit = row.format_unit || row.unit || 'Sin formato';
       const sku = row.sku || row.price_list_id || '';
+      let rowTags: string[] = [];
+      try { rowTags = JSON.parse(row.tags || '[]'); } catch { rowTags = []; }
 
       if (search) {
         const s = (search as string).toLowerCase();
@@ -5208,10 +5284,13 @@ export function registerRoutes(app: Express): Server {
         productsMap.set(genericName, {
           genericName,
           groupName,
+          tags: rowTags,
           colors: new Map(),
         });
       }
       const product = productsMap.get(genericName)!;
+      // Merge tags from all rows (they should be the same, but take the union)
+      if (rowTags.length > 0 && product.tags.length === 0) product.tags = rowTags;
 
       if (!product.colors.has(color)) {
         product.colors.set(color, []);
@@ -5255,12 +5334,42 @@ export function registerRoutes(app: Express): Server {
     const catalog = Array.from(productsMap.values()).map(p => ({
       genericName: p.genericName,
       groupName: p.groupName,
+      tags: p.tags,
       colors: Object.fromEntries(p.colors),
     }));
 
     const availableGroups = [...new Set((rows as any[]).map((r: any) => r.group_name).filter(Boolean))].sort();
 
     res.json({ catalog, availableGroups, totalProducts: (rows as any[]).length });
+  }));
+
+  // Toggle tags on product family (admin only)
+  app.patch('/api/products/grouped-catalog/tags', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { productFamily, tag, action } = req.body; // action: 'add' | 'remove'
+    if (!productFamily || !tag) {
+      return res.status(400).json({ message: 'productFamily y tag son requeridos' });
+    }
+
+    // Get current tags for first product in family
+    const existing = await db.execute(
+      sql`SELECT tags FROM ecommerce_products WHERE variant_generic_display_name = ${productFamily} LIMIT 1`
+    );
+    const existingRows = Array.isArray(existing) ? existing : (existing as any).rows || [];
+    let currentTags: string[] = [];
+    try { currentTags = JSON.parse((existingRows[0] as any)?.tags || '[]'); } catch { currentTags = []; }
+
+    if (action === 'add' && !currentTags.includes(tag)) {
+      currentTags.push(tag);
+    } else if (action === 'remove') {
+      currentTags = currentTags.filter((t: string) => t !== tag);
+    }
+
+    const newTags = JSON.stringify(currentTags);
+    await db.execute(
+      sql`UPDATE ecommerce_products SET tags = ${newTags} WHERE variant_generic_display_name = ${productFamily}`
+    );
+
+    res.json({ productFamily, tags: currentTags });
   }));
 
   // Clean ecommerce_products table (admin only)
@@ -8634,8 +8743,27 @@ export function registerRoutes(app: Express): Server {
 
       const content = await storage.getProductContent(codigo);
       
+      // Raw SQL fallback for breve_resena and preguntas_frecuentes (in case Drizzle schema doesn't include them)
+      let breveResena = (content as any)?.breveResena || '';
+      let preguntasFrecuentes = content?.preguntasFrecuentes || [];
+      if (content) {
+        const rawResult = await db.execute(
+          sql`SELECT breve_resena, preguntas_frecuentes FROM product_content WHERE codigo = ${codigo} LIMIT 1`
+        );
+        const rawRows = Array.isArray(rawResult) ? rawResult : (rawResult as any).rows || [];
+        if (rawRows[0]) {
+          breveResena = (rawRows[0] as any).breve_resena || '';
+          const rawFaqs = (rawRows[0] as any).preguntas_frecuentes;
+          if (rawFaqs) {
+            preguntasFrecuentes = typeof rawFaqs === 'string' ? JSON.parse(rawFaqs) : rawFaqs;
+          }
+        }
+      }
+
       res.json({
         ...(content || { codigo, fichasTecnicas: [], hojasSeguridad: [] }),
+        breveResena,
+        preguntasFrecuentes,
         _meta: {
           productFamily: familyName,
           familySiblingCount,
@@ -8654,6 +8782,7 @@ export function registerRoutes(app: Express): Server {
       const { codigo } = req.params;
       const user = req.user;
       const { applyToFamily, _meta, id, ...contentData } = req.body;
+      console.log('[PRODUCT-CONTENT PUT] codigo:', codigo, 'fields received:', Object.keys(contentData), 'breveResena:', contentData.breveResena, 'preguntasFrecuentes:', JSON.stringify(contentData.preguntasFrecuentes));
       
       if (applyToFamily) {
         // Find ALL sibling SKUs with the same variant_generic_display_name
@@ -8682,6 +8811,13 @@ export function registerRoutes(app: Express): Server {
             if (!sibling.codigo) continue;
             const data = { ...contentData, codigo: sibling.codigo, productFamily: familyName, updatedBy: user.username };
             const result = await storage.upsertProductContent(data);
+            // Raw SQL fallback for breve_resena and preguntas_frecuentes (Drizzle may not have these in compiled schema)
+            if (contentData.breveResena !== undefined || contentData.preguntasFrecuentes !== undefined) {
+              await db.execute(sql`UPDATE product_content SET 
+                breve_resena = COALESCE(${contentData.breveResena || null}, breve_resena),
+                preguntas_frecuentes = COALESCE(${JSON.stringify(contentData.preguntasFrecuentes || [])}, preguntas_frecuentes)
+                WHERE codigo = ${sibling.codigo}`);
+            }
             results.push(result);
           }
           
@@ -8694,6 +8830,13 @@ export function registerRoutes(app: Express): Server {
       // Individual save (no family or applyToFamily is false)
       const data = { ...contentData, codigo, productFamily: null, updatedBy: user.username };
       const result = await storage.upsertProductContent(data);
+      // Raw SQL fallback for breve_resena and preguntas_frecuentes
+      if (contentData.breveResena !== undefined || contentData.preguntasFrecuentes !== undefined) {
+        await db.execute(sql`UPDATE product_content SET 
+          breve_resena = COALESCE(${contentData.breveResena || null}, breve_resena),
+          preguntas_frecuentes = COALESCE(${JSON.stringify(contentData.preguntasFrecuentes || [])}, preguntas_frecuentes)
+          WHERE codigo = ${codigo}`);
+      }
       res.json(result);
     } catch (error) {
       console.error("Error updating product content:", error);

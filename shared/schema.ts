@@ -1771,6 +1771,7 @@ export const productContent = pgTable("product_content", {
   capas: text("capas"), // Number of coats
   // Safety & compliance
   observaciones: text("observaciones"), // Safety observations
+  breveResena: text("breve_resena"), // Brief product description for catalog display
   // File attachments (stored as JSON array: [{name, url, type, uploadedAt}])
   fichasTecnicas: jsonb("fichas_tecnicas").default([]), // Technical data sheets
   hojasSeguridad: jsonb("hojas_seguridad").default([]), // Safety data sheets
@@ -2057,6 +2058,7 @@ export const ecommerceProducts = pgTable("ecommerce_products", {
   minUnit: integer("min_unit").default(1), // Cantidad mínima de pedido (constraints_minUnit del CSV)
   stepSize: integer("step_size").default(1), // Tamaño de salto de cantidad (constraints_stepSize del CSV)
   formatUnit: varchar("format_unit"), // Unidad de formato (packaging_unitName del CSV)
+  tags: text("tags").default("[]"), // JSON array of tag names: ["Mejor Precio", "Rápida Rotación", "Pocas Unidades"]
 
   // Dimensions and Weight
   weight: numeric("weight", { precision: 10, scale: 2 }),
