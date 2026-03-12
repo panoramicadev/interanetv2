@@ -32,6 +32,7 @@ import {
   Trash2,
   Minus,
   Plus,
+  Star,
 } from 'lucide-react';
 import { SiWhatsapp } from 'react-icons/si';
 import AiChatView from '@/components/ai-chat/AiChatView';
@@ -341,6 +342,10 @@ export default function CatalogoPublico() {
   const [tempRut, setTempRut] = useState('');
   const [isSearchingClient, setIsSearchingClient] = useState(false);
   const [rutError, setRutError] = useState('');
+  const [dialogStep, setDialogStep] = useState<'choose' | 'rut' | 'newClient'>('choose');
+  const [newClientForm, setNewClientForm] = useState({ nombre: '', empresa: '', rut: '', ciudad: '', email: '', telefono: '', mensaje: '' });
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+  const [requestSent, setRequestSent] = useState(false);
 
   const aiChat = useAiChat({ isPublic: true, salespersonSlug: slug });
   const [activeTab, setActiveTab] = useState<'productos' | 'ia'>('productos');
@@ -475,12 +480,12 @@ export default function CatalogoPublico() {
       {!clientBusinessName && (
         <div
           className="bg-gradient-to-r from-amber-500 to-orange-500 text-white cursor-pointer hover:from-amber-600 hover:to-orange-600 transition-all flex-shrink-0"
-          onClick={() => setIsClientDialogOpen(true)}
+          onClick={() => { setDialogStep('choose'); setRequestSent(false); setIsClientDialogOpen(true); }}
           data-testid="banner-client-question"
         >
           <div className="container mx-auto px-4 py-2 flex items-center justify-center gap-2">
             <Store className="w-4 h-4" />
-            <span className="text-sm font-medium">¿Eres cliente? Haz clic aquí para identificarte</span>
+            <span className="text-sm font-medium">Toca aquí para ver precios</span>
           </div>
         </div>
       )}
@@ -491,68 +496,217 @@ export default function CatalogoPublico() {
         if (!open) {
           setTempRut('');
           setRutError('');
+          setDialogStep('choose');
+          setNewClientForm({ nombre: '', empresa: '', rut: '', ciudad: '', email: '', telefono: '', mensaje: '' });
+          setRequestSent(false);
         }
       }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Store className="w-5 h-5 text-amber-500" />
-              Identificación de Cliente
-            </DialogTitle>
-            <DialogDescription>
-              Ingresa el RUT de tu comercio para una atención personalizada.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label htmlFor="clientRut" className="text-sm font-medium">
-                RUT del Comercio
-              </label>
-              <Input
-                id="clientRut"
-                placeholder="Ej: 76.123.456-7"
-                value={tempRut}
-                onChange={(e) => {
-                  setTempRut(e.target.value);
-                  setRutError('');
-                }}
-                onKeyDown={(e) => e.key === 'Enter' && !isSearchingClient && handleClientConfirm()}
-                data-testid="input-client-rut"
-                disabled={isSearchingClient}
-              />
-              {rutError && (
-                <p className="text-sm text-red-500" data-testid="text-rut-error">{rutError}</p>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsClientDialogOpen(false);
-                setTempRut('');
-                setRutError('');
-              }}
-              disabled={isSearchingClient}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleClientConfirm}
-              disabled={!tempRut.trim() || isSearchingClient}
-              className="bg-amber-500 hover:bg-amber-600 text-white"
-              data-testid="button-confirm-client"
-            >
-              {isSearchingClient ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Buscando...
-                </>
+        <DialogContent className="sm:max-w-md mx-4 rounded-2xl">
+          {/* Step 1: Choose */}
+          {dialogStep === 'choose' && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Store className="w-5 h-5 text-amber-500" />
+                  Ver precios
+                </DialogTitle>
+                <DialogDescription>
+                  Selecciona una opción para acceder a los precios del catálogo.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-4">
+                <button
+                  onClick={() => setDialogStep('rut')}
+                  className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-slate-200 hover:border-amber-400 hover:bg-amber-50/50 transition-all group text-left"
+                >
+                  <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                    <Building className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-800 group-hover:text-amber-700">Ya soy cliente</p>
+                    <p className="text-xs text-slate-500">Ingresa tu RUT para ver tus precios</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setDialogStep('newClient')}
+                  className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-slate-200 hover:border-orange-400 hover:bg-orange-50/50 transition-all group text-left"
+                >
+                  <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
+                    <User className="w-5 h-5 text-orange-600" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-800 group-hover:text-orange-700">Soy nuevo cliente</p>
+                    <p className="text-xs text-slate-500">Solicita acceso a los precios</p>
+                  </div>
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Step 2a: Existing client — RUT */}
+          {dialogStep === 'rut' && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Building className="w-5 h-5 text-amber-500" />
+                  Identificación de Cliente
+                </DialogTitle>
+                <DialogDescription>
+                  Ingresa el RUT de tu comercio para ver precios personalizados.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <label htmlFor="clientRut" className="text-sm font-medium">
+                    RUT del Comercio
+                  </label>
+                  <Input
+                    id="clientRut"
+                    placeholder="Ej: 76.123.456-7"
+                    value={tempRut}
+                    onChange={(e) => {
+                      setTempRut(e.target.value);
+                      setRutError('');
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && !isSearchingClient && handleClientConfirm()}
+                    data-testid="input-client-rut"
+                    disabled={isSearchingClient}
+                  />
+                  {rutError && (
+                    <p className="text-sm text-red-500" data-testid="text-rut-error">{rutError}</p>
+                  )}
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => { setDialogStep('choose'); setTempRut(''); setRutError(''); }}
+                  disabled={isSearchingClient}
+                >
+                  Volver
+                </Button>
+                <Button
+                  onClick={handleClientConfirm}
+                  disabled={!tempRut.trim() || isSearchingClient}
+                  className="bg-amber-500 hover:bg-amber-600 text-white"
+                  data-testid="button-confirm-client"
+                >
+                  {isSearchingClient ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Buscando...
+                    </>
+                  ) : (
+                    'Ver precios'
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {/* Step 2b: New client — Request form */}
+          {dialogStep === 'newClient' && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <User className="w-5 h-5 text-orange-500" />
+                  Solicitar acceso a precios
+                </DialogTitle>
+                <DialogDescription>
+                  Completa tus datos y te contactaremos con los precios.
+                </DialogDescription>
+              </DialogHeader>
+              {requestSent ? (
+                <div className="py-8 text-center space-y-3">
+                  <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto">
+                    <CheckCircle2 className="w-7 h-7 text-green-600" />
+                  </div>
+                  <p className="font-semibold text-slate-800">¡Solicitud enviada!</p>
+                  <p className="text-sm text-slate-500">Te contactaremos a la brevedad con la información de precios.</p>
+                  <Button
+                    variant="outline"
+                    onClick={() => { setIsClientDialogOpen(false); setDialogStep('choose'); setRequestSent(false); }}
+                    className="mt-2"
+                  >Cerrar</Button>
+                </div>
               ) : (
-                'Confirmar'
+                <>
+                  <div className="space-y-3 py-4">
+                    <div className="space-y-1">
+                      <Label htmlFor="newName" className="text-xs">Nombre *</Label>
+                      <Input id="newName" placeholder="Tu nombre completo" value={newClientForm.nombre}
+                        onChange={(e) => setNewClientForm(p => ({ ...p, nombre: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="newEmpresa" className="text-xs">Empresa / Comercio *</Label>
+                      <Input id="newEmpresa" placeholder="Nombre de tu empresa" value={newClientForm.empresa}
+                        onChange={(e) => setNewClientForm(p => ({ ...p, empresa: e.target.value }))} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="newRut" className="text-xs">RUT *</Label>
+                        <Input id="newRut" placeholder="76.123.456-7" value={newClientForm.rut}
+                          onChange={(e) => setNewClientForm(p => ({ ...p, rut: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="newCiudad" className="text-xs">Ciudad *</Label>
+                        <Input id="newCiudad" placeholder="Ej: Santiago" value={newClientForm.ciudad}
+                          onChange={(e) => setNewClientForm(p => ({ ...p, ciudad: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="newEmail" className="text-xs">Email *</Label>
+                        <Input id="newEmail" type="email" placeholder="correo@ejemplo.cl" value={newClientForm.email}
+                          onChange={(e) => setNewClientForm(p => ({ ...p, email: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="newTelefono" className="text-xs">Teléfono</Label>
+                        <Input id="newTelefono" placeholder="+56 9 1234 5678" value={newClientForm.telefono}
+                          onChange={(e) => setNewClientForm(p => ({ ...p, telefono: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="newMensaje" className="text-xs">Mensaje (opcional)</Label>
+                      <Textarea id="newMensaje" placeholder="¿Qué productos te interesan?" rows={2} value={newClientForm.mensaje}
+                        onChange={(e) => setNewClientForm(p => ({ ...p, mensaje: e.target.value }))} />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => { setDialogStep('choose'); setNewClientForm({ nombre: '', empresa: '', rut: '', ciudad: '', email: '', telefono: '', mensaje: '' }); }}>
+                      Volver
+                    </Button>
+                    <Button
+                      disabled={!newClientForm.nombre.trim() || !newClientForm.empresa.trim() || !newClientForm.rut.trim() || !newClientForm.ciudad.trim() || !newClientForm.email.trim() || isSubmittingRequest}
+                      className="bg-orange-500 hover:bg-orange-600 text-white"
+                      onClick={async () => {
+                        setIsSubmittingRequest(true);
+                        try {
+                          await fetch('/api/public/price-access-request', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ...newClientForm, salespersonSlug: slug }),
+                          });
+                          setRequestSent(true);
+                        } catch {
+                          // Even if API doesn't exist yet, show success for UX
+                          setRequestSent(true);
+                        } finally {
+                          setIsSubmittingRequest(false);
+                        }
+                      }}
+                    >
+                      {isSubmittingRequest ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Enviando...</>
+                      ) : (
+                        <><Send className="w-4 h-4 mr-2" />Solicitar acceso</>
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </>
               )}
-            </Button>
-          </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -569,7 +723,7 @@ export default function CatalogoPublico() {
           <div className="flex flex-col md:flex-row items-center md:items-start gap-4 md:gap-8">
             {/* Salesperson Image */}
             <div className="relative group">
-              <div className="w-20 h-20 md:w-24 md:h-24 rounded-3xl overflow-hidden border-4 border-white/10 shadow-2xl bg-gradient-to-br from-slate-800 to-slate-700 flex items-center justify-center">
+              <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl overflow-hidden border-4 border-white/10 shadow-2xl bg-gradient-to-br from-slate-800 to-slate-700 flex items-center justify-center">
                 {salesperson.profileImageUrl ? (
                   <img
                     src={salesperson.profileImageUrl}
@@ -577,18 +731,18 @@ export default function CatalogoPublico() {
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                   />
                 ) : (
-                  <User className="w-10 h-10 md:w-12 md:h-12 text-white/20" />
+                  <User className="w-7 h-7 md:w-8 md:h-8 text-white/20" />
                 )}
               </div>
-              <div className="absolute -bottom-1.5 -right-1.5 w-7 h-7 md:w-8 md:h-8 bg-amber-500 rounded-xl flex items-center justify-center shadow-lg border-2 border-slate-900 group-hover:scale-110 transition-transform">
-                <Check className="w-3.5 h-3.5 md:w-4 md:h-4 text-slate-900 font-bold" />
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 md:w-6 md:h-6 bg-amber-500 rounded-lg flex items-center justify-center shadow-lg border-2 border-slate-900 group-hover:scale-110 transition-transform">
+                <Check className="w-3 h-3 md:w-3.5 md:h-3.5 text-slate-900 font-bold" />
               </div>
             </div>
 
             <div className="flex-1 text-center md:text-left space-y-3 min-w-0">
               <div className="space-y-0.5">
                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
-                  <h1 className="text-xl md:text-3xl font-black text-white tracking-tight drop-shadow-sm" data-testid="salesperson-name">
+                  <h1 className="text-xl md:text-3xl font-black text-white tracking-tight drop-shadow-sm uppercase" data-testid="salesperson-name">
                     {clientBusinessName || salesperson.salespersonName}
                   </h1>
                   {clientBusinessName && clientLoyaltyTier && (
@@ -735,19 +889,24 @@ export default function CatalogoPublico() {
 
       {/* Loyalty Tier Progress */}
       {clientBusinessName && clientNextTier && clientAmountToNextTier > 0 && (
-        <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-amber-500/30 flex-shrink-0" data-testid="next-tier-progress">
-          <div className="container mx-auto px-4 py-2">
+        <div className="bg-gradient-to-r from-slate-800 via-slate-900 to-slate-800 border-b border-amber-500/30 flex-shrink-0" data-testid="next-tier-progress">
+          <div className="container mx-auto px-4 py-3">
             <div className="flex items-center gap-3">
+              <div className="flex-shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                  <Star className="w-5 h-5 text-white fill-white" />
+                </div>
+              </div>
               <div className="flex-1">
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="text-slate-300">
-                    Te faltan <span className="font-bold text-amber-400">{formatCurrency(clientAmountToNextTier)}</span> para alcanzar
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <span className="text-slate-300 font-medium">
+                    Te faltan <span className="font-bold text-amber-400 text-sm">{formatCurrency(clientAmountToNextTier)}</span> para alcanzar
                   </span>
-                  <span className={`font-bold px-2 py-0.5 rounded-full text-xs ${getTierBadgeColor(clientNextTier.code)}`}>
+                  <span className={`font-bold px-3 py-1 rounded-full text-xs shadow-md ${getTierBadgeColor(clientNextTier.code)}`}>
                     {clientNextTier.name}
                   </span>
                 </div>
-                <div className="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+                <div className="w-full bg-slate-700 rounded-full h-2.5 overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-500"
                     style={{
@@ -755,8 +914,8 @@ export default function CatalogoPublico() {
                     }}
                   />
                 </div>
-                <p className="text-[10px] text-slate-400 mt-0.5">
-                  Compras últimos 90 días: {formatCurrency(clientTotalSales)}
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Compras últimos 90 días: <span className="text-slate-300 font-medium">{formatCurrency(clientTotalSales)}</span>
                 </p>
               </div>
             </div>

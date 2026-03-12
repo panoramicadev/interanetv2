@@ -678,69 +678,142 @@ export default function ProductCatalogDetail() {
                     {/* ── Tab: Archivos ── */}
                     <TabsContent value="archivos" className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Fichas Técnicas */}
                             <Card>
                                 <CardHeader className="pb-3">
                                     <CardTitle className="text-base">Fichas Técnicas</CardTitle>
                                     <CardDescription>PDFs con especificaciones técnicas del producto</CardDescription>
                                 </CardHeader>
-                                <CardContent>
-                                    {(form.fichasTecnicas || []).length === 0 ? (
-                                        <div className="border-2 border-dashed border-muted rounded-lg p-8 text-center">
-                                            <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                                            <p className="text-sm text-muted-foreground">No hay fichas técnicas adjuntas</p>
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                Funcionalidad de carga de archivos próximamente
-                                            </p>
+                                <CardContent className="space-y-3">
+                                    {(form.fichasTecnicas || []).map((f, i) => (
+                                        <div key={i} className="flex items-center gap-3 p-2.5 bg-muted/40 rounded-lg group">
+                                            <FileText className="h-4 w-4 text-blue-600 shrink-0" />
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-sm font-medium truncate">{f.name}</p>
+                                                <p className="text-xs text-muted-foreground">{new Date(f.uploadedAt).toLocaleDateString()}</p>
+                                            </div>
+                                            <a href={f.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline shrink-0">
+                                                Ver
+                                            </a>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const updated = [...(form.fichasTecnicas || [])];
+                                                    updated.splice(i, 1);
+                                                    setForm(prev => ({ ...prev, fichasTecnicas: updated }));
+                                                    setIsDirty(true);
+                                                }}
+                                                className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                                                title="Eliminar"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </button>
                                         </div>
-                                    ) : (
-                                        <div className="space-y-2">
-                                            {(form.fichasTecnicas || []).map((f, i) => (
-                                                <div key={i} className="flex items-center gap-3 p-2 bg-muted/40 rounded-lg">
-                                                    <FileText className="h-4 w-4 text-blue-600 shrink-0" />
-                                                    <div className="min-w-0 flex-1">
-                                                        <p className="text-sm font-medium truncate">{f.name}</p>
-                                                        <p className="text-xs text-muted-foreground">{new Date(f.uploadedAt).toLocaleDateString()}</p>
-                                                    </div>
-                                                    <a href={f.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline shrink-0">
-                                                        Ver
-                                                    </a>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
+                                    ))}
+                                    <label className="border-2 border-dashed border-muted hover:border-blue-400 rounded-lg p-6 text-center cursor-pointer transition-colors block">
+                                        <input
+                                            type="file"
+                                            accept=".pdf"
+                                            className="hidden"
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                const formData = new FormData();
+                                                formData.append('file', file);
+                                                try {
+                                                    const res = await fetch('/api/upload', { method: 'POST', body: formData, credentials: 'include' });
+                                                    if (!res.ok) throw new Error('Upload failed');
+                                                    const data = await res.json();
+                                                    setForm(prev => ({
+                                                        ...prev,
+                                                        fichasTecnicas: [...(prev.fichasTecnicas || []), {
+                                                            name: file.name,
+                                                            url: data.url,
+                                                            type: file.type,
+                                                            uploadedAt: new Date().toISOString()
+                                                        }]
+                                                    }));
+                                                    setIsDirty(true);
+                                                    toast({ title: "Archivo cargado", description: `${file.name} subido correctamente.` });
+                                                } catch {
+                                                    toast({ title: "Error", description: "No se pudo subir el archivo.", variant: "destructive" });
+                                                }
+                                                e.target.value = '';
+                                            }}
+                                        />
+                                        <Upload className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+                                        <p className="text-sm text-muted-foreground font-medium">Haz clic para subir ficha técnica</p>
+                                        <p className="text-xs text-muted-foreground mt-1">PDF, máx. 10MB</p>
+                                    </label>
                                 </CardContent>
                             </Card>
 
+                            {/* Hojas de Seguridad */}
                             <Card>
                                 <CardHeader className="pb-3">
                                     <CardTitle className="text-base">Hojas de Seguridad</CardTitle>
                                     <CardDescription>SDS/MSDS - Seguridad y manejo del producto</CardDescription>
                                 </CardHeader>
-                                <CardContent>
-                                    {(form.hojasSeguridad || []).length === 0 ? (
-                                        <div className="border-2 border-dashed border-muted rounded-lg p-8 text-center">
-                                            <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                                            <p className="text-sm text-muted-foreground">No hay hojas de seguridad adjuntas</p>
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                Funcionalidad de carga de archivos próximamente
-                                            </p>
+                                <CardContent className="space-y-3">
+                                    {(form.hojasSeguridad || []).map((f, i) => (
+                                        <div key={i} className="flex items-center gap-3 p-2.5 bg-muted/40 rounded-lg group">
+                                            <FileText className="h-4 w-4 text-orange-600 shrink-0" />
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-sm font-medium truncate">{f.name}</p>
+                                                <p className="text-xs text-muted-foreground">{new Date(f.uploadedAt).toLocaleDateString()}</p>
+                                            </div>
+                                            <a href={f.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline shrink-0">
+                                                Ver
+                                            </a>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const updated = [...(form.hojasSeguridad || [])];
+                                                    updated.splice(i, 1);
+                                                    setForm(prev => ({ ...prev, hojasSeguridad: updated }));
+                                                    setIsDirty(true);
+                                                }}
+                                                className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                                                title="Eliminar"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </button>
                                         </div>
-                                    ) : (
-                                        <div className="space-y-2">
-                                            {(form.hojasSeguridad || []).map((f, i) => (
-                                                <div key={i} className="flex items-center gap-3 p-2 bg-muted/40 rounded-lg">
-                                                    <FileText className="h-4 w-4 text-orange-600 shrink-0" />
-                                                    <div className="min-w-0 flex-1">
-                                                        <p className="text-sm font-medium truncate">{f.name}</p>
-                                                        <p className="text-xs text-muted-foreground">{new Date(f.uploadedAt).toLocaleDateString()}</p>
-                                                    </div>
-                                                    <a href={f.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline shrink-0">
-                                                        Ver
-                                                    </a>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
+                                    ))}
+                                    <label className="border-2 border-dashed border-muted hover:border-orange-400 rounded-lg p-6 text-center cursor-pointer transition-colors block">
+                                        <input
+                                            type="file"
+                                            accept=".pdf"
+                                            className="hidden"
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                const formData = new FormData();
+                                                formData.append('file', file);
+                                                try {
+                                                    const res = await fetch('/api/upload', { method: 'POST', body: formData, credentials: 'include' });
+                                                    if (!res.ok) throw new Error('Upload failed');
+                                                    const data = await res.json();
+                                                    setForm(prev => ({
+                                                        ...prev,
+                                                        hojasSeguridad: [...(prev.hojasSeguridad || []), {
+                                                            name: file.name,
+                                                            url: data.url,
+                                                            uploadedAt: new Date().toISOString()
+                                                        }]
+                                                    }));
+                                                    setIsDirty(true);
+                                                    toast({ title: "Archivo cargado", description: `${file.name} subido correctamente.` });
+                                                } catch {
+                                                    toast({ title: "Error", description: "No se pudo subir el archivo.", variant: "destructive" });
+                                                }
+                                                e.target.value = '';
+                                            }}
+                                        />
+                                        <Upload className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+                                        <p className="text-sm text-muted-foreground font-medium">Haz clic para subir hoja de seguridad</p>
+                                        <p className="text-xs text-muted-foreground mt-1">PDF, máx. 10MB</p>
+                                    </label>
                                 </CardContent>
                             </Card>
                         </div>

@@ -6906,7 +6906,8 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Check if user can update this assignment
-      const isAssignee = (assignment.assigneeType === "user" && assignment.assigneeId === user.id) ||
+      const isAssignee = 
+        ((assignment.assigneeType === "user" || assignment.assigneeType === "supervisor" || assignment.assigneeType === "salesperson") && assignment.assigneeId === user.id) ||
         (assignment.assigneeType === "segment" && assignment.assigneeId === user.assignedSegment);
       const isAdminOrSupervisor = user.role === 'admin' || user.role === 'supervisor';
 
@@ -6920,6 +6921,24 @@ export function registerRoutes(app: Express): Server {
         notes || undefined,
         evidenceImages || undefined
       );
+
+      // Also update the parent task status to reflect the assignment change
+      if (status === 'completada') {
+        // Check if ALL assignments are now completed
+        const updatedTask = await storage.getTask(taskId);
+        if (updatedTask) {
+          const allCompleted = updatedTask.assignments.every(a => a.status === 'completada');
+          if (allCompleted) {
+            await storage.updateTask(taskId, { status: 'completada' });
+          }
+        }
+      } else if (status === 'pendiente') {
+        // If reverting an assignment, revert the parent task too
+        if (task.status === 'completada') {
+          await storage.updateTask(taskId, { status: 'pendiente' });
+        }
+      }
+
       res.json(updatedAssignment);
     } catch (error) {
       console.error("Error updating assignment:", error);

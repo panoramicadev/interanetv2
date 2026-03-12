@@ -1115,13 +1115,18 @@ export default function TareasPage() {
               </Card>
             ) : (
               filteredTasks.map((task) => {
-                const isCompleted = task.status === 'completada';
                 const myAssignment = task.assignments.find(a =>
                   (a.assigneeType === "supervisor" && a.assigneeId === user.id) ||
-                  (a.assigneeType === "salesperson" && a.assigneeId === user.id)
+                  (a.assigneeType === "salesperson" && a.assigneeId === user.id) ||
+                  (a.assigneeType === "user" && a.assigneeId === user.id)
                 );
-                const canComplete = myAssignment && myAssignment.status !== "completada" &&
-                  (user.role === 'admin' || user.role === 'supervisor' || myAssignment.assigneeId === user.id);
+                // For admins/supervisors viewing all tasks, allow completing any task via the first assignment
+                const targetAssignment = myAssignment || (
+                  (user.role === 'admin' || user.role === 'supervisor') ? task.assignments[0] : null
+                );
+                const isCompleted = task.status === 'completada' || (targetAssignment?.status === 'completada');
+                const canComplete = targetAssignment &&
+                  (user.role === 'admin' || user.role === 'supervisor' || (myAssignment && myAssignment.assigneeId === user.id));
 
                 return (
                   <Card key={task.id} className={`overflow-hidden border-l-4 shadow-sm hover:shadow-lg transition-all duration-200 ${isCompleted ? 'border-l-green-500 bg-green-50/30' :
@@ -1132,14 +1137,25 @@ export default function TareasPage() {
                       <div className="flex items-start gap-4">
                         {/* Checkbox To-Do Style */}
                         <div className="flex-shrink-0 pt-0.5">
-                          {canComplete ? (
+                          {canComplete || (targetAssignment && targetAssignment.status === "completada") ? (
                             <button
-                              onClick={() => setConfirmCompleteTask({ taskId: task.id, assignmentId: myAssignment!.id })}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (targetAssignment) {
+                                  const newStatus = targetAssignment.status === "completada" ? "pendiente" : "completada";
+                                  updateAssignmentMutation.mutate({
+                                    taskId: task.id,
+                                    assignmentId: targetAssignment.id,
+                                    status: newStatus
+                                  });
+                                }
+                              }}
                               className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${isCompleted
                                 ? 'bg-green-500 border-green-500 text-white'
                                 : 'border-gray-300 hover:border-green-500 hover:bg-green-50'
                                 }`}
                               data-testid={`checkbox-complete-task-${task.id}`}
+                              disabled={updateAssignmentMutation.isPending}
                             >
                               {isCompleted && <Check className="h-4 w-4" />}
                             </button>
