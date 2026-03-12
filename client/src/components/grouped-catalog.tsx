@@ -44,6 +44,7 @@ interface GenericProduct {
     genericName: string;
     groupName: string | null;
     tags: string[];
+    breveResena: string | null;
     colors: { [color: string]: FormatVariant[] };
 }
 
@@ -301,22 +302,6 @@ export default function GroupedCatalog() {
                                 {importMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
                                 {importMutation.isPending ? "Importando..." : "Importar CSV"}
                             </Button>
-                            {catalog.length > 0 && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                        if (confirm("¿Limpiar todos los productos del catálogo agrupado? (No afecta la lista de precios SAP)")) {
-                                            cleanMutation.mutate();
-                                        }
-                                    }}
-                                    disabled={cleanMutation.isPending}
-                                    className="gap-1.5 text-red-600 hover:text-red-700"
-                                >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                    Limpiar
-                                </Button>
-                            )}
                         </div>
                     </div>
                 </CardContent>
@@ -341,7 +326,8 @@ export default function GroupedCatalog() {
             )}
 
             {!isLoading && catalog.map(product => {
-                const colorKeys = Object.keys(product.colors);
+                const colorKeys = Object.keys(product.colors)
+                    .sort((a, b) => product.colors[b].length - product.colors[a].length);
                 const isExpanded = expandedProducts.has(product.genericName);
                 const activeColor = selectedColors.get(product.genericName);
                 const activeFormats = activeColor ? product.colors[activeColor] : null;
@@ -361,6 +347,9 @@ export default function GroupedCatalog() {
                             <Package className="h-5 w-5 text-orange-500 flex-shrink-0" />
                             <div className="flex-1 min-w-0">
                                 <h3 className="font-semibold text-lg">{product.genericName}</h3>
+                                {product.breveResena && (
+                                    <p className="text-sm text-muted-foreground line-clamp-1 mt-0.5">{product.breveResena}</p>
+                                )}
                                 <span className="text-sm text-muted-foreground">
                                     {colorKeys.length} color{colorKeys.length !== 1 ? "es" : ""} disponible{colorKeys.length !== 1 ? "s" : ""}
                                 </span>

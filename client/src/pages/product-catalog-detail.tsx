@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { ArrowLeft, Save, Upload, Package, Warehouse, FileText, Bot, Pencil, CheckCircle, AlertCircle, MessageCircle, Check, Users, Link2, Plus, Trash2, HelpCircle } from "lucide-react";
+import { ArrowLeft, Save, Upload, Package, Warehouse, FileText, Bot, Pencil, CheckCircle, AlertCircle, MessageCircle, Check, Users, Link2, Plus, Trash2, HelpCircle, ImageIcon, Youtube } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,6 +70,8 @@ interface ProductContentData {
     dilucion?: string;
     capas?: string;
     observaciones?: string;
+    youtubeUrl?: string;
+    imagenDestacada?: string;
     fichasTecnicas?: Array<{ name: string; url: string; type: string; uploadedAt: string }>;
     hojasSeguridad?: Array<{ name: string; url: string; uploadedAt: string }>;
     preguntasFrecuentes?: Array<{ pregunta: string; respuesta: string }>;
@@ -666,6 +668,78 @@ export default function ProductCatalogDetail() {
                                                 onChange={e => handleChange('observaciones', e.target.value)}
                                                 rows={3}
                                             />
+                                        </div>
+                                    </CardContent>
+                                </Card>
+
+                                {/* Multimedia Card */}
+                                <Card>
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-base flex items-center gap-2">
+                                            <Youtube className="h-4 w-4 text-red-600" />
+                                            Multimedia
+                                        </CardTitle>
+                                        <CardDescription>Video de YouTube e imagen destacada del producto</CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="youtubeUrl">Video de YouTube</Label>
+                                            <Input
+                                                id="youtubeUrl"
+                                                placeholder="https://www.youtube.com/watch?v=... o https://youtu.be/..."
+                                                value={form.youtubeUrl || ""}
+                                                onChange={e => handleChange('youtubeUrl', e.target.value)}
+                                            />
+                                            <p className="text-[10px] text-muted-foreground">Pega la URL del video de YouTube del producto.</p>
+                                            {form.youtubeUrl && (() => {
+                                                const url = form.youtubeUrl;
+                                                let videoId: string | null = null;
+                                                try {
+                                                    if (url.includes('youtu.be/')) {
+                                                        videoId = url.split('youtu.be/')[1]?.split(/[?&#]/)[0] || null;
+                                                    } else if (url.includes('youtube.com')) {
+                                                        const urlObj = new URL(url);
+                                                        videoId = urlObj.searchParams.get('v');
+                                                    }
+                                                } catch {}
+                                                if (videoId) {
+                                                    return (
+                                                        <div className="mt-2 rounded-lg overflow-hidden border">
+                                                            <iframe
+                                                                src={`https://www.youtube.com/embed/${videoId}`}
+                                                                className="w-full aspect-video"
+                                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                                allowFullScreen
+                                                                title="YouTube video preview"
+                                                            />
+                                                        </div>
+                                                    );
+                                                }
+                                                return <p className="text-xs text-orange-600 mt-1">URL no válida. Usa una URL de YouTube.</p>;
+                                            })()}
+                                        </div>
+                                        <Separator />
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="imagenDestacada">Imagen Destacada</Label>
+                                            <Input
+                                                id="imagenDestacada"
+                                                placeholder="https://ejemplo.com/imagen-producto.jpg"
+                                                value={form.imagenDestacada || ""}
+                                                onChange={e => handleChange('imagenDestacada', e.target.value)}
+                                            />
+                                            <p className="text-[10px] text-muted-foreground">URL de la imagen destacada del producto.</p>
+                                            {form.imagenDestacada && (
+                                                <div className="mt-2 rounded-lg overflow-hidden border bg-muted/30 p-2">
+                                                    <img
+                                                        src={form.imagenDestacada}
+                                                        alt="Imagen destacada del producto"
+                                                        className="w-full max-h-48 object-contain rounded"
+                                                        onError={(e) => {
+                                                            (e.target as HTMLImageElement).style.display = 'none';
+                                                        }}
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
                                     </CardContent>
                                 </Card>

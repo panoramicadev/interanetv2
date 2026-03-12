@@ -1132,14 +1132,24 @@ export default function TareasPage() {
                       <div className="flex items-start gap-4">
                         {/* Checkbox To-Do Style */}
                         <div className="flex-shrink-0 pt-0.5">
-                          {canComplete ? (
+                          {canComplete || (myAssignment && myAssignment.status === "completada") ? (
                             <button
-                              onClick={() => setConfirmCompleteTask({ taskId: task.id, assignmentId: myAssignment!.id })}
+                              onClick={() => {
+                                if (myAssignment) {
+                                  const newStatus = myAssignment.status === "completada" ? "pendiente" : "completada";
+                                  updateAssignmentMutation.mutate({
+                                    taskId: task.id,
+                                    assignmentId: myAssignment.id,
+                                    status: newStatus
+                                  });
+                                }
+                              }}
                               className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${isCompleted
                                 ? 'bg-green-500 border-green-500 text-white'
                                 : 'border-gray-300 hover:border-green-500 hover:bg-green-50'
                                 }`}
                               data-testid={`checkbox-complete-task-${task.id}`}
+                              disabled={updateAssignmentMutation.isPending}
                             >
                               {isCompleted && <Check className="h-4 w-4" />}
                             </button>

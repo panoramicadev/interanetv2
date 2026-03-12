@@ -4936,7 +4936,8 @@ export function registerRoutes(app: Express): Server {
           pl.codigo as sku,
           pl.producto as product_name,
           pl.unidad as unit,
-          COALESCE(stk.total_stock, 0) as total_stock
+          COALESCE(stk.total_stock, 0) as total_stock,
+          pc.breve_resena
         FROM ecommerce_products ep
         LEFT JOIN price_list pl ON ep.price_list_id = pl.id
         LEFT JOIN (
@@ -4944,6 +4945,7 @@ export function registerRoutes(app: Express): Server {
           FROM product_stock
           GROUP BY kopr
         ) stk ON stk.kopr = pl.codigo
+        LEFT JOIN product_content pc ON pc.codigo = pl.codigo
         WHERE ep.categoria IS NOT NULL AND ep.activo = true
         ORDER BY ep.variant_generic_display_name, ep.color, ep.format_unit
       `);
@@ -4953,6 +4955,7 @@ export function registerRoutes(app: Express): Server {
         genericName: string;
         groupName: string | null;
         tags: string[];
+        breveResena: string | null;
         colors: Map<string, any[]>;
       }>();
 
@@ -4971,10 +4974,11 @@ export function registerRoutes(app: Express): Server {
         }
 
         if (!productsMap.has(genericName)) {
-          productsMap.set(genericName, { genericName, groupName, tags: rowTags, colors: new Map() });
+          productsMap.set(genericName, { genericName, groupName, tags: rowTags, breveResena: (row as any).breve_resena || null, colors: new Map() });
         }
         const product = productsMap.get(genericName)!;
         if (rowTags.length > 0 && product.tags.length === 0) product.tags = rowTags;
+        if (!product.breveResena && (row as any).breve_resena) product.breveResena = (row as any).breve_resena;
         if (!product.colors.has(color)) {
           product.colors.set(color, []);
         }
@@ -4997,6 +5001,7 @@ export function registerRoutes(app: Express): Server {
         genericName: p.genericName,
         groupName: p.groupName,
         tags: p.tags,
+        breveResena: p.breveResena,
         colors: Object.fromEntries(p.colors),
       }));
 
@@ -5042,14 +5047,20 @@ export function registerRoutes(app: Express): Server {
         return res.json(null);
       }
 
-      // Step 3: Also fetch breve_resena via raw SQL in case Drizzle doesn't have it mapped
+      // Step 3: Also fetch breve_resena, youtube_url, imagen_destacada via raw SQL in case Drizzle doesn't have them mapped
       let breveResena = (content as any).breveResena || null;
-      if (!breveResena) {
+      let youtubeUrl = (content as any).youtubeUrl || null;
+      let imagenDestacada = (content as any).imagenDestacada || null;
+      if (!breveResena || !youtubeUrl || !imagenDestacada) {
         const rawResult = await db.execute(
-          sql`SELECT breve_resena FROM product_content WHERE codigo = ${content.codigo} LIMIT 1`
+          sql`SELECT breve_resena, youtube_url, imagen_destacada FROM product_content WHERE codigo = ${content.codigo} LIMIT 1`
         );
         const rawRows = Array.isArray(rawResult) ? rawResult : (rawResult as any).rows || [];
-        breveResena = (rawRows[0] as any)?.breve_resena || null;
+        if (rawRows[0]) {
+          breveResena = breveResena || (rawRows[0] as any)?.breve_resena || null;
+          youtubeUrl = youtubeUrl || (rawRows[0] as any)?.youtube_url || null;
+          imagenDestacada = imagenDestacada || (rawRows[0] as any)?.imagen_destacada || null;
+        }
       }
 
       // Return only the fields needed for the public modal
@@ -5066,6 +5077,8 @@ export function registerRoutes(app: Express): Server {
         capas: content.capas || null,
         observaciones: content.observaciones || null,
         preguntasFrecuentes: content.preguntasFrecuentes || [],
+        youtubeUrl,
+        imagenDestacada,
       });
     } catch (error) {
       console.error('Error fetching public product content:', error);
@@ -5237,7 +5250,8 @@ export function registerRoutes(app: Express): Server {
         pl.producto as product_name,
         pl.unidad as unit,
         pl.lista as price_list,
-        COALESCE(stk.total_stock, 0) as total_stock
+        COALESCE(stk.total_stock, 0) as total_stock,
+        pc.breve_resena
       FROM ecommerce_products ep
       LEFT JOIN price_list pl ON ep.price_list_id = pl.id
       LEFT JOIN (
@@ -5245,6 +5259,7 @@ export function registerRoutes(app: Express): Server {
         FROM product_stock
         GROUP BY kopr
       ) stk ON stk.kopr = pl.codigo
+      LEFT JOIN product_content pc ON pc.codigo = pl.codigo
       WHERE ep.categoria IS NOT NULL
       ORDER BY ep.variant_generic_display_name, ep.color, ep.format_unit
     `);
@@ -5256,6 +5271,7 @@ export function registerRoutes(app: Express): Server {
       genericName: string;
       groupName: string | null;
       tags: string[];
+      breveResena: string | null;
       colors: Map<string, any[]>;
     }>();
 
@@ -5285,12 +5301,15 @@ export function registerRoutes(app: Express): Server {
           genericName,
           groupName,
           tags: rowTags,
+          breveResena: (row as any).breve_resena || null,
           colors: new Map(),
         });
       }
       const product = productsMap.get(genericName)!;
       // Merge tags from all rows (they should be the same, but take the union)
       if (rowTags.length > 0 && product.tags.length === 0) product.tags = rowTags;
+      // Pick the first non-null breveResena
+      if (!product.breveResena && (row as any).breve_resena) product.breveResena = (row as any).breve_resena;
 
       if (!product.colors.has(color)) {
         product.colors.set(color, []);
@@ -5335,6 +5354,7 @@ export function registerRoutes(app: Express): Server {
       genericName: p.genericName,
       groupName: p.groupName,
       tags: p.tags,
+      breveResena: p.breveResena,
       colors: Object.fromEntries(p.colors),
     }));
 
@@ -8743,16 +8763,20 @@ export function registerRoutes(app: Express): Server {
 
       const content = await storage.getProductContent(codigo);
       
-      // Raw SQL fallback for breve_resena and preguntas_frecuentes (in case Drizzle schema doesn't include them)
+      // Raw SQL fallback for breve_resena, preguntas_frecuentes, youtube_url, imagen_destacada (in case Drizzle schema doesn't include them)
       let breveResena = (content as any)?.breveResena || '';
       let preguntasFrecuentes = content?.preguntasFrecuentes || [];
+      let youtubeUrl = (content as any)?.youtubeUrl || '';
+      let imagenDestacada = (content as any)?.imagenDestacada || '';
       if (content) {
         const rawResult = await db.execute(
-          sql`SELECT breve_resena, preguntas_frecuentes FROM product_content WHERE codigo = ${codigo} LIMIT 1`
+          sql`SELECT breve_resena, preguntas_frecuentes, youtube_url, imagen_destacada FROM product_content WHERE codigo = ${codigo} LIMIT 1`
         );
         const rawRows = Array.isArray(rawResult) ? rawResult : (rawResult as any).rows || [];
         if (rawRows[0]) {
           breveResena = (rawRows[0] as any).breve_resena || '';
+          youtubeUrl = (rawRows[0] as any).youtube_url || '';
+          imagenDestacada = (rawRows[0] as any).imagen_destacada || '';
           const rawFaqs = (rawRows[0] as any).preguntas_frecuentes;
           if (rawFaqs) {
             preguntasFrecuentes = typeof rawFaqs === 'string' ? JSON.parse(rawFaqs) : rawFaqs;
@@ -8764,6 +8788,8 @@ export function registerRoutes(app: Express): Server {
         ...(content || { codigo, fichasTecnicas: [], hojasSeguridad: [] }),
         breveResena,
         preguntasFrecuentes,
+        youtubeUrl,
+        imagenDestacada,
         _meta: {
           productFamily: familyName,
           familySiblingCount,
@@ -8811,11 +8837,13 @@ export function registerRoutes(app: Express): Server {
             if (!sibling.codigo) continue;
             const data = { ...contentData, codigo: sibling.codigo, productFamily: familyName, updatedBy: user.username };
             const result = await storage.upsertProductContent(data);
-            // Raw SQL fallback for breve_resena and preguntas_frecuentes (Drizzle may not have these in compiled schema)
-            if (contentData.breveResena !== undefined || contentData.preguntasFrecuentes !== undefined) {
+            // Raw SQL fallback for breve_resena, preguntas_frecuentes, youtube_url, imagen_destacada (Drizzle may not have these in compiled schema)
+            if (contentData.breveResena !== undefined || contentData.preguntasFrecuentes !== undefined || contentData.youtubeUrl !== undefined || contentData.imagenDestacada !== undefined) {
               await db.execute(sql`UPDATE product_content SET 
                 breve_resena = COALESCE(${contentData.breveResena || null}, breve_resena),
-                preguntas_frecuentes = COALESCE(${JSON.stringify(contentData.preguntasFrecuentes || [])}, preguntas_frecuentes)
+                preguntas_frecuentes = COALESCE(${JSON.stringify(contentData.preguntasFrecuentes || [])}, preguntas_frecuentes),
+                youtube_url = COALESCE(${contentData.youtubeUrl || null}, youtube_url),
+                imagen_destacada = COALESCE(${contentData.imagenDestacada || null}, imagen_destacada)
                 WHERE codigo = ${sibling.codigo}`);
             }
             results.push(result);
@@ -8830,11 +8858,13 @@ export function registerRoutes(app: Express): Server {
       // Individual save (no family or applyToFamily is false)
       const data = { ...contentData, codigo, productFamily: null, updatedBy: user.username };
       const result = await storage.upsertProductContent(data);
-      // Raw SQL fallback for breve_resena and preguntas_frecuentes
-      if (contentData.breveResena !== undefined || contentData.preguntasFrecuentes !== undefined) {
+      // Raw SQL fallback for breve_resena, preguntas_frecuentes, youtube_url, imagen_destacada
+      if (contentData.breveResena !== undefined || contentData.preguntasFrecuentes !== undefined || contentData.youtubeUrl !== undefined || contentData.imagenDestacada !== undefined) {
         await db.execute(sql`UPDATE product_content SET 
           breve_resena = COALESCE(${contentData.breveResena || null}, breve_resena),
-          preguntas_frecuentes = COALESCE(${JSON.stringify(contentData.preguntasFrecuentes || [])}, preguntas_frecuentes)
+          preguntas_frecuentes = COALESCE(${JSON.stringify(contentData.preguntasFrecuentes || [])}, preguntas_frecuentes),
+          youtube_url = COALESCE(${contentData.youtubeUrl || null}, youtube_url),
+          imagen_destacada = COALESCE(${contentData.imagenDestacada || null}, imagen_destacada)
           WHERE codigo = ${codigo}`);
       }
       res.json(result);

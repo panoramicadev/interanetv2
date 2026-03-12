@@ -1772,6 +1772,9 @@ export const productContent = pgTable("product_content", {
   // Safety & compliance
   observaciones: text("observaciones"), // Safety observations
   breveResena: text("breve_resena"), // Brief product description for catalog display
+  // Multimedia
+  youtubeUrl: varchar("youtube_url"), // YouTube video URL
+  imagenDestacada: varchar("imagen_destacada"), // Featured image URL
   // File attachments (stored as JSON array: [{name, url, type, uploadedAt}])
   fichasTecnicas: jsonb("fichas_tecnicas").default([]), // Technical data sheets
   hojasSeguridad: jsonb("hojas_seguridad").default([]), // Safety data sheets

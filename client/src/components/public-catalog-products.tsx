@@ -29,6 +29,7 @@ interface GenericProduct {
     genericName: string;
     groupName: string | null;
     tags?: string[];
+    breveResena?: string | null;
     colors: { [color: string]: FormatVariant[] };
 }
 
@@ -232,7 +233,8 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
                     )}
 
                     {!isLoading && filteredCatalog.map(product => {
-                        const colorKeys = Object.keys(product.colors);
+                        const colorKeys = Object.keys(product.colors)
+                            .sort((a, b) => product.colors[b].length - product.colors[a].length);
                         const isExpanded = expandedProducts.has(product.genericName);
                         const totalVariants = Object.values(product.colors).flat().length;
 
@@ -247,9 +249,14 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
                                         ? <ChevronDown className="h-4 w-4 text-orange-500 flex-shrink-0" />
                                         : <ChevronRight className="h-4 w-4 text-slate-400 flex-shrink-0" />
                                     }
-                                    <span className={`text-sm font-medium flex-1 truncate uppercase ${isExpanded ? "text-orange-700" : "text-slate-800"}`}>
-                                        {product.genericName}
-                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                        <span className={`text-sm font-medium truncate uppercase block ${isExpanded ? "text-orange-700" : "text-slate-800"}`}>
+                                            {product.genericName}
+                                        </span>
+                                        {product.breveResena && (
+                                            <span className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md line-clamp-1 block mt-1 w-fit">{product.breveResena}</span>
+                                        )}
+                                    </div>
                                     <div className="flex items-center gap-1 flex-shrink-0">
                                         {(product.tags || []).map(tag => (
                                             <span key={tag} className={`text-[9px] px-2 py-0.5 rounded-full font-bold whitespace-nowrap shadow-sm ${
@@ -263,7 +270,7 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
                                         ))}
                                     </div>
                                     <span className="text-[10px] text-slate-400 flex-shrink-0 ml-1">
-                                        {colorKeys.length}c · {totalVariants}f
+                                        {colorKeys.length} color{colorKeys.length !== 1 ? 'es' : ''}
                                     </span>
                                 </div>
 
@@ -271,15 +278,15 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
                                 {isExpanded && (
                                     <div className="bg-slate-50/80">
                                         {/* Más información button */}
-                                        <div className="px-4 py-2 flex items-center gap-2 border-b border-slate-100">
+                                        <div className="px-4 py-2.5 flex items-center justify-center border-b border-slate-200 bg-gradient-to-r from-blue-50/80 via-blue-50 to-blue-50/80">
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     openInfoModal(product.genericName);
                                                 }}
-                                                className="text-[11px] text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1 hover:underline"
+                                                className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-white border border-blue-200 hover:border-blue-400 hover:shadow-sm transition-all"
                                             >
-                                                <Info className="h-3 w-3" />
+                                                <Info className="h-3.5 w-3.5" />
                                                 Más información
                                             </button>
                                         </div>
@@ -409,11 +416,53 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
                                 </div>
                             ) : (
                                 <div className="space-y-4">
+                                    {/* Featured Image */}
+                                    {infoModal.data.imagenDestacada && (
+                                        <div className="rounded-lg overflow-hidden border">
+                                            <img
+                                                src={infoModal.data.imagenDestacada}
+                                                alt={infoModal.productName}
+                                                className="w-full max-h-56 object-contain bg-slate-50"
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).style.display = 'none';
+                                                }}
+                                            />
+                                        </div>
+                                    )}
+
                                     {infoModal.data.breveResena && (
                                         <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
                                             <p className="text-sm text-blue-800 font-medium">{infoModal.data.breveResena}</p>
                                         </div>
                                     )}
+
+                                    {/* YouTube Video */}
+                                    {infoModal.data.youtubeUrl && (() => {
+                                        const url = infoModal.data.youtubeUrl;
+                                        let videoId: string | null = null;
+                                        try {
+                                            if (url.includes('youtu.be/')) {
+                                                videoId = url.split('youtu.be/')[1]?.split(/[?&#]/)[0] || null;
+                                            } else if (url.includes('youtube.com')) {
+                                                const urlObj = new URL(url);
+                                                videoId = urlObj.searchParams.get('v');
+                                            }
+                                        } catch {}
+                                        if (videoId) {
+                                            return (
+                                                <div className="rounded-lg overflow-hidden border">
+                                                    <iframe
+                                                        src={`https://www.youtube.com/embed/${videoId}`}
+                                                        className="w-full aspect-video"
+                                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                        allowFullScreen
+                                                        title="Video del producto"
+                                                    />
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
                                     {infoModal.data.descripcion && (
                                         <div>
                                             <h4 className="text-xs font-semibold text-slate-500 uppercase mb-1">Descripción</h4>
