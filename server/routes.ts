@@ -6720,14 +6720,19 @@ export function registerRoutes(app: Express): Server {
         })).min(1, "Debe asignar al menos un destinatario"),
       });
 
+
+
       // Validate request body
       const validation = createTaskWithAssignmentsSchema.safeParse(req.body);
       if (!validation.success) {
+
         return res.status(400).json({
           message: "Invalid task data",
           errors: validation.error.issues
         });
       }
+
+
 
       const { title, description, type, dueDate, priority, payload, assignments, segmento } = validation.data;
 

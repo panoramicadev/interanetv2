@@ -11840,6 +11840,7 @@ export class DatabaseStorage implements IStorage {
         createdAt: tasks.createdAt,
         updatedAt: tasks.updatedAt,
         createdByUserId: tasks.createdByUserId,
+        segmento: tasks.segmento,
         // Assignment fields (will be null if no assignments)
         assignmentId: taskAssignments.id,
         assigneeType: taskAssignments.assigneeType,
@@ -11877,6 +11878,7 @@ export class DatabaseStorage implements IStorage {
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
           createdByUserId: row.createdByUserId,
+          segmento: row.segmento,
           assignments: [],
         });
       }

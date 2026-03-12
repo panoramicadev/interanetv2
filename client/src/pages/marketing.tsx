@@ -75,7 +75,7 @@ const createMarketingTaskSchema = z.object({
   assignments: z.array(z.object({
     assigneeType: z.enum(["supervisor", "salesperson"]),
     assigneeId: z.string().min(1, "Destinatario requerido"),
-  })).min(1, "Debe asignar al menos un destinatario"),
+  })).optional().default([]),
 });
 
 type CreateMarketingTaskInput = z.infer<typeof createMarketingTaskSchema>;
@@ -634,6 +634,7 @@ function PasosChecklist({
 
 // Marketing Tasks List Component
 function MarketingTasksList({ mes, anio, userRole }: { mes: number; anio: number; userRole: string; }) {
+  const { toast } = useToast();
   const { data: tasks, isLoading } = useQuery<any[]>({
     queryKey: ['/api/tasks/marketing', mes, anio],
     queryFn: async () => {
@@ -645,6 +646,31 @@ function MarketingTasksList({ mes, anio, userRole }: { mes: number; anio: number
       return allTasks.filter((t: any) => t.segmento === 'marketing');
     },
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Error al eliminar tarea');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/marketing'], refetchType: 'all' });
+      toast({ title: "Tarea eliminada" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleDelete = (taskId: string, taskTitle: string) => {
+    if (window.confirm(`¿Eliminar la tarea "${taskTitle}"?`)) {
+      deleteMutation.mutate(taskId);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -665,11 +691,22 @@ function MarketingTasksList({ mes, anio, userRole }: { mes: number; anio: number
             {tasks.map((task: any) => (
               <Card key={task.id} className="p-4 hover:shadow-md transition-shadow">
                 <div className="flex justify-between items-start">
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-lg">{task.title}</h3>
                     <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
                   </div>
-                  <Badge>{task.status}</Badge>
+                  <div className="flex items-center gap-2 ml-4">
+                    <Badge>{task.status}</Badge>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                      onClick={() => handleDelete(task.id, task.title)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </Card>
             ))}
@@ -865,13 +902,7 @@ function MarketingTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const { data: users = [] } = useQuery<any[]>({
-    queryKey: ['/api/users'],
-    queryFn: async () => {
-      const res = await fetch('/api/users', { credentials: 'include' });
-      return res.json();
-    }
-  });
+
 
   const form = useForm<CreateMarketingTaskInput>({
     resolver: zodResolver(createMarketingTaskSchema),
@@ -896,8 +927,8 @@ function MarketingTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks/marketing'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/marketing'], refetchType: 'all' });
       toast({ title: "Tarea de marketing creada" });
       onOpenChange(false);
       form.reset();
@@ -913,25 +944,12 @@ function MarketingTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       presupuesto: data.presupuesto,
       urlReferencia: data.urlReferencia
     };
-    createMutation.mutate({ ...data, payload, segmento: "marketing" });
-  };
-
-  const handleUserToggle = (userId: string, role: string) => {
-    const currentAssignments = form.getValues('assignments') || [];
-    const existingIndex = currentAssignments.findIndex((a) => a.assigneeId === userId);
-    if (existingIndex >= 0) {
-      form.setValue(
-        'assignments',
-        currentAssignments.filter((a) => a.assigneeId !== userId),
-        { shouldValidate: true }
-      );
-    } else {
-      form.setValue(
-        'assignments',
-        [...currentAssignments, { assigneeType: role === 'supervisor' || role === 'admin' ? 'supervisor' : 'salesperson', assigneeId: userId }],
-        { shouldValidate: true }
-      );
-    }
+    // Auto-assign to creator
+    const autoAssignments = [{
+      assigneeType: (user?.role === 'supervisor' || user?.role === 'admin' ? 'supervisor' : 'salesperson') as 'supervisor' | 'salesperson',
+      assigneeId: user?.id || '',
+    }];
+    createMutation.mutate({ ...data, assignments: autoAssignments, payload, segmento: "marketing" });
   };
 
   return (
@@ -1107,49 +1125,7 @@ function MarketingTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               </div>
             </div>
 
-            {/* Sección 3: Asignaciones */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <div className="w-1.5 h-1.5 rounded-full bg-violet-500" />
-                Equipo Asignado *
-              </div>
-              <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4">
-                <FormField
-                  control={form.control}
-                  name="assignments"
-                  render={() => (
-                    <FormItem>
-                      <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                        SELECCIONAR DESTINATARIOS
-                      </FormLabel>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                        {users.filter(u => u.active).map((u) => {
-                          const isSelected = form.watch('assignments')?.some((a) => a.assigneeId === u.id);
-                          return (
-                            <div
-                              key={u.id}
-                              onClick={() => handleUserToggle(u.id, u.role)}
-                              className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${isSelected ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-white border-slate-200 hover:border-indigo-100 hover:bg-slate-50'}`}
-                            >
-                              <div className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center ${isSelected ? 'bg-indigo-500 border-indigo-500' : 'border-slate-300'}`}>
-                                {isSelected && <Check className="h-3 w-3 text-white" />}
-                              </div>
-                              <div className="min-w-0">
-                                <p className={`text-sm font-medium truncate ${isSelected ? 'text-indigo-900' : 'text-slate-700'}`}>
-                                  {u.nombre || u.username}
-                                </p>
-                                <p className="text-[10px] text-slate-500 uppercase tracking-wider">{u.role}</p>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
+
 
             <DialogFooter className="sticky bottom-0 bg-white pt-4 mt-6 border-t border-slate-100 flex items-center justify-end gap-3 sm:justify-end">
               <Button type="button" variant="outline" className="rounded-xl font-medium" onClick={() => onOpenChange(false)}>

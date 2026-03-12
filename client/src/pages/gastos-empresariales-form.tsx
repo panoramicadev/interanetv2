@@ -323,8 +323,6 @@ export default function GastosEmpresarialesForm() {
       monto: 'Monto',
       descripcion: 'Descripción',
       categoria: 'Categoría',
-      clientes: 'Cliente(s)',
-      ciudad: 'Ciudad',
       userId: 'Vendedor',
       fundAllocationId: 'Fondo',
     };
@@ -670,45 +668,8 @@ export default function GastosEmpresarialesForm() {
                   )}
                 />
 
-                {/* Campos opcionales de contexto */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="clientes"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Cliente(s)</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Ej: Ferretería El Sol, Pinturas ABC"
-                            {...field}
-                            data-testid="input-clientes"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="ciudad"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Ciudad</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Ej: Santiago"
-                            {...field}
-                            data-testid="input-ciudad"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
               </div>
+
 
               {/* Document Info */}
               <div className="space-y-4 pt-4 border-t">
