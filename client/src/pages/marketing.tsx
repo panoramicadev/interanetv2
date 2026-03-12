@@ -637,7 +637,7 @@ function MarketingTasksList({ mes, anio, userRole }: { mes: number; anio: number
   const { data: tasks, isLoading } = useQuery<any[]>({
     queryKey: ['/api/tasks/marketing', mes, anio],
     queryFn: async () => {
-      const response = await fetch('/api/tasks');
+      const response = await fetch('/api/tasks', { credentials: 'include' });
       if (!response.ok) {
         throw new Error('Error al cargar tareas');
       }
@@ -868,7 +868,7 @@ function MarketingTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const { data: users = [] } = useQuery<any[]>({
     queryKey: ['/api/users'],
     queryFn: async () => {
-      const res = await fetch('/api/users');
+      const res = await fetch('/api/users', { credentials: 'include' });
       return res.json();
     }
   });

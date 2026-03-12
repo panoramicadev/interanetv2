@@ -5230,9 +5230,9 @@ export const insertGastoEmpresarialSchema = createInsertSchema(gastosEmpresarial
   fundingMode: z.enum(["con_fondo", "reembolso"]).default("reembolso"),
   fundAllocationId: z.string().optional().nullable(),
   segmentCode: z.string().optional().nullable(),
-  ruta: z.string().min(1, "La ruta es requerida"),
-  clientes: z.string().min(1, "El/los cliente(s) son requeridos"),
-  ciudad: z.string().min(1, "La ciudad es requerida"),
+  ruta: z.string().optional(),
+  clientes: z.string().optional(),
+  ciudad: z.string().optional(),
 });
 
 // Schema para aprobación de supervisor de reembolso

@@ -49,9 +49,9 @@ const formSchema = z.object({
   fechaEmision: z.string().optional(),
   fundingMode: z.enum(['con_fondo', 'reembolso']).default('reembolso'),
   fundAllocationId: z.string().optional(),
-  ruta: z.string().min(1, "La ruta es requerida"),
-  clientes: z.string().min(1, "El/los cliente(s) son requeridos"),
-  ciudad: z.string().min(1, "La ciudad es requerida"),
+  ruta: z.string().optional(),
+  clientes: z.string().optional(),
+  ciudad: z.string().optional(),
 });
 
 interface FundAllocation {
@@ -112,6 +112,7 @@ export default function GastosEmpresarialesForm() {
       ruta: "",
       clientes: "",
       ciudad: "",
+
     },
   });
 
@@ -322,7 +323,6 @@ export default function GastosEmpresarialesForm() {
       monto: 'Monto',
       descripcion: 'Descripción',
       categoria: 'Categoría',
-      ruta: 'Ruta',
       clientes: 'Cliente(s)',
       ciudad: 'Ciudad',
       userId: 'Vendedor',
@@ -458,178 +458,7 @@ export default function GastosEmpresarialesForm() {
                 </div>
               </div>
 
-              {/* Basic Info */}
-              <div className="space-y-4">
-                <h3 className="font-semibold text-lg">Información Básica</h3>
-                
-                {/* Colaborador Selector */}
-                <FormField
-                  control={form.control}
-                  name="userId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Colaborador *</FormLabel>
-                      {!canSelectOthers ? (
-                        // Usuario regular: mostrar su nombre directamente
-                        <div className="flex flex-col gap-1">
-                          <div className="flex h-10 w-full items-center rounded-md border border-input bg-gray-100 px-3 py-2 text-sm">
-                            {formatName(user?.salespersonName || user?.email || user?.username || 'Usuario')}
-                          </div>
-                          <p className="text-xs text-gray-500">Solo puedes registrar gastos a tu nombre</p>
-                        </div>
-                      ) : (
-                        // Admin/Supervisor/Recursos Humanos: selector completo
-                        <Select 
-                          onValueChange={field.onChange} 
-                          value={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger data-testid="select-vendedor-gasto">
-                              <SelectValue placeholder="Seleccionar colaborador" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {isLoadingSalespeople ? (
-                              <SelectItem value="loading" disabled>Cargando...</SelectItem>
-                            ) : (
-                              salespeople.map((salesperson: any) => (
-                                <SelectItem key={salesperson.id} value={salesperson.id}>
-                                  {formatName(salesperson.salespersonName || salesperson.email || salesperson.username)}
-                                </SelectItem>
-                              ))
-                            )}
-                          </SelectContent>
-                        </Select>
-                      )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="monto"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Monto *</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="Ej: 50000"
-                            {...field}
-                            data-testid="input-monto"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="categoria"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Categoría *</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-categoria-form">
-                              <SelectValue placeholder="Seleccionar categoría" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="Combustibles">Combustibles</SelectItem>
-                            <SelectItem value="Colación">Colación</SelectItem>
-                            <SelectItem value="Gestión Ventas">Gestión Ventas</SelectItem>
-                            <SelectItem value="Otros">Otros</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="descripcion"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Descripción *</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Describe el gasto..."
-                          {...field}
-                          rows={3}
-                          data-testid="textarea-descripcion"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Campos de contexto del gasto */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="ruta"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Ruta *</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Ej: Ruta Sur"
-                            {...field}
-                            data-testid="input-ruta"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="clientes"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Cliente(s) *</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Ej: Ferretería El Sol, Pinturas ABC"
-                            {...field}
-                            data-testid="input-clientes"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="ciudad"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Ciudad *</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Ej: Santiago"
-                            {...field}
-                            data-testid="input-ciudad"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-              </div>
-
-              {/* Origen del Fondo */}
+              {/* Origen del Fondo - FIRST after evidence */}
               <div className="space-y-4 pt-4 border-t">
                 <h3 className="font-semibold text-lg">Origen del Fondo</h3>
                 <p className="text-sm text-gray-500 -mt-2">
@@ -729,6 +558,156 @@ export default function GastosEmpresarialesForm() {
                     </p>
                   </div>
                 )}
+              </div>
+
+              {/* Información Básica */}
+              <div className="space-y-4 pt-4 border-t">
+                <h3 className="font-semibold text-lg">Información Básica</h3>
+                
+                {/* Colaborador Selector */}
+                <FormField
+                  control={form.control}
+                  name="userId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Colaborador *</FormLabel>
+                      {!canSelectOthers ? (
+                        <div className="flex flex-col gap-1">
+                          <div className="flex h-10 w-full items-center rounded-md border border-input bg-gray-100 px-3 py-2 text-sm">
+                            {formatName(user?.salespersonName || user?.email || user?.username || 'Usuario')}
+                          </div>
+                          <p className="text-xs text-gray-500">Solo puedes registrar gastos a tu nombre</p>
+                        </div>
+                      ) : (
+                        <Select 
+                          onValueChange={field.onChange} 
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="select-vendedor-gasto">
+                              <SelectValue placeholder="Seleccionar colaborador" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {isLoadingSalespeople ? (
+                              <SelectItem value="loading" disabled>Cargando...</SelectItem>
+                            ) : (
+                              salespeople.map((salesperson: any) => (
+                                <SelectItem key={salesperson.id} value={salesperson.id}>
+                                  {formatName(salesperson.salespersonName || salesperson.email || salesperson.username)}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="monto"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Monto *</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder="Ej: 50000"
+                            {...field}
+                            data-testid="input-monto"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="categoria"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Categoría *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-categoria-form">
+                              <SelectValue placeholder="Seleccionar categoría" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Combustibles">Combustibles</SelectItem>
+                            <SelectItem value="Colación">Colación</SelectItem>
+                            <SelectItem value="Gestión Ventas">Gestión Ventas</SelectItem>
+                            <SelectItem value="Otros">Otros</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="descripcion"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Descripción *</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Describe el gasto..."
+                          {...field}
+                          rows={3}
+                          data-testid="textarea-descripcion"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Campos opcionales de contexto */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="clientes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Cliente(s)</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Ej: Ferretería El Sol, Pinturas ABC"
+                            {...field}
+                            data-testid="input-clientes"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="ciudad"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Ciudad</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Ej: Santiago"
+                            {...field}
+                            data-testid="input-ciudad"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
 
               {/* Document Info */}
