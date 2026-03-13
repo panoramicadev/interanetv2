@@ -6801,7 +6801,8 @@ export function registerRoutes(app: Express): Server {
           return datetimeLocalRegex.test(date) || isoDatetimeRegex.test(date) || !isNaN(Date.parse(date));
         }, "Fecha debe ser formato válido (YYYY-MM-DDTHH:mm o ISO datetime)").optional().or(z.null()),
         priority: z.enum(["low", "medium", "high"]).optional(),
-        status: z.enum(["pendiente", "en_progreso", "completada"]).optional()
+        status: z.enum(["pendiente", "en_progreso", "completada"]).optional(),
+        groupId: z.string().nullable().optional(),
       }).partial();
 
       // Validate request body with Zod
@@ -7047,6 +7048,74 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error deleting comment:", error);
       res.status(500).json({ message: "Failed to delete comment" });
+    }
+  });
+
+  // ==================================================================================
+  // Task Groups - Grupos de tareas por usuario y segmento
+  // ==================================================================================
+
+  // Get task groups for the current user
+  app.get('/api/task-groups', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const segmento = req.query.segmento as string | undefined;
+      const groups = await storage.getTaskGroups(user.id, segmento);
+      res.json(groups);
+    } catch (error) {
+      console.error("Error fetching task groups:", error);
+      res.status(500).json({ message: "Failed to fetch task groups" });
+    }
+  });
+
+  // Create a task group
+  app.post('/api/task-groups', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { name, segmento, color } = req.body;
+      if (!name || !segmento) {
+        return res.status(400).json({ message: "Name and segmento are required" });
+      }
+      const group = await storage.createTaskGroup({
+        name,
+        segmento,
+        userId: user.id,
+        color: color || 'blue',
+      });
+      res.status(201).json(group);
+    } catch (error) {
+      console.error("Error creating task group:", error);
+      res.status(500).json({ message: "Failed to create task group" });
+    }
+  });
+
+  // Update a task group
+  app.patch('/api/task-groups/:id', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { id } = req.params;
+      const { name, color, sortOrder } = req.body;
+      const group = await storage.updateTaskGroup(id, user.id, { name, color, sortOrder });
+      res.json(group);
+    } catch (error: any) {
+      console.error("Error updating task group:", error);
+      if (error.message?.includes('access denied')) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      res.status(500).json({ message: "Failed to update task group" });
+    }
+  });
+
+  // Delete a task group
+  app.delete('/api/task-groups/:id', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { id } = req.params;
+      await storage.deleteTaskGroup(id, user.id);
+      res.json({ message: "Group deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting task group:", error);
+      res.status(500).json({ message: "Failed to delete task group" });
     }
   });
 
@@ -8908,33 +8977,31 @@ export function registerRoutes(app: Express): Server {
       console.warn("Object Storage search failed, trying local fallback:", error);
     }
 
-    // Fallback to local file system for product images
-    if (filePath.startsWith('product-images/')) {
-      const localPath = path.join(process.cwd(), 'public', filePath);
-      try {
-        const fs = await import('fs/promises');
-        await fs.access(localPath);
+    // Fallback to local file system for any files (product-images, gastos, fondos, etc.)
+    const localPath = path.join(process.cwd(), 'public', filePath);
+    try {
+      const fs = await import('fs/promises');
+      await fs.access(localPath);
 
-        // Set Content-Type based on extension
-        const ext = path.extname(filePath).toLowerCase();
-        const contentTypes: Record<string, string> = {
-          '.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-          '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp',
-        };
-        const contentType = contentTypes[ext] || 'application/octet-stream';
-        res.setHeader('Content-Type', contentType);
+      // Set Content-Type based on extension
+      const ext = path.extname(filePath).toLowerCase();
+      const contentTypes: Record<string, string> = {
+        '.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+        '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp',
+      };
+      const contentType = contentTypes[ext] || 'application/octet-stream';
+      res.setHeader('Content-Type', contentType);
 
-        if (wantsDownload) {
-          const fileName = filePath.split('/').pop() || 'download';
-          res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-        } else {
-          res.setHeader('Content-Disposition', 'inline');
-        }
-
-        return res.sendFile(localPath);
-      } catch {
-        // File doesn't exist locally either
+      if (wantsDownload) {
+        const fileName = filePath.split('/').pop() || 'download';
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      } else {
+        res.setHeader('Content-Disposition', 'inline');
       }
+
+      return res.sendFile(localPath);
+    } catch {
+      // File doesn't exist locally either
     }
 
     return res.status(404).json({ error: "File not found" });
@@ -16568,10 +16635,28 @@ export function registerRoutes(app: Express): Server {
       // Estructura organizada: gastos/evidencia_{userId}_{fecha}_{randomId}.{ext}
       const fileName = `gastos/evidencia_${userIdShort}_${dateStr}_${randomId}${fileExtension}`;
 
-      // Upload to Object Storage (permanent storage)
-      const objectStorageService = new ObjectStorageService();
-      const imageUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
-      console.log(`☁️ [GASTO-EVIDENCIA] Uploaded: ${fileName}`);
+      // Always save a local copy as fallback
+      const localDir = path.join(process.cwd(), 'public', 'gastos');
+      const fs = await import('fs/promises');
+      try {
+        await fs.mkdir(localDir, { recursive: true });
+        const localFilePath = path.join(process.cwd(), 'public', fileName);
+        await fs.writeFile(localFilePath, file.buffer);
+        console.log(`💾 [GASTO-EVIDENCIA] Local copy saved: ${localFilePath}`);
+      } catch (localErr) {
+        console.warn('⚠️ [GASTO-EVIDENCIA] Could not save local copy:', localErr);
+      }
+
+      // Try to upload to Object Storage (permanent storage)
+      let imageUrl = `/public-objects/${fileName}`;
+      try {
+        const objectStorageService = new ObjectStorageService();
+        imageUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
+        console.log(`☁️ [GASTO-EVIDENCIA] Uploaded to Object Storage: ${fileName}`);
+      } catch (objStorageErr) {
+        console.warn(`⚠️ [GASTO-EVIDENCIA] Object Storage upload failed, using local fallback: ${objStorageErr}`);
+        // imageUrl already set to local fallback path
+      }
 
       let previewUrl: string | null = null;
 
@@ -16581,7 +16666,18 @@ export function registerRoutes(app: Express): Server {
           const previewBuffer = await convertPdfToImage(file.buffer, 600);
           if (previewBuffer) {
             const previewFileName = `gastos/evidencia_${userIdShort}_${dateStr}_${randomId}_preview.png`;
-            previewUrl = await objectStorageService.uploadImage(previewFileName, previewBuffer, 'image/png');
+            // Save preview locally
+            try {
+              const localPreviewPath = path.join(process.cwd(), 'public', previewFileName);
+              await fs.writeFile(localPreviewPath, previewBuffer);
+            } catch { /* ignore local preview save errors */ }
+            // Try Object Storage
+            try {
+              const objectStorageService = new ObjectStorageService();
+              previewUrl = await objectStorageService.uploadImage(previewFileName, previewBuffer, 'image/png');
+            } catch {
+              previewUrl = `/public-objects/${previewFileName}`;
+            }
             console.log(`🖼️ [GASTO-EVIDENCIA] Preview generated: ${previewFileName}`);
           }
         } catch (previewError) {

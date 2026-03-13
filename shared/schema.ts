@@ -1342,6 +1342,7 @@ export const tasks = pgTable("tasks", {
   clienteId: varchar("cliente_id"), // FK opcional a clientes (código koen)
   clienteNombre: text("cliente_nombre"), // Nombre del cliente asociado (opcional)
   segmento: varchar("segmento"), // 'ferreterias', 'construccion', 'digital', 'marketing'
+  groupId: varchar("group_id"), // FK to task_groups.id (nullable)
   payload: jsonb("payload"), // Type-specific data
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1353,6 +1354,7 @@ export const tasks = pgTable("tasks", {
   dueDateIdx: index("IDX_tasks_due_date").on(table.dueDate),
   clienteIdIdx: index("IDX_tasks_cliente_id").on(table.clienteId),
   segmentoIdx: index("IDX_tasks_segmento").on(table.segmento),
+  groupIdIdx: index("IDX_tasks_group_id").on(table.groupId),
 }));
 
 export const taskAssignments = pgTable("task_assignments", {
@@ -1422,6 +1424,28 @@ export const taskCommentsRelations = relations(taskComments, ({ one }) => ({
 export const insertTaskCommentSchema = createInsertSchema(taskComments, {
   content: z.string().min(1, "El comentario no puede estar vacío"),
 }).omit({ id: true, createdAt: true });
+
+// Task Groups - Grupos de tareas por usuario y segmento
+export const taskGroups = pgTable("task_groups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  segmento: varchar("segmento").notNull(), // 'ferreterias', 'construccion', 'digital', 'marketing'
+  userId: varchar("user_id").notNull(), // FK to users.id
+  color: varchar("color").default("blue"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userSegmentoIdx: index("IDX_task_groups_user_segmento").on(table.userId, table.segmento),
+}));
+
+export type TaskGroup = typeof taskGroups.$inferSelect;
+export type InsertTaskGroup = typeof taskGroups.$inferInsert;
+
+export const insertTaskGroupSchema = createInsertSchema(taskGroups, {
+  name: z.string().min(1, "Nombre del grupo es requerido"),
+  segmento: z.string().min(1, "Segmento es requerido"),
+  color: z.string().optional(),
+}).omit({ id: true, createdAt: true, userId: true });
 
 // Payload schemas for different task types with enhanced validation
 export const textoTaskPayloadSchema = z.object({

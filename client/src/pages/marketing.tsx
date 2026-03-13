@@ -635,6 +635,10 @@ function PasosChecklist({
 // Marketing Tasks List Component
 function MarketingTasksList({ mes, anio, userRole }: { mes: number; anio: number; userRole: string; }) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [newComment, setNewComment] = useState('');
+
   const { data: tasks, isLoading } = useQuery<any[]>({
     queryKey: ['/api/tasks/marketing', mes, anio],
     queryFn: async () => {
@@ -644,6 +648,58 @@ function MarketingTasksList({ mes, anio, userRole }: { mes: number; anio: number
       }
       const allTasks = await response.json();
       return allTasks.filter((t: any) => t.segmento === 'marketing');
+    },
+  });
+
+  // Get comments for selected task
+  const assignmentId = selectedTask?.assignments?.[0]?.id;
+  const { data: comments = [], isLoading: isLoadingComments } = useQuery<any[]>({
+    queryKey: ['/api/tasks', selectedTask?.id, 'comments', assignmentId],
+    queryFn: async () => {
+      if (!selectedTask?.id || !assignmentId) return [];
+      const res = await fetch(`/api/tasks/${selectedTask.id}/assignments/${assignmentId}/comments`, { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!selectedTask && !!assignmentId,
+  });
+
+  const addCommentMutation = useMutation({
+    mutationFn: async (content: string) => {
+      if (!selectedTask?.id || !assignmentId) throw new Error('No assignment');
+      const res = await fetch(`/api/tasks/${selectedTask.id}/assignments/${assignmentId}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) throw new Error('Error al agregar comentario');
+      return res.json();
+    },
+    onSuccess: () => {
+      setNewComment('');
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks', selectedTask?.id, 'comments'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ taskId, status }: { taskId: string; status: string }) => {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error('Error al actualizar estado');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/marketing'], refetchType: 'all' });
+      toast({ title: "Estado actualizado" });
     },
   });
 
@@ -660,15 +716,33 @@ function MarketingTasksList({ mes, anio, userRole }: { mes: number; anio: number
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'], refetchType: 'all' });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/marketing'], refetchType: 'all' });
       toast({ title: "Tarea eliminada" });
+      setSelectedTask(null);
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
 
-  const handleDelete = (taskId: string, taskTitle: string) => {
+  const handleDelete = (e: React.MouseEvent, taskId: string, taskTitle: string) => {
+    e.stopPropagation();
     if (window.confirm(`¿Eliminar la tarea "${taskTitle}"?`)) {
       deleteMutation.mutate(taskId);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completada': return 'bg-green-100 text-green-800 border-green-200';
+      case 'en_progreso': return 'bg-blue-100 text-blue-800 border-blue-200';
+      default: return 'bg-orange-100 text-orange-800 border-orange-200';
+    }
+  };
+
+  const getPriorityLabel = (priority: string) => {
+    switch (priority) {
+      case 'high': return { label: 'Alta', color: 'text-red-600' };
+      case 'medium': return { label: 'Media', color: 'text-yellow-600' };
+      default: return { label: 'Baja', color: 'text-green-600' };
     }
   };
 
@@ -681,45 +755,224 @@ function MarketingTasksList({ mes, anio, userRole }: { mes: number; anio: number
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Tareas de Marketing</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {tasks && tasks.length > 0 ? (
-          <div className="space-y-4">
-            {tasks.map((task: any) => (
-              <Card key={task.id} className="p-4 hover:shadow-md transition-shadow">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-lg">{task.title}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Tareas de Marketing</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {tasks && tasks.length > 0 ? (
+            <div className="space-y-4">
+              {tasks.map((task: any) => (
+                <Card
+                  key={task.id}
+                  className="p-4 hover:shadow-md transition-shadow cursor-pointer hover:border-indigo-200"
+                  onClick={() => setSelectedTask(task)}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-lg">{task.title}</h3>
+                      <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-4">
+                      <Badge className={getStatusColor(task.status)}>{task.status}</Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                        onClick={(e) => handleDelete(e, task.id, task.title)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 ml-4">
-                    <Badge>{task.status}</Badge>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50"
-                      onClick={() => handleDelete(task.id, task.title)}
-                      disabled={deleteMutation.isPending}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              No hay tareas de marketing registradas en este mes.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Task Detail Modal */}
+      <Dialog open={!!selectedTask} onOpenChange={(open) => { if (!open) setSelectedTask(null); }}>
+        <DialogContent className="sm:max-w-[650px] max-h-[85vh] overflow-y-auto p-0">
+          {selectedTask && (() => {
+            const priority = getPriorityLabel(selectedTask.priority);
+            const payload = selectedTask.payload || {};
+            return (
+              <>
+                {/* Header */}
+                <div className="px-6 pt-6 pb-4 border-b bg-gradient-to-r from-indigo-50 to-purple-50">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-xl font-bold text-slate-900">{selectedTask.title}</h2>
+                      {selectedTask.description && (
+                        <p className="text-sm text-slate-600 mt-1">{selectedTask.description}</p>
+                      )}
+                    </div>
+                    <Badge className={`${getStatusColor(selectedTask.status)} text-xs`}>{selectedTask.status}</Badge>
                   </div>
                 </div>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            No hay tareas de marketing registradas en este mes.
-          </div>
-        )}
-      </CardContent>
-    </Card>
+
+                {/* Info Grid */}
+                <div className="px-6 py-4 space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <div className="bg-slate-50 rounded-lg p-3">
+                      <p className="text-xs text-slate-500 font-medium uppercase">Prioridad</p>
+                      <p className={`text-sm font-semibold mt-0.5 ${priority.color}`}>{priority.label}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-lg p-3">
+                      <p className="text-xs text-slate-500 font-medium uppercase">Creada</p>
+                      <p className="text-sm font-semibold mt-0.5">{selectedTask.createdAt ? new Date(selectedTask.createdAt).toLocaleDateString('es-CL') : '-'}</p>
+                    </div>
+                    {selectedTask.dueDate && (
+                      <div className="bg-slate-50 rounded-lg p-3">
+                        <p className="text-xs text-slate-500 font-medium uppercase">Fecha límite</p>
+                        <p className="text-sm font-semibold mt-0.5">{new Date(selectedTask.dueDate).toLocaleDateString('es-CL')}</p>
+                      </div>
+                    )}
+                    {payload.plataforma && (
+                      <div className="bg-slate-50 rounded-lg p-3">
+                        <p className="text-xs text-slate-500 font-medium uppercase">Plataforma</p>
+                        <p className="text-sm font-semibold mt-0.5 capitalize">{payload.plataforma}</p>
+                      </div>
+                    )}
+                    {payload.presupuesto && (
+                      <div className="bg-slate-50 rounded-lg p-3">
+                        <p className="text-xs text-slate-500 font-medium uppercase">Presupuesto</p>
+                        <p className="text-sm font-semibold mt-0.5">${parseInt(payload.presupuesto).toLocaleString('es-CL')}</p>
+                      </div>
+                    )}
+                    {payload.urlReferencia && (
+                      <div className="bg-slate-50 rounded-lg p-3">
+                        <p className="text-xs text-slate-500 font-medium uppercase">Enlace</p>
+                        <a href={payload.urlReferencia} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold mt-0.5 text-indigo-600 hover:underline flex items-center gap-1">
+                          Ver <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Status Change */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-slate-700">Cambiar estado:</span>
+                    <div className="flex gap-1.5">
+                      {['pendiente', 'en_progreso', 'completada'].map((status) => (
+                        <Button
+                          key={status}
+                          size="sm"
+                          variant={selectedTask.status === status ? 'default' : 'outline'}
+                          className={`text-xs h-7 ${selectedTask.status === status ? '' : 'hover:bg-slate-100'}`}
+                          onClick={() => {
+                            updateStatusMutation.mutate({ taskId: selectedTask.id, status });
+                            setSelectedTask({ ...selectedTask, status });
+                          }}
+                          disabled={updateStatusMutation.isPending}
+                        >
+                          {status === 'pendiente' ? '⏳ Pendiente' : status === 'en_progreso' ? '🔄 En Progreso' : '✅ Completada'}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Bitácora */}
+                  <div className="border-t pt-4">
+                    <h3 className="font-semibold text-base flex items-center gap-2 mb-3">
+                      <History className="h-4 w-4 text-indigo-500" />
+                      Bitácora
+                    </h3>
+
+                    {/* Add Comment */}
+                    <div className="flex gap-2 mb-4">
+                      <Input
+                        placeholder="Agregar nota a la bitácora..."
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && newComment.trim()) {
+                            addCommentMutation.mutate(newComment.trim());
+                          }
+                        }}
+                        className="flex-1"
+                      />
+                      <Button
+                        size="sm"
+                        disabled={!newComment.trim() || addCommentMutation.isPending || !assignmentId}
+                        onClick={() => {
+                          if (newComment.trim()) addCommentMutation.mutate(newComment.trim());
+                        }}
+                        className="bg-indigo-600 hover:bg-indigo-700"
+                      >
+                        {addCommentMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                      </Button>
+                    </div>
+
+                    {/* Comments List */}
+                    {isLoadingComments ? (
+                      <div className="flex justify-center py-4">
+                        <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                      </div>
+                    ) : comments.length > 0 ? (
+                      <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                        {comments.map((comment: any) => (
+                          <div key={comment.id} className="flex gap-3 p-3 bg-slate-50 rounded-lg">
+                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                              <span className="text-xs font-bold text-indigo-600">
+                                {(comment.authorName || 'U').charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-slate-900">{comment.authorName || 'Usuario'}</span>
+                                <span className="text-xs text-slate-400">
+                                  {comment.createdAt ? new Date(comment.createdAt).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : ''}
+                                </span>
+                              </div>
+                              <p className="text-sm text-slate-700 mt-0.5">{comment.content}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6 text-sm text-slate-400">
+                        Sin entradas en la bitácora aún.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-3 border-t flex justify-between items-center bg-slate-50">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={() => {
+                      if (window.confirm(`¿Eliminar la tarea "${selectedTask.title}"?`)) {
+                        deleteMutation.mutate(selectedTask.id);
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" /> Eliminar
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setSelectedTask(null)}>
+                    Cerrar
+                  </Button>
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
+
 
 // Presupuesto Dialog Component
 function PresupuestoDialog({

@@ -330,6 +330,8 @@ import {
   taskComments,
   type TaskComment,
   type InsertTaskComment,
+  taskGroups,
+  type TaskGroup,
   integrations,
   type Integration,
   type InsertIntegration,
@@ -11841,7 +11843,9 @@ export class DatabaseStorage implements IStorage {
         updatedAt: tasks.updatedAt,
         createdByUserId: tasks.createdByUserId,
         segmento: tasks.segmento,
-        // Assignment fields (will be null if no assignments)
+        groupId: tasks.groupId,
+        clienteId: tasks.clienteId,
+        clienteNombre: tasks.clienteNombre,
         assignmentId: taskAssignments.id,
         assigneeType: taskAssignments.assigneeType,
         assigneeId: taskAssignments.assigneeId,
@@ -11879,6 +11883,9 @@ export class DatabaseStorage implements IStorage {
           updatedAt: row.updatedAt,
           createdByUserId: row.createdByUserId,
           segmento: row.segmento,
+          groupId: row.groupId,
+          clienteId: row.clienteId,
+          clienteNombre: row.clienteNombre,
           assignments: [],
         });
       }
@@ -12018,6 +12025,49 @@ export class DatabaseStorage implements IStorage {
         eq(taskComments.id, commentId),
         eq(taskComments.authorId, authorId)
       ));
+  }
+
+  // === Task Groups CRUD ===
+  async getTaskGroups(userId: string, segmento?: string): Promise<TaskGroup[]> {
+    const conditions = [eq(taskGroups.userId, userId)];
+    if (segmento) {
+      conditions.push(eq(taskGroups.segmento, segmento));
+    }
+    return await db
+      .select()
+      .from(taskGroups)
+      .where(and(...conditions))
+      .orderBy(taskGroups.sortOrder, taskGroups.createdAt);
+  }
+
+  async createTaskGroup(data: { name: string; segmento: string; userId: string; color?: string }): Promise<TaskGroup> {
+    const [group] = await db
+      .insert(taskGroups)
+      .values(data)
+      .returning();
+    return group;
+  }
+
+  async updateTaskGroup(id: string, userId: string, data: { name?: string; color?: string; sortOrder?: number }): Promise<TaskGroup> {
+    const [group] = await db
+      .update(taskGroups)
+      .set(data)
+      .where(and(eq(taskGroups.id, id), eq(taskGroups.userId, userId)))
+      .returning();
+    if (!group) throw new Error('Group not found or access denied');
+    return group;
+  }
+
+  async deleteTaskGroup(id: string, userId: string): Promise<void> {
+    // Ungroup tasks first
+    await db
+      .update(tasks)
+      .set({ groupId: null })
+      .where(eq(tasks.groupId, id));
+    // Delete group
+    await db
+      .delete(taskGroups)
+      .where(and(eq(taskGroups.id, id), eq(taskGroups.userId, userId)));
   }
 
   async getTasksForUser(userId: string, userSegments: string[]): Promise<Array<Task & { assignments: TaskAssignment[] }>> {

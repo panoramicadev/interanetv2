@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -48,7 +48,11 @@ import {
   Circle,
   Play,
   Check,
-  Ban
+  Ban,
+  Send,
+  X,
+  ArrowLeft,
+  FolderOpen
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
@@ -167,6 +171,98 @@ export default function TareasPage() {
 
   // Estado para controlar la pestaña activa
   const [activeTab, setActiveTab] = useState("tareas");
+
+  // Estado para vista de detalle de tarea
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  // Task Groups state
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  // Task Groups query
+  const taskGroupsQuery = useQuery<Array<{ id: string; name: string; segmento: string; userId: string; color: string | null; sortOrder: number | null; createdAt: Date | null }>>({
+    queryKey: ['/api/task-groups', { segmento: segmentoFilter !== 'all' ? segmentoFilter : undefined }],
+    enabled: isAuthenticated,
+  });
+
+  const createGroupMutation = useMutation({
+    mutationFn: async (data: { name: string; segmento: string; color?: string }) => {
+      const res = await apiRequest('POST', '/api/task-groups', data);
+      return await res.json();
+    },
+    onMutate: async (newGroup) => {
+      await queryClient.cancelQueries({ queryKey: ['/api/task-groups'] });
+      const previousGroups = queryClient.getQueriesData({ queryKey: ['/api/task-groups'] });
+      // Optimistically add the new group
+      queryClient.setQueriesData({ queryKey: ['/api/task-groups'] }, (old: any) => {
+        if (!old || !Array.isArray(old)) return [{ id: `temp-${Date.now()}`, ...newGroup, userId: '', color: newGroup.color || 'blue', sortOrder: 0, createdAt: new Date() }];
+        return [...old, { id: `temp-${Date.now()}`, ...newGroup, userId: '', color: newGroup.color || 'blue', sortOrder: 0, createdAt: new Date() }];
+      });
+      setNewGroupName("");
+      setShowCreateGroup(false);
+      return { previousGroups };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/task-groups'] });
+      toast({ title: "Grupo creado", description: "El grupo se ha creado exitosamente." });
+    },
+    onError: (error: any, _vars, context: any) => {
+      if (context?.previousGroups) {
+        context.previousGroups.forEach(([key, data]: [any, any]) => {
+          queryClient.setQueryData(key, data);
+        });
+      }
+      toast({ title: "Error", description: error.message || "No se pudo crear el grupo.", variant: "destructive" });
+    },
+  });
+
+  const deleteGroupMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest('DELETE', `/api/task-groups/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.refetchQueries({ queryKey: ['/api/task-groups'] });
+      queryClient.refetchQueries({ queryKey: ['/api/tasks'] });
+      toast({ title: "Grupo eliminado" });
+    },
+  });
+
+  const assignTaskToGroupMutation = useMutation({
+    mutationFn: async ({ taskId, groupId }: { taskId: string; groupId: string | null }) => {
+      await apiRequest("PATCH", `/api/tasks/${taskId}`, { groupId });
+    },
+    onMutate: async ({ taskId, groupId }) => {
+      // Cancel any outgoing refetches to avoid overwriting optimistic update
+      await queryClient.cancelQueries({ queryKey: ['/api/tasks'] });
+      // Snapshot previous value for rollback
+      const previousData = queryClient.getQueriesData({ queryKey: ['/api/tasks'] });
+      // Optimistically update all matching task queries
+      queryClient.setQueriesData({ queryKey: ['/api/tasks'] }, (old: any) => {
+        if (!old || !Array.isArray(old)) return old;
+        return old.map((t: any) => t.id === taskId ? { ...t, groupId } : t);
+      });
+      return { previousData };
+    },
+    onError: (_err, _vars, context: any) => {
+      // Rollback on error
+      if (context?.previousData) {
+        context.previousData.forEach(([key, data]: [any, any]) => {
+          queryClient.setQueryData(key, data);
+        });
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+    },
+  });
+
+  const toggleGroupCollapsed = (groupId: string) => {
+    const next = new Set(collapsedGroups);
+    if (next.has(groupId)) next.delete(groupId);
+    else next.add(groupId);
+    setCollapsedGroups(next);
+  };
 
   const toggleTaskExpanded = (taskId: string) => {
     const newExpanded = new Set(expandedTasks);
@@ -350,14 +446,33 @@ export default function TareasPage() {
         notes: notes || undefined
       });
     },
+    onMutate: async ({ taskId, assignmentId, status }) => {
+      // Optimistic update: immediately update the UI
+      await queryClient.cancelQueries({ queryKey: ["/api/tasks"] });
+      const previousTasks = queryClient.getQueryData(["/api/tasks"]);
+      queryClient.setQueryData(["/api/tasks"], (old: any) => {
+        if (!old) return old;
+        return old.map((t: any) => {
+          if (t.id !== taskId) return t;
+          return {
+            ...t,
+            status: status === 'completed' ? 'completada' : t.status,
+            assignments: t.assignments.map((a: any) =>
+              a.id === assignmentId ? { ...a, status: status || a.status } : a
+            ),
+          };
+        });
+      });
+      return { previousTasks };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"], type: "all" });
-      toast({
-        title: "Estado actualizado",
-        description: "El estado de la asignación se ha actualizado.",
-      });
     },
-    onError: (error: any) => {
+    onError: (error: any, _vars, context: any) => {
+      // Rollback on error
+      if (context?.previousTasks) {
+        queryClient.setQueryData(["/api/tasks"], context.previousTasks);
+      }
       console.error("Assignment update error:", error);
       toast({
         title: "Error",
@@ -428,14 +543,27 @@ export default function TareasPage() {
     }
 
     return true;
+  })?.sort((a, b) => {
+    // 1. Completed tasks go to the bottom
+    const aCompleted = a.status === 'completada' || a.assignments.some(as => as.status === 'completed') ? 1 : 0;
+    const bCompleted = b.status === 'completada' || b.assignments.some(as => as.status === 'completed') ? 1 : 0;
+    if (aCompleted !== bCompleted) return aCompleted - bCompleted;
+    // 2. High priority first
+    const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+    const aPrio = priorityOrder[a.priority ?? 'medium'] ?? 1;
+    const bPrio = priorityOrder[b.priority ?? 'medium'] ?? 1;
+    return aPrio - bPrio;
   }) || [];
 
+  // Selected task for detail view
+  const selectedTask = selectedTaskId ? filteredTasks.find(t => t.id === selectedTaskId) || tasksQuery.data?.find(t => t.id === selectedTaskId) || null : null;
+
   // Get unique clients from tasks for filter dropdown
-  const clientesEnTareas = [...new Set(
+  const clientesEnTareas = Array.from(new Set(
     (tasksQuery.data || [])
       .filter((t) => (t as any).clienteNombre)
       .map((t) => (t as any).clienteNombre)
-  )];
+  ));
 
   // Helper functions
   const getStatusIcon = (status: string) => {
@@ -1084,234 +1212,270 @@ export default function TareasPage() {
             </CardContent>
           </Card>
 
-          {/* Tasks List */}
-          <div className="space-y-4">
+          {/* Group Management Bar */}
+          {segmentoFilter !== "all" && (
+            <div className="flex items-center gap-2">
+              {!showCreateGroup ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowCreateGroup(true)}
+                  className="text-xs border-dashed border-slate-300 text-slate-600 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50/50 transition-all"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1.5" />
+                  Nuevo Grupo
+                </Button>
+              ) : (
+                <div className="flex items-center gap-2 bg-white border border-blue-200 rounded-lg px-3 py-1.5 shadow-sm">
+                  <Input
+                    value={newGroupName}
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                    placeholder="Nombre del grupo..."
+                    className="h-7 text-xs border-0 shadow-none p-0 focus-visible:ring-0 w-40"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newGroupName.trim()) {
+                        createGroupMutation.mutate({ name: newGroupName.trim(), segmento: segmentoFilter });
+                      }
+                      if (e.key === 'Escape') { setShowCreateGroup(false); setNewGroupName(""); }
+                    }}
+                    autoFocus
+                  />
+                  <Button
+                    size="sm"
+                    className="h-6 px-2 text-[10px] bg-blue-600 hover:bg-blue-700"
+                    disabled={!newGroupName.trim() || createGroupMutation.isPending}
+                    onClick={() => newGroupName.trim() && createGroupMutation.mutate({ name: newGroupName.trim(), segmento: segmentoFilter })}
+                  >
+                    {createGroupMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Crear'}
+                  </Button>
+                  <button onClick={() => { setShowCreateGroup(false); setNewGroupName(""); }} className="text-slate-400 hover:text-slate-600">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tasks List - Modern Grouped Layout */}
+          <div className="space-y-6">
             {tasksQuery.isLoading ? (
-              <div className="text-center py-12">
+              <div className="text-center py-16">
                 <div className="animate-spin rounded-full h-10 w-10 border-3 border-blue-200 border-t-blue-600 mx-auto mb-4"></div>
-                <p className="text-gray-600 font-medium">Cargando tareas...</p>
+                <p className="text-slate-500 font-medium text-sm">Cargando tareas...</p>
               </div>
             ) : filteredTasks.length === 0 ? (
-              <Card className="border-0 shadow-sm">
-                <CardContent className="py-16 text-center">
-                  <div className="bg-gray-100 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                    <CheckSquare className="h-8 w-8 text-gray-400" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No hay tareas</h3>
-                  <p className="text-gray-600 mb-6">
-                    {viewMode === "my-tasks" ? "No tienes tareas asignadas." : "No se encontraron tareas."}
-                  </p>
-                  {canCreateTasks && (
-                    <Button
-                      onClick={() => setShowCreateDialog(true)}
-                      className="bg-gradient-to-r from-blue-600 to-indigo-600"
-                      data-testid="button-create-first-task"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Crear primera tarea
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            ) : (
-              filteredTasks.map((task) => {
+              <div className="text-center py-20">
+                <div className="w-16 h-16 rounded-2xl bg-slate-100 mx-auto mb-4 flex items-center justify-center">
+                  <CheckSquare className="h-8 w-8 text-slate-300" />
+                </div>
+                <h3 className="text-base font-semibold text-slate-800 mb-1">No hay tareas</h3>
+                <p className="text-sm text-slate-500 mb-6">
+                  {viewMode === "my-tasks" ? "No tienes tareas asignadas." : "No se encontraron tareas."}
+                </p>
+                {canCreateTasks && (
+                  <Button
+                    onClick={() => setShowCreateDialog(true)}
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg shadow-blue-200/50"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Crear primera tarea
+                  </Button>
+                )}
+              </div>
+            ) : (() => {
+              const groups = taskGroupsQuery.data || [];
+              const groupedTasks: Record<string, typeof filteredTasks> = {};
+              const ungrouped: typeof filteredTasks = [];
+
+              filteredTasks.forEach(task => {
+                const gId = (task as any).groupId;
+                if (gId && groups.find(g => g.id === gId)) {
+                  if (!groupedTasks[gId]) groupedTasks[gId] = [];
+                  groupedTasks[gId].push(task);
+                } else {
+                  ungrouped.push(task);
+                }
+              });
+
+              const renderTaskCard = (task: typeof filteredTasks[0]) => {
                 const myAssignment = task.assignments.find(a =>
                   (a.assigneeType === "supervisor" && a.assigneeId === user.id) ||
                   (a.assigneeType === "salesperson" && a.assigneeId === user.id) ||
                   (a.assigneeType === "user" && a.assigneeId === user.id)
                 );
-                // For admins/supervisors viewing all tasks, allow completing any task via the first assignment
                 const targetAssignment = myAssignment || (
                   (user.role === 'admin' || user.role === 'supervisor') ? task.assignments[0] : null
                 );
-                const isCompleted = task.status === 'completada' || (targetAssignment?.status === 'completada');
+                const isCompleted = task.status === 'completada' || (targetAssignment?.status === 'completed');
                 const canComplete = targetAssignment &&
                   (user.role === 'admin' || user.role === 'supervisor' || (myAssignment && myAssignment.assigneeId === user.id));
+                const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && !isCompleted;
 
                 return (
-                  <Card key={task.id} className={`overflow-hidden border-l-4 shadow-sm hover:shadow-lg transition-all duration-200 ${isCompleted ? 'border-l-green-500 bg-green-50/30' :
-                    task.priority === 'high' ? 'border-l-red-500' :
-                      task.priority === 'low' ? 'border-l-gray-400' : 'border-l-blue-500'
-                    }`}>
-                    <div className="p-4 sm:p-5">
-                      <div className="flex items-start gap-4">
-                        {/* Checkbox To-Do Style */}
-                        <div className="flex-shrink-0 pt-0.5">
-                          {canComplete || (targetAssignment && targetAssignment.status === "completada") ? (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (targetAssignment) {
-                                  const newStatus = targetAssignment.status === "completada" ? "pendiente" : "completada";
-                                  updateAssignmentMutation.mutate({
-                                    taskId: task.id,
-                                    assignmentId: targetAssignment.id,
-                                    status: newStatus
-                                  });
-                                }
-                              }}
-                              className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${isCompleted
-                                ? 'bg-green-500 border-green-500 text-white'
-                                : 'border-gray-300 hover:border-green-500 hover:bg-green-50'
-                                }`}
-                              data-testid={`checkbox-complete-task-${task.id}`}
-                              disabled={updateAssignmentMutation.isPending}
-                            >
-                              {isCompleted && <Check className="h-4 w-4" />}
-                            </button>
-                          ) : (
-                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${isCompleted
-                              ? 'bg-green-500 border-green-500 text-white'
-                              : 'border-gray-200 bg-gray-50'
-                              }`}>
-                              {isCompleted && <Check className="h-4 w-4" />}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          {/* Title Row */}
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <h3 className={`text-base font-semibold leading-tight ${isCompleted ? 'text-gray-500 line-through' : 'text-gray-900'}`} data-testid={`text-task-title-${task.id}`}>
-                              {task.title}
-                            </h3>
-                            <div className="flex items-center gap-1.5 flex-shrink-0">
-                              {getPriorityBadge(task.priority ?? 'medium')}
-                              {getStatusBadge(task.status ?? 'pendiente')}
-                            </div>
-                          </div>
-
-                          {/* Cliente Badge - Destacado */}
-                          {(task as any).clienteNombre && (
-                            <div className="mb-2">
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-medium">
-                                <Building2 className="h-3.5 w-3.5" />
-                                {(task as any).clienteNombre}
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Description */}
-                          {task.description && (
-                            <p className={`text-sm mb-3 line-clamp-2 ${isCompleted ? 'text-gray-400' : 'text-gray-600'}`} data-testid={`text-task-description-${task.id}`}>
-                              {task.description}
-                            </p>
-                          )}
-
-                          {/* Meta Info Row */}
-                          <div className="flex flex-wrap items-center gap-3 text-xs">
-                            {task.dueDate && (
-                              <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${new Date(task.dueDate) < new Date() && !isCompleted
-                                ? 'bg-red-100 text-red-700'
-                                : 'bg-gray-100 text-gray-600'
-                                }`}>
-                                <CalendarIcon className="h-3.5 w-3.5" />
-                                <span data-testid={`text-task-due-date-${task.id}`}>
-                                  {format(new Date(task.dueDate), "dd MMM yyyy", { locale: es })}
-                                </span>
-                              </div>
-                            )}
-                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-50 text-blue-700">
-                              <User className="h-3.5 w-3.5" />
-                              <span className="text-xs font-medium truncate max-w-[150px]" data-testid={`text-task-assignee-${task.id}`}>
-                                {task.assignments.length > 0
-                                  ? task.assignments.map(a => {
-                                    const assigneeName = availableUsers?.find(s => s.id === a.assigneeId)?.salespersonName ||
-                                      availableSupervisors?.find(s => s.id === a.assigneeId)?.salespersonName ||
-                                      a.assigneeId;
-                                    return assigneeName;
-                                  }).join(', ')
-                                  : 'Sin asignar'}
-                              </span>
-                            </div>
-                            {myAssignment && !myAssignment.readAt && myAssignment.status === "pendiente" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 px-2 text-xs border-blue-300 text-blue-700 hover:bg-blue-50"
-                                onClick={() => markAsReadMutation.mutate({
-                                  taskId: task.id,
-                                  assignmentId: myAssignment.id
-                                })}
-                                disabled={markAsReadMutation.isPending}
-                                data-testid={`button-acknowledge-assignment-${myAssignment.id}`}
-                              >
-                                <Eye className="h-3 w-3 mr-1" />
-                                Acusar Recibo
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Expand Toggle */}
+                  <div
+                    key={task.id}
+                    className={`group flex items-start gap-3 px-4 py-3 rounded-xl border transition-all duration-200 cursor-pointer hover:shadow-md ${
+                      isCompleted
+                        ? 'bg-emerald-50/40 border-emerald-200/60 opacity-60'
+                        : isOverdue
+                          ? 'bg-white border-red-200 hover:border-red-300'
+                          : 'bg-white border-slate-200 hover:border-blue-200'
+                    }`}
+                    onClick={() => setSelectedTaskId(task.id)}
+                  >
+                    {/* Todo Circle Checkbox */}
+                    <div className="flex-shrink-0 pt-0.5">
+                      {canComplete || (targetAssignment && targetAssignment.status === "completed") ? (
                         <button
-                          onClick={() => toggleTaskExpanded(task.id)}
-                          className="flex-shrink-0 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                          data-testid={`button-toggle-task-${task.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (targetAssignment) {
+                              const newStatus = targetAssignment.status === "completed" ? "pending" : "completed";
+                              updateAssignmentMutation.mutate({
+                                taskId: task.id,
+                                assignmentId: targetAssignment.id,
+                                status: newStatus
+                              });
+                            }
+                          }}
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${
+                            isCompleted
+                              ? 'bg-emerald-500 border-emerald-500 text-white scale-110'
+                              : 'border-slate-300 hover:border-emerald-400 hover:bg-emerald-50'
+                          }`}
+                          disabled={updateAssignmentMutation.isPending}
                         >
-                          {expandedTasks.has(task.id) ? (
-                            <ChevronDown className="h-5 w-5 text-gray-500" />
-                          ) : (
-                            <ChevronRight className="h-5 w-5 text-gray-500" />
-                          )}
+                          {isCompleted && <Check className="h-3 w-3" />}
                         </button>
+                      ) : (
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                          isCompleted ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-200'
+                        }`}>
+                          {isCompleted && <Check className="h-3 w-3" />}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Task Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className={`text-sm font-medium leading-snug ${isCompleted ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
+                          {task.title}
+                        </span>
+                        {task.priority === 'high' && !isCompleted && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" title="Alta prioridad" />
+                        )}
+                      </div>
+                      {task.description && (
+                        <p className={`text-xs leading-relaxed line-clamp-1 ${isCompleted ? 'text-slate-300' : 'text-slate-500'}`}>
+                          {task.description}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                        {task.dueDate && (
+                          <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded ${
+                            isOverdue ? 'bg-red-100 text-red-700' : isCompleted ? 'text-slate-400' : 'text-slate-500'
+                          }`}>
+                            <CalendarIcon className="h-3 w-3" />
+                            {format(new Date(task.dueDate), "dd MMM", { locale: es })}
+                          </span>
+                        )}
+                        {(task as any).clienteNombre && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                            <Building2 className="h-3 w-3" />
+                            {(task as any).clienteNombre}
+                          </span>
+                        )}
+                        <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+                          <User className="h-3 w-3" />
+                          {task.assignments.length > 0
+                            ? task.assignments.map(a =>
+                              availableUsers?.find(s => s.id === a.assigneeId)?.salespersonName ||
+                              availableSupervisors?.find(s => s.id === a.assigneeId)?.salespersonName ||
+                              a.assigneeId
+                            ).join(', ')
+                            : 'Sin asignar'}
+                        </span>
                       </div>
                     </div>
 
-                    <Collapsible open={expandedTasks.has(task.id)}>
-                      <CollapsibleContent>
-                        <CardContent className="pt-4 bg-gray-50">
-                          <div className="pt-0">
-                            <h4 className="text-sm font-bold mb-3 text-gray-900 uppercase tracking-wide">Asignaciones</h4>
-                            <div className="space-y-3">
-                              {task.assignments.map((assignment) => {
-                                return (
-                                  <div key={assignment.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:border-blue-200 transition-colors">
-                                    <div className="space-y-2">
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        {getAssigneeDisplay(assignment)}
-                                        {getStatusBadge(assignment.status ?? 'pendiente')}
-                                        {assignment.readAt && (
-                                          <Badge variant="outline" className="flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border-blue-200">
-                                            <Eye className="h-3 w-3" />
-                                            Leída {format(new Date(assignment.readAt), "dd/MM HH:mm", { locale: es })}
-                                          </Badge>
-                                        )}
-                                      </div>
-
-                                      {/* Comments Thread Component */}
-                                      <CommentsThread
-                                        taskId={task.id}
-                                        assignmentId={assignment.id}
-                                        isEditing={editingNoteAssignmentId === assignment.id && editingNoteTaskId === task.id}
-                                        editingText={editingNoteText}
-                                        setEditingText={setEditingNoteText}
-                                        onStartEditing={() => {
-                                          setEditingNoteAssignmentId(assignment.id);
-                                          setEditingNoteTaskId(task.id);
-                                          setEditingNoteText("");
-                                        }}
-                                        onCancelEditing={() => {
-                                          setEditingNoteAssignmentId(null);
-                                          setEditingNoteTaskId(null);
-                                          setEditingNoteText("");
-                                        }}
-                                      />
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  </Card>
+                    {/* Right badges - show on hover */}
+                    <div className="flex items-center gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {getPriorityBadge(task.priority ?? 'medium')}
+                      {getStatusBadge(task.status ?? 'pendiente')}
+                    </div>
+                  </div>
                 );
-              })
-            )}
+              };
+
+              return (
+                <>
+                  {/* Grouped Tasks */}
+                  {groups.map(group => (
+                    <div key={group.id} className="space-y-1">
+                      <button
+                        onClick={() => toggleGroupCollapsed(group.id)}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors group/header"
+                      >
+                        <ChevronRight className={`h-4 w-4 text-slate-400 transition-transform ${!collapsedGroups.has(group.id) ? 'rotate-90' : ''}`} />
+                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">{group.name}</span>
+                        <span className="text-[10px] text-slate-400 font-medium">{groupedTasks[group.id]?.length || 0}</span>
+                        <div className="flex-1" />
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteGroupMutation.mutate(group.id); }}
+                          className="opacity-0 group-hover/header:opacity-100 p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all"
+                          title="Eliminar grupo"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </button>
+                      {!collapsedGroups.has(group.id) && (
+                        <div className="space-y-1.5 pl-2">
+                          {groupedTasks[group.id]?.length > 0 ? (
+                            groupedTasks[group.id].map(renderTaskCard)
+                          ) : (
+                            <p className="text-xs text-slate-400 italic pl-6 py-2">Sin tareas en este grupo</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Ungrouped Tasks */}
+                  {ungrouped.length > 0 && (
+                    <div className="space-y-1">
+                      {groups.length > 0 && (
+                        <div className="flex items-center gap-2 px-2 py-1.5">
+                          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Sin grupo</span>
+                          <span className="text-[10px] text-slate-400 font-medium">{ungrouped.length}</span>
+                        </div>
+                      )}
+                      <div className="space-y-1.5">
+                        {ungrouped.map(renderTaskCard)}
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
+          {/* Diálogo de Detalle de Tarea */}
+          {selectedTask && (
+            <TaskDetailDialog
+              task={selectedTask}
+              open={!!selectedTaskId}
+              onClose={() => setSelectedTaskId(null)}
+              user={user}
+              availableUsers={availableUsers}
+              availableSupervisors={availableSupervisors}
+              getStatusBadge={getStatusBadge}
+              getPriorityBadge={getPriorityBadge}
+              updateAssignmentMutation={updateAssignmentMutation}
+              markAsReadMutation={markAsReadMutation}
+              taskGroups={taskGroupsQuery.data || []}
+              assignTaskToGroupMutation={assignTaskToGroupMutation}
+            />
+          )}
 
           {/* Diálogo de confirmación para completar tarea */}
           <AlertDialog open={!!confirmCompleteTask} onOpenChange={(open) => !open && setConfirmCompleteTask(null)}>
@@ -2654,6 +2818,589 @@ function EditPromesaDialog({
 }
 
 // ==================================================================================
+// TaskDetailDialog - Vista de detalle de tarea con panel de chat
+// ==================================================================================
+interface TaskDetailDialogProps {
+  task: Task & { assignments: TaskAssignment[] };
+  open: boolean;
+  onClose: () => void;
+  user: any;
+  availableUsers: Array<{ id: string; salespersonName: string; role: string }> | undefined;
+  availableSupervisors: Array<{ id: string; salespersonName: string; role: string }> | undefined;
+  getStatusBadge: (status: string) => JSX.Element;
+  getPriorityBadge: (priority: string) => JSX.Element;
+  updateAssignmentMutation: any;
+  markAsReadMutation: any;
+  taskGroups: Array<{ id: string; name: string; segmento: string; userId: string; color: string | null; sortOrder: number | null; createdAt: Date | null }>;
+  assignTaskToGroupMutation: any;
+}
+
+function TaskDetailDialog({
+  task,
+  open,
+  onClose,
+  user,
+  availableUsers,
+  availableSupervisors,
+  getStatusBadge,
+  getPriorityBadge,
+  updateAssignmentMutation,
+  markAsReadMutation,
+  taskGroups,
+  assignTaskToGroupMutation,
+}: TaskDetailDialogProps) {
+  const { toast } = useToast();
+  const [chatText, setChatText] = useState("");
+  const [activeAssignmentChat, setActiveAssignmentChat] = useState<string>(
+    task.assignments[0]?.id || ""
+  );
+  const [selectedGroupId, setSelectedGroupId] = useState<string>((task as any).groupId || "__none__");
+
+  // Delete task mutation
+  const deleteTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      return await apiRequest("DELETE", `/api/tasks/${taskId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"], type: "all" });
+      onClose();
+      toast({
+        title: "Tarea eliminada",
+        description: "La tarea se ha eliminado exitosamente.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo eliminar la tarea.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update task status mutation
+  const updateTaskStatusMutation = useMutation({
+    mutationFn: async ({ taskId, status }: { taskId: string; status: string }) => {
+      return await apiRequest("PATCH", `/api/tasks/${taskId}`, { status });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"], type: "all" });
+      toast({
+        title: "Estado actualizado",
+        description: "El estado de la tarea se ha actualizado.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo actualizar el estado.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const getAssigneeName = (assignment: TaskAssignment) => {
+    return availableUsers?.find(s => s.id === assignment.assigneeId)?.salespersonName ||
+      availableSupervisors?.find(s => s.id === assignment.assigneeId)?.salespersonName ||
+      assignment.assigneeId;
+  };
+
+  const canDeleteTask = user.role === 'admin' || user.role === 'supervisor' || task.createdByUserId === user.id;
+  const canUpdateStatus = user.role === 'admin' || user.role === 'supervisor';
+  const isCompleted = task.status === 'completada';
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent hideCloseButton className="max-w-[95vw] lg:max-w-[1100px] max-h-[90vh] p-0 overflow-hidden flex flex-col gap-0">
+        {/* Premium Header */}
+        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-6 py-5 relative overflow-hidden flex-shrink-0">
+          <div className="absolute -top-12 -right-12 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl" />
+          <div className="relative flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3 min-w-0 flex-1">
+              <div className={`rounded-xl p-2.5 shadow-lg flex-shrink-0 ${
+                isCompleted ? 'bg-gradient-to-br from-green-500 to-emerald-600' :
+                task.priority === 'high' ? 'bg-gradient-to-br from-red-500 to-rose-600' :
+                'bg-gradient-to-br from-blue-500 to-indigo-600'
+              }`}>
+                <CheckSquare className="h-5 w-5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <DialogTitle className="text-xl font-bold text-white truncate">
+                  {task.title}
+                </DialogTitle>
+                <DialogDescription className="text-slate-300 text-sm mt-0.5 flex items-center gap-3 flex-wrap">
+                  <span>Creada {task.createdAt && format(new Date(task.createdAt), "dd MMM yyyy, HH:mm", { locale: es })}</span>
+                  {(task as any).segmento && (
+                    <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-400/30 text-xs">
+                      {(task as any).segmento}
+                    </Badge>
+                  )}
+                </DialogDescription>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {getPriorityBadge(task.priority ?? 'medium')}
+              {getStatusBadge(task.status ?? 'pendiente')}
+              <button
+                onClick={onClose}
+                className="ml-2 p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all"
+                title="Cerrar"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Two-Panel Layout */}
+        <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden">
+          {/* Left Panel: Task Info */}
+          <div className="lg:w-[55%] overflow-y-auto border-r border-slate-200 p-5 space-y-5">
+            {/* Description */}
+            {task.description && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Descripción</h4>
+                <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-xl p-4 border border-slate-100 whitespace-pre-wrap">
+                  {task.description}
+                </p>
+              </div>
+            )}
+
+            {/* Details Grid */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Due Date */}
+              <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Fecha Límite</p>
+                {task.dueDate ? (
+                  <div className={`flex items-center gap-1.5 text-sm font-semibold ${
+                    new Date(task.dueDate) < new Date() && !isCompleted ? 'text-red-600' : 'text-slate-800'
+                  }`}>
+                    <CalendarIcon className="h-4 w-4" />
+                    {format(new Date(task.dueDate), "dd MMM yyyy, HH:mm", { locale: es })}
+                  </div>
+                ) : (
+                  <span className="text-sm text-slate-400 italic">Sin fecha</span>
+                )}
+              </div>
+
+              {/* Client */}
+              <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Cliente</p>
+                {(task as any).clienteNombre ? (
+                  <div className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
+                    <Building2 className="h-4 w-4" />
+                    {(task as any).clienteNombre}
+                  </div>
+                ) : (
+                  <span className="text-sm text-slate-400 italic">Sin cliente</span>
+                )}
+              </div>
+            </div>
+
+            {/* Group Assignment */}
+            {(() => {
+              const canAssignGroup = user.role === 'admin' || user.role === 'supervisor' || task.createdByUserId === user.id;
+              if (!canAssignGroup) return null;
+              // Show groups matching task segmento, or all groups if task has no segmento
+              const availableGroups = (task as any).segmento
+                ? taskGroups.filter(g => g.segmento === (task as any).segmento)
+                : taskGroups;
+              if (availableGroups.length === 0) return null;
+              const currentGroupId = (task as any).groupId || "__none__";
+              const hasChanged = selectedGroupId !== currentGroupId;
+              return (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                    <FolderOpen className="h-3.5 w-3.5" />
+                    Grupo
+                  </h4>
+                  <Select
+                    value={selectedGroupId}
+                    onValueChange={setSelectedGroupId}
+                  >
+                    <SelectTrigger className="w-full bg-white border-slate-200 text-sm">
+                      <SelectValue placeholder="Seleccionar grupo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">
+                        <span className="text-slate-400 italic">Sin grupo</span>
+                      </SelectItem>
+                      {availableGroups.map((group) => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {hasChanged && (
+                    <Button
+                      size="sm"
+                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-xs shadow-sm"
+                      disabled={assignTaskToGroupMutation.isPending}
+                      onClick={() => {
+                        const groupId = selectedGroupId === "__none__" ? null : selectedGroupId;
+                        assignTaskToGroupMutation.mutate({ taskId: task.id, groupId });
+                      }}
+                    >
+                      {assignTaskToGroupMutation.isPending ? (
+                        <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Guardando...</>
+                      ) : (
+                        <><Check className="h-3.5 w-3.5 mr-1.5" /> Guardar Grupo</>
+                      )}
+                    </Button>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Status Actions */}
+            {canUpdateStatus && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cambiar Estado</h4>
+                <div className="flex flex-wrap gap-2">
+                  {['pendiente', 'en_progreso', 'completada'].map((status) => (
+                    <Button
+                      key={status}
+                      size="sm"
+                      variant={task.status === status ? "default" : "outline"}
+                      className={`text-xs transition-all ${task.status === status 
+                        ? status === 'completada' ? 'bg-green-600 hover:bg-green-700' 
+                          : status === 'en_progreso' ? 'bg-amber-500 hover:bg-amber-600'
+                          : 'bg-blue-600 hover:bg-blue-700'
+                        : ''
+                      }`}
+                      onClick={() => updateTaskStatusMutation.mutate({ taskId: task.id, status })}
+                      disabled={updateTaskStatusMutation.isPending || task.status === status}
+                    >
+                      {status === 'pendiente' && <Clock className="h-3.5 w-3.5 mr-1" />}
+                      {status === 'en_progreso' && <Play className="h-3.5 w-3.5 mr-1" />}
+                      {status === 'completada' && <CheckCircle className="h-3.5 w-3.5 mr-1" />}
+                      {status === 'pendiente' ? 'Pendiente' : status === 'en_progreso' ? 'En Progreso' : 'Completada'}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Assignments */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                <Users className="h-3.5 w-3.5" />
+                Asignaciones ({task.assignments.length})
+              </h4>
+              <div className="space-y-2">
+                {task.assignments.map((assignment) => {
+                  const assigneeName = getAssigneeName(assignment);
+                  const myAssignment = (assignment.assigneeType === "supervisor" && assignment.assigneeId === user.id) ||
+                    (assignment.assigneeType === "salesperson" && assignment.assigneeId === user.id);
+                  
+                  return (
+                    <div key={assignment.id} className={`bg-white border rounded-xl p-4 transition-all ${
+                      myAssignment ? 'border-blue-200 bg-blue-50/30 shadow-sm' : 'border-slate-200 hover:border-slate-300'
+                    }`}>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${
+                            assignment.status === 'completada' ? 'bg-green-500' :
+                            assignment.status === 'en_progreso' ? 'bg-amber-500' :
+                            'bg-slate-400'
+                          }`}>
+                            {assigneeName.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-800 truncate">{assigneeName}</p>
+                            <p className="text-xs text-slate-500 capitalize">{assignment.assigneeType}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {getStatusBadge(assignment.status ?? 'pendiente')}
+                          {assignment.readAt && (
+                            <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+                              <Eye className="h-3 w-3 mr-1" />
+                              Leída
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Assignment Actions */}
+                      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+                        {myAssignment && !assignment.readAt && assignment.status === "pendiente" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2.5 text-xs border-blue-300 text-blue-700 hover:bg-blue-50"
+                            onClick={() => markAsReadMutation.mutate({
+                              taskId: task.id,
+                              assignmentId: assignment.id
+                            })}
+                            disabled={markAsReadMutation.isPending}
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            Acusar Recibo
+                          </Button>
+                        )}
+                        {(user.role === 'admin' || user.role === 'supervisor' || myAssignment) && (
+                          <Button
+                            size="sm"
+                            variant={assignment.status === 'completada' ? "default" : "outline"}
+                            className={`h-7 px-2.5 text-xs ${assignment.status === 'completada' ? 'bg-green-600 hover:bg-green-700' : 'border-green-300 text-green-700 hover:bg-green-50'}`}
+                            onClick={() => {
+                              const newStatus = assignment.status === 'completada' ? 'pendiente' : 'completada';
+                              updateAssignmentMutation.mutate({
+                                taskId: task.id,
+                                assignmentId: assignment.id,
+                                status: newStatus
+                              });
+                            }}
+                            disabled={updateAssignmentMutation.isPending}
+                          >
+                            <Check className="h-3 w-3 mr-1" />
+                            {assignment.status === 'completada' ? 'Reabrir' : 'Completar'}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Delete Task */}
+            {canDeleteTask && (
+              <div className="pt-3 border-t border-slate-200">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" className="text-xs">
+                      <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                      Eliminar Tarea
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Eliminar esta tarea?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta acción no se puede deshacer. Se eliminarán todas las asignaciones y comentarios asociados.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-red-600 hover:bg-red-700"
+                        onClick={() => deleteTaskMutation.mutate(task.id)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Eliminar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            )}
+          </div>
+
+          {/* Right Panel: Chat / Bitácora */}
+          <div className="lg:w-[45%] flex flex-col min-h-0 bg-slate-50/50">
+            {/* Chat Header */}
+            <div className="px-5 py-3.5 border-b border-slate-200 bg-white flex-shrink-0">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-blue-600" />
+                  Bitácora / Chat
+                </h4>
+                {task.assignments.length > 1 && (
+                  <Select value={activeAssignmentChat} onValueChange={setActiveAssignmentChat}>
+                    <SelectTrigger className="w-auto max-w-[200px] h-8 text-xs border-slate-200">
+                      <SelectValue placeholder="Asignación" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {task.assignments.map((a) => (
+                        <SelectItem key={a.id} value={a.id} className="text-xs">
+                          {getAssigneeName(a)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            </div>
+
+            {/* Chat Messages */}
+            <div className="flex-1 overflow-y-auto min-h-0">
+              {activeAssignmentChat && (
+                <DetailChatPanel
+                  taskId={task.id}
+                  assignmentId={activeAssignmentChat}
+                  assigneeName={getAssigneeName(task.assignments.find(a => a.id === activeAssignmentChat) || task.assignments[0])}
+                  userRole={user.role}
+                />
+              )}
+            </div>
+
+            {/* Chat Input */}
+            <DetailChatInput
+              taskId={task.id}
+              assignmentId={activeAssignmentChat}
+            />
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ==================================================================================
+// DetailChatPanel - Panel de mensajes del chat en el detalle
+// ==================================================================================
+function DetailChatPanel({ taskId, assignmentId, assigneeName, userRole }: { taskId: string; assignmentId: string; assigneeName: string; userRole: string }) {
+  const { toast } = useToast();
+  const { data: comments = [], isLoading } = useQuery<TaskComment[]>({
+    queryKey: ['/api/tasks', taskId, 'assignments', assignmentId, 'comments'],
+  });
+
+  const deleteCommentMutation = useMutation({
+    mutationFn: async (commentId: string) => {
+      return apiRequest('DELETE', `/api/tasks/${taskId}/assignments/${assignmentId}/comments/${commentId}`);
+    },
+    onSuccess: () => {
+      queryClient.refetchQueries({ queryKey: ['/api/tasks', taskId, 'assignments', assignmentId, 'comments'] });
+      toast({ title: "Comentario eliminado" });
+    },
+  });
+
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [comments.length]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+      </div>
+    );
+  }
+
+  if (comments.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+        <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mb-3">
+          <MessageSquare className="h-6 w-6 text-slate-400" />
+        </div>
+        <p className="text-sm font-medium text-slate-600">Sin comentarios aún</p>
+        <p className="text-xs text-slate-400 mt-1">Escribe el primer mensaje para {assigneeName}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 space-y-3">
+      {comments.map((comment) => (
+        <div
+          key={comment.id}
+          className="group bg-white rounded-xl p-3.5 border border-slate-200 hover:border-blue-200 hover:shadow-sm transition-all"
+        >
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+              {comment.authorName?.charAt(0).toUpperCase() || 'U'}
+            </div>
+            <span className="text-xs font-semibold text-slate-800 truncate">{comment.authorName}</span>
+            <span className="text-[10px] text-slate-400 flex-shrink-0">
+              {comment.createdAt && format(new Date(comment.createdAt), "dd MMM, HH:mm", { locale: es })}
+            </span>
+            <div className="flex-1" />
+            {userRole === 'admin' && (
+              <button
+                onClick={() => deleteCommentMutation.mutate(comment.id)}
+                className="opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-red-100 text-slate-400 hover:text-red-500 transition-all"
+                title="Eliminar comentario"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+          <p className="text-sm text-slate-700 pl-8 leading-relaxed whitespace-pre-wrap">{comment.content}</p>
+        </div>
+      ))}
+      <div ref={chatEndRef} />
+    </div>
+  );
+}
+
+// ==================================================================================
+// DetailChatInput - Input de chat para el panel de detalle
+// ==================================================================================
+function DetailChatInput({ taskId, assignmentId }: { taskId: string; assignmentId: string }) {
+  const { toast } = useToast();
+  const [text, setText] = useState("");
+
+  const addCommentMutation = useMutation({
+    mutationFn: async (content: string) => {
+      const response = await apiRequest(`/api/tasks/${taskId}/assignments/${assignmentId}/comments`, {
+        method: 'POST',
+        data: { content },
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.refetchQueries({ queryKey: ['/api/tasks', taskId, 'assignments', assignmentId, 'comments'] });
+      setText("");
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo enviar el mensaje",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (text.trim()) {
+      addCommentMutation.mutate(text.trim());
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  return (
+    <div className="px-4 py-3 border-t border-slate-200 bg-white flex-shrink-0">
+      <form onSubmit={handleSubmit} className="flex items-end gap-2">
+        <Textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Escribe un mensaje..."
+          className="flex-1 min-h-[40px] max-h-[120px] text-sm resize-none border-slate-200 focus:border-blue-400 focus:ring-blue-400/20 rounded-xl"
+          rows={1}
+          data-testid="chat-input-detail"
+        />
+        <Button
+          type="submit"
+          size="sm"
+          className="h-10 w-10 p-0 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-md"
+          disabled={addCommentMutation.isPending || !text.trim()}
+          data-testid="button-send-chat"
+        >
+          {addCommentMutation.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
+        </Button>
+      </form>
+    </div>
+  );
+}
+
+// ==================================================================================
 // CommentsThread - Componente de comentarios en hilo moderno
 // ==================================================================================
 interface CommentsThreadProps {
@@ -2676,6 +3423,7 @@ function CommentsThread({
   onCancelEditing
 }: CommentsThreadProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
 
   // Fetch comments for this assignment
   const { data: comments = [], isLoading } = useQuery<TaskComment[]>({
@@ -2774,13 +3522,15 @@ function CommentsThread({
                       {comment.content}
                     </p>
                   </div>
-                  <button
-                    onClick={() => deleteCommentMutation.mutate(comment.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all"
-                    data-testid={`button-delete-comment-${comment.id}`}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  {user?.role === 'admin' && (
+                    <button
+                      onClick={() => deleteCommentMutation.mutate(comment.id)}
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-red-100 text-gray-400 hover:text-red-500 transition-all"
+                      data-testid={`button-delete-comment-${comment.id}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
