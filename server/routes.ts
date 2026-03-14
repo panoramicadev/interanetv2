@@ -6802,6 +6802,7 @@ export function registerRoutes(app: Express): Server {
         }, "Fecha debe ser formato válido (YYYY-MM-DDTHH:mm o ISO datetime)").optional().or(z.null()),
         priority: z.enum(["low", "medium", "high"]).optional(),
         status: z.enum(["pendiente", "en_progreso", "completada"]).optional(),
+        segmento: z.string().optional().or(z.null()),
         groupId: z.string().nullable().optional(),
       }).partial();
 
