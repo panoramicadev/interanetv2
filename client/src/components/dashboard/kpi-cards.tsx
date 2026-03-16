@@ -1015,9 +1015,9 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     if (budgetData && budgetData.length > 0) {
       const today = new Date();
 
-      // Defaults to current month with current day proportion
+      // Include the full current month budget (not proportional)
       let maxMonth = today.getMonth() + 1;
-      let proportionalRatio = today.getDate() / new Date(today.getFullYear(), maxMonth, 0).getDate();
+      let proportionalRatio = 1;
 
       // Adapt maxMonth and proportionalRatio based on selected period and filter type
       if (filterType === "month" && selectedPeriod.match(/^\d{4}-\d{2}$/)) {
@@ -1134,7 +1134,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               <div className="mt-2 space-y-1 text-xs border-t border-gray-100 dark:border-gray-700 pt-2">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-500 dark:text-gray-400">
-                    Presupuesto a la fecha:
+                    Meta a la Fecha:
                   </span>
                   <span className="font-medium text-gray-700 dark:text-gray-300">{formatCurrency(budgetYTD)}</span>
                 </div>
@@ -1144,14 +1144,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 </div>
               </div>
             )}
-            {/* Breakdown: Facturas + GDV + NVV */}
-            <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 overflow-hidden">
-              <div className="grid grid-cols-3 gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
-                <span className="truncate" title={`Facturas: ${formatCurrency(currentTotal)}`}>Fact: {formatCurrency(currentTotal)}</span>
-                <span className="truncate" title={`GDV: ${formatCurrency(gdvYearTotal)}`}>GDV: {formatCurrency(gdvYearTotal)}</span>
-                <span className="truncate" title={`NVV: ${formatCurrency(nvvYearTotal)}`}>NVV: {formatCurrency(nvvYearTotal)}</span>
-              </div>
-            </div>
+
           </div>
           <div className={`absolute top-3 right-3 sm:top-4 sm:right-4 lg:static lg:ml-4 w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center transition-transform hover:scale-105`}>
             <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
