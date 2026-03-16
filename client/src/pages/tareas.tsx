@@ -52,7 +52,8 @@ import {
   Send,
   X,
   ArrowLeft,
-  FolderOpen
+  FolderOpen,
+  Pencil
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
@@ -3086,20 +3087,102 @@ function TaskDetailDialog({
 
             {/* Details Grid */}
             <div className="grid grid-cols-2 gap-3">
-              {/* Due Date */}
-              <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Fecha Límite</p>
-                {task.dueDate ? (
-                  <div className={`flex items-center gap-1.5 text-sm font-semibold ${
-                    new Date(task.dueDate) < new Date() && !isCompleted ? 'text-red-600' : 'text-slate-800'
-                  }`}>
-                    <CalendarIcon className="h-4 w-4" />
-                    {format(new Date(task.dueDate), "dd MMM yyyy, HH:mm", { locale: es })}
+              {/* Due Date - Editable */}
+              {(() => {
+                const canEditDate = user.role === 'admin' || user.role === 'supervisor' || task.createdByUserId === user.id;
+                const [isEditingDate, setIsEditingDate] = useState(false);
+                const [dateValue, setDateValue] = useState(
+                  task.dueDate ? format(new Date(task.dueDate), "yyyy-MM-dd'T'HH:mm") : ''
+                );
+
+                const updateDueDateMutation = useMutation({
+                  mutationFn: async ({ taskId, dueDate }: { taskId: string; dueDate: string | null }) => {
+                    return await apiRequest("PATCH", `/api/tasks/${taskId}`, { dueDate });
+                  },
+                  onSuccess: () => {
+                    queryClient.invalidateQueries({ queryKey: ["/api/tasks"], type: "all" });
+                    setIsEditingDate(false);
+                    toast({
+                      title: "Fecha actualizada",
+                      description: "La fecha límite se ha actualizado.",
+                    });
+                  },
+                  onError: (error: any) => {
+                    toast({
+                      title: "Error",
+                      description: error.message || "No se pudo actualizar la fecha.",
+                      variant: "destructive",
+                    });
+                  },
+                });
+
+                return (
+                  <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Fecha Límite</p>
+                    {isEditingDate ? (
+                      <div className="space-y-2">
+                        <input
+                          type="datetime-local"
+                          value={dateValue}
+                          onChange={(e) => setDateValue(e.target.value)}
+                          className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
+                        />
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              const dueDate = dateValue ? new Date(dateValue).toISOString() : null;
+                              updateDueDateMutation.mutate({ taskId: task.id, dueDate });
+                            }}
+                            disabled={updateDueDateMutation.isPending}
+                            className="flex-1 text-[11px] font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-2 py-1.5 transition-colors disabled:opacity-50"
+                          >
+                            {updateDueDateMutation.isPending ? 'Guardando...' : 'Guardar'}
+                          </button>
+                          {task.dueDate && (
+                            <button
+                              onClick={() => {
+                                setDateValue('');
+                                updateDueDateMutation.mutate({ taskId: task.id, dueDate: null });
+                              }}
+                              disabled={updateDueDateMutation.isPending}
+                              className="text-[11px] font-semibold text-red-600 hover:bg-red-50 rounded-lg px-2 py-1.5 transition-colors"
+                            >
+                              Quitar
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setIsEditingDate(false)}
+                            className="text-[11px] font-semibold text-slate-500 hover:bg-slate-100 rounded-lg px-2 py-1.5 transition-colors"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => canEditDate && setIsEditingDate(true)}
+                        className={`${canEditDate ? 'cursor-pointer hover:bg-slate-100 rounded-lg -mx-1 px-1 py-0.5 transition-colors' : ''}`}
+                        title={canEditDate ? 'Clic para editar fecha' : undefined}
+                      >
+                        {task.dueDate ? (
+                          <div className={`flex items-center gap-1.5 text-sm font-semibold ${
+                            new Date(task.dueDate) < new Date() && !isCompleted ? 'text-red-600' : 'text-slate-800'
+                          }`}>
+                            <CalendarIcon className="h-4 w-4" />
+                            {format(new Date(task.dueDate), "dd MMM yyyy, HH:mm", { locale: es })}
+                            {canEditDate && <Pencil className="h-3 w-3 text-slate-400 ml-auto" />}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm text-slate-400 italic">Sin fecha</span>
+                            {canEditDate && <Pencil className="h-3 w-3 text-slate-400 ml-auto" />}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <span className="text-sm text-slate-400 italic">Sin fecha</span>
-                )}
-              </div>
+                );
+              })()}
 
               {/* Client */}
               <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
