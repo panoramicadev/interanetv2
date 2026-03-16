@@ -3376,6 +3376,7 @@ function DetailChatPanel({ taskId, assignmentId, assigneeName, userRole }: { tas
   const { toast } = useToast();
   const { data: comments = [], isLoading } = useQuery<TaskComment[]>({
     queryKey: ['/api/tasks', taskId, 'assignments', assignmentId, 'comments'],
+    refetchInterval: 3000,
   });
 
   const deleteCommentMutation = useMutation({
