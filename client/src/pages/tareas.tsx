@@ -2961,17 +2961,17 @@ function TaskDetailDialog({
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <Badge className={`text-xs font-semibold ${
-                task.priority === 'high' ? 'bg-red-500/20 text-red-200 border-red-400/30' :
-                task.priority === 'low' ? 'bg-slate-500/20 text-slate-200 border-slate-400/30' :
-                'bg-amber-500/20 text-amber-200 border-amber-400/30'
+              <Badge className={`text-xs font-semibold border ${
+                task.priority === 'high' ? 'bg-red-600 text-white border-red-500' :
+                task.priority === 'low' ? 'bg-slate-600 text-white border-slate-500' :
+                'bg-white text-slate-800 border-slate-300'
               }`}>
                 {task.priority === 'high' ? 'Alta' : task.priority === 'low' ? 'Baja' : 'Media'}
               </Badge>
-              <Badge className={`text-xs font-semibold flex items-center gap-1 ${
-                task.status === 'completada' ? 'bg-green-500/20 text-green-200 border-green-400/30' :
-                task.status === 'en_progreso' ? 'bg-amber-500/20 text-amber-200 border-amber-400/30' :
-                'bg-slate-500/20 text-slate-200 border-slate-400/30'
+              <Badge className={`text-xs font-semibold flex items-center gap-1 border ${
+                task.status === 'completada' ? 'bg-green-600 text-white border-green-500' :
+                task.status === 'en_progreso' ? 'bg-amber-500 text-white border-amber-400' :
+                'bg-white text-slate-800 border-slate-300'
               }`}>
                 {task.status === 'completada' ? <CheckSquare className="h-3.5 w-3.5" /> :
                  task.status === 'en_progreso' ? <AlertCircle className="h-3.5 w-3.5" /> :
@@ -2988,6 +2988,38 @@ function TaskDetailDialog({
             </div>
           </div>
         </div>
+
+        {/* Department Change Bar */}
+        {(user.role === 'admin' || user.role === 'supervisor' || task.createdByUserId === user.id) && (
+          <div className="flex items-center gap-2 px-6 py-3 bg-slate-100 border-b border-slate-200 flex-shrink-0 overflow-x-auto">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap mr-1 flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5" />
+              Pestaña:
+            </span>
+            {SEGMENTOS.map((seg) => {
+              const isActive = (task as any).segmento === seg.value;
+              return (
+                <button
+                  key={seg.value}
+                  className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 border ${
+                    isActive
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-300 hover:border-blue-400 hover:text-blue-600'
+                  }`}
+                  disabled={updateTaskSegmentoMutation.isPending}
+                  onClick={() => {
+                    if (!isActive) {
+                      updateTaskSegmentoMutation.mutate({ taskId: task.id, segmento: seg.value });
+                      setSelectedSegmento(seg.value);
+                    }
+                  }}
+                >
+                  {seg.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Two-Panel Layout */}
         <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden">
@@ -3034,56 +3066,7 @@ function TaskDetailDialog({
               </div>
             </div>
 
-            {/* Departamento (Segmento) */}
-            {(() => {
-              const canChangeSegmento = user.role === 'admin' || user.role === 'supervisor' || task.createdByUserId === user.id;
-              if (!canChangeSegmento) return null;
-              const currentSegmento = (task as any).segmento || "__none__";
-              const hasSegmentoChanged = selectedSegmento !== currentSegmento;
-              return (
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                    <Building2 className="h-3.5 w-3.5" />
-                    Departamento
-                  </h4>
-                  <Select
-                    value={selectedSegmento}
-                    onValueChange={setSelectedSegmento}
-                  >
-                    <SelectTrigger className="w-full bg-white border-slate-200 text-sm">
-                      <SelectValue placeholder="Seleccionar departamento" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">
-                        <span className="text-slate-400 italic">Sin departamento</span>
-                      </SelectItem>
-                      {SEGMENTOS.map((seg) => (
-                        <SelectItem key={seg.value} value={seg.value}>
-                          {seg.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {hasSegmentoChanged && (
-                    <Button
-                      size="sm"
-                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-xs shadow-sm"
-                      disabled={updateTaskSegmentoMutation.isPending}
-                      onClick={() => {
-                        const segmento = selectedSegmento === "__none__" ? null : selectedSegmento;
-                        updateTaskSegmentoMutation.mutate({ taskId: task.id, segmento });
-                      }}
-                    >
-                      {updateTaskSegmentoMutation.isPending ? (
-                        <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Guardando...</>
-                      ) : (
-                        <><Check className="h-3.5 w-3.5 mr-1.5" /> Guardar Departamento</>
-                      )}
-                    </Button>
-                  )}
-                </div>
-              );
-            })()}
+
 
             {/* Group Assignment */}
             {(() => {
