@@ -15,6 +15,41 @@ export function ImageZoomViewer({ src, alt = "Image", className = "" }: ImageZoo
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [rotation, setRotation] = useState(0);
+  const [imageSrc, setImageSrc] = useState(src);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+
+  // When src changes, reset state and clean up blob URLs
+  useEffect(() => {
+    setImageSrc(src);
+    setIsLoading(true);
+    setHasError(false);
+    return () => {
+      // Clean up any blob URLs
+      if (imageSrc.startsWith('blob:')) {
+        URL.revokeObjectURL(imageSrc);
+      }
+    };
+  }, [src]);
+
+  // If the direct <img> load fails, fetch as blob
+  const handleImageError = useCallback(async () => {
+    if (imageSrc === src && src.startsWith('http')) {
+      try {
+        const response = await fetch(src, { mode: 'cors', credentials: 'omit' });
+        if (response.ok) {
+          const blob = await response.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          setImageSrc(blobUrl);
+          return;
+        }
+      } catch (e) {
+        console.warn('[ImageZoomViewer] Blob fallback also failed:', e);
+      }
+    }
+    setHasError(true);
+    setIsLoading(false);
+  }, [src, imageSrc]);
 
   const MIN_SCALE = 1;
   const MAX_SCALE = 4;
@@ -134,17 +169,36 @@ export function ImageZoomViewer({ src, alt = "Image", className = "" }: ImageZoo
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        <img
-          src={src}
-          alt={alt}
-          draggable={false}
-          className="max-w-full max-h-[65vh] object-contain transition-transform duration-150"
-          style={{
-            transform: `rotate(${rotation}deg) scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
-            cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default',
-          }}
-          data-testid="img-zoom-viewer"
-        />
+        {isLoading && !hasError && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+        {hasError ? (
+          <div className="flex flex-col items-center gap-2 text-gray-500">
+            <p className="text-sm">No se pudo cargar la imagen</p>
+            <a href={src} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-sm underline">
+              Abrir en nueva pestaña
+            </a>
+          </div>
+        ) : (
+          <img
+            src={imageSrc}
+            alt={alt}
+            draggable={false}
+            crossOrigin="anonymous"
+            referrerPolicy="no-referrer"
+            className="max-w-full max-h-[65vh] object-contain transition-transform duration-150"
+            style={{
+              transform: `rotate(${rotation}deg) scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
+              cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default',
+              display: isLoading ? 'none' : 'block',
+            }}
+            onLoad={() => setIsLoading(false)}
+            onError={handleImageError}
+            data-testid="img-zoom-viewer"
+          />
+        )}
         
         {scale > 1 && (
           <div className="absolute top-2 right-2 bg-black/50 text-white px-2 py-1 rounded text-xs flex items-center gap-1">

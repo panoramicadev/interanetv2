@@ -14053,7 +14053,7 @@ export class DatabaseStorage implements IStorage {
       results.forEach(row => {
         const kofulido = row.KOFULIDO?.trim().toUpperCase() || 'SIN_VENDEDOR';
         const mappedName = kofulidoToNameMap.get(kofulido);
-        const salespersonName = mappedName || row.KOFULIDO?.trim() || 'Sin vendedor';
+        const salespersonName = mappedName || row.nombre_vendedor?.trim() || row.KOFULIDO?.trim() || 'Sin vendedor';
 
         // Log unmapped codes for debugging
         if (!mappedName && kofulido !== 'SIN_VENDEDOR') {
@@ -24634,7 +24634,7 @@ export class DatabaseStorage implements IStorage {
       result.rows.forEach((row: any) => {
         const kofulido = (row.codigo_vendedor || '').trim().toUpperCase() || 'SIN_VENDEDOR';
         const mappedName = kofulidoToNameMap.get(kofulido);
-        const salespersonName = mappedName || (row.nombre_vendedor || '').trim() || 'Sin vendedor';
+        const salespersonName = mappedName || (row.nombre_vendedor || '').trim() || (row.codigo_vendedor || '').trim() || 'Sin vendedor';
 
         if (!groupedBySalesperson.has(kofulido)) {
           groupedBySalesperson.set(kofulido, {

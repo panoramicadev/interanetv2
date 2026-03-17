@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { storage } from "./storage";
 import { User, InsertUser } from "@shared/schema";
 import connectPg from "connect-pg-simple";
+import { pool } from "./db";
 import { z } from "zod";
 
 // Extend Express User interface
@@ -42,7 +43,7 @@ export function setupAuth(app: Express) {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
-    conString: process.env.DATABASE_URL,
+    pool: pool, // Share the existing pool instead of creating separate connections
     createTableIfMissing: true, // Crear tabla automáticamente si no existe (crítico para producción)
     ttl: sessionTtl,
     tableName: "sessions",
