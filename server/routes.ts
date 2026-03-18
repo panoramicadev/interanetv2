@@ -954,6 +954,63 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // ═══════════════════════════════════════════════════════════
+  // CONSOLIDATED DASHBOARD INIT - reduces ~12 API calls to 1
+  // ═══════════════════════════════════════════════════════════
+  app.get('/api/dashboard/init', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    const { period, filterType, segment, salesperson, client, product, endDateStr } = req.query;
+
+    const dateRange = getDateRange(period as string, filterType as string);
+    const currentStartDate = dateRange.startDate || '';
+    const currentEndDate = dateRange.endDate || '';
+
+    // Calculate YTD parameters
+    const today = new Date();
+    let currentYear = today.getFullYear();
+    if (typeof endDateStr === 'string' && (endDateStr as string).match(/^\d{4}/)) {
+      currentYear = parseInt((endDateStr as string).substring(0, 4), 10);
+    }
+
+    const filters = {
+      segment: segment as string,
+      salesperson: salesperson as string,
+      client: client as string,
+    };
+
+    // Run ALL queries in parallel - single HTTP roundtrip, multiple DB queries
+    const [
+      metrics,
+      bestYear,
+      availablePeriods,
+      yearlyTotals,
+    ] = await Promise.all([
+      // 1. Main sales metrics (78ms)
+      currentStartDate && currentEndDate
+        ? storage.getSalesMetrics({
+            startDate: currentStartDate,
+            endDate: currentEndDate,
+            salesperson: salesperson as string,
+            segment: segment as string,
+            client: client as string,
+            product: product as string,
+          })
+        : null,
+      // 2. Best year historical (1.1s but cached 5min)
+      storage.getBestYearHistorical(filters),
+      // 3. Available periods (163ms but cached 5min)
+      storage.getAvailablePeriods(),
+      // 4. Yearly totals (parallel internally, ~100ms)
+      storage.getYearlyTotals(currentYear, filters, endDateStr as string),
+    ]);
+
+    res.json({
+      metrics,
+      bestYear,
+      availablePeriods,
+      yearlyTotals,
+    });
+  }));
+
   // Available periods endpoint - returns months and years with actual data
   app.get('/api/sales/available-periods', requireCommercialAccess, async (req, res) => {
     try {
