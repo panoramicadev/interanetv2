@@ -12771,24 +12771,11 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // Use LEFT JOIN instead of correlated subquery for inventory prices
-    // Also include COUNT(*) OVER() to get totalCount in the same query
-    const query = db
-      .select({
-        priceList: priceList,
-        precioPromedioPonderado: sql<string>`inv_avg.avg_precio`.as('precio_promedio_ponderado'),
-        totalCount: sql<number>`COUNT(*) OVER()`.as('total_count'),
-      })
+    // Lightweight query: no inventory JOIN, no COUNT(*) OVER()
+    // Fetch limit+1 to determine hasMore without a window function
+    const items = await db
+      .select()
       .from(priceList)
-      .leftJoin(
-        sql`(
-          SELECT sku, AVG(CAST(precio_medio AS NUMERIC))::TEXT AS avg_precio
-          FROM inventory_products
-          WHERE precio_medio IS NOT NULL AND CAST(precio_medio AS NUMERIC) > 0
-          GROUP BY sku
-        ) AS inv_avg`,
-        sql`inv_avg.sku = ${priceList.codigo}`
-      )
       .where(whereClause)
       .orderBy(
         sql`CASE 
@@ -12801,20 +12788,16 @@ export class DatabaseStorage implements IStorage {
         priceList.producto,
         priceList.codigo
       )
-      .limit(limit)
+      .limit(limit + 1)
       .offset(offset);
 
-    const items = await query;
+    const hasMore = items.length > limit;
+    const resultItems = hasMore ? items.slice(0, limit) : items;
 
-    const totalCount = items.length > 0 ? Number((items[0] as any).totalCount) : 0;
-
-    // Flatten the result
     return {
-      items: items.map((row: any) => ({
-        ...row.priceList,
-        precioPromedioPonderado: row.precioPromedioPonderado,
-      })),
-      totalCount,
+      items: resultItems,
+      // Approximate: if hasMore, we know there are at least offset+limit+1 items
+      totalCount: hasMore ? offset + limit + 1 : offset + resultItems.length,
     };
   }
 
