@@ -118,13 +118,16 @@ async function initializeBackgroundServices() {
   }
 
   // Subir imágenes locales a Object Storage para persistencia
-  try {
-    const uploadResult = await uploadLocalImagesToObjectStorage();
-    if (uploadResult.uploaded > 0) {
-      log(`☁️ Imágenes sincronizadas a Object Storage: ${uploadResult.uploaded} subidas, ${uploadResult.failed} errores`);
+  // ONLY run on Replit (needs sidecar at 127.0.0.1:1106)
+  if (process.env.REPLIT_DEV_DOMAIN || process.env.REPL_ID) {
+    try {
+      const uploadResult = await uploadLocalImagesToObjectStorage();
+      if (uploadResult.uploaded > 0) {
+        log(`☁️ Imágenes sincronizadas a Object Storage: ${uploadResult.uploaded} subidas, ${uploadResult.failed} errores`);
+      }
+    } catch (error: any) {
+      console.error('⚠️ Error al sincronizar imágenes a Object Storage:', error.message);
     }
-  } catch (error: any) {
-    console.error('⚠️ Error al sincronizar imágenes a Object Storage:', error.message);
   }
 
   // Poblar campos de familia y color de productos

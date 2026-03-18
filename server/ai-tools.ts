@@ -264,11 +264,12 @@ export async function tool_searchProducts(args: {
     limit?: number;
 }) {
     try {
-        const results = await storage.getPriceList({
+        const result = await storage.getPriceList({
             search: args.query,
             limit: args.limit || 15,
             offset: 0,
         });
+        const results = result.items;
 
         if (!results || results.length === 0) {
             return {
@@ -509,11 +510,12 @@ export async function tool_getInventorySummary(args: {
     limit?: number;
 }) {
     try {
-        const products = await storage.getPriceList({
+        const result = await storage.getPriceList({
             search: args.search || "",
             limit: args.limit || 10,
             offset: 0,
         });
+        const products = result.items;
 
         return {
             products: products.map((p: any) => ({

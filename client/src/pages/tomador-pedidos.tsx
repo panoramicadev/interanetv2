@@ -851,6 +851,7 @@ export default function TomadorPedidos() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [quoteForm, setQuoteForm] = useState<QuoteFormData>(INITIAL_QUOTE_FORM);
   const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [debouncedProductSearchTerm, setDebouncedProductSearchTerm] = useState("");
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null); // Track if we're editing an existing quote
   const [selectedUnidad, setSelectedUnidad] = useState<string>("");
   const [selectedColor, setSelectedColor] = useState<string>("");
@@ -866,6 +867,15 @@ export default function TomadorPedidos() {
 
     return () => clearTimeout(timer);
   }, [searchTerm]);
+
+  // Debounce product search input - wait 400ms after user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedProductSearchTerm(productSearchTerm);
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [productSearchTerm]);
 
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -1089,9 +1099,9 @@ export default function TomadorPedidos() {
 
   // Fetch products for quote builder
   const { data: priceListResponse, isLoading: priceListLoading } = useQuery({
-    queryKey: ["/api/price-list", { search: productSearchTerm, unidad: selectedUnidad, color: selectedColor, limit: 50 }],
+    queryKey: ["/api/price-list", { search: debouncedProductSearchTerm, unidad: selectedUnidad, color: selectedColor, limit: 50 }],
     queryFn: async () => {
-      const params = new URLSearchParams({ search: productSearchTerm, limit: "50" });
+      const params = new URLSearchParams({ search: debouncedProductSearchTerm, limit: "50" });
       if (selectedUnidad) {
         params.set("unidad", selectedUnidad);
       }
@@ -1104,7 +1114,7 @@ export default function TomadorPedidos() {
       }
       return response.json();
     },
-    enabled: productSearchTerm.length >= 2,
+    enabled: debouncedProductSearchTerm.length >= 2,
   });
 
   // Extract the items array from the response
@@ -1123,6 +1133,7 @@ export default function TomadorPedidos() {
     staleTime: 30 * 60 * 1000, // 30 minutes - aligned with ETL refresh
     gcTime: 60 * 60 * 1000, // 1 hour garbage collection time
     retry: 2, // Retry failed requests up to 2 times
+    enabled: activeTab === 'constructor', // Only load when constructor tab is active
   });
 
   // Show toast when inventory fetch fails

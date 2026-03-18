@@ -8527,7 +8527,8 @@ export function registerRoutes(app: Express): Server {
       const validatedLimit = Math.min(Math.max(parseInt(limit as string) || 50, 1), 10000);
       const validatedOffset = Math.max(parseInt(offset as string) || 0, 0);
 
-      const items = await storage.getPriceList({
+      // Single combined query returns both items and totalCount
+      const result = await storage.getPriceList({
         search: search as string,
         unidad: unidad as string,
         tipoProducto: tipoProducto as string,
@@ -8536,12 +8537,10 @@ export function registerRoutes(app: Express): Server {
         offset: validatedOffset,
       });
 
-      const totalCount = await storage.getPriceListCount(search as string, unidad as string, tipoProducto as string, color as string);
-
       res.json({
-        items,
-        totalCount,
-        hasMore: (parseInt(offset as string) + items.length) < totalCount
+        items: result.items,
+        totalCount: result.totalCount,
+        hasMore: (validatedOffset + result.items.length) < result.totalCount
       });
     } catch (error) {
       console.error("Error fetching price list:", error);
@@ -16214,29 +16213,9 @@ export function registerRoutes(app: Express): Server {
       if (warehouse) filters.warehouse = warehouse;
       if (branch) filters.branch = branch;
 
-      // Auto-sync: Check if we need to sync inventory in background
       const user = req.user;
-      if (user && user.id && user.email) {
-        const lastSync = await storage.getLastSync();
-        const now = Date.now();
-        const oneMinute = 60000; // 1 minute in milliseconds
 
-        if (!lastSync || (now - new Date(lastSync.createdAt).getTime()) > oneMinute) {
-          console.log('🔄 Auto-sync: Last sync was more than 1 minute ago, triggering background sync...');
-          // Trigger sync in background without waiting
-          storage.syncProductsFromERP(user.id, user.email).then(result => {
-            if (result.status === 'success') {
-              console.log(`✅ Auto-sync completed: ${result.productsNew} new, ${result.productsUpdated} updated`);
-            } else {
-              console.log(`⚠️ Auto-sync ${result.status}: ${result.errorMessage || 'unknown error'}`);
-            }
-          }).catch(err => {
-            console.error('❌ Auto-sync error:', err.message);
-          });
-        }
-      }
-
-      // Return data immediately (don't wait for sync)
+      // Return data immediately - sync is handled by ETL scheduler
       let inventory = await storage.getInventoryWithPrices(filters);
 
       // Security: Hide price and value data from salespeople

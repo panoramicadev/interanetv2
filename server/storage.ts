@@ -1384,7 +1384,7 @@ export interface IStorage {
     color?: string;
     limit?: number;
     offset?: number;
-  }): Promise<PriceList[]>;
+  }): Promise<{ items: any[]; totalCount: number }>;
   getPriceListCount(search?: string, unidad?: string, tipoProducto?: string, color?: string): Promise<number>;
   getAvailableUnits(): Promise<string[]>;
   getProductTypes(): Promise<string[]>;
@@ -11016,65 +11016,112 @@ export class DatabaseStorage implements IStorage {
       query = conditions.length > 0 ? query.where(and(...conditions)) as any : query;
     }
 
+    // Use raw SQL to get clients with all metrics in ONE query instead of N+1
+    // Previously: 4 queries per client × 50 clients = 200 queries
+    // Now: 1 single query with LEFT JOINs and aggregations
+    const limitVal = filters?.limit || 50;
+    const offsetVal = filters?.offset || 0;
+
+    // Build WHERE clause parts for the main client query
+    const whereParts: string[] = [];
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (conditions.length > 0) {
+      // We need to use the already-built Drizzle conditions for client filtering
+      // Get client IDs first using Drizzle query, then do the metrics in raw SQL
+    }
+
+    // Step 1: Get client IDs using Drizzle (preserves existing filter logic)
     const clientsData = await query
       .orderBy(desc(clients.updatedAt))
-      .limit(filters?.limit || 50)
-      .offset(filters?.offset || 0);
+      .limit(limitVal)
+      .offset(offsetVal);
 
-    // Then add computed fields for each client
-    const clientsWithMetrics = await Promise.all(
-      clientsData.map(async (client) => {
-        const [transactionCount] = await db
-          .select({ count: sql`COUNT(*)`.as('count') })
-          .from(factVentas)
-          .where(eq(factVentas.nokoen, client.nokoen));
+    if (clientsData.length === 0) {
+      return [];
+    }
 
-        const [salesData] = await db
-          .select({
-            totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
-            lastTransactionDate: sql<string>`MAX(${factVentas.feemdo})::text`
-          })
-          .from(factVentas)
-          .where(eq(factVentas.nokoen, client.nokoen));
+    // Step 2: Get all metrics for these clients in a SINGLE query
+    const clientNames = clientsData.map((c: any) => c.nokoen).filter(Boolean);
+    
+    if (clientNames.length === 0) {
+      return clientsData.map((c: any) => ({
+        ...c,
+        totalTransactions: 0,
+        totalSales: 0,
+        lastTransactionDate: undefined,
+        salespersonName: undefined,
+        lastTransactionAmount: undefined,
+        salesSegment: undefined,
+      }));
+    }
 
-        // Get the latest document ID, its salesperson and segment
-        const [latestDoc] = await db
-          .select({
-            idmaeedo: factVentas.idmaeedo,
-            salespersonName: factVentas.nokofu,
-            segmentName: factVentas.noruen,
-          })
-          .from(factVentas)
-          .where(eq(factVentas.nokoen, client.nokoen))
-          .orderBy(desc(factVentas.feemdo), desc(factVentas.idmaeedo))
-          .limit(1);
+    // Single aggregation query for ALL clients at once
+    const metricsResult = await db.execute(sql`
+      WITH client_agg AS (
+        SELECT 
+          nokoen,
+          COUNT(*)::int AS total_transactions,
+          COALESCE(SUM(monto), 0)::numeric AS total_sales,
+          MAX(feemdo)::text AS last_transaction_date
+        FROM ventas.fact_ventas
+        WHERE nokoen = ANY(${clientNames})
+        GROUP BY nokoen
+      ),
+      latest_doc AS (
+        SELECT DISTINCT ON (nokoen)
+          nokoen,
+          idmaeedo,
+          nokofu AS salesperson_name,
+          noruen AS segment_name
+        FROM ventas.fact_ventas
+        WHERE nokoen = ANY(${clientNames})
+        ORDER BY nokoen, feemdo DESC, idmaeedo DESC
+      ),
+      doc_totals AS (
+        SELECT 
+          ld.nokoen,
+          COALESCE(SUM(fv.monto), 0)::numeric AS last_transaction_amount
+        FROM latest_doc ld
+        JOIN ventas.fact_ventas fv ON fv.idmaeedo = ld.idmaeedo
+        GROUP BY ld.nokoen
+      )
+      SELECT 
+        ca.nokoen,
+        ca.total_transactions,
+        ca.total_sales,
+        ca.last_transaction_date,
+        ld.salesperson_name,
+        ld.segment_name,
+        COALESCE(dt.last_transaction_amount, 0) AS last_transaction_amount
+      FROM client_agg ca
+      LEFT JOIN latest_doc ld ON ld.nokoen = ca.nokoen
+      LEFT JOIN doc_totals dt ON dt.nokoen = ca.nokoen
+    `);
 
-        let lastTransactionAmount = 0;
-        if (latestDoc?.idmaeedo) {
-          // Sum all items for this specific document
-          const [docTotal] = await db
-            .select({
-              total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`
-            })
-            .from(factVentas)
-            .where(eq(factVentas.idmaeedo, latestDoc.idmaeedo));
+    // Build a lookup map from metrics
+    const metricsMap = new Map<string, any>();
+    for (const row of metricsResult.rows as any[]) {
+      metricsMap.set(row.nokoen, row);
+    }
 
-          lastTransactionAmount = Number(docTotal?.total || 0);
-        }
+    // Merge metrics into client data
+    const clientsWithMetrics = clientsData.map((client: any) => {
+      const metrics = metricsMap.get(client.nokoen);
+      return {
+        ...client,
+        totalTransactions: metrics ? Number(metrics.total_transactions) : 0,
+        totalSales: metrics ? Number(metrics.total_sales) : 0,
+        lastTransactionDate: metrics?.last_transaction_date || undefined,
+        salespersonName: metrics?.salesperson_name || undefined,
+        lastTransactionAmount: metrics ? Number(metrics.last_transaction_amount) : undefined,
+        salesSegment: metrics?.segment_name || undefined,
+      };
+    });
 
-        return {
-          ...client,
-          totalTransactions: Number(transactionCount?.count || 0),
-          totalSales: Number(salesData?.totalSales || 0),
-          lastTransactionDate: salesData?.lastTransactionDate || undefined,
-          salespersonName: latestDoc?.salespersonName || undefined,
-          lastTransactionAmount: lastTransactionAmount || undefined,
-          salesSegment: latestDoc?.segmentName || undefined,
-        };
-      })
-    );
     // Sort: manual clients (no transactions) first, then by last purchase date DESC
-    clientsWithMetrics.sort((a, b) => {
+    clientsWithMetrics.sort((a: any, b: any) => {
       const aManual = !a.totalTransactions || a.totalTransactions === 0;
       const bManual = !b.totalTransactions || b.totalTransactions === 0;
       
@@ -12679,29 +12726,11 @@ export class DatabaseStorage implements IStorage {
     color?: string;
     limit?: number;
     offset?: number;
-  }): Promise<any[]> {
+  }): Promise<{ items: any[]; totalCount: number }> {
     const limit = filters?.limit || 50;
     const offset = filters?.offset || 0;
 
-    // Build query with subquery to get average precioMedio (PPP) from inventory_products
-    let query = db
-      .select({
-        priceList: priceList,
-        precioPromedioPonderado: sql<string>`
-          COALESCE(
-            (SELECT AVG(CAST(precio_medio AS NUMERIC))::TEXT 
-             FROM inventory_products 
-             WHERE sku = ${priceList.codigo} 
-             AND precio_medio IS NOT NULL 
-             AND CAST(precio_medio AS NUMERIC) > 0
-            ), 
-            NULL
-          )
-        `.as('precio_promedio_ponderado')
-      })
-      .from(priceList);
-
-    // Build where conditions
+    // Build WHERE conditions
     const conditions = [];
 
     if (filters?.search) {
@@ -12733,16 +12762,34 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`${priceList.producto} ILIKE ${'%' + filters.color + '%'}`);
     }
 
-    // Apply conditions dynamically
+    // Build the combined where SQL
+    let whereClause = sql`true`;
     if (conditions.length > 0) {
-      let combinedCondition = conditions[0];
+      whereClause = conditions[0];
       for (let i = 1; i < conditions.length; i++) {
-        combinedCondition = sql`${combinedCondition} AND ${conditions[i]}`;
+        whereClause = sql`${whereClause} AND ${conditions[i]}`;
       }
-      query = query.where(combinedCondition) as any;
     }
 
-    const items = await query
+    // Use LEFT JOIN instead of correlated subquery for inventory prices
+    // Also include COUNT(*) OVER() to get totalCount in the same query
+    const query = db
+      .select({
+        priceList: priceList,
+        precioPromedioPonderado: sql<string>`inv_avg.avg_precio`.as('precio_promedio_ponderado'),
+        totalCount: sql<number>`COUNT(*) OVER()`.as('total_count'),
+      })
+      .from(priceList)
+      .leftJoin(
+        sql`(
+          SELECT sku, AVG(CAST(precio_medio AS NUMERIC))::TEXT AS avg_precio
+          FROM inventory_products
+          WHERE precio_medio IS NOT NULL AND CAST(precio_medio AS NUMERIC) > 0
+          GROUP BY sku
+        ) AS inv_avg`,
+        sql`inv_avg.sku = ${priceList.codigo}`
+      )
+      .where(whereClause)
       .orderBy(
         sql`CASE 
           WHEN ${priceList.unidad} ILIKE '%1/4%' THEN 1
@@ -12757,11 +12804,18 @@ export class DatabaseStorage implements IStorage {
       .limit(limit)
       .offset(offset);
 
-    // Flatten the result to include PPP directly on price list object
-    return items.map(row => ({
-      ...row.priceList,
-      precioPromedioPonderado: row.precioPromedioPonderado
-    }));
+    const items = await query;
+
+    const totalCount = items.length > 0 ? Number((items[0] as any).totalCount) : 0;
+
+    // Flatten the result
+    return {
+      items: items.map((row: any) => ({
+        ...row.priceList,
+        precioPromedioPonderado: row.precioPromedioPonderado,
+      })),
+      totalCount,
+    };
   }
 
   async getPriceListCount(search?: string, unidad?: string, tipoProducto?: string, color?: string): Promise<number> {
@@ -12814,6 +12868,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getProductTypes(): Promise<string[]> {
+    // Cache: only changes on price list import
+    const cached = this.getCached<string[]>('productTypes');
+    if (cached) return cached;
+
     // Extract product types from product names using common keywords
     const result = await db
       .select({ producto: priceList.producto })
@@ -12833,10 +12891,16 @@ export class DatabaseStorage implements IStorage {
       });
     });
 
-    return Array.from(productTypes).sort();
+    const sorted = Array.from(productTypes).sort();
+    this.setCache('productTypes', sorted, 300000); // 5 min cache
+    return sorted;
   }
 
   async getAllProductColors(): Promise<string[]> {
+    // Cache: only changes on price list import
+    const cached = this.getCached<string[]>('productColors');
+    if (cached) return cached;
+
     // Extract colors from product names using common color keywords
     const result = await db
       .select({ producto: priceList.producto })
@@ -12856,7 +12920,9 @@ export class DatabaseStorage implements IStorage {
       });
     });
 
-    return Array.from(productColors).sort();
+    const sorted = Array.from(productColors).sort();
+    this.setCache('productColors', sorted, 300000); // 5 min cache
+    return sorted;
   }
 
   async getPriceListById(id: string): Promise<PriceList | undefined> {
