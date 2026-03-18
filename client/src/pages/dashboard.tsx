@@ -268,15 +268,55 @@ export default function Dashboard() {
     return periods;
   })();
 
-  // Query to fetch available periods with data
-  const { data: availablePeriods } = useQuery({
-    queryKey: ["/api/sales/available-periods"],
+  // ═══════════════════════════════════════════════
+  // CONSOLIDATED INIT — pre-fetches critical data in 1 HTTP call
+  // Pre-seeds query caches so child components (KPICards) don't make separate requests
+  // ═══════════════════════════════════════════════
+  const segment = globalFilter.type === "segment" ? globalFilter.value : undefined;
+  const salespersonFilter = globalFilter.type === "salesperson" ? globalFilter.value : undefined;
+  const clientFilter = globalFilter.type === "client" && globalFilter.value ? globalFilter.value : undefined;
+  const productFilter = globalFilter.type === "product" ? globalFilter.value : undefined;
+
+  const { data: dashboardInit } = useQuery({
+    queryKey: ["/api/dashboard/init", selectedPeriod, filterType, segment, salespersonFilter, clientFilter, productFilter],
     queryFn: async () => {
-      const res = await fetch("/api/sales/available-periods", { credentials: "include" });
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      if (segment) params.append('segment', segment);
+      if (salespersonFilter) params.append('salesperson', salespersonFilter);
+      if (clientFilter) params.append('client', clientFilter);
+      if (productFilter) params.append('product', productFilter);
+      const res = await fetch(`/api/dashboard/init?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return await res.json();
+      const data = await res.json();
+
+      // Pre-seed individual query caches so KPICards doesn't re-fetch
+      if (data.bestYear) {
+        queryClient.setQueryData(
+          ['/api/sales/best-year', segment, salespersonFilter, clientFilter],
+          data.bestYear
+        );
+      }
+      if (data.availablePeriods) {
+        queryClient.setQueryData(["/api/sales/available-periods"], data.availablePeriods);
+      }
+      if (data.yearlyTotals) {
+        // Calculate endDateStr the same way KPICards does
+        const today = new Date();
+        const ytdEndDateStr = today.toISOString().split('T')[0];
+        queryClient.setQueryData(
+          ['/api/sales/yearly-totals', segment, salespersonFilter, clientFilter, ytdEndDateStr],
+          data.yearlyTotals
+        );
+      }
+
+      return data;
     },
   });
+
+  // Use pre-fetched availablePeriods from consolidated init
+  const availablePeriods = dashboardInit?.availablePeriods;
 
   // Query to check if goals exist (only for months) 
   const { data: goalsProgress } = useQuery({

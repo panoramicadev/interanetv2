@@ -2986,7 +2986,7 @@ export class DatabaseStorage implements IStorage {
       ? { bestYear: new Date().getFullYear(), bestYearTotal: 0 }
       : { bestYear: Number(yearlyTotals[0].year), bestYearTotal: Number(yearlyTotals[0].total) };
 
-    this.setCache(cacheKey, result, 60000); // Cache 60 seconds
+    this.setCache(cacheKey, result, 300000); // Cache 5 minutes (data only changes after ETL sync)
     return result;
   }
 
@@ -4518,7 +4518,7 @@ export class DatabaseStorage implements IStorage {
     }));
 
     const result = { months, years };
-    this.setCache(cacheKey, result, 120000); // Cache 2 minutes
+    this.setCache(cacheKey, result, 300000); // Cache 5 minutes (data only changes after ETL sync)
     return result;
   }
 
