@@ -3468,7 +3468,7 @@ export default function TomadorPedidos() {
             <div className={`${isMobile ? 'grid grid-cols-2 gap-2' : 'flex justify-end gap-3'}`}>
               <Button
                 onClick={handleCreateQuoteForNewClient}
-                className={`bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 ${isMobile ? 'w-full h-12 text-sm font-semibold rounded-xl' : ''
+                className={`bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 ${isMobile ? 'w-full h-12 text-sm font-semibold rounded-xl' : 'rounded-xl px-6'
                   }`}
                 size={isMobile ? "sm" : "lg"}
                 data-testid="button-create-quote-new-client"
@@ -3479,7 +3479,7 @@ export default function TomadorPedidos() {
               <Link href="/presupuestos-avanzados">
                 <Button
                   variant="outline"
-                  className={`border-orange-200 text-orange-600 hover:bg-orange-50 bg-orange-50/50 flex items-center justify-center gap-2 ${isMobile ? 'w-full h-12 text-sm font-semibold rounded-xl' : ''
+                  className={`border-orange-200 text-orange-600 hover:bg-orange-50 bg-orange-50/50 flex items-center justify-center gap-2 ${isMobile ? 'w-full h-12 text-sm font-semibold rounded-xl' : 'rounded-xl px-6'
                     }`}
                   size={isMobile ? "sm" : "lg"}
                   data-testid="button-presupuestos-avanzados"
@@ -3692,17 +3692,19 @@ export default function TomadorPedidos() {
             )
           ) : (
             // Desktop: Always show search
-            <Card>
-              <CardHeader>
+            <Card className="border-0 shadow-sm rounded-2xl bg-white">
+              <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <Search className="w-5 h-5" />
-                      Buscar Cliente
-                    </CardTitle>
-                    <CardDescription>
-                      Ingresa el nombre del cliente para buscar en la base de datos
-                    </CardDescription>
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                      <Search className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Buscar Cliente</CardTitle>
+                      <CardDescription className="text-sm">
+                        Ingresa el nombre del cliente para buscar en la base de datos
+                      </CardDescription>
+                    </div>
                   </div>
                   <Button
                     onClick={() => {
@@ -3710,7 +3712,7 @@ export default function TomadorPedidos() {
                       setShowFichaClienteDialog(true);
                     }}
                     variant="outline"
-                    className="border-green-400 text-green-700 hover:bg-green-50"
+                    className="rounded-xl border-emerald-200 text-emerald-700 hover:bg-emerald-50 bg-emerald-50/50"
                     data-testid="button-ficha-cliente-desktop"
                   >
                     <Plus className="w-4 h-4 mr-2" />
@@ -3720,113 +3722,90 @@ export default function TomadorPedidos() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="relative">
-                  <Search className="absolute left-4 top-3 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute left-4 top-3.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     data-testid="input-client-search"
                     placeholder="Buscar por nombre de cliente..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 h-11 rounded-xl border-gray-200 focus:border-orange-300"
                   />
                 </div>
 
                 {/* Search Results */}
                 {debouncedSearchTerm.length >= 2 && (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {isLoadingClients ? (
                       <div className="space-y-3">
                         {[...Array(3)].map((_, i) => (
-                          <Card key={i}>
-                            <CardContent className="p-4 space-y-3">
-                              <div className="flex items-center space-x-4">
-                                <Skeleton className="h-12 w-12 rounded-full" />
-                                <div className="space-y-2 flex-1">
-                                  <Skeleton className="h-4 w-[200px]" />
-                                  <Skeleton className="h-3 w-[150px]" />
-                                  <Skeleton className="h-3 w-[120px]" />
-                                </div>
+                          <div key={i} className="rounded-xl border border-gray-100 p-4 space-y-3 animate-pulse">
+                            <div className="flex items-center space-x-4">
+                              <Skeleton className="h-11 w-11 rounded-xl" />
+                              <div className="space-y-2 flex-1">
+                                <Skeleton className="h-4 w-[200px]" />
+                                <Skeleton className="h-3 w-[150px]" />
                               </div>
-                              <div className="flex gap-2">
-                                <Skeleton className="h-10 flex-1" />
-                                <Skeleton className="h-10 flex-1" />
-                              </div>
-                            </CardContent>
-                          </Card>
+                            </div>
+                          </div>
                         ))}
                       </div>
                     ) : clients.length > 0 ? (
-                      <div className="space-y-4 max-h-96 overflow-y-auto">
+                      <div className="space-y-3 max-h-96 overflow-y-auto">
                         {clients.map((client: Client) => (
-                          <Card
+                          <div
                             key={client.id}
-                            className="hover:shadow-md transition-all duration-200"
+                            className="rounded-xl border border-gray-100 bg-white hover:border-orange-200 hover:shadow-md transition-all duration-200 p-4"
                           >
-                            <CardContent className="p-4">
-                              {/* Client Header */}
-                              <div className="flex items-start space-x-4 mb-4">
-                                <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                                  <User className="w-6 h-6 text-primary" />
+                            <div className="flex items-center gap-4">
+                              <div className="w-11 h-11 bg-gradient-to-br from-orange-100 to-amber-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <User className="w-5 h-5 text-orange-600" />
+                              </div>
+
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-3">
+                                  <h3 className="font-semibold text-gray-900 text-sm" data-testid={`text-client-name-${client.id}`}>
+                                    {client.nokoen}
+                                  </h3>
+                                  {client.rten && (
+                                    <Badge variant="outline" className="text-xs font-medium bg-gray-50">
+                                      RUT: {client.rten}
+                                    </Badge>
+                                  )}
                                 </div>
-
-                                <div className="flex-1 min-w-0">
-                                  {/* Client Name and RUT */}
-                                  <div className="mb-3">
-                                    <div className="flex items-center gap-3 flex-wrap">
-                                      <div className="flex-1 min-w-0">
-                                        <h3 className="font-semibold text-foreground text-base mb-1" data-testid={`text-client-name-${client.id}`}>
-                                          {client.nokoen}
-                                        </h3>
-                                        {client.rten && (
-                                          <Badge variant="outline" className="text-xs font-medium">
-                                            RUT: {client.rten}
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Client Details */}
-                                  <div className="space-y-2">
-                                    {client.dien && (
-                                      <div className="flex items-start gap-2">
-                                        <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                                        <span className="text-sm text-muted-foreground leading-relaxed">
-                                          {client.dien}{client.cmen ? `, ${client.cmen}` : ''}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {client.foen && (
-                                      <div className="flex items-center gap-2">
-                                        <Phone className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                                        <span className="text-sm text-muted-foreground">
-                                          {client.foen}
-                                        </span>
-                                      </div>
-                                    )}
-                                  </div>
+                                <div className="flex items-center gap-4 mt-1">
+                                  {client.dien && (
+                                    <span className="flex items-center gap-1.5 text-xs text-gray-500">
+                                      <MapPin className="w-3 h-3" />
+                                      {client.dien}{client.cmen ? `, ${client.cmen}` : ''}
+                                    </span>
+                                  )}
+                                  {client.foen && (
+                                    <span className="flex items-center gap-1.5 text-xs text-gray-500">
+                                      <Phone className="w-3 h-3" />
+                                      {client.foen}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
 
-                              {/* Action Button */}
-                              <div className="flex items-center mt-4">
-                                <Button
-                                  data-testid={`button-create-quote-order-${client.id}`}
-                                  onClick={() => handleCreateQuoteForClient(client)}
-                                  className="w-full bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2 h-11"
-                                >
-                                  <Calculator className="w-4 h-4" />
-                                  Presupuesto / Pedido
-                                </Button>
-                              </div>
-                            </CardContent>
-                          </Card>
+                              <Button
+                                data-testid={`button-create-quote-order-${client.id}`}
+                                onClick={() => handleCreateQuoteForClient(client)}
+                                className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-sm rounded-xl px-5"
+                                size="sm"
+                              >
+                                <Calculator className="w-4 h-4 mr-1.5" />
+                                Presupuesto
+                              </Button>
+                            </div>
+                          </div>
                         ))}
                       </div>
                     ) : (
                       <div className="text-center py-8 text-muted-foreground">
-                        <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                        <p>No se encontraron clientes con "{debouncedSearchTerm}"</p>
-                        <p className="text-sm">Intenta con un término de búsqueda diferente</p>
+                        <Search className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                        <p className="text-sm font-medium">No se encontraron clientes con "{debouncedSearchTerm}"</p>
+                        <p className="text-xs text-gray-400 mt-1">Intenta con un término de búsqueda diferente</p>
                       </div>
                     )}
                   </div>
@@ -3843,33 +3822,31 @@ export default function TomadorPedidos() {
 
           {/* Cotizaciones Recientes */}
           <div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-8 w-8 rounded-lg bg-orange-100 flex items-center justify-center">
-                <FileText className="h-4 w-4 text-orange-600" />
+            <div className="flex items-center gap-3 mb-5">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-100 to-amber-50 flex items-center justify-center">
+                <FileText className="h-5 w-5 text-orange-600" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-foreground">Cotizaciones Recientes</h2>
-                <p className="text-sm text-muted-foreground">Historial de cotizaciones creadas en el sistema</p>
+                <h2 className="text-lg font-bold text-gray-900">Cotizaciones Recientes</h2>
+                <p className="text-sm text-gray-500">Historial de cotizaciones creadas en el sistema</p>
               </div>
             </div>
             <QuotesList onEditQuote={loadQuoteForEditing} />
           </div>
 
           {/* Pedidos de Clientes (eCommerce + Catálogo) */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ShoppingCart className="h-5 w-5" />
-                Pedidos de Clientes
-              </CardTitle>
-              <CardDescription>
-                Pedidos realizados desde eCommerce y catálogos de vendedores
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <EcommerceOrdersList onGenerateQuote={loadEcommerceOrderForQuote} />
-            </CardContent>
-          </Card>
+          <div>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-50 flex items-center justify-center">
+                <ShoppingCart className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Pedidos de Clientes</h2>
+                <p className="text-sm text-gray-500">Pedidos realizados desde eCommerce y catálogos de vendedores</p>
+              </div>
+            </div>
+            <EcommerceOrdersList onGenerateQuote={loadEcommerceOrderForQuote} />
+          </div>
         </div>
       </div>
 
