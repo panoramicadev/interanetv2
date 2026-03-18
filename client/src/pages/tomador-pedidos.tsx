@@ -1073,6 +1073,21 @@ export default function TomadorPedidos() {
     toast({ title: 'Producto personalizado agregado' });
   };
 
+  // Consolidated init query - fetches orders + units + colors in one HTTP roundtrip
+  const { data: tomadorInit } = useQuery<{
+    orders: any[];
+    units: string[];
+    colors: string[];
+  }>({
+    queryKey: ['/api/tomador/init'],
+    queryFn: async () => {
+      const res = await fetch('/api/tomador/init', { credentials: 'include' });
+      if (!res.ok) throw new Error('Init failed');
+      return res.json();
+    },
+    staleTime: 30000, // 30 seconds
+  });
+
   // Fetch available units for filtering
   const { data: availableUnits = [] } = useQuery<string[]>({
     queryKey: ["/api/price-list/units"],
@@ -1083,6 +1098,7 @@ export default function TomadorPedidos() {
       }
       return response.json();
     },
+    placeholderData: tomadorInit?.units,
   });
 
   // Fetch colors for filtering
@@ -1095,6 +1111,7 @@ export default function TomadorPedidos() {
       }
       return response.json();
     },
+    placeholderData: tomadorInit?.colors,
   });
 
   // Fetch products for quote builder
@@ -1281,6 +1298,7 @@ export default function TomadorPedidos() {
       }
       return response.json();
     },
+    placeholderData: tomadorInit?.orders as any,
   });
 
   // Create order mutation

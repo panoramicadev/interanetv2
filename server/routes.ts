@@ -6865,6 +6865,26 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Task management endpoints
+  // Consolidated init endpoint for Tareas page - single HTTP roundtrip
+  app.get('/api/tareas/init', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    const { segmento } = req.query;
+    const userSegments = user.assignedSegment ? [user.assignedSegment] : [];
+
+    const [taskGroups, tasks, salespeople, supervisors] = await Promise.all([
+      storage.getTaskGroups(user.id, segmento as string),
+      storage.getTasksWithAssignmentsOptimized({
+        userRole: user.role,
+        userId: user.id,
+        assigneeSegments: userSegments,
+      }),
+      storage.getSalespeopleUsers(),
+      storage.getSupervisors(),
+    ]);
+
+    res.json({ taskGroups, tasks, salespeople, supervisors });
+  }));
+
   app.get('/api/tasks', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
@@ -7542,6 +7562,24 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Order management endpoints
+  // Consolidated init endpoint for Tomador de Pedidos - single HTTP roundtrip
+  app.get('/api/tomador/init', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+
+    const [orders, units, colors] = await Promise.all([
+      storage.getOrders({
+        userRole: user.role,
+        userId: user.id,
+        limit: 50,
+        offset: 0,
+      }),
+      storage.getAvailableUnits(),
+      storage.getAllProductColors(),
+    ]);
+
+    res.json({ orders, units, colors });
+  }));
+
   app.get('/api/orders', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;

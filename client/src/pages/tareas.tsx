@@ -181,10 +181,30 @@ export default function TareasPage() {
   const [newGroupName, setNewGroupName] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
+  // Consolidated init query - fetches everything in one HTTP roundtrip
+  const { data: tareasInit } = useQuery<{
+    taskGroups: any[];
+    tasks: any[];
+    salespeople: any[];
+    supervisors: any[];
+  }>({
+    queryKey: ['/api/tareas/init', { segmento: segmentoFilter }],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (segmentoFilter && segmentoFilter !== 'all') params.append('segmento', segmentoFilter);
+      const res = await fetch(`/api/tareas/init?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Init failed');
+      return res.json();
+    },
+    enabled: isAuthenticated && !!user,
+    staleTime: 30000, // 30 seconds
+  });
+
   // Task Groups query
   const taskGroupsQuery = useQuery<Array<{ id: string; name: string; segmento: string; userId: string; color: string | null; sortOrder: number | null; createdAt: Date | null }>>({
     queryKey: ['/api/task-groups', { segmento: segmentoFilter }],
     enabled: isAuthenticated,
+    placeholderData: tareasInit?.taskGroups as any,
   });
 
   const createGroupMutation = useMutation({
@@ -302,18 +322,21 @@ export default function TareasPage() {
   const tasksQuery = useQuery<Array<Task & { assignments: TaskAssignment[] }>>({
     queryKey: buildTasksQueryKey(),
     enabled: !!user,
+    placeholderData: tareasInit?.tasks as any,
   });
 
   // Query for available users (for assignments)
   const { data: availableUsers } = useQuery<Array<{ id: string; salespersonName: string; role: string }>>({
     queryKey: ["/api/users/salespeople"],
     enabled: user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'tecnico_obra',
+    placeholderData: tareasInit?.salespeople as any,
   });
 
   // Query for available supervisors (for assignments)
   const { data: availableSupervisors } = useQuery<Array<{ id: string; salespersonName: string; role: string }>>({
     queryKey: ["/api/users/salespeople/supervisors"],
     enabled: user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'tecnico_obra',
+    placeholderData: tareasInit?.supervisors as any,
   });
 
   // Query para obtener vendedores del supervisor (para detectar segmento CONSTRUCCION)
