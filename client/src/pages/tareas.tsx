@@ -1329,7 +1329,7 @@ export default function TareasPage() {
                 return (
                   <div
                     key={task.id}
-                    className={`group flex items-start gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border transition-all duration-200 cursor-pointer hover:shadow-md ${
+                    className={`group flex items-start gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-3 rounded-xl border transition-all duration-200 cursor-pointer hover:shadow-md ${
                       isCompleted
                         ? 'bg-emerald-50/40 border-emerald-200/60 opacity-60'
                         : isOverdue
@@ -1463,7 +1463,7 @@ export default function TareasPage() {
                         {/* Group Header */}
                         <button
                           onClick={() => toggleGroupCollapsed(group.id)}
-                          className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50/80 transition-colors group/header"
+                          className="w-full flex items-center gap-2 sm:gap-3 px-2.5 sm:px-4 py-3 sm:py-3.5 hover:bg-slate-50/80 transition-colors group/header"
                         >
                           <ChevronRight className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${!isCollapsed ? 'rotate-90' : ''}`} />
                           <div
@@ -1506,7 +1506,7 @@ export default function TareasPage() {
                         {!isCollapsed && (
                           <div className="border-t border-slate-100 bg-slate-50/30">
                             {tasks.length > 0 ? (
-                              <div className="px-3 py-2 space-y-1.5">
+                              <div className="px-1.5 sm:px-3 py-1.5 sm:py-2 space-y-1 sm:space-y-1.5">
                                 {tasks.map(renderTaskCard)}
                               </div>
                             ) : (
