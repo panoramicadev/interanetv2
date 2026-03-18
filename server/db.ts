@@ -23,6 +23,7 @@ const poolConfig = {
   statement_timeout: 60000, // 60 second query timeout
   query_timeout: 60000,
   application_name: 'dashboard-app',
+  ssl: { rejectUnauthorized: false }, // Required for Supabase connections
 };
 
 export const pool = new Pool(poolConfig);
