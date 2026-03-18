@@ -1,7 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import { execSync } from "child_process";
 
 let commitHash = 'unknown';
@@ -21,15 +20,6 @@ export default defineConfig({
   },
   plugins: [
     react(),
-    runtimeErrorOverlay(),
-    ...(process.env.NODE_ENV !== "production" &&
-      process.env.REPL_ID !== undefined
-      ? [
-        await import("@replit/vite-plugin-cartographer").then((m) =>
-          m.cartographer(),
-        ),
-      ]
-      : []),
   ],
   resolve: {
     alias: {
@@ -42,6 +32,30 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split heavy vendor libraries into separate cacheable chunks
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-charts': ['recharts', 'chart.js', 'react-chartjs-2'],
+          'vendor-radix': [
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-dropdown-menu',
+            '@radix-ui/react-tabs',
+            '@radix-ui/react-select',
+            '@radix-ui/react-popover',
+            '@radix-ui/react-toast',
+            '@radix-ui/react-tooltip',
+            '@radix-ui/react-accordion',
+            '@radix-ui/react-checkbox',
+            '@radix-ui/react-switch',
+            '@radix-ui/react-scroll-area',
+          ],
+          'vendor-pdf': ['jspdf', 'jspdf-autotable', '@react-pdf/renderer'],
+          'vendor-utils': ['date-fns', 'zod', 'framer-motion', 'lucide-react'],
+        },
+      },
+    },
   },
   server: {
     fs: {
