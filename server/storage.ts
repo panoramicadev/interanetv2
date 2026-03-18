@@ -330,6 +330,8 @@ import {
   taskComments,
   type TaskComment,
   type InsertTaskComment,
+  taskGroups,
+  type TaskGroup,
   integrations,
   type Integration,
   type InsertIntegration,
@@ -2288,6 +2290,20 @@ export class DatabaseStorage implements IStorage {
 
   private readonly INVENTORY_CACHE_TTL = 30000; // 30 seconds
 
+  // Generic TTL cache for expensive queries
+  private queryCache = new Map<string, { data: any; expires: number }>();
+
+  private getCached<T>(key: string): T | null {
+    const entry = this.queryCache.get(key);
+    if (entry && Date.now() < entry.expires) return entry.data as T;
+    this.queryCache.delete(key);
+    return null;
+  }
+
+  private setCache(key: string, data: any, ttlMs: number = 60000) {
+    this.queryCache.set(key, { data, expires: Date.now() + ttlMs });
+  }
+
   // User operations (mandatory for Replit Auth)
   async getUser(id: string): Promise<User | undefined> {
     // First, try to find user in the main users table
@@ -2837,7 +2853,6 @@ export class DatabaseStorage implements IStorage {
     let previousYearStart: string;
     let previousYearEnd: string;
 
-    console.log(`[getYearlyTotals] year: ${year}, endDateStr: ${endDateStr}`);
 
     if (endDateStr) {
       requestedYearStart = `${year}-01-01`;
@@ -2892,33 +2907,36 @@ export class DatabaseStorage implements IStorage {
       baseConditions.push(eq(factVentas.nokoen, filters.client));
     }
 
-    // Get requested year total (excluding ALL GDV)
-    const [requestedYearMetrics] = await db
-      .select({
-        total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
-      })
-      .from(factVentas)
-      .where(
-        and(
-          sql`${factVentas.feemdo} >= ${requestedYearStart}::date`,
-          sql`${factVentas.feemdo} <= ${requestedYearEnd}::date`,
-          ...baseConditions
-        )
-      );
+    // Run both year queries in parallel
+    const [requestedYearResults, previousYearResults] = await Promise.all([
+      // Get requested year total (excluding ALL GDV)
+      db.select({
+          total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        })
+        .from(factVentas)
+        .where(
+          and(
+            sql`${factVentas.feemdo} >= ${requestedYearStart}::date`,
+            sql`${factVentas.feemdo} <= ${requestedYearEnd}::date`,
+            ...baseConditions
+          )
+        ),
+      // Get previous year total (excluding ALL GDV) - same period
+      db.select({
+          total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        })
+        .from(factVentas)
+        .where(
+          and(
+            sql`${factVentas.feemdo} >= ${previousYearStart}::date`,
+            sql`${factVentas.feemdo} <= ${previousYearEnd}::date`,
+            ...baseConditions
+          )
+        ),
+    ]);
 
-    // Get previous year total (excluding ALL GDV) - same period
-    const [previousYearMetrics] = await db
-      .select({
-        total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
-      })
-      .from(factVentas)
-      .where(
-        and(
-          sql`${factVentas.feemdo} >= ${previousYearStart}::date`,
-          sql`${factVentas.feemdo} <= ${previousYearEnd}::date`,
-          ...baseConditions
-        )
-      );
+    const requestedYearMetrics = requestedYearResults[0];
+    const previousYearMetrics = previousYearResults[0];
 
     return {
       currentYearTotal: Number(requestedYearMetrics.total),
@@ -2933,6 +2951,11 @@ export class DatabaseStorage implements IStorage {
     bestYear: number;
     bestYearTotal: number;
   }> {
+    // Check cache first (expensive query - full table group by year)
+    const cacheKey = `bestYear:${filters?.segment || ''}:${filters?.salesperson || ''}:${filters?.client || ''}`;
+    const cached = this.getCached<{ bestYear: number; bestYearTotal: number }>(cacheKey);
+    if (cached) return cached;
+
     // Build filter conditions
     const conditions = [
       sql`${factVentas.tido} != 'GDV'`
@@ -2959,17 +2982,12 @@ export class DatabaseStorage implements IStorage {
       .orderBy(sql`COALESCE(SUM(${factVentas.monto}), 0) DESC`)
       .limit(1);
 
-    if (yearlyTotals.length === 0) {
-      return {
-        bestYear: new Date().getFullYear(),
-        bestYearTotal: 0,
-      };
-    }
+    const result = yearlyTotals.length === 0
+      ? { bestYear: new Date().getFullYear(), bestYearTotal: 0 }
+      : { bestYear: Number(yearlyTotals[0].year), bestYearTotal: Number(yearlyTotals[0].total) };
 
-    return {
-      bestYear: Number(yearlyTotals[0].year),
-      bestYearTotal: Number(yearlyTotals[0].total),
-    };
+    this.setCache(cacheKey, result, 60000); // Cache 60 seconds
+    return result;
   }
 
   async getTopSalespeople(limit = 10, startDate?: string, endDate?: string, segment?: string, client?: string, product?: string): Promise<{
@@ -4457,6 +4475,11 @@ export class DatabaseStorage implements IStorage {
     months: Array<{ value: string; label: string }>;
     years: Array<{ value: string; label: string }>;
   }> {
+    // Check cache first (this data only changes after ETL runs)
+    const cacheKey = 'availablePeriods';
+    const cached = this.getCached<{ months: Array<{ value: string; label: string }>; years: Array<{ value: string; label: string }> }>(cacheKey);
+    if (cached) return cached;
+
     // Get unique months with data
     const monthResults = await db
       .select({
@@ -4494,7 +4517,9 @@ export class DatabaseStorage implements IStorage {
       label: r.year
     }));
 
-    return { months, years };
+    const result = { months, years };
+    this.setCache(cacheKey, result, 120000); // Cache 2 minutes
+    return result;
   }
 
   // Packaging metrics operations
@@ -11840,7 +11865,10 @@ export class DatabaseStorage implements IStorage {
         createdAt: tasks.createdAt,
         updatedAt: tasks.updatedAt,
         createdByUserId: tasks.createdByUserId,
-        // Assignment fields (will be null if no assignments)
+        segmento: tasks.segmento,
+        groupId: tasks.groupId,
+        clienteId: tasks.clienteId,
+        clienteNombre: tasks.clienteNombre,
         assignmentId: taskAssignments.id,
         assigneeType: taskAssignments.assigneeType,
         assigneeId: taskAssignments.assigneeId,
@@ -11877,6 +11905,10 @@ export class DatabaseStorage implements IStorage {
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
           createdByUserId: row.createdByUserId,
+          segmento: row.segmento,
+          groupId: row.groupId,
+          clienteId: row.clienteId,
+          clienteNombre: row.clienteNombre,
           assignments: [],
         });
       }
@@ -12016,6 +12048,49 @@ export class DatabaseStorage implements IStorage {
         eq(taskComments.id, commentId),
         eq(taskComments.authorId, authorId)
       ));
+  }
+
+  // === Task Groups CRUD ===
+  async getTaskGroups(userId: string, segmento?: string): Promise<TaskGroup[]> {
+    const conditions = [eq(taskGroups.userId, userId)];
+    if (segmento) {
+      conditions.push(eq(taskGroups.segmento, segmento));
+    }
+    return await db
+      .select()
+      .from(taskGroups)
+      .where(and(...conditions))
+      .orderBy(taskGroups.sortOrder, taskGroups.createdAt);
+  }
+
+  async createTaskGroup(data: { name: string; segmento: string; userId: string; color?: string }): Promise<TaskGroup> {
+    const [group] = await db
+      .insert(taskGroups)
+      .values(data)
+      .returning();
+    return group;
+  }
+
+  async updateTaskGroup(id: string, userId: string, data: { name?: string; color?: string; sortOrder?: number }): Promise<TaskGroup> {
+    const [group] = await db
+      .update(taskGroups)
+      .set(data)
+      .where(and(eq(taskGroups.id, id), eq(taskGroups.userId, userId)))
+      .returning();
+    if (!group) throw new Error('Group not found or access denied');
+    return group;
+  }
+
+  async deleteTaskGroup(id: string, userId: string): Promise<void> {
+    // Ungroup tasks first
+    await db
+      .update(tasks)
+      .set({ groupId: null })
+      .where(eq(tasks.groupId, id));
+    // Delete group
+    await db
+      .delete(taskGroups)
+      .where(and(eq(taskGroups.id, id), eq(taskGroups.userId, userId)));
   }
 
   async getTasksForUser(userId: string, userSegments: string[]): Promise<Array<Task & { assignments: TaskAssignment[] }>> {
@@ -14002,7 +14077,7 @@ export class DatabaseStorage implements IStorage {
       results.forEach(row => {
         const kofulido = row.KOFULIDO?.trim().toUpperCase() || 'SIN_VENDEDOR';
         const mappedName = kofulidoToNameMap.get(kofulido);
-        const salespersonName = mappedName || row.KOFULIDO?.trim() || 'Sin vendedor';
+        const salespersonName = mappedName || row.nombre_vendedor?.trim() || row.KOFULIDO?.trim() || 'Sin vendedor';
 
         // Log unmapped codes for debugging
         if (!mappedName && kofulido !== 'SIN_VENDEDOR') {
@@ -24583,7 +24658,7 @@ export class DatabaseStorage implements IStorage {
       result.rows.forEach((row: any) => {
         const kofulido = (row.codigo_vendedor || '').trim().toUpperCase() || 'SIN_VENDEDOR';
         const mappedName = kofulidoToNameMap.get(kofulido);
-        const salespersonName = mappedName || (row.nombre_vendedor || '').trim() || 'Sin vendedor';
+        const salespersonName = mappedName || (row.nombre_vendedor || '').trim() || (row.codigo_vendedor || '').trim() || 'Sin vendedor';
 
         if (!groupedBySalesperson.has(kofulido)) {
           groupedBySalesperson.set(kofulido, {

@@ -530,11 +530,60 @@ export function registerRoutes(app: Express): Server {
       let fileUrl: string;
       let previewUrl: string | null = null;
 
-      // Try cloud storage first, fall back to local disk
-      if (process.env.PUBLIC_OBJECT_SEARCH_PATHS) {
+      // Option 1: Supabase Storage (Railway deployment)
+      if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY && process.env.SUPABASE_STORAGE_BUCKET) {
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+        const bucket = process.env.SUPABASE_STORAGE_BUCKET;
+
+        const { data, error } = await supabase.storage
+          .from(bucket)
+          .upload(`uploads/${fileName}`, file.buffer, {
+            contentType: file.mimetype,
+            upsert: false,
+          });
+
+        if (error) {
+          console.error('❌ [UPLOAD] Supabase Storage error:', error.message);
+          throw error;
+        }
+
+        const { data: urlData } = supabase.storage
+          .from(bucket)
+          .getPublicUrl(`uploads/${fileName}`);
+
+        fileUrl = urlData.publicUrl;
+        console.log(`☁️ [UPLOAD] File uploaded to Supabase: ${fileName} -> ${fileUrl}`);
+
+        // Generate PDF preview if applicable
+        if (isPdfFile(file.mimetype, file.originalname)) {
+          try {
+            const previewBuffer = await convertPdfToImage(file.buffer, 600);
+            if (previewBuffer) {
+              const previewFileName = `upload-${timestamp}-${randomId}-preview.png`;
+              const { error: prevErr } = await supabase.storage
+                .from(bucket)
+                .upload(`uploads/${previewFileName}`, previewBuffer, {
+                  contentType: 'image/png',
+                  upsert: false,
+                });
+              if (!prevErr) {
+                const { data: prevUrlData } = supabase.storage
+                  .from(bucket)
+                  .getPublicUrl(`uploads/${previewFileName}`);
+                previewUrl = prevUrlData.publicUrl;
+              }
+            }
+          } catch (previewError) {
+            console.warn('⚠️ [UPLOAD] Failed to generate PDF preview:', previewError);
+          }
+        }
+      }
+      // Option 2: Replit Object Storage
+      else if (process.env.PUBLIC_OBJECT_SEARCH_PATHS) {
         const objectStorageService = new ObjectStorageService();
         fileUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
-        console.log(`☁️ [UPLOAD] File uploaded to cloud: ${fileName} -> ${fileUrl}`);
+        console.log(`☁️ [UPLOAD] File uploaded to Replit ObjStore: ${fileName} -> ${fileUrl}`);
 
         if (isPdfFile(file.mimetype, file.originalname)) {
           try {
@@ -547,8 +596,9 @@ export function registerRoutes(app: Express): Server {
             console.warn('⚠️ [UPLOAD] Failed to generate PDF preview:', previewError);
           }
         }
-      } else {
-        // Local file storage fallback
+      }
+      // Option 3: Local file storage fallback
+      else {
         const uploadsDir = path.join(process.cwd(), 'server', 'uploads');
         const fs = await import('fs');
         if (!fs.existsSync(uploadsDir)) {
@@ -816,46 +866,41 @@ export function registerRoutes(app: Express): Server {
       const previousStartFormatted = formatDateLocal(previousStart);
       const previousEndFormatted = formatDateLocal(previousEnd);
 
-      console.log(`[DEBUG] Periodo actual: ${currentStartDate} a ${currentEndDate}`);
-      console.log(`[DEBUG] Periodo año anterior: ${previousStartFormatted} a ${previousEndFormatted}`);
-
-      // Get current period metrics
-      const metrics = await storage.getSalesMetrics({
-        startDate: currentStartDate,
-        endDate: currentEndDate,
-        salesperson: salesperson as string,
-        segment: segment as string,
-        client: client as string,
-        supplier: supplier as string,
-        product: product as string,
-      });
-
-      // Get previous year metrics for comparison (same period in previous year - year-over-year)
-      const previousMetrics = await storage.getSalesMetrics({
-        startDate: previousStartFormatted,
-        endDate: previousEndFormatted,
-        salesperson: salesperson as string,
-        segment: segment as string,
-        client: client as string,
-        supplier: supplier as string,
-        product: product as string,
-      });
-
-      console.log(`[DEBUG] Métricas actuales: Ventas=${metrics.totalSales}, Transacciones=${metrics.totalTransactions}`);
-      console.log(`[DEBUG] Métricas año anterior: Ventas=${previousMetrics.totalSales}, Transacciones=${previousMetrics.totalTransactions}`);
-
       const commonFilters = {
         salesperson: salesperson as string,
         segment: segment as string,
         client: client as string,
       };
 
-      const [newClients, previousNewClients] = await Promise.all([
+      // Run ALL 4 queries in parallel for maximum speed
+      const [metrics, previousMetrics, newClients, previousNewClients] = await Promise.all([
+        // Current period metrics
+        storage.getSalesMetrics({
+          startDate: currentStartDate,
+          endDate: currentEndDate,
+          salesperson: salesperson as string,
+          segment: segment as string,
+          client: client as string,
+          supplier: supplier as string,
+          product: product as string,
+        }),
+        // Previous year metrics (year-over-year comparison)
+        storage.getSalesMetrics({
+          startDate: previousStartFormatted,
+          endDate: previousEndFormatted,
+          salesperson: salesperson as string,
+          segment: segment as string,
+          client: client as string,
+          supplier: supplier as string,
+          product: product as string,
+        }),
+        // New clients count - current period
         storage.getNewClientsCount({
           startDate: currentStartDate,
           endDate: currentEndDate,
           ...commonFilters,
         }),
+        // New clients count - previous period
         storage.getNewClientsCount({
           startDate: previousStartFormatted,
           endDate: previousEndFormatted,
@@ -875,7 +920,6 @@ export function registerRoutes(app: Express): Server {
         previousNewClients,
       };
 
-      console.log(`[DEBUG] Datos enviados al frontend:`, JSON.stringify(metricsWithComparison, null, 2));
 
       res.json(metricsWithComparison);
     } catch (error) {
@@ -938,9 +982,7 @@ export function registerRoutes(app: Express): Server {
         client: client as string,
       };
 
-      // First get current year totals
       const currentTotals = await storage.getYearlyTotals(currentYear, filters, endDateStr as string);
-      console.log(`[getYearlyTotals API] Req endDateStr: ${endDateStr}, Year: ${currentYear}, Totals: `, currentTotals);
 
       // If we're in the first days of a new year and current year has very little data,
       // return previous year as the main reference for better UX
@@ -6849,14 +6891,19 @@ export function registerRoutes(app: Express): Server {
         })).min(1, "Debe asignar al menos un destinatario"),
       });
 
+
+
       // Validate request body
       const validation = createTaskWithAssignmentsSchema.safeParse(req.body);
       if (!validation.success) {
+
         return res.status(400).json({
           message: "Invalid task data",
           errors: validation.error.issues
         });
       }
+
+
 
       const { title, description, type, dueDate, priority, payload, assignments, segmento } = validation.data;
 
@@ -6925,7 +6972,9 @@ export function registerRoutes(app: Express): Server {
           return datetimeLocalRegex.test(date) || isoDatetimeRegex.test(date) || !isNaN(Date.parse(date));
         }, "Fecha debe ser formato válido (YYYY-MM-DDTHH:mm o ISO datetime)").optional().or(z.null()),
         priority: z.enum(["low", "medium", "high"]).optional(),
-        status: z.enum(["pendiente", "en_progreso", "completada"]).optional()
+        status: z.enum(["pendiente", "en_progreso", "completada"]).optional(),
+        segmento: z.string().optional().or(z.null()),
+        groupId: z.string().nullable().optional(),
       }).partial();
 
       // Validate request body with Zod
@@ -7035,7 +7084,8 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Check if user can update this assignment
-      const isAssignee = (assignment.assigneeType === "user" && assignment.assigneeId === user.id) ||
+      const isAssignee = 
+        ((assignment.assigneeType === "user" || assignment.assigneeType === "supervisor" || assignment.assigneeType === "salesperson") && assignment.assigneeId === user.id) ||
         (assignment.assigneeType === "segment" && assignment.assigneeId === user.assignedSegment);
       const isAdminOrSupervisor = user.role === 'admin' || user.role === 'supervisor';
 
@@ -7049,6 +7099,24 @@ export function registerRoutes(app: Express): Server {
         notes || undefined,
         evidenceImages || undefined
       );
+
+      // Also update the parent task status to reflect the assignment change
+      if (status === 'completada') {
+        // Check if ALL assignments are now completed
+        const updatedTask = await storage.getTask(taskId);
+        if (updatedTask) {
+          const allCompleted = updatedTask.assignments.every(a => a.status === 'completada');
+          if (allCompleted) {
+            await storage.updateTask(taskId, { status: 'completada' });
+          }
+        }
+      } else if (status === 'pendiente') {
+        // If reverting an assignment, revert the parent task too
+        if (task.status === 'completada') {
+          await storage.updateTask(taskId, { status: 'pendiente' });
+        }
+      }
+
       res.json(updatedAssignment);
     } catch (error) {
       console.error("Error updating assignment:", error);
@@ -7152,6 +7220,74 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error deleting comment:", error);
       res.status(500).json({ message: "Failed to delete comment" });
+    }
+  });
+
+  // ==================================================================================
+  // Task Groups - Grupos de tareas por usuario y segmento
+  // ==================================================================================
+
+  // Get task groups for the current user
+  app.get('/api/task-groups', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const segmento = req.query.segmento as string | undefined;
+      const groups = await storage.getTaskGroups(user.id, segmento);
+      res.json(groups);
+    } catch (error) {
+      console.error("Error fetching task groups:", error);
+      res.status(500).json({ message: "Failed to fetch task groups" });
+    }
+  });
+
+  // Create a task group
+  app.post('/api/task-groups', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { name, segmento, color } = req.body;
+      if (!name || !segmento) {
+        return res.status(400).json({ message: "Name and segmento are required" });
+      }
+      const group = await storage.createTaskGroup({
+        name,
+        segmento,
+        userId: user.id,
+        color: color || 'blue',
+      });
+      res.status(201).json(group);
+    } catch (error) {
+      console.error("Error creating task group:", error);
+      res.status(500).json({ message: "Failed to create task group" });
+    }
+  });
+
+  // Update a task group
+  app.patch('/api/task-groups/:id', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { id } = req.params;
+      const { name, color, sortOrder } = req.body;
+      const group = await storage.updateTaskGroup(id, user.id, { name, color, sortOrder });
+      res.json(group);
+    } catch (error: any) {
+      console.error("Error updating task group:", error);
+      if (error.message?.includes('access denied')) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      res.status(500).json({ message: "Failed to update task group" });
+    }
+  });
+
+  // Delete a task group
+  app.delete('/api/task-groups/:id', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { id } = req.params;
+      await storage.deleteTaskGroup(id, user.id);
+      res.json({ message: "Group deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting task group:", error);
+      res.status(500).json({ message: "Failed to delete task group" });
     }
   });
 
@@ -9057,33 +9193,31 @@ export function registerRoutes(app: Express): Server {
       console.warn("Object Storage search failed, trying local fallback:", error);
     }
 
-    // Fallback to local file system for product images
-    if (filePath.startsWith('product-images/')) {
-      const localPath = path.join(process.cwd(), 'public', filePath);
-      try {
-        const fs = await import('fs/promises');
-        await fs.access(localPath);
+    // Fallback to local file system for any files (product-images, gastos, fondos, etc.)
+    const localPath = path.join(process.cwd(), 'public', filePath);
+    try {
+      const fs = await import('fs/promises');
+      await fs.access(localPath);
 
-        // Set Content-Type based on extension
-        const ext = path.extname(filePath).toLowerCase();
-        const contentTypes: Record<string, string> = {
-          '.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-          '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp',
-        };
-        const contentType = contentTypes[ext] || 'application/octet-stream';
-        res.setHeader('Content-Type', contentType);
+      // Set Content-Type based on extension
+      const ext = path.extname(filePath).toLowerCase();
+      const contentTypes: Record<string, string> = {
+        '.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+        '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp',
+      };
+      const contentType = contentTypes[ext] || 'application/octet-stream';
+      res.setHeader('Content-Type', contentType);
 
-        if (wantsDownload) {
-          const fileName = filePath.split('/').pop() || 'download';
-          res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-        } else {
-          res.setHeader('Content-Disposition', 'inline');
-        }
-
-        return res.sendFile(localPath);
-      } catch {
-        // File doesn't exist locally either
+      if (wantsDownload) {
+        const fileName = filePath.split('/').pop() || 'download';
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      } else {
+        res.setHeader('Content-Disposition', 'inline');
       }
+
+      return res.sendFile(localPath);
+    } catch {
+      // File doesn't exist locally either
     }
 
     return res.status(404).json({ error: "File not found" });
@@ -16717,25 +16851,91 @@ export function registerRoutes(app: Express): Server {
       // Estructura organizada: gastos/evidencia_{userId}_{fecha}_{randomId}.{ext}
       const fileName = `gastos/evidencia_${userIdShort}_${dateStr}_${randomId}${fileExtension}`;
 
-      // Upload to Object Storage (permanent storage)
-      const objectStorageService = new ObjectStorageService();
-      const imageUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
-      console.log(`☁️ [GASTO-EVIDENCIA] Uploaded: ${fileName}`);
-
+      let imageUrl: string;
       let previewUrl: string | null = null;
 
-      if (isPdfFile(file.mimetype, file.originalname)) {
-        console.log(`📄 [GASTO-EVIDENCIA] PDF detected, generating preview...`);
-        try {
-          const previewBuffer = await convertPdfToImage(file.buffer, 600);
-          if (previewBuffer) {
-            const previewFileName = `gastos/evidencia_${userIdShort}_${dateStr}_${randomId}_preview.png`;
-            previewUrl = await objectStorageService.uploadImage(previewFileName, previewBuffer, 'image/png');
-            console.log(`🖼️ [GASTO-EVIDENCIA] Preview generated: ${previewFileName}`);
-          }
-        } catch (previewError) {
-          console.warn('⚠️ [GASTO-EVIDENCIA] Failed to generate PDF preview:', previewError);
+      // Option 1: Supabase Storage (Railway deployment)
+      if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY && process.env.SUPABASE_STORAGE_BUCKET) {
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+        const bucket = process.env.SUPABASE_STORAGE_BUCKET;
+
+        const { data, error } = await supabase.storage
+          .from(bucket)
+          .upload(fileName, file.buffer, {
+            contentType: file.mimetype,
+            upsert: false,
+          });
+
+        if (error) {
+          console.error('❌ [GASTO-EVIDENCIA] Supabase Storage error:', error.message);
+          throw error;
         }
+
+        const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(fileName);
+        imageUrl = urlData.publicUrl;
+        console.log(`☁️ [GASTO-EVIDENCIA] Uploaded to Supabase: ${fileName} -> ${imageUrl}`);
+
+        // Generate PDF preview
+        if (isPdfFile(file.mimetype, file.originalname)) {
+          try {
+            const previewBuffer = await convertPdfToImage(file.buffer, 600);
+            if (previewBuffer) {
+              const previewFileName = `gastos/evidencia_${userIdShort}_${dateStr}_${randomId}_preview.png`;
+              const { error: prevErr } = await supabase.storage
+                .from(bucket)
+                .upload(previewFileName, previewBuffer, { contentType: 'image/png', upsert: false });
+              if (!prevErr) {
+                const { data: prevUrlData } = supabase.storage.from(bucket).getPublicUrl(previewFileName);
+                previewUrl = prevUrlData.publicUrl;
+              }
+            }
+          } catch (previewError) {
+            console.warn('⚠️ [GASTO-EVIDENCIA] Failed to generate PDF preview:', previewError);
+          }
+        }
+      }
+      // Option 2: Replit Object Storage
+      else if (process.env.PUBLIC_OBJECT_SEARCH_PATHS) {
+        imageUrl = `/public-objects/${fileName}`;
+        try {
+          const objectStorageService = new ObjectStorageService();
+          imageUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
+          console.log(`☁️ [GASTO-EVIDENCIA] Uploaded to Object Storage: ${fileName}`);
+        } catch (objStorageErr) {
+          console.warn(`⚠️ [GASTO-EVIDENCIA] Object Storage upload failed, using local fallback: ${objStorageErr}`);
+        }
+
+        if (isPdfFile(file.mimetype, file.originalname)) {
+          try {
+            const previewBuffer = await convertPdfToImage(file.buffer, 600);
+            if (previewBuffer) {
+              const previewFileName = `gastos/evidencia_${userIdShort}_${dateStr}_${randomId}_preview.png`;
+              try {
+                const objectStorageService = new ObjectStorageService();
+                previewUrl = await objectStorageService.uploadImage(previewFileName, previewBuffer, 'image/png');
+              } catch {
+                previewUrl = `/public-objects/${previewFileName}`;
+              }
+            }
+          } catch (previewError) {
+            console.warn('⚠️ [GASTO-EVIDENCIA] Failed to generate PDF preview:', previewError);
+          }
+        }
+      }
+      // Option 3: Local file storage fallback
+      else {
+        const localDir = path.join(process.cwd(), 'public', 'gastos');
+        const fs = await import('fs/promises');
+        try {
+          await fs.mkdir(localDir, { recursive: true });
+          const localFilePath = path.join(process.cwd(), 'public', fileName);
+          await fs.writeFile(localFilePath, file.buffer);
+          console.log(`💾 [GASTO-EVIDENCIA] Local copy saved: ${localFilePath}`);
+        } catch (localErr) {
+          console.warn('⚠️ [GASTO-EVIDENCIA] Could not save local copy:', localErr);
+        }
+        imageUrl = `/${fileName}`;
       }
 
       res.json({ url: imageUrl, fileName, previewUrl });

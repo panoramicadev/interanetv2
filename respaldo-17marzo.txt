@@ -1,0 +1,17 @@
+Panoramica$303056&
+
+Panoramica$344446&
+
+Fibrocopper Alerce
+
+
+CVU048cmjtw4
+
+postgresql://postgres.eehoprpewrfunjvepgcq:CVU048cmjtw4@aws-1-sa-east-1.pooler.supabase.com:5432/postgres
+
+
+
+
+
+
+

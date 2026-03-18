@@ -7,7 +7,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/hooks/useCart";
 import {
     Search, ChevronDown, ChevronRight, Package, Palette,
-    ShoppingCart, Plus, Minus, Loader2, Box, Info, X, HelpCircle
+    ShoppingCart, Plus, Minus, Loader2, Box, Info, X, HelpCircle,
+    Play, FileText, Ruler
 } from "lucide-react";
 
 interface FormatVariant {
@@ -242,54 +243,61 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
                             <div key={product.genericName} className="border-b border-slate-100">
                                 {/* Product row */}
                                 <div
-                                    className="flex items-center gap-2 px-4 py-2.5 cursor-pointer hover:bg-orange-50/50 transition-colors"
+                                    className="px-4 py-2.5 cursor-pointer hover:bg-orange-50/50 transition-colors"
                                     onClick={() => toggleProduct(product.genericName)}
                                 >
-                                    {isExpanded
-                                        ? <ChevronDown className="h-4 w-4 text-orange-500 flex-shrink-0" />
-                                        : <ChevronRight className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                                    }
-                                    <div className="flex-1 min-w-0">
-                                        <span className={`text-sm font-medium truncate uppercase block ${isExpanded ? "text-orange-700" : "text-slate-800"}`}>
+                                    <div className="flex items-center gap-2">
+                                        {isExpanded
+                                            ? <ChevronDown className="h-4 w-4 text-orange-500 flex-shrink-0" />
+                                            : <ChevronRight className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                                        }
+                                        <span className={`text-sm font-medium flex-1 truncate uppercase ${isExpanded ? "text-orange-700" : "text-slate-800"}`}>
                                             {product.genericName}
                                         </span>
-                                        {product.breveResena && (
-                                            <span className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md line-clamp-1 block mt-1 w-fit">{product.breveResena}</span>
-                                        )}
+                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                            {(product.tags || []).map(tag => (
+                                                <span key={tag} className={`text-[9px] px-2 py-0.5 rounded-full font-bold whitespace-nowrap shadow-sm ${
+                                                    tag === 'Mejor Precio' ? 'bg-green-500 text-white' :
+                                                    tag === 'Rápida Rotación' ? 'bg-blue-500 text-white' :
+                                                    tag === 'Pocas Unidades' ? 'bg-amber-500 text-white' :
+                                                    'bg-gray-500 text-white'
+                                                }`}>
+                                                    {tag === 'Mejor Precio' ? '💰 ' : tag === 'Rápida Rotación' ? '🔥 ' : tag === 'Pocas Unidades' ? '⚠️ ' : ''}{tag}
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <span className="text-[10px] text-slate-400 flex-shrink-0 ml-1">
+                                            {colorKeys.length} color{colorKeys.length !== 1 ? 'es' : ''}
+                                        </span>
                                     </div>
-                                    <div className="flex items-center gap-1 flex-shrink-0">
-                                        {(product.tags || []).map(tag => (
-                                            <span key={tag} className={`text-[9px] px-2 py-0.5 rounded-full font-bold whitespace-nowrap shadow-sm ${
-                                                tag === 'Mejor Precio' ? 'bg-green-500 text-white' :
-                                                tag === 'Rápida Rotación' ? 'bg-blue-500 text-white' :
-                                                tag === 'Pocas Unidades' ? 'bg-amber-500 text-white' :
-                                                'bg-gray-500 text-white'
-                                            }`}>
-                                                {tag === 'Mejor Precio' ? '💰 ' : tag === 'Rápida Rotación' ? '🔥 ' : tag === 'Pocas Unidades' ? '⚠️ ' : ''}{tag}
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <span className="text-[10px] text-slate-400 flex-shrink-0 ml-1">
-                                        {colorKeys.length} color{colorKeys.length !== 1 ? 'es' : ''}
-                                    </span>
+                                    {product.breveResena && (
+                                        <div className="ml-6 mt-1">
+                                            <span className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md line-clamp-1 inline-block">{product.breveResena}</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Expanded: colors → formats */}
                                 {isExpanded && (
                                     <div className="bg-slate-50/80">
                                         {/* Más información button */}
-                                        <div className="px-4 py-2.5 flex items-center justify-center border-b border-slate-200 bg-gradient-to-r from-blue-50/80 via-blue-50 to-blue-50/80">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    openInfoModal(product.genericName);
-                                                }}
-                                                className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-white border border-blue-200 hover:border-blue-400 hover:shadow-sm transition-all"
-                                            >
-                                                <Info className="h-3.5 w-3.5" />
-                                                Más información
-                                            </button>
-                                        </div>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openInfoModal(product.genericName);
+                                            }}
+                                            className="w-full flex items-center justify-between px-5 py-2 border-b border-slate-200 bg-white hover:bg-orange-50/50 transition-all group border-l-[3px] border-l-orange-400"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-xs font-semibold text-slate-700 group-hover:text-orange-700">Más información</span>
+                                                <div className="flex items-center gap-1">
+                                                    <Play className="h-3 w-3 text-orange-400" />
+                                                    <FileText className="h-3 w-3 text-orange-400" />
+                                                    <Ruler className="h-3 w-3 text-orange-400" />
+                                                </div>
+                                            </div>
+                                            <ChevronRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-orange-500 transition-colors" />
+                                        </button>
                                         {colorKeys.map(color => {
                                             const variants = product.colors[color];
                                             const isColorExpanded = expandedColors.has(`${product.genericName}-${color}`);

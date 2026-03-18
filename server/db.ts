@@ -1,9 +1,7 @@
-import { Pool, neonConfig, type NeonQueryFunction } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
+import pg from 'pg';
+const { Pool } = pg;
+import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from "@shared/schema";
-
-neonConfig.webSocketConstructor = ws;
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -17,7 +15,7 @@ let connectionAttempts = 0;
 // Improved pool configuration for better stability
 const poolConfig = {
   connectionString: process.env.DATABASE_URL,
-  max: 10, // Smaller pool to prevent overwhelming Neon
+  max: 5, // Reduced for Supabase session mode pooler limits
   maxUses: 1000, // Cycle connections more frequently
   connectionTimeoutMillis: 15000, // Faster failure detection
   idleTimeoutMillis: 120000, // Prevent stale connections
@@ -25,6 +23,7 @@ const poolConfig = {
   statement_timeout: 60000, // 60 second query timeout
   query_timeout: 60000,
   application_name: 'dashboard-app',
+  ssl: { rejectUnauthorized: false }, // Required for Supabase connections
 };
 
 export const pool = new Pool(poolConfig);
