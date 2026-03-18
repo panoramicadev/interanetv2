@@ -24,6 +24,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import html2pdf from "html2pdf.js";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -505,105 +506,199 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
     );
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Stats Cards - Hidden by request */}
-      {/* <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        ... stats cards hidden ...
-      </div> */}
+  const isMobile = useIsMobile();
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
+  return (
+    <div className="space-y-4">
+      {/* Filters - Mobile Compact */}
+      <div className={`${isMobile ? 'space-y-3' : 'flex flex-col sm:flex-row gap-4'}`}>
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
           <Input
             placeholder="Buscar por nombre de cliente..."
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); handleFilterChange(); }}
-            className="pl-10"
+            className={`pl-10 ${isMobile ? 'h-11 rounded-xl text-sm' : ''}`}
+            style={isMobile ? { fontSize: '16px' } : undefined}
             data-testid="input-search-quotes"
           />
         </div>
 
-        <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); handleFilterChange(); }}>
-          <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-status-filter">
-            <Filter className="w-4 h-4 mr-2" />
-            <SelectValue placeholder="Filtrar por estado" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los estados</SelectItem>
-            <SelectItem value="draft">Borradores</SelectItem>
-            <SelectItem value="sent">Enviadas</SelectItem>
-            <SelectItem value="accepted">Aceptadas</SelectItem>
-            <SelectItem value="rejected">Rechazadas</SelectItem>
-            <SelectItem value="converted">Convertidas</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Additional Filters Row */}
-      <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center">
-        {/* Date Range Filters */}
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-gray-400" />
-          <Input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => { setDateFrom(e.target.value); handleFilterChange(); }}
-            className="w-[150px]"
-            placeholder="Desde"
-            data-testid="input-date-from"
-          />
-          <span className="text-gray-400">-</span>
-          <Input
-            type="date"
-            value={dateTo}
-            onChange={(e) => { setDateTo(e.target.value); handleFilterChange(); }}
-            className="w-[150px]"
-            placeholder="Hasta"
-            data-testid="input-date-to"
-          />
-        </div>
-
-        {/* Creator Filter - Only for admin/supervisor */}
-        {(user?.role === 'admin' || user?.role === 'supervisor') && creators && creators.length > 0 && (
-          <Select value={creatorFilter} onValueChange={(value) => { setCreatorFilter(value); handleFilterChange(); }}>
-            <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-creator-filter">
-              <User className="w-4 h-4 mr-2" />
-              <SelectValue placeholder="Filtrar por emisor" />
+        <div className={`${isMobile ? 'grid grid-cols-2 gap-2' : 'flex gap-4'}`}>
+          <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); handleFilterChange(); }}>
+            <SelectTrigger className={`${isMobile ? 'h-10 rounded-xl text-xs' : 'w-full sm:w-[200px]'}`} data-testid="select-status-filter">
+              <Filter className="w-3.5 h-3.5 mr-1.5" />
+              <SelectValue placeholder="Estado" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos los emisores</SelectItem>
-              {creators.map((creator) => (
-                <SelectItem key={creator.id} value={creator.id}>
-                  {creator.name}
-                </SelectItem>
-              ))}
+              <SelectItem value="all">Todos los estados</SelectItem>
+              <SelectItem value="draft">Borradores</SelectItem>
+              <SelectItem value="sent">Enviadas</SelectItem>
+              <SelectItem value="accepted">Aceptadas</SelectItem>
+              <SelectItem value="rejected">Rechazadas</SelectItem>
+              <SelectItem value="converted">Convertidas</SelectItem>
             </SelectContent>
           </Select>
-        )}
 
-        {/* Clear Filters Button */}
-        {(dateFrom || dateTo || creatorFilter !== "all" || statusFilter !== "all" || searchTerm) && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setDateFrom("");
-              setDateTo("");
-              setCreatorFilter("all");
-              setStatusFilter("all");
-              setSearchTerm("");
-              handleFilterChange();
-            }}
-            data-testid="button-clear-filters"
-          >
-            Limpiar filtros
-          </Button>
-        )}
+          {/* Creator Filter - Only for admin/supervisor */}
+          {(user?.role === 'admin' || user?.role === 'supervisor') && creators && creators.length > 0 && (
+            <Select value={creatorFilter} onValueChange={(value) => { setCreatorFilter(value); handleFilterChange(); }}>
+              <SelectTrigger className={`${isMobile ? 'h-10 rounded-xl text-xs' : 'w-full sm:w-[200px]'}`} data-testid="select-creator-filter">
+                <User className="w-3.5 h-3.5 mr-1.5" />
+                <SelectValue placeholder="Emisor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los emisores</SelectItem>
+                {creators.map((creator) => (
+                  <SelectItem key={creator.id} value={creator.id}>
+                    {creator.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
       </div>
 
-      {/* Table */}
+      {/* Date Filters - Compact Row */}
+      {!isMobile && (
+        <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-gray-400" />
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); handleFilterChange(); }}
+              className="w-[150px]"
+              placeholder="Desde"
+              data-testid="input-date-from"
+            />
+            <span className="text-gray-400">-</span>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => { setDateTo(e.target.value); handleFilterChange(); }}
+              className="w-[150px]"
+              placeholder="Hasta"
+              data-testid="input-date-to"
+            />
+          </div>
+          {(dateFrom || dateTo || creatorFilter !== "all" || statusFilter !== "all" || searchTerm) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setDateFrom("");
+                setDateTo("");
+                setCreatorFilter("all");
+                setStatusFilter("all");
+                setSearchTerm("");
+                handleFilterChange();
+              }}
+              data-testid="button-clear-filters"
+            >
+              Limpiar filtros
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Mobile Card View / Desktop Table View */}
+      {isMobile ? (
+        <div className="space-y-3">
+          {isLoading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-xl border border-gray-100 p-4 space-y-3 animate-pulse">
+                <div className="flex justify-between">
+                  <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+                  <div className="h-5 bg-gray-200 rounded-full w-16"></div>
+                </div>
+                <div className="h-3 bg-gray-100 rounded w-1/3"></div>
+                <div className="h-3 bg-gray-100 rounded w-1/2"></div>
+              </div>
+            ))
+          ) : displayedQuotes && displayedQuotes.length > 0 ? (
+            displayedQuotes.map((quote) => {
+              const status = statusConfig[quote.status] || statusConfig.draft;
+              const StatusIcon = status.icon;
+              return (
+                <div
+                  key={quote.id}
+                  className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 active:bg-gray-50 transition-colors"
+                  onClick={() => handleEditQuote(quote.id)}
+                  data-testid={`quote-row-${quote.id}`}
+                >
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-900 text-sm truncate" data-testid={`client-name-${quote.id}`}>
+                        {quote.clientName}
+                      </p>
+                      {quote.clientRut && (
+                        <p className="text-xs text-gray-400 mt-0.5">RUT: {quote.clientRut}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Badge className={`${status.color} text-[10px] px-2 py-0.5 font-medium`}>
+                        <StatusIcon className="w-3 h-3 mr-1" />
+                        {status.label}
+                      </Badge>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" data-testid={`actions-${quote.id}`}>
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEditQuote(quote.id)}>
+                              <FileText className="w-4 h-4 mr-2" /> Ver / Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleSendEmail(quote.id, quote.quoteNumber)} disabled={sendEmailMutation.isPending}>
+                              <Mail className="w-4 h-4 mr-2" /> Compartir
+                            </DropdownMenuItem>
+                            {(quote.status === 'draft' || quote.status === 'sent' || quote.status === 'accepted' || quote.status === 'rejected') && (
+                              <DropdownMenuItem onClick={() => handleDuplicateForEdit(quote.id)} disabled={duplicateQuoteMutation.isPending}>
+                                <Copy className="w-4 h-4 mr-2" /> Duplicar
+                              </DropdownMenuItem>
+                            )}
+                            {(user?.role === 'admin' || user?.role === 'supervisor') && (
+                              <DropdownMenuItem onClick={() => handleDeleteQuote(quote.id, quote.quoteNumber)} disabled={deleteQuoteMutation.isPending} className="text-red-600 focus:text-red-600 focus:bg-red-50">
+                                <Trash2 className="w-4 h-4 mr-2" /> Eliminar
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 text-xs text-gray-500">
+                      {(user?.role === 'admin' || user?.role === 'supervisor') && (
+                        <span className="flex items-center gap-1">
+                          <User className="w-3 h-3" />
+                          {quote.creatorName || 'Desconocido'}
+                        </span>
+                      )}
+                      <span>{getTimeAgo(quote.createdAt)}</span>
+                    </div>
+                    <span className="text-sm font-bold text-gray-900">
+                      ${parseFloat(quote.total).toLocaleString('es-CL', { minimumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="text-center py-10">
+              <FileText className="mx-auto h-10 w-10 text-gray-300 mb-3" />
+              <p className="text-sm font-medium text-gray-500">No hay cotizaciones</p>
+              <p className="text-xs text-gray-400 mt-1">
+                {searchTerm || statusFilter !== "all" ? "Intenta con otros filtros." : "Crea tu primera cotización."}
+              </p>
+            </div>
+          )}
+        </div>
+      ) : (
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -693,7 +788,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
 
                       <TableCell
                         className="py-4 text-center"
-                        onClick={(e) => e.stopPropagation()} // Prevent row click when clicking actions
+                        onClick={(e) => e.stopPropagation()}
                       >
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -719,7 +814,6 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                               {sendEmailMutation.isPending ? 'Compartiendo...' : 'Compartir'}
                             </DropdownMenuItem>
 
-                            {/* Status change options */}
                             {quote.status === 'draft' && (
                               <DropdownMenuItem
                                 data-testid={`status-sent-${quote.id}`}
@@ -816,6 +910,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Load More Button */}
       {hasMore && (

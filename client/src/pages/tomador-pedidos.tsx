@@ -3435,22 +3435,22 @@ export default function TomadorPedidos() {
   return (
     <>
       {/* Premium Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-6 py-8 mx-3 sm:mx-4 lg:mx-6 mt-8">
+      <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 ${isMobile ? 'px-4 py-5 mx-3 mt-3' : 'px-6 py-8 mx-3 sm:mx-4 lg:mx-6 mt-8'}`}>
         {/* Background decorative elements */}
         <div className="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-orange-500/10 rounded-full blur-3xl" />
         <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl" />
 
         <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
-              <Calculator className="h-6 w-6 text-white" />
+          <div className="flex items-center gap-3">
+            <div className={`${isMobile ? 'h-10 w-10 rounded-xl' : 'h-12 w-12 rounded-2xl'} bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/20`}>
+              <Calculator className={`${isMobile ? 'h-5 w-5' : 'h-6 w-6'} text-white`} />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+              <h1 className={`${isMobile ? 'text-xl' : 'text-2xl md:text-3xl'} font-bold text-white tracking-tight`}>
                 Tomador de Pedidos
               </h1>
-              <p className="text-slate-400 text-sm md:text-base mt-1">
-                Constructor de presupuestos, cotizaciones y pedidos eficientes
+              <p className={`text-slate-400 ${isMobile ? 'text-xs' : 'text-sm md:text-base'} mt-0.5`}>
+                Presupuestos, cotizaciones y pedidos
               </p>
             </div>
           </div>
@@ -3458,34 +3458,34 @@ export default function TomadorPedidos() {
       </div>
 
       <div className={`${isMobile
-        ? 'px-4 pb-12'
+        ? 'px-3 pb-12 mt-3'
         : 'px-3 sm:px-4 lg:px-6 pb-12 mt-6'
         }`}>
-        <div className={`space-y-6 ${isMobile ? 'space-y-5' : ''}`}>
+        <div className={`space-y-6 ${isMobile ? 'space-y-4' : ''}`}>
 
           {/* Create Quote Button - Hidden in mobile when client search is open */}
           {!(isMobile && showClientSearch) && (
-            <div className={`${isMobile ? 'space-y-3' : 'flex justify-end gap-3'}`}>
+            <div className={`${isMobile ? 'grid grid-cols-2 gap-2' : 'flex justify-end gap-3'}`}>
               <Button
                 onClick={handleCreateQuoteForNewClient}
-                className={`bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2 ${isMobile ? 'w-full h-10 text-sm font-medium' : ''
+                className={`bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 ${isMobile ? 'w-full h-12 text-sm font-semibold rounded-xl' : ''
                   }`}
                 size={isMobile ? "sm" : "lg"}
                 data-testid="button-create-quote-new-client"
               >
                 <Calculator className="w-4 h-4" />
-                {isMobile ? "Nuevo Presupuesto" : "Crear Presupuesto"}
+                {isMobile ? "Nuevo" : "Crear Presupuesto"}
               </Button>
               <Link href="/presupuestos-avanzados">
                 <Button
                   variant="outline"
-                  className={`border-orange-500 text-orange-600 hover:bg-orange-50 flex items-center justify-center gap-2 ${isMobile ? 'w-full h-10 text-sm font-medium' : ''
+                  className={`border-orange-200 text-orange-600 hover:bg-orange-50 bg-orange-50/50 flex items-center justify-center gap-2 ${isMobile ? 'w-full h-12 text-sm font-semibold rounded-xl' : ''
                     }`}
                   size={isMobile ? "sm" : "lg"}
                   data-testid="button-presupuestos-avanzados"
                 >
                   <FileText className="w-4 h-4" />
-                  Presupuestos Avanzados
+                  {isMobile ? "Avanzado" : "Presupuestos Avanzados"}
                 </Button>
               </Link>
             </div>
@@ -3666,15 +3666,15 @@ export default function TomadorPedidos() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="flex gap-2">
+              <div className="grid grid-cols-5 gap-2">
                 <Button
                   onClick={() => setShowClientSearch(true)}
                   variant="outline"
-                  className="flex-1 h-14 border-2 border-dashed hover:border-orange-400 hover:bg-orange-50"
+                  className="col-span-3 h-12 rounded-xl bg-white border border-gray-200 shadow-sm hover:border-orange-300 hover:bg-orange-50/50 transition-all"
                   data-testid="button-open-client-search"
                 >
-                  <Search className="w-5 h-5 mr-2" />
-                  Buscar Cliente
+                  <Search className="w-4 h-4 mr-2 text-orange-500" />
+                  <span className="font-medium text-gray-700">Buscar Cliente</span>
                 </Button>
                 <Button
                   onClick={() => {
@@ -3682,11 +3682,11 @@ export default function TomadorPedidos() {
                     setShowFichaClienteDialog(true);
                   }}
                   variant="outline"
-                  className="h-14 border-2 border-dashed hover:border-green-400 hover:bg-green-50 text-green-700"
+                  className="col-span-2 h-12 rounded-xl bg-emerald-50/50 border border-emerald-200 shadow-sm hover:bg-emerald-50 text-emerald-700 transition-all"
                   data-testid="button-ficha-cliente"
                 >
-                  <Plus className="w-5 h-5 mr-2" />
-                  Ficha Cliente
+                  <Plus className="w-4 h-4 mr-1" />
+                  <span className="font-medium">Ficha Cliente</span>
                 </Button>
               </div>
             )
