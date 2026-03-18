@@ -57,6 +57,27 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: LayoutDashboard,
     },
     {
+      href: "/tomador-pedidos",
+      label: "Tomador de Pedidos",
+      icon: ClipboardCheck,
+    },
+    {
+      href: "/tareas",
+      label: "Tareas",
+      icon: CheckCircle2,
+    },
+    {
+      href: "/marketing",
+      label: "Marketing",
+      icon: TrendingUp,
+    },
+    {
+      href: "/gastos-empresariales",
+      label: "Rendición de Gastos",
+      icon: Banknote,
+      separator: true,
+    },
+    {
       href: "/productos",
       label: "Productos",
       icon: Package,
@@ -87,27 +108,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: Gift,
         },
       ],
-      separator: true,
-    },
-    {
-      href: "/marketing",
-      label: "Marketing",
-      icon: TrendingUp,
-    },
-    {
-      href: "/tareas",
-      label: "Tareas",
-      icon: CheckCircle2,
-    },
-    {
-      href: "/tomador-pedidos",
-      label: "Tomador de Pedidos",
-      icon: ClipboardCheck,
-    },
-    {
-      href: "/gastos-empresariales",
-      label: "Rendición de Gastos",
-      icon: Banknote,
       separator: true,
     },
     {

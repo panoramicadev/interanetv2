@@ -145,7 +145,7 @@ export default function TareasPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [clienteFilter, setClienteFilter] = useState<string>("all");
-  const [segmentoFilter, setSegmentoFilter] = useState<string>("all");
+  const [segmentoFilter, setSegmentoFilter] = useState<string>("ferreterias");
 
   // Expanded tasks for collapsible assignment details
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
@@ -183,7 +183,7 @@ export default function TareasPage() {
 
   // Task Groups query
   const taskGroupsQuery = useQuery<Array<{ id: string; name: string; segmento: string; userId: string; color: string | null; sortOrder: number | null; createdAt: Date | null }>>({
-    queryKey: ['/api/task-groups', { segmento: segmentoFilter !== 'all' ? segmentoFilter : undefined }],
+    queryKey: ['/api/task-groups', { segmento: segmentoFilter }],
     enabled: isAuthenticated,
   });
 
@@ -1021,16 +1021,7 @@ export default function TareasPage() {
         <TabsContent value="tareas" className="space-y-6">
 
           {/* Segment Tabs */}
-          <div className="grid grid-cols-5 gap-1.5">
-            <button
-              onClick={() => setSegmentoFilter("all")}
-              className={`px-4 py-2.5 rounded-lg text-sm font-semibold whitespace-nowrap transition-all duration-200 ${segmentoFilter === "all"
-                ? "bg-blue-600 text-white shadow-md shadow-blue-200"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-            >
-              Todas
-            </button>
+          <div className="grid grid-cols-4 gap-1.5">
             {SEGMENTOS.map((seg) => (
               <button
                 key={seg.value}
@@ -1413,8 +1404,14 @@ export default function TareasPage() {
 
               return (
                 <>
-                  {/* Grouped Tasks */}
-                  {groups.map((group, groupIndex) => {
+                  {/* Grouped Tasks - sorted by most pending first */}
+                  {[...groups].sort((a, b) => {
+                    const aTasks = groupedTasks[a.id] || [];
+                    const bTasks = groupedTasks[b.id] || [];
+                    const aPending = aTasks.filter(t => t.status !== 'completada' && !t.assignments.some(as => as.status === 'completed')).length;
+                    const bPending = bTasks.filter(t => t.status !== 'completada' && !t.assignments.some(as => as.status === 'completed')).length;
+                    return bPending - aPending;
+                  }).map((group, groupIndex) => {
                     const tasks = groupedTasks[group.id] || [];
                     const completedCount = tasks.filter(t => {
                       if (t.status === 'completada') return true;
