@@ -55,6 +55,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/",
       label: "Dashboard",
       icon: LayoutDashboard,
+      separator: true,
     },
     {
       href: "/tomador-pedidos",
