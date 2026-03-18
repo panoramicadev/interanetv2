@@ -1021,12 +1021,12 @@ export default function TareasPage() {
         <TabsContent value="tareas" className="space-y-6">
 
           {/* Segment Tabs */}
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0 sm:mx-0 sm:px-0">
             {SEGMENTOS.map((seg) => (
               <button
                 key={seg.value}
                 onClick={() => setSegmentoFilter(seg.value)}
-                className={`px-4 py-2.5 rounded-lg text-sm font-semibold whitespace-nowrap transition-all duration-200 ${segmentoFilter === seg.value
+                className={`px-4 py-2 sm:py-2.5 rounded-full sm:rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 flex-shrink-0 ${segmentoFilter === seg.value
                   ? "bg-blue-600 text-white shadow-md shadow-blue-200"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
@@ -1306,7 +1306,7 @@ export default function TareasPage() {
                 return (
                   <div
                     key={task.id}
-                    className={`group flex items-start gap-3 px-4 py-3 rounded-xl border transition-all duration-200 cursor-pointer hover:shadow-md ${
+                    className={`group flex items-start gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border transition-all duration-200 cursor-pointer hover:shadow-md ${
                       isCompleted
                         ? 'bg-emerald-50/40 border-emerald-200/60 opacity-60'
                         : isOverdue
@@ -1351,7 +1351,7 @@ export default function TareasPage() {
                     {/* Task Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <span className={`text-sm font-medium leading-snug ${isCompleted ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
+                        <span className={`text-[13px] sm:text-sm font-medium leading-snug ${isCompleted ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
                           {task.title}
                         </span>
                         {task.priority === 'high' && !isCompleted && (

@@ -2722,6 +2722,14 @@ export class DatabaseStorage implements IStorage {
     gdvSales: number;
   }> {
     const { startDate, endDate, salesperson, segment, client, supplier, product } = filters;
+    // Cache key based on all filter parameters
+    const cacheKey = `salesMetrics:${startDate || ''}:${endDate || ''}:${salesperson || ''}:${segment || ''}:${client || ''}:${supplier || ''}:${product || ''}:${(filters as any).branch || ''}`;
+    const cached = this.getCached<{
+      totalSales: number; totalTransactions: number; salesTransactionCount: number;
+      totalOrders: number; totalUnits: number; activeCustomers: number; gdvSales: number;
+    }>(cacheKey);
+    if (cached) return cached;
+
     const conditions = [];
 
     if (startDate) {
@@ -2750,10 +2758,6 @@ export class DatabaseStorage implements IStorage {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Calculate metrics using fact_ventas
-    // totalSales EXCLUDES ALL GDV (Guías de Despacho are not sales, tracked separately)
-    // salesTransactionCount excludes GDV to align with totalSales for averageTicket calculation
-    // gdvSales is calculated separately for TIDO = 'GDV' transactions only (excluding cancelled)
     const [metrics] = await db
       .select({
         totalSales: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} != 'GDV' THEN ${factVentas.monto} ELSE 0 END), 0)`,
@@ -2767,7 +2771,7 @@ export class DatabaseStorage implements IStorage {
       .from(factVentas)
       .where(whereClause);
 
-    return {
+    const result = {
       totalSales: Number(metrics.totalSales),
       totalTransactions: Number(metrics.totalTransactions),
       salesTransactionCount: Number(metrics.salesTransactionCount),
@@ -2776,6 +2780,9 @@ export class DatabaseStorage implements IStorage {
       activeCustomers: Number(metrics.activeCustomers),
       gdvSales: Number(metrics.gdvSales),
     };
+
+    this.setCache(cacheKey, result, 60000); // Cache 60 seconds (data only changes after ETL sync)
+    return result;
   }
 
   async getNewClientsCount(filters: {
@@ -2916,6 +2923,11 @@ export class DatabaseStorage implements IStorage {
     comparisonDate: string;
     isYTD: boolean;
   }> {
+    // Cache key for yearly totals
+    const ytCacheKey = `yearlyTotals:${year}:${filters?.segment || ''}:${filters?.salesperson || ''}:${filters?.client || ''}:${endDateStr || ''}`;
+    const ytCached = this.getCached<{ currentYearTotal: number; previousYearTotal: number; comparisonYear: number; comparisonDate: string; isYTD: boolean }>(ytCacheKey);
+    if (ytCached) return ytCached;
+
     const today = new Date();
     const currentCalendarYear = today.getFullYear();
     const previousYear = year - 1;
@@ -2935,32 +2947,26 @@ export class DatabaseStorage implements IStorage {
 
       previousYearStart = `${previousYear}-01-01`;
       const endDateObj = new Date(endDateStr);
-      // Generate previous year end date
       const prevYearEndObj = new Date(endDateObj);
       prevYearEndObj.setFullYear(previousYear);
-      // Handle leap year edge case
       if (endDateObj.getMonth() === 1 && endDateObj.getDate() === 29 && prevYearEndObj.getMonth() === 2) {
-        prevYearEndObj.setMonth(1, 28); // February 28
+        prevYearEndObj.setMonth(1, 28);
       }
       previousYearEnd = prevYearEndObj.toISOString().split('T')[0];
     } else if (isCurrentYear) {
-      // Year-to-date comparison: current year up to today vs last year up to same date
       requestedYearStart = `${year}-01-01`;
-      requestedYearEnd = today.toISOString().split('T')[0]; // Today's date
+      requestedYearEnd = today.toISOString().split('T')[0];
 
       previousYearStart = `${previousYear}-01-01`;
       const sameDayLastYear = new Date(today);
       sameDayLastYear.setFullYear(previousYear);
 
-      // Handle leap year edge case: if today is Feb 29 and previous year is not a leap year,
-      // setFullYear will roll to March 1. Adjust to Feb 28 in that case.
       if (today.getMonth() === 1 && today.getDate() === 29 && sameDayLastYear.getMonth() === 2) {
-        sameDayLastYear.setMonth(1, 28); // February 28
+        sameDayLastYear.setMonth(1, 28);
       }
 
       previousYearEnd = sameDayLastYear.toISOString().split('T')[0];
     } else {
-      // Historical year: compare full year to full previous year
       requestedYearStart = `${year}-01-01`;
       requestedYearEnd = `${year}-12-31`;
 
@@ -2987,7 +2993,6 @@ export class DatabaseStorage implements IStorage {
 
     // Run both year queries in parallel
     const [requestedYearResults, previousYearResults] = await Promise.all([
-      // Get requested year total (excluding ALL GDV)
       db.select({
           total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
         })
@@ -2999,7 +3004,6 @@ export class DatabaseStorage implements IStorage {
             ...baseConditions
           )
         ),
-      // Get previous year total (excluding ALL GDV) - same period
       db.select({
           total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
         })
@@ -3016,13 +3020,16 @@ export class DatabaseStorage implements IStorage {
     const requestedYearMetrics = requestedYearResults[0];
     const previousYearMetrics = previousYearResults[0];
 
-    return {
+    const ytResult = {
       currentYearTotal: Number(requestedYearMetrics.total),
       previousYearTotal: Number(previousYearMetrics.total),
       comparisonYear: previousYear,
       comparisonDate: isCurrentYear ? today.toISOString().split('T')[0] : `${year}-12-31`,
       isYTD: isCurrentYear,
     };
+
+    this.setCache(ytCacheKey, ytResult, 120000); // Cache 2 minutes
+    return ytResult;
   }
 
   async getBestYearHistorical(filters?: { segment?: string; salesperson?: string; client?: string; branch?: string }): Promise<{
@@ -3103,33 +3110,34 @@ export class DatabaseStorage implements IStorage {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Get period total sales
-    const [totalResult] = await db
-      .select({
-        total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
-      })
-      .from(factVentas)
-      .where(whereClause);
-
-    // Get total count of unique salespeople
-    const [countResult] = await db
-      .select({
-        count: sql<number>`COUNT(DISTINCT ${factVentas.nokofu})`,
-      })
-      .from(factVentas)
-      .where(whereClause);
-
-    const results = await db
-      .select({
-        salesperson: factVentas.nokofu,
-        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
-        transactionCount: sql<number>`COUNT(*)`,
-      })
-      .from(factVentas)
-      .where(whereClause)
-      .groupBy(factVentas.nokofu)
-      .orderBy(sql`SUM(${factVentas.monto}) DESC`)
-      .limit(limit);
+    // Run all 3 queries in parallel instead of sequentially
+    const [totalResult, countResult, results] = await Promise.all([
+      // Get period total sales
+      db.select({
+          total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        })
+        .from(factVentas)
+        .where(whereClause)
+        .then(r => r[0]),
+      // Get total count of unique salespeople
+      db.select({
+          count: sql<number>`COUNT(DISTINCT ${factVentas.nokofu})`,
+        })
+        .from(factVentas)
+        .where(whereClause)
+        .then(r => r[0]),
+      // Get top salespeople
+      db.select({
+          salesperson: factVentas.nokofu,
+          totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+          transactionCount: sql<number>`COUNT(*)`,
+        })
+        .from(factVentas)
+        .where(whereClause)
+        .groupBy(factVentas.nokofu)
+        .orderBy(sql`SUM(${factVentas.monto}) DESC`)
+        .limit(limit),
+    ]);
 
     return {
       items: results.map(r => ({
