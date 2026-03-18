@@ -315,7 +315,6 @@ export default function Dashboard() {
 
       return data;
     },
-    staleTime: 2 * 60 * 1000, // 2 min — dashboard metrics don't change that fast
   });
 
   // Use pre-fetched availablePeriods from consolidated init
