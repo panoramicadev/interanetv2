@@ -381,7 +381,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
   const { year: currentYearStr, endDateStr: ytdEndDateStr, rangeStr: ytdRangeStr } = getYtdParams();
 
-  console.log('--- YTD DEBUG ---', { selectedPeriod, filterType, ytdEndDateStr, ytdRangeStr });
 
   const { data: yearlyTotals } = useQuery<{
     currentYearTotal: number;

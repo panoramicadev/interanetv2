@@ -530,11 +530,60 @@ export function registerRoutes(app: Express): Server {
       let fileUrl: string;
       let previewUrl: string | null = null;
 
-      // Try cloud storage first, fall back to local disk
-      if (process.env.PUBLIC_OBJECT_SEARCH_PATHS) {
+      // Option 1: Supabase Storage (Railway deployment)
+      if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY && process.env.SUPABASE_STORAGE_BUCKET) {
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+        const bucket = process.env.SUPABASE_STORAGE_BUCKET;
+
+        const { data, error } = await supabase.storage
+          .from(bucket)
+          .upload(`uploads/${fileName}`, file.buffer, {
+            contentType: file.mimetype,
+            upsert: false,
+          });
+
+        if (error) {
+          console.error('❌ [UPLOAD] Supabase Storage error:', error.message);
+          throw error;
+        }
+
+        const { data: urlData } = supabase.storage
+          .from(bucket)
+          .getPublicUrl(`uploads/${fileName}`);
+
+        fileUrl = urlData.publicUrl;
+        console.log(`☁️ [UPLOAD] File uploaded to Supabase: ${fileName} -> ${fileUrl}`);
+
+        // Generate PDF preview if applicable
+        if (isPdfFile(file.mimetype, file.originalname)) {
+          try {
+            const previewBuffer = await convertPdfToImage(file.buffer, 600);
+            if (previewBuffer) {
+              const previewFileName = `upload-${timestamp}-${randomId}-preview.png`;
+              const { error: prevErr } = await supabase.storage
+                .from(bucket)
+                .upload(`uploads/${previewFileName}`, previewBuffer, {
+                  contentType: 'image/png',
+                  upsert: false,
+                });
+              if (!prevErr) {
+                const { data: prevUrlData } = supabase.storage
+                  .from(bucket)
+                  .getPublicUrl(`uploads/${previewFileName}`);
+                previewUrl = prevUrlData.publicUrl;
+              }
+            }
+          } catch (previewError) {
+            console.warn('⚠️ [UPLOAD] Failed to generate PDF preview:', previewError);
+          }
+        }
+      }
+      // Option 2: Replit Object Storage
+      else if (process.env.PUBLIC_OBJECT_SEARCH_PATHS) {
         const objectStorageService = new ObjectStorageService();
         fileUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
-        console.log(`☁️ [UPLOAD] File uploaded to cloud: ${fileName} -> ${fileUrl}`);
+        console.log(`☁️ [UPLOAD] File uploaded to Replit ObjStore: ${fileName} -> ${fileUrl}`);
 
         if (isPdfFile(file.mimetype, file.originalname)) {
           try {
@@ -547,8 +596,9 @@ export function registerRoutes(app: Express): Server {
             console.warn('⚠️ [UPLOAD] Failed to generate PDF preview:', previewError);
           }
         }
-      } else {
-        // Local file storage fallback
+      }
+      // Option 3: Local file storage fallback
+      else {
         const uploadsDir = path.join(process.cwd(), 'server', 'uploads');
         const fs = await import('fs');
         if (!fs.existsSync(uploadsDir)) {
@@ -816,46 +866,41 @@ export function registerRoutes(app: Express): Server {
       const previousStartFormatted = formatDateLocal(previousStart);
       const previousEndFormatted = formatDateLocal(previousEnd);
 
-      console.log(`[DEBUG] Periodo actual: ${currentStartDate} a ${currentEndDate}`);
-      console.log(`[DEBUG] Periodo año anterior: ${previousStartFormatted} a ${previousEndFormatted}`);
-
-      // Get current period metrics
-      const metrics = await storage.getSalesMetrics({
-        startDate: currentStartDate,
-        endDate: currentEndDate,
-        salesperson: salesperson as string,
-        segment: segment as string,
-        client: client as string,
-        supplier: supplier as string,
-        product: product as string,
-      });
-
-      // Get previous year metrics for comparison (same period in previous year - year-over-year)
-      const previousMetrics = await storage.getSalesMetrics({
-        startDate: previousStartFormatted,
-        endDate: previousEndFormatted,
-        salesperson: salesperson as string,
-        segment: segment as string,
-        client: client as string,
-        supplier: supplier as string,
-        product: product as string,
-      });
-
-      console.log(`[DEBUG] Métricas actuales: Ventas=${metrics.totalSales}, Transacciones=${metrics.totalTransactions}`);
-      console.log(`[DEBUG] Métricas año anterior: Ventas=${previousMetrics.totalSales}, Transacciones=${previousMetrics.totalTransactions}`);
-
       const commonFilters = {
         salesperson: salesperson as string,
         segment: segment as string,
         client: client as string,
       };
 
-      const [newClients, previousNewClients] = await Promise.all([
+      // Run ALL 4 queries in parallel for maximum speed
+      const [metrics, previousMetrics, newClients, previousNewClients] = await Promise.all([
+        // Current period metrics
+        storage.getSalesMetrics({
+          startDate: currentStartDate,
+          endDate: currentEndDate,
+          salesperson: salesperson as string,
+          segment: segment as string,
+          client: client as string,
+          supplier: supplier as string,
+          product: product as string,
+        }),
+        // Previous year metrics (year-over-year comparison)
+        storage.getSalesMetrics({
+          startDate: previousStartFormatted,
+          endDate: previousEndFormatted,
+          salesperson: salesperson as string,
+          segment: segment as string,
+          client: client as string,
+          supplier: supplier as string,
+          product: product as string,
+        }),
+        // New clients count - current period
         storage.getNewClientsCount({
           startDate: currentStartDate,
           endDate: currentEndDate,
           ...commonFilters,
         }),
+        // New clients count - previous period
         storage.getNewClientsCount({
           startDate: previousStartFormatted,
           endDate: previousEndFormatted,
@@ -875,7 +920,6 @@ export function registerRoutes(app: Express): Server {
         previousNewClients,
       };
 
-      console.log(`[DEBUG] Datos enviados al frontend:`, JSON.stringify(metricsWithComparison, null, 2));
 
       res.json(metricsWithComparison);
     } catch (error) {
@@ -938,9 +982,7 @@ export function registerRoutes(app: Express): Server {
         client: client as string,
       };
 
-      // First get current year totals
       const currentTotals = await storage.getYearlyTotals(currentYear, filters, endDateStr as string);
-      console.log(`[getYearlyTotals API] Req endDateStr: ${endDateStr}, Year: ${currentYear}, Totals: `, currentTotals);
 
       // If we're in the first days of a new year and current year has very little data,
       // return previous year as the main reference for better UX
@@ -16636,54 +16678,91 @@ export function registerRoutes(app: Express): Server {
       // Estructura organizada: gastos/evidencia_{userId}_{fecha}_{randomId}.{ext}
       const fileName = `gastos/evidencia_${userIdShort}_${dateStr}_${randomId}${fileExtension}`;
 
-      // Always save a local copy as fallback
-      const localDir = path.join(process.cwd(), 'public', 'gastos');
-      const fs = await import('fs/promises');
-      try {
-        await fs.mkdir(localDir, { recursive: true });
-        const localFilePath = path.join(process.cwd(), 'public', fileName);
-        await fs.writeFile(localFilePath, file.buffer);
-        console.log(`💾 [GASTO-EVIDENCIA] Local copy saved: ${localFilePath}`);
-      } catch (localErr) {
-        console.warn('⚠️ [GASTO-EVIDENCIA] Could not save local copy:', localErr);
-      }
-
-      // Try to upload to Object Storage (permanent storage)
-      let imageUrl = `/public-objects/${fileName}`;
-      try {
-        const objectStorageService = new ObjectStorageService();
-        imageUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
-        console.log(`☁️ [GASTO-EVIDENCIA] Uploaded to Object Storage: ${fileName}`);
-      } catch (objStorageErr) {
-        console.warn(`⚠️ [GASTO-EVIDENCIA] Object Storage upload failed, using local fallback: ${objStorageErr}`);
-        // imageUrl already set to local fallback path
-      }
-
+      let imageUrl: string;
       let previewUrl: string | null = null;
 
-      if (isPdfFile(file.mimetype, file.originalname)) {
-        console.log(`📄 [GASTO-EVIDENCIA] PDF detected, generating preview...`);
-        try {
-          const previewBuffer = await convertPdfToImage(file.buffer, 600);
-          if (previewBuffer) {
-            const previewFileName = `gastos/evidencia_${userIdShort}_${dateStr}_${randomId}_preview.png`;
-            // Save preview locally
-            try {
-              const localPreviewPath = path.join(process.cwd(), 'public', previewFileName);
-              await fs.writeFile(localPreviewPath, previewBuffer);
-            } catch { /* ignore local preview save errors */ }
-            // Try Object Storage
-            try {
-              const objectStorageService = new ObjectStorageService();
-              previewUrl = await objectStorageService.uploadImage(previewFileName, previewBuffer, 'image/png');
-            } catch {
-              previewUrl = `/public-objects/${previewFileName}`;
-            }
-            console.log(`🖼️ [GASTO-EVIDENCIA] Preview generated: ${previewFileName}`);
-          }
-        } catch (previewError) {
-          console.warn('⚠️ [GASTO-EVIDENCIA] Failed to generate PDF preview:', previewError);
+      // Option 1: Supabase Storage (Railway deployment)
+      if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY && process.env.SUPABASE_STORAGE_BUCKET) {
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+        const bucket = process.env.SUPABASE_STORAGE_BUCKET;
+
+        const { data, error } = await supabase.storage
+          .from(bucket)
+          .upload(fileName, file.buffer, {
+            contentType: file.mimetype,
+            upsert: false,
+          });
+
+        if (error) {
+          console.error('❌ [GASTO-EVIDENCIA] Supabase Storage error:', error.message);
+          throw error;
         }
+
+        const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(fileName);
+        imageUrl = urlData.publicUrl;
+        console.log(`☁️ [GASTO-EVIDENCIA] Uploaded to Supabase: ${fileName} -> ${imageUrl}`);
+
+        // Generate PDF preview
+        if (isPdfFile(file.mimetype, file.originalname)) {
+          try {
+            const previewBuffer = await convertPdfToImage(file.buffer, 600);
+            if (previewBuffer) {
+              const previewFileName = `gastos/evidencia_${userIdShort}_${dateStr}_${randomId}_preview.png`;
+              const { error: prevErr } = await supabase.storage
+                .from(bucket)
+                .upload(previewFileName, previewBuffer, { contentType: 'image/png', upsert: false });
+              if (!prevErr) {
+                const { data: prevUrlData } = supabase.storage.from(bucket).getPublicUrl(previewFileName);
+                previewUrl = prevUrlData.publicUrl;
+              }
+            }
+          } catch (previewError) {
+            console.warn('⚠️ [GASTO-EVIDENCIA] Failed to generate PDF preview:', previewError);
+          }
+        }
+      }
+      // Option 2: Replit Object Storage
+      else if (process.env.PUBLIC_OBJECT_SEARCH_PATHS) {
+        imageUrl = `/public-objects/${fileName}`;
+        try {
+          const objectStorageService = new ObjectStorageService();
+          imageUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
+          console.log(`☁️ [GASTO-EVIDENCIA] Uploaded to Object Storage: ${fileName}`);
+        } catch (objStorageErr) {
+          console.warn(`⚠️ [GASTO-EVIDENCIA] Object Storage upload failed, using local fallback: ${objStorageErr}`);
+        }
+
+        if (isPdfFile(file.mimetype, file.originalname)) {
+          try {
+            const previewBuffer = await convertPdfToImage(file.buffer, 600);
+            if (previewBuffer) {
+              const previewFileName = `gastos/evidencia_${userIdShort}_${dateStr}_${randomId}_preview.png`;
+              try {
+                const objectStorageService = new ObjectStorageService();
+                previewUrl = await objectStorageService.uploadImage(previewFileName, previewBuffer, 'image/png');
+              } catch {
+                previewUrl = `/public-objects/${previewFileName}`;
+              }
+            }
+          } catch (previewError) {
+            console.warn('⚠️ [GASTO-EVIDENCIA] Failed to generate PDF preview:', previewError);
+          }
+        }
+      }
+      // Option 3: Local file storage fallback
+      else {
+        const localDir = path.join(process.cwd(), 'public', 'gastos');
+        const fs = await import('fs/promises');
+        try {
+          await fs.mkdir(localDir, { recursive: true });
+          const localFilePath = path.join(process.cwd(), 'public', fileName);
+          await fs.writeFile(localFilePath, file.buffer);
+          console.log(`💾 [GASTO-EVIDENCIA] Local copy saved: ${localFilePath}`);
+        } catch (localErr) {
+          console.warn('⚠️ [GASTO-EVIDENCIA] Could not save local copy:', localErr);
+        }
+        imageUrl = `/${fileName}`;
       }
 
       res.json({ url: imageUrl, fileName, previewUrl });
