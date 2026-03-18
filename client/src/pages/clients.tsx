@@ -178,10 +178,12 @@ export default function Clients() {
 
   const { data: segments } = useQuery<string[]>({
     queryKey: ['/api/goals/data/segments'],
+    staleTime: 5 * 60 * 1000, // 5 min
   });
 
   const { data: salespeople } = useQuery<string[]>({
     queryKey: ['/api/goals/data/salespeople'],
+    staleTime: 5 * 60 * 1000, // 5 min
   });
 
   const { data: businessTypes } = useQuery<string[]>({

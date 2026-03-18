@@ -3237,27 +3237,14 @@ export class DatabaseStorage implements IStorage {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Get period total sales
-    const [totalResult] = await db
-      .select({
-        total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
-      })
-      .from(factVentas)
-      .where(whereClause);
-
-    // Get total count of unique clients
-    const [countResult] = await db
-      .select({
-        count: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
-      })
-      .from(factVentas)
-      .where(whereClause);
-
+    // Combined single query: top clients + total sales + total count using window functions
     const results = await db
       .select({
         clientName: factVentas.nokoen,
         totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
+        periodTotalSales: sql<number>`SUM(SUM(${factVentas.monto})) OVER()`,
+        totalCount: sql<number>`COUNT(*) OVER()`,
       })
       .from(factVentas)
       .where(whereClause)
@@ -3265,14 +3252,17 @@ export class DatabaseStorage implements IStorage {
       .orderBy(sql`SUM(${factVentas.monto}) DESC`)
       .limit(limit);
 
+    const periodTotalSales = results.length > 0 ? Number(results[0].periodTotalSales) : 0;
+    const totalCount = results.length > 0 ? Number(results[0].totalCount) : 0;
+
     return {
       items: results.map(r => ({
         clientName: r.clientName || '',
         totalSales: Number(r.totalSales),
         transactionCount: Number(r.transactionCount),
       })),
-      periodTotalSales: Number(totalResult.total),
-      totalCount: Number(countResult.count),
+      periodTotalSales,
+      totalCount,
     };
   }
 
@@ -5102,16 +5092,25 @@ export class DatabaseStorage implements IStorage {
 
   // Data for goals form
   async getUniqueSegments(): Promise<string[]> {
+    const cached = this.getCached<string[]>('uniqueSegments');
+    if (cached) return cached;
+
     const result = await db
       .selectDistinct({ segment: factVentas.noruen })
       .from(factVentas)
       .where(sql`${factVentas.noruen} IS NOT NULL AND ${factVentas.noruen} != ''`)
       .orderBy(factVentas.noruen);
 
-    return result.map((r: any) => r.segment).filter((segment: string | null): segment is string => Boolean(segment));
+    const segments = result.map((r: any) => r.segment).filter((segment: string | null): segment is string => Boolean(segment));
+    this.setCache('uniqueSegments', segments, 300000); // 5 min cache
+    return segments;
   }
 
   async getUniqueSalespeople(filters?: { startDate?: string; endDate?: string }): Promise<string[]> {
+    const cacheKey = `uniqueSalespeople:${filters?.startDate || ''}:${filters?.endDate || ''}`;
+    const cached = this.getCached<string[]>(cacheKey);
+    if (cached) return cached;
+
     let query = db
       .selectDistinct({ salesperson: factVentas.nokofu })
       .from(factVentas)
@@ -5127,7 +5126,9 @@ export class DatabaseStorage implements IStorage {
 
     const result = await query;
 
-    return result.map((r: any) => r.salesperson).filter((salesperson: string | null): salesperson is string => Boolean(salesperson));
+    const salespeople = result.map((r: any) => r.salesperson).filter((salesperson: string | null): salesperson is string => Boolean(salesperson));
+    this.setCache(cacheKey, salespeople, 300000); // 5 min cache
+    return salespeople;
   }
 
   async getUniqueClients(): Promise<string[]> {
@@ -5147,29 +5148,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUniqueBusinessTypes(): Promise<string[]> {
+    const cached = this.getCached<string[]>('uniqueBusinessTypes');
+    if (cached) return cached;
+
     const result = await db
       .selectDistinct({ gien: clients.gien })
       .from(clients)
       .where(sql`${clients.gien} IS NOT NULL AND ${clients.gien} != '' AND LENGTH(${clients.gien}) > 1`)
       .orderBy(clients.gien)
-      .limit(200); // Limit results to avoid heavy queries
+      .limit(200);
 
-    // Simple filter for obvious placeholder values  
-    return result
+    const types = result
       .map(row => row.gien?.trim())
       .filter(type => type && !['..', '.', '-', 'N/A'].includes(type)) as string[];
+    this.setCache('uniqueBusinessTypes', types, 300000); // 5 min cache
+    return types;
   }
 
   async getUniqueEntityTypes(): Promise<string[]> {
+    const cached = this.getCached<string[]>('uniqueEntityTypes');
+    if (cached) return cached;
+
     const result = await db
       .selectDistinct({ tien: clients.tien })
       .from(clients)
       .where(sql`${clients.tien} IS NOT NULL AND ${clients.tien} != ''`)
       .orderBy(clients.tien);
 
-    return result
+    const types = result
       .map(row => row.tien?.trim())
       .filter(type => type && type.length > 0) as string[];
+    this.setCache('uniqueEntityTypes', types, 300000); // 5 min cache
+    return types;
   }
 
   async getSimpleClients(): Promise<Array<{ id: string; nokoen: string; koen: string }>> {

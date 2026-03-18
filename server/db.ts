@@ -15,11 +15,13 @@ let connectionAttempts = 0;
 // Improved pool configuration for better stability
 const poolConfig = {
   connectionString: process.env.DATABASE_URL,
-  max: 5, // Reduced for Supabase session mode pooler limits
+  max: 10, // Supabase transaction pooler supports up to 60; 10 handles concurrent dashboard requests
   maxUses: 1000, // Cycle connections more frequently
-  connectionTimeoutMillis: 15000, // Faster failure detection
+  connectionTimeoutMillis: 10000, // 10s connection timeout
   idleTimeoutMillis: 120000, // Prevent stale connections
   allowExitOnIdle: false,
+  keepAlive: true, // Keep TCP connections alive to reduce reconnect overhead
+  keepAliveInitialDelayMillis: 10000,
   statement_timeout: 60000, // 60 second query timeout
   query_timeout: 60000,
   application_name: 'dashboard-app',

@@ -348,6 +348,7 @@ export default function Dashboard() {
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
+    staleTime: 5 * 60 * 1000, // 5 min
   });
 
   // Subtle refresh functionality state (Old implementation, kept for backward compatibility if needed)
@@ -606,6 +607,7 @@ export default function Dashboard() {
   // Fetch segments and salespeople for the filter dropdown
   const { data: segments } = useQuery<string[]>({
     queryKey: ["/api/goals/data/segments"],
+    staleTime: 5 * 60 * 1000, // 5 min — segments rarely change
   });
 
   const { data: salespeople } = useQuery<string[]>({
@@ -618,7 +620,8 @@ export default function Dashboard() {
       const response = await fetch(`/api/goals/data/salespeople?${params}`);
       if (!response.ok) throw new Error('Failed to fetch salespeople');
       return response.json();
-    }
+    },
+    staleTime: 5 * 60 * 1000, // 5 min
   });
 
   // Fetch clients for the filter dropdown (top 100 clients by sales)
@@ -724,11 +727,12 @@ export default function Dashboard() {
   const { data: lastFileUpload } = useQuery({
     queryKey: ["/api/files/last-upload", "sales"],
     queryFn: () => fetch('/api/files/last-upload?fileType=sales').then(res => {
-      if (res.status === 404) return null; // No uploads yet
+      if (res.status === 404) return null;
       if (!res.ok) throw new Error('Failed to fetch last upload');
       return res.json();
     }),
     retry: false,
+    staleTime: 5 * 60 * 1000, // 5 min
   });
 
   // Set last updated timestamp from file upload data

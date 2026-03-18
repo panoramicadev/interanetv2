@@ -93,6 +93,11 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_fact_ventas_nokoen ON ventas.fact_ventas(nokoen)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_fact_ventas_koprct ON ventas.fact_ventas(koprct)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_fact_ventas_kofudo ON ventas.fact_ventas(kofudo)`);
+    // Composite indexes for dashboard performance (date + filter columns)
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS ix_fact_ventas_feemdo_tido ON ventas.fact_ventas(feemdo, tido)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS ix_fact_ventas_feemdo_nokofu_tido ON ventas.fact_ventas(feemdo, nokofu, tido)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS ix_fact_ventas_feemdo_noruen_tido ON ventas.fact_ventas(feemdo, noruen, tido)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS ix_fact_ventas_nokoen_feemdo ON ventas.fact_ventas(nokoen, feemdo)`);
     
     // 3. Crear tablas staging de GDV
     console.log('  📋 Verificando tablas de GDV...');
