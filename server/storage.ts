@@ -3233,16 +3233,6 @@ export class DatabaseStorage implements IStorage {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Get period total sales
-    const [totalResult] = await db
-      .select({
-        total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
-      })
-      .from(factVentas)
-      .where(whereClause);
-
-    const periodTotal = Number(totalResult.total);
-
     // For products, filter only transactions with product name
     const productConditions = [
       ...conditions,
@@ -3251,29 +3241,36 @@ export class DatabaseStorage implements IStorage {
 
     const productWhereClause = productConditions.length > 0 ? and(...productConditions) : undefined;
 
-    // Get total count of unique products
-    const [countResult] = await db
-      .select({
-        count: sql<number>`COUNT(DISTINCT ${factVentas.nokoprct})`,
-      })
-      .from(factVentas)
-      .where(productWhereClause);
+    // Run all 3 queries in parallel
+    const [totalResult, countResult, results] = await Promise.all([
+      db.select({
+          total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        })
+        .from(factVentas)
+        .where(whereClause)
+        .then(r => r[0]),
+      db.select({
+          count: sql<number>`COUNT(DISTINCT ${factVentas.nokoprct})`,
+        })
+        .from(factVentas)
+        .where(productWhereClause)
+        .then(r => r[0]),
+      db.select({
+          productName: factVentas.nokoprct,
+          totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+          totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'GDV' THEN 0 WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
+          transactionCount: sql<number>`COUNT(*)`,
+          uniqueOrders: sql<number>`COUNT(DISTINCT ${factVentas.nudo})`,
+          uniqueClients: sql<number>`COUNT(DISTINCT ${factVentas.endo})`,
+        })
+        .from(factVentas)
+        .where(productWhereClause)
+        .groupBy(factVentas.nokoprct)
+        .orderBy(sql`SUM(${factVentas.monto}) DESC`)
+        .limit(limit),
+    ]);
 
-    // Sum by individual product lines using MONTO
-    const results = await db
-      .select({
-        productName: factVentas.nokoprct,
-        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
-        totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'GDV' THEN 0 WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
-        transactionCount: sql<number>`COUNT(*)`,
-        uniqueOrders: sql<number>`COUNT(DISTINCT ${factVentas.nudo})`,
-        uniqueClients: sql<number>`COUNT(DISTINCT ${factVentas.endo})`,
-      })
-      .from(factVentas)
-      .where(productWhereClause)
-      .groupBy(factVentas.nokoprct)
-      .orderBy(sql`SUM(${factVentas.monto}) DESC`)
-      .limit(limit);
+    const periodTotal = Number(totalResult.total);
 
     return {
       items: results.map(r => {
@@ -4413,6 +4410,11 @@ export class DatabaseStorage implements IStorage {
     totalSales: number;
     percentage: number;
   }>> {
+    // Cache key
+    const segCacheKey = `segmentAnalysis:${startDate || ''}:${endDate || ''}:${salesperson || ''}:${segment || ''}`;
+    const segCached = this.getCached<Array<{ segment: string; totalSales: number; percentage: number }>>(segCacheKey);
+    if (segCached) return segCached;
+
     const dateConditions = [
       sql`${factVentas.tido} != 'GDV'`
     ];
@@ -4431,48 +4433,39 @@ export class DatabaseStorage implements IStorage {
     }
     const dateFilter = dateConditions.length > 0 ? and(...dateConditions) : undefined;
 
-    const [totalSalesResult] = await db
-      .select({
-        total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
-      })
-      .from(factVentas)
-      .where(dateFilter);
+    const conditions = [
+      sql`${factVentas.noruen} IS NOT NULL AND ${factVentas.noruen} != ''`,
+      ...dateConditions
+    ];
+
+    // Run both queries in parallel
+    const [totalSalesResult, results] = await Promise.all([
+      db.select({
+          total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        })
+        .from(factVentas)
+        .where(dateFilter)
+        .then(r => r[0]),
+      db.select({
+          segment: factVentas.noruen,
+          totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        })
+        .from(factVentas)
+        .where(and(...conditions))
+        .groupBy(factVentas.noruen)
+        .orderBy(sql`SUM(${factVentas.monto}) DESC`),
+    ]);
 
     const totalSales = Number(totalSalesResult.total);
 
-    const conditions = [
-      sql`${factVentas.noruen} IS NOT NULL AND ${factVentas.noruen} != ''`,
-      sql`${factVentas.tido} != 'GDV'`
-    ];
-
-    if (startDate) {
-      conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
-    }
-    if (endDate) {
-      conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
-    }
-    if (salesperson) {
-      conditions.push(eq(factVentas.nokofu, salesperson));
-    }
-    if (segment) {
-      conditions.push(eq(factVentas.noruen, segment));
-    }
-
-    const results = await db
-      .select({
-        segment: factVentas.noruen,
-        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
-      })
-      .from(factVentas)
-      .where(and(...conditions))
-      .groupBy(factVentas.noruen)
-      .orderBy(sql`SUM(${factVentas.monto}) DESC`);
-
-    return results.map(r => ({
+    const segResult = results.map(r => ({
       segment: r.segment || '',
       totalSales: Number(r.totalSales),
       percentage: totalSales > 0 ? (Number(r.totalSales) / totalSales) * 100 : 0,
     }));
+
+    this.setCache(segCacheKey, segResult, 60000); // Cache 60 seconds
+    return segResult;
   }
 
   async getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string, segment?: string, client?: string, product?: string): Promise<Array<{
