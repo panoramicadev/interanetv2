@@ -15,17 +15,17 @@ let connectionAttempts = 0;
 // Improved pool configuration for better stability
 const poolConfig = {
   connectionString: process.env.DATABASE_URL,
-  max: 10, // Supabase transaction pooler supports up to 60; 10 handles concurrent dashboard requests
-  maxUses: 1000, // Cycle connections more frequently
+  max: 3, // Supabase Session mode has strict limits — keep low to avoid MaxClientsInSessionMode
+  maxUses: 500, // Cycle connections to prevent stale connections
   connectionTimeoutMillis: 10000, // 10s connection timeout
-  idleTimeoutMillis: 120000, // Prevent stale connections
+  idleTimeoutMillis: 30000, // Release idle connections faster (30s instead of 120s)
   allowExitOnIdle: false,
-  keepAlive: true, // Keep TCP connections alive to reduce reconnect overhead
+  keepAlive: true,
   keepAliveInitialDelayMillis: 10000,
-  statement_timeout: 60000, // 60 second query timeout
+  statement_timeout: 60000,
   query_timeout: 60000,
   application_name: 'dashboard-app',
-  ssl: { rejectUnauthorized: false }, // Required for Supabase connections
+  ssl: { rejectUnauthorized: false },
 };
 
 export const pool = new Pool(poolConfig);
