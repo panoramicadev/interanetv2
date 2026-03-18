@@ -276,9 +276,10 @@ export default function Dashboard() {
   const salespersonFilter = globalFilter.type === "salesperson" ? globalFilter.value : undefined;
   const clientFilter = globalFilter.type === "client" && globalFilter.value ? globalFilter.value : undefined;
   const productFilter = globalFilter.type === "product" ? globalFilter.value : undefined;
+  const branchFilter = globalFilter.type === "branch" ? globalFilter.value : undefined;
 
   const { data: dashboardInit } = useQuery({
-    queryKey: ["/api/dashboard/init", selectedPeriod, filterType, segment, salespersonFilter, clientFilter, productFilter],
+    queryKey: ["/api/dashboard/init", selectedPeriod, filterType, segment, salespersonFilter, clientFilter, productFilter, branchFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append('period', selectedPeriod);
@@ -287,6 +288,7 @@ export default function Dashboard() {
       if (salespersonFilter) params.append('salesperson', salespersonFilter);
       if (clientFilter) params.append('client', clientFilter);
       if (productFilter) params.append('product', productFilter);
+      if (branchFilter) params.append('branch', branchFilter);
       const res = await fetch(`/api/dashboard/init?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       const data = await res.json();
@@ -313,6 +315,7 @@ export default function Dashboard() {
 
       return data;
     },
+    staleTime: 2 * 60 * 1000, // 2 min — dashboard metrics don't change that fast
   });
 
   // Use pre-fetched availablePeriods from consolidated init
@@ -1115,7 +1118,7 @@ export default function Dashboard() {
                                     </SelectItem>
                                   ))
                                 ) : localSelectedFilter === "branch" ? (
-                                  ["CONCEPCION", "SANTIAGO"].map((branch) => (
+                                  ["CONCEPCION", "TEMUCO"].map((branch) => (
                                     <SelectItem key={branch} value={branch}>
                                       {branch}
                                     </SelectItem>
@@ -1502,7 +1505,7 @@ export default function Dashboard() {
                           </SelectItem>
                         ))
                       ) : selectedFilter === "branch" ? (
-                        ["CONCEPCION", "SANTIAGO"].map((branch) => (
+                        ["CONCEPCION", "TEMUCO"].map((branch) => (
                           <SelectItem key={branch} value={branch}>
                             {branch}
                           </SelectItem>

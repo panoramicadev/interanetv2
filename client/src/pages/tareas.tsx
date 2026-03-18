@@ -1416,7 +1416,19 @@ export default function TareasPage() {
                   {/* Grouped Tasks */}
                   {groups.map((group, groupIndex) => {
                     const tasks = groupedTasks[group.id] || [];
-                    const completedCount = tasks.filter(t => t.status === 'completada').length;
+                    const completedCount = tasks.filter(t => {
+                      if (t.status === 'completada') return true;
+                      // Also check assignment-level completion (same logic as renderTaskCard)
+                      const myAssign = t.assignments.find(a =>
+                        (a.assigneeType === "supervisor" && a.assigneeId === user.id) ||
+                        (a.assigneeType === "salesperson" && a.assigneeId === user.id) ||
+                        (a.assigneeType === "user" && a.assigneeId === user.id)
+                      );
+                      const targetAssign = myAssign || (
+                        (user.role === 'admin' || user.role === 'supervisor') ? t.assignments[0] : null
+                      );
+                      return targetAssign?.status === 'completed';
+                    }).length;
                     const totalCount = tasks.length;
                     const progressPercent = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
                     const borderColor = group.color || groupColors[groupIndex % groupColors.length];

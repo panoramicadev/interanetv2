@@ -958,7 +958,7 @@ export function registerRoutes(app: Express): Server {
   // CONSOLIDATED DASHBOARD INIT - reduces ~12 API calls to 1
   // ═══════════════════════════════════════════════════════════
   app.get('/api/dashboard/init', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
-    const { period, filterType, segment, salesperson, client, product, endDateStr } = req.query;
+    const { period, filterType, segment, salesperson, client, product, branch, endDateStr } = req.query;
 
     const dateRange = getDateRange(period as string, filterType as string);
     const currentStartDate = dateRange.startDate || '';
@@ -975,6 +975,7 @@ export function registerRoutes(app: Express): Server {
       segment: segment as string,
       salesperson: salesperson as string,
       client: client as string,
+      branch: branch as string,
     };
 
     // Run ALL queries in parallel - single HTTP roundtrip, multiple DB queries
@@ -993,7 +994,8 @@ export function registerRoutes(app: Express): Server {
             segment: segment as string,
             client: client as string,
             product: product as string,
-          })
+            branch: branch as string,
+          } as any)
         : null,
       // 2. Best year historical (1.1s but cached 5min)
       storage.getBestYearHistorical(filters),

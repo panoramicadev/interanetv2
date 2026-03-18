@@ -289,7 +289,7 @@ export default function SucursalDetail({
   });
 
   // Use hardcoded list of branches
-  const allBranches = ["CONCEPCION", "SANTIAGO"];
+  const allBranches = ["CONCEPCION", "TEMUCO"];
 
   // Fetch all salespeople for dropdown when switching views
   const { data: allSalespeople } = useQuery<string[]>({

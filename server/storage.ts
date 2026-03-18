@@ -2634,6 +2634,76 @@ export class DatabaseStorage implements IStorage {
     return conditions;
   }
 
+  // ── Branch (Sucursal) configuration ──────────────────────────────────
+  // Each branch is defined by its salespeople and optional client exclusions.
+  // When the user selects "Por sucursal → CONCEPCION", we filter fact_ventas
+  // to only rows matching these salespeople (minus excluded clients).
+  static readonly BRANCH_CONFIG: Record<string, {
+    label: string;
+    salespeople: string[];  // nokofu values
+    excludeClients?: { salesperson: string; clients: string[] }[];
+  }> = {
+    'CONCEPCION': {
+      label: 'Panorámica Store Concepción',
+      salespeople: [
+        'HECTOR URIZAR',
+        'WLADIMIR MUÑOZ',
+        'MAURICIO CHAPARRO',
+        'ISAUD TORRES',
+        'MCT CONCEPCION',
+      ],
+      excludeClients: [
+        { salesperson: 'MAURICIO CHAPARRO', clients: ['POCURO'] },
+      ],
+    },
+    'TEMUCO': {
+      label: 'Panorámica Store Temuco',
+      salespeople: [],  // To be defined — shows all salespeople for now
+    },
+  };
+
+  /** Resolve branch name into SQL conditions for fact_ventas filtering */
+  static getBranchConditions(branchName: string): any[] {
+    const config = DatabaseStorage.BRANCH_CONFIG[branchName.toUpperCase()];
+    if (!config || config.salespeople.length === 0) return [];
+
+    const conditions: any[] = [];
+
+    // Build: (nokofu IN (...)) with per-salesperson client exclusions
+    // For salespeople WITHOUT exclusions: nokofu IN (...)
+    // For salespeople WITH exclusions: (nokofu = X AND nokoen NOT IN (...))
+    const excludeMap = new Map<string, string[]>();
+    if (config.excludeClients) {
+      for (const exc of config.excludeClients) {
+        excludeMap.set(exc.salesperson, exc.clients);
+      }
+    }
+
+    const cleanSalespeople = config.salespeople.filter(sp => !excludeMap.has(sp));
+    const excludedSalespeople = config.salespeople.filter(sp => excludeMap.has(sp));
+
+    const orParts: any[] = [];
+
+    if (cleanSalespeople.length > 0) {
+      orParts.push(sql`${factVentas.nokofu} IN (${sql.join(cleanSalespeople.map(s => sql`${s}`), sql`, `)})`);
+    }
+
+    for (const sp of excludedSalespeople) {
+      const excludedClients = excludeMap.get(sp)!;
+      orParts.push(
+        sql`(${factVentas.nokofu} = ${sp} AND ${factVentas.nokoen} NOT IN (${sql.join(excludedClients.map(c => sql`${c}`), sql`, `)}))`
+      );
+    }
+
+    if (orParts.length === 1) {
+      conditions.push(orParts[0]);
+    } else if (orParts.length > 1) {
+      conditions.push(sql`(${sql.join(orParts, sql` OR `)})`);
+    }
+
+    return conditions;
+  }
+
   async getSalesMetrics(filters: {
     startDate?: string;
     endDate?: string;
@@ -2671,6 +2741,11 @@ export class DatabaseStorage implements IStorage {
     }
     if (product) {
       conditions.push(eq(factVentas.nokoprct, product));
+    }
+    // Branch filter: expand into multi-salesperson + client exclusions
+    if ((filters as any).branch) {
+      const branchConditions = DatabaseStorage.getBranchConditions((filters as any).branch);
+      conditions.push(...branchConditions);
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -2906,6 +2981,9 @@ export class DatabaseStorage implements IStorage {
     if (filters?.client) {
       baseConditions.push(eq(factVentas.nokoen, filters.client));
     }
+    if ((filters as any)?.branch) {
+      baseConditions.push(...DatabaseStorage.getBranchConditions((filters as any).branch));
+    }
 
     // Run both year queries in parallel
     const [requestedYearResults, previousYearResults] = await Promise.all([
@@ -2947,12 +3025,12 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getBestYearHistorical(filters?: { segment?: string; salesperson?: string; client?: string }): Promise<{
+  async getBestYearHistorical(filters?: { segment?: string; salesperson?: string; client?: string; branch?: string }): Promise<{
     bestYear: number;
     bestYearTotal: number;
   }> {
     // Check cache first (expensive query - full table group by year)
-    const cacheKey = `bestYear:${filters?.segment || ''}:${filters?.salesperson || ''}:${filters?.client || ''}`;
+    const cacheKey = `bestYear:${filters?.segment || ''}:${filters?.salesperson || ''}:${filters?.client || ''}:${filters?.branch || ''}`;
     const cached = this.getCached<{ bestYear: number; bestYearTotal: number }>(cacheKey);
     if (cached) return cached;
 
@@ -2968,6 +3046,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (filters?.client) {
       conditions.push(eq(factVentas.nokoen, filters.client));
+    }
+    if (filters?.branch) {
+      conditions.push(...DatabaseStorage.getBranchConditions(filters.branch));
     }
 
     // Get sales by year (excluding ALL GDV)
