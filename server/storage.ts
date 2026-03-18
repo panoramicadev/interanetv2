@@ -11058,52 +11058,58 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Single aggregation query for ALL clients at once
-    const metricsResult = await db.execute(sql`
-      WITH client_agg AS (
+    // Wrap in try/catch: if metrics query fails, still return clients with zero metrics
+    let metricsMap = new Map<string, any>();
+    try {
+      const metricsResult = await db.execute(sql`
+        WITH client_agg AS (
+          SELECT 
+            nokoen,
+            COUNT(*)::int AS total_transactions,
+            COALESCE(SUM(monto), 0)::numeric AS total_sales,
+            MAX(feemdo)::text AS last_transaction_date
+          FROM ventas.fact_ventas
+          WHERE nokoen IN (${sql.join(clientNames.map(n => sql`${n}`), sql`, `)})
+          GROUP BY nokoen
+        ),
+        latest_doc AS (
+          SELECT DISTINCT ON (nokoen)
+            nokoen,
+            idmaeedo,
+            nokofu AS salesperson_name,
+            noruen AS segment_name
+          FROM ventas.fact_ventas
+          WHERE nokoen IN (${sql.join(clientNames.map(n => sql`${n}`), sql`, `)})
+          ORDER BY nokoen, feemdo DESC, idmaeedo DESC
+        ),
+        doc_totals AS (
+          SELECT 
+            ld.nokoen,
+            COALESCE(SUM(fv.monto), 0)::numeric AS last_transaction_amount
+          FROM latest_doc ld
+          JOIN ventas.fact_ventas fv ON fv.idmaeedo = ld.idmaeedo
+          GROUP BY ld.nokoen
+        )
         SELECT 
-          nokoen,
-          COUNT(*)::int AS total_transactions,
-          COALESCE(SUM(monto), 0)::numeric AS total_sales,
-          MAX(feemdo)::text AS last_transaction_date
-        FROM ventas.fact_ventas
-        WHERE nokoen = ANY(${clientNames})
-        GROUP BY nokoen
-      ),
-      latest_doc AS (
-        SELECT DISTINCT ON (nokoen)
-          nokoen,
-          idmaeedo,
-          nokofu AS salesperson_name,
-          noruen AS segment_name
-        FROM ventas.fact_ventas
-        WHERE nokoen = ANY(${clientNames})
-        ORDER BY nokoen, feemdo DESC, idmaeedo DESC
-      ),
-      doc_totals AS (
-        SELECT 
-          ld.nokoen,
-          COALESCE(SUM(fv.monto), 0)::numeric AS last_transaction_amount
-        FROM latest_doc ld
-        JOIN ventas.fact_ventas fv ON fv.idmaeedo = ld.idmaeedo
-        GROUP BY ld.nokoen
-      )
-      SELECT 
-        ca.nokoen,
-        ca.total_transactions,
-        ca.total_sales,
-        ca.last_transaction_date,
-        ld.salesperson_name,
-        ld.segment_name,
-        COALESCE(dt.last_transaction_amount, 0) AS last_transaction_amount
-      FROM client_agg ca
-      LEFT JOIN latest_doc ld ON ld.nokoen = ca.nokoen
-      LEFT JOIN doc_totals dt ON dt.nokoen = ca.nokoen
-    `);
+          ca.nokoen,
+          ca.total_transactions,
+          ca.total_sales,
+          ca.last_transaction_date,
+          ld.salesperson_name,
+          ld.segment_name,
+          COALESCE(dt.last_transaction_amount, 0) AS last_transaction_amount
+        FROM client_agg ca
+        LEFT JOIN latest_doc ld ON ld.nokoen = ca.nokoen
+        LEFT JOIN doc_totals dt ON dt.nokoen = ca.nokoen
+      `);
 
-    // Build a lookup map from metrics
-    const metricsMap = new Map<string, any>();
-    for (const row of metricsResult.rows as any[]) {
-      metricsMap.set(row.nokoen, row);
+      // Build a lookup map from metrics
+      for (const row of metricsResult.rows as any[]) {
+        metricsMap.set(row.nokoen, row);
+      }
+    } catch (metricsError) {
+      console.error('[getClients] Metrics CTE query failed, returning clients without metrics:', metricsError);
+      // metricsMap stays empty — clients will be returned with zero metrics
     }
 
     // Merge metrics into client data
