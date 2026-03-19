@@ -2201,7 +2201,7 @@ export default function TomadorPedidos() {
   <div class="container">
     <div class="header">
       <div class="header-left">
-        <img src="/panoramica-logo.png" alt="Logo Panoramica 30 Años" style="width:220px;height:auto;display:block" />
+        <img src="${window.location.origin}/panoramica-logo.png" alt="Logo Panoramica 30 Años" style="width:220px;height:auto;display:block" />
       </div>
       <div class="header-right">
         <h1>COTIZACIÓN</h1>
@@ -2304,13 +2304,22 @@ export default function TomadorPedidos() {
     </button>
   </div>
   <script>
-    // Auto-trigger print dialog when page loads, including images
+    // Wait for logo image to load, then trigger print
     window.addEventListener('load', function() {
-      window.focus();
-      window.print();
-      setTimeout(function() {
-        window.close();
-      }, 250);
+      var img = document.querySelector('.header-left img');
+      function doPrint() {
+        window.focus();
+        window.print();
+        setTimeout(function() { window.close(); }, 250);
+      }
+      if (img && !img.complete) {
+        img.onload = doPrint;
+        img.onerror = doPrint; // Print even if image fails
+        // Fallback timeout in case events don't fire
+        setTimeout(doPrint, 3000);
+      } else {
+        doPrint();
+      }
     });
   </script>
 </body>
@@ -2322,20 +2331,25 @@ export default function TomadorPedidos() {
         printWindow.document.write(htmlContent);
         printWindow.document.close();
 
-        // Enhanced auto-print with proper timing and window management
-        printWindow.onload = () => {
+        // Wait for image to load before triggering print
+        const logoImg = printWindow.document.querySelector('.header-left img') as HTMLImageElement;
+        const triggerPrint = () => {
           setTimeout(() => {
             printWindow.print();
-            // Auto-close after print dialog (optional - remove if not desired)
             setTimeout(() => {
-              try {
-                printWindow.close();
-              } catch (e) {
-                // Ignore errors if user manually closed window
-              }
+              try { printWindow.close(); } catch (e) { /* ignored */ }
             }, 1000);
-          }, 500);
+          }, 300);
         };
+
+        if (logoImg && !logoImg.complete) {
+          logoImg.onload = triggerPrint;
+          logoImg.onerror = triggerPrint;
+          // Fallback timeout
+          setTimeout(triggerPrint, 3000);
+        } else {
+          triggerPrint();
+        }
       } else {
         throw new Error("No se pudo abrir la ventana del PDF. Verifique que no esté bloqueada por el navegador.");
       }

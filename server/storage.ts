@@ -4405,6 +4405,237 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  /**
+   * Get sales breakdown (format/color/variant) for items in an ecommerce product group.
+   * Looks up product names from ecommerce_products→price_list, then queries fact_ventas.
+   */
+  async getProductGroupSalesBreakdown(groupId: string, filters?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<{
+    groupName: string;
+    totalSales: number;
+    totalUnits: number;
+    transactionCount: number;
+    uniqueClients: number;
+    topClient: string | null;
+    topSalesperson: string | null;
+    variants: Array<{
+      fullName: string;
+      format: string;
+      color: string;
+      totalSales: number;
+      totalUnits: number;
+      transactionCount: number;
+    }>;
+    formatBreakdown: Array<{
+      format: string;
+      totalSales: number;
+      totalUnits: number;
+      transactionCount: number;
+      percentage: number;
+    }>;
+    colorBreakdown: Array<{
+      color: string;
+      totalSales: number;
+      totalUnits: number;
+      transactionCount: number;
+      percentage: number;
+    }>;
+  }> {
+    const { ecommerceProductGroups, priceList: priceListTable } = await import('@shared/schema');
+
+    // 1. Get group name
+    const [group] = await db
+      .select({ nombre: ecommerceProductGroups.nombre })
+      .from(ecommerceProductGroups)
+      .where(eq(ecommerceProductGroups.id, groupId))
+      .limit(1);
+
+    if (!group) {
+      return {
+        groupName: '', totalSales: 0, totalUnits: 0, transactionCount: 0,
+        uniqueClients: 0, topClient: null, topSalesperson: null,
+        variants: [], formatBreakdown: [], colorBreakdown: [],
+      };
+    }
+
+    // 2. Get all product names belonging to this group
+    const groupProducts = await db
+      .select({ producto: priceListTable.producto })
+      .from(ecommerceProducts)
+      .innerJoin(priceListTable, eq(ecommerceProducts.priceListId, priceListTable.id))
+      .where(eq(ecommerceProducts.groupId, groupId));
+
+    const productNames = [...new Set(groupProducts.map(p => p.producto).filter(Boolean) as string[])];
+
+    if (productNames.length === 0) {
+      return {
+        groupName: group.nombre, totalSales: 0, totalUnits: 0, transactionCount: 0,
+        uniqueClients: 0, topClient: null, topSalesperson: null,
+        variants: [], formatBreakdown: [], colorBreakdown: [],
+      };
+    }
+
+    // 3. Also include all fact_ventas products whose extractParentProductName matches any of these
+    // Get all distinct fact_ventas product names
+    const allFvProducts = await db
+      .select({ name: factVentas.nokoprct })
+      .from(factVentas)
+      .where(and(
+        sql`${factVentas.nokoprct} IS NOT NULL AND ${factVentas.nokoprct} != ''`,
+        sql`${factVentas.tido} != 'GDV'`
+      ))
+      .groupBy(factVentas.nokoprct);
+
+    // Build a set of parent names from the group's products
+    const groupParentNames = new Set(productNames.map(n => this.extractParentProductName(n).toUpperCase()));
+
+    // Find all fact_ventas names that match either directly or via parent name
+    const directLower = new Set(productNames.map(n => n.toUpperCase()));
+    const matchingNames = allFvProducts
+      .map(r => r.name || '')
+      .filter(name => {
+        const upper = name.toUpperCase();
+        if (directLower.has(upper)) return true;
+        const parentUpper = this.extractParentProductName(name).toUpperCase();
+        return groupParentNames.has(parentUpper);
+      });
+
+    if (matchingNames.length === 0) {
+      return {
+        groupName: group.nombre, totalSales: 0, totalUnits: 0, transactionCount: 0,
+        uniqueClients: 0, topClient: null, topSalesperson: null,
+        variants: [], formatBreakdown: [], colorBreakdown: [],
+      };
+    }
+
+    // 4. Query fact_ventas with these names
+    const conditions: any[] = [
+      sql`${factVentas.tido} != 'GDV'`,
+      inArray(factVentas.nokoprct, matchingNames),
+    ];
+    if (filters?.startDate) conditions.push(sql`${factVentas.feemdo} >= ${filters.startDate}::date`);
+    if (filters?.endDate) conditions.push(sql`${factVentas.feemdo} <= ${filters.endDate}::date`);
+    const whereClause = and(...conditions);
+
+    // Overall metrics
+    const [metrics] = await db
+      .select({
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+        uniqueClients: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
+      })
+      .from(factVentas)
+      .where(whereClause);
+
+    const totalSales = Number(metrics?.totalSales || 0);
+
+    // Top client
+    const topClients = await db
+      .select({ clientName: factVentas.nokoen, sales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)` })
+      .from(factVentas).where(whereClause)
+      .groupBy(factVentas.nokoen).orderBy(sql`SUM(${factVentas.monto}) DESC`).limit(1);
+
+    // Top salesperson
+    const topSalespeople = await db
+      .select({ salespersonName: factVentas.nokofu, sales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)` })
+      .from(factVentas).where(whereClause)
+      .groupBy(factVentas.nokofu).orderBy(sql`SUM(${factVentas.monto}) DESC`).limit(1);
+
+    // Per-variant breakdown
+    const variantResults = await db
+      .select({
+        fullName: factVentas.nokoprct,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+      })
+      .from(factVentas).where(whereClause)
+      .groupBy(factVentas.nokoprct).orderBy(sql`SUM(${factVentas.monto}) DESC`);
+
+    // Reuse format/color extractors
+    const extractFormat = (name: string): string => {
+      const ln = name.toLowerCase();
+      if (ln.includes('4 galones') || ln.includes('4gal')) return '4 Galones';
+      if (ln.includes('1/4') || ln.includes('cuarto')) return '1/4 Galón';
+      if (ln.includes('galón') || ln.includes('galon') || ln.includes(' gl') || ln.endsWith(' gl') || ln.includes(' gal ') || ln.endsWith(' gal')) return 'Galón';
+      if (ln.includes('balde') || ln.includes('bd') || ln.includes('bld')) return 'Balde';
+      if (ln.includes('tineta')) return 'Tineta';
+      if (ln.includes('kilo') || ln.includes(' kg') || ln.endsWith(' kg')) return 'Kilo';
+      if (ln.includes('litro') || ln.includes(' lt') || ln.endsWith(' lt') || ln.includes(' lts')) return 'Litro';
+      if (ln.includes('onza') || ln.includes(' oz')) return 'Onza';
+      if (ln.includes('metro') || ln.includes(' mt') || ln.includes(' m ')) return 'Metro';
+      return 'Otro';
+    };
+    const extractColor = (name: string): string => {
+      const ln = name.toLowerCase();
+      if (ln.includes('blanco')) return 'Blanco'; if (ln.includes('negro')) return 'Negro';
+      if (ln.includes('rojo')) return 'Rojo'; if (ln.includes('azul pacifico')) return 'Azul Pacífico';
+      if (ln.includes('azul')) return 'Azul'; if (ln.includes('verde')) return 'Verde';
+      if (ln.includes('amarillo')) return 'Amarillo'; if (ln.includes('gris')) return 'Gris';
+      if (ln.includes('cafe') || ln.includes('café') || ln.includes('marron') || ln.includes('marrón')) return 'Café';
+      if (ln.includes('rosa') || ln.includes('rosado')) return 'Rosa';
+      if (ln.includes('naranja') || ln.includes('anaranjado')) return 'Naranja';
+      if (ln.includes('violeta') || ln.includes('morado')) return 'Violeta';
+      if (ln.includes('incoloro') || ln.includes('transparente')) return 'Incoloro';
+      if (ln.includes('beige')) return 'Beige'; if (ln.includes('crema')) return 'Crema';
+      if (ln.includes('marfil')) return 'Marfil'; if (ln.includes('celeste')) return 'Celeste';
+      return 'Sin especificar';
+    };
+
+    const variants = variantResults.map(r => ({
+      fullName: r.fullName || '',
+      format: extractFormat(r.fullName || ''),
+      color: extractColor(r.fullName || ''),
+      totalSales: Number(r.totalSales),
+      totalUnits: Number(r.totalUnits),
+      transactionCount: Number(r.transactionCount),
+    }));
+
+    // Aggregate by format
+    const formatMap = new Map<string, { totalSales: number; totalUnits: number; transactionCount: number }>();
+    variants.forEach(v => {
+      const existing = formatMap.get(v.format) || { totalSales: 0, totalUnits: 0, transactionCount: 0 };
+      formatMap.set(v.format, {
+        totalSales: existing.totalSales + v.totalSales,
+        totalUnits: existing.totalUnits + v.totalUnits,
+        transactionCount: existing.transactionCount + v.transactionCount,
+      });
+    });
+    const formatBreakdown = Array.from(formatMap.entries())
+      .map(([format, data]) => ({ format, ...data, percentage: totalSales > 0 ? (data.totalSales / totalSales) * 100 : 0 }))
+      .sort((a, b) => b.totalSales - a.totalSales);
+
+    // Aggregate by color
+    const colorMap = new Map<string, { totalSales: number; totalUnits: number; transactionCount: number }>();
+    variants.forEach(v => {
+      const existing = colorMap.get(v.color) || { totalSales: 0, totalUnits: 0, transactionCount: 0 };
+      colorMap.set(v.color, {
+        totalSales: existing.totalSales + v.totalSales,
+        totalUnits: existing.totalUnits + v.totalUnits,
+        transactionCount: existing.transactionCount + v.transactionCount,
+      });
+    });
+    const colorBreakdown = Array.from(colorMap.entries())
+      .map(([color, data]) => ({ color, ...data, percentage: totalSales > 0 ? (data.totalSales / totalSales) * 100 : 0 }))
+      .sort((a, b) => b.totalSales - a.totalSales);
+
+    return {
+      groupName: group.nombre,
+      totalSales,
+      totalUnits: Number(metrics?.totalUnits || 0),
+      transactionCount: Number(metrics?.transactionCount || 0),
+      uniqueClients: Number(metrics?.uniqueClients || 0),
+      topClient: topClients[0]?.clientName || null,
+      topSalesperson: topSalespeople[0]?.salespersonName || null,
+      variants,
+      formatBreakdown,
+      colorBreakdown,
+    };
+  }
+
   async getSegmentAnalysis(startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
     segment: string;
     totalSales: number;

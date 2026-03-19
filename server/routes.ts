@@ -2684,6 +2684,19 @@ export function registerRoutes(app: Express): Server {
     res.json(variants);
   }));
 
+  // Get product group sales breakdown (format, color, variant data from fact_ventas)
+  app.get('/api/sales/product-group/:groupId/breakdown', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    const { groupId } = req.params;
+    const { period, filterType } = req.query;
+    const dateRange = getDateRange(period as string, filterType as string);
+
+    const breakdown = await storage.getProductGroupSalesBreakdown(groupId, {
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+    });
+    res.json(breakdown);
+  }));
+
   // Segment analysis endpoint
   app.get('/api/sales/segments', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
     try {

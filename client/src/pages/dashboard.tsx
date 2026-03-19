@@ -30,6 +30,7 @@ import ComparativePackagingTable from "@/components/dashboard/comparative-packag
 import SalespersonPendingNVV from "@/components/dashboard/salesperson-pending-nvv";
 import SalespersonPendingGDV from "@/components/dashboard/salesperson-pending-gdv";
 import PendingDocumentsUnified from "@/components/dashboard/pending-documents-unified";
+import ProductGroupBreakdown from "@/components/dashboard/product-group-breakdown";
 import { Button } from "@/components/ui/button";
 import { CardWrapper } from "@/components/dashboard/CardWrapper";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -1815,6 +1816,17 @@ export default function Dashboard() {
                 comparePeriod={comparePeriod}
               />
             </div>
+
+            {/* Product Group Breakdown - Format/Color/Variant data */}
+            {globalFilter.type === "product" && globalFilter.value && (
+              <CardWrapper>
+                <ProductGroupBreakdown
+                  productName={globalFilter.value}
+                  selectedPeriod={selectedPeriod}
+                  filterType={filterType}
+                />
+              </CardWrapper>
+            )}
 
             {/* Goals Progress Dashboard - Solo mostrar si hay metas asignadas */}
             {filterType === "month" && goalsProgress && Array.isArray(goalsProgress) && goalsProgress.length > 0 && (
