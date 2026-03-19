@@ -456,7 +456,7 @@ function SalespersonDetails({ salesperson, selectedPeriod, filterType, segment, 
             <p className="text-xs text-gray-500 dark:text-gray-400">Clientes</p>
           </div>
           <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
-            {details.uniqueClients || 0}
+            {(details.uniqueClients || 0).toLocaleString('es-CL')}
           </p>
         </div>
 
