@@ -15,7 +15,7 @@ let connectionAttempts = 0;
 // Improved pool configuration for better stability
 const poolConfig = {
   connectionString: process.env.DATABASE_URL,
-  max: 5, // Transaction Pooler (port 6543) supports up to 200 connections
+  max: 15, // Increase pool for parallel dashboard queries over high-latency network
   maxUses: 500, // Cycle connections to prevent stale connections
   connectionTimeoutMillis: 10000, // 10s connection timeout
   idleTimeoutMillis: 30000, // Release idle connections faster (30s instead of 120s)

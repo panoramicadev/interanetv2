@@ -243,104 +243,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
   const resolvedComparePeriod = resolveComparisonPeriod(comparePeriod || "", selectedPeriod, filterType);
 
-  const { data: metrics, isLoading } = useQuery<SalesMetrics>({
-    queryKey: ['/api/sales/metrics', selectedPeriod, filterType, segment, salesperson, client, product],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      params.append('period', selectedPeriod);
-      params.append('filterType', filterType);
-      if (segment) params.append('segment', segment);
-      if (salesperson) params.append('salesperson', salesperson);
-      if (client) params.append('client', client);
-      if (product) params.append('product', product);
-      const res = await fetch(`/api/sales/metrics?${params.toString()}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return await res.json();
-    },
-  });
-
-  // Query for comparison data if comparePeriod is set
-  const { data: comparisonMetrics } = useQuery<SalesMetrics>({
-    queryKey: ['/api/sales/metrics', resolvedComparePeriod, filterType, segment, salesperson, client, product, 'comparison'],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      params.append('period', resolvedComparePeriod);
-      params.append('filterType', filterType);
-      if (segment) params.append('segment', segment);
-      if (salesperson) params.append('salesperson', salesperson);
-      if (client) params.append('client', client);
-      if (product) params.append('product', product);
-      const res = await fetch(`/api/sales/metrics?${params.toString()}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return await res.json();
-    },
-    enabled: !!resolvedComparePeriod, // Only run if resolved period is set
-  });
-
-  // Query for NVV metrics with filters
-  const { data: nvvMetrics } = useQuery<{
-    totalAmount: number;
-    totalQuantity: number;
-    pendingCount: number;
-    confirmedCount: number;
-    deliveredCount: number;
-    cancelledCount: number;
-  }>({
-    queryKey: ['/api/nvv/metrics', selectedPeriod, filterType, segment, salesperson, client, product],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      params.append('period', selectedPeriod);
-      params.append('filterType', filterType);
-      if (segment) params.append('segment', segment);
-      if (salesperson) params.append('salesperson', salesperson);
-      if (client) params.append('client', client);
-      if (product) params.append('product', product);
-      const res = await fetch(`/api/nvv/metrics?${params.toString()}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return await res.json();
-    },
-  });
-
-  // Query for NVV global total (no date filters) - always shows total pending
-  const { data: nvvGlobalMetrics } = useQuery<{
-    totalAmount: number;
-    totalQuantity: number;
-    pendingCount: number;
-    confirmedCount: number;
-    deliveredCount: number;
-    cancelledCount: number;
-  }>({
-    queryKey: ['/api/nvv/metrics', 'global', segment, salesperson, client],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      // No period/filterType params - returns all historical data
-      if (segment) params.append('segment', segment);
-      if (salesperson) params.append('salesperson', salesperson);
-      if (client) params.append('client', client);
-      const res = await fetch(`/api/nvv/metrics?${params.toString()}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return await res.json();
-    },
-  });
-
-  // Query for GDV global total (no date filters) - always shows total pending
-  const { data: gdvGlobalMetrics } = useQuery<{
-    gdvSales: number;
-    gdvCount: number;
-  }>({
-    queryKey: ['/api/sales/gdv-pending', 'global', segment, salesperson, client],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      // No period/filterType params - returns all pending GDV
-      if (segment) params.append('segment', segment);
-      if (salesperson) params.append('salesperson', salesperson);
-      if (client) params.append('client', client);
-      const res = await fetch(`/api/sales/gdv-pending?${params.toString()}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return await res.json();
-    },
-  });
-
   // Determine YTD range parameters based on selectedPeriod and filterType
   const getYtdParams = () => {
     const today = new Date();
@@ -381,83 +283,50 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
   const { year: currentYearStr, endDateStr: ytdEndDateStr, rangeStr: ytdRangeStr } = getYtdParams();
 
-
-  const { data: yearlyTotals } = useQuery<{
-    currentYearTotal: number;
-    previousYearTotal: number;
-    comparisonYear: number;
-    comparisonDate: string;
-    isYTD: boolean;
+  // ═══ CONSOLIDATED KPI QUERY - 1 request instead of ~10 ═══
+  const { data: kpiData, isLoading } = useQuery<{
+    metrics: SalesMetrics | null;
+    comparisonMetrics: SalesMetrics | null;
+    nvvMetrics: NvvMetrics | null;
+    nvvGlobalMetrics: NvvMetrics | null;
+    gdvGlobalMetrics: { gdvSales: number; gdvCount: number } | null;
+    yearlyTotals: { currentYearTotal: number; previousYearTotal: number; comparisonYear: number; comparisonDate: string; isYTD: boolean } | null;
+    nvvYearlyMetrics: NvvMetrics | null;
+    bestYear: { bestYear: number; bestYearTotal: number } | null;
+    budgetData: any[] | null;
   }>({
-    queryKey: ['/api/sales/yearly-totals', segment, salesperson, client, ytdEndDateStr],
+    queryKey: ['/api/dashboard/kpi-data', selectedPeriod, filterType, segment, salesperson, client, product, resolvedComparePeriod, ytdRangeStr, ytdEndDateStr],
     queryFn: async () => {
       const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
       if (segment) params.append('segment', segment);
       if (salesperson) params.append('salesperson', salesperson);
       if (client) params.append('client', client);
+      if (product) params.append('product', product);
+      if (resolvedComparePeriod) params.append('comparePeriod', resolvedComparePeriod);
+      if (ytdRangeStr) params.append('ytdRangeStr', ytdRangeStr);
       if (ytdEndDateStr) params.append('endDateStr', ytdEndDateStr);
-      const res = await fetch(`/api/sales/yearly-totals?${params.toString()}`, { credentials: 'include' });
+      const res = await fetch(`/api/dashboard/kpi-data?${params.toString()}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
   });
 
-  // Query for NVV yearly total (current year up to selected period)
-  const { data: nvvYearlyMetrics } = useQuery<{
-    totalAmount: number;
-    totalQuantity: number;
-    pendingCount: number;
-    confirmedCount: number;
-    deliveredCount: number;
-    cancelledCount: number;
-  }>({
-    queryKey: ['/api/nvv/metrics', 'yearly-range', ytdRangeStr, segment, salesperson, client],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      params.append('period', ytdRangeStr);
-      params.append('filterType', 'range');
-      if (segment) params.append('segment', segment);
-      if (salesperson) params.append('salesperson', salesperson);
-      if (client) params.append('client', client);
-      const res = await fetch(`/api/nvv/metrics?${params.toString()}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return await res.json();
-    },
-  });
+  // Extract individual data from consolidated response
+  const metrics = kpiData?.metrics ?? undefined;
+  const comparisonMetrics = kpiData?.comparisonMetrics ?? undefined;
+  const nvvMetrics = kpiData?.nvvMetrics ?? undefined;
+  const nvvGlobalMetrics = kpiData?.nvvGlobalMetrics ?? undefined;
+  const gdvGlobalMetrics = kpiData?.gdvGlobalMetrics ?? undefined;
+  const yearlyTotals = kpiData?.yearlyTotals ?? undefined;
+  const nvvYearlyMetrics = kpiData?.nvvYearlyMetrics ?? undefined;
+  const bestYear = kpiData?.bestYear ?? undefined;
+  const budgetData = kpiData?.budgetData ?? undefined;
+  // gdvYearlyMetrics was querying sales/metrics with YTD range - not included in consolidated call
+  const gdvYearlyMetrics: SalesMetrics | undefined = undefined;
 
-  // Query for GDV yearly total (current year up to selected period) - uses sales metrics filtered to GDV only
-  const { data: gdvYearlyMetrics } = useQuery<SalesMetrics>({
-    queryKey: ['/api/sales/metrics', ytdRangeStr, 'range', segment, salesperson, client, 'gdv-yearly'],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      params.append('period', ytdRangeStr);
-      params.append('filterType', 'range');
-      if (segment) params.append('segment', segment);
-      if (salesperson) params.append('salesperson', salesperson);
-      if (client) params.append('client', client);
-      const res = await fetch(`/api/sales/metrics?${params.toString()}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return await res.json();
-    },
-  });
-
-  // Query for best year historical (with filters for segment, salesperson, client)
-  const { data: bestYear } = useQuery<{
-    bestYear: number;
-    bestYearTotal: number;
-  }>({
-    queryKey: ['/api/sales/best-year', segment, salesperson, client],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (segment) params.append('segment', segment);
-      if (salesperson) params.append('salesperson', salesperson);
-      if (client) params.append('client', client);
-      const res = await fetch(`/api/sales/best-year?${params.toString()}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return await res.json();
-    },
-  });
-
+  // New clients list - only fetched when modal is open (kept as separate call)
   const { data: newClientsList, isLoading: isLoadingNewClients } = useQuery<NewClientItem[]>({
     queryKey: ['/api/sales/new-clients', selectedPeriod, filterType, segment, salesperson, client],
     queryFn: async () => {
@@ -472,16 +341,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       return await res.json();
     },
     enabled: showNewClientsModal,
-  });
-
-  // Query for current year budget
-  const { data: budgetData } = useQuery<any[]>({
-    queryKey: ['/api/presupuesto-ventas', currentYearStr],
-    queryFn: async () => {
-      const res = await fetch(`/api/presupuesto-ventas?anio=${currentYearStr}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return await res.json();
-    },
   });
 
   const formatCurrency = (amount: number) => {

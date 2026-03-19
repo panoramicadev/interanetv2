@@ -1045,6 +1045,133 @@ export function registerRoutes(app: Express): Server {
     });
   }));
 
+  // ═══════════════════════════════════════════════════════════
+  // CONSOLIDATED KPI DATA - reduces ~10 API calls to 1
+  // ═══════════════════════════════════════════════════════════
+  app.get('/api/dashboard/kpi-data', requireCommercialAccess, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
+    const { period, filterType, segment, salesperson, client, product, comparePeriod, ytdRangeStr, endDateStr } = req.query;
+
+    const dateRange = getDateRange(period as string, filterType as string);
+    const startDate = dateRange.startDate || '';
+    const endDate = dateRange.endDate || '';
+
+    // Calculate year for yearly totals
+    const today = new Date();
+    let currentYear = today.getFullYear();
+    if (typeof endDateStr === 'string' && endDateStr.match(/^\d{4}/)) {
+      currentYear = parseInt(endDateStr.substring(0, 4), 10);
+    }
+
+    const filters = {
+      segment: segment as string,
+      salesperson: salesperson as string,
+      client: client as string,
+    };
+
+    // Parse comparison period date range if provided  
+    let compDateRange: any = {};
+    if (comparePeriod) {
+      if ((comparePeriod as string).includes('_')) {
+        const [from, to] = (comparePeriod as string).split('_');
+        compDateRange = { startDate: from, endDate: to };
+      } else {
+        compDateRange = getDateRange(comparePeriod as string, filterType as string);
+      }
+    }
+
+    // Parse YTD range
+    let ytdStart: string | undefined;
+    let ytdEnd: string | undefined;
+    if (ytdRangeStr && (ytdRangeStr as string).includes('_')) {
+      const [from, to] = (ytdRangeStr as string).split('_');
+      ytdStart = from;
+      ytdEnd = to;
+    }
+
+    // Run ALL queries in parallel - this is the key optimization
+    const [
+      metricsResult,
+      comparisonMetricsResult,
+      nvvMetricsResult,
+      nvvGlobalMetricsResult,
+      gdvGlobalMetricsResult,
+      yearlyTotalsResult,
+      nvvYearlyMetricsResult,
+      bestYearResult,
+      budgetDataResult,
+    ] = await Promise.all([
+      // 1. Main sales metrics
+      startDate && endDate
+        ? storage.getSalesMetrics({
+            startDate, endDate,
+            salesperson: salesperson as string,
+            segment: segment as string,
+            client: client as string,
+            product: product as string,
+          } as any)
+        : Promise.resolve(null),
+      // 2. Comparison period metrics (optional)
+      compDateRange.startDate && compDateRange.endDate
+        ? storage.getSalesMetrics({
+            startDate: compDateRange.startDate,
+            endDate: compDateRange.endDate,
+            salesperson: salesperson as string,
+            segment: segment as string,
+            client: client as string,
+            product: product as string,
+          } as any)
+        : Promise.resolve(null),
+      // 3. NVV metrics (period filtered)
+      storage.getNvvSummaryMetrics({
+        ...(startDate ? { startDate: new Date(startDate) } : {}),
+        ...(endDate ? { endDate: new Date(endDate) } : {}),
+        salesperson: salesperson as string,
+        segment: segment as string,
+        client: client as string,
+      }),
+      // 4. NVV global (no date filters)
+      storage.getNvvSummaryMetrics({
+        salesperson: salesperson as string,
+        segment: segment as string,
+        client: client as string,
+      }),
+      // 5. GDV global pending
+      storage.getGdvPendingGlobal({
+        salesperson: salesperson as string,
+        segment: segment as string,
+        client: client as string,
+      }),
+      // 6. Yearly totals
+      storage.getYearlyTotals(currentYear, filters, endDateStr as string),
+      // 7. NVV yearly metrics
+      ytdStart && ytdEnd
+        ? storage.getNvvSummaryMetrics({
+            startDate: new Date(ytdStart),
+            endDate: new Date(ytdEnd),
+            salesperson: salesperson as string,
+            segment: segment as string,
+            client: client as string,
+          })
+        : Promise.resolve(null),
+      // 8. Best year
+      storage.getBestYearHistorical(filters),
+      // 9. Budget data
+      db.select().from(schema.presupuestoVentas).where(eq(schema.presupuestoVentas.anio, currentYear)),
+    ]);
+
+    res.json({
+      metrics: metricsResult,
+      comparisonMetrics: comparisonMetricsResult,
+      nvvMetrics: nvvMetricsResult,
+      nvvGlobalMetrics: nvvGlobalMetricsResult,
+      gdvGlobalMetrics: gdvGlobalMetricsResult,
+      yearlyTotals: yearlyTotalsResult,
+      nvvYearlyMetrics: nvvYearlyMetricsResult,
+      bestYear: bestYearResult,
+      budgetData: budgetDataResult,
+    });
+  }));
+
   // Available periods endpoint - returns months and years with actual data
   app.get('/api/sales/available-periods', requireCommercialAccess, async (req, res) => {
     try {
