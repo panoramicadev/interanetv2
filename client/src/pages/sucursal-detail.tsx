@@ -15,7 +15,6 @@ import ComparativeSegmentSalespeopleTable from "@/components/dashboard/comparati
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
 import PendingDocumentsUnified from "@/components/dashboard/pending-documents-unified";
 import SalesChart from "@/components/dashboard/sales-chart";
-import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 
 interface BranchClient {
   clientName: string;
@@ -781,16 +780,6 @@ export default function SucursalDetail({
                 />
               )}
 
-              {/* Packaging Sales Metrics - Total Facturado x Unidades for this branch */}
-              {branchName && (
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-                  <PackagingSalesMetrics
-                    selectedPeriod={selectedPeriod}
-                    filterType={filterType}
-                    branch={branchName}
-                  />
-                </div>
-              )}
 
               {/* Data Tables - Only show in normal mode */}
               {!isComparativeMode && (
