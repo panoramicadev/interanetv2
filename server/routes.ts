@@ -7130,7 +7130,9 @@ export function registerRoutes(app: Express): Server {
           const isoDatetimeRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/;
           return datetimeLocalRegex.test(date) || isoDatetimeRegex.test(date) || !isNaN(Date.parse(date));
         }, "Fecha debe ser formato válido").optional().or(z.null()),
-        segmento: z.string().optional(),
+        segmento: z.string().optional().or(z.null()),
+        clienteId: z.string().optional().or(z.null()),
+        clienteNombre: z.string().optional().or(z.null()),
         payload: z.any().optional(), // Optional payload - will use defaults if not provided
         assignments: z.array(z.object({
           assigneeType: z.enum(["supervisor", "salesperson"]),
@@ -7143,7 +7145,7 @@ export function registerRoutes(app: Express): Server {
       // Validate request body
       const validation = createTaskWithAssignmentsSchema.safeParse(req.body);
       if (!validation.success) {
-
+        console.error('[TASK CREATE] Validation errors:', JSON.stringify(validation.error.issues));
         return res.status(400).json({
           message: "Invalid task data",
           errors: validation.error.issues
@@ -7152,7 +7154,7 @@ export function registerRoutes(app: Express): Server {
 
 
 
-      const { title, description, type, dueDate, priority, payload, assignments, segmento } = validation.data;
+      const { title, description, type, dueDate, priority, payload, assignments, segmento, clienteId, clienteNombre } = validation.data;
 
       // Additional validation: formulario tasks must have formKey='compras_potenciales'
       if (type === 'formulario' && payload && 'formKey' in payload) {
@@ -7173,6 +7175,8 @@ export function registerRoutes(app: Express): Server {
         status: 'pendiente' as const,
         payload, // Now properly validated payload based on task type
         segmento,
+        clienteId: clienteId || null,
+        clienteNombre: clienteNombre || null,
         createdByUserId: user.id,
       };
 
