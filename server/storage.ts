@@ -2781,7 +2781,7 @@ export class DatabaseStorage implements IStorage {
       gdvSales: Number(metrics.gdvSales),
     };
 
-    this.setCache(cacheKey, result, 60000); // Cache 60 seconds (data only changes after ETL sync)
+    this.setCache(cacheKey, result, 300000); // Cache 5 minutes (data only changes after ETL sync)
     return result;
   }
 
@@ -3028,7 +3028,7 @@ export class DatabaseStorage implements IStorage {
       isYTD: isCurrentYear,
     };
 
-    this.setCache(ytCacheKey, ytResult, 120000); // Cache 2 minutes
+    this.setCache(ytCacheKey, ytResult, 600000); // Cache 10 minutes
     return ytResult;
   }
 
@@ -4472,6 +4472,11 @@ export class DatabaseStorage implements IStorage {
     period: string;
     sales: number;
   }>> {
+    // Check cache first
+    const chartCacheKey = `chartData:${period}:${startDate || ''}:${endDate || ''}:${salesperson || ''}:${segment || ''}:${client || ''}:${product || ''}:${branch || ''}`;
+    const chartCached = this.getCached<Array<{ period: string; sales: number }>>(chartCacheKey);
+    if (chartCached) return chartCached;
+
     const conditions = [
       sql`${factVentas.feemdo} IS NOT NULL`,
       sql`${factVentas.tido} != 'GDV'`
@@ -4540,10 +4545,13 @@ export class DatabaseStorage implements IStorage {
 
     const results = await query;
 
-    return results.map((r: any) => ({
+    const chartResult = results.map((r: any) => ({
       period: r.period,
       sales: Number(r.sales),
     }));
+
+    this.setCache(chartCacheKey, chartResult, 300000); // Cache 5 minutes
+    return chartResult;
   }
 
   async getAvailablePeriods(): Promise<{
@@ -14162,6 +14170,11 @@ export class DatabaseStorage implements IStorage {
     }>;
   }>> {
     try {
+      // Check cache first
+      const nvvCacheKey = `nvvGrouped:${options?.startDate || ''}:${options?.endDate || ''}:${options?.segment || ''}:${options?.salesperson || ''}`;
+      const nvvCached = this.getCached<any>(nvvCacheKey);
+      if (nvvCached) return nvvCached;
+
       // Build conditions - always filter for pending NVV only
       const conditions = [sql`(eslido IS NULL OR eslido = '')`];
 
@@ -14268,9 +14281,11 @@ export class DatabaseStorage implements IStorage {
         });
       });
 
-      // Convert to array and sort by total amount descending
-      return Array.from(groupedBySalesperson.values())
+      const nvvResult = Array.from(groupedBySalesperson.values())
         .sort((a, b) => b.totalAmount - a.totalAmount);
+
+      this.setCache(nvvCacheKey, nvvResult, 120000); // Cache 2 minutes
+      return nvvResult;
     } catch (error) {
       console.error('Error getting all NVV grouped by salespeople:', error);
       return [];
@@ -24752,6 +24767,11 @@ export class DatabaseStorage implements IStorage {
     }>;
   }>> {
     try {
+      // Check cache first
+      const gdvCacheKey = `gdvGrouped:${segment || ''}:${salesperson || ''}`;
+      const gdvCached = this.getCached<any>(gdvCacheKey);
+      if (gdvCached) return gdvCached;
+
       const now = new Date();
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const dateFilter = firstDayOfMonth.toISOString().split('T')[0];
@@ -24836,8 +24856,11 @@ export class DatabaseStorage implements IStorage {
         });
       });
 
-      return Array.from(groupedBySalesperson.values())
+      const gdvResult = Array.from(groupedBySalesperson.values())
         .sort((a, b) => b.totalAmount - a.totalAmount);
+
+      this.setCache(gdvCacheKey, gdvResult, 120000); // Cache 2 minutes
+      return gdvResult;
     } catch (error) {
       console.error('[getAllGdvGroupedBySalespeople] Error:', error);
       return [];

@@ -164,6 +164,38 @@ function asyncHandler(fn: Function) {
   };
 }
 
+// ─── HTTP Response Cache Middleware ───
+// Caches full JSON responses in memory. Shared across all users for the same URL+params.
+const responseCache = new Map<string, { data: any; expires: number }>();
+
+function responseCacheMiddleware(ttlSeconds: number = 120) {
+  return (req: any, res: any, next: any) => {
+    const cacheKey = `resp:${req.originalUrl}`;
+    const cached = responseCache.get(cacheKey);
+    if (cached && Date.now() < cached.expires) {
+      return res.json(cached.data);
+    }
+
+    // Intercept res.json to cache the response
+    const originalJson = res.json.bind(res);
+    res.json = (data: any) => {
+      if (res.statusCode === 200) {
+        responseCache.set(cacheKey, { data, expires: Date.now() + ttlSeconds * 1000 });
+      }
+      return originalJson(data);
+    };
+    next();
+  };
+}
+
+// Periodic cleanup of expired entries (every 5 minutes)
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of responseCache) {
+    if (now >= entry.expires) responseCache.delete(key);
+  }
+}, 300000);
+
 // Timezone-safe date formatting function
 function formatDateLocal(date: Date): string {
   if (!date || isNaN(date.getTime())) {
@@ -957,7 +989,7 @@ export function registerRoutes(app: Express): Server {
   // ═══════════════════════════════════════════════════════════
   // CONSOLIDATED DASHBOARD INIT - reduces ~12 API calls to 1
   // ═══════════════════════════════════════════════════════════
-  app.get('/api/dashboard/init', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/dashboard/init', requireCommercialAccess, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
     const { period, filterType, segment, salesperson, client, product, branch, endDateStr } = req.query;
 
     const dateRange = getDateRange(period as string, filterType as string);
@@ -2615,7 +2647,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Sales chart data endpoint
-  app.get('/api/sales/chart-data', requireCommercialAccess, async (req, res) => {
+  app.get('/api/sales/chart-data', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { period = 'monthly', selectedPeriod, filterType, salesperson, segment, client, product, branch } = req.query;
 
@@ -10494,7 +10526,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get all NVV grouped by salespeople
-  app.get('/api/nvv/all-by-salespeople', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/nvv/all-by-salespeople', requireAuth, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
     const { period, filterType, segment, salesperson } = req.query;
 
     // Get date range for filtering if provided
@@ -16594,7 +16626,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get all GDV grouped by salesperson (for main dashboard view)
-  app.get('/api/gdv/all-by-salespeople', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/gdv/all-by-salespeople', requireAuth, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
     try {
       const { segment, salesperson } = req.query;
       const gdvData = await storage.getAllGdvGroupedBySalespeople(segment as string | undefined, salesperson as string | undefined);
