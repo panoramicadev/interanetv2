@@ -1089,75 +1089,83 @@ export function registerRoutes(app: Express): Server {
     }
 
     // Run ALL queries in parallel - this is the key optimization
-    const [
-      metricsResult,
-      comparisonMetricsResult,
-      nvvMetricsResult,
-      nvvGlobalMetricsResult,
-      gdvGlobalMetricsResult,
-      yearlyTotalsResult,
-      nvvYearlyMetricsResult,
-      bestYearResult,
-      budgetDataResult,
-    ] = await Promise.all([
-      // 1. Main sales metrics
-      startDate && endDate
-        ? storage.getSalesMetrics({
-            startDate, endDate,
-            salesperson: salesperson as string,
-            segment: segment as string,
-            client: client as string,
-            product: product as string,
-          } as any)
-        : Promise.resolve(null),
-      // 2. Comparison period metrics (optional)
-      compDateRange.startDate && compDateRange.endDate
-        ? storage.getSalesMetrics({
-            startDate: compDateRange.startDate,
-            endDate: compDateRange.endDate,
-            salesperson: salesperson as string,
-            segment: segment as string,
-            client: client as string,
-            product: product as string,
-          } as any)
-        : Promise.resolve(null),
-      // 3. NVV metrics (period filtered)
-      storage.getNvvSummaryMetrics({
-        ...(startDate ? { startDate: new Date(startDate) } : {}),
-        ...(endDate ? { endDate: new Date(endDate) } : {}),
-        salesperson: salesperson as string,
-        segment: segment as string,
-        client: client as string,
-      }),
-      // 4. NVV global (no date filters)
-      storage.getNvvSummaryMetrics({
-        salesperson: salesperson as string,
-        segment: segment as string,
-        client: client as string,
-      }),
-      // 5. GDV global pending
-      storage.getGdvPendingGlobal({
-        salesperson: salesperson as string,
-        segment: segment as string,
-        client: client as string,
-      }),
-      // 6. Yearly totals
-      storage.getYearlyTotals(currentYear, filters, endDateStr as string),
-      // 7. NVV yearly metrics
-      ytdStart && ytdEnd
-        ? storage.getNvvSummaryMetrics({
-            startDate: new Date(ytdStart),
-            endDate: new Date(ytdEnd),
-            salesperson: salesperson as string,
-            segment: segment as string,
-            client: client as string,
-          })
-        : Promise.resolve(null),
-      // 8. Best year
-      storage.getBestYearHistorical(filters),
-      // 9. Budget data
-      db.select().from(schema.presupuestoVentas).where(eq(schema.presupuestoVentas.anio, currentYear)),
-    ]);
+    let metricsResult, comparisonMetricsResult, nvvMetricsResult, nvvGlobalMetricsResult;
+    let gdvGlobalMetricsResult, yearlyTotalsResult, nvvYearlyMetricsResult, bestYearResult, budgetDataResult;
+    
+    try {
+      [
+        metricsResult,
+        comparisonMetricsResult,
+        nvvMetricsResult,
+        nvvGlobalMetricsResult,
+        gdvGlobalMetricsResult,
+        yearlyTotalsResult,
+        nvvYearlyMetricsResult,
+        bestYearResult,
+        budgetDataResult,
+      ] = await Promise.all([
+        // 1. Main sales metrics
+        startDate && endDate
+          ? storage.getSalesMetrics({
+              startDate, endDate,
+              salesperson: salesperson as string,
+              segment: segment as string,
+              client: client as string,
+              product: product as string,
+            } as any)
+          : Promise.resolve(null),
+        // 2. Comparison period metrics (optional)
+        compDateRange.startDate && compDateRange.endDate
+          ? storage.getSalesMetrics({
+              startDate: compDateRange.startDate,
+              endDate: compDateRange.endDate,
+              salesperson: salesperson as string,
+              segment: segment as string,
+              client: client as string,
+              product: product as string,
+            } as any)
+          : Promise.resolve(null),
+        // 3. NVV metrics (period filtered)
+        storage.getNvvSummaryMetrics({
+          ...(startDate ? { startDate: new Date(startDate) } : {}),
+          ...(endDate ? { endDate: new Date(endDate) } : {}),
+          salesperson: salesperson as string,
+          segment: segment as string,
+          client: client as string,
+        }),
+        // 4. NVV global (no date filters)
+        storage.getNvvSummaryMetrics({
+          salesperson: salesperson as string,
+          segment: segment as string,
+          client: client as string,
+        }),
+        // 5. GDV global pending
+        storage.getGdvPendingGlobal({
+          salesperson: salesperson as string,
+          segment: segment as string,
+          client: client as string,
+        }),
+        // 6. Yearly totals
+        storage.getYearlyTotals(currentYear, filters, endDateStr as string),
+        // 7. NVV yearly metrics
+        ytdStart && ytdEnd
+          ? storage.getNvvSummaryMetrics({
+              startDate: new Date(ytdStart),
+              endDate: new Date(ytdEnd),
+              salesperson: salesperson as string,
+              segment: segment as string,
+              client: client as string,
+            })
+          : Promise.resolve(null),
+        // 8. Best year
+        storage.getBestYearHistorical(filters),
+        // 9. Budget data
+        db.select().from(presupuestoVentas).where(eq(presupuestoVentas.anio, currentYear)),
+      ]);
+    } catch (err: any) {
+      console.error('[KPI-DATA] Error in consolidated query:', err.message || err);
+      throw err;
+    }
 
     res.json({
       metrics: metricsResult,
