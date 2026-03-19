@@ -14,6 +14,7 @@ import unzipper from "unzipper";
 import { Readable } from "stream";
 import * as XLSX from "xlsx";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { LocalImageStorage } from "./localImageStorage";
 import { comunaRegionService } from "./comunaRegionService";
 import { db } from "./db";
 import {
@@ -10135,11 +10136,10 @@ export function registerRoutes(app: Express): Server {
       const uniqueFileName = `${sku}_${timestamp}${fileExtension}`;
 
       try {
-        // Upload to Object Storage (permanent storage)
-        const objectStorageService = new ObjectStorageService();
-        const storageKey = `product-images/${sku}/${uniqueFileName}`;
-        const imageUrl = await objectStorageService.uploadImage(storageKey, imageBuffer, getContentType(fileExtension.substring(1)));
-        console.log(`☁️ [ZIP IMPORT] Uploaded to ObjectStorage: ${storageKey}`);
+        // Use local file storage (works on Railway, no external storage needed)
+        const localStorage = new LocalImageStorage();
+        const imageUrl = await localStorage.uploadImage(uniqueFileName, imageBuffer, getContentType(fileExtension.substring(1)));
+        console.log(`📁 [ZIP IMPORT] Saved locally: ${imageUrl}`);
 
         // Update product with new image URL
         await db
