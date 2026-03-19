@@ -227,9 +227,9 @@ export default function TareasPage() {
       return { previousGroups };
     },
     onSuccess: () => {
-      // Invalidate with exact: false to match all task-groups queries regardless of segmento
-      queryClient.invalidateQueries({ queryKey: ['/api/task-groups'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/tareas/init'] });
+      // Use refetchQueries (not invalidateQueries) because staleTime: Infinity prevents auto-refetch
+      queryClient.refetchQueries({ queryKey: ['/api/task-groups'] });
+      queryClient.refetchQueries({ queryKey: ['/api/tareas/init'] });
       toast({ title: "Grupo creado", description: "El grupo se ha creado exitosamente." });
     },
     onError: (error: any, _vars, context: any) => {
@@ -247,9 +247,9 @@ export default function TareasPage() {
       await apiRequest('DELETE', `/api/task-groups/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/task-groups'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/tareas/init'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.refetchQueries({ queryKey: ['/api/task-groups'] });
+      queryClient.refetchQueries({ queryKey: ['/api/tareas/init'] });
+      queryClient.refetchQueries({ queryKey: ['/api/tasks'] });
       toast({ title: "Grupo eliminado" });
     },
   });
