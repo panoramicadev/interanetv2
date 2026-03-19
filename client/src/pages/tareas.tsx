@@ -76,6 +76,7 @@ const createTaskWithAssignmentsSchema = z.object({
   type: z.enum(["texto", "formulario", "visita"]).default("texto"),
   priority: z.enum(["low", "medium", "high"]).default("medium"),
   segmento: z.string().optional().or(z.null()),
+  groupId: z.string().optional().or(z.null()),
   dueDate: z.string().refine((date) => {
     if (!date) return true; // Allow empty dates
     // Accept datetime-local format (YYYY-MM-DDTHH:mm) and ISO format
@@ -180,6 +181,7 @@ export default function TareasPage() {
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [teamSearchFilter, setTeamSearchFilter] = useState("");
 
   // Consolidated init query - fetches everything in one HTTP roundtrip
   const { data: tareasInit } = useQuery<{
@@ -434,6 +436,7 @@ export default function TareasPage() {
       description: "",
       priority: "medium",
       segmento: null,
+      groupId: null,
       dueDate: "",
       clienteId: null,
       clienteNombre: null,
@@ -692,10 +695,10 @@ export default function TareasPage() {
               <span>Gestión de Equipo</span>
             </div>
             <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-              Panel de <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">Tareas</span>
+              Panel de <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">Trabajo</span>
             </h1>
             <p className="text-slate-400 text-sm sm:text-base max-w-2xl font-medium">
-              Gestiona tareas del equipo, estimaciones semanales y seguimiento de clientes
+              Gestiona tareas del equipo, estimaciones de ventas y seguimiento de clientes
             </p>
           </div>
           {canCreateTasks && (
@@ -776,7 +779,7 @@ export default function TareasPage() {
                           Clasificación y plazo
                         </div>
                         <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <FormField
                               control={form.control}
                               name="segmento"
@@ -792,6 +795,34 @@ export default function TareasPage() {
                                     <SelectContent>
                                       {SEGMENTOS.map((seg) => (
                                         <SelectItem key={seg.value} value={seg.value}>{seg.label}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="groupId"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Grupo</FormLabel>
+                                  <Select onValueChange={(v) => field.onChange(v === 'none' ? null : v)} value={field.value || 'none'}>
+                                    <FormControl>
+                                      <SelectTrigger className="bg-white border-slate-200" data-testid="select-task-group">
+                                        <SelectValue placeholder="Sin grupo" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectItem value="none">Sin grupo</SelectItem>
+                                      {(taskGroupsQuery.data || []).map((group) => (
+                                        <SelectItem key={group.id} value={group.id}>
+                                          <span className="flex items-center gap-2">
+                                            <span className={`w-2 h-2 rounded-full bg-${group.color || 'blue'}-500`} />
+                                            {group.name}
+                                          </span>
+                                        </SelectItem>
                                       ))}
                                     </SelectContent>
                                   </Select>
@@ -902,24 +933,42 @@ export default function TareasPage() {
                           <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                           Equipo asignado *
                         </div>
-                        <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4 space-y-4">
-                          {availableSupervisors && availableSupervisors.length > 0 && (
-                            <div className="space-y-2">
-                              <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                <User className="h-3.5 w-3.5" />
-                                Supervisores
-                              </Label>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto bg-white border border-slate-200 rounded-lg p-2.5">
-                                {availableSupervisors.map((supervisor) => (
+                        <div className="bg-slate-50/80 rounded-xl border border-slate-100 p-4 space-y-3">
+                          {/* Search filter for team members */}
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <Input
+                              placeholder="Buscar miembro del equipo..."
+                              value={teamSearchFilter}
+                              onChange={(e) => setTeamSearchFilter(e.target.value)}
+                              className="pl-10 bg-white border-slate-200 h-9 text-sm"
+                            />
+                          </div>
+                          {/* Selected count badge */}
+                          {(form.watch('assignments') || []).length > 0 && (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
+                                <Users className="h-3 w-3 mr-1" />
+                                {(form.watch('assignments') || []).length} seleccionado{(form.watch('assignments') || []).length !== 1 ? 's' : ''}
+                              </Badge>
+                            </div>
+                          )}
+                          {/* All team members in one list */}
+                          <div className="max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-lg divide-y divide-slate-100">
+                            {availableSupervisors && availableSupervisors.filter(s => !teamSearchFilter || s.salespersonName.toLowerCase().includes(teamSearchFilter.toLowerCase())).length > 0 && (
+                              <>
+                                <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest sticky top-0 z-10">Supervisores</div>
+                                {availableSupervisors.filter(s => !teamSearchFilter || s.salespersonName.toLowerCase().includes(teamSearchFilter.toLowerCase())).map((supervisor) => (
                                   <FormField
                                     key={`supervisor-${supervisor.id}`}
                                     control={form.control}
                                     name="assignments"
-                                    render={({ field }) => (
-                                      <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                                        <FormControl>
+                                    render={({ field }) => {
+                                      const isChecked = field.value?.some(a => a.assigneeType === "supervisor" && a.assigneeId === supervisor.id);
+                                      return (
+                                        <label className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors hover:bg-blue-50/50 ${isChecked ? 'bg-blue-50/80' : ''}`}>
                                           <Checkbox
-                                            checked={field.value?.some(a => a.assigneeType === "supervisor" && a.assigneeId === supervisor.id)}
+                                            checked={isChecked}
                                             onCheckedChange={(checked) => {
                                               const currentAssignments = field.value || [];
                                               if (checked) {
@@ -929,35 +978,38 @@ export default function TareasPage() {
                                               }
                                             }}
                                             data-testid={`checkbox-supervisor-${supervisor.id}`}
+                                            className="data-[state=checked]:bg-blue-600"
                                           />
-                                        </FormControl>
-                                        <FormLabel className="text-xs font-normal truncate">
-                                          {supervisor.salespersonName}
-                                        </FormLabel>
-                                      </FormItem>
-                                    )}
+                                          <div className="flex items-center gap-2 min-w-0">
+                                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                              {supervisor.salespersonName?.charAt(0)?.toUpperCase() || '?'}
+                                            </div>
+                                            <div className="min-w-0">
+                                              <p className="text-sm font-medium text-slate-700 truncate">{supervisor.salespersonName}</p>
+                                              <p className="text-[10px] text-indigo-500 font-medium">Supervisor</p>
+                                            </div>
+                                          </div>
+                                        </label>
+                                      );
+                                    }}
                                   />
                                 ))}
-                              </div>
-                            </div>
-                          )}
-                          {availableUsers && availableUsers.length > 0 && (
-                            <div className="space-y-2">
-                              <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                <Users className="h-3.5 w-3.5" />
-                                Vendedores
-                              </Label>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto bg-white border border-slate-200 rounded-lg p-2.5">
-                                {availableUsers.map((salesperson) => (
+                              </>
+                            )}
+                            {availableUsers && availableUsers.filter(s => !teamSearchFilter || s.salespersonName.toLowerCase().includes(teamSearchFilter.toLowerCase())).length > 0 && (
+                              <>
+                                <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest sticky top-0 z-10">Vendedores</div>
+                                {availableUsers.filter(s => !teamSearchFilter || s.salespersonName.toLowerCase().includes(teamSearchFilter.toLowerCase())).map((salesperson) => (
                                   <FormField
                                     key={`salesperson-${salesperson.id}`}
                                     control={form.control}
                                     name="assignments"
-                                    render={({ field }) => (
-                                      <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                                        <FormControl>
+                                    render={({ field }) => {
+                                      const isChecked = field.value?.some(a => a.assigneeType === "salesperson" && a.assigneeId === salesperson.id);
+                                      return (
+                                        <label className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors hover:bg-blue-50/50 ${isChecked ? 'bg-blue-50/80' : ''}`}>
                                           <Checkbox
-                                            checked={field.value?.some(a => a.assigneeType === "salesperson" && a.assigneeId === salesperson.id)}
+                                            checked={isChecked}
                                             onCheckedChange={(checked) => {
                                               const currentAssignments = field.value || [];
                                               if (checked) {
@@ -967,18 +1019,25 @@ export default function TareasPage() {
                                               }
                                             }}
                                             data-testid={`checkbox-salesperson-${salesperson.id}`}
+                                            className="data-[state=checked]:bg-blue-600"
                                           />
-                                        </FormControl>
-                                        <FormLabel className="text-xs font-normal truncate">
-                                          {salesperson.salespersonName}
-                                        </FormLabel>
-                                      </FormItem>
-                                    )}
+                                          <div className="flex items-center gap-2 min-w-0">
+                                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                              {salesperson.salespersonName?.charAt(0)?.toUpperCase() || '?'}
+                                            </div>
+                                            <div className="min-w-0">
+                                              <p className="text-sm font-medium text-slate-700 truncate">{salesperson.salespersonName}</p>
+                                              <p className="text-[10px] text-blue-500 font-medium">Vendedor</p>
+                                            </div>
+                                          </div>
+                                        </label>
+                                      );
+                                    }}
                                   />
                                 ))}
-                              </div>
-                            </div>
-                          )}
+                              </>
+                            )}
+                          </div>
                           <FormMessage>
                             {form.formState.errors.assignments?.message}
                           </FormMessage>
@@ -1031,12 +1090,12 @@ export default function TareasPage() {
           <TabsList className={`inline-flex w-max sm:w-full sm:grid h-auto gap-2 bg-slate-100/50 p-1 border border-slate-200/60 rounded-xl ${user?.role === 'tecnico_obra' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
             <TabsTrigger value="tareas" data-testid="tab-tareas" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm rounded-lg">
               <CheckSquare className="h-4 w-4 mr-2 hidden sm:inline" />
-              Tareas
+              Seguimiento
             </TabsTrigger>
             {user?.role !== 'tecnico_obra' && (
               <TabsTrigger value="estimacion" data-testid="tab-estimacion" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm rounded-lg">
                 <TrendingUp className="h-4 w-4 mr-2 hidden sm:inline" />
-                {esConstruccion ? 'Estimación Mensual' : 'Estimación Semanal'}
+                {esConstruccion ? 'Estimación Mensual' : 'Estimación de ventas'}
               </TabsTrigger>
             )}
             <TabsTrigger value="calendario" data-testid="tab-calendario" className="px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm rounded-lg">
@@ -1303,13 +1362,14 @@ export default function TareasPage() {
                 )}
               </div>
             ) : (() => {
-              const groups = taskGroupsQuery.data || [];
+              // Use init data as immediate fallback to prevent flash
+              const groups = taskGroupsQuery.data || tareasInit?.taskGroups || [];
               const groupedTasks: Record<string, typeof filteredTasks> = {};
               const ungrouped: typeof filteredTasks = [];
 
               filteredTasks.forEach(task => {
                 const gId = (task as any).groupId;
-                if (gId && groups.find(g => g.id === gId)) {
+                if (gId && groups.find((g: any) => g.id === gId)) {
                   if (!groupedTasks[gId]) groupedTasks[gId] = [];
                   groupedTasks[gId].push(task);
                 } else {

@@ -7131,6 +7131,7 @@ export function registerRoutes(app: Express): Server {
           return datetimeLocalRegex.test(date) || isoDatetimeRegex.test(date) || !isNaN(Date.parse(date));
         }, "Fecha debe ser formato válido").optional().or(z.null()),
         segmento: z.string().optional().or(z.null()),
+        groupId: z.string().optional().or(z.null()),
         clienteId: z.string().optional().or(z.null()),
         clienteNombre: z.string().optional().or(z.null()),
         payload: z.any().optional(), // Optional payload - will use defaults if not provided
@@ -7154,7 +7155,7 @@ export function registerRoutes(app: Express): Server {
 
 
 
-      const { title, description, type, dueDate, priority, payload, assignments, segmento, clienteId, clienteNombre } = validation.data;
+      const { title, description, type, dueDate, priority, payload, assignments, segmento, clienteId, clienteNombre, groupId } = validation.data;
 
       // Additional validation: formulario tasks must have formKey='compras_potenciales'
       if (type === 'formulario' && payload && 'formKey' in payload) {
@@ -7175,6 +7176,7 @@ export function registerRoutes(app: Express): Server {
         status: 'pendiente' as const,
         payload, // Now properly validated payload based on task type
         segmento,
+        groupId: groupId || null,
         clienteId: clienteId || null,
         clienteNombre: clienteNombre || null,
         createdByUserId: user.id,
