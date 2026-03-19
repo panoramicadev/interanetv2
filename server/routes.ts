@@ -836,7 +836,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Sales metrics endpoint
-  app.get('/api/sales/metrics', requireCommercialAccess, async (req, res) => {
+  app.get('/api/sales/metrics', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { startDate, endDate, salesperson, segment, client, supplier, period, filterType, product } = req.query;
 
@@ -960,7 +960,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get('/api/sales/new-clients', requireCommercialAccess, async (req, res) => {
+  app.get('/api/sales/new-clients', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { period, filterType, salesperson, segment, client } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
@@ -1058,7 +1058,7 @@ export function registerRoutes(app: Express): Server {
 
   // Yearly totals endpoint - returns current and previous year totals
   // When current year has minimal data (early in year), shows previous year as main reference
-  app.get('/api/sales/yearly-totals', requireCommercialAccess, async (req, res) => {
+  app.get('/api/sales/yearly-totals', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { segment, salesperson, client, endDateStr } = req.query;
 
@@ -1098,7 +1098,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Best year historical endpoint - returns the best year and its total
-  app.get('/api/sales/best-year', requireCommercialAccess, async (req, res) => {
+  app.get('/api/sales/best-year', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { segment, salesperson, client } = req.query;
       const bestYear = await storage.getBestYearHistorical({
@@ -1148,7 +1148,7 @@ export function registerRoutes(app: Express): Server {
 
   // GDV Pending global endpoint - returns all pending GDV (no date filters)
   // Returns GDV where esdo IS NULL or esdo != 'C' (open/pending deliveries)
-  app.get('/api/sales/gdv-pending', requireCommercialAccess, async (req, res) => {
+  app.get('/api/sales/gdv-pending', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { salesperson, segment, client } = req.query;
 
@@ -2456,7 +2456,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Top clients endpoint
-  app.get('/api/sales/top-clients', requireCommercialAccess, async (req, res) => {
+  app.get('/api/sales/top-clients', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { limit, period, filterType, salesperson, segment, product } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
@@ -2550,7 +2550,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Segment analysis endpoint
-  app.get('/api/sales/segments', requireCommercialAccess, async (req, res) => {
+  app.get('/api/sales/segments', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { period, filterType, salesperson, segment } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
@@ -3471,7 +3471,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Goals form data endpoints
-  app.get('/api/goals/data/segments', requireCommercialAccess, async (req, res) => {
+  app.get('/api/goals/data/segments', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const segments = await storage.getUniqueSegments();
       res.json(segments);
@@ -3481,7 +3481,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get('/api/goals/data/salespeople', requireCommercialAccess, async (req, res) => {
+  app.get('/api/goals/data/salespeople', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { period, filterType } = req.query;
       const dateRange = period && filterType ? getDateRange(period as string, filterType as string) : {};
@@ -3514,7 +3514,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Goals progress endpoint
-  app.get('/api/goals/progress', requireCommercialAccess, async (req, res) => {
+  app.get('/api/goals/progress', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
       const { selectedPeriod, type, target } = req.query;
       const filterPeriod = selectedPeriod as string;
@@ -3983,7 +3983,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get('/api/sales/projection-insight', requireCommercialAccess, async (req: any, res) => {
+  app.get('/api/sales/projection-insight', requireCommercialAccess, responseCacheMiddleware(120), async (req: any, res) => {
     try {
       const { period, filterType, salesperson, segment, client, projectionType } = req.query;
       const pType = (projectionType as string) || 'cierre_mes';
@@ -10235,7 +10235,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get NVV summary metrics
-  app.get('/api/nvv/metrics', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/nvv/metrics', requireAuth, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
     const { salesperson, segment, client, startDate, endDate, period, filterType } = req.query;
 
     // Use same date range logic as sales metrics
@@ -22125,7 +22125,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
   // ==================================================================================
 
   // GET: List budget records by year
-  app.get('/api/presupuesto-ventas', requireAuth, asyncHandler(async (req: any, res: any) => {
+  app.get('/api/presupuesto-ventas', requireAuth, responseCacheMiddleware(300), asyncHandler(async (req: any, res: any) => {
     const anio = parseInt(req.query.anio as string) || new Date().getFullYear();
     const records = await db
       .select()
