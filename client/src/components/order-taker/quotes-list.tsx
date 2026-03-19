@@ -711,6 +711,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                     <TableHead className="text-left">Creado por</TableHead>
                   )}
                   <TableHead className="text-left">Creada</TableHead>
+                  <TableHead className="text-right">Monto</TableHead>
                   <TableHead className="text-center">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -784,6 +785,12 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                         <div className="text-xs text-gray-500">
                           {getTimeAgo(quote.createdAt)}
                         </div>
+                      </TableCell>
+
+                      <TableCell className="py-4 text-right">
+                        <span className="font-semibold text-gray-900">
+                          {formatCurrency(quote.total || '0')}
+                        </span>
                       </TableCell>
 
                       <TableCell
@@ -891,7 +898,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-12">
+                    <TableCell colSpan={6} className="text-center py-12">
                       <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                       <h3 className="text-lg font-medium text-gray-900 mb-2">
                         No hay cotizaciones

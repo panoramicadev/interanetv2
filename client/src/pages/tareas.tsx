@@ -181,6 +181,7 @@ export default function TareasPage() {
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const groupsInitializedRef = useRef(false);
   const [teamSearchFilter, setTeamSearchFilter] = useState("");
 
   // Consolidated init query - fetches everything in one HTTP roundtrip
@@ -208,6 +209,15 @@ export default function TareasPage() {
     enabled: isAuthenticated,
     placeholderData: tareasInit?.taskGroups as any,
   });
+
+  // Collapse all groups by default on first load
+  useEffect(() => {
+    const groups = taskGroupsQuery.data;
+    if (groups && groups.length > 0 && !groupsInitializedRef.current) {
+      groupsInitializedRef.current = true;
+      setCollapsedGroups(new Set(groups.map((g: any) => g.id)));
+    }
+  }, [taskGroupsQuery.data]);
 
   const createGroupMutation = useMutation({
     mutationFn: async (data: { name: string; segmento: string; color?: string }) => {
