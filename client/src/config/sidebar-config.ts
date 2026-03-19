@@ -64,7 +64,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/tareas",
-      label: "Tareas",
+      label: "Panel de Trabajo",
       icon: CheckCircle2,
     },
     {
@@ -406,7 +406,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/tareas",
-      label: "Tareas",
+      label: "Panel de Trabajo",
       icon: CheckCircle2,
     },
     {
@@ -561,7 +561,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/tareas",
-      label: "Tareas",
+      label: "Panel de Trabajo",
       icon: CheckCircle2,
     },
     {
@@ -666,7 +666,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/tareas",
-      label: "Tareas",
+      label: "Panel de Trabajo",
       icon: CheckSquare,
     },
     {
