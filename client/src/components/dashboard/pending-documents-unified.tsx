@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ShoppingCart, Package, DollarSign, Users, Truck, User, ChevronDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -83,12 +83,32 @@ interface GDVClientGroup {
     records: GDVRecord[];
 }
 
+// ─── Branch config (mirrors server BRANCH_CONFIG) ───
+const BRANCH_SALESPEOPLE: Record<string, { salespeople: string[]; excludeClients?: { salesperson: string; clients: string[] }[] }> = {
+    'CONCEPCION': {
+        salespeople: [
+            'HECTOR URIZAR DONOSO',
+            'WLADIMIR GABRIEL MUÑOZ FLORES',
+            'MAURICIO CHAPARRO MELO',
+            'ISAUD BENITO TORRES ORTIZ',
+            'MCT CONCEPCION',
+        ],
+        excludeClients: [
+            { salesperson: 'MAURICIO CHAPARRO MELO', clients: ['POCURO'] },
+        ],
+    },
+    'TEMUCO': {
+        salespeople: [],
+    },
+};
+
 // ─── Props ───
 interface PendingDocumentsUnifiedProps {
     selectedPeriod: string;
     filterType: "day" | "month" | "year" | "range";
     salesperson?: string;
     segment?: string;
+    branch?: string;
 }
 
 // ─── Helpers ───
@@ -144,7 +164,7 @@ const groupGdvByClient = (records: GDVRecord[]): GDVClientGroup[] => {
 };
 
 // ─── Component ───
-export default function PendingDocumentsUnified({ selectedPeriod, filterType, salesperson, segment }: PendingDocumentsUnifiedProps) {
+export default function PendingDocumentsUnified({ selectedPeriod, filterType, salesperson, segment, branch }: PendingDocumentsUnifiedProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<"nvv" | "gdv">("nvv");
     const [showAllNvv, setShowAllNvv] = useState(false);
@@ -187,8 +207,21 @@ export default function PendingDocumentsUnified({ selectedPeriod, filterType, sa
         refetchOnWindowFocus: false
     });
 
-    const nvvData = nvvDataRaw;
-    const gdvData = gdvDataRaw;
+    // Filter by branch salespeople if branch is set
+    const branchConfig = branch ? BRANCH_SALESPEOPLE[branch.toUpperCase()] : undefined;
+    const nvvData = useMemo(() => {
+        if (!nvvDataRaw) return nvvDataRaw;
+        if (!branchConfig || branchConfig.salespeople.length === 0) return nvvDataRaw;
+        const branchNames = new Set(branchConfig.salespeople.map(s => s.toUpperCase()));
+        return nvvDataRaw.filter(sp => branchNames.has(sp.salespersonName?.trim().toUpperCase() || ''));
+    }, [nvvDataRaw, branchConfig]);
+
+    const gdvData = useMemo(() => {
+        if (!gdvDataRaw) return gdvDataRaw;
+        if (!branchConfig || branchConfig.salespeople.length === 0) return gdvDataRaw;
+        const branchNames = new Set(branchConfig.salespeople.map(s => s.toUpperCase()));
+        return gdvDataRaw.filter(sp => branchNames.has(sp.salespersonName?.trim().toUpperCase() || ''));
+    }, [gdvDataRaw, branchConfig]);
 
     // ─── NVV Totals ───
     const nvvTotalAmount = nvvData?.reduce((s, sp) => s + sp.totalAmount, 0) || 0;

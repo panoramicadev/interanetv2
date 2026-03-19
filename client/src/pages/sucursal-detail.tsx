@@ -13,7 +13,8 @@ import { useFilter } from "@/contexts/FilterContext";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import ComparativeSegmentSalespeopleTable from "@/components/dashboard/comparative-segment-salespeople-table";
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
-import BranchPendingNVV from "@/components/dashboard/branch-pending-nvv";
+import PendingDocumentsUnified from "@/components/dashboard/pending-documents-unified";
+import SalesChart from "@/components/dashboard/sales-chart";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 
 interface BranchClient {
@@ -760,9 +761,22 @@ export default function SucursalDetail({
                 </div>
               </div>
 
-              {/* NVV Pendientes - Notas de Venta Pendientes by Branch (sin filtros de fecha para coincidir con módulo NVV) */}
+              {/* Sales Chart - Tendencia de Ventas for this branch */}
               {branchName && (
-                <BranchPendingNVV
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                  <SalesChart
+                    selectedPeriod={selectedPeriod}
+                    filterType={filterType}
+                    branch={branchName}
+                  />
+                </div>
+              )}
+
+              {/* Documentos Pendientes (NVV + GDV) - Unified component */}
+              {branchName && (
+                <PendingDocumentsUnified
+                  selectedPeriod={selectedPeriod}
+                  filterType={filterType}
                   branch={branchName}
                 />
               )}

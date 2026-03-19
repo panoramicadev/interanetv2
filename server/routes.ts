@@ -2617,14 +2617,14 @@ export function registerRoutes(app: Express): Server {
   // Sales chart data endpoint
   app.get('/api/sales/chart-data', requireCommercialAccess, async (req, res) => {
     try {
-      const { period = 'monthly', selectedPeriod, filterType, salesperson, segment, client, product } = req.query;
+      const { period = 'monthly', selectedPeriod, filterType, salesperson, segment, client, product, branch } = req.query;
 
       // Si tenemos selectedPeriod y filterType, usamos esos para el filtro de fecha
       const dateRange = selectedPeriod && filterType
         ? getDateRange(selectedPeriod as string, filterType as string)
         : { startDate: undefined, endDate: undefined };
 
-      console.log('[CHART-DATA DEBUG] Request params:', { period, selectedPeriod, filterType, salesperson, segment, client, product });
+      console.log('[CHART-DATA DEBUG] Request params:', { period, selectedPeriod, filterType, salesperson, segment, client, product, branch });
       console.log('[CHART-DATA DEBUG] Date range calculated:', dateRange);
 
       let chartData = await storage.getSalesChartData(
@@ -2634,7 +2634,8 @@ export function registerRoutes(app: Express): Server {
         salesperson as string, // Filtrar por vendedor específico
         segment as string, // Filtrar por segmento específico
         client as string, // Filtrar por cliente específico
-        product as string // Filtrar por producto específico
+        product as string, // Filtrar por producto específico
+        branch as string  // Filtrar por sucursal
       );
 
       console.log('[CHART-DATA DEBUG] Result count:', chartData?.length || 0);

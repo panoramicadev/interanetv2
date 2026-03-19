@@ -2646,14 +2646,14 @@ export class DatabaseStorage implements IStorage {
     'CONCEPCION': {
       label: 'Panorámica Store Concepción',
       salespeople: [
-        'HECTOR URIZAR',
-        'WLADIMIR MUÑOZ',
-        'MAURICIO CHAPARRO',
-        'ISAUD TORRES',
+        'HECTOR URIZAR DONOSO',
+        'WLADIMIR GABRIEL MUÑOZ FLORES',
+        'MAURICIO CHAPARRO MELO',
+        'ISAUD BENITO TORRES ORTIZ',
         'MCT CONCEPCION',
       ],
       excludeClients: [
-        { salesperson: 'MAURICIO CHAPARRO', clients: ['POCURO'] },
+        { salesperson: 'MAURICIO CHAPARRO MELO', clients: ['POCURO'] },
       ],
     },
     'TEMUCO': {
@@ -4468,7 +4468,7 @@ export class DatabaseStorage implements IStorage {
     return segResult;
   }
 
-  async getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string, segment?: string, client?: string, product?: string): Promise<Array<{
+  async getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string, segment?: string, client?: string, product?: string, branch?: string): Promise<Array<{
     period: string;
     sales: number;
   }>> {
@@ -4494,6 +4494,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (product) {
       conditions.push(eq(factVentas.nokoprct, product));
+    }
+    if (branch) {
+      conditions.push(...DatabaseStorage.getBranchConditions(branch));
     }
 
     let query: any;
@@ -5715,7 +5718,7 @@ export class DatabaseStorage implements IStorage {
     percentage: number;
   }>> {
     const conditions = [
-      eq(factVentas.nosudo, branchName),
+      ...DatabaseStorage.getBranchConditions(branchName),
       sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
 
@@ -5791,7 +5794,7 @@ export class DatabaseStorage implements IStorage {
     percentage: number;
   }>> {
     const conditions = [
-      eq(factVentas.nosudo, branchName),
+      ...DatabaseStorage.getBranchConditions(branchName),
       sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
 
@@ -5866,7 +5869,7 @@ export class DatabaseStorage implements IStorage {
       .from(factVentas)
       .where(
         and(
-          eq(factVentas.nosudo, branchName),
+          ...DatabaseStorage.getBranchConditions(branchName),
           sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM') = ${period}`
         )
       )
