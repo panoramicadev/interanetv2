@@ -213,9 +213,11 @@ export default function TareasPage() {
       return await res.json();
     },
     onMutate: async (newGroup) => {
+      // Cancel ALL task-groups queries (any segmento)
       await queryClient.cancelQueries({ queryKey: ['/api/task-groups'] });
+      await queryClient.cancelQueries({ queryKey: ['/api/tareas/init'] });
       const previousGroups = queryClient.getQueriesData({ queryKey: ['/api/task-groups'] });
-      // Optimistically add the new group
+      // Optimistically add the new group to ALL matching queries
       queryClient.setQueriesData({ queryKey: ['/api/task-groups'] }, (old: any) => {
         if (!old || !Array.isArray(old)) return [{ id: `temp-${Date.now()}`, ...newGroup, userId: '', color: newGroup.color || 'blue', sortOrder: 0, createdAt: new Date() }];
         return [...old, { id: `temp-${Date.now()}`, ...newGroup, userId: '', color: newGroup.color || 'blue', sortOrder: 0, createdAt: new Date() }];
@@ -225,7 +227,9 @@ export default function TareasPage() {
       return { previousGroups };
     },
     onSuccess: () => {
+      // Invalidate with exact: false to match all task-groups queries regardless of segmento
       queryClient.invalidateQueries({ queryKey: ['/api/task-groups'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tareas/init'] });
       toast({ title: "Grupo creado", description: "El grupo se ha creado exitosamente." });
     },
     onError: (error: any, _vars, context: any) => {
@@ -243,8 +247,9 @@ export default function TareasPage() {
       await apiRequest('DELETE', `/api/task-groups/${id}`);
     },
     onSuccess: () => {
-      queryClient.refetchQueries({ queryKey: ['/api/task-groups'] });
-      queryClient.refetchQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/task-groups'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tareas/init'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       toast({ title: "Grupo eliminado" });
     },
   });
