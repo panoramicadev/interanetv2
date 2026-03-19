@@ -576,11 +576,11 @@ interface Migration {
 }
 
 /**
- * Migra las URLs de imágenes de productos del sistema de archivos local
- * a Object Storage persistente.
+ * Migra las URLs de imágenes de productos de Object Storage (Replit)
+ * a sistema de archivos local (Railway).
  * 
- * Convierte URLs como: /product-images/SKU_123.png
- * A URLs como: /public-objects/product-images/SKU_123.png
+ * Convierte URLs como: /public-objects/product-images/SKU_123.png
+ * A URLs como: /product-images/SKU_123.png
  */
 export async function migrateProductImageUrls(): Promise<{ migrated: number }> {
   console.log('🖼️  Verificando URLs de imágenes de productos...');
@@ -588,17 +588,16 @@ export async function migrateProductImageUrls(): Promise<{ migrated: number }> {
   try {
     const result = await db.execute(sql`
       UPDATE ecommerce_products 
-      SET imagen_url = '/public-objects' || imagen_url
+      SET imagen_url = REPLACE(imagen_url, '/public-objects/product-images/', '/product-images/')
       WHERE imagen_url IS NOT NULL 
-        AND imagen_url LIKE '/product-images/%'
-        AND imagen_url NOT LIKE '/public-objects/%'
+        AND imagen_url LIKE '/public-objects/product-images/%'
       RETURNING id
     `);
     
     const migrated = result.rowCount || 0;
     
     if (migrated > 0) {
-      console.log(`✅ ${migrated} URLs de imágenes migradas a Object Storage`);
+      console.log(`✅ ${migrated} URLs de imágenes migradas a almacenamiento local`);
     } else {
       console.log('✅ Todas las URLs de imágenes ya están actualizadas');
     }

@@ -217,10 +217,7 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
                                 className="pl-12 h-12 text-base rounded-2xl border-2 border-slate-200 focus:border-orange-400 bg-white shadow-sm transition-all"
                             />
                         </div>
-                        <p className="text-center text-sm text-slate-400 mt-2 font-medium">
-                            {filteredCatalog.length} productos · {totalProducts} variantes
-                        </p>
-                    </div>
+                        </div>
 
                     {isLoading && (
                         <div className="flex items-center justify-center py-20">
