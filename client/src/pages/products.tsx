@@ -16,10 +16,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2, Globe, ShoppingCart, Tags, Image, Settings, Link, Palette, BarChart3, Layers, ChevronLeft, ChevronRight, ExternalLink, RefreshCw, BookOpen } from "lucide-react";
+import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2, Globe, ShoppingCart, Tags, Image, Settings, Link, Palette, BarChart3, Layers, ChevronLeft, ChevronRight, ExternalLink, RefreshCw, BookOpen, ImageIcon } from "lucide-react";
 import { PriceList } from "@shared/schema";
 import GroupedCatalog from "@/components/grouped-catalog";
 import { InventarioContent } from "@/pages/inventario";
+import BulkImageUpload from "@/components/products/bulk-image-upload";
 
 interface Product {
   id: string;
@@ -137,6 +138,7 @@ export default function ProductsPage() {
   const [priceReason, setPriceReason] = useState("");
   const [importFile, setImportFile] = useState<File | null>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showImageUploadDialog, setShowImageUploadDialog] = useState(false);
   const [showPriceDialog, setShowPriceDialog] = useState(false);
   const [showStockDialog, setShowStockDialog] = useState(false);
   const [showEcomDialog, setShowEcomDialog] = useState(false);
@@ -685,6 +687,28 @@ export default function ProductsPage() {
               Administra el catálogo de productos, precios y stock por bodega
             </p>
           </div>
+
+          <Dialog open={showImageUploadDialog} onOpenChange={setShowImageUploadDialog}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20 gap-2" data-testid="button-bulk-images">
+                <ImageIcon className="h-4 w-4" />
+                Cargar Imágenes
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader className="pb-2">
+                <DialogTitle>Carga Masiva de Imágenes</DialogTitle>
+                <DialogDescription>
+                  Sube un archivo ZIP con imágenes nombradas por SKU para asignarlas automáticamente a los productos.
+                </DialogDescription>
+              </DialogHeader>
+              <BulkImageUpload
+                onComplete={() => {
+                  queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/products'] });
+                }}
+              />
+            </DialogContent>
+          </Dialog>
 
           <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
             <DialogTrigger asChild>
