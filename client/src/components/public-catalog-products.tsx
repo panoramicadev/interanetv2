@@ -1,14 +1,13 @@
 import { useState, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/hooks/useCart";
 import {
     Search, ChevronDown, ChevronRight, Package, Palette,
     ShoppingCart, Plus, Minus, Loader2, Box, Info, X, HelpCircle,
-    Play, FileText, Ruler
+    Play, FileText, Ruler, ImageIcon
 } from "lucide-react";
 
 interface FormatVariant {
@@ -31,6 +30,7 @@ interface GenericProduct {
     groupName: string | null;
     tags?: string[];
     breveResena?: string | null;
+    imageUrl?: string | null;
     colors: { [color: string]: FormatVariant[] };
 }
 
@@ -47,27 +47,27 @@ function QuantitySelector({ value, onChange, min = 1, step = 1 }: {
     step?: number;
 }) {
     return (
-        <div className="inline-flex items-center border border-slate-200 rounded-md overflow-hidden">
+        <div className="inline-flex items-center border-2 border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
             <button
                 onClick={() => onChange(Math.max(min, value - step))}
-                className="w-6 h-6 flex items-center justify-center hover:bg-slate-100 text-slate-500 transition-colors"
+                className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 text-slate-500 transition-colors active:bg-slate-200"
                 disabled={value <= min}
             >
-                <Minus className="w-2.5 h-2.5" />
+                <Minus className="w-4 h-4" />
             </button>
             <input
                 type="number"
                 value={value}
                 onChange={e => onChange(Math.max(min, parseInt(e.target.value) || min))}
-                className="w-10 h-6 text-center text-xs border-x border-slate-200 focus:outline-none"
+                className="w-14 h-10 text-center text-base font-bold border-x-2 border-slate-200 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 min={min}
                 step={step}
             />
             <button
                 onClick={() => onChange(value + step)}
-                className="w-6 h-6 flex items-center justify-center hover:bg-slate-100 text-slate-500 transition-colors"
+                className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 text-slate-500 transition-colors active:bg-slate-200"
             >
-                <Plus className="w-2.5 h-2.5" />
+                <Plus className="w-4 h-4" />
             </button>
         </div>
     );
@@ -116,6 +116,7 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
             return data.map((item: any) => ({
                 genericName: item.family || 'Sin Nombre',
                 groupName: item.categoria || null,
+                imageUrl: null,
                 colors: (item.colors || []).reduce((acc: any, c: any) => {
                     acc[c.color || 'Sin Color'] = (c.formats || []).map((f: any) => ({
                         ecomId: f.id || '',
@@ -194,196 +195,265 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
             quantityStep: variant.stepSize || 1,
         });
         toast({
-            title: "Agregado al carrito",
+            title: "✓ Agregado al carrito",
             description: `${qty}x ${productName} (${variant.color}, ${variant.format})`,
         });
     };
 
     return (
         <>
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col h-full bg-gradient-to-b from-slate-50 to-white">
                 {/* Product list */}
                 <div className="flex-1 overflow-y-auto" onScroll={e => onScroll?.((e.target as HTMLDivElement).scrollTop)}>
-                    {/* Search bar — scrolls with content */}
-                    <div className="px-4 py-3 border-b bg-white">
-                        <div className="relative max-w-md mx-auto">
-                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                    {/* Search bar */}
+                    <div className="px-4 py-4 border-b bg-white/80 backdrop-blur-md sticky top-0 z-10">
+                        <div className="relative max-w-lg mx-auto">
+                            <Search className="absolute left-4 top-3.5 h-5 w-5 text-slate-400" />
                             <Input
                                 placeholder="Buscar producto, color o SKU..."
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
-                                className="pl-10 h-9 text-sm"
+                                className="pl-12 h-12 text-base rounded-2xl border-2 border-slate-200 focus:border-orange-400 bg-white shadow-sm transition-all"
                             />
                         </div>
-                        <p className="text-center text-xs text-slate-400 mt-1.5">
-                            {filteredCatalog.length} productos · {totalProducts} SKUs
+                        <p className="text-center text-sm text-slate-400 mt-2 font-medium">
+                            {filteredCatalog.length} productos · {totalProducts} variantes
                         </p>
                     </div>
+
                     {isLoading && (
-                        <div className="flex items-center justify-center py-16">
-                            <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
-                            <span className="ml-2 text-sm text-slate-500">Cargando productos...</span>
+                        <div className="flex items-center justify-center py-20">
+                            <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+                            <span className="ml-3 text-base text-slate-500">Cargando productos...</span>
                         </div>
                     )}
 
                     {!isLoading && filteredCatalog.length === 0 && (
-                        <div className="text-center py-16">
-                            <Package className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-                            <p className="text-sm text-slate-500">No se encontraron productos</p>
+                        <div className="text-center py-20">
+                            <Package className="h-14 w-14 text-slate-300 mx-auto mb-4" />
+                            <p className="text-lg text-slate-500 font-medium">No se encontraron productos</p>
+                            <p className="text-sm text-slate-400 mt-1">Intenta con otro término de búsqueda</p>
                         </div>
                     )}
 
-                    {!isLoading && filteredCatalog.map(product => {
-                        const colorKeys = Object.keys(product.colors)
-                            .sort((a, b) => product.colors[b].length - product.colors[a].length);
-                        const isExpanded = expandedProducts.has(product.genericName);
-                        const totalVariants = Object.values(product.colors).flat().length;
+                    {/* Product Cards */}
+                    <div className="px-3 py-3 space-y-2">
+                        {!isLoading && filteredCatalog.map(product => {
+                            const colorKeys = Object.keys(product.colors)
+                                .sort((a, b) => product.colors[b].length - product.colors[a].length);
+                            const isExpanded = expandedProducts.has(product.genericName);
+                            const totalVariants = Object.values(product.colors).flat().length;
 
-                        return (
-                            <div key={product.genericName} className="border-b border-slate-100">
-                                {/* Product row */}
+                            return (
                                 <div
-                                    className="px-4 py-2.5 cursor-pointer hover:bg-orange-50/50 transition-colors"
-                                    onClick={() => toggleProduct(product.genericName)}
+                                    key={product.genericName}
+                                    className={`rounded-2xl border-2 overflow-hidden transition-all duration-300 ${
+                                        isExpanded
+                                            ? 'border-orange-300 shadow-lg shadow-orange-100/50 bg-white'
+                                            : 'border-slate-100 bg-white hover:border-slate-200 hover:shadow-md'
+                                    }`}
                                 >
-                                    <div className="flex items-center gap-2">
-                                        {isExpanded
-                                            ? <ChevronDown className="h-4 w-4 text-orange-500 flex-shrink-0" />
-                                            : <ChevronRight className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                                        }
-                                        <span className={`text-sm font-medium flex-1 truncate uppercase ${isExpanded ? "text-orange-700" : "text-slate-800"}`}>
-                                            {product.genericName}
-                                        </span>
-                                        <div className="flex items-center gap-1 flex-shrink-0">
-                                            {(product.tags || []).map(tag => (
-                                                <span key={tag} className={`text-[9px] px-2 py-0.5 rounded-full font-bold whitespace-nowrap shadow-sm ${
-                                                    tag === 'Mejor Precio' ? 'bg-green-500 text-white' :
-                                                    tag === 'Rápida Rotación' ? 'bg-blue-500 text-white' :
-                                                    tag === 'Pocas Unidades' ? 'bg-amber-500 text-white' :
-                                                    'bg-gray-500 text-white'
+                                    {/* Product Header */}
+                                    <div
+                                        className={`cursor-pointer transition-all duration-200 ${
+                                            isExpanded ? 'bg-gradient-to-r from-orange-50 to-amber-50' : 'hover:bg-slate-50/80'
+                                        }`}
+                                        onClick={() => toggleProduct(product.genericName)}
+                                    >
+                                        <div className="p-4 flex items-center gap-4">
+                                            {/* Product Image */}
+                                            <div className={`w-16 h-16 rounded-xl flex-shrink-0 overflow-hidden border-2 transition-all ${
+                                                isExpanded ? 'border-orange-200 shadow-sm' : 'border-slate-100'
+                                            }`}>
+                                                {product.imageUrl ? (
+                                                    <img
+                                                        src={product.imageUrl}
+                                                        alt={product.genericName}
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => {
+                                                            (e.target as HTMLImageElement).style.display = 'none';
+                                                            (e.target as HTMLImageElement).parentElement!.classList.add('bg-gradient-to-br', 'from-slate-100', 'to-slate-50', 'flex', 'items-center', 'justify-center');
+                                                            const icon = document.createElement('div');
+                                                            icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-300"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>';
+                                                            (e.target as HTMLImageElement).parentElement!.appendChild(icon);
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full bg-gradient-to-br from-slate-100 to-slate-50 flex items-center justify-center">
+                                                        <ImageIcon className="w-6 h-6 text-slate-300" />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Product Info */}
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className={`text-base font-bold uppercase leading-tight ${
+                                                    isExpanded ? 'text-orange-800' : 'text-slate-800'
                                                 }`}>
-                                                    {tag === 'Mejor Precio' ? '💰 ' : tag === 'Rápida Rotación' ? '🔥 ' : tag === 'Pocas Unidades' ? '⚠️ ' : ''}{tag}
-                                                </span>
-                                            ))}
+                                                    {product.genericName}
+                                                </h3>
+                                                {/* Tags */}
+                                                {(product.tags || []).length > 0 && (
+                                                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                                        {(product.tags || []).map(tag => (
+                                                            <span key={tag} className={`text-xs px-2.5 py-1 rounded-full font-bold whitespace-nowrap shadow-sm ${
+                                                                tag === 'Mejor Precio' ? 'bg-emerald-500 text-white' :
+                                                                tag === 'Rápida Rotación' ? 'bg-blue-500 text-white' :
+                                                                tag === 'Pocas Unidades' ? 'bg-amber-500 text-white' :
+                                                                'bg-gray-500 text-white'
+                                                            }`}>
+                                                                {tag === 'Mejor Precio' ? '💰 ' : tag === 'Rápida Rotación' ? '🔥 ' : tag === 'Pocas Unidades' ? '⚠️ ' : ''}{tag}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {product.breveResena && (
+                                                    <p className="text-sm text-slate-500 mt-1 line-clamp-1">{product.breveResena}</p>
+                                                )}
+                                            </div>
+
+                                            {/* Right side */}
+                                            <div className="flex items-center gap-2 flex-shrink-0">
+                                                <div className="text-right">
+                                                    <span className="text-sm font-semibold text-slate-500">
+                                                        {colorKeys.length} color{colorKeys.length !== 1 ? 'es' : ''}
+                                                    </span>
+                                                </div>
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                                                    isExpanded ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-400'
+                                                }`}>
+                                                    {isExpanded
+                                                        ? <ChevronDown className="h-5 w-5" />
+                                                        : <ChevronRight className="h-5 w-5" />
+                                                    }
+                                                </div>
+                                            </div>
                                         </div>
-                                        <span className="text-[10px] text-slate-400 flex-shrink-0 ml-1">
-                                            {colorKeys.length} color{colorKeys.length !== 1 ? 'es' : ''}
-                                        </span>
                                     </div>
-                                    {product.breveResena && (
-                                        <div className="ml-6 mt-1">
-                                            <span className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md line-clamp-1 inline-block">{product.breveResena}</span>
+
+                                    {/* Expanded Content */}
+                                    {isExpanded && (
+                                        <div className="border-t-2 border-orange-100">
+                                            {/* Info Button */}
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openInfoModal(product.genericName);
+                                                }}
+                                                className="w-full flex items-center justify-between px-5 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-all group border-b border-blue-100"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                                                        <Info className="h-4 w-4 text-blue-600" />
+                                                    </div>
+                                                    <span className="text-sm font-bold text-blue-700 group-hover:text-blue-800">Ver ficha técnica</span>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Play className="h-3.5 w-3.5 text-blue-400" />
+                                                        <FileText className="h-3.5 w-3.5 text-blue-400" />
+                                                        <Ruler className="h-3.5 w-3.5 text-blue-400" />
+                                                    </div>
+                                                </div>
+                                                <ChevronRight className="h-4 w-4 text-blue-400 group-hover:text-blue-600 transition-colors" />
+                                            </button>
+
+                                            {/* Color sections */}
+                                            {colorKeys.map(color => {
+                                                const variants = product.colors[color];
+                                                const isColorExpanded = expandedColors.has(`${product.genericName}-${color}`);
+
+                                                return (
+                                                    <div key={color}>
+                                                        {/* Color Header */}
+                                                        <div
+                                                            className={`flex items-center gap-3 px-5 py-3 cursor-pointer transition-all border-b ${
+                                                                isColorExpanded
+                                                                    ? 'bg-amber-50/80 border-amber-100'
+                                                                    : 'bg-slate-50/50 border-slate-100 hover:bg-slate-100/80'
+                                                            }`}
+                                                            onClick={() => toggleColor(product.genericName, color)}
+                                                        >
+                                                            <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                                                                isColorExpanded ? 'bg-orange-500 text-white' : 'bg-slate-200 text-slate-400'
+                                                            }`}>
+                                                                {isColorExpanded
+                                                                    ? <ChevronDown className="h-4 w-4" />
+                                                                    : <ChevronRight className="h-4 w-4" />
+                                                                }
+                                                            </div>
+                                                            <Palette className="h-4 w-4 text-orange-500" />
+                                                            <span className="text-sm font-bold text-slate-700 uppercase flex-1">{color}</span>
+                                                            <span className="text-sm text-slate-400 font-medium">
+                                                                {variants.length} formato{variants.length > 1 ? 's' : ''}
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Format Variants */}
+                                                        {isColorExpanded && (
+                                                            <div className="bg-white">
+                                                                {variants.map(variant => {
+                                                                    const stock = getStock(variant);
+                                                                    return (
+                                                                        <div
+                                                                            key={variant.sku}
+                                                                            className="px-5 py-3.5 border-b border-slate-50 last:border-b-0 hover:bg-orange-50/30 transition-colors"
+                                                                        >
+                                                                            <div className="flex items-center gap-3 mb-2.5">
+                                                                                {/* Format Info */}
+                                                                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                                                    <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                                                                                        <Box className="h-4 w-4 text-blue-500" />
+                                                                                    </div>
+                                                                                    <div className="min-w-0">
+                                                                                        <span className="text-base font-bold text-slate-800 block">
+                                                                                            {variant.format}
+                                                                                        </span>
+                                                                                        <span className="text-xs text-slate-400 font-mono">{variant.sku}</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                                {/* Stock Badge */}
+                                                                                <div className={`px-3 py-1.5 rounded-xl text-sm font-bold ${
+                                                                                    stock > 0
+                                                                                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                                                                        : 'bg-red-50 text-red-600 border border-red-200'
+                                                                                }`}>
+                                                                                    {stock > 0 ? `${stock} uds` : 'Sin stock'}
+                                                                                </div>
+                                                                            </div>
+
+                                                                            {/* Quantity + Cart Row */}
+                                                                            <div className="flex items-center gap-3 justify-end">
+                                                                                <QuantitySelector
+                                                                                    value={getQuantity(variant.sku, variant.minUnit || 1)}
+                                                                                    onChange={val => setQuantity(variant.sku, val)}
+                                                                                    min={variant.minUnit || 1}
+                                                                                    step={variant.stepSize || 1}
+                                                                                />
+                                                                                <button
+                                                                                    className="inline-flex items-center gap-2 px-5 h-10 rounded-xl bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white transition-all shadow-md shadow-orange-200 hover:shadow-lg hover:shadow-orange-300 font-bold text-sm"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        handleAddToCart(variant, product.genericName);
+                                                                                    }}
+                                                                                    title="Añadir al carrito"
+                                                                                >
+                                                                                    <ShoppingCart className="h-4 w-4" />
+                                                                                    <span className="hidden sm:inline">Agregar</span>
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
-
-                                {/* Expanded: colors → formats */}
-                                {isExpanded && (
-                                    <div className="bg-slate-50/80">
-                                        {/* Más información button */}
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                openInfoModal(product.genericName);
-                                            }}
-                                            className="w-full flex items-center justify-between px-5 py-2 border-b border-slate-200 bg-white hover:bg-orange-50/50 transition-all group border-l-[3px] border-l-orange-400"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-xs font-semibold text-slate-700 group-hover:text-orange-700">Más información</span>
-                                                <div className="flex items-center gap-1">
-                                                    <Play className="h-3 w-3 text-orange-400" />
-                                                    <FileText className="h-3 w-3 text-orange-400" />
-                                                    <Ruler className="h-3 w-3 text-orange-400" />
-                                                </div>
-                                            </div>
-                                            <ChevronRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-orange-500 transition-colors" />
-                                        </button>
-                                        {colorKeys.map(color => {
-                                            const variants = product.colors[color];
-                                            const isColorExpanded = expandedColors.has(`${product.genericName}-${color}`);
-
-                                            return (
-                                                <div key={color}>
-                                                    {/* Color header */}
-                                                    <div
-                                                        className="flex items-center gap-1.5 px-6 py-1.5 bg-slate-100/90 border-t border-slate-200/60 cursor-pointer hover:bg-slate-200/60 transition-colors"
-                                                        onClick={() => toggleColor(product.genericName, color)}
-                                                    >
-                                                        {isColorExpanded
-                                                            ? <ChevronDown className="h-3.5 w-3.5 text-orange-500" />
-                                                            : <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
-                                                        }
-                                                        <Palette className="h-3 w-3 text-orange-500 ml-0.5" />
-                                                        <span className="text-xs font-bold text-slate-700 uppercase">{color}</span>
-                                                        <span className="text-[10px] text-slate-400 ml-auto">{variants.map(v => v.format).join(' · ')}</span>
-                                                    </div>
-
-                                                    {/* Format rows – compact table */}
-                                                    {isColorExpanded && (
-                                                        <div className="overflow-hidden">
-                                                            <table className="w-full text-xs">
-                                                                <thead>
-                                                                    <tr className="text-[10px] uppercase text-slate-400 tracking-wider bg-white">
-                                                                        <th className="text-left pl-8 pr-2 py-1.5 font-semibold">Formato</th>
-                                                                        <th className="text-center px-2 py-1.5 font-semibold w-16">Stock</th>
-                                                                        <th className="text-center px-1 py-1.5 font-semibold w-24">Cant.</th>
-                                                                        <th className="text-center pr-4 py-1.5 font-semibold w-16"></th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody className="bg-white">
-                                                                    {variants.map(variant => {
-                                                                        const stock = getStock(variant);
-                                                                        return (
-                                                                            <tr key={variant.sku} className="border-t border-slate-100 hover:bg-orange-50/40 transition-colors">
-                                                                                <td className="pl-8 pr-2 py-1.5">
-                                                                                    <div className="flex items-center gap-1.5">
-                                                                                        <Box className="h-3 w-3 text-blue-400 flex-shrink-0" />
-                                                                                        <span className="font-medium text-slate-700">{variant.format}</span>
-                                                                                    </div>
-                                                                                </td>
-                                                                                <td className="text-center px-2 py-1.5">
-                                                                                    <span className={`inline-block min-w-[28px] text-center text-[10px] font-bold px-1.5 py-0.5 rounded-full ${stock > 0
-                                                                                        ? "bg-emerald-100 text-emerald-700"
-                                                                                        : "bg-red-100 text-red-600"
-                                                                                        }`}>
-                                                                                        {stock}
-                                                                                    </span>
-                                                                                </td>
-                                                                                <td className="text-center px-1 py-1.5">
-                                                                                    <QuantitySelector
-                                                                                        value={getQuantity(variant.sku, variant.minUnit || 1)}
-                                                                                        onChange={val => setQuantity(variant.sku, val)}
-                                                                                        min={variant.minUnit || 1}
-                                                                                        step={variant.stepSize || 1}
-                                                                                    />
-                                                                                </td>
-                                                                                <td className="text-center pr-4 py-1.5">
-                                                                                    <button
-                                                                                        className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-colors shadow-sm"
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            handleAddToCart(variant, product.genericName);
-                                                                                        }}
-                                                                                        title="Añadir al carrito"
-                                                                                    >
-                                                                                        <ShoppingCart className="h-3.5 w-3.5" />
-                                                                                    </button>
-                                                                                </td>
-                                                                            </tr>
-                                                                        );
-                                                                    })}
-                                                                </tbody>
-                                                            </table>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
 
@@ -392,45 +462,45 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setInfoModal({ open: false, productName: '', loading: false, data: null })}>
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
                     <div
-                        className="relative bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[85vh] overflow-y-auto mx-4"
+                        className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto mx-4"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Modal header */}
-                        <div className="sticky top-0 bg-white border-b px-5 py-4 rounded-t-2xl flex items-center justify-between">
+                        <div className="sticky top-0 bg-white border-b px-5 py-4 rounded-t-2xl flex items-center justify-between z-10">
                             <div>
-                                <h3 className="font-bold text-base text-slate-800 uppercase">{infoModal.productName}</h3>
-                                <p className="text-xs text-slate-500">Ficha Técnica del Producto</p>
+                                <h3 className="font-bold text-lg text-slate-800 uppercase">{infoModal.productName}</h3>
+                                <p className="text-sm text-slate-500">Ficha Técnica del Producto</p>
                             </div>
                             <button
                                 onClick={() => setInfoModal({ open: false, productName: '', loading: false, data: null })}
-                                className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                                className="p-2 rounded-xl hover:bg-slate-100 transition-colors"
                             >
-                                <X className="h-4 w-4 text-slate-500" />
+                                <X className="h-5 w-5 text-slate-500" />
                             </button>
                         </div>
 
                         {/* Modal body */}
-                        <div className="px-5 py-4">
+                        <div className="px-5 py-5">
                             {infoModal.loading ? (
-                                <div className="flex items-center justify-center py-12">
-                                    <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
-                                    <span className="ml-2 text-sm text-slate-500">Cargando información...</span>
+                                <div className="flex items-center justify-center py-16">
+                                    <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+                                    <span className="ml-3 text-base text-slate-500">Cargando información...</span>
                                 </div>
                             ) : !infoModal.data ? (
-                                <div className="text-center py-12">
-                                    <Package className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-                                    <p className="text-sm text-slate-500">No hay información técnica disponible para este producto.</p>
-                                    <p className="text-xs text-slate-400 mt-1">El administrador puede cargarla desde el panel de productos.</p>
+                                <div className="text-center py-16">
+                                    <Package className="h-14 w-14 text-slate-300 mx-auto mb-4" />
+                                    <p className="text-base text-slate-500 font-medium">No hay información técnica disponible.</p>
+                                    <p className="text-sm text-slate-400 mt-1">El administrador puede cargarla desde el panel.</p>
                                 </div>
                             ) : (
-                                <div className="space-y-4">
+                                <div className="space-y-5">
                                     {/* Featured Image */}
                                     {infoModal.data.imagenDestacada && (
-                                        <div className="rounded-lg overflow-hidden border">
+                                        <div className="rounded-xl overflow-hidden border-2 border-slate-100">
                                             <img
                                                 src={infoModal.data.imagenDestacada}
                                                 alt={infoModal.productName}
-                                                className="w-full max-h-56 object-contain bg-slate-50"
+                                                className="w-full max-h-64 object-contain bg-slate-50"
                                                 onError={(e) => {
                                                     (e.target as HTMLImageElement).style.display = 'none';
                                                 }}
@@ -439,8 +509,8 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
                                     )}
 
                                     {infoModal.data.breveResena && (
-                                        <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
-                                            <p className="text-sm text-blue-800 font-medium">{infoModal.data.breveResena}</p>
+                                        <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                                            <p className="text-base text-blue-800 font-medium">{infoModal.data.breveResena}</p>
                                         </div>
                                     )}
 
@@ -458,7 +528,7 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
                                         } catch {}
                                         if (videoId) {
                                             return (
-                                                <div className="rounded-lg overflow-hidden border">
+                                                <div className="rounded-xl overflow-hidden border-2 border-slate-100">
                                                     <iframe
                                                         src={`https://www.youtube.com/embed/${videoId}`}
                                                         className="w-full aspect-video"
@@ -473,81 +543,81 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
                                     })()}
                                     {infoModal.data.descripcion && (
                                         <div>
-                                            <h4 className="text-xs font-semibold text-slate-500 uppercase mb-1">Descripción</h4>
-                                            <p className="text-sm text-slate-700">{infoModal.data.descripcion}</p>
+                                            <h4 className="text-sm font-bold text-slate-500 uppercase mb-2">Descripción</h4>
+                                            <p className="text-base text-slate-700">{infoModal.data.descripcion}</p>
                                         </div>
                                     )}
                                     {infoModal.data.usos && (
                                         <div>
-                                            <h4 className="text-xs font-semibold text-slate-500 uppercase mb-1">Usos y Aplicaciones</h4>
-                                            <p className="text-sm text-slate-700">{infoModal.data.usos}</p>
+                                            <h4 className="text-sm font-bold text-slate-500 uppercase mb-2">Usos y Aplicaciones</h4>
+                                            <p className="text-base text-slate-700">{infoModal.data.usos}</p>
                                         </div>
                                     )}
                                     {infoModal.data.presentacion && (
                                         <div>
-                                            <h4 className="text-xs font-semibold text-slate-500 uppercase mb-1">Presentaciones</h4>
-                                            <p className="text-sm text-slate-700">{infoModal.data.presentacion}</p>
+                                            <h4 className="text-sm font-bold text-slate-500 uppercase mb-2">Presentaciones</h4>
+                                            <p className="text-base text-slate-700">{infoModal.data.presentacion}</p>
                                         </div>
                                     )}
                                     {infoModal.data.rendimiento && (
                                         <div>
-                                            <h4 className="text-xs font-semibold text-slate-500 uppercase mb-1">Rendimiento</h4>
-                                            <p className="text-sm text-slate-700">{infoModal.data.rendimiento}</p>
+                                            <h4 className="text-sm font-bold text-slate-500 uppercase mb-2">Rendimiento</h4>
+                                            <p className="text-base text-slate-700">{infoModal.data.rendimiento}</p>
                                         </div>
                                     )}
                                     {infoModal.data.preparacionSuperficie && (
                                         <div>
-                                            <h4 className="text-xs font-semibold text-slate-500 uppercase mb-1">Preparación de Superficie</h4>
-                                            <p className="text-sm text-slate-700">{infoModal.data.preparacionSuperficie}</p>
+                                            <h4 className="text-sm font-bold text-slate-500 uppercase mb-2">Preparación de Superficie</h4>
+                                            <p className="text-base text-slate-700">{infoModal.data.preparacionSuperficie}</p>
                                         </div>
                                     )}
                                     {infoModal.data.modoAplicacion && (
                                         <div>
-                                            <h4 className="text-xs font-semibold text-slate-500 uppercase mb-1">Modo de Aplicación</h4>
-                                            <p className="text-sm text-slate-700">{infoModal.data.modoAplicacion}</p>
+                                            <h4 className="text-sm font-bold text-slate-500 uppercase mb-2">Modo de Aplicación</h4>
+                                            <p className="text-base text-slate-700">{infoModal.data.modoAplicacion}</p>
                                         </div>
                                     )}
                                     {(infoModal.data.tiempoSecado || infoModal.data.capas || infoModal.data.dilucion) && (
                                         <div className="grid grid-cols-3 gap-3">
                                             {infoModal.data.tiempoSecado && (
-                                                <div className="bg-slate-50 rounded-lg p-2.5">
-                                                    <p className="text-[10px] font-semibold text-slate-500 uppercase">Secado</p>
-                                                    <p className="text-sm text-slate-700 mt-0.5">{infoModal.data.tiempoSecado}</p>
+                                                <div className="bg-slate-50 rounded-xl p-3">
+                                                    <p className="text-xs font-bold text-slate-500 uppercase">Secado</p>
+                                                    <p className="text-sm text-slate-700 mt-1 font-medium">{infoModal.data.tiempoSecado}</p>
                                                 </div>
                                             )}
                                             {infoModal.data.capas && (
-                                                <div className="bg-slate-50 rounded-lg p-2.5">
-                                                    <p className="text-[10px] font-semibold text-slate-500 uppercase">Capas</p>
-                                                    <p className="text-sm text-slate-700 mt-0.5">{infoModal.data.capas}</p>
+                                                <div className="bg-slate-50 rounded-xl p-3">
+                                                    <p className="text-xs font-bold text-slate-500 uppercase">Capas</p>
+                                                    <p className="text-sm text-slate-700 mt-1 font-medium">{infoModal.data.capas}</p>
                                                 </div>
                                             )}
                                             {infoModal.data.dilucion && (
-                                                <div className="bg-slate-50 rounded-lg p-2.5">
-                                                    <p className="text-[10px] font-semibold text-slate-500 uppercase">Dilución</p>
-                                                    <p className="text-sm text-slate-700 mt-0.5">{infoModal.data.dilucion}</p>
+                                                <div className="bg-slate-50 rounded-xl p-3">
+                                                    <p className="text-xs font-bold text-slate-500 uppercase">Dilución</p>
+                                                    <p className="text-sm text-slate-700 mt-1 font-medium">{infoModal.data.dilucion}</p>
                                                 </div>
                                             )}
                                         </div>
                                     )}
                                     {infoModal.data.observaciones && (
                                         <div>
-                                            <h4 className="text-xs font-semibold text-slate-500 uppercase mb-1">Observaciones</h4>
-                                            <p className="text-sm text-slate-700">{infoModal.data.observaciones}</p>
+                                            <h4 className="text-sm font-bold text-slate-500 uppercase mb-2">Observaciones</h4>
+                                            <p className="text-base text-slate-700">{infoModal.data.observaciones}</p>
                                         </div>
                                     )}
 
                                     {/* FAQs */}
                                     {(infoModal.data.preguntasFrecuentes || []).length > 0 && (
-                                        <div className="border-t pt-4 mt-4">
-                                            <h4 className="text-xs font-semibold text-slate-500 uppercase mb-3 flex items-center gap-1.5">
-                                                <HelpCircle className="h-3.5 w-3.5" />
+                                        <div className="border-t pt-5 mt-5">
+                                            <h4 className="text-sm font-bold text-slate-500 uppercase mb-3 flex items-center gap-2">
+                                                <HelpCircle className="h-4 w-4" />
                                                 Preguntas Frecuentes
                                             </h4>
                                             <div className="space-y-3">
                                                 {(infoModal.data.preguntasFrecuentes as Array<{pregunta: string; respuesta: string}>).map((faq: {pregunta: string; respuesta: string}, i: number) => (
-                                                    <div key={i} className="bg-purple-50/50 rounded-lg p-3 border border-purple-100">
-                                                        <p className="text-sm font-semibold text-purple-800">{faq.pregunta}</p>
-                                                        <p className="text-sm text-purple-700 mt-1">{faq.respuesta}</p>
+                                                    <div key={i} className="bg-purple-50/50 rounded-xl p-4 border border-purple-100">
+                                                        <p className="text-base font-bold text-purple-800">{faq.pregunta}</p>
+                                                        <p className="text-sm text-purple-700 mt-1.5">{faq.respuesta}</p>
                                                     </div>
                                                 ))}
                                             </div>

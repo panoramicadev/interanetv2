@@ -5215,11 +5215,13 @@ export function registerRoutes(app: Express): Server {
           ep.step_size,
           ep.price_list_id,
           ep.tags,
+          ep.imagen_url,
           pl.codigo as sku,
           pl.producto as product_name,
           pl.unidad as unit,
           COALESCE(stk.total_stock, 0) as total_stock,
-          pc.breve_resena
+          pc.breve_resena,
+          pc.imagen_destacada
         FROM ecommerce_products ep
         LEFT JOIN price_list pl ON ep.price_list_id = pl.id
         LEFT JOIN (
@@ -5238,6 +5240,7 @@ export function registerRoutes(app: Express): Server {
         groupName: string | null;
         tags: string[];
         breveResena: string | null;
+        imageUrl: string | null;
         colors: Map<string, any[]>;
       }>();
 
@@ -5256,11 +5259,12 @@ export function registerRoutes(app: Express): Server {
         }
 
         if (!productsMap.has(genericName)) {
-          productsMap.set(genericName, { genericName, groupName, tags: rowTags, breveResena: (row as any).breve_resena || null, colors: new Map() });
+          productsMap.set(genericName, { genericName, groupName, tags: rowTags, breveResena: (row as any).breve_resena || null, imageUrl: (row as any).imagen_url || (row as any).imagen_destacada || null, colors: new Map() });
         }
         const product = productsMap.get(genericName)!;
         if (rowTags.length > 0 && product.tags.length === 0) product.tags = rowTags;
         if (!product.breveResena && (row as any).breve_resena) product.breveResena = (row as any).breve_resena;
+        if (!product.imageUrl && ((row as any).imagen_url || (row as any).imagen_destacada)) product.imageUrl = (row as any).imagen_url || (row as any).imagen_destacada;
         if (!product.colors.has(color)) {
           product.colors.set(color, []);
         }
@@ -5284,6 +5288,7 @@ export function registerRoutes(app: Express): Server {
         groupName: p.groupName,
         tags: p.tags,
         breveResena: p.breveResena,
+        imageUrl: p.imageUrl,
         colors: Object.fromEntries(p.colors),
       }));
 
