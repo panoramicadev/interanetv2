@@ -23,6 +23,7 @@ interface FormatVariant {
     minUnit: number;
     stepSize: number;
     description: string | null;
+    imageUrl?: string | null;
 }
 
 interface GenericProduct {
@@ -380,7 +381,17 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
                                                                     : <ChevronRight className="h-4 w-4" />
                                                                 }
                                                             </div>
-                                                            <Palette className="h-4 w-4 text-orange-500" />
+                                                            {/* Per-color thumbnail */}
+                                                            {(() => {
+                                                                const colorImg = variants.find(v => v.imageUrl)?.imageUrl;
+                                                                return colorImg ? (
+                                                                    <div className="w-9 h-9 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0 bg-white">
+                                                                        <img src={colorImg} alt={color} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                                                    </div>
+                                                                ) : (
+                                                                    <Palette className="h-4 w-4 text-orange-500" />
+                                                                );
+                                                            })()}
                                                             <span className="text-sm font-bold text-slate-700 uppercase flex-1">{color}</span>
                                                             <span className="text-sm text-slate-400 font-medium">
                                                                 {variants.length} formato{variants.length > 1 ? 's' : ''}

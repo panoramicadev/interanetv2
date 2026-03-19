@@ -5242,6 +5242,7 @@ export function registerRoutes(app: Express): Server {
         tags: string[];
         breveResena: string | null;
         imageUrl: string | null;
+        imageUrlPriority: number;
         colors: Map<string, any[]>;
       }>();
 
@@ -5260,12 +5261,25 @@ export function registerRoutes(app: Express): Server {
         }
 
         if (!productsMap.has(genericName)) {
-          productsMap.set(genericName, { genericName, groupName, tags: rowTags, breveResena: (row as any).breve_resena || null, imageUrl: (row as any).imagen_url || (row as any).imagen_destacada || null, colors: new Map() });
+          productsMap.set(genericName, { genericName, groupName, tags: rowTags, breveResena: (row as any).breve_resena || null, imageUrl: null, imageUrlPriority: 0, colors: new Map() });
         }
         const product = productsMap.get(genericName)!;
         if (rowTags.length > 0 && product.tags.length === 0) product.tags = rowTags;
         if (!product.breveResena && (row as any).breve_resena) product.breveResena = (row as any).breve_resena;
-        if (!product.imageUrl && ((row as any).imagen_url || (row as any).imagen_destacada)) product.imageUrl = (row as any).imagen_url || (row as any).imagen_destacada;
+        
+        // Image priority: prefer BLANCO color + GALON format
+        const rowImageUrl = (row as any).imagen_url || (row as any).imagen_destacada || null;
+        if (rowImageUrl) {
+          let priority = 1; // any image
+          const colorUpper = color.toUpperCase();
+          const formatUpper = formatUnit.toUpperCase();
+          if (colorUpper.includes('BLANCO') || colorUpper === 'BLANCO') priority += 10;
+          if (formatUpper.includes('GALON') || formatUpper.includes('GALÓN')) priority += 5;
+          if (priority > product.imageUrlPriority) {
+            product.imageUrl = rowImageUrl;
+            product.imageUrlPriority = priority;
+          }
+        }
         if (!product.colors.has(color)) {
           product.colors.set(color, []);
         }
@@ -5281,6 +5295,7 @@ export function registerRoutes(app: Express): Server {
           minUnit: row.min_unit,
           stepSize: row.step_size,
           description: row.description,
+          imageUrl: (row as any).imagen_url || null,
         });
       }
 
