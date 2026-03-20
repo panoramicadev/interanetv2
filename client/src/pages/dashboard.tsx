@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, keepPreviousData } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useFilter } from "@/contexts/FilterContext";
 import KPICards from "@/components/dashboard/kpi-cards";
@@ -316,6 +316,8 @@ export default function Dashboard() {
 
       return data;
     },
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
   });
 
   // Use pre-fetched availablePeriods from consolidated init

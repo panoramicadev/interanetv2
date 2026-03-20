@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
@@ -257,6 +257,8 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
   });
 
   // Query for comparison data if comparePeriod is set
@@ -496,7 +498,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     return new Intl.NumberFormat('es-CL').format(num);
   };
 
-  if (isLoading) {
+  if (isLoading && !metrics) {
     return (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         {[...Array(4)].map((_, i) => (

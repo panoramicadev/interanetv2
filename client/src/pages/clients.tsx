@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -147,7 +147,7 @@ export default function Clients() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: clientsData, isLoading, error } = useQuery({
+  const { data: clientsData, isLoading, isFetching, error } = useQuery({
     queryKey: ['/api/clients', debouncedSearch, currentPage, selectedSegment, selectedSalesperson, selectedCreditStatus, selectedBusinessType, selectedDebtStatus, selectedEntityType, filterBySales, salesPeriod],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -170,6 +170,7 @@ export default function Clients() {
         totalPages: number;
       }>;
     },
+    placeholderData: keepPreviousData,
   });
 
   const clients = clientsData?.clients;
@@ -520,7 +521,7 @@ export default function Clients() {
     return chips;
   };
 
-  if (isLoading) {
+  if (isLoading && !clientsData) {
     return (
       <div className="flex items-center justify-center min-h-96">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -733,7 +734,11 @@ export default function Clients() {
           {/* Search & Filters */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              {isFetching ? (
+                <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-indigo-500 animate-spin" />
+              ) : (
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              )}
               <Input
                 type="text"
                 placeholder="Buscar por nombre, RUT o código..."
