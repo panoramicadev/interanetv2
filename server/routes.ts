@@ -8326,6 +8326,116 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Auto-match quotes with NVV records
+  // When NVV data is loaded, check if any pending quotes (draft/sent) match by RUT + amount
+  // Split orders: one quote can be fulfilled by multiple NVV documents (max 30 items per NVV in ERP)
+  app.post('/api/quotes/auto-match-nvv', requireAuth, async (req: any, res) => {
+    try {
+      const { quotes: quotesTable } = await import('@shared/schema');
+      const { factNvv } = await import('@shared/schema');
+
+      // 1. Get all quotes with status 'draft' or 'sent' that have a clientRut
+      const pendingQuotes = await db
+        .select({
+          id: quotesTable.id,
+          quoteNumber: quotesTable.quoteNumber,
+          clientName: quotesTable.clientName,
+          clientRut: quotesTable.clientRut,
+          total: quotesTable.total,
+          status: quotesTable.status,
+        })
+        .from(quotesTable)
+        .where(and(
+          or(eq(quotesTable.status, 'draft'), eq(quotesTable.status, 'sent')),
+          isNotNull(quotesTable.clientRut),
+          sql`${quotesTable.clientRut} != ''`
+        ));
+
+      if (pendingQuotes.length === 0) {
+        return res.json({ matched: 0, message: 'No hay cotizaciones pendientes para vincular' });
+      }
+
+      // Helper: normalize RUT (remove dots, dashes, spaces, lowercase)
+      const normalizeRut = (rut: string): string => {
+        if (!rut) return '';
+        return rut.replace(/[\.\-\s]/g, '').toUpperCase().trim();
+      };
+
+      // 2. Get unique normalized RUTs from pending quotes
+      const rutSet = new Set<string>();
+      pendingQuotes.forEach(q => {
+        if (q.clientRut) rutSet.add(normalizeRut(q.clientRut));
+      });
+
+      // 3. For each unique RUT, get NVV totals from factNvv
+      // Sum all NVV amounts by endo (RUT) — this handles split orders
+      const nvvTotalsByRut = new Map<string, number>();
+
+      for (const rut of rutSet) {
+        // NVV endo field may have format like "76.641.300-2" or "76641300" etc
+        // We search with normalized form
+        const nvvRecords = await db
+          .select({
+            endo: factNvv.endo,
+            monto: factNvv.monto,
+          })
+          .from(factNvv)
+          .where(and(
+            sql`REPLACE(REPLACE(REPLACE(UPPER(TRIM(${factNvv.endo})), '.', ''), '-', ''), ' ', '') = ${rut}`,
+            // Only match open/pending NVV (not closed)
+            or(sql`${factNvv.eslido} IS NULL`, sql`${factNvv.eslido} = ''`)
+          ));
+
+        if (nvvRecords.length > 0) {
+          const total = nvvRecords.reduce((sum, r) => sum + (Number(r.monto) || 0), 0);
+          nvvTotalsByRut.set(rut, total);
+        }
+      }
+
+      // 4. Match quotes against NVV totals
+      let matchedCount = 0;
+      const matchedQuotes: string[] = [];
+
+      for (const quote of pendingQuotes) {
+        const normalizedRut = normalizeRut(quote.clientRut || '');
+        const nvvTotal = nvvTotalsByRut.get(normalizedRut);
+
+        if (nvvTotal === undefined || nvvTotal === 0) continue;
+
+        const quoteTotal = Number(quote.total) || 0;
+        if (quoteTotal === 0) continue;
+
+        // 5% tolerance: NVV total should be >= 95% of quote total
+        // This covers rounding differences and partial deliveries
+        const threshold = quoteTotal * 0.95;
+
+        if (nvvTotal >= threshold) {
+          // Update quote status to 'accepted'
+          await storage.updateQuote(quote.id, { status: 'accepted' });
+          matchedCount++;
+          matchedQuotes.push(`${quote.quoteNumber} (${quote.clientName})`);
+          console.log(`✅ [AUTO-MATCH] Quote ${quote.quoteNumber} accepted: NVV total $${Math.round(nvvTotal)} >= threshold $${Math.round(threshold)} (quote: $${Math.round(quoteTotal)})`);
+        }
+      }
+
+      if (matchedCount > 0) {
+        console.log(`📋 [AUTO-MATCH] ${matchedCount} quotes auto-accepted: ${matchedQuotes.join(', ')}`);
+      }
+
+      res.json({
+        matched: matchedCount,
+        checked: pendingQuotes.length,
+        matchedQuotes,
+        message: matchedCount > 0
+          ? `${matchedCount} cotización(es) aceptada(s) automáticamente`
+          : 'No se encontraron coincidencias'
+      });
+    } catch (error) {
+      console.error("Error auto-matching quotes with NVV:", error);
+      res.status(500).json({ message: "Error al vincular cotizaciones con NVV" });
+    }
+  });
+
   app.delete('/api/quotes/:id', requireAuth, async (req: any, res) => {
     try {
       const { id } = req.params;

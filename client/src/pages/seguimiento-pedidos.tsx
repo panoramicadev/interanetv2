@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -17,12 +17,17 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   FileText, ShoppingCart, Truck, FileCheck, Package,
   Search, PackageSearch, CheckCircle, XCircle, Send,
   ArrowRight, Loader2, BookOpen, Plus, Phone, MapPin,
   AlertCircle, MessageSquare, Trash2, Users, ShoppingBag,
-  Eye, Clock, Store,
+  Eye, Clock, Store, MoreVertical, Copy, ExternalLink,
 } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
 
 // ==============================
 // Types
@@ -266,6 +271,19 @@ export default function SeguimientoPedidos() {
   const { data: quotes = [], isLoading: quotesLoading } = useQuery<Quote[]>({
     queryKey: ["/api/quotes?limit=500&offset=0"],
   });
+
+  // Auto-match quotes with NVV on page load
+  useEffect(() => {
+    fetch('/api/quotes/auto-match-nvv', {
+      method: 'POST',
+      credentials: 'include',
+    }).then(res => res.json()).then(result => {
+      if (result.matched > 0) {
+        queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
+        toast({ title: `✅ ${result.matched} cotización(es) aceptada(s) automáticamente (NVV)` });
+      }
+    }).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // NVV data
   const { data: nvvData = [], isLoading: nvvLoading } = useQuery<NVVRecord[]>({
@@ -716,6 +734,67 @@ function CotizacionesTable({ quotes, isAdmin, onBitacora }: {
 }) {
   const [showAll, setShowAll] = useState(false);
   const displayed = showAll ? quotes : quotes.slice(0, 15);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Status update mutation
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const res = await fetch(`/api/quotes/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error('Error');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
+      toast({ title: '✅ Estado actualizado' });
+    },
+    onError: () => {
+      toast({ title: '❌ Error al actualizar estado', variant: 'destructive' });
+    },
+  });
+
+  // Duplicate mutation
+  const duplicateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/quotes/${id}/duplicate`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Error');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
+      toast({ title: '✅ Cotización duplicada' });
+    },
+    onError: () => {
+      toast({ title: '❌ Error al duplicar', variant: 'destructive' });
+    },
+  });
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/quotes/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Error');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
+      toast({ title: '✅ Cotización eliminada' });
+    },
+    onError: () => {
+      toast({ title: '❌ Error al eliminar', variant: 'destructive' });
+    },
+  });
 
   if (quotes.length === 0) {
     return (
@@ -738,7 +817,7 @@ function CotizacionesTable({ quotes, isAdmin, onBitacora }: {
               {isAdmin && <TableHead className="text-xs">Creado por</TableHead>}
               <TableHead className="text-xs">Fecha</TableHead>
               <TableHead className="text-xs text-right">Monto</TableHead>
-              <TableHead className="text-xs w-16"></TableHead>
+              <TableHead className="text-xs w-20 text-center">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -775,15 +854,81 @@ function CotizacionesTable({ quotes, isAdmin, onBitacora }: {
                     {formatCurrency(q.total)}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0 hover:bg-indigo-50 hover:text-indigo-600"
-                      onClick={() => onBitacora("cotizacion", q.id, q.quoteNumber, q.clientName, q.clientRut)}
-                      title="Bitácora"
-                    >
-                      <BookOpen className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-1 justify-center">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 hover:bg-indigo-50 hover:text-indigo-600"
+                        onClick={() => onBitacora("cotizacion", q.id, q.quoteNumber, q.clientName, q.clientRut)}
+                        title="Bitácora"
+                      >
+                        <BookOpen className="h-3.5 w-3.5" />
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-gray-100">
+                            <MoreVertical className="h-3.5 w-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem
+                            onClick={() => window.open(`/tomador-pedidos?edit=${q.id}`, '_blank')}
+                            className="text-xs gap-2"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            Ver / Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          {q.status === 'draft' && (
+                            <DropdownMenuItem
+                              onClick={() => updateStatusMutation.mutate({ id: q.id, status: 'sent' })}
+                              className="text-xs gap-2"
+                            >
+                              <Send className="h-3.5 w-3.5" />
+                              Marcar como enviada
+                            </DropdownMenuItem>
+                          )}
+                          {(q.status === 'draft' || q.status === 'sent') && (
+                            <DropdownMenuItem
+                              onClick={() => updateStatusMutation.mutate({ id: q.id, status: 'accepted' })}
+                              className="text-xs gap-2"
+                            >
+                              <CheckCircle className="h-3.5 w-3.5" />
+                              Marcar como aceptada
+                            </DropdownMenuItem>
+                          )}
+                          {(q.status === 'draft' || q.status === 'sent') && (
+                            <DropdownMenuItem
+                              onClick={() => updateStatusMutation.mutate({ id: q.id, status: 'rejected' })}
+                              className="text-xs gap-2"
+                            >
+                              <XCircle className="h-3.5 w-3.5" />
+                              Marcar como rechazada
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => duplicateMutation.mutate(q.id)}
+                            className="text-xs gap-2"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            Duplicar cotización
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => {
+                              if (confirm('¿Estás seguro de eliminar esta cotización?')) {
+                                deleteMutation.mutate(q.id);
+                              }
+                            }}
+                            className="text-xs gap-2 text-red-600 focus:text-red-600"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Eliminar
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               );
