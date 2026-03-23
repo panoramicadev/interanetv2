@@ -251,9 +251,17 @@ export default function SeguimientoPedidos() {
     ? (selectedSalesperson === "all" ? "" : selectedSalesperson)
     : salespersonName;
 
-  // Salespeople list for admin filter
+  // Salespeople list for admin filter (from salesperson mapping)
   const { data: salespeople = [] } = useQuery<string[]>({
-    queryKey: ["/api/sales/salespeople"],
+    queryKey: ["/api/sales-transactions/salesperson-mapping"],
+    queryFn: async () => {
+      const res = await fetch('/api/sales-transactions/salesperson-mapping', { credentials: 'include' });
+      if (!res.ok) return [];
+      const data = await res.json();
+      // Extract unique salesperson names from kofulidoToName mapping
+      const names = Object.values(data.kofulidoToName || {}) as string[];
+      return Array.from(new Set(names)).filter(Boolean).sort();
+    },
     enabled: isAdmin,
   });
 
