@@ -707,19 +707,20 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                 <TableRow className="border-b border-gray-200">
                   <TableHead className="text-left hidden md:table-cell">Cotización</TableHead>
                   <TableHead className="text-left">Cliente</TableHead>
+                  <TableHead className="text-left">Estado</TableHead>
                   {(user?.role === 'admin' || user?.role === 'supervisor') && (
                     <TableHead className="text-left">Creado por</TableHead>
                   )}
                   <TableHead className="text-left">Creada</TableHead>
                   <TableHead className="text-right">Monto</TableHead>
-                  <TableHead className="text-center">Acciones</TableHead>
+                  <TableHead className="text-center w-36">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>
-                      <TableCell colSpan={5} className="text-center py-8">
+                      <TableCell colSpan={7} className="text-center py-8">
                         <div className="animate-pulse flex space-x-4">
                           <div className="flex-1 space-y-2 py-1">
                             <div className="h-4 bg-gray-200 rounded w-3/4"></div>
@@ -733,7 +734,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                   displayedQuotes.map((quote) => (
                     <TableRow
                       key={quote.id}
-                      className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors cursor-pointer"
+                      className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors cursor-pointer group"
                       data-testid={`quote-row-${quote.id}`}
                       onClick={() => handleEditQuote(quote.id)}
                     >
@@ -741,9 +742,9 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                         <div className="font-medium text-gray-900" data-testid={`quote-number-${quote.id}`}>
                           #{quote.quoteNumber}
                         </div>
-                        <div className="text-sm text-gray-500">
-                          {quote.notes && quote.notes.length > 50
-                            ? `${quote.notes.substring(0, 50)}...`
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          {quote.notes && quote.notes.length > 40
+                            ? `${quote.notes.substring(0, 40)}...`
                             : quote.notes || 'Sin notas'
                           }
                         </div>
@@ -754,22 +755,26 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                           {quote.clientName}
                         </div>
                         {quote.clientRut && (
-                          <div className="text-sm text-gray-500">
+                          <div className="text-xs text-gray-400 mt-0.5">
                             RUT: {quote.clientRut}
                           </div>
                         )}
                       </TableCell>
 
+                      <TableCell className="py-4" onClick={(e) => e.stopPropagation()}>
+                        {getStatusBadge(quote.status)}
+                      </TableCell>
+
                       {(user?.role === 'admin' || user?.role === 'supervisor') && (
                         <TableCell className="py-4">
                           <div className="flex items-center gap-2">
-                            <User className="w-4 h-4 text-gray-400" />
+                            <User className="w-3.5 h-3.5 text-gray-400" />
                             <div>
                               <div className="text-sm text-gray-900 font-medium">
-                                {quote.creatorName || 'Usuario desconocido'}
+                                {quote.creatorName || 'Desconocido'}
                               </div>
                               {quote.creatorEmail && (
-                                <div className="text-xs text-gray-500">
+                                <div className="text-[10px] text-gray-400">
                                   {quote.creatorEmail}
                                 </div>
                               )}
@@ -782,117 +787,154 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                         <div className="text-sm text-gray-900">
                           {formatDate(quote.createdAt)}
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-[10px] text-gray-400">
                           {getTimeAgo(quote.createdAt)}
                         </div>
                       </TableCell>
 
                       <TableCell className="py-4 text-right">
-                        <span className="font-semibold text-gray-900">
+                        <span className="font-bold text-blue-600">
                           {formatCurrency(quote.total || '0')}
                         </span>
                       </TableCell>
 
                       <TableCell
-                        className="py-4 text-center"
+                        className="py-4"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" data-testid={`actions-${quote.id}`}>
-                              <MoreVertical className="h-4 w-4" />
+                        <div className="flex items-center gap-1 justify-center">
+                          {/* Quick action: Mark as sent (draft only) */}
+                          {quote.status === 'draft' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                              onClick={() => handleStatusChange(quote.id, 'sent', quote.quoteNumber)}
+                              disabled={updateStatusMutation.isPending}
+                              title="Marcar como enviada"
+                            >
+                              <Send className="h-3.5 w-3.5" />
                             </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              data-testid={`view-${quote.id}`}
-                              onClick={() => handleEditQuote(quote.id)}
+                          )}
+                          {/* Quick action: Mark as accepted (sent only) */}
+                          {quote.status === 'sent' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 hover:bg-green-50 hover:text-green-600 transition-colors"
+                              onClick={() => handleStatusChange(quote.id, 'accepted', quote.quoteNumber)}
+                              disabled={updateStatusMutation.isPending}
+                              title="Marcar como aceptada"
                             >
-                              <FileText className="w-4 h-4 mr-2" />
-                              Ver / Editar
-                            </DropdownMenuItem>
-
-                            <DropdownMenuItem
-                              data-testid={`send-email-${quote.id}`}
-                              onClick={() => handleSendEmail(quote.id, quote.quoteNumber)}
-                              disabled={sendEmailMutation.isPending}
-                            >
-                              <Mail className="w-4 h-4 mr-2" />
-                              {sendEmailMutation.isPending ? 'Compartiendo...' : 'Compartir'}
-                            </DropdownMenuItem>
-
-                            {quote.status === 'draft' && (
+                              <CheckCircle className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {/* Quick action: Send email */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                            onClick={() => handleSendEmail(quote.id, quote.quoteNumber)}
+                            disabled={sendEmailMutation.isPending}
+                            title="Compartir por email"
+                          >
+                            <Mail className="h-3.5 w-3.5" />
+                          </Button>
+                          {/* More actions dropdown */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-gray-100" data-testid={`actions-${quote.id}`}>
+                                <MoreVertical className="h-3.5 w-3.5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
                               <DropdownMenuItem
-                                data-testid={`status-sent-${quote.id}`}
-                                onClick={() => handleStatusChange(quote.id, 'sent', quote.quoteNumber)}
-                                disabled={updateStatusMutation.isPending}
+                                data-testid={`view-${quote.id}`}
+                                onClick={() => handleEditQuote(quote.id)}
+                                className="text-xs gap-2"
                               >
-                                <Send className="w-4 h-4 mr-2" />
-                                Marcar como enviada
+                                <FileText className="w-3.5 h-3.5" />
+                                Ver / Editar
                               </DropdownMenuItem>
-                            )}
 
-                            {quote.status === 'sent' && (
-                              <>
+                              {quote.status === 'draft' && (
                                 <DropdownMenuItem
-                                  data-testid={`status-accepted-${quote.id}`}
-                                  onClick={() => handleStatusChange(quote.id, 'accepted', quote.quoteNumber)}
+                                  data-testid={`status-sent-${quote.id}`}
+                                  onClick={() => handleStatusChange(quote.id, 'sent', quote.quoteNumber)}
                                   disabled={updateStatusMutation.isPending}
+                                  className="text-xs gap-2"
                                 >
-                                  <CheckCircle className="w-4 h-4 mr-2" />
-                                  Marcar como aprobada
+                                  <Send className="w-3.5 h-3.5" />
+                                  Marcar como enviada
                                 </DropdownMenuItem>
+                              )}
+
+                              {quote.status === 'sent' && (
+                                <>
+                                  <DropdownMenuItem
+                                    data-testid={`status-accepted-${quote.id}`}
+                                    onClick={() => handleStatusChange(quote.id, 'accepted', quote.quoteNumber)}
+                                    disabled={updateStatusMutation.isPending}
+                                    className="text-xs gap-2"
+                                  >
+                                    <CheckCircle className="w-3.5 h-3.5" />
+                                    Marcar como aceptada
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    data-testid={`status-rejected-${quote.id}`}
+                                    onClick={() => handleStatusChange(quote.id, 'rejected', quote.quoteNumber)}
+                                    disabled={updateStatusMutation.isPending}
+                                    className="text-xs gap-2"
+                                  >
+                                    <XCircle className="w-3.5 h-3.5" />
+                                    Marcar como rechazada
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+
+                              {(quote.status === 'rejected' || quote.status === 'accepted') && (
                                 <DropdownMenuItem
-                                  data-testid={`status-rejected-${quote.id}`}
-                                  onClick={() => handleStatusChange(quote.id, 'rejected', quote.quoteNumber)}
+                                  data-testid={`status-draft-${quote.id}`}
+                                  onClick={() => handleStatusChange(quote.id, 'draft', quote.quoteNumber)}
                                   disabled={updateStatusMutation.isPending}
+                                  className="text-xs gap-2"
                                 >
-                                  <XCircle className="w-4 h-4 mr-2" />
-                                  Marcar como cancelada
+                                  <FileText className="w-3.5 h-3.5" />
+                                  Volver a borrador
                                 </DropdownMenuItem>
-                              </>
-                            )}
+                              )}
 
-                            {(quote.status === 'rejected' || quote.status === 'accepted') && (
-                              <DropdownMenuItem
-                                data-testid={`status-draft-${quote.id}`}
-                                onClick={() => handleStatusChange(quote.id, 'draft', quote.quoteNumber)}
-                                disabled={updateStatusMutation.isPending}
-                              >
-                                <FileText className="w-4 h-4 mr-2" />
-                                Volver a borrador
-                              </DropdownMenuItem>
-                            )}
-
-                            {(quote.status === 'draft' || quote.status === 'sent' || quote.status === 'accepted' || quote.status === 'rejected') && (
-                              <DropdownMenuItem
-                                data-testid={`button-duplicate-quote-${quote.id}`}
-                                onClick={() => handleDuplicateForEdit(quote.id)}
-                                disabled={duplicateQuoteMutation.isPending}
-                              >
-                                <Copy className="w-4 h-4 mr-2" />
-                                {duplicateQuoteMutation.isPending ? 'Duplicando...' : 'Duplicar para editar'}
-                              </DropdownMenuItem>
-                            )}
-                            {(user?.role === 'admin' || user?.role === 'supervisor') && (
-                              <DropdownMenuItem
-                                data-testid={`button-delete-quote-${quote.id}`}
-                                onClick={() => handleDeleteQuote(quote.id, quote.quoteNumber)}
-                                disabled={deleteQuoteMutation.isPending}
-                                className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                {deleteQuoteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
-                              </DropdownMenuItem>
-                            )}
-                            {(quote.status === 'accepted' || quote.status === 'sent') && (
-                              <DropdownMenuItem data-testid={`convert-${quote.id}`}>
-                                <Package className="w-4 h-4 mr-2" />
-                                Convertir a pedido
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              {(quote.status === 'draft' || quote.status === 'sent' || quote.status === 'accepted' || quote.status === 'rejected') && (
+                                <DropdownMenuItem
+                                  data-testid={`button-duplicate-quote-${quote.id}`}
+                                  onClick={() => handleDuplicateForEdit(quote.id)}
+                                  disabled={duplicateQuoteMutation.isPending}
+                                  className="text-xs gap-2"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                  Duplicar para editar
+                                </DropdownMenuItem>
+                              )}
+                              {(user?.role === 'admin' || user?.role === 'supervisor') && (
+                                <DropdownMenuItem
+                                  data-testid={`button-delete-quote-${quote.id}`}
+                                  onClick={() => handleDeleteQuote(quote.id, quote.quoteNumber)}
+                                  disabled={deleteQuoteMutation.isPending}
+                                  className="text-xs gap-2 text-red-600 focus:text-red-600 focus:bg-red-50"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  Eliminar
+                                </DropdownMenuItem>
+                              )}
+                              {(quote.status === 'accepted' || quote.status === 'sent') && (
+                                <DropdownMenuItem data-testid={`convert-${quote.id}`} className="text-xs gap-2">
+                                  <Package className="w-3.5 h-3.5" />
+                                  Convertir a pedido
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
