@@ -20,7 +20,8 @@ import {
   FileText, ShoppingCart, Truck, FileCheck, Package,
   Search, PackageSearch, CheckCircle, XCircle, Send,
   ArrowRight, Loader2, BookOpen, Plus, Phone, MapPin,
-  AlertCircle, MessageSquare, Trash2, Users,
+  AlertCircle, MessageSquare, Trash2, Users, ShoppingBag,
+  Eye, Clock, Store,
 } from "lucide-react";
 
 // ==============================
@@ -62,6 +63,20 @@ interface GDVRecord {
   producto: string;
   cantidad: number;
   monto: number;
+}
+
+interface EcommerceOrder {
+  id: string;
+  clientName: string;
+  clientEmail?: string;
+  clientPhone?: string;
+  clientCompany?: string;
+  assignedSalespersonName?: string;
+  status: string;
+  total: string;
+  items: any[] | string;
+  notes?: string;
+  createdAt: string;
 }
 
 interface BitacoraEntry {
@@ -126,6 +141,18 @@ const getTimeAgo = (dateString: string) => {
 // ==============================
 
 const STAGES = [
+  {
+    key: "catalogo",
+    label: "Pedidos Catálogo",
+    icon: Store,
+    color: "orange",
+    bgGradient: "from-orange-500 to-red-500",
+    bgLight: "bg-orange-50 dark:bg-orange-900/20",
+    borderColor: "border-orange-300 dark:border-orange-700",
+    textColor: "text-orange-600 dark:text-orange-400",
+    badgeColor: "bg-orange-100 text-orange-700",
+    highlighted: true,
+  },
   {
     key: "cotizacion",
     label: "Cotizaciones",
@@ -198,7 +225,7 @@ export default function SeguimientoPedidos() {
   const queryClient = useQueryClient();
   const salespersonName = (user as any)?.salespersonName || "";
   const isAdmin = user?.role === "admin" || user?.role === "supervisor";
-  const [activeStage, setActiveStage] = useState<string>("cotizacion");
+  const [activeStage, setActiveStage] = useState<string>("catalogo");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>("all");
 
@@ -223,6 +250,16 @@ export default function SeguimientoPedidos() {
   const { data: salespeople = [] } = useQuery<string[]>({
     queryKey: ["/api/sales/salespeople"],
     enabled: isAdmin,
+  });
+
+  // Ecommerce / catalog orders
+  const { data: catalogOrders = [], isLoading: catalogLoading } = useQuery<EcommerceOrder[]>({
+    queryKey: ["/api/ecommerce/orders"],
+    queryFn: async () => {
+      const response = await fetch("/api/ecommerce/orders", { credentials: "include" });
+      if (!response.ok) return [];
+      return response.json();
+    },
   });
 
   // Quotes data
@@ -359,8 +396,18 @@ export default function SeguimientoPedidos() {
   };
 
   // Filter quotes by salesperson (creator)
+  // Filter catalog orders
+  const filteredCatalogOrders = useMemo(() => {
+    if (!searchTerm) return catalogOrders;
+    return catalogOrders.filter(o =>
+      o.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      o.clientCompany?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [catalogOrders, searchTerm]);
+
   const filteredQuotes = useMemo(() => {
-    let result = quotes;
+    // Exclude drafts - only show sent/accepted/rejected/converted
+    let result = quotes.filter(q => q.status !== "draft");
     if (effectiveSalesperson) {
       result = result.filter(q => q.creatorName?.toLowerCase().includes(effectiveSalesperson.toLowerCase()));
     }
@@ -401,21 +448,23 @@ export default function SeguimientoPedidos() {
   }, [facturas, searchTerm]);
 
   // Compute totals for each stage
-  const stageCounts = {
+  const stageCounts: Record<string, number> = {
+    catalogo: filteredCatalogOrders.length,
     cotizacion: filteredQuotes.length,
     ingresado: filteredNVV.length,
     despacho: filteredGDV.length,
     facturado: filteredFacturas.length,
   };
 
-  const stageTotals = {
+  const stageTotals: Record<string, number> = {
+    catalogo: filteredCatalogOrders.reduce((s, o) => s + parseFloat(o.total || "0"), 0),
     cotizacion: filteredQuotes.reduce((s, q) => s + parseFloat(q.total || "0"), 0),
     ingresado: filteredNVV.reduce((s, r) => s + (r.totalPendiente || 0), 0),
     despacho: filteredGDV.reduce((s, r) => s + (r.monto || 0), 0),
     facturado: filteredFacturas.reduce((s, r) => s + (Number(r.amount) || 0), 0),
   };
 
-  const isLoading = quotesLoading || nvvLoading || gdvLoading || facturasLoading;
+  const isLoading = catalogLoading || quotesLoading || nvvLoading || gdvLoading || facturasLoading;
 
   return (
     <div className="p-4 sm:p-6 space-y-5">
@@ -470,11 +519,12 @@ export default function SeguimientoPedidos() {
       </div>
 
       {/* Pipeline cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {STAGES.map((stage, idx) => {
           const Icon = stage.icon;
-          const count = stageCounts[stage.key as keyof typeof stageCounts];
-          const total = stageTotals[stage.key as keyof typeof stageTotals];
+          const count = stageCounts[stage.key] || 0;
+          const total = stageTotals[stage.key] || 0;
+          const isHighlighted = (stage as any).highlighted;
           const isActive = activeStage === stage.key;
 
           return (
@@ -484,7 +534,9 @@ export default function SeguimientoPedidos() {
               className={`relative p-4 rounded-2xl border-2 transition-all duration-200 text-left group
                 ${isActive
                   ? `${stage.borderColor} ${stage.bgLight} ring-2 ring-offset-1 ring-${stage.color}-400/30 scale-[1.02]`
-                  : "border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-gray-200 hover:shadow-md"
+                  : isHighlighted
+                    ? "border-orange-200 dark:border-orange-800 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/10 dark:to-amber-900/10 hover:shadow-md shadow-sm"
+                    : "border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-gray-200 hover:shadow-md"
                 }`}
               data-testid={`stage-${stage.key}`}
             >
@@ -527,6 +579,9 @@ export default function SeguimientoPedidos() {
       ) : (
         <Card className="rounded-2xl border-gray-100 shadow-sm">
           <CardContent className="p-0">
+            {activeStage === "catalogo" && (
+              <CatalogOrdersTable orders={filteredCatalogOrders} onBitacora={handleOpenBitacora} />
+            )}
             {activeStage === "cotizacion" && (
               <CotizacionesTable quotes={filteredQuotes} isAdmin={isAdmin} onBitacora={handleOpenBitacora} />
             )}
@@ -986,6 +1041,121 @@ function FacturasTable({ records, onBitacora }: {
         <div className="p-3 border-t">
           <Button variant="outline" size="sm" className="w-full" onClick={() => setShowAll(!showAll)}>
             {showAll ? "Ver menos" : `Ver todos (${records.length - 20} más)`}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==============================
+// Catalog Orders Table
+// ==============================
+
+const catalogStatusConfig: Record<string, { label: string; icon: any; color: string }> = {
+  pending: { label: "Pendiente", icon: Clock, color: "bg-yellow-100 text-yellow-700" },
+  pendiente: { label: "Pendiente", icon: Clock, color: "bg-yellow-100 text-yellow-700" },
+  approved: { label: "Aprobado", icon: CheckCircle, color: "bg-green-100 text-green-700" },
+  modified: { label: "Modificado", icon: Package, color: "bg-blue-100 text-blue-700" },
+  rejected: { label: "Rechazado", icon: XCircle, color: "bg-red-100 text-red-700" },
+  sent: { label: "Enviado", icon: Send, color: "bg-purple-100 text-purple-700" },
+};
+
+function CatalogOrdersTable({ orders, onBitacora }: {
+  orders: EcommerceOrder[];
+  onBitacora: (tipo: string, id: string, numero: string, clienteNombre: string, clienteRut?: string) => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const displayed = showAll ? orders : orders.slice(0, 20);
+
+  if (orders.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <Store className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+        <p className="text-sm text-gray-500 font-medium">No hay pedidos del catálogo</p>
+        <p className="text-xs text-gray-400 mt-1">Los pedidos realizados desde el catálogo público aparecerán aquí</p>
+      </div>
+    );
+  }
+
+  const getOrderItems = (order: EcommerceOrder) => {
+    if (!order.items) return [];
+    return typeof order.items === "string" ? JSON.parse(order.items) : order.items;
+  };
+
+  return (
+    <div>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="text-xs">Cliente</TableHead>
+              <TableHead className="text-xs">Vendedor</TableHead>
+              <TableHead className="text-xs">Estado</TableHead>
+              <TableHead className="text-xs">Productos</TableHead>
+              <TableHead className="text-xs">Fecha</TableHead>
+              <TableHead className="text-xs text-right">Total</TableHead>
+              <TableHead className="text-xs w-16"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {displayed.map((order) => {
+              const status = catalogStatusConfig[order.status] || catalogStatusConfig.pending;
+              const StatusIcon = status.icon;
+              const items = getOrderItems(order);
+
+              return (
+                <TableRow key={order.id} className="hover:bg-gray-50/50">
+                  <TableCell className="text-xs">
+                    <div className="font-medium text-gray-900">{order.clientName}</div>
+                    {order.clientCompany && (
+                      <div className="text-[10px] text-gray-400">{order.clientCompany}</div>
+                    )}
+                    {order.clientEmail && (
+                      <div className="text-[10px] text-gray-400">{order.clientEmail}</div>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-xs text-gray-600">
+                    {order.assignedSalespersonName || <span className="text-gray-300">—</span>}
+                  </TableCell>
+                  <TableCell>
+                    <Badge className={`${status.color} text-[10px] gap-1`}>
+                      <StatusIcon className="w-3 h-3" />
+                      {status.label}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    <span className="font-medium">{items.length}</span>
+                    <span className="text-gray-400 ml-1">producto{items.length !== 1 ? "s" : ""}</span>
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    <div>{formatDate(order.createdAt)}</div>
+                    <div className="text-[10px] text-gray-400">{getTimeAgo(order.createdAt)}</div>
+                  </TableCell>
+                  <TableCell className="text-xs text-right font-bold text-orange-600">
+                    {formatCurrency(parseFloat(order.total || "0"))}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 hover:bg-indigo-50 hover:text-indigo-600"
+                      onClick={() => onBitacora("catalogo", order.id, order.id.slice(-6), order.clientName)}
+                      title="Bitácora"
+                    >
+                      <BookOpen className="h-3.5 w-3.5" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+      {orders.length > 20 && (
+        <div className="p-3 border-t">
+          <Button variant="outline" size="sm" className="w-full" onClick={() => setShowAll(!showAll)}>
+            {showAll ? "Ver menos" : `Ver todos (${orders.length - 20} más)`}
           </Button>
         </div>
       )}
