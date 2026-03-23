@@ -9320,13 +9320,17 @@ export function registerRoutes(app: Express): Server {
       // Look up the product's generic display name (same grouping as grouped catalog)
       const { ecommerceProducts, priceList } = await import('@shared/schema');
       const [ecomProduct] = await db
-        .select({ genericName: ecommerceProducts.variantGenericDisplayName })
+        .select({ 
+          genericName: ecommerceProducts.variantGenericDisplayName,
+          imagenUrl: ecommerceProducts.imagenUrl,
+        })
         .from(ecommerceProducts)
         .innerJoin(priceList, eq(ecommerceProducts.priceListId, priceList.id))
         .where(eq(priceList.codigo, codigo))
         .limit(1);
       
       const familyName = ecomProduct?.genericName || null;
+      const ecomImageUrl = ecomProduct?.imagenUrl || null;
       
       // Count sibling SKUs with the same variant_generic_display_name
       let familySiblingCount = 0;
@@ -9359,6 +9363,11 @@ export function registerRoutes(app: Express): Server {
             preguntasFrecuentes = typeof rawFaqs === 'string' ? JSON.parse(rawFaqs) : rawFaqs;
           }
         }
+      }
+
+      // Use ecommerce product image as fallback if imagenDestacada is empty
+      if (!imagenDestacada && ecomImageUrl) {
+        imagenDestacada = ecomImageUrl;
       }
 
       res.json({
