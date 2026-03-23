@@ -16831,7 +16831,7 @@ export function registerRoutes(app: Express): Server {
           FROM dbo.MAEDDO d
           INNER JOIN dbo.MAEEDO e ON d.IDMAEEDO = e.IDMAEEDO
           WHERE e.TIDO = 'GRI'
-            AND e.SUDO = '006'
+            AND d.BOSULIDO = '006'
             AND d.KOPRCT IS NOT NULL
             AND d.PPPRNE > 0
         )
