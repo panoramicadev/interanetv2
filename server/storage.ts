@@ -13471,13 +13471,16 @@ export class DatabaseStorage implements IStorage {
       creatorEmail: users.email,
       creatorFirstName: users.firstName,
       creatorLastName: users.lastName,
-      // Also get salesperson info as fallback
+      // Also get salesperson info as fallback (join by email through users, or by direct ID)
       spName: salespeopleUsers.salespersonName,
       spEmail: salespeopleUsers.email,
     })
       .from(quotes)
       .leftJoin(users, eq(quotes.createdBy, users.id))
-      .leftJoin(salespeopleUsers, eq(quotes.createdBy, salespeopleUsers.id));
+      .leftJoin(salespeopleUsers, or(
+        eq(quotes.createdBy, salespeopleUsers.id),        // Direct ID match (salesperson-only users)
+        eq(users.email, salespeopleUsers.email)            // Email match (users who also exist in salespeopleUsers)
+      ));
 
     const conditions = [];
     if (filters?.createdBy) {
@@ -13548,7 +13551,10 @@ export class DatabaseStorage implements IStorage {
     })
       .from(quotes)
       .leftJoin(users, eq(quotes.createdBy, users.id))
-      .leftJoin(salespeopleUsers, eq(quotes.createdBy, salespeopleUsers.id))
+      .leftJoin(salespeopleUsers, or(
+        eq(quotes.createdBy, salespeopleUsers.id),
+        eq(users.email, salespeopleUsers.email)
+      ))
       .where(isNotNull(quotes.createdBy));
 
     return result.map(row => ({
