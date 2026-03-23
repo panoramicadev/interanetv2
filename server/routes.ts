@@ -17588,24 +17588,70 @@ export function registerRoutes(app: Express): Server {
       // Estructura organizada: fondos/comprobante_{fundId}_{fecha}_{randomId}.{ext}
       const fileName = `fondos/comprobante_${fundIdShort}_${dateStr}_${randomId}${fileExtension}`;
 
-      // Upload to Object Storage (permanent storage)
-      const objectStorageService = new ObjectStorageService();
-      const imageUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
-      console.log(`☁️ [FONDO-COMPROBANTE] Uploaded: ${fileName}`);
-
+      let imageUrl: string;
       let previewUrl: string | null = null;
 
-      if (isPdfFile(file.mimetype, file.originalname)) {
-        console.log(`📄 [FONDO-COMPROBANTE] PDF detected, generating preview...`);
-        try {
-          const previewBuffer = await convertPdfToImage(file.buffer, 600);
-          if (previewBuffer) {
-            const previewFileName = `fondos/comprobante_${fundIdShort}_${dateStr}_${randomId}_preview.png`;
-            previewUrl = await objectStorageService.uploadImage(previewFileName, previewBuffer, 'image/png');
-            console.log(`🖼️ [FONDO-COMPROBANTE] Preview generated: ${previewFileName}`);
+      // Option 1: Supabase Storage (Railway deployment)
+      if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY && process.env.SUPABASE_STORAGE_BUCKET) {
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+        const bucket = process.env.SUPABASE_STORAGE_BUCKET;
+
+        const { data, error } = await supabase.storage
+          .from(bucket)
+          .upload(fileName, file.buffer, {
+            contentType: file.mimetype,
+            upsert: false,
+          });
+
+        if (error) {
+          console.error('❌ [FONDO-COMPROBANTE] Supabase Storage error:', error.message);
+          throw error;
+        }
+
+        const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(fileName);
+        imageUrl = urlData.publicUrl;
+        console.log(`☁️ [FONDO-COMPROBANTE] Uploaded to Supabase: ${fileName} -> ${imageUrl}`);
+
+        // Generate PDF preview
+        if (isPdfFile(file.mimetype, file.originalname)) {
+          try {
+            const previewBuffer = await convertPdfToImage(file.buffer, 600);
+            if (previewBuffer) {
+              const previewFileName = `fondos/comprobante_${fundIdShort}_${dateStr}_${randomId}_preview.png`;
+              const { error: prevErr } = await supabase.storage
+                .from(bucket)
+                .upload(previewFileName, previewBuffer, {
+                  contentType: 'image/png',
+                  upsert: false,
+                });
+              if (!prevErr) {
+                const { data: prevUrlData } = supabase.storage.from(bucket).getPublicUrl(previewFileName);
+                previewUrl = prevUrlData.publicUrl;
+                console.log(`🖼️ [FONDO-COMPROBANTE] Preview generated: ${previewFileName}`);
+              }
+            }
+          } catch (previewError) {
+            console.warn('⚠️ [FONDO-COMPROBANTE] Failed to generate PDF preview:', previewError);
           }
-        } catch (previewError) {
-          console.warn('⚠️ [FONDO-COMPROBANTE] Failed to generate PDF preview:', previewError);
+        }
+      } else {
+        // Option 2: Replit Object Storage (fallback)
+        const objectStorageService = new ObjectStorageService();
+        imageUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
+        console.log(`☁️ [FONDO-COMPROBANTE] Uploaded to Object Storage: ${fileName}`);
+
+        if (isPdfFile(file.mimetype, file.originalname)) {
+          try {
+            const previewBuffer = await convertPdfToImage(file.buffer, 600);
+            if (previewBuffer) {
+              const previewFileName = `fondos/comprobante_${fundIdShort}_${dateStr}_${randomId}_preview.png`;
+              previewUrl = await objectStorageService.uploadImage(previewFileName, previewBuffer, 'image/png');
+              console.log(`🖼️ [FONDO-COMPROBANTE] Preview generated: ${previewFileName}`);
+            }
+          } catch (previewError) {
+            console.warn('⚠️ [FONDO-COMPROBANTE] Failed to generate PDF preview:', previewError);
+          }
         }
       }
 
