@@ -59,16 +59,14 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       separator: true,
     },
     {
+      href: "/seguimiento-pedidos",
+      label: "Pedidos",
+      icon: PackageSearch,
+    },
+    {
       href: "/tomador-pedidos",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
-      children: [
-        {
-          href: "/seguimiento-pedidos",
-          label: "Seguimiento de Pedidos",
-          icon: PackageSearch,
-        },
-      ],
     },
     {
       href: "/tareas",
@@ -418,16 +416,14 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: CheckCircle2,
     },
     {
+      href: "/seguimiento-pedidos",
+      label: "Pedidos",
+      icon: PackageSearch,
+    },
+    {
       href: "/tomador-pedidos",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
-      children: [
-        {
-          href: "/seguimiento-pedidos",
-          label: "Seguimiento de Pedidos",
-          icon: PackageSearch,
-        },
-      ],
     },
     {
       href: "/visitas-tecnicas",
@@ -580,16 +576,14 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: CheckCircle2,
     },
     {
+      href: "/seguimiento-pedidos",
+      label: "Pedidos",
+      icon: PackageSearch,
+    },
+    {
       href: "/tomador-pedidos",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
-      children: [
-        {
-          href: "/seguimiento-pedidos",
-          label: "Seguimiento de Pedidos",
-          icon: PackageSearch,
-        },
-      ],
     },
     {
       href: "/mis-pedidos",
