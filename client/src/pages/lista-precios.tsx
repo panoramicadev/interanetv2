@@ -581,7 +581,7 @@ export default function ListaPrecios() {
                           const costo = costoGri || (item as any).costoProduccion;
                           const minimo = typeof item.minimo === 'string' ? parseFloat(item.minimo) : item.minimo;
                           if (!costo || !minimo || costo === 0) return '-';
-                          const margen = ((minimo - costo) / costo) * 100;
+                          const margen = ((minimo - costo) / minimo) * 100;
                           const color = margen >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
                           return <span className={color}>{margen.toFixed(1)}%</span>;
                         })()}
