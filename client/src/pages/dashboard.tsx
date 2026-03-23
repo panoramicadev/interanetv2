@@ -50,7 +50,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, Eye, AlertCircle, DollarSign, ChevronDown, ShoppingCart, Truck, Search, Check, ChevronsUpDown, Menu, Database, Package, Zap, Loader2, RefreshCw, CheckCircle, XCircle, Clock } from "lucide-react";
+import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, Eye, AlertCircle, DollarSign, ChevronDown, ShoppingCart, Truck, Search, Check, ChevronsUpDown, Menu, Database, Package, Zap, Loader2, RefreshCw, CheckCircle, XCircle, Clock, Download } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -365,6 +365,7 @@ export default function Dashboard() {
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [syncStatus, setSyncStatus] = useState<any>(null);
   const [isSyncAllRunning, setIsSyncAllRunning] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Poll sync-all status while modal is open
   useEffect(() => {
@@ -412,6 +413,48 @@ export default function Dashboard() {
         variant: "destructive",
       });
       setShowSyncModal(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    try {
+      setIsExporting(true);
+      const params = new URLSearchParams();
+      if (selectedPeriod) params.set('period', selectedPeriod);
+      if (filterType) params.set('filterType', filterType);
+      if (globalFilter.type === 'segment' && globalFilter.value) params.set('segment', globalFilter.value);
+      if (globalFilter.type === 'salesperson' && globalFilter.value) params.set('salesperson', globalFilter.value);
+      if (globalFilter.type === 'client' && globalFilter.value) params.set('client', globalFilter.value);
+      if (globalFilter.type === 'branch' && globalFilter.value) params.set('branch', globalFilter.value);
+
+      const res = await fetch(`/api/sales/export-csv?${params.toString()}`, {
+        credentials: 'include',
+      });
+
+      if (!res.ok) throw new Error('Error al exportar');
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = res.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] || `ventas_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: '✅ Exportación completa',
+        description: 'El archivo CSV se ha descargado correctamente',
+      });
+    } catch (error: any) {
+      toast({
+        title: '❌ Error',
+        description: error.message || 'No se pudo exportar el archivo CSV',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -1705,6 +1748,27 @@ export default function Dashboard() {
                     <>
                       <Zap className="h-4 w-4 mr-2 text-orange-500" />
                       Sincronizar todo
+                    </>
+                  )}
+                </Button>
+              </div>
+              <div className="flex-shrink-0">
+                <Button
+                  variant="outline"
+                  onClick={handleExportCsv}
+                  disabled={isExporting}
+                  className="h-9 text-sm font-medium hover:bg-green-50 hover:text-green-600 hover:border-green-200 transition-colors rounded-lg border-gray-200 dark:border-gray-700"
+                  data-testid="button-desktop-export-csv"
+                >
+                  {isExporting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 text-green-500 animate-spin" />
+                      Exportando...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2 text-green-500" />
+                      Exportar CSV
                     </>
                   )}
                 </Button>

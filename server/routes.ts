@@ -3097,6 +3097,123 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // CSV Export - All sales details
+  app.get("/api/sales/export-csv", requireAuth, async (req, res) => {
+    try {
+      const { period, filterType = "month", segment, salesperson, client, branch } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+
+      // Build conditions
+      const conditions: any[] = [
+        sql`${factVentas.tido} != 'GDV'`
+      ];
+
+      if (dateRange.startDate) {
+        conditions.push(sql`${factVentas.feemdo} >= ${dateRange.startDate.toISOString().split('T')[0]}`);
+      }
+      if (dateRange.endDate) {
+        conditions.push(sql`${factVentas.feemdo} <= ${dateRange.endDate.toISOString().split('T')[0]}`);
+      }
+      if (segment) {
+        conditions.push(eq(factVentas.noruen, segment as string));
+      }
+      if (salesperson) {
+        conditions.push(eq(factVentas.nokofu, salesperson as string));
+      }
+      if (client) {
+        conditions.push(eq(factVentas.nokoen, client as string));
+      }
+      if (branch) {
+        conditions.push(eq(factVentas.nosudo, branch as string));
+      }
+
+      const rows = await db
+        .select({
+          fecha: factVentas.feemdo,
+          tipoDocumento: factVentas.tido,
+          numeroDocumento: factVentas.nudo,
+          segmento: factVentas.noruen,
+          sucursal: factVentas.nosudo,
+          vendedor: factVentas.nokofu,
+          cliente: factVentas.nokoen,
+          codigoProducto: factVentas.koprct,
+          producto: factVentas.nokoprct,
+          familia: factVentas.nofmpr,
+          subfamilia: factVentas.nopfpr,
+          cantidadUD1: factVentas.caprco1,
+          unidadUD1: factVentas.ud01pr,
+          cantidadUD2: factVentas.caprco2,
+          unidadUD2: factVentas.ud02pr,
+          precioUnitario: factVentas.ppprne,
+          montoNeto: factVentas.vaneli,
+          montoBruto: factVentas.vabrli,
+          montoTotal: factVentas.monto,
+          bodega: factVentas.nobosuli,
+          ordenCompra: factVentas.ocdo,
+        })
+        .from(factVentas)
+        .where(and(...conditions))
+        .orderBy(sql`${factVentas.feemdo} DESC, ${factVentas.nudo} DESC`);
+
+      // Build CSV
+      const headers = [
+        "Fecha", "Tipo Documento", "Nro Documento", "Segmento", "Sucursal",
+        "Vendedor", "Cliente", "Código Producto", "Producto", "Familia", "Subfamilia",
+        "Cantidad UD1", "Unidad UD1", "Cantidad UD2", "Unidad UD2",
+        "Precio Unitario", "Monto Neto", "Monto Bruto", "Monto Total",
+        "Bodega", "Orden Compra"
+      ];
+
+      const escapeCsv = (val: any) => {
+        if (val === null || val === undefined) return "";
+        const str = String(val);
+        if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      const csvLines = [headers.join(",")];
+      for (const row of rows) {
+        csvLines.push([
+          escapeCsv(row.fecha),
+          escapeCsv(row.tipoDocumento),
+          escapeCsv(row.numeroDocumento),
+          escapeCsv(row.segmento),
+          escapeCsv(row.sucursal),
+          escapeCsv(row.vendedor),
+          escapeCsv(row.cliente),
+          escapeCsv(row.codigoProducto),
+          escapeCsv(row.producto),
+          escapeCsv(row.familia),
+          escapeCsv(row.subfamilia),
+          escapeCsv(row.cantidadUD1),
+          escapeCsv(row.unidadUD1),
+          escapeCsv(row.cantidadUD2),
+          escapeCsv(row.unidadUD2),
+          escapeCsv(row.precioUnitario),
+          escapeCsv(row.montoNeto),
+          escapeCsv(row.montoBruto),
+          escapeCsv(row.montoTotal),
+          escapeCsv(row.bodega),
+          escapeCsv(row.ordenCompra),
+        ].join(","));
+      }
+
+      const csvContent = "\uFEFF" + csvLines.join("\n"); // BOM for Excel UTF-8
+
+      const now = new Date();
+      const filename = `ventas_${now.toISOString().split('T')[0]}.csv`;
+
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.send(csvContent);
+    } catch (error) {
+      console.error("Error exporting sales CSV:", error);
+      res.status(500).json({ message: "Failed to export sales CSV" });
+    }
+  });
+
   // Branch detail route - clients by branch
   app.get("/api/sales/branch/:branchName/clients", requireAuth, async (req, res) => {
     try {
