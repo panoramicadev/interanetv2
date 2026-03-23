@@ -763,6 +763,12 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
 
                       <TableCell className="py-4" onClick={(e) => e.stopPropagation()}>
                         {getStatusBadge(quote.status)}
+                        {quote.status === 'accepted' && quote.notes?.includes('[NVV-AUTO]') && (
+                          <div className="text-[9px] text-emerald-600 font-medium mt-0.5 flex items-center gap-0.5">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            Auto NVV
+                          </div>
+                        )}
                       </TableCell>
 
                       {(user?.role === 'admin' || user?.role === 'supervisor') && (

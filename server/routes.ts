@@ -8410,8 +8410,13 @@ export function registerRoutes(app: Express): Server {
         const threshold = quoteTotal * 0.95;
 
         if (nvvTotal >= threshold) {
-          // Update quote status to 'accepted'
-          await storage.updateQuote(quote.id, { status: 'accepted' });
+          // Update quote status to 'accepted' and mark as auto-accepted by system
+          const existingNotes = quote.status === 'draft' || quote.status === 'sent' 
+            ? '' : '';
+          await storage.updateQuote(quote.id, { 
+            status: 'accepted',
+            notes: `[NVV-AUTO] Aceptada automáticamente por coincidencia NVV (RUT: ${quote.clientRut}, Monto NVV: $${Math.round(nvvTotal).toLocaleString()})`,
+          });
           matchedCount++;
           matchedQuotes.push(`${quote.quoteNumber} (${quote.clientName})`);
           console.log(`✅ [AUTO-MATCH] Quote ${quote.quoteNumber} accepted: NVV total $${Math.round(nvvTotal)} >= threshold $${Math.round(threshold)} (quote: $${Math.round(quoteTotal)})`);
