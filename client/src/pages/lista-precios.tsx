@@ -73,14 +73,25 @@ export default function ListaPrecios() {
     queryFn: async () => {
       const params = new URLSearchParams({ search, limit: itemsPerPage.toString(), offset: (page * itemsPerPage).toString() });
       if (selectedUnidad) {
-        params.set('unidad', selectedUnidad);
+        params.append('unidad', selectedUnidad);
       }
       if (selectedColor) {
-        params.set('color', selectedColor);
+        params.append('color', selectedColor);
       }
       const response = await apiRequest('GET', `/api/price-list?${params}`);
       return response.json();
     },
+  });
+
+  // Query para obtener precios GRI (costo producción desde SQL Server)
+  const { data: griPrices } = useQuery<Record<string, number>>({
+    queryKey: ['/api/inventory/gri-prices'],
+    queryFn: async () => {
+      const response = await fetch('/api/inventory/gri-prices', { credentials: 'include' });
+      if (!response.ok) return {};
+      return response.json();
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
   // Mutación para importar CSV
@@ -527,7 +538,8 @@ export default function ListaPrecios() {
                     <TableHead className="text-right">Desc10+5</TableHead>
                     <TableHead className="text-right">Mínimo</TableHead>
                     <TableHead className="text-right">PPP</TableHead>
-                    <TableHead className="text-right">Costo Prod.</TableHead>
+                    <TableHead className="text-right text-amber-700 dark:text-amber-400">Costo Prod.</TableHead>
+                    <TableHead className="text-right">Margen</TableHead>
                     <TableHead className="w-24">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -558,8 +570,21 @@ export default function ListaPrecios() {
                       <TableCell className="text-right font-medium text-primary" data-testid={`text-ppp-${item.id}`}>
                         {(item as any).precioPromedioPonderado ? formatCurrency((item as any).precioPromedioPonderado) : '-'}
                       </TableCell>
-                      <TableCell className="text-right" data-testid={`text-costo-${item.id}`}>
-                        {(item as any).costoProduccion ? formatCurrency((item as any).costoProduccion) : '-'}
+                      <TableCell className="text-right font-semibold text-amber-700 dark:text-amber-400" data-testid={`text-costo-${item.id}`}>
+                        {item.codigo && griPrices?.[item.codigo.toUpperCase()]
+                          ? formatCurrency(griPrices[item.codigo.toUpperCase()])
+                          : (item as any).costoProduccion ? formatCurrency((item as any).costoProduccion) : '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold" data-testid={`text-margen-${item.id}`}>
+                        {(() => {
+                          const costoGri = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
+                          const costo = costoGri || (item as any).costoProduccion;
+                          const minimo = typeof item.minimo === 'string' ? parseFloat(item.minimo) : item.minimo;
+                          if (!costo || !minimo || costo === 0) return '-';
+                          const margen = ((minimo - costo) / costo) * 100;
+                          const color = margen >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+                          return <span className={color}>{margen.toFixed(1)}%</span>;
+                        })()}
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
