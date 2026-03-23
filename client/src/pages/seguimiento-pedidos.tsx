@@ -947,15 +947,6 @@ function CotizacionesTable({ quotes, isAdmin, onBitacora }: {
                           )}
                           {(q.status === 'draft' || q.status === 'sent') && (
                             <DropdownMenuItem
-                              onClick={() => updateStatusMutation.mutate({ id: q.id, status: 'accepted' })}
-                              className="text-xs gap-2"
-                            >
-                              <CheckCircle className="h-3.5 w-3.5" />
-                              Marcar como aceptada
-                            </DropdownMenuItem>
-                          )}
-                          {(q.status === 'draft' || q.status === 'sent') && (
-                            <DropdownMenuItem
                               onClick={() => updateStatusMutation.mutate({ id: q.id, status: 'rejected' })}
                               className="text-xs gap-2"
                             >

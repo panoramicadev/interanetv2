@@ -822,19 +822,6 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                               <Send className="h-3.5 w-3.5" />
                             </Button>
                           )}
-                          {/* Quick action: Mark as accepted (sent only) */}
-                          {quote.status === 'sent' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0 hover:bg-green-50 hover:text-green-600 transition-colors"
-                              onClick={() => handleStatusChange(quote.id, 'accepted', quote.quoteNumber)}
-                              disabled={updateStatusMutation.isPending}
-                              title="Marcar como aceptada"
-                            >
-                              <CheckCircle className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
                           {/* Quick action: Send email */}
                           <Button
                             variant="ghost"
@@ -876,26 +863,15 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                               )}
 
                               {quote.status === 'sent' && (
-                                <>
-                                  <DropdownMenuItem
-                                    data-testid={`status-accepted-${quote.id}`}
-                                    onClick={() => handleStatusChange(quote.id, 'accepted', quote.quoteNumber)}
-                                    disabled={updateStatusMutation.isPending}
-                                    className="text-xs gap-2"
-                                  >
-                                    <CheckCircle className="w-3.5 h-3.5" />
-                                    Marcar como aceptada
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    data-testid={`status-rejected-${quote.id}`}
-                                    onClick={() => handleStatusChange(quote.id, 'rejected', quote.quoteNumber)}
-                                    disabled={updateStatusMutation.isPending}
-                                    className="text-xs gap-2"
-                                  >
-                                    <XCircle className="w-3.5 h-3.5" />
-                                    Marcar como rechazada
-                                  </DropdownMenuItem>
-                                </>
+                                <DropdownMenuItem
+                                  data-testid={`status-rejected-${quote.id}`}
+                                  onClick={() => handleStatusChange(quote.id, 'rejected', quote.quoteNumber)}
+                                  disabled={updateStatusMutation.isPending}
+                                  className="text-xs gap-2"
+                                >
+                                  <XCircle className="w-3.5 h-3.5" />
+                                  Marcar como rechazada
+                                </DropdownMenuItem>
                               )}
 
                               {(quote.status === 'rejected' || quote.status === 'accepted') && (
