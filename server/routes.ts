@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import mssql from "mssql";
 import { createServer, type Server } from "http";
 import path from "path";
 import fs from "fs";
@@ -16786,6 +16787,78 @@ export function registerRoutes(app: Express): Server {
       res.json(summary);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener resumen de inventario con precios', error: error.message });
+    }
+  }));
+
+  // Get last GRI (Guía de Recepción Interna) unit prices per SKU from SQL Server
+  // Reference: Bodega 006
+  let griPriceCache: { data: Record<string, number>; timestamp: number } | null = null;
+  const GRI_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+  app.get('/api/inventory/gri-prices', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      // Check cache
+      if (griPriceCache && (Date.now() - griPriceCache.timestamp) < GRI_CACHE_TTL) {
+        return res.json(griPriceCache.data);
+      }
+
+      // Check SQL Server credentials
+      const sqlConfig: mssql.config = {
+        server: process.env.SQL_SERVER_HOST || '',
+        port: parseInt(process.env.SQL_SERVER_PORT || '1433'),
+        user: process.env.SQL_SERVER_USER || '',
+        password: process.env.SQL_SERVER_PASSWORD || '',
+        database: process.env.SQL_SERVER_DATABASE || '',
+        options: { encrypt: true, trustServerCertificate: true, enableArithAbort: true },
+        connectionTimeout: 30000,
+        requestTimeout: 60000,
+      };
+
+      if (!sqlConfig.server || !sqlConfig.user) {
+        return res.json({}); // No SQL Server config, return empty
+      }
+
+      const pool = await mssql.connect(sqlConfig);
+
+      // Get the latest GRI unit price per SKU from Bodega 006
+      const result = await pool.request().query(`
+        WITH RankedGRI AS (
+          SELECT 
+            LTRIM(RTRIM(d.KOPRCT)) AS sku,
+            d.PPPRNE AS precio_unitario,
+            e.FEEMDO AS fecha,
+            ROW_NUMBER() OVER (PARTITION BY LTRIM(RTRIM(d.KOPRCT)) ORDER BY e.FEEMDO DESC, d.IDMAEDDO DESC) AS rn
+          FROM dbo.MAEDDO d
+          INNER JOIN dbo.MAEEDO e ON d.IDMAEEDO = e.IDMAEEDO
+          WHERE e.TIDO = 'GRI'
+            AND e.SUDO = '006'
+            AND d.KOPRCT IS NOT NULL
+            AND d.PPPRNE > 0
+        )
+        SELECT sku, precio_unitario
+        FROM RankedGRI
+        WHERE rn = 1
+      `);
+
+      await pool.close();
+
+      // Build SKU -> price map
+      const priceMap: Record<string, number> = {};
+      for (const row of result.recordset) {
+        if (row.sku && row.precio_unitario) {
+          priceMap[row.sku.toUpperCase()] = Number(row.precio_unitario);
+        }
+      }
+
+      // Cache the result
+      griPriceCache = { data: priceMap, timestamp: Date.now() };
+
+      console.log(`📊 [GRI Prices] Loaded ${Object.keys(priceMap).length} SKU prices from SQL Server`);
+      res.json(priceMap);
+    } catch (error: any) {
+      console.error('Error fetching GRI prices:', error.message);
+      // Return cached data if available, or empty object
+      res.json(griPriceCache?.data || {});
     }
   }));
 
