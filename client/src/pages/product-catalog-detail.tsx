@@ -160,6 +160,8 @@ export default function ProductCatalogDetail() {
 
     const totalStock = inventory.reduce((sum, i) => sum + i.stock2, 0);
 
+
+
     // Fetch product content / technical sheet
     const { data: content, isLoading: contentLoading } = useQuery<ProductContentData>({
         queryKey: ['/api/product-content', codigo],
@@ -169,6 +171,22 @@ export default function ProductCatalogDetail() {
         },
         enabled: !!codigo,
     });
+
+    // Fetch ecommerce product info for image
+    const { data: ecomProduct } = useQuery<{ imagenUrl?: string } | null>({
+        queryKey: ['/api/ecommerce/products', codigo, 'image'],
+        queryFn: async () => {
+            try {
+                const res = await apiRequest('GET', `/api/ecommerce/products/${encodeURIComponent(codigo!)}`);
+                if (!res.ok) return null;
+                return res.json();
+            } catch { return null; }
+        },
+        enabled: !!codigo,
+    });
+
+    // Resolve the best available image: imagenDestacada > ecommerce imagenUrl
+    const productImageUrl = content?.imagenDestacada || ecomProduct?.imagenUrl || null;
 
     // Sync content into form state when loaded
     useEffect(() => {
@@ -278,15 +296,14 @@ export default function ProductCatalogDetail() {
                         </Button>
                         <Separator orientation="vertical" className="h-5" />
                         {/* Product image */}
-                        {content?.imagenDestacada ? (
+                        {productImageUrl ? (
                             <div className="w-14 h-14 rounded-xl border border-gray-200 overflow-hidden bg-white shrink-0 shadow-sm">
                                 <img
-                                    src={content.imagenDestacada}
+                                    src={productImageUrl}
                                     alt={product?.producto || "Producto"}
                                     className="w-full h-full object-contain p-1"
                                     onError={(e) => {
                                         (e.target as HTMLImageElement).style.display = 'none';
-                                        (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-gray-50"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-300"><path d="M12.5 2H8a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.5L12.5 2z"/></svg></div>';
                                     }}
                                 />
                             </div>
@@ -342,7 +359,35 @@ export default function ProductCatalogDetail() {
 
                     {/* ── Tab: Información ── */}
                     <TabsContent value="info" className="space-y-6">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Product Image + Info Grid */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* Product Image Card */}
+                            <div className="lg:col-span-1">
+                                <Card className="h-full">
+                                    <CardContent className="p-4 flex items-center justify-center h-full min-h-[200px]">
+                                        {productImageUrl ? (
+                                            <img
+                                                src={productImageUrl}
+                                                alt={product?.producto || "Producto"}
+                                                className="max-w-full max-h-[280px] object-contain rounded-lg"
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).style.display = 'none';
+                                                    (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="flex flex-col items-center justify-center text-gray-300 py-8"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg><p class="text-sm mt-2">Sin imagen</p></div>';
+                                                }}
+                                            />
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center text-gray-300 py-8">
+                                                <ImageIcon className="h-12 w-12" />
+                                                <p className="text-sm mt-2">Sin imagen del producto</p>
+                                                <p className="text-xs text-gray-400 mt-1">Sube una imagen en la pestaña Ficha Técnica</p>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </div>
+
+                            {/* Precios + Stock */}
+                            <div className="lg:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-6">
                             {/* Precios SAP */}
                             <Card>
                                 <CardHeader className="pb-3">
@@ -443,7 +488,8 @@ export default function ProductCatalogDetail() {
                                     )}
                                 </CardContent>
                             </Card>
-                        </div>
+                            </div> {/* Close lg:col-span-2 */}
+                        </div> {/* Close lg:grid-cols-3 */}
 
                         {/* Read-only Ficha Técnica Summary */}
                         {(form.breveResena || form.descripcion || form.usos || form.rendimiento || form.modoAplicacion) && (
