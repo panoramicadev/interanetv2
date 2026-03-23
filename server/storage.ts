@@ -775,7 +775,7 @@ export interface IStorage {
     averageTicket: number;
     percentage: number;
   }>>;
-  getBranchSalespeople(branchName: string, period?: string, filterType?: string): Promise<Array<{
+  getBranchSalespeople(branchName: string, period?: string, filterType?: string, excludeClients?: string[]): Promise<Array<{
     salespersonName: string;
     totalSales: number;
     transactionCount: number;
@@ -6025,7 +6025,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getBranchSalespeople(branchName: string, period?: string, filterType: string = 'month'): Promise<Array<{
+  async getBranchSalespeople(branchName: string, period?: string, filterType: string = 'month', excludeClients?: string[]): Promise<Array<{
     salespersonName: string;
     totalSales: number;
     transactionCount: number;
@@ -6036,6 +6036,13 @@ export class DatabaseStorage implements IStorage {
       ...DatabaseStorage.getBranchConditions(branchName),
       sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
+
+    // Exclude specific clients if provided
+    if (excludeClients && excludeClients.length > 0) {
+      for (const clientPattern of excludeClients) {
+        conditions.push(sql`UPPER(${factVentas.nokoen}) NOT LIKE ${'%' + clientPattern.toUpperCase() + '%'}`);
+      }
+    }
 
     // Apply date filters if period is provided
     if (period) {

@@ -3103,7 +3103,19 @@ export function registerRoutes(app: Express): Server {
       const { branchName } = req.params;
       const { period, filterType = "month" } = req.query;
 
-      const clients = await storage.getBranchClients(branchName, period as string, filterType as string);
+      let clients = await storage.getBranchClients(branchName, period as string, filterType as string);
+
+      // Business rule: Exclude CONSTRUCTORA POCURO SPA from CONCEPCION branch view
+      if (branchName.toUpperCase() === 'CONCEPCION') {
+        clients = clients.filter(c => !c.clientName?.toUpperCase().includes('CONSTRUCTORA POCURO'));
+        // Recalculate percentages after exclusion
+        const newTotal = clients.reduce((sum, c) => sum + c.totalSales, 0);
+        clients = clients.map(c => ({
+          ...c,
+          percentage: newTotal > 0 ? (c.totalSales / newTotal) * 100 : 0
+        }));
+      }
+
       res.json(clients);
     } catch (error) {
       console.error("Error fetching branch clients:", error);
@@ -3117,7 +3129,13 @@ export function registerRoutes(app: Express): Server {
       const { branchName } = req.params;
       const { period, filterType = "month" } = req.query;
 
-      const salespeople = await storage.getBranchSalespeople(branchName, period as string, filterType as string);
+      // Business rule: Exclude CONSTRUCTORA POCURO SPA sales from CONCEPCION branch
+      const excludeClients = branchName.toUpperCase() === 'CONCEPCION'
+        ? ['CONSTRUCTORA POCURO']
+        : undefined;
+
+      const salespeople = await storage.getBranchSalespeople(branchName, period as string, filterType as string, excludeClients);
+
       res.json(salespeople);
     } catch (error) {
       console.error("Error fetching branch salespeople:", error);

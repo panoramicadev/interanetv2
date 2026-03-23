@@ -2025,294 +2025,244 @@ export default function ReclamosGeneralesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Detail Dialog */}
+      {/* Detail Dialog — Modern SaaS Style */}
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
-          <DialogHeader>
-            <DialogTitle>Detalle del Reclamo</DialogTitle>
-            {/* Botón para laboratorio y áreas responsables debajo del título */}
-            {((user?.role === 'laboratorio' && reclamoDetails && reclamoDetails.estado === 'en_laboratorio') ||
-              ((user?.role?.startsWith('area_') || (user?.role && organizationalRoles.includes(user.role))) && reclamoDetails && reclamoDetails.estado === 'en_area_responsable') ||
-              ((user?.role === 'jefe_planta' || user?.role === 'produccion' || user?.role === 'area_produccion') && reclamoDetails && reclamoDetails.estado === 'en_produccion')) && (
-              <Button
-                onClick={() => {
-                  if (reclamoDetails.informeLaboratorio) {
-                    // Si ya tiene resolución, abrir el modal de visualización
-                    setShowResolucionViewModal(true);
-                  } else {
-                    // Navegar a página separada para evitar problema de cierre en móvil
-                    setShowDetailModal(false);
-                    setLocation(`/reclamos/resolucion/${reclamoDetails.id}`);
-                  }
-                }}
-                className={`mt-2 w-full ${reclamoDetails.informeLaboratorio ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-                data-testid="button-resolucion-laboratorio-modal"
-              >
-                {reclamoDetails.informeLaboratorio ? (
-                  <>
-                    <Eye className="h-4 w-4 mr-2" />
-                    Ver Resolución {user?.role === 'laboratorio' ? 'del Laboratorio' : 'del Área Responsable'}
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Subir Resolución {user?.role === 'laboratorio' ? 'del Laboratorio' : 'del Área Responsable'}
-                  </>
-                )}
-              </Button>
-            )}
-          </DialogHeader>
-          
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full p-0">
           {detailsLoading ? (
-            <div className="flex justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin" />
+            <div className="flex justify-center p-12">
+              <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
             </div>
           ) : reclamoDetails ? (
-            <div className="space-y-6 pt-4">
-              {/* Resumen de Resolución - Cuando está resuelto o cerrado */}
-              {(reclamoDetails.estado === 'resuelto' || reclamoDetails.estado === 'cerrado') && 
-               (reclamoDetails.informeLaboratorio || reclamoDetails.resolucionDescripcion) && (
-                <Card className="border-2 border-green-500 dark:border-green-600 bg-green-50 dark:bg-green-950 shadow-lg">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-                        <CardTitle className="text-base text-green-900 dark:text-green-100">
-                          Resolución del Reclamo
-                        </CardTitle>
-                      </div>
-                      <Badge className="bg-green-600 text-white">
-                        {reclamoDetails.estado === 'cerrado' ? 'Cerrado' : 'Resuelto'}
-                      </Badge>
+            <>
+              {/* ── Header strip with gradient ── */}
+              <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-900 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 px-5 py-4 rounded-t-lg">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h2 className="text-white font-semibold text-lg truncate">{reclamoDetails.clientName}</h2>
                     </div>
-                    {reclamoDetails.categoriaResponsable && (
-                      <p className="text-sm mt-1 text-green-700 dark:text-green-300">
-                        Área responsable: {CATEGORIA_RESPONSABLE_OPTIONS.find(c => c.value === reclamoDetails.categoriaResponsable)?.label || reclamoDetails.categoriaResponsable}
-                      </p>
-                    )}
-                    {reclamoDetails.resolucionUsuarioName && (
-                      <p className="text-sm mt-1 text-green-700 dark:text-green-300">
-                        Resuelto por: {reclamoDetails.resolucionUsuarioName}
-                      </p>
-                    )}
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div>
-                      <p className={`text-sm whitespace-pre-wrap text-green-900 dark:text-green-100 ${!resumenExpanded && 'line-clamp-3'}`}>
-                        {reclamoDetails.informeLaboratorio || reclamoDetails.resolucionDescripcion}
-                      </p>
-                      {(reclamoDetails.informeLaboratorio || reclamoDetails.resolucionDescripcion || '').length > 150 && (
-                        <Button
-                          variant="link"
-                          size="sm"
-                          onClick={() => setResumenExpanded(!resumenExpanded)}
-                          className="p-0 h-auto mt-1 text-green-700 dark:text-green-300 hover:text-green-900 dark:hover:text-green-100"
-                          data-testid="button-toggle-resumen"
-                        >
-                          {resumenExpanded ? (
-                            <>
-                              Ver menos <ChevronUp className="h-3 w-3 ml-1" />
-                            </>
-                          ) : (
-                            <>
-                              Ver más <ChevronDown className="h-3 w-3 ml-1" />
-                            </>
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowResolucionViewModal(true)}
-                      className="w-full border-green-400 dark:border-green-600 hover:bg-green-100 dark:hover:bg-green-900 text-green-700 dark:text-green-300 hover:text-green-900 dark:hover:text-green-100"
-                      data-testid="button-ver-evidencia-resolucion"
-                    >
-                      <Eye className="h-4 w-4 mr-2" />
-                      Ver Evidencia Fotográfica Completa
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Header info */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-muted-foreground">Cliente</Label>
-                  <p className="font-semibold">{reclamoDetails.clientName}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Fecha Registro</Label>
-                  <p>{format(new Date(reclamoDetails.fechaRegistro || ''), "dd MMMM yyyy HH:mm", { locale: es })}</p>
-                </div>
-                {reclamoDetails.vendedorName && (
-                  <div>
-                    <Label className="text-muted-foreground">Creado por</Label>
-                    <p className="font-medium">{reclamoDetails.vendedorName}</p>
+                    <p className="text-slate-300 text-xs">
+                      {format(new Date(reclamoDetails.fechaRegistro || ''), "dd MMM yyyy · HH:mm", { locale: es })}
+                      {reclamoDetails.vendedorName && <span> · por <span className="text-slate-200 font-medium">{reclamoDetails.vendedorName}</span></span>}
+                    </p>
                   </div>
-                )}
-                {reclamoDetails.tecnicoName && (
-                  <div>
-                    <Label className="text-muted-foreground">Técnico Asignado</Label>
-                    <p className="font-medium">{reclamoDetails.tecnicoName}</p>
-                  </div>
-                )}
-                <div>
-                  <Label className="text-muted-foreground">Estado</Label>
-                  <div className="mt-1">
-                    <Badge className={ESTADO_LABELS[reclamoDetails.estado]?.color}>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge className={`${GRAVEDAD_OPTIONS.find(g => g.value === reclamoDetails.gravedad)?.color} text-[10px] px-2 py-0.5`}>
+                      {GRAVEDAD_OPTIONS.find(g => g.value === reclamoDetails.gravedad)?.label}
+                    </Badge>
+                    <Badge className={`${ESTADO_LABELS[reclamoDetails.estado]?.color} text-[10px] px-2 py-0.5`}>
                       {ESTADO_LABELS[reclamoDetails.estado]?.label}
                     </Badge>
                   </div>
                 </div>
-                <div>
-                  <Label className="text-muted-foreground">Gravedad</Label>
-                  <div className="mt-1">
-                    <Badge className={GRAVEDAD_OPTIONS.find(g => g.value === reclamoDetails.gravedad)?.color}>
-                      {GRAVEDAD_OPTIONS.find(g => g.value === reclamoDetails.gravedad)?.label}
-                    </Badge>
+
+                {/* Action button strip */}
+                {((user?.role === 'laboratorio' && reclamoDetails.estado === 'en_laboratorio') ||
+                  ((user?.role?.startsWith('area_') || (user?.role && organizationalRoles.includes(user.role))) && reclamoDetails.estado === 'en_area_responsable') ||
+                  ((user?.role === 'jefe_planta' || user?.role === 'produccion' || user?.role === 'area_produccion') && reclamoDetails.estado === 'en_produccion')) && (
+                  <Button
+                    onClick={() => {
+                      if (reclamoDetails.informeLaboratorio) {
+                        setShowResolucionViewModal(true);
+                      } else {
+                        setShowDetailModal(false);
+                        setLocation(`/reclamos/resolucion/${reclamoDetails.id}`);
+                      }
+                    }}
+                    size="sm"
+                    className={`mt-3 w-full text-xs font-medium ${reclamoDetails.informeLaboratorio ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-indigo-500 hover:bg-indigo-600'} text-white border-0`}
+                    data-testid="button-resolucion-laboratorio-modal"
+                  >
+                    {reclamoDetails.informeLaboratorio ? (
+                      <><Eye className="h-3.5 w-3.5 mr-1.5" />Ver Resolución {user?.role === 'laboratorio' ? 'del Laboratorio' : 'del Área'}</>
+                    ) : (
+                      <><Upload className="h-3.5 w-3.5 mr-1.5" />Subir Resolución {user?.role === 'laboratorio' ? 'del Laboratorio' : 'del Área'}</>
+                    )}
+                  </Button>
+                )}
+              </div>
+
+              {/* ── Body ── */}
+              <div className="px-5 py-4 space-y-4">
+
+                {/* Resolución banner (when resuelto/cerrado) */}
+                {(reclamoDetails.estado === 'resuelto' || reclamoDetails.estado === 'cerrado') && 
+                 (reclamoDetails.informeLaboratorio || reclamoDetails.resolucionDescripcion) && (
+                  <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/80 dark:bg-emerald-950/50 p-3.5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">Resolución</span>
+                      {reclamoDetails.resolucionUsuarioName && (
+                        <span className="text-xs text-emerald-600 dark:text-emerald-400">por {reclamoDetails.resolucionUsuarioName}</span>
+                      )}
+                      {reclamoDetails.categoriaResponsable && (
+                        <Badge variant="outline" className="text-[10px] border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 ml-auto">
+                          {CATEGORIA_RESPONSABLE_OPTIONS.find(c => c.value === reclamoDetails.categoriaResponsable)?.label || reclamoDetails.categoriaResponsable}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className={`text-sm text-emerald-900 dark:text-emerald-100 whitespace-pre-wrap ${!resumenExpanded && 'line-clamp-2'}`}>
+                      {reclamoDetails.informeLaboratorio || reclamoDetails.resolucionDescripcion}
+                    </p>
+                    <div className="flex items-center gap-2 mt-2">
+                      {(reclamoDetails.informeLaboratorio || reclamoDetails.resolucionDescripcion || '').length > 100 && (
+                        <button onClick={() => setResumenExpanded(!resumenExpanded)} className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline flex items-center" data-testid="button-toggle-resumen">
+                          {resumenExpanded ? <>Menos <ChevronUp className="h-3 w-3 ml-0.5" /></> : <>Más <ChevronDown className="h-3 w-3 ml-0.5" /></>}
+                        </button>
+                      )}
+                      <button onClick={() => setShowResolucionViewModal(true)} className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline flex items-center ml-auto" data-testid="button-ver-evidencia-resolucion">
+                        <Eye className="h-3 w-3 mr-1" />Evidencia
+                      </button>
+                    </div>
                   </div>
-                </div>
-                {reclamoDetails.motivo && (
-                  <div>
-                    <Label className="text-muted-foreground">Motivo del Reclamo</Label>
-                    <div className="mt-1">
-                      <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                )}
+
+                {/* ── Compact info grid ── */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {/* Motivo */}
+                  {reclamoDetails.motivo && (
+                    <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-medium mb-0.5">Motivo</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                         {MOTIVO_OPTIONS.find(m => m.value === reclamoDetails.motivo)?.label || reclamoDetails.motivo}
-                      </Badge>
+                      </p>
                     </div>
-                  </div>
-                )}
-                {reclamoDetails.areaAsignadaInicial && (
-                  <div>
-                    <Label className="text-muted-foreground">Área Asignada Inicial</Label>
-                    <div className="mt-1">
-                      <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                  )}
+                  {/* Área Asignada */}
+                  {reclamoDetails.areaAsignadaInicial && (
+                    <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-medium mb-0.5">Área Asignada</p>
+                      <p className="text-sm font-medium text-indigo-700 dark:text-indigo-300">
                         {AREA_ASIGNADA_OPTIONS.find(a => a.value === reclamoDetails.areaAsignadaInicial)?.label || reclamoDetails.areaAsignadaInicial}
-                      </Badge>
+                      </p>
                     </div>
-                  </div>
-                )}
-                {reclamoDetails.categoriaResponsable && (
-                  <div>
-                    <Label className="text-muted-foreground">Área Responsable Final</Label>
-                    <div className="mt-1">
-                      <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                  )}
+                  {/* Área Responsable Final */}
+                  {reclamoDetails.categoriaResponsable && (
+                    <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-medium mb-0.5">Área Final</p>
+                      <p className="text-sm font-medium text-indigo-700 dark:text-indigo-300">
                         {CATEGORIA_RESPONSABLE_OPTIONS.find(c => c.value === reclamoDetails.categoriaResponsable)?.label || reclamoDetails.categoriaResponsable}
-                      </Badge>
+                      </p>
                     </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Description */}
-              <div>
-                <Label className="text-muted-foreground">Descripción</Label>
-                <p className="mt-1">{reclamoDetails.description}</p>
-              </div>
-
-              {/* Product info */}
-              {reclamoDetails.productName && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  <div>
-                    <Label className="text-muted-foreground">Producto Afectado</Label>
-                    <p>{reclamoDetails.productName}</p>
-                  </div>
+                  )}
+                  {/* Técnico */}
+                  {reclamoDetails.tecnicoName && (
+                    <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-medium mb-0.5">Técnico</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{reclamoDetails.tecnicoName}</p>
+                    </div>
+                  )}
+                  {/* Producto */}
+                  {reclamoDetails.productName && (
+                    <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-medium mb-0.5">Producto</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{reclamoDetails.productName}</p>
+                      {reclamoDetails.productSku && <p className="text-[10px] text-slate-500 dark:text-slate-400">SKU: {reclamoDetails.productSku}</p>}
+                    </div>
+                  )}
+                  {/* Lote */}
                   {reclamoDetails.lote && (
-                    <div>
-                      <Label className="text-muted-foreground">Lote</Label>
-                      <p>{reclamoDetails.lote}</p>
+                    <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-medium mb-0.5">Lote</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{reclamoDetails.lote}</p>
                     </div>
                   )}
                 </div>
-              )}
 
-              {/* Photos */}
-              {reclamoDetails.photos && reclamoDetails.photos.length > 0 && (
-                <div>
-                  <Label className="text-muted-foreground">Fotos</Label>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
-                    {reclamoDetails.photos.map((photo) => (
-                      <div key={photo.id} className="relative group">
-                        <img
-                          src={photo.photoUrl}
-                          alt={photo.description || 'Foto del reclamo'}
-                          className="w-full h-32 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                {/* ── Description ── */}
+                <div className="rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3.5 py-3">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-medium mb-1">Descripción</p>
+                  <p className="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">{reclamoDetails.description}</p>
+                </div>
+
+                {/* ── Photos ── */}
+                {reclamoDetails.photos && reclamoDetails.photos.length > 0 && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-medium mb-2">
+                      Evidencia ({reclamoDetails.photos.length})
+                    </p>
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {reclamoDetails.photos.map((photo) => (
+                        <div
+                          key={photo.id}
+                          className="relative shrink-0 group cursor-pointer"
                           onClick={() => {
                             setSelectedImage({ url: photo.photoUrl, description: photo.description || undefined });
                             setShowImageModal(true);
                           }}
                           data-testid={`img-reclamo-${photo.id}`}
-                        />
-                        <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 opacity-0 group-hover:opacity-100 transition-opacity rounded-b">
-                          <Eye className="h-3 w-3 inline mr-1" />
-                          Ver imagen
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Historial */}
-              {reclamoDetails.historial && reclamoDetails.historial.length > 0 && (
-                <div>
-                  <Label className="text-muted-foreground">Historial de Cambios</Label>
-                  <div className="mt-2 space-y-2">
-                    {reclamoDetails.historial.map((entry) => {
-                      const isResolucionEntry = entry.notas?.includes('Resolución de laboratorio agregada');
-                      return (
-                        <Card 
-                          key={entry.id}
-                          className={isResolucionEntry ? 'cursor-pointer hover:bg-accent transition-colors' : ''}
-                          onClick={() => {
-                            if (isResolucionEntry && reclamoDetails.informeLaboratorio) {
-                              setShowResolucionViewModal(true);
-                            }
-                          }}
-                          data-testid={isResolucionEntry ? 'card-resolucion-clickeable' : undefined}
                         >
-                          <CardContent className="p-3">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  {entry.estadoAnterior && (
-                                    <>
-                                      <Badge variant="outline" className="text-xs">
-                                        {ESTADO_LABELS[entry.estadoAnterior]?.label}
-                                      </Badge>
-                                      <span className="text-xs text-muted-foreground">→</span>
-                                    </>
-                                  )}
-                                  <Badge className={ESTADO_LABELS[entry.estadoNuevo]?.color + " text-xs"}>
-                                    {ESTADO_LABELS[entry.estadoNuevo]?.label}
-                                  </Badge>
-                                </div>
-                                {entry.notas && (
-                                  <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
-                                    {entry.notas}
-                                    {isResolucionEntry && <Eye className="h-3 w-3 ml-1" />}
-                                  </p>
-                                )}
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  {entry.userName} - {format(new Date(entry.createdAt), "dd MMM yyyy HH:mm", { locale: es })}
-                                </p>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
+                          <img
+                            src={photo.photoUrl}
+                            alt={photo.description || 'Foto del reclamo'}
+                            className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border-2 border-slate-200 dark:border-slate-700 group-hover:border-indigo-400 dark:group-hover:border-indigo-500 transition-colors"
+                          />
+                          <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                            <Eye className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+
+                {/* ── Timeline / Historial ── */}
+                {reclamoDetails.historial && reclamoDetails.historial.length > 0 && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-medium mb-2">Historial</p>
+                    <div className="relative space-y-0 border-l-2 border-slate-200 dark:border-slate-700 ml-2">
+                      {reclamoDetails.historial.map((entry) => {
+                        const isResolucionEntry = entry.notas?.includes('Resolución de laboratorio agregada');
+                        return (
+                          <div
+                            key={entry.id}
+                            className={`pl-4 py-2 relative ${isResolucionEntry ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-r-lg' : ''}`}
+                            onClick={() => {
+                              if (isResolucionEntry && reclamoDetails.informeLaboratorio) {
+                                setShowResolucionViewModal(true);
+                              }
+                            }}
+                            data-testid={isResolucionEntry ? 'card-resolucion-clickeable' : undefined}
+                          >
+                            <div className="absolute -left-[5px] top-3 w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600 border-2 border-white dark:border-slate-900" />
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {entry.estadoAnterior && (
+                                <>
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                    {ESTADO_LABELS[entry.estadoAnterior]?.label}
+                                  </Badge>
+                                  <span className="text-[10px] text-slate-400">→</span>
+                                </>
+                              )}
+                              <Badge className={`${ESTADO_LABELS[entry.estadoNuevo]?.color} text-[10px] px-1.5 py-0`}>
+                                {ESTADO_LABELS[entry.estadoNuevo]?.label}
+                              </Badge>
+                              <span className="text-[10px] text-slate-400 ml-auto shrink-0">
+                                {format(new Date(entry.createdAt), "dd MMM HH:mm", { locale: es })}
+                              </span>
+                            </div>
+                            {entry.notas && (
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
+                                {entry.notas}
+                                {isResolucionEntry && <Eye className="h-3 w-3" />}
+                              </p>
+                            )}
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500">{entry.userName}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
           ) : (
-            <p className="text-center text-muted-foreground">No se encontró el reclamo</p>
+            <div className="p-6 text-center text-muted-foreground">No se encontró el reclamo</div>
           )}
         </DialogContent>
       </Dialog>
+
 
       {/* Cerrar Reclamo Modal */}
       <Dialog open={showCerrarModal} onOpenChange={setShowCerrarModal}>

@@ -30,7 +30,8 @@ import {
   ExternalLink,
   FileSpreadsheet,
   Sparkles,
-  Gift
+  Gift,
+  PackageSearch
 } from "lucide-react";
 
 interface SidebarItem {
@@ -61,6 +62,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/tomador-pedidos",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
+    },
+    {
+      href: "/seguimiento-pedidos",
+      label: "Seguimiento de Pedidos",
+      icon: PackageSearch,
     },
     {
       href: "/tareas",
@@ -415,6 +421,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: ClipboardCheck,
     },
     {
+      href: "/seguimiento-pedidos",
+      label: "Seguimiento de Pedidos",
+      icon: PackageSearch,
+    },
+    {
       href: "/visitas-tecnicas",
       label: "Visita Técnica",
       icon: FileCheck,
@@ -568,6 +579,16 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/tomador-pedidos",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
+    },
+    {
+      href: "/seguimiento-pedidos",
+      label: "Seguimiento de Pedidos",
+      icon: PackageSearch,
+    },
+    {
+      href: "/mis-pedidos",
+      label: "Mis Pedidos",
+      icon: ShoppingCart,
     },
     {
       href: "/reclamos-generales",

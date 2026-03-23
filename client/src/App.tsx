@@ -86,6 +86,8 @@ import ETLMonitor from "@/pages/etl-monitor";
 import DateSelectorDemo from "@/pages/date-selector-demo";
 import ConfiguracionPage from "@/pages/configuracion";
 import PresupuestoVentas from "@/pages/presupuesto-ventas";
+import MisPedidos from "@/pages/mis-pedidos";
+import SeguimientoPedidos from "@/pages/seguimiento-pedidos";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -200,6 +202,7 @@ function Router() {
               return <PromesasCompraPage />;
             }} />
             <Route path="/tomador-pedidos" component={TomadorPedidos} />
+            <Route path="/seguimiento-pedidos" component={SeguimientoPedidos} />
             <Route path="/presupuestos-avanzados" component={PresupuestosAvanzados} />
             <Route path="/tareas" component={TareasPage} />
             <Route path="/visitas-tecnicas" component={VisitasTecnicasPage} />
@@ -330,7 +333,7 @@ function Router() {
             <Route path="/reportes" component={() => <div className="p-6"><h1 className="text-2xl font-bold">Reportes</h1><p>Página en construcción</p></div>} />
 
             {/* Rutas específicas de cliente */}
-            <Route path="/mis-pedidos" component={() => <div className="p-6"><h1 className="text-2xl font-bold">Mis Pedidos</h1><p>Página en construcción</p></div>} />
+            <Route path="/mis-pedidos" component={MisPedidos} />
             <Route path="/solicitar-cotizacion" component={() => <div className="p-6"><h1 className="text-2xl font-bold">Solicitar Cotización</h1><p>Página en construcción</p></div>} />
             <Route path="/client-portal" component={ClientPortal} />
 

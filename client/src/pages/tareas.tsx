@@ -712,7 +712,12 @@ export default function TareasPage() {
             </p>
           </div>
           {canCreateTasks && (
-            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+            <Dialog open={showCreateDialog} onOpenChange={(open) => {
+                setShowCreateDialog(open);
+                if (open && segmentoFilter && segmentoFilter !== 'all') {
+                  form.setValue('segmento', segmentoFilter);
+                }
+              }}>
               <DialogTrigger asChild>
                 <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-lg text-white font-bold border-none transition-all duration-300 hover:scale-105 active:scale-95" data-testid="button-create-task">
                   <Plus className="h-5 w-5 mr-2" />
@@ -1363,7 +1368,12 @@ export default function TareasPage() {
                 </p>
                 {canCreateTasks && (
                   <Button
-                    onClick={() => setShowCreateDialog(true)}
+                    onClick={() => {
+                      if (segmentoFilter && segmentoFilter !== 'all') {
+                        form.setValue('segmento', segmentoFilter);
+                      }
+                      setShowCreateDialog(true);
+                    }}
                     className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg shadow-blue-200/50"
                   >
                     <Plus className="h-4 w-4 mr-2" />
