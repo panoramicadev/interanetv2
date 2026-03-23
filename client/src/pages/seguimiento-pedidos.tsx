@@ -742,9 +742,24 @@ function CotizacionesTable({ quotes, isAdmin, onBitacora }: {
   onBitacora: (tipo: string, id: string, numero: string, clienteNombre: string, clienteRut?: string) => void;
 }) {
   const [showAll, setShowAll] = useState(false);
-  const displayed = showAll ? quotes : quotes.slice(0, 15);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Filter by status
+  const filteredByStatus = statusFilter === "all"
+    ? quotes
+    : quotes.filter(q => q.status === statusFilter);
+  const displayed = showAll ? filteredByStatus : filteredByStatus.slice(0, 15);
+
+  // Status counts for filter badges
+  const statusCounts = {
+    all: quotes.length,
+    sent: quotes.filter(q => q.status === 'sent').length,
+    accepted: quotes.filter(q => q.status === 'accepted').length,
+    draft: quotes.filter(q => q.status === 'draft').length,
+    rejected: quotes.filter(q => q.status === 'rejected').length,
+  };
 
   // Status update mutation
   const updateStatusMutation = useMutation({
@@ -816,6 +831,33 @@ function CotizacionesTable({ quotes, isAdmin, onBitacora }: {
 
   return (
     <div>
+      {/* Status filter pills */}
+      <div className="flex items-center gap-2 p-3 border-b border-gray-100 overflow-x-auto">
+        {[
+          { key: 'all', label: 'Todas', count: statusCounts.all },
+          { key: 'sent', label: 'Enviadas', count: statusCounts.sent },
+          { key: 'accepted', label: 'Aceptadas', count: statusCounts.accepted },
+          { key: 'draft', label: 'Borradores', count: statusCounts.draft },
+          { key: 'rejected', label: 'Rechazadas', count: statusCounts.rejected },
+        ].filter(f => f.count > 0 || f.key === 'all').map((f) => (
+          <Button
+            key={f.key}
+            variant={statusFilter === f.key ? 'default' : 'outline'}
+            size="sm"
+            className={`h-7 text-xs rounded-full px-3 gap-1.5 whitespace-nowrap ${
+              statusFilter === f.key 
+                ? 'bg-indigo-600 hover:bg-indigo-700 text-white' 
+                : 'hover:bg-gray-50'
+            }`}
+            onClick={() => { setStatusFilter(f.key); setShowAll(false); }}
+          >
+            {f.label}
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+              statusFilter === f.key ? 'bg-white/20' : 'bg-gray-100'
+            }`}>{f.count}</span>
+          </Button>
+        ))}
+      </div>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -951,10 +993,10 @@ function CotizacionesTable({ quotes, isAdmin, onBitacora }: {
           </TableBody>
         </Table>
       </div>
-      {quotes.length > 15 && (
+      {filteredByStatus.length > 15 && (
         <div className="p-3 border-t">
           <Button variant="outline" size="sm" className="w-full" onClick={() => setShowAll(!showAll)}>
-            {showAll ? "Ver menos" : `Ver todas (${quotes.length - 15} más)`}
+            {showAll ? "Ver menos" : `Ver todas (${filteredByStatus.length - 15} más)`}
           </Button>
         </div>
       )}
