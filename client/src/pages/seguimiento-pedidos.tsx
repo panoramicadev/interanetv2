@@ -1,40 +1,26 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from "@/components/ui/dialog";
 import {
-  FileText,
-  ShoppingCart,
-  Truck,
-  FileCheck,
-  DollarSign,
-  Package,
-  User,
-  Search,
-  PackageSearch,
-  Clock,
-  CheckCircle,
-  XCircle,
-  Send,
-  ArrowRight,
-  Loader2,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  FileText, ShoppingCart, Truck, FileCheck, Package,
+  Search, PackageSearch, CheckCircle, XCircle, Send,
+  ArrowRight, Loader2, BookOpen, Plus, Phone, MapPin,
+  AlertCircle, MessageSquare, Trash2, Users,
 } from "lucide-react";
 
 // ==============================
@@ -76,6 +62,21 @@ interface GDVRecord {
   producto: string;
   cantidad: number;
   monto: number;
+}
+
+interface BitacoraEntry {
+  id: string;
+  documentoTipo: string;
+  documentoId: string;
+  documentoNumero?: string;
+  clienteNombre?: string;
+  clienteRut?: string;
+  nota: string;
+  tipo: string;
+  autorId: string;
+  autorNombre: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ==============================
@@ -179,59 +180,93 @@ const quoteStatusMap: Record<string, { label: string; icon: any; color: string }
   converted: { label: "Convertida", icon: Package, color: "bg-purple-100 text-purple-700" },
 };
 
+const BITACORA_TYPES = [
+  { value: "nota", label: "Nota", icon: MessageSquare, color: "bg-gray-100 text-gray-700" },
+  { value: "llamada", label: "Llamada", icon: Phone, color: "bg-blue-100 text-blue-700" },
+  { value: "visita", label: "Visita", icon: MapPin, color: "bg-green-100 text-green-700" },
+  { value: "seguimiento", label: "Seguimiento", icon: BookOpen, color: "bg-purple-100 text-purple-700" },
+  { value: "problema", label: "Problema", icon: AlertCircle, color: "bg-red-100 text-red-700" },
+];
+
 // ==============================
 // Main Page
 // ==============================
 
 export default function SeguimientoPedidos() {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const salespersonName = (user as any)?.salespersonName || "";
   const isAdmin = user?.role === "admin" || user?.role === "supervisor";
   const [activeStage, setActiveStage] = useState<string>("cotizacion");
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedSalesperson, setSelectedSalesperson] = useState<string>("all");
+
+  // Bitácora state
+  const [bitacoraOpen, setBitacoraOpen] = useState(false);
+  const [bitacoraDoc, setBitacoraDoc] = useState<{
+    tipo: string;
+    id: string;
+    numero: string;
+    clienteNombre: string;
+    clienteRut?: string;
+  } | null>(null);
+  const [newNota, setNewNota] = useState("");
+  const [newNotaTipo, setNewNotaTipo] = useState("nota");
+
+  // Get salesperson to filter by
+  const effectiveSalesperson = isAdmin
+    ? (selectedSalesperson === "all" ? "" : selectedSalesperson)
+    : salespersonName;
+
+  // Salespeople list for admin filter
+  const { data: salespeople = [] } = useQuery<string[]>({
+    queryKey: ["/api/sales/salespeople"],
+    enabled: isAdmin,
+  });
 
   // Quotes data
   const { data: quotes = [], isLoading: quotesLoading } = useQuery<Quote[]>({
-    queryKey: ["/api/quotes?limit=200&offset=0"],
+    queryKey: ["/api/quotes?limit=500&offset=0"],
   });
 
   // NVV data
   const { data: nvvData = [], isLoading: nvvLoading } = useQuery<NVVRecord[]>({
-    queryKey: ["/api/nvv/by-salesperson", salespersonName, "all", "all"],
+    queryKey: ["/api/nvv/by-salesperson", effectiveSalesperson, "all", "all"],
     queryFn: async () => {
-      if (!salespersonName && !isAdmin) return [];
+      if (!effectiveSalesperson && !isAdmin) return [];
       const params = new URLSearchParams();
-      if (salespersonName) params.append("salesperson", salespersonName);
+      if (effectiveSalesperson) params.append("salesperson", effectiveSalesperson);
       const response = await fetch(`/api/nvv/by-salesperson?${params}`, {
         credentials: "include",
       });
       if (!response.ok) return [];
       return response.json();
     },
-    enabled: !!salespersonName || isAdmin,
+    enabled: !!effectiveSalesperson || isAdmin,
   });
 
   // GDV data
   const { data: gdvData = [], isLoading: gdvLoading } = useQuery<GDVRecord[]>({
-    queryKey: ["/api/gdv/by-salesperson", salespersonName],
+    queryKey: ["/api/gdv/by-salesperson", effectiveSalesperson],
     queryFn: async () => {
-      if (!salespersonName && !isAdmin) return [];
+      if (!effectiveSalesperson && !isAdmin) return [];
       const params = new URLSearchParams();
-      if (salespersonName) params.append("salesperson", salespersonName);
+      if (effectiveSalesperson) params.append("salesperson", effectiveSalesperson);
       const response = await fetch(`/api/gdv/by-salesperson?${params}`, {
         credentials: "include",
       });
       if (!response.ok) return [];
       return response.json();
     },
-    enabled: !!salespersonName || isAdmin,
+    enabled: !!effectiveSalesperson || isAdmin,
   });
 
   // Facturas data (current month)
   const { data: facturas = [], isLoading: facturasLoading } = useQuery<any[]>({
-    queryKey: ["/api/sales/transactions", salespersonName, "seguimiento"],
+    queryKey: ["/api/sales/transactions", effectiveSalesperson, "seguimiento"],
     queryFn: async () => {
-      if (!salespersonName && !isAdmin) return [];
+      if (!effectiveSalesperson && !isAdmin) return [];
       const now = new Date();
       const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
       const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
@@ -240,79 +275,197 @@ export default function SeguimientoPedidos() {
         endDate,
         limit: "200",
       });
-      if (salespersonName) params.append("salesperson", salespersonName);
+      if (effectiveSalesperson) params.append("salesperson", effectiveSalesperson);
       const response = await fetch(`/api/sales/transactions?${params}`, {
         credentials: "include",
       });
       if (!response.ok) return [];
       return response.json();
     },
-    enabled: !!salespersonName || isAdmin,
+    enabled: !!effectiveSalesperson || isAdmin,
   });
 
-  // Compute totals for each stage
-  const stageCounts = {
-    cotizacion: quotes.length,
-    ingresado: nvvData.length,
-    despacho: gdvData.length,
-    facturado: facturas.length,
+  // Bitácora data for selected document
+  const { data: bitacoraEntries = [], isLoading: bitacoraLoading } = useQuery<BitacoraEntry[]>({
+    queryKey: ["/api/bitacora", bitacoraDoc?.tipo, bitacoraDoc?.id],
+    queryFn: async () => {
+      if (!bitacoraDoc) return [];
+      const params = new URLSearchParams({
+        documentoTipo: bitacoraDoc.tipo,
+        documentoId: bitacoraDoc.id,
+      });
+      const response = await fetch(`/api/bitacora?${params}`, { credentials: "include" });
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: !!bitacoraDoc,
+  });
+
+  // Create bitácora entry
+  const createBitacoraMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const response = await fetch("/api/bitacora", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error("Error al crear entrada");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bitacora"] });
+      setNewNota("");
+      setNewNotaTipo("nota");
+      toast({ title: "✅ Entrada agregada a la bitácora" });
+    },
+    onError: () => {
+      toast({ title: "❌ Error al agregar entrada", variant: "destructive" });
+    },
+  });
+
+  // Delete bitácora entry
+  const deleteBitacoraMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/bitacora/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Error al eliminar");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bitacora"] });
+      toast({ title: "Entrada eliminada" });
+    },
+  });
+
+  const handleOpenBitacora = (tipo: string, id: string, numero: string, clienteNombre: string, clienteRut?: string) => {
+    setBitacoraDoc({ tipo, id, numero, clienteNombre, clienteRut });
+    setBitacoraOpen(true);
   };
 
-  const stageTotals = {
-    cotizacion: quotes.reduce((s, q) => s + parseFloat(q.total || "0"), 0),
-    ingresado: nvvData.reduce((s, r) => s + (r.totalPendiente || 0), 0),
-    despacho: gdvData.reduce((s, r) => s + (r.monto || 0), 0),
-    facturado: facturas.reduce((s, r) => s + (Number(r.amount) || 0), 0),
+  const handleAddBitacora = () => {
+    if (!bitacoraDoc || !newNota.trim()) return;
+    createBitacoraMutation.mutate({
+      documentoTipo: bitacoraDoc.tipo,
+      documentoId: bitacoraDoc.id,
+      documentoNumero: bitacoraDoc.numero,
+      clienteNombre: bitacoraDoc.clienteNombre,
+      clienteRut: bitacoraDoc.clienteRut,
+      nota: newNota.trim(),
+      tipo: newNotaTipo,
+    });
   };
 
-  // Filter helpers
-  const filteredQuotes = quotes.filter(
-    (q) =>
-      !searchTerm ||
-      q.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      q.quoteNumber?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter quotes by salesperson (creator)
+  const filteredQuotes = useMemo(() => {
+    let result = quotes;
+    if (effectiveSalesperson) {
+      result = result.filter(q => q.creatorName?.toLowerCase().includes(effectiveSalesperson.toLowerCase()));
+    }
+    if (searchTerm) {
+      result = result.filter(q =>
+        q.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        q.quoteNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    return result;
+  }, [quotes, effectiveSalesperson, searchTerm]);
 
-  const filteredNVV = nvvData.filter(
-    (r) =>
-      !searchTerm ||
+  const filteredNVV = useMemo(() => {
+    if (!searchTerm) return nvvData;
+    return nvvData.filter(r =>
       r.NOKOEN?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.NOKOPR?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.NUDO?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    );
+  }, [nvvData, searchTerm]);
 
-  const filteredGDV = gdvData.filter(
-    (r) =>
-      !searchTerm ||
+  const filteredGDV = useMemo(() => {
+    if (!searchTerm) return gdvData;
+    return gdvData.filter(r =>
       r.cliente?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.producto?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.numeroGuia?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    );
+  }, [gdvData, searchTerm]);
 
-  const filteredFacturas = facturas.filter(
-    (r) =>
-      !searchTerm ||
+  const filteredFacturas = useMemo(() => {
+    if (!searchTerm) return facturas;
+    return facturas.filter(r =>
       (r.clientName || r.nokoen || "")?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (r.productName || r.nokopr || "")?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (r.documentNumber || r.nudo || "")?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    );
+  }, [facturas, searchTerm]);
+
+  // Compute totals for each stage
+  const stageCounts = {
+    cotizacion: filteredQuotes.length,
+    ingresado: filteredNVV.length,
+    despacho: filteredGDV.length,
+    facturado: filteredFacturas.length,
+  };
+
+  const stageTotals = {
+    cotizacion: filteredQuotes.reduce((s, q) => s + parseFloat(q.total || "0"), 0),
+    ingresado: filteredNVV.reduce((s, r) => s + (r.totalPendiente || 0), 0),
+    despacho: filteredGDV.reduce((s, r) => s + (r.monto || 0), 0),
+    facturado: filteredFacturas.reduce((s, r) => s + (Number(r.amount) || 0), 0),
+  };
 
   const isLoading = quotesLoading || nvvLoading || gdvLoading || facturasLoading;
 
   return (
     <div className="p-4 sm:p-6 space-y-5">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg shadow-indigo-500/20">
-          <PackageSearch className="h-6 w-6 text-white" />
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg shadow-indigo-500/20">
+            <PackageSearch className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
+              Seguimiento de Pedidos
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Sigue el estado de tus pedidos desde la cotización hasta la entrega
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
-            Seguimiento de Pedidos
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Sigue el estado de tus pedidos desde la cotización hasta la entrega
-          </p>
+      </div>
+
+      {/* Filters row */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {/* Salesperson filter - only for admin/supervisor */}
+        {isAdmin && (
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-gray-500" />
+            <Select value={selectedSalesperson} onValueChange={setSelectedSalesperson}>
+              <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
+                <SelectValue placeholder="Todos los vendedores" />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                <SelectItem value="all">Todos los vendedores</SelectItem>
+                {salespeople.map((sp) => (
+                  <SelectItem key={sp} value={sp}>{sp}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Search */}
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Buscar por cliente, producto o documento..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 h-9 rounded-lg border-gray-200 focus:border-indigo-400 text-sm"
+            data-testid="input-search-seguimiento"
+          />
         </div>
       </div>
 
@@ -335,7 +488,6 @@ export default function SeguimientoPedidos() {
                 }`}
               data-testid={`stage-${stage.key}`}
             >
-              {/* Active indicator dot */}
               {isActive && (
                 <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-current animate-pulse" style={{ color: `var(--${stage.color}-500, #6366f1)` }} />
               )}
@@ -359,25 +511,12 @@ export default function SeguimientoPedidos() {
                 </p>
               </div>
 
-              {/* Arrow connector (hidden on last) */}
               {idx < STAGES.length - 1 && (
                 <ArrowRight className="hidden lg:block absolute -right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 z-10" />
               )}
             </button>
           );
         })}
-      </div>
-
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <Input
-          placeholder="Buscar por cliente, producto o documento..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10 h-10 rounded-xl border-gray-200 focus:border-indigo-400"
-          data-testid="input-search-seguimiento"
-        />
       </div>
 
       {/* Stage content */}
@@ -389,20 +528,124 @@ export default function SeguimientoPedidos() {
         <Card className="rounded-2xl border-gray-100 shadow-sm">
           <CardContent className="p-0">
             {activeStage === "cotizacion" && (
-              <CotizacionesTable quotes={filteredQuotes} isAdmin={isAdmin} />
+              <CotizacionesTable quotes={filteredQuotes} isAdmin={isAdmin} onBitacora={handleOpenBitacora} />
             )}
             {activeStage === "ingresado" && (
-              <NVVTable records={filteredNVV} />
+              <NVVTable records={filteredNVV} onBitacora={handleOpenBitacora} />
             )}
             {activeStage === "despacho" && (
-              <GDVTable records={filteredGDV} />
+              <GDVTable records={filteredGDV} onBitacora={handleOpenBitacora} />
             )}
             {activeStage === "facturado" && (
-              <FacturasTable records={filteredFacturas} />
+              <FacturasTable records={filteredFacturas} onBitacora={handleOpenBitacora} />
             )}
           </CardContent>
         </Card>
       )}
+
+      {/* Bitácora Dialog */}
+      <Dialog open={bitacoraOpen} onOpenChange={(open) => { if (!open) setBitacoraOpen(false); }}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <BookOpen className="h-5 w-5 text-indigo-500" />
+              Bitácora
+            </DialogTitle>
+            <DialogDescription>
+              {bitacoraDoc && (
+                <span className="text-sm">
+                  {bitacoraDoc.numero && <span className="font-semibold text-gray-900">#{bitacoraDoc.numero}</span>}
+                  {bitacoraDoc.clienteNombre && <span> — {bitacoraDoc.clienteNombre}</span>}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* New entry form */}
+          <div className="space-y-3 border rounded-xl p-3 bg-gray-50/50">
+            <div className="flex items-center gap-2">
+              <Select value={newNotaTipo} onValueChange={setNewNotaTipo}>
+                <SelectTrigger className="h-8 w-40 text-xs rounded-lg">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {BITACORA_TYPES.map(t => (
+                    <SelectItem key={t.value} value={t.value}>
+                      <div className="flex items-center gap-1.5">
+                        <t.icon className="h-3 w-3" />
+                        {t.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Textarea
+              placeholder="Escribir nota..."
+              value={newNota}
+              onChange={(e) => setNewNota(e.target.value)}
+              className="min-h-[60px] text-sm rounded-lg resize-none"
+            />
+            <Button
+              size="sm"
+              onClick={handleAddBitacora}
+              disabled={!newNota.trim() || createBitacoraMutation.isPending}
+              className="w-full rounded-lg bg-indigo-600 hover:bg-indigo-700"
+            >
+              {createBitacoraMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              ) : (
+                <Plus className="h-4 w-4 mr-1" />
+              )}
+              Agregar Entrada
+            </Button>
+          </div>
+
+          {/* Entries list */}
+          <div className="space-y-2 mt-2">
+            {bitacoraLoading ? (
+              <div className="text-center py-6">
+                <Loader2 className="h-5 w-5 animate-spin text-gray-400 mx-auto" />
+              </div>
+            ) : bitacoraEntries.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Sin entradas en la bitácora</p>
+                <p className="text-xs">Agrega una nota para comenzar el seguimiento</p>
+              </div>
+            ) : (
+              bitacoraEntries.map((entry) => {
+                const typeConfig = BITACORA_TYPES.find(t => t.value === entry.tipo) || BITACORA_TYPES[0];
+                const TypeIcon = typeConfig.icon;
+                return (
+                  <div key={entry.id} className="border rounded-xl p-3 space-y-1.5 bg-white hover:shadow-sm transition-shadow">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge className={`${typeConfig.color} text-[10px] gap-1`}>
+                          <TypeIcon className="w-2.5 h-2.5" />
+                          {typeConfig.label}
+                        </Badge>
+                        <span className="text-[10px] text-gray-400">
+                          {formatDate(entry.createdAt)} · {getTimeAgo(entry.createdAt)}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => deleteBitacoraMutation.mutate(entry.id)}
+                        className="text-gray-300 hover:text-red-500 transition-colors"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{entry.nota}</p>
+                    <p className="text-[10px] text-gray-400">por {entry.autorNombre}</p>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -411,7 +654,11 @@ export default function SeguimientoPedidos() {
 // Cotizaciones Table
 // ==============================
 
-function CotizacionesTable({ quotes, isAdmin }: { quotes: Quote[]; isAdmin: boolean }) {
+function CotizacionesTable({ quotes, isAdmin, onBitacora }: {
+  quotes: Quote[];
+  isAdmin: boolean;
+  onBitacora: (tipo: string, id: string, numero: string, clienteNombre: string, clienteRut?: string) => void;
+}) {
   const [showAll, setShowAll] = useState(false);
   const displayed = showAll ? quotes : quotes.slice(0, 15);
 
@@ -436,6 +683,7 @@ function CotizacionesTable({ quotes, isAdmin }: { quotes: Quote[]; isAdmin: bool
               {isAdmin && <TableHead className="text-xs">Creado por</TableHead>}
               <TableHead className="text-xs">Fecha</TableHead>
               <TableHead className="text-xs text-right">Monto</TableHead>
+              <TableHead className="text-xs w-16"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -471,6 +719,17 @@ function CotizacionesTable({ quotes, isAdmin }: { quotes: Quote[]; isAdmin: bool
                   <TableCell className="text-xs text-right font-bold text-blue-600">
                     {formatCurrency(q.total)}
                   </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 hover:bg-indigo-50 hover:text-indigo-600"
+                      onClick={() => onBitacora("cotizacion", q.id, q.quoteNumber, q.clientName, q.clientRut)}
+                      title="Bitácora"
+                    >
+                      <BookOpen className="h-3.5 w-3.5" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               );
             })}
@@ -492,7 +751,10 @@ function CotizacionesTable({ quotes, isAdmin }: { quotes: Quote[]; isAdmin: bool
 // NVV Table
 // ==============================
 
-function NVVTable({ records }: { records: NVVRecord[] }) {
+function NVVTable({ records, onBitacora }: {
+  records: NVVRecord[];
+  onBitacora: (tipo: string, id: string, numero: string, clienteNombre: string, clienteRut?: string) => void;
+}) {
   const [showAll, setShowAll] = useState(false);
   const displayed = showAll ? records : records.slice(0, 20);
 
@@ -517,6 +779,7 @@ function NVVTable({ records }: { records: NVVRecord[] }) {
               <TableHead className="text-xs">Producto</TableHead>
               <TableHead className="text-xs text-right">Cant. Pend.</TableHead>
               <TableHead className="text-xs text-right">Monto</TableHead>
+              <TableHead className="text-xs w-16"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -541,6 +804,17 @@ function NVVTable({ records }: { records: NVVRecord[] }) {
                 <TableCell className="text-xs text-right font-bold text-amber-600">
                   {formatCurrency(r.totalPendiente)}
                 </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 hover:bg-indigo-50 hover:text-indigo-600"
+                    onClick={() => onBitacora("nvv", r.id, r.NUDO, r.NOKOEN)}
+                    title="Bitácora"
+                  >
+                    <BookOpen className="h-3.5 w-3.5" />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -561,7 +835,10 @@ function NVVTable({ records }: { records: NVVRecord[] }) {
 // GDV Table
 // ==============================
 
-function GDVTable({ records }: { records: GDVRecord[] }) {
+function GDVTable({ records, onBitacora }: {
+  records: GDVRecord[];
+  onBitacora: (tipo: string, id: string, numero: string, clienteNombre: string, clienteRut?: string) => void;
+}) {
   const [showAll, setShowAll] = useState(false);
   const displayed = showAll ? records : records.slice(0, 20);
 
@@ -586,6 +863,7 @@ function GDVTable({ records }: { records: GDVRecord[] }) {
               <TableHead className="text-xs">Producto</TableHead>
               <TableHead className="text-xs text-right">Cant.</TableHead>
               <TableHead className="text-xs text-right">Monto</TableHead>
+              <TableHead className="text-xs w-16"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -604,6 +882,17 @@ function GDVTable({ records }: { records: GDVRecord[] }) {
                 </TableCell>
                 <TableCell className="text-xs text-right font-bold text-purple-600">
                   {formatCurrency(r.monto)}
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 hover:bg-indigo-50 hover:text-indigo-600"
+                    onClick={() => onBitacora("gdv", r.numeroGuia, r.numeroGuia, r.cliente, r.codigoCliente)}
+                    title="Bitácora"
+                  >
+                    <BookOpen className="h-3.5 w-3.5" />
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -625,7 +914,10 @@ function GDVTable({ records }: { records: GDVRecord[] }) {
 // Facturas Table
 // ==============================
 
-function FacturasTable({ records }: { records: any[] }) {
+function FacturasTable({ records, onBitacora }: {
+  records: any[];
+  onBitacora: (tipo: string, id: string, numero: string, clienteNombre: string, clienteRut?: string) => void;
+}) {
   const [showAll, setShowAll] = useState(false);
   const displayed = showAll ? records : records.slice(0, 20);
 
@@ -650,6 +942,7 @@ function FacturasTable({ records }: { records: any[] }) {
               <TableHead className="text-xs">Cliente</TableHead>
               <TableHead className="text-xs">Producto</TableHead>
               <TableHead className="text-xs text-right">Monto</TableHead>
+              <TableHead className="text-xs w-16"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -672,6 +965,17 @@ function FacturasTable({ records }: { records: any[] }) {
                 </TableCell>
                 <TableCell className="text-xs text-right font-bold text-green-600">
                   {formatCurrency(Number(r.amount) || 0)}
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 hover:bg-indigo-50 hover:text-indigo-600"
+                    onClick={() => onBitacora("factura", r.documentNumber || r.nudo || idx.toString(), r.documentNumber || r.nudo || "", r.clientName || r.nokoen || "")}
+                    title="Bitácora"
+                  >
+                    <BookOpen className="h-3.5 w-3.5" />
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}

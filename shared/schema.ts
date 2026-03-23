@@ -6851,3 +6851,30 @@ export const insertAiKnowledgeBaseSchema = createInsertSchema(aiKnowledgeBase).o
   createdAt: true,
   updatedAt: true,
 });
+
+// ==================================================================================
+// BITÁCORA DE SEGUIMIENTO DE PEDIDOS
+// ==================================================================================
+
+export const pedidoBitacora = pgTable("pedido_bitacora", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  documentoTipo: varchar("documento_tipo", { length: 20 }).notNull(), // 'cotizacion', 'nvv', 'gdv', 'factura'
+  documentoId: varchar("documento_id", { length: 100 }).notNull(),
+  documentoNumero: varchar("documento_numero", { length: 100 }),
+  clienteNombre: varchar("cliente_nombre", { length: 500 }),
+  clienteRut: varchar("cliente_rut", { length: 50 }),
+  nota: text("nota").notNull(),
+  tipo: varchar("tipo", { length: 30 }).notNull().default("nota"), // 'nota', 'llamada', 'visita', 'seguimiento', 'problema'
+  autorId: varchar("autor_id").notNull(),
+  autorNombre: varchar("autor_nombre", { length: 255 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  documentoIdx: index("IDX_bitacora_documento").on(table.documentoTipo, table.documentoId),
+  autorIdx: index("IDX_bitacora_autor").on(table.autorId),
+  clienteIdx: index("IDX_bitacora_cliente").on(table.clienteNombre),
+  createdIdx: index("IDX_bitacora_created").on(table.createdAt),
+}));
+
+export type PedidoBitacora = typeof pedidoBitacora.$inferSelect;
+export type InsertPedidoBitacora = typeof pedidoBitacora.$inferInsert;

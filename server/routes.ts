@@ -55,6 +55,8 @@ import {
   aiKnowledgeBase,
   // Marketing
   gastosMarketing,
+  // Bitácora de seguimiento de pedidos
+  pedidoBitacora,
 } from "../shared/schema";
 import { eq, and, isNotNull, isNull, ne, sql, desc, or, sum, countDistinct, inArray } from "drizzle-orm";
 import { emailService } from "./services/email";
@@ -3109,10 +3111,10 @@ export function registerRoutes(app: Express): Server {
       ];
 
       if (dateRange.startDate) {
-        conditions.push(sql`${factVentas.feemdo} >= ${dateRange.startDate.toISOString().split('T')[0]}`);
+        conditions.push(sql`${factVentas.feemdo} >= ${dateRange.startDate}`);
       }
       if (dateRange.endDate) {
-        conditions.push(sql`${factVentas.feemdo} <= ${dateRange.endDate.toISOString().split('T')[0]}`);
+        conditions.push(sql`${factVentas.feemdo} <= ${dateRange.endDate}`);
       }
       if (segment) {
         conditions.push(eq(factVentas.noruen, segment as string));
@@ -22835,6 +22837,77 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
 
     res.json({ success: true });
   }));
+
+  // ============================================================
+  // BITÁCORA DE SEGUIMIENTO DE PEDIDOS
+  // ============================================================
+
+  // Get bitácora entries for a document
+  app.get('/api/bitacora', requireAuth, async (req: any, res) => {
+    try {
+      const { documentoTipo, documentoId, clienteNombre } = req.query;
+
+      const conditions: any[] = [];
+      if (documentoTipo) conditions.push(eq(pedidoBitacora.documentoTipo, documentoTipo as string));
+      if (documentoId) conditions.push(eq(pedidoBitacora.documentoId, documentoId as string));
+      if (clienteNombre) conditions.push(eq(pedidoBitacora.clienteNombre, clienteNombre as string));
+
+      const entries = await db
+        .select()
+        .from(pedidoBitacora)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(desc(pedidoBitacora.createdAt))
+        .limit(100);
+
+      res.json(entries);
+    } catch (error: any) {
+      console.error('Error fetching bitácora:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Create bitácora entry
+  app.post('/api/bitacora', requireAuth, async (req: any, res) => {
+    try {
+      const { documentoTipo, documentoId, documentoNumero, clienteNombre, clienteRut, nota, tipo } = req.body;
+
+      if (!documentoTipo || !documentoId || !nota) {
+        return res.status(400).json({ message: 'documentoTipo, documentoId y nota son requeridos' });
+      }
+
+      const [entry] = await db
+        .insert(pedidoBitacora)
+        .values({
+          documentoTipo,
+          documentoId,
+          documentoNumero: documentoNumero || null,
+          clienteNombre: clienteNombre || null,
+          clienteRut: clienteRut || null,
+          nota,
+          tipo: tipo || 'nota',
+          autorId: req.user.id,
+          autorNombre: req.user.fullName || req.user.username || 'Sistema',
+        })
+        .returning();
+
+      res.status(201).json(entry);
+    } catch (error: any) {
+      console.error('Error creating bitácora entry:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Delete bitácora entry
+  app.delete('/api/bitacora/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await db.delete(pedidoBitacora).where(eq(pedidoBitacora.id, id));
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Error deleting bitácora entry:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;
