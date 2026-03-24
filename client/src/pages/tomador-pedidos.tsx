@@ -4062,6 +4062,24 @@ export default function TomadorPedidos() {
                           />
                         </div>
 
+                        {/* Mobile Format Filter */}
+                        <Select
+                          value={selectedUnidad || "all"}
+                          onValueChange={(value) => setSelectedUnidad(value === "all" ? "" : value)}
+                        >
+                          <SelectTrigger className="h-10 text-sm" data-testid="mobile-select-format-filter">
+                            <SelectValue placeholder="Todos los formatos" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todos los formatos</SelectItem>
+                            {availableUnits.map((unit) => (
+                              <SelectItem key={unit} value={unit}>
+                                {unit.toUpperCase()}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
                         {/* Mobile Filter Chips - Hidden temporarily per user request */}
                         {/* <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
                         <Button
@@ -4107,15 +4125,16 @@ export default function TomadorPedidos() {
                       <div className="space-y-3">
                         {priceList.length > 0 ? (
                           priceList.filter((product: PriceList) => {
-                            // Filtrar solo por término de búsqueda (categorías ocultas temporalmente)
-                            if (!productSearchTerm || productSearchTerm.trim().length === 0) return true;
-
-                            const productName = product.producto?.toLowerCase() || '';
-                            const sku = product.codigo?.toLowerCase() || '';
-                            const searchTermLower = productSearchTerm.toLowerCase().trim();
-
-                            return productName.includes(searchTermLower) ||
-                              sku.includes(searchTermLower);
+                            // Filter by search term
+                            if (productSearchTerm && productSearchTerm.trim().length > 0) {
+                              const productName = product.producto?.toLowerCase() || '';
+                              const sku = product.codigo?.toLowerCase() || '';
+                              const searchTermLower = productSearchTerm.toLowerCase().trim();
+                              if (!productName.includes(searchTermLower) && !sku.includes(searchTermLower)) {
+                                return false;
+                              }
+                            }
+                            return true;
                           }).map((product: PriceList) => (
                             <Card key={product.id} className="p-3">
                               <div className="space-y-3">
