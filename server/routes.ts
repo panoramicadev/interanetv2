@@ -9486,76 +9486,123 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "No file uploaded" });
       }
       
-      const { priceListMix, insertPriceListMixSchema } = await import('@shared/schema');
-      const csvData = req.file.buffer.toString('utf8');
+      const { priceListMix } = await import('@shared/schema');
+      
+      // Remove BOM and normalize line endings
+      let csvData = req.file.buffer.toString('utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      
+      // Auto-detect delimiter: try semicolon first (Chilean Excel default), then comma, then tab
+      const firstLine = csvData.split('\n')[0] || '';
+      let delimiter = ',';
+      if (firstLine.includes(';')) delimiter = ';';
+      else if (firstLine.includes('\t')) delimiter = '\t';
+      
+      console.log(`[Lista Mix Import] Delimiter detected: "${delimiter === ';' ? 'semicolon' : delimiter === '\t' ? 'tab' : 'comma'}"`);
+      console.log(`[Lista Mix Import] First line: ${firstLine.substring(0, 200)}`);
+      
       const { data: rawData, errors: parseErrors } = Papa.parse(csvData, {
         header: true,
+        delimiter,
         skipEmptyLines: 'greedy',
-        transformHeader: (h: string) => h.trim()
+        transformHeader: (h: string) => h.trim().toLowerCase().replace(/['"]/g, '')
       });
 
-      if (parseErrors.length > 0) {
-        const critical = parseErrors.filter((e: any) => e.type !== 'FieldMismatch');
-        if (critical.length > 0) {
-          return res.status(400).json({ message: "CSV parsing error", errors: critical });
-        }
+      console.log(`[Lista Mix Import] Parsed ${rawData.length} rows, ${parseErrors.length} errors`);
+      if (rawData.length > 0) {
+        console.log(`[Lista Mix Import] Headers: ${Object.keys(rawData[0] as any).join(', ')}`);
+        console.log(`[Lista Mix Import] Sample row:`, JSON.stringify(rawData[0]).substring(0, 300));
       }
 
-      const validItems = [];
-      const errors = [];
-      
       // Chilean number format: 4.300 means 4300 (dot as thousands separator)
-      const parseChileanPrice = (val: string): string => {
-        if (!val) return '';
-        let cleaned = val.toString().trim().replace(/\$/g, '').trim();
-        // If contains dots: check if it's thousands separator (e.g., 4.300, 12.500, 1.234.567)
-        // Pattern: digits separated by dots in groups of 3, optionally ending with comma+decimals
+      const parseChileanPrice = (val: any): string => {
+        if (val === null || val === undefined) return '';
+        let cleaned = val.toString().trim().replace(/\$/g, '').replace(/\s/g, '').trim();
+        if (!cleaned) return '';
+        // Pure thousands-separated integer: 4.300 -> 4300, 12.500 -> 12500
         if (/^\d{1,3}(\.\d{3})+$/.test(cleaned)) {
-          // Pure thousands-separated integer: 4.300 -> 4300
           cleaned = cleaned.replace(/\./g, '');
-        } else if (/^\d{1,3}(\.\d{3})+,\d+$/.test(cleaned)) {
-          // Thousands with comma decimal: 4.300,50 -> 4300.50
+        }
+        // Thousands with comma decimal: 4.300,50 -> 4300.50
+        else if (/^\d{1,3}(\.\d{3})+,\d+$/.test(cleaned)) {
           cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+        }
+        // Simple comma decimal: 4300,50 -> 4300.50
+        else if (/^\d+,\d+$/.test(cleaned)) {
+          cleaned = cleaned.replace(',', '.');
         }
         return cleaned;
       };
 
+      // Flexible column detection - find codigo and precio in any header name
+      const findColumn = (row: Record<string, any>, candidates: string[]): any => {
+        for (const c of candidates) {
+          // Try exact match first
+          if (row[c] !== undefined && row[c] !== null && row[c] !== '') return row[c];
+        }
+        // Try partial match on keys
+        const keys = Object.keys(row);
+        for (const c of candidates) {
+          const found = keys.find(k => k.includes(c));
+          if (found && row[found] !== undefined && row[found] !== null && row[found] !== '') return row[found];
+        }
+        return '';
+      };
+
+      const codigoCandidates = ['codigo', 'código', 'sku', 'cod', 'cod.', 'codproducto', 'cod_producto', 'item', 'articulo', 'artículo'];
+      const precioCandidates = ['precio', 'price', 'valor', 'preciomix', 'precio_mix', 'precio mix', 'monto', 'pvp'];
+
+      const validItems: { codigo: string; precio: string | null }[] = [];
+      const errors: { row: number; error: string }[] = [];
+      
       for (let i = 0; i < rawData.length; i++) {
         const row = rawData[i] as Record<string, any>;
         try {
-          const rawPrecio = row.precio || row.PRECIO || row.Precio || row.price || '';
-          const mapped = {
-            codigo: (row.codigo || row.CODIGO || row.Codigo || row.SKU || row.sku || '').toString().trim(),
-            precio: parseChileanPrice(rawPrecio),
-          };
-          const validated = insertPriceListMixSchema.parse(mapped);
-          validItems.push(validated);
+          const codigoRaw = findColumn(row, codigoCandidates);
+          const precioRaw = findColumn(row, precioCandidates);
+          
+          const codigo = codigoRaw.toString().trim();
+          const precio = parseChileanPrice(precioRaw);
+          
+          if (!codigo) {
+            errors.push({ row: i + 2, error: 'Código vacío' });
+            continue;
+          }
+          
+          validItems.push({ codigo, precio: precio || null });
         } catch (err: any) {
-          errors.push({ row: i + 1, error: err.message || 'Validation error' });
+          errors.push({ row: i + 2, error: err.message || 'Error de validación' });
         }
       }
 
+      console.log(`[Lista Mix Import] Valid items: ${validItems.length}, Errors: ${errors.length}`);
+
       if (validItems.length === 0) {
-        return res.status(400).json({ message: "No valid data", errors });
+        return res.status(400).json({ 
+          message: "No se encontraron datos válidos. Asegúrate de que el CSV tenga columnas 'codigo' y 'precio'.",
+          detectedHeaders: rawData.length > 0 ? Object.keys(rawData[0] as any) : [],
+          detectedDelimiter: delimiter,
+          errors: errors.slice(0, 10)
+        });
       }
 
       // Clear and import
       await db.delete(priceListMix);
       
-      // Batch insert
+      // Batch insert using raw SQL for simplicity
       const batchSize = 100;
       for (let i = 0; i < validItems.length; i += batchSize) {
-        await db.insert(priceListMix).values(validItems.slice(i, i + batchSize));
+        const batch = validItems.slice(i, i + batchSize);
+        await db.insert(priceListMix).values(batch);
       }
 
       res.json({
-        message: "Import successful",
+        message: "Importación exitosa",
         importedCount: validItems.length,
-        errors: errors.length > 0 ? errors : undefined
+        errors: errors.length > 0 ? errors.slice(0, 20) : undefined
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error importing price list mix:", error);
-      res.status(500).json({ message: "Failed to import" });
+      res.status(500).json({ message: "Error al importar: " + (error.message || "Error interno") });
     }
   });
 
