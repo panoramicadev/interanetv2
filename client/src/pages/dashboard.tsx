@@ -1734,42 +1734,34 @@ export default function Dashboard() {
               <div className="flex-shrink-0">
                 <Button
                   variant="outline"
+                  size="icon"
                   onClick={handleSyncAll}
                   disabled={isSyncAllRunning}
-                  className="h-9 text-sm font-medium hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-colors rounded-lg border-gray-200 dark:border-gray-700"
+                  className="h-9 w-9 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-colors rounded-lg border-gray-200 dark:border-gray-700"
                   data-testid="button-desktop-sync-all"
+                  title="Sincronizar todo"
                 >
                   {isSyncAllRunning ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 text-orange-500 animate-spin" />
-                      Sincronizando...
-                    </>
+                    <Loader2 className="h-4 w-4 text-orange-500 animate-spin" />
                   ) : (
-                    <>
-                      <Zap className="h-4 w-4 mr-2 text-orange-500" />
-                      Sincronizar todo
-                    </>
+                    <Zap className="h-4 w-4 text-orange-500" />
                   )}
                 </Button>
               </div>
               <div className="flex-shrink-0">
                 <Button
                   variant="outline"
+                  size="icon"
                   onClick={handleExportCsv}
                   disabled={isExporting}
-                  className="h-9 text-sm font-medium hover:bg-green-50 hover:text-green-600 hover:border-green-200 transition-colors rounded-lg border-gray-200 dark:border-gray-700"
+                  className="h-9 w-9 hover:bg-green-50 hover:text-green-600 hover:border-green-200 transition-colors rounded-lg border-gray-200 dark:border-gray-700"
                   data-testid="button-desktop-export-csv"
+                  title="Exportar CSV"
                 >
                   {isExporting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 text-green-500 animate-spin" />
-                      Exportando...
-                    </>
+                    <Loader2 className="h-4 w-4 text-green-500 animate-spin" />
                   ) : (
-                    <>
-                      <Download className="h-4 w-4 mr-2 text-green-500" />
-                      Exportar CSV
-                    </>
+                    <Download className="h-4 w-4 text-green-500" />
                   )}
                 </Button>
               </div>
