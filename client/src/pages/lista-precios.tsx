@@ -555,18 +555,59 @@ export default function ListaPrecios() {
                       <TableCell data-testid={`text-unidad-${item.id}`}>
                         {item.unidad || '-'}
                       </TableCell>
-                      <TableCell className="text-right" data-testid={`text-lista-${item.id}`}>
-                        {formatCurrency(item.lista)}
-                      </TableCell>
-                      <TableCell className="text-right" data-testid={`text-desc10-${item.id}`}>
-                        {formatCurrency(item.desc10)}
-                      </TableCell>
-                      <TableCell className="text-right" data-testid={`text-desc10-5-${item.id}`}>
-                        {formatCurrency(item.desc10_5)}
-                      </TableCell>
-                      <TableCell className="text-right" data-testid={`text-minimo-${item.id}`}>
-                        {formatCurrency(item.minimo)}
-                      </TableCell>
+                      {(() => {
+                        const costoGri = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
+                        const costo = costoGri || (item as any).costoProduccion;
+                        const costoNum = typeof costo === 'string' ? parseFloat(costo) : costo;
+
+                        const calcMargin = (price: number | string | null) => {
+                          if (!price || !costoNum || costoNum === 0) return null;
+                          const p = typeof price === 'string' ? parseFloat(price) : price;
+                          if (isNaN(p) || p === 0) return null;
+                          return ((p - costoNum) / p) * 100;
+                        };
+
+                        const marginBadge = (margin: number | null) => {
+                          if (margin === null) return null;
+                          const color = margin >= 0
+                            ? 'text-emerald-600/70 dark:text-emerald-400/70'
+                            : 'text-red-500/70 dark:text-red-400/70';
+                          return (
+                            <span className={`block text-[10px] leading-tight mt-0.5 font-medium ${color}`}>
+                              {margin >= 0 ? '+' : ''}{margin.toFixed(1)}%
+                            </span>
+                          );
+                        };
+
+                        return (
+                          <>
+                            <TableCell className="text-right" data-testid={`text-lista-${item.id}`}>
+                              <div>
+                                {formatCurrency(item.lista)}
+                                {marginBadge(calcMargin(item.lista))}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right" data-testid={`text-desc10-${item.id}`}>
+                              <div>
+                                {formatCurrency(item.desc10)}
+                                {marginBadge(calcMargin(item.desc10))}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right" data-testid={`text-desc10-5-${item.id}`}>
+                              <div>
+                                {formatCurrency(item.desc10_5)}
+                                {marginBadge(calcMargin(item.desc10_5))}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right" data-testid={`text-minimo-${item.id}`}>
+                              <div>
+                                {formatCurrency(item.minimo)}
+                                {marginBadge(calcMargin(item.minimo))}
+                              </div>
+                            </TableCell>
+                          </>
+                        );
+                      })()}
                       <TableCell className="text-right font-medium text-primary" data-testid={`text-ppp-${item.id}`}>
                         {(item as any).precioPromedioPonderado ? formatCurrency((item as any).precioPromedioPonderado) : '-'}
                       </TableCell>
