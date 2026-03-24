@@ -446,6 +446,19 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE fund_allocations ADD COLUMN IF NOT EXISTS recurring_config_id VARCHAR`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_fund_allocations_recurring_config" ON fund_allocations (recurring_config_id)`);
 
+    // 11. Crear tabla price_list_mix (Lista de Precios Mix - solo SKU + precio)
+    console.log('  💲 Verificando tabla price_list_mix...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS price_list_mix (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        codigo VARCHAR NOT NULL UNIQUE,
+        precio NUMERIC(15, 2),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_price_list_mix_codigo ON price_list_mix(codigo)`);
+
     console.log('✅ Bootstrap de base de datos completado');
     
   } catch (error: any) {

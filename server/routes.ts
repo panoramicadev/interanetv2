@@ -9504,12 +9504,29 @@ export function registerRoutes(app: Express): Server {
       const validItems = [];
       const errors = [];
       
+      // Chilean number format: 4.300 means 4300 (dot as thousands separator)
+      const parseChileanPrice = (val: string): string => {
+        if (!val) return '';
+        let cleaned = val.toString().trim().replace(/\$/g, '').trim();
+        // If contains dots: check if it's thousands separator (e.g., 4.300, 12.500, 1.234.567)
+        // Pattern: digits separated by dots in groups of 3, optionally ending with comma+decimals
+        if (/^\d{1,3}(\.\d{3})+$/.test(cleaned)) {
+          // Pure thousands-separated integer: 4.300 -> 4300
+          cleaned = cleaned.replace(/\./g, '');
+        } else if (/^\d{1,3}(\.\d{3})+,\d+$/.test(cleaned)) {
+          // Thousands with comma decimal: 4.300,50 -> 4300.50
+          cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+        }
+        return cleaned;
+      };
+
       for (let i = 0; i < rawData.length; i++) {
         const row = rawData[i] as Record<string, any>;
         try {
+          const rawPrecio = row.precio || row.PRECIO || row.Precio || row.price || '';
           const mapped = {
-            codigo: row.codigo || row.CODIGO || row.Codigo || row.SKU || row.sku || '',
-            precio: row.precio || row.PRECIO || row.Precio || row.price || '',
+            codigo: (row.codigo || row.CODIGO || row.Codigo || row.SKU || row.sku || '').toString().trim(),
+            precio: parseChileanPrice(rawPrecio),
           };
           const validated = insertPriceListMixSchema.parse(mapped);
           validItems.push(validated);
