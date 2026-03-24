@@ -14,7 +14,7 @@ import PresupuestoVentas from "./presupuesto-ventas";
 export default function FacturasMainPage() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState("facturas");
+  const [activeTab, setActiveTab] = useState("lista-precios");
 
   // Check if the user is authorized
   if (!user || (user.role !== "admin" && user.role !== "supervisor" && user.role !== "logistica_bodega" && user.role !== "salesperson" && user.role !== "client")) {
@@ -26,96 +26,138 @@ export default function FacturasMainPage() {
   const canSeeProyeccion = user.role !== 'salesperson';
 
   return (
-    <div className="p-6 max-w-full mx-auto space-y-6">
-      {/* Header */}
-      <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Finanzas</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-2">
-          Administra facturas, notas de venta, proyecciones de ventas y solicitudes de crédito
-        </p>
-      </div>
-
-      {/* Tabs Navigation */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="overflow-x-auto -mx-2 px-2">
-          <TabsList className="inline-flex min-w-max gap-1 p-1">
-            <TabsTrigger value="facturas" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-facturas">
-              <FileText className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Facturas</span>
-              <span className="sm:hidden">Fact.</span>
-            </TabsTrigger>
-            <TabsTrigger value="nvv" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-nvv">
-              <TrendingUp className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Notas de Venta (NVV)</span>
-              <span className="sm:hidden">NVV</span>
-            </TabsTrigger>
-            <TabsTrigger value="gdv" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-gdv">
-              <Truck className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Guías de Despacho (GDV)</span>
-              <span className="sm:hidden">GDV</span>
-            </TabsTrigger>
-            {canSeeProyeccion && (
-              <TabsTrigger value="proyeccion" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-proyeccion">
-                <BarChart3 className="h-4 w-4 flex-shrink-0" />
-                <span className="hidden sm:inline">Proyección</span>
-                <span className="sm:hidden">Proy.</span>
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="lista-precios" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-lista-precios">
-              <DollarSign className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Lista de Precios</span>
-              <span className="sm:hidden">Precios</span>
-            </TabsTrigger>
-            <TabsTrigger value="solicitud-credito" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-solicitud-credito">
-              <FileText className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Solicitud de Crédito</span>
-              <span className="sm:hidden">Crédito</span>
-            </TabsTrigger>
-            <TabsTrigger value="presupuesto-ventas" className="flex items-center gap-1.5 whitespace-nowrap px-3" data-testid="tab-presupuesto-ventas">
-              <FileSpreadsheet className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Presupuesto Ventas</span>
-              <span className="sm:hidden">Presup.</span>
-            </TabsTrigger>
-          </TabsList>
+    <div className="min-h-screen bg-gray-50/50 dark:bg-gray-950">
+      {/* Modern SaaS Header */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+        <div className="px-4 sm:px-6 lg:px-8 pt-6 pb-4">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="p-2 bg-emerald-500/20 rounded-lg">
+              <DollarSign className="h-5 w-5 text-emerald-400" />
+            </div>
+            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Finanzas</h1>
+          </div>
+          <p className="text-slate-400 text-sm ml-12">
+            Precios, facturas, documentos y proyecciones
+          </p>
         </div>
 
-        {/* Facturas Tab */}
-        <TabsContent value="facturas" className="mt-6">
-          <FacturasTable />
-        </TabsContent>
+        {/* Tabs Navigation - inside header */}
+        <div className="px-4 sm:px-6 lg:px-8">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <div className="overflow-x-auto -mx-2 px-2 scrollbar-hide">
+              <TabsList className="inline-flex min-w-max gap-0.5 p-1 bg-white/10 backdrop-blur-sm rounded-t-xl border-0 h-auto">
+                <TabsTrigger
+                  value="lista-precios"
+                  className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
+                  data-testid="tab-lista-precios"
+                >
+                  <DollarSign className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span className="hidden sm:inline">Lista de Precios</span>
+                  <span className="sm:hidden">Precios</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="facturas"
+                  className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
+                  data-testid="tab-facturas"
+                >
+                  <FileText className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span className="hidden sm:inline">Facturas</span>
+                  <span className="sm:hidden">Fact.</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="nvv"
+                  className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
+                  data-testid="tab-nvv"
+                >
+                  <TrendingUp className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span className="hidden sm:inline">Notas de Venta</span>
+                  <span className="sm:hidden">NVV</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="gdv"
+                  className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
+                  data-testid="tab-gdv"
+                >
+                  <Truck className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span className="hidden sm:inline">Guías Despacho</span>
+                  <span className="sm:hidden">GDV</span>
+                </TabsTrigger>
+                {canSeeProyeccion && (
+                  <TabsTrigger
+                    value="proyeccion"
+                    className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
+                    data-testid="tab-proyeccion"
+                  >
+                    <BarChart3 className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span className="hidden sm:inline">Proyección</span>
+                    <span className="sm:hidden">Proy.</span>
+                  </TabsTrigger>
+                )}
+                <TabsTrigger
+                  value="solicitud-credito"
+                  className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
+                  data-testid="tab-solicitud-credito"
+                >
+                  <FileText className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span className="hidden sm:inline">Solicitud Crédito</span>
+                  <span className="sm:hidden">Crédito</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="presupuesto-ventas"
+                  className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm text-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm rounded-lg transition-all duration-200 hover:text-white border-0"
+                  data-testid="tab-presupuesto-ventas"
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span className="hidden sm:inline">Presupuesto</span>
+                  <span className="sm:hidden">Presup.</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
+          </Tabs>
+        </div>
+      </div>
 
-        {/* NVV Tab */}
-        <TabsContent value="nvv" className="mt-6">
-          <NVVPage />
-        </TabsContent>
-
-        {/* GDV Tab */}
-        <TabsContent value="gdv" className="mt-6">
-          <GDVPage />
-        </TabsContent>
-
-        {/* Proyección Tab */}
-        {canSeeProyeccion && (
-          <TabsContent value="proyeccion" className="mt-6">
-            <ProyeccionPage />
+      {/* Tab Contents */}
+      <div className="px-4 sm:px-6 lg:px-8 py-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          {/* Lista de Precios Tab */}
+          <TabsContent value="lista-precios" className="mt-0">
+            <ListaPrecios />
           </TabsContent>
-        )}
 
-        {/* Lista de Precios Tab */}
-        <TabsContent value="lista-precios" className="mt-6">
-          <ListaPrecios />
-        </TabsContent>
+          {/* Facturas Tab */}
+          <TabsContent value="facturas" className="mt-0">
+            <FacturasTable />
+          </TabsContent>
 
-        {/* Solicitud de Crédito Tab */}
-        <TabsContent value="solicitud-credito" className="mt-6">
-          <SolicitudCreditoForm />
-        </TabsContent>
+          {/* NVV Tab */}
+          <TabsContent value="nvv" className="mt-0">
+            <NVVPage />
+          </TabsContent>
 
-        {/* Presupuesto Ventas Tab */}
-        <TabsContent value="presupuesto-ventas" className="mt-6">
-          <PresupuestoVentas />
-        </TabsContent>
-      </Tabs>
+          {/* GDV Tab */}
+          <TabsContent value="gdv" className="mt-0">
+            <GDVPage />
+          </TabsContent>
+
+          {/* Proyección Tab */}
+          {canSeeProyeccion && (
+            <TabsContent value="proyeccion" className="mt-0">
+              <ProyeccionPage />
+            </TabsContent>
+          )}
+
+          {/* Solicitud de Crédito Tab */}
+          <TabsContent value="solicitud-credito" className="mt-0">
+            <SolicitudCreditoForm />
+          </TabsContent>
+
+          {/* Presupuesto Ventas Tab */}
+          <TabsContent value="presupuesto-ventas" className="mt-0">
+            <PresupuestoVentas />
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }

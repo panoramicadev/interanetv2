@@ -9372,6 +9372,176 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // =============== PRICE LIST MIX ENDPOINTS ===============
+  
+  app.get('/api/price-list-mix', requireAuth, async (req, res) => {
+    try {
+      const { search, limit = 50, offset = 0 } = req.query;
+      const validatedLimit = Math.min(Math.max(parseInt(limit as string) || 50, 1), 10000);
+      const validatedOffset = Math.max(parseInt(offset as string) || 0, 0);
+
+      const { priceListMix } = await import('@shared/schema');
+      
+      let query = db.select().from(priceListMix);
+      let countQuery = db.select({ count: sql<number>`count(*)` }).from(priceListMix);
+      
+      if (search) {
+        const searchFilter = or(
+          ilike(priceListMix.codigo, `%${search}%`),
+          ilike(priceListMix.producto, `%${search}%`)
+        );
+        query = query.where(searchFilter!) as any;
+        countQuery = countQuery.where(searchFilter!) as any;
+      }
+      
+      const [countResult] = await countQuery;
+      const totalCount = Number(countResult?.count) || 0;
+      
+      const items = await (query as any).orderBy(priceListMix.producto).limit(validatedLimit).offset(validatedOffset);
+      
+      res.json({
+        items,
+        totalCount,
+        hasMore: (validatedOffset + items.length) < totalCount
+      });
+    } catch (error) {
+      console.error("Error fetching price list mix:", error);
+      res.status(500).json({ message: "Failed to fetch price list mix" });
+    }
+  });
+
+  app.post('/api/price-list-mix', requireAuth, async (req: any, res) => {
+    try {
+      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const { priceListMix, insertPriceListMixSchema } = await import('@shared/schema');
+      const validatedData = insertPriceListMixSchema.parse(req.body);
+      const [item] = await db.insert(priceListMix).values(validatedData).returning();
+      res.status(201).json(item);
+    } catch (error) {
+      console.error("Error creating price list mix item:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create price list mix item" });
+    }
+  });
+
+  app.patch('/api/price-list-mix/:id', requireAuth, async (req: any, res) => {
+    try {
+      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const { priceListMix } = await import('@shared/schema');
+      const [item] = await db.update(priceListMix)
+        .set({ ...req.body, updatedAt: new Date() })
+        .where(eq(priceListMix.id, req.params.id))
+        .returning();
+      if (!item) return res.status(404).json({ message: "Not found" });
+      res.json(item);
+    } catch (error) {
+      console.error("Error updating price list mix item:", error);
+      res.status(500).json({ message: "Failed to update price list mix item" });
+    }
+  });
+
+  app.delete('/api/price-list-mix/:id', requireAuth, async (req: any, res) => {
+    try {
+      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const { priceListMix } = await import('@shared/schema');
+      await db.delete(priceListMix).where(eq(priceListMix.id, req.params.id));
+      res.json({ message: "Deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting price list mix item:", error);
+      res.status(500).json({ message: "Failed to delete price list mix item" });
+    }
+  });
+
+  app.delete('/api/price-list-mix', requireAuth, async (req: any, res) => {
+    try {
+      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const { priceListMix } = await import('@shared/schema');
+      await db.delete(priceListMix);
+      res.json({ message: "All items deleted" });
+    } catch (error) {
+      console.error("Error deleting all price list mix items:", error);
+      res.status(500).json({ message: "Failed to delete all items" });
+    }
+  });
+
+  app.post('/api/price-list-mix/import', upload.single('file'), requireAuth, async (req: any, res) => {
+    try {
+      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+      
+      const { priceListMix, insertPriceListMixSchema } = await import('@shared/schema');
+      const csvData = req.file.buffer.toString('utf8');
+      const { data: rawData, errors: parseErrors } = Papa.parse(csvData, {
+        header: true,
+        skipEmptyLines: 'greedy',
+        transformHeader: (h: string) => h.trim()
+      });
+
+      if (parseErrors.length > 0) {
+        const critical = parseErrors.filter((e: any) => e.type !== 'FieldMismatch');
+        if (critical.length > 0) {
+          return res.status(400).json({ message: "CSV parsing error", errors: critical });
+        }
+      }
+
+      const validItems = [];
+      const errors = [];
+      
+      for (let i = 0; i < rawData.length; i++) {
+        const row = rawData[i] as Record<string, any>;
+        try {
+          const mapped = {
+            codigo: row.codigo || row.CODIGO || row.Codigo || '',
+            producto: row.producto || row.PRODUCTO || row.Producto || '',
+            unidad: row.unidad || row.UNIDAD || row.Unidad || row.formato || row.FORMATO || '',
+            precio: row.precio || row.PRECIO || row.Precio || '',
+            costoProduccion: row.costoProduccion || row.costo_produccion || row.COSTO || row.costo || '',
+          };
+          const validated = insertPriceListMixSchema.parse(mapped);
+          validItems.push(validated);
+        } catch (err: any) {
+          errors.push({ row: i + 1, error: err.message || 'Validation error' });
+        }
+      }
+
+      if (validItems.length === 0) {
+        return res.status(400).json({ message: "No valid data", errors });
+      }
+
+      // Clear and import
+      await db.delete(priceListMix);
+      
+      // Batch insert
+      const batchSize = 100;
+      for (let i = 0; i < validItems.length; i += batchSize) {
+        await db.insert(priceListMix).values(validItems.slice(i, i + batchSize));
+      }
+
+      res.json({
+        message: "Import successful",
+        importedCount: validItems.length,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    } catch (error) {
+      console.error("Error importing price list mix:", error);
+      res.status(500).json({ message: "Failed to import" });
+    }
+  });
+
   // Segment Prices endpoints
   app.get('/api/segment-prices/:segment', requireAuth, async (req, res) => {
     try {

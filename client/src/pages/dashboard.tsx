@@ -1452,7 +1452,7 @@ export default function Dashboard() {
           {/* Desktop Layout */}
           <div className="space-y-4 w-full">
             {/* All filters in one line */}
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
               {/* Vista */}
               <div className="flex items-center gap-2">
                 <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
