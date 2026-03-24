@@ -34,9 +34,14 @@ export function ImageZoomViewer({ src, alt = "Image", className = "" }: ImageZoo
 
   // If the direct <img> load fails, fetch as blob
   const handleImageError = useCallback(async () => {
-    if (imageSrc === src && src.startsWith('http')) {
+    if (imageSrc === src) {
       try {
-        const response = await fetch(src, { mode: 'cors', credentials: 'omit' });
+        // For relative URLs (internal), use credentials; for external, omit
+        const isRelative = src.startsWith('/');
+        const response = await fetch(src, { 
+          mode: isRelative ? 'same-origin' : 'cors', 
+          credentials: isRelative ? 'include' : 'omit' 
+        });
         if (response.ok) {
           const blob = await response.blob();
           const blobUrl = URL.createObjectURL(blob);
@@ -186,8 +191,6 @@ export function ImageZoomViewer({ src, alt = "Image", className = "" }: ImageZoo
             src={imageSrc}
             alt={alt}
             draggable={false}
-            crossOrigin="anonymous"
-            referrerPolicy="no-referrer"
             className="max-w-full max-h-[65vh] object-contain transition-transform duration-150"
             style={{
               transform: `rotate(${rotation}deg) scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
