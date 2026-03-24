@@ -9380,29 +9380,32 @@ export function registerRoutes(app: Express): Server {
       const validatedLimit = Math.min(Math.max(parseInt(limit as string) || 50, 1), 10000);
       const validatedOffset = Math.max(parseInt(offset as string) || 0, 0);
 
-      const { priceListMix } = await import('@shared/schema');
-      
-      let query = db.select().from(priceListMix);
-      let countQuery = db.select({ count: sql<number>`count(*)` }).from(priceListMix);
-      
+      // JOIN with price_list to get producto, unidad, costoProduccion
+      let whereClause = '';
       if (search) {
-        const searchFilter = or(
-          ilike(priceListMix.codigo, `%${search}%`),
-          ilike(priceListMix.producto, `%${search}%`)
-        );
-        query = query.where(searchFilter!) as any;
-        countQuery = countQuery.where(searchFilter!) as any;
+        const s = (search as string).replace(/'/g, "''");
+        whereClause = `WHERE (m.codigo ILIKE '%${s}%' OR pl.producto ILIKE '%${s}%')`;
       }
       
-      const [countResult] = await countQuery;
-      const totalCount = Number(countResult?.count) || 0;
+      const countResult = await db.execute(sql.raw(
+        `SELECT count(*) FROM price_list_mix m LEFT JOIN price_list pl ON UPPER(m.codigo) = UPPER(pl.codigo) ${whereClause}`
+      ));
+      const totalCount = Number((countResult.rows[0] as any)?.count) || 0;
       
-      const items = await (query as any).orderBy(priceListMix.producto).limit(validatedLimit).offset(validatedOffset);
+      const items = await db.execute(sql.raw(
+        `SELECT m.id, m.codigo, m.precio, m.created_at, m.updated_at,
+                pl.producto, pl.unidad, pl.costo_produccion as "costoProduccion"
+         FROM price_list_mix m 
+         LEFT JOIN price_list pl ON UPPER(m.codigo) = UPPER(pl.codigo)
+         ${whereClause}
+         ORDER BY pl.producto NULLS LAST, m.codigo
+         LIMIT ${validatedLimit} OFFSET ${validatedOffset}`
+      ));
       
       res.json({
-        items,
+        items: items.rows,
         totalCount,
-        hasMore: (validatedOffset + items.length) < totalCount
+        hasMore: (validatedOffset + items.rows.length) < totalCount
       });
     } catch (error) {
       console.error("Error fetching price list mix:", error);
@@ -9505,11 +9508,8 @@ export function registerRoutes(app: Express): Server {
         const row = rawData[i] as Record<string, any>;
         try {
           const mapped = {
-            codigo: row.codigo || row.CODIGO || row.Codigo || '',
-            producto: row.producto || row.PRODUCTO || row.Producto || '',
-            unidad: row.unidad || row.UNIDAD || row.Unidad || row.formato || row.FORMATO || '',
-            precio: row.precio || row.PRECIO || row.Precio || '',
-            costoProduccion: row.costoProduccion || row.costo_produccion || row.COSTO || row.costo || '',
+            codigo: row.codigo || row.CODIGO || row.Codigo || row.SKU || row.sku || '',
+            precio: row.precio || row.PRECIO || row.Precio || row.price || '',
           };
           const validated = insertPriceListMixSchema.parse(mapped);
           validItems.push(validated);

@@ -1909,14 +1909,11 @@ export type PriceList = typeof priceList.$inferSelect;
 export type InsertPriceList = typeof priceList.$inferInsert;
 export type InsertPriceListInput = z.infer<typeof insertPriceListSchema>;
 
-// Price List Mix - Lista de Precios Mix (simplified, single price)
+// Price List Mix - Lista de Precios Mix (simplified, only SKU + price, rest from price_list JOIN)
 export const priceListMix = pgTable("price_list_mix", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  codigo: varchar("codigo").notNull().unique(),
-  producto: text("producto").notNull(),
-  unidad: varchar("unidad"),
+  codigo: varchar("codigo").notNull().unique(), // SKU - references price_list.codigo
   precio: numeric("precio", { precision: 15, scale: 2 }),
-  costoProduccion: numeric("costo_produccion", { precision: 15, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1926,10 +1923,7 @@ export type InsertPriceListMix = typeof priceListMix.$inferInsert;
 
 export const insertPriceListMixSchema = createInsertSchema(priceListMix, {
   codigo: z.string().min(1, "Código es requerido"),
-  producto: z.string().min(1, "Producto es requerido"),
-  unidad: z.any().optional().transform(flexibleTransform),
   precio: z.any().optional().transform(flexibleTransform),
-  costoProduccion: z.any().optional().transform(flexibleTransform),
 }).omit({
   id: true,
   createdAt: true,

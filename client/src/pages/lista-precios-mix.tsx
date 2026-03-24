@@ -8,11 +8,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Upload, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2 } from "lucide-react";
-import type { PriceListMix } from "@shared/schema";
+import { Upload, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator } from "lucide-react";
+
+// Response includes JOINed fields from price_list
+interface MixItem {
+  id: string;
+  codigo: string;
+  precio: string | null;
+  producto: string | null; // from price_list JOIN
+  unidad: string | null;   // from price_list JOIN
+  costoProduccion: string | null; // from price_list JOIN
+  created_at: string;
+  updated_at: string;
+}
 
 interface MixResponse {
-  items: PriceListMix[];
+  items: MixItem[];
   totalCount: number;
   hasMore: boolean;
 }
@@ -23,10 +34,10 @@ export default function ListaPreciosMix() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<any>(null);
-  const [editItem, setEditItem] = useState<PriceListMix | null>(null);
+  const [editItem, setEditItem] = useState<MixItem | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [newProduct, setNewProduct] = useState({ codigo: "", producto: "", unidad: "", precio: "", costoProduccion: "" });
+  const [newProduct, setNewProduct] = useState({ codigo: "", precio: "" });
   const [simulatorPrices, setSimulatorPrices] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -53,8 +64,8 @@ export default function ListaPreciosMix() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/price-list-mix"] });
       setIsAddOpen(false);
-      setNewProduct({ codigo: "", producto: "", unidad: "", precio: "", costoProduccion: "" });
-      toast({ title: "Creado", description: "Producto agregado correctamente" });
+      setNewProduct({ codigo: "", precio: "" });
+      toast({ title: "Creado", description: "SKU agregado correctamente" });
     },
   });
 
@@ -64,7 +75,7 @@ export default function ListaPreciosMix() {
       queryClient.invalidateQueries({ queryKey: ["/api/price-list-mix"] });
       setIsEditOpen(false);
       setEditItem(null);
-      toast({ title: "Actualizado", description: "Producto actualizado correctamente" });
+      toast({ title: "Actualizado", description: "Precio actualizado correctamente" });
     },
   });
 
@@ -83,7 +94,7 @@ export default function ListaPreciosMix() {
     onSuccess: (data) => {
       setImportResult(data);
       queryClient.invalidateQueries({ queryKey: ["/api/price-list-mix"] });
-      toast({ title: "Importado", description: `${data.importedCount} productos importados` });
+      toast({ title: "Importado", description: `${data.importedCount} SKUs importados` });
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -108,7 +119,7 @@ export default function ListaPreciosMix() {
             className="flex items-center gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 shadow-sm"
           >
             <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Agregar</span>
+            <span className="hidden sm:inline">Agregar SKU</span>
           </Button>
           <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
             <DialogTrigger asChild>
@@ -133,7 +144,7 @@ export default function ListaPreciosMix() {
                     }}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    CSV con columnas: codigo, producto, unidad, precio, costoProduccion
+                    CSV con columnas: <strong>codigo</strong> y <strong>precio</strong> (el resto se obtiene de la lista comercial)
                   </p>
                 </div>
                 {importFile && (
@@ -145,7 +156,7 @@ export default function ListaPreciosMix() {
                 )}
                 {importResult && (
                   <div className="p-3 bg-green-50 rounded-lg text-sm">
-                    ✅ {importResult.importedCount} productos importados
+                    ✅ {importResult.importedCount} SKUs importados
                   </div>
                 )}
                 <div className="flex justify-end gap-2">
@@ -198,7 +209,7 @@ export default function ListaPreciosMix() {
           ) : !data?.items?.length ? (
             <div className="text-center py-12 text-muted-foreground">
               <p className="text-lg font-medium mb-2">Sin productos</p>
-              <p className="text-sm">Importa un CSV o agrega productos manualmente</p>
+              <p className="text-sm">Importa un CSV con columnas <strong>codigo</strong> y <strong>precio</strong></p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -208,10 +219,12 @@ export default function ListaPreciosMix() {
                     <TableHead className="text-xs">Código</TableHead>
                     <TableHead className="text-xs">Producto</TableHead>
                     <TableHead className="text-xs">Formato</TableHead>
-                    <TableHead className="text-right text-xs">Precio</TableHead>
+                    <TableHead className="text-right text-xs font-semibold text-blue-600 dark:text-blue-400">Precio Mix</TableHead>
                     <TableHead className="text-right text-xs text-amber-700 dark:text-amber-400">Costo</TableHead>
                     <TableHead className="text-right text-xs">Margen</TableHead>
-                    <TableHead className="text-right text-xs text-blue-600 dark:text-blue-400">Simulador</TableHead>
+                    <TableHead className="text-right text-xs text-blue-600 dark:text-blue-400">
+                      <span className="flex items-center justify-end gap-1"><Calculator className="h-3 w-3" />Simulador</span>
+                    </TableHead>
                     <TableHead className="w-16 text-xs">Acc.</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -233,9 +246,11 @@ export default function ListaPreciosMix() {
                     return (
                       <TableRow key={item.id} className="text-xs">
                         <TableCell className="font-mono text-xs py-2">{item.codigo}</TableCell>
-                        <TableCell className="text-xs py-2 max-w-[250px] truncate">{item.producto}</TableCell>
+                        <TableCell className="text-xs py-2 max-w-[250px] truncate">
+                          {item.producto || <span className="text-muted-foreground italic">SKU no encontrado</span>}
+                        </TableCell>
                         <TableCell className="text-xs py-2">{item.unidad || "-"}</TableCell>
-                        <TableCell className="text-right text-xs py-2 font-medium">
+                        <TableCell className="text-right text-xs py-2 font-semibold text-blue-600 dark:text-blue-400">
                           {formatCurrency(item.precio)}
                         </TableCell>
                         <TableCell className="text-right text-xs py-2 font-semibold text-amber-700 dark:text-amber-400">
@@ -314,44 +329,28 @@ export default function ListaPreciosMix() {
         </CardContent>
       </Card>
 
-      {/* Edit Dialog */}
+      {/* Edit Dialog - only precio is editable */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Editar Producto Mix</DialogTitle>
+            <DialogTitle>Editar Precio Mix</DialogTitle>
           </DialogHeader>
           {editItem && (
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground">Código</label>
-                  <Input value={editItem.codigo} onChange={(e) => setEditItem({ ...editItem, codigo: e.target.value })} className="h-8 text-sm" />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground">Formato</label>
-                  <Input value={editItem.unidad || ""} onChange={(e) => setEditItem({ ...editItem, unidad: e.target.value })} className="h-8 text-sm" />
-                </div>
+              <div className="p-3 bg-muted rounded-lg text-sm">
+                <p><strong>SKU:</strong> {editItem.codigo}</p>
+                <p><strong>Producto:</strong> {editItem.producto || "N/A"}</p>
               </div>
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Producto</label>
-                <Input value={editItem.producto} onChange={(e) => setEditItem({ ...editItem, producto: e.target.value })} className="h-8 text-sm" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground">Precio</label>
-                  <Input type="number" value={editItem.precio || ""} onChange={(e) => setEditItem({ ...editItem, precio: e.target.value })} className="h-8 text-sm" />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground">Costo Producción</label>
-                  <Input type="number" value={editItem.costoProduccion || ""} onChange={(e) => setEditItem({ ...editItem, costoProduccion: e.target.value })} className="h-8 text-sm" />
-                </div>
+                <label className="text-xs font-medium text-muted-foreground">Precio Mix</label>
+                <Input type="number" value={editItem.precio || ""} onChange={(e) => setEditItem({ ...editItem, precio: e.target.value })} className="h-8 text-sm" />
               </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancelar</Button>
             <Button
-              onClick={() => editItem && updateMutation.mutate({ id: editItem.id, codigo: editItem.codigo, producto: editItem.producto, unidad: editItem.unidad, precio: editItem.precio, costoProduccion: editItem.costoProduccion })}
+              onClick={() => editItem && updateMutation.mutate({ id: editItem.id, precio: editItem.precio })}
               disabled={updateMutation.isPending}
             >
               {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -361,35 +360,24 @@ export default function ListaPreciosMix() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Dialog */}
+      {/* Add Dialog - only codigo + precio */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Agregar Producto Mix</DialogTitle>
+            <DialogTitle>Agregar SKU a Lista Mix</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Ingresa el código (SKU) del producto y el precio mix. El producto debe existir en la lista comercial.
+            </p>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Código *</label>
-                <Input value={newProduct.codigo} onChange={(e) => setNewProduct({ ...newProduct, codigo: e.target.value })} className="h-8 text-sm" />
+                <label className="text-xs font-medium text-muted-foreground">Código (SKU) *</label>
+                <Input value={newProduct.codigo} onChange={(e) => setNewProduct({ ...newProduct, codigo: e.target.value })} className="h-8 text-sm" placeholder="Ej: PAE500BL14" />
               </div>
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Formato</label>
-                <Input value={newProduct.unidad} onChange={(e) => setNewProduct({ ...newProduct, unidad: e.target.value })} className="h-8 text-sm" />
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Producto *</label>
-              <Input value={newProduct.producto} onChange={(e) => setNewProduct({ ...newProduct, producto: e.target.value })} className="h-8 text-sm" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Precio</label>
-                <Input type="number" value={newProduct.precio} onChange={(e) => setNewProduct({ ...newProduct, precio: e.target.value })} className="h-8 text-sm" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Costo Producción</label>
-                <Input type="number" value={newProduct.costoProduccion} onChange={(e) => setNewProduct({ ...newProduct, costoProduccion: e.target.value })} className="h-8 text-sm" />
+                <label className="text-xs font-medium text-muted-foreground">Precio Mix *</label>
+                <Input type="number" value={newProduct.precio} onChange={(e) => setNewProduct({ ...newProduct, precio: e.target.value })} className="h-8 text-sm" placeholder="Ej: 12500" />
               </div>
             </div>
           </div>
@@ -397,10 +385,10 @@ export default function ListaPreciosMix() {
             <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancelar</Button>
             <Button
               onClick={() => createMutation.mutate(newProduct)}
-              disabled={!newProduct.codigo || !newProduct.producto || createMutation.isPending}
+              disabled={!newProduct.codigo || !newProduct.precio || createMutation.isPending}
             >
               {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Crear Producto
+              Agregar
             </Button>
           </DialogFooter>
         </DialogContent>
