@@ -137,16 +137,18 @@ export default function TareasPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingTask, setEditingTask] = useState<Task & { assignments: TaskAssignment[] } | null>(null);
 
-  // View state
+  const isSalesperson = user?.role === 'salesperson';
+
+  // View state - vendedores always see "my-tasks"
   const [viewMode, setViewMode] = useState<"my-tasks" | "all-tasks">(
-    user?.role === 'salesperson' ? "my-tasks" : "all-tasks"
+    isSalesperson ? "my-tasks" : "all-tasks"
   );
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [clienteFilter, setClienteFilter] = useState<string>("all");
-  const [segmentoFilter, setSegmentoFilter] = useState<string>("ferreterias");
+  const [segmentoFilter, setSegmentoFilter] = useState<string>(isSalesperson ? "all" : "ferreterias");
 
   // Expanded tasks for collapsible assignment details
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
@@ -579,8 +581,8 @@ export default function TareasPage() {
     if (clienteFilter === "with-client" && !(task as any).clienteId) return false;
     if (clienteFilter === "without-client" && (task as any).clienteId) return false;
 
-    // Segmento filter
-    if (segmentoFilter !== "all") {
+    // Segmento filter (skip for salesperson - they see all their tasks regardless of segment)
+    if (!isSalesperson && segmentoFilter !== "all") {
       if (!(task as any).segmento || (task as any).segmento !== segmentoFilter) return false;
     }
 
@@ -1122,23 +1124,26 @@ export default function TareasPage() {
 
         <TabsContent value="tareas" className="space-y-6">
 
-          {/* Segment Tabs */}
-          <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0 sm:mx-0 sm:px-0">
-            {SEGMENTOS.map((seg) => (
-              <button
-                key={seg.value}
-                onClick={() => setSegmentoFilter(seg.value)}
-                className={`px-4 py-2 sm:py-2.5 rounded-full sm:rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 flex-shrink-0 ${segmentoFilter === seg.value
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-200"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
-              >
-                {seg.label}
-              </button>
-            ))}
-          </div>
+          {/* Segment Tabs - hidden for salesperson */}
+          {!isSalesperson && (
+            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0 sm:mx-0 sm:px-0">
+              {SEGMENTOS.map((seg) => (
+                <button
+                  key={seg.value}
+                  onClick={() => setSegmentoFilter(seg.value)}
+                  className={`px-4 py-2 sm:py-2.5 rounded-full sm:rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 flex-shrink-0 ${segmentoFilter === seg.value
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-200"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                >
+                  {seg.label}
+                </button>
+              ))}
+            </div>
+          )}
 
-          {/* Filters and View Toggle */}
+          {/* Filters and View Toggle - hidden for salesperson (simple flat list) */}
+          {!isSalesperson && (
           <Card className="border-0 shadow-sm bg-white">
             <CardContent className="p-0">
               {/* Mobile: Collapsible Filters Header */}
@@ -1305,9 +1310,20 @@ export default function TareasPage() {
               </div>
             </CardContent>
           </Card>
+          )}
+
+          {/* Simple task count for salesperson */}
+          {isSalesperson && (
+            <div className="flex items-center justify-between">
+              <Badge className="bg-blue-100 text-blue-700 text-xs font-medium px-3 py-1">
+                {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
+              </Badge>
+            </div>
+          )}
 
           {/* Group Management Bar */}
-          {segmentoFilter !== "all" && (
+          {/* Group Management Bar - hidden for salesperson */}
+          {!isSalesperson && segmentoFilter !== "all" && (
             <div className="flex items-center gap-2">
               {!showCreateGroup ? (
                 <Button

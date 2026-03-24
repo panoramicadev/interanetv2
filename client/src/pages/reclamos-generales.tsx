@@ -1332,19 +1332,29 @@ export default function ReclamosGeneralesPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2" data-testid="tabs-reclamos">
-          <TabsTrigger value="mis-reclamos" data-testid="tab-mis-reclamos">
-            <FileText className="h-4 w-4 mr-2" />
-            Mis Reclamos
-          </TabsTrigger>
-          <TabsTrigger value="estadisticas" data-testid="tab-estadisticas">
-            <BarChart3 className="h-4 w-4 mr-2" />
-            Estadísticas
-          </TabsTrigger>
-        </TabsList>
+        {user?.role !== 'salesperson' ? (
+          <TabsList className="grid w-full grid-cols-2" data-testid="tabs-reclamos">
+            <TabsTrigger value="mis-reclamos" data-testid="tab-mis-reclamos">
+              <FileText className="h-4 w-4 mr-2" />
+              Mis Reclamos
+            </TabsTrigger>
+            <TabsTrigger value="estadisticas" data-testid="tab-estadisticas">
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Estadísticas
+            </TabsTrigger>
+          </TabsList>
+        ) : (
+          <TabsList className="grid w-full grid-cols-1" data-testid="tabs-reclamos">
+            <TabsTrigger value="mis-reclamos" data-testid="tab-mis-reclamos">
+              <FileText className="h-4 w-4 mr-2" />
+              Mis Reclamos
+            </TabsTrigger>
+          </TabsList>
+        )}
 
         <TabsContent value="mis-reclamos" className="space-y-4">
-          {/* Filters */}
+          {/* Filters - hidden for salesperson */}
+          {user?.role !== 'salesperson' && (
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Filtros</CardTitle>
@@ -1395,6 +1405,7 @@ export default function ReclamosGeneralesPage() {
               </div>
             </CardContent>
           </Card>
+          )}
 
           {/* Filter Tabs - Modernized */}
           <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
