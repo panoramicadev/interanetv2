@@ -9491,34 +9491,24 @@ export function registerRoutes(app: Express): Server {
       // Remove BOM and normalize line endings
       let csvData = req.file.buffer.toString('utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       
-      // Auto-detect delimiter: try semicolon first (Chilean Excel default), then comma, then tab
-      const firstLine = csvData.split('\n')[0] || '';
+      // Auto-detect delimiter
+      const firstLine = csvData.split('\n').find(l => l.trim()) || '';
       let delimiter = ',';
       if (firstLine.includes(';')) delimiter = ';';
       else if (firstLine.includes('\t')) delimiter = '\t';
       
-      console.log(`[Lista Mix Import] Delimiter detected: "${delimiter === ';' ? 'semicolon' : delimiter === '\t' ? 'tab' : 'comma'}"`);
-      console.log(`[Lista Mix Import] First line: ${firstLine.substring(0, 200)}`);
+      // Detect if CSV has headers: check if first value looks like a SKU (starts with letters+numbers)
+      const firstVal = firstLine.split(delimiter)[0]?.trim().replace(/['"]/g, '') || '';
+      const hasHeaders = !(/^[A-Z]{2,}[A-Z0-9]+$/i.test(firstVal));
       
-      const { data: rawData, errors: parseErrors } = Papa.parse(csvData, {
-        header: true,
-        delimiter,
-        skipEmptyLines: 'greedy',
-        transformHeader: (h: string) => h.trim().toLowerCase().replace(/['"]/g, '')
-      });
-
-      console.log(`[Lista Mix Import] Parsed ${rawData.length} rows, ${parseErrors.length} errors`);
-      if (rawData.length > 0) {
-        console.log(`[Lista Mix Import] Headers: ${Object.keys(rawData[0] as any).join(', ')}`);
-        console.log(`[Lista Mix Import] Sample row:`, JSON.stringify(rawData[0]).substring(0, 300));
-      }
-
-      // Chilean number format: 4.300 means 4300 (dot as thousands separator)
+      console.log(`[Lista Mix Import] Delimiter: "${delimiter}", hasHeaders: ${hasHeaders}, firstLine: "${firstLine.substring(0, 100)}"`);
+      
+      // Chilean number format: 4.370 means 4370 (dot as thousands separator)
       const parseChileanPrice = (val: any): string => {
         if (val === null || val === undefined) return '';
-        let cleaned = val.toString().trim().replace(/\$/g, '').replace(/\s/g, '').trim();
+        let cleaned = val.toString().trim().replace(/\$/g, '').replace(/\s/g, '');
         if (!cleaned) return '';
-        // Pure thousands-separated integer: 4.300 -> 4300, 12.500 -> 12500
+        // Thousands-separated: 4.370 -> 4370, 55.000 -> 55000
         if (/^\d{1,3}(\.\d{3})+$/.test(cleaned)) {
           cleaned = cleaned.replace(/\./g, '');
         }
@@ -9533,54 +9523,72 @@ export function registerRoutes(app: Express): Server {
         return cleaned;
       };
 
-      // Flexible column detection - find codigo and precio in any header name
-      const findColumn = (row: Record<string, any>, candidates: string[]): any => {
-        for (const c of candidates) {
-          // Try exact match first
-          if (row[c] !== undefined && row[c] !== null && row[c] !== '') return row[c];
-        }
-        // Try partial match on keys
-        const keys = Object.keys(row);
-        for (const c of candidates) {
-          const found = keys.find(k => k.includes(c));
-          if (found && row[found] !== undefined && row[found] !== null && row[found] !== '') return row[found];
-        }
-        return '';
-      };
-
-      const codigoCandidates = ['codigo', 'código', 'sku', 'cod', 'cod.', 'codproducto', 'cod_producto', 'item', 'articulo', 'artículo'];
-      const precioCandidates = ['precio', 'price', 'valor', 'preciomix', 'precio_mix', 'precio mix', 'monto', 'pvp'];
-
       const validItems: { codigo: string; precio: string | null }[] = [];
       const errors: { row: number; error: string }[] = [];
-      
-      for (let i = 0; i < rawData.length; i++) {
-        const row = rawData[i] as Record<string, any>;
-        try {
-          const codigoRaw = findColumn(row, codigoCandidates);
-          const precioRaw = findColumn(row, precioCandidates);
-          
-          const codigo = codigoRaw.toString().trim();
-          const precio = parseChileanPrice(precioRaw);
-          
-          if (!codigo) {
-            errors.push({ row: i + 2, error: 'Código vacío' });
-            continue;
+
+      if (hasHeaders) {
+        // Parse with headers
+        const { data: rawData } = Papa.parse(csvData, {
+          header: true,
+          delimiter,
+          skipEmptyLines: 'greedy',
+          transformHeader: (h: string) => h.trim().toLowerCase().replace(/['"]/g, '')
+        });
+
+        console.log(`[Lista Mix Import] With headers: ${rawData.length} rows`);
+        if (rawData.length > 0) {
+          console.log(`[Lista Mix Import] Headers: ${Object.keys(rawData[0] as any).join(', ')}`);
+        }
+
+        const codigoCandidates = ['codigo', 'código', 'sku', 'cod', 'codproducto', 'item', 'articulo'];
+        const precioCandidates = ['precio', 'price', 'valor', 'preciomix', 'precio_mix', 'monto', 'pvp'];
+
+        const findCol = (row: Record<string, any>, candidates: string[]): any => {
+          for (const c of candidates) {
+            if (row[c] !== undefined && row[c] !== '') return row[c];
           }
-          
+          const keys = Object.keys(row);
+          for (const c of candidates) {
+            const found = keys.find(k => k.includes(c));
+            if (found && row[found] !== undefined && row[found] !== '') return row[found];
+          }
+          return '';
+        };
+
+        for (let i = 0; i < rawData.length; i++) {
+          const row = rawData[i] as Record<string, any>;
+          const codigo = findCol(row, codigoCandidates).toString().trim();
+          const precio = parseChileanPrice(findCol(row, precioCandidates));
+          if (!codigo) { errors.push({ row: i + 2, error: 'Código vacío' }); continue; }
           validItems.push({ codigo, precio: precio || null });
-        } catch (err: any) {
-          errors.push({ row: i + 2, error: err.message || 'Error de validación' });
+        }
+      } else {
+        // Parse WITHOUT headers - positional: column 0 = codigo, column 1 = precio
+        const { data: rawData } = Papa.parse(csvData, {
+          header: false,
+          delimiter,
+          skipEmptyLines: 'greedy',
+        });
+
+        console.log(`[Lista Mix Import] No headers (positional): ${rawData.length} rows`);
+
+        for (let i = 0; i < rawData.length; i++) {
+          const row = rawData[i] as string[];
+          if (!row || row.length < 2) { errors.push({ row: i + 1, error: 'Fila incompleta' }); continue; }
+          
+          const codigo = (row[0] || '').toString().trim();
+          const precio = parseChileanPrice(row[1]);
+          
+          if (!codigo) { errors.push({ row: i + 1, error: 'Código vacío' }); continue; }
+          validItems.push({ codigo, precio: precio || null });
         }
       }
 
-      console.log(`[Lista Mix Import] Valid items: ${validItems.length}, Errors: ${errors.length}`);
+      console.log(`[Lista Mix Import] Valid: ${validItems.length}, Errors: ${errors.length}`);
 
       if (validItems.length === 0) {
         return res.status(400).json({ 
-          message: "No se encontraron datos válidos. Asegúrate de que el CSV tenga columnas 'codigo' y 'precio'.",
-          detectedHeaders: rawData.length > 0 ? Object.keys(rawData[0] as any) : [],
-          detectedDelimiter: delimiter,
+          message: "No se encontraron datos válidos.",
           errors: errors.slice(0, 10)
         });
       }
@@ -9588,11 +9596,9 @@ export function registerRoutes(app: Express): Server {
       // Clear and import
       await db.delete(priceListMix);
       
-      // Batch insert using raw SQL for simplicity
       const batchSize = 100;
       for (let i = 0; i < validItems.length; i += batchSize) {
-        const batch = validItems.slice(i, i + batchSize);
-        await db.insert(priceListMix).values(batch);
+        await db.insert(priceListMix).values(validItems.slice(i, i + batchSize));
       }
 
       res.json({
