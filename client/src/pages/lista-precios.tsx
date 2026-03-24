@@ -32,6 +32,7 @@ export default function ListaPrecios() {
   const [editItem, setEditItem] = useState<PriceList | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [newProduct, setNewProduct] = useState({
     codigo: "",
     producto: "",
@@ -647,16 +648,6 @@ export default function ListaPrecios() {
                           >
                             <Edit className="h-3 w-3" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-                            onClick={() => deleteMutation.mutate(item.id)}
-                            disabled={deleteMutation.isPending}
-                            data-testid={`button-delete-${item.id}`}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -704,6 +695,7 @@ export default function ListaPrecios() {
         if (!open) {
           setIsEditDialogOpen(false);
           setEditItem(null);
+          setShowDeleteConfirm(false);
         }
       }}>
         <DialogContent className="sm:max-w-lg">
@@ -887,25 +879,75 @@ export default function ListaPrecios() {
             </div>
           )}
 
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsEditDialogOpen(false);
-                setEditItem(null);
-              }}
-              data-testid="button-cancel-edit"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSaveEdit}
-              disabled={updateMutation.isPending}
-              data-testid="button-save-edit"
-            >
-              {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Guardar
-            </Button>
+          <DialogFooter className="flex !justify-between items-center">
+            <div>
+              {!showDeleteConfirm ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1.5"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  data-testid="button-delete-product"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Eliminar
+                </Button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-destructive font-medium">¿Eliminar este producto?</span>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      if (editItem) {
+                        deleteMutation.mutate(editItem.id, {
+                          onSuccess: () => {
+                            setIsEditDialogOpen(false);
+                            setEditItem(null);
+                            setShowDeleteConfirm(false);
+                          },
+                        });
+                      }
+                    }}
+                    disabled={deleteMutation.isPending}
+                    data-testid="button-confirm-delete"
+                  >
+                    {deleteMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Sí, eliminar'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setShowDeleteConfirm(false)}
+                    data-testid="button-cancel-delete"
+                  >
+                    No
+                  </Button>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsEditDialogOpen(false);
+                  setEditItem(null);
+                  setShowDeleteConfirm(false);
+                }}
+                data-testid="button-cancel-edit"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSaveEdit}
+                disabled={updateMutation.isPending}
+                data-testid="button-save-edit"
+              >
+                {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Guardar
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

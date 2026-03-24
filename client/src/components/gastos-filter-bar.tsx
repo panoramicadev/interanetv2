@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -8,23 +8,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Calendar, Users } from "lucide-react";
-
-const MONTHS = [
-  { value: '1', label: 'Enero' },
-  { value: '2', label: 'Febrero' },
-  { value: '3', label: 'Marzo' },
-  { value: '4', label: 'Abril' },
-  { value: '5', label: 'Mayo' },
-  { value: '6', label: 'Junio' },
-  { value: '7', label: 'Julio' },
-  { value: '8', label: 'Agosto' },
-  { value: '9', label: 'Septiembre' },
-  { value: '10', label: 'Octubre' },
-  { value: '11', label: 'Noviembre' },
-  { value: '12', label: 'Diciembre' },
-];
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { Calendar as CalendarIcon, Users } from "lucide-react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import type { DateRange } from "react-day-picker";
 
 interface GastosFilterBarProps {
   mes: string;
@@ -60,8 +50,7 @@ export default function GastosFilterBar({
   actions,
 }: GastosFilterBarProps) {
   const { user } = useAuth();
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 5 }, (_, i) => (currentYear - i).toString());
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const canSeeUserFilter = user?.role && !['salesperson', 'Salesperson', 'Vendedor', 'vendedor'].includes(user.role);
 
@@ -75,61 +64,83 @@ export default function GastosFilterBar({
     enabled: !!canSeeUserFilter,
   });
 
+  // Build Date objects from current filter state
+  const buildDateRange = (): DateRange => {
+    const m = parseInt(mes);
+    const y = parseInt(anio);
+    if (diaDesde && diaHasta) {
+      return {
+        from: new Date(diaDesde + 'T12:00:00'),
+        to: new Date(diaHasta + 'T12:00:00'),
+      };
+    }
+    // Default to current month range
+    return {
+      from: new Date(y, m - 1, 1),
+      to: new Date(y, m, 0), // last day of month
+    };
+  };
+
+  const dateRange = buildDateRange();
+
+  const handleRangeSelect = (range: DateRange | undefined) => {
+    if (!range?.from) return;
+
+    const from = range.from;
+    const to = range.to || range.from;
+
+    const fromStr = format(from, 'yyyy-MM-dd');
+    const toStr = format(to, 'yyyy-MM-dd');
+
+    // Update mes/anio from the "from" date for backward compatibility
+    setMes((from.getMonth() + 1).toString());
+    setAnio(from.getFullYear().toString());
+
+    if (setDiaDesde) setDiaDesde(fromStr);
+    if (setDiaHasta) setDiaHasta(toStr);
+  };
+
+  const formatDateRangeLabel = (): string => {
+    if (dateRange.from && dateRange.to) {
+      const from = dateRange.from;
+      const to = dateRange.to;
+      if (from.getTime() === to.getTime()) {
+        return format(from, "d 'de' MMMM yyyy", { locale: es });
+      }
+      if (from.getMonth() === to.getMonth() && from.getFullYear() === to.getFullYear()) {
+        return `${format(from, 'd', { locale: es })} - ${format(to, "d 'de' MMMM yyyy", { locale: es })}`;
+      }
+      return `${format(from, "d MMM yyyy", { locale: es })} - ${format(to, "d MMM yyyy", { locale: es })}`;
+    }
+    return "Seleccionar fechas";
+  };
+
   return (
     <div className="w-full bg-white/80 dark:bg-slate-900/60 backdrop-blur-sm border border-gray-100 dark:border-slate-800 rounded-xl px-4 py-3 shadow-sm">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-2.5 flex-wrap">
-          <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-slate-800 flex items-center justify-center">
-            <Calendar className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-          </div>
-          <Select value={mes} onValueChange={setMes}>
-            <SelectTrigger className="w-[120px] bg-gray-50/80 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700 rounded-lg">
-              <SelectValue placeholder="Mes" />
-            </SelectTrigger>
-            <SelectContent>
-              {MONTHS.map(month => (
-                <SelectItem key={month.value} value={month.value}>
-                  {month.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={anio} onValueChange={setAnio}>
-            <SelectTrigger className="w-[85px] bg-gray-50/80 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700 rounded-lg">
-              <SelectValue placeholder="Año" />
-            </SelectTrigger>
-            <SelectContent>
-              {years.map(year => (
-                <SelectItem key={year} value={year}>
-                  {year}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Day range filter */}
-          {setDiaDesde && setDiaHasta && (
-            <>
-              <div className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-slate-700 mx-1" />
-              <div className="flex items-center gap-1.5">
-                <Input
-                  type="date"
-                  value={diaDesde || ''}
-                  onChange={(e) => setDiaDesde(e.target.value)}
-                  className="w-[130px] h-9 text-xs bg-gray-50/80 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700 rounded-lg"
-                  placeholder="Desde"
-                />
-                <span className="text-xs text-muted-foreground">a</span>
-                <Input
-                  type="date"
-                  value={diaHasta || ''}
-                  onChange={(e) => setDiaHasta(e.target.value)}
-                  className="w-[130px] h-9 text-xs bg-gray-50/80 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700 rounded-lg"
-                  placeholder="Hasta"
-                />
-              </div>
-            </>
-          )}
+          {/* Single date range picker */}
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className="h-9 px-3 gap-2 bg-gray-50/80 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700 rounded-lg text-sm font-normal hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+              >
+                <CalendarIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                <span className="text-gray-700 dark:text-gray-200">{formatDateRangeLabel()}</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="range"
+                selected={dateRange}
+                onSelect={handleRangeSelect}
+                numberOfMonths={2}
+                defaultMonth={dateRange.from}
+                locale={es}
+              />
+            </PopoverContent>
+          </Popover>
 
           {canSeeUserFilter && (
             <>

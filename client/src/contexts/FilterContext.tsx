@@ -54,10 +54,16 @@ const STORAGE_KEY_GASTOS_FILTER = "gastos_filter";
 
 const getDefaultGastosFilter = (): GastosFilter => {
   const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth(); // 0-indexed
+  const firstDay = new Date(y, m, 1).toISOString().split('T')[0];
+  const lastDay = new Date(y, m + 1, 0).toISOString().split('T')[0];
   return {
-    mes: (now.getMonth() + 1).toString(),
-    anio: now.getFullYear().toString(),
+    mes: (m + 1).toString(),
+    anio: y.toString(),
     usuarioFilter: "todos",
+    diaDesde: firstDay,
+    diaHasta: lastDay,
   };
 };
 
