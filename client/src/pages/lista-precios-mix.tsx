@@ -51,6 +51,17 @@ export default function ListaPreciosMix() {
         .then(r => r.json()),
   });
 
+  // GRI prices for real cost (same source as Lista Comercial)
+  const { data: griPrices } = useQuery<Record<string, number>>({
+    queryKey: ['/api/inventory/gri-prices'],
+    queryFn: async () => {
+      const response = await fetch('/api/inventory/gri-prices', { credentials: 'include' });
+      if (!response.ok) return {};
+      return response.json();
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/price-list-mix/${id}`),
     onSuccess: () => {
@@ -230,7 +241,9 @@ export default function ListaPreciosMix() {
                 </TableHeader>
                 <TableBody>
                   {data.items.map((item) => {
-                    const costoNum = item.costoProduccion ? parseFloat(item.costoProduccion) : null;
+                    // Cost from GRI (primary) or price_list JOIN (fallback)
+                    const griCosto = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
+                    const costoNum = griCosto || (item.costoProduccion ? parseFloat(item.costoProduccion) : null);
                     const precioNum = item.precio ? parseFloat(item.precio) : null;
                     let margen: number | null = null;
                     if (precioNum && costoNum && precioNum > 0) {
@@ -254,7 +267,7 @@ export default function ListaPreciosMix() {
                           {formatCurrency(item.precio)}
                         </TableCell>
                         <TableCell className="text-right text-xs py-2 font-semibold text-amber-700 dark:text-amber-400">
-                          {formatCurrency(item.costoProduccion)}
+                          {costoNum ? formatCurrency(costoNum) : "-"}
                         </TableCell>
                         <TableCell className="text-right text-xs py-2 font-semibold">
                           {margen !== null ? (
