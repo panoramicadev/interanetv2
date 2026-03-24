@@ -547,28 +547,10 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Users,
     },
     {
-      href: "/facturas",
-      label: "Finanzas",
-      icon: Receipt,
-    },
-    {
-      href: "/ecommerce",
-      label: "eCommerce",
-      icon: ShoppingCart,
-      children: [
-        {
-          href: "/panoramica-market",
-          label: "Panorámica Market",
-          icon: Gift,
-        },
-      ],
-      separator: true,
-    },
-    {
       href: "/marketing",
       label: "Marketing",
       icon: TrendingUp,
-      separator: true, // Separador antes de Tomador de Pedidos
+      separator: true,
     },
     {
       href: "/tareas",
