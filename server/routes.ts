@@ -10653,10 +10653,10 @@ export function registerRoutes(app: Express): Server {
       const uniqueFileName = `${sku}_${timestamp}${fileExtension}`;
 
       try {
-        // Use local file storage (works on Railway, no external storage needed)
-        const localStorage = new LocalImageStorage();
-        const imageUrl = await localStorage.uploadImage(uniqueFileName, imageBuffer, getContentType(fileExtension.substring(1)));
-        console.log(`📁 [ZIP IMPORT] Saved locally: ${imageUrl}`);
+        // Use Object Storage (persistent) instead of local filesystem (ephemeral on Railway)
+        const objectStorageService = new ObjectStorageService();
+        const imageUrl = await objectStorageService.uploadImage(uniqueFileName, imageBuffer, getContentType(fileExtension.substring(1)));
+        console.log(`☁️ [ZIP IMPORT] Saved to Object Storage: ${imageUrl}`);
 
         // Update product with new image URL
         await db
