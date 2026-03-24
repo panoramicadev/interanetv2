@@ -20,6 +20,8 @@ export interface GastosFilter {
   mes: string;
   anio: string;
   usuarioFilter: string;
+  diaDesde?: string; // DD format, e.g. "1", "15"
+  diaHasta?: string; // DD format, e.g. "31"
 }
 
 interface FilterContextType {

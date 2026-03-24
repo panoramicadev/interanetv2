@@ -134,9 +134,13 @@ export default function GastosEmpresariales() {
   const mes = gastosFilter.mes;
   const anio = gastosFilter.anio;
   const usuarioFilter = gastosFilter.usuarioFilter;
+  const diaDesde = gastosFilter.diaDesde || '';
+  const diaHasta = gastosFilter.diaHasta || '';
   const setMes = (v: string) => updateGastosFilter({ mes: v });
   const setAnio = (v: string) => updateGastosFilter({ anio: v });
   const setUsuarioFilter = (v: string) => updateGastosFilter({ usuarioFilter: v });
+  const setDiaDesde = (v: string) => updateGastosFilter({ diaDesde: v || undefined });
+  const setDiaHasta = (v: string) => updateGastosFilter({ diaHasta: v || undefined });
   const [searchTerm, setSearchTerm] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<string>("all");
   const [categoriaFilter, setCategoriaFilter] = useState<string>("all");
@@ -252,13 +256,14 @@ export default function GastosEmpresariales() {
   const getDateRange = (month: string, year: string) => {
     const m = parseInt(month);
     const y = parseInt(year);
-    const fechaDesde = new Date(y, m - 1, 1).toISOString().split('T')[0];
-    const fechaHasta = new Date(y, m, 0).toISOString().split('T')[0];
+    // Use day range if set, otherwise full month
+    const fechaDesde = diaDesde || new Date(y, m - 1, 1).toISOString().split('T')[0];
+    const fechaHasta = diaHasta || new Date(y, m, 0).toISOString().split('T')[0];
     return { fechaDesde, fechaHasta };
   };
 
   const { data: gastos = [], isLoading } = useQuery<GastoEmpresarial[]>({
-    queryKey: ['/api/gastos-empresariales', mes, anio, usuarioFilter, estadoFilter, categoriaFilter],
+    queryKey: ['/api/gastos-empresariales', mes, anio, usuarioFilter, estadoFilter, categoriaFilter, diaDesde, diaHasta],
     queryFn: async () => {
       const { fechaDesde, fechaHasta } = getDateRange(mes, anio);
       const params = new URLSearchParams();
@@ -545,6 +550,10 @@ export default function GastosEmpresariales() {
               setAnio={setAnio}
               usuarioFilter={usuarioFilter}
               setUsuarioFilter={setUsuarioFilter}
+              diaDesde={diaDesde}
+              setDiaDesde={setDiaDesde}
+              diaHasta={diaHasta}
+              setDiaHasta={setDiaHasta}
               actions={
                 <>
                   {activeMainTab === 'dashboard' && dashboardRef.current?.canExport && (

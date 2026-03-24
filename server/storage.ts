@@ -21539,6 +21539,7 @@ export class DatabaseStorage implements IStorage {
     userId: string;
     userName: string;
   }>> {
+    // Only return users who have submitted expenses OR have fund allocations
     const usersWithExpenses = await db
       .selectDistinct({
         userId: gastosEmpresariales.userId,
@@ -21557,31 +21558,7 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(users, eq(fundAllocations.assignedToId, users.id))
       .leftJoin(salespeopleUsers, eq(fundAllocations.assignedToId, salespeopleUsers.id));
 
-    const allSystemUsers = await db
-      .select({
-        userId: users.id,
-        userName: sql<string>`COALESCE(${users.firstName} || ' ' || ${users.lastName}, ${users.email}, 'Usuario Desconocido')`,
-      })
-      .from(users)
-      .where(sql`${users.role} IN ('salesperson', 'supervisor', 'recursos_humanos', 'admin')`);
-
-    const allSalespeopleUsers = await db
-      .select({
-        userId: salespeopleUsers.id,
-        userName: sql<string>`COALESCE(${salespeopleUsers.salespersonName}, ${salespeopleUsers.email}, 'Usuario Desconocido')`,
-      })
-      .from(salespeopleUsers)
-      .where(sql`${salespeopleUsers.isActive} = true`);
-
     const userMap = new Map<string, string>();
-    for (const u of allSystemUsers) {
-      userMap.set(u.userId, u.userName || 'Usuario Desconocido');
-    }
-    for (const u of allSalespeopleUsers) {
-      if (!userMap.has(u.userId)) {
-        userMap.set(u.userId, u.userName || 'Usuario Desconocido');
-      }
-    }
     for (const u of usersWithExpenses) {
       userMap.set(u.userId, u.userName || 'Usuario Desconocido');
     }

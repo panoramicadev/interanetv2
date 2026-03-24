@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Calendar, Users } from "lucide-react";
 
 const MONTHS = [
@@ -32,6 +33,10 @@ interface GastosFilterBarProps {
   setAnio: (v: string) => void;
   usuarioFilter: string;
   setUsuarioFilter: (v: string) => void;
+  diaDesde?: string;
+  setDiaDesde?: (v: string) => void;
+  diaHasta?: string;
+  setDiaHasta?: (v: string) => void;
   showEstadoFilter?: boolean;
   estadoFilter?: string;
   setEstadoFilter?: (v: string) => void;
@@ -48,6 +53,10 @@ export default function GastosFilterBar({
   setAnio,
   usuarioFilter,
   setUsuarioFilter,
+  diaDesde,
+  setDiaDesde,
+  diaHasta,
+  setDiaHasta,
   actions,
 }: GastosFilterBarProps) {
   const { user } = useAuth();
@@ -97,6 +106,30 @@ export default function GastosFilterBar({
               ))}
             </SelectContent>
           </Select>
+
+          {/* Day range filter */}
+          {setDiaDesde && setDiaHasta && (
+            <>
+              <div className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-slate-700 mx-1" />
+              <div className="flex items-center gap-1.5">
+                <Input
+                  type="date"
+                  value={diaDesde || ''}
+                  onChange={(e) => setDiaDesde(e.target.value)}
+                  className="w-[130px] h-9 text-xs bg-gray-50/80 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700 rounded-lg"
+                  placeholder="Desde"
+                />
+                <span className="text-xs text-muted-foreground">a</span>
+                <Input
+                  type="date"
+                  value={diaHasta || ''}
+                  onChange={(e) => setDiaHasta(e.target.value)}
+                  className="w-[130px] h-9 text-xs bg-gray-50/80 dark:bg-slate-800/50 border-gray-200 dark:border-slate-700 rounded-lg"
+                  placeholder="Hasta"
+                />
+              </div>
+            </>
+          )}
 
           {canSeeUserFilter && (
             <>

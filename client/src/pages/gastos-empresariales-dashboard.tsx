@@ -250,6 +250,8 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
   const setMes = (v: string) => updateGastosFilter({ mes: v });
   const setAnio = (v: string) => updateGastosFilter({ anio: v });
   const setUsuarioFilter = (v: string) => updateGastosFilter({ usuarioFilter: v });
+  const diaDesde = gastosFilter.diaDesde || '';
+  const diaHasta = gastosFilter.diaHasta || '';
 
   const canExport = user?.role && !['salesperson', 'Salesperson', 'Vendedor', 'vendedor'].includes(user.role);
   const [estadoFilter, setEstadoFilter] = useState("todos");
@@ -259,13 +261,14 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
   const getDateRange = (month: string, year: string) => {
     const m = parseInt(month);
     const y = parseInt(year);
-    const fechaDesde = new Date(y, m - 1, 1).toISOString().split('T')[0];
-    const fechaHasta = new Date(y, m, 0).toISOString().split('T')[0];
+    // Use day range if set, otherwise full month
+    const fechaDesde = diaDesde || new Date(y, m - 1, 1).toISOString().split('T')[0];
+    const fechaHasta = diaHasta || new Date(y, m, 0).toISOString().split('T')[0];
     return { fechaDesde, fechaHasta };
   };
 
   const { data: summary, isLoading: isLoadingSummary } = useQuery<GastosSummary>({
-    queryKey: ['/api/gastos-empresariales/analytics/summary', mes, anio, usuarioFilter],
+    queryKey: ['/api/gastos-empresariales/analytics/summary', mes, anio, usuarioFilter, diaDesde, diaHasta],
     queryFn: async () => {
       let url = `/api/gastos-empresariales/analytics/summary?mes=${mes}&anio=${anio}`;
       if (usuarioFilter !== 'todos') {
@@ -278,7 +281,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
   });
 
   const { data: porCategoria = [], isLoading: isLoadingCategoria } = useQuery<GastosByCategoria[]>({
-    queryKey: ['/api/gastos-empresariales/analytics/por-categoria', mes, anio, usuarioFilter],
+    queryKey: ['/api/gastos-empresariales/analytics/por-categoria', mes, anio, usuarioFilter, diaDesde, diaHasta],
     queryFn: async () => {
       let url = `/api/gastos-empresariales/analytics/por-categoria?mes=${mes}&anio=${anio}`;
       if (usuarioFilter !== 'todos') {
@@ -291,7 +294,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
   });
 
   const { data: porUsuario = [], isLoading: isLoadingUsuario } = useQuery<GastosByUser[]>({
-    queryKey: ['/api/gastos-empresariales/analytics/por-usuario', mes, anio, usuarioFilter],
+    queryKey: ['/api/gastos-empresariales/analytics/por-usuario', mes, anio, usuarioFilter, diaDesde, diaHasta],
     queryFn: async () => {
       let url = `/api/gastos-empresariales/analytics/por-usuario?mes=${mes}&anio=${anio}`;
       if (usuarioFilter !== 'todos') {
@@ -305,7 +308,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
 
 
   const { data: porDia = [], isLoading: isLoadingDia } = useQuery<GastosByDia[]>({
-    queryKey: ['/api/gastos-empresariales/analytics/por-dia', mes, anio, usuarioFilter],
+    queryKey: ['/api/gastos-empresariales/analytics/por-dia', mes, anio, usuarioFilter, diaDesde, diaHasta],
     queryFn: async () => {
       let url = `/api/gastos-empresariales/analytics/por-dia?mes=${mes}&anio=${anio}`;
       if (usuarioFilter !== 'todos') {
@@ -318,7 +321,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
   });
 
   const { data: gastosRecientes = [] } = useQuery<GastoEmpresarial[]>({
-    queryKey: ['/api/gastos-empresariales', mes, anio, usuarioFilter],
+    queryKey: ['/api/gastos-empresariales', mes, anio, usuarioFilter, diaDesde, diaHasta],
     queryFn: async () => {
       const { fechaDesde, fechaHasta } = getDateRange(mes, anio);
       let url = `/api/gastos-empresariales?fechaDesde=${fechaDesde}&fechaHasta=${fechaHasta}&limit=500`;
@@ -332,7 +335,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
   });
 
   const { data: fondosData = [] } = useQuery<FundAllocation[]>({
-    queryKey: ['/api/fund-allocations', mes, anio, usuarioFilter],
+    queryKey: ['/api/fund-allocations', mes, anio, usuarioFilter, diaDesde, diaHasta],
     queryFn: async () => {
       let url = `/api/fund-allocations?limit=500`;
       if (usuarioFilter !== 'todos') {
@@ -558,7 +561,14 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
     return gastosRecientes.filter(gasto => {
       const matchEstado = estadoFilter === 'todos' || gasto.estado === estadoFilter;
       const matchCategoria = categoriaFilter === 'todos' || gasto.categoria === categoriaFilter;
-      return matchEstado && matchCategoria;
+      // Apply day range filter client-side if set
+      let matchDate = true;
+      if (diaDesde || diaHasta) {
+        const gastoDate = (gasto.fechaEmision || (gasto.createdAt as string) || '').substring(0, 10);
+        if (diaDesde && gastoDate < diaDesde) matchDate = false;
+        if (diaHasta && gastoDate > diaHasta) matchDate = false;
+      }
+      return matchEstado && matchCategoria && matchDate;
     });
   };
 
@@ -578,6 +588,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
 
     // Agregar info de filtros al nombre del archivo
     let fileName = `gastos_${anio}_${mes}`;
+    if (diaDesde || diaHasta) fileName += `_${diaDesde || 'inicio'}_a_${diaHasta || 'fin'}`;
     if (estadoFilter !== 'todos') fileName += `_${estadoFilter}`;
     if (categoriaFilter !== 'todos') fileName += `_${categoriaFilter.replace(/\s+/g, '_')}`;
 
@@ -658,7 +669,10 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
 
       doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Período: ${monthName} ${anio}`, pageWidth / 2, 28, { align: 'center' });
+      const periodoText = (diaDesde || diaHasta)
+        ? `Período: ${diaDesde || 'Inicio'} a ${diaHasta || 'Fin'}`
+        : `Período: ${monthName} ${anio}`;
+      doc.text(periodoText, pageWidth / 2, 28, { align: 'center' });
 
       const filtrosAplicados: string[] = [];
       if (estadoFilter !== 'todos') filtrosAplicados.push(`Estado: ${estadoFilter}`);
