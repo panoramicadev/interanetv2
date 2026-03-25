@@ -910,7 +910,7 @@ export default function TiendaPage() {
             </Button>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {groupedCatalog.map(product => {
               const colorKeys = Object.keys(product.colors)
                 .sort((a, b) => product.colors[b].length - product.colors[a].length);
@@ -920,87 +920,124 @@ export default function TiendaPage() {
               return (
                 <div
                   key={product.genericName}
-                  className={`rounded-2xl border-2 overflow-hidden transition-all duration-300 ${
+                  className={`rounded-2xl border-2 overflow-hidden transition-all duration-300 flex flex-col ${
                     isExpanded
-                      ? 'border-[#FF6E23]/40 shadow-lg shadow-orange-100/50 bg-white'
+                      ? 'border-[#FF6E23]/40 shadow-lg shadow-orange-100/50 bg-white col-span-2 md:col-span-3 lg:col-span-4'
                       : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-md'
                   }`}
                 >
-                  {/* Product Header */}
+                  {/* Product Card (collapsed) */}
                   <div
                     className={`cursor-pointer transition-all duration-200 ${
                       isExpanded ? 'bg-gradient-to-r from-orange-50 to-amber-50' : 'hover:bg-gray-50/80'
                     }`}
                     onClick={() => toggleProduct(product.genericName)}
                   >
-                    <div className="p-4 flex items-center gap-4">
-                      {/* Product Image */}
-                      <div className={`w-16 h-16 rounded-xl flex-shrink-0 overflow-hidden border-2 transition-all ${
-                        isExpanded ? 'border-[#FF6E23]/30 shadow-sm' : 'border-gray-100'
-                      }`}>
-                        {product.imageUrl ? (
-                          <img
-                            src={product.imageUrl}
-                            alt={product.genericName}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center">
-                            <ImageIcon className="w-6 h-6 text-gray-300" />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Product Info */}
-                      <div className="flex-1 min-w-0">
-                        <h3 className={`text-base font-bold uppercase leading-tight ${
-                          isExpanded ? 'text-[#FF6E23]' : 'text-gray-800'
-                        }`}>
-                          {product.genericName}
-                        </h3>
-                        {/* Tags */}
-                        {(product.tags || []).length > 0 && (
-                          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                            {(product.tags || []).map(tag => (
-                              <span key={tag} className={`text-xs px-2.5 py-1 rounded-full font-bold whitespace-nowrap shadow-sm ${
-                                tag === 'Mejor Precio' ? 'bg-emerald-500 text-white' :
-                                tag === 'Rápida Rotación' ? 'bg-blue-500 text-white' :
-                                tag === 'Pocas Unidades' ? 'bg-amber-500 text-white' :
-                                'bg-gray-500 text-white'
-                              }`}>
-                                {tag === 'Mejor Precio' ? '💰 ' : tag === 'Rápida Rotación' ? '🔥 ' : tag === 'Pocas Unidades' ? '⚠️ ' : ''}{tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        {product.breveResena && (
-                          <p className="text-sm text-gray-500 mt-1 line-clamp-1">{product.breveResena}</p>
-                        )}
-                      </div>
-
-                      {/* Right side */}
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <div className="text-right">
-                          <span className="text-sm font-semibold text-gray-500">
-                            {colorKeys.length} color{colorKeys.length !== 1 ? 'es' : ''}
-                          </span>
-                          <span className="text-xs text-gray-400 block">
-                            {totalVariants} formato{totalVariants !== 1 ? 's' : ''}
-                          </span>
+                    {!isExpanded ? (
+                      /* Grid Card View */
+                      <div className="flex flex-col">
+                        {/* Product Image Area */}
+                        <div className="aspect-square w-full overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 relative">
+                          {product.imageUrl ? (
+                            <img
+                              src={product.imageUrl}
+                              alt={product.genericName}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <ImageIcon className="w-12 h-12 text-gray-200" />
+                            </div>
+                          )}
+                          {/* Tags overlay */}
+                          {(product.tags || []).length > 0 && (
+                            <div className="absolute top-2 left-2 flex flex-col gap-1">
+                              {(product.tags || []).slice(0, 2).map(tag => (
+                                <span key={tag} className={`text-[10px] px-2 py-0.5 rounded-full font-bold whitespace-nowrap shadow-sm ${
+                                  tag === 'Mejor Precio' ? 'bg-emerald-500 text-white' :
+                                  tag === 'Rápida Rotación' ? 'bg-blue-500 text-white' :
+                                  tag === 'Pocas Unidades' ? 'bg-amber-500 text-white' :
+                                  'bg-gray-500 text-white'
+                                }`}>
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                          isExpanded ? 'bg-[#FF6E23] text-white' : 'bg-gray-100 text-gray-400'
-                        }`}>
-                          {isExpanded
-                            ? <ChevronDown className="h-5 w-5" />
-                            : <ChevronRight className="h-5 w-5" />
-                          }
+                        {/* Product Info */}
+                        <div className="p-3">
+                          <h3 className="text-sm font-bold uppercase leading-tight text-gray-800 line-clamp-2">
+                            {product.genericName}
+                          </h3>
+                          {product.breveResena && (
+                            <p className="text-xs text-gray-400 mt-1 line-clamp-1">{product.breveResena}</p>
+                          )}
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="text-xs text-gray-400">
+                              {colorKeys.length} color{colorKeys.length !== 1 ? 'es' : ''} · {totalVariants} formato{totalVariants !== 1 ? 's' : ''}
+                            </span>
+                            <ChevronRight className="h-4 w-4 text-gray-300" />
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    ) : (
+                      /* Expanded Header (same as before but inline) */
+                      <div className="p-4 flex items-center gap-4">
+                        <div className="w-16 h-16 rounded-xl flex-shrink-0 overflow-hidden border-2 border-[#FF6E23]/30 shadow-sm">
+                          {product.imageUrl ? (
+                            <img
+                              src={product.imageUrl}
+                              alt={product.genericName}
+                              className="w-full h-full object-cover"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center">
+                              <ImageIcon className="w-6 h-6 text-gray-300" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-base font-bold uppercase leading-tight text-[#FF6E23]">
+                            {product.genericName}
+                          </h3>
+                          {(product.tags || []).length > 0 && (
+                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                              {(product.tags || []).map(tag => (
+                                <span key={tag} className={`text-xs px-2.5 py-1 rounded-full font-bold whitespace-nowrap shadow-sm ${
+                                  tag === 'Mejor Precio' ? 'bg-emerald-500 text-white' :
+                                  tag === 'Rápida Rotación' ? 'bg-blue-500 text-white' :
+                                  tag === 'Pocas Unidades' ? 'bg-amber-500 text-white' :
+                                  'bg-gray-500 text-white'
+                                }`}>
+                                  {tag === 'Mejor Precio' ? '💰 ' : tag === 'Rápida Rotación' ? '🔥 ' : tag === 'Pocas Unidades' ? '⚠️ ' : ''}{tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {product.breveResena && (
+                            <p className="text-sm text-gray-500 mt-1 line-clamp-1">{product.breveResena}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="text-right">
+                            <span className="text-sm font-semibold text-gray-500">
+                              {colorKeys.length} color{colorKeys.length !== 1 ? 'es' : ''}
+                            </span>
+                            <span className="text-xs text-gray-400 block">
+                              {totalVariants} formato{totalVariants !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[#FF6E23] text-white">
+                            <ChevronDown className="h-5 w-5" />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Expanded Content */}

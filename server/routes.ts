@@ -9757,19 +9757,22 @@ export function registerRoutes(app: Express): Server {
         imagenDestacada = ecomImageUrl;
       }
 
-      res.json({
+      const responseData: any = {
         ...(content || { codigo, fichasTecnicas: [], hojasSeguridad: [] }),
         breveResena,
         preguntasFrecuentes,
         youtubeUrl,
-        imagenDestacada,
         _meta: {
           productFamily: familyName,
           familySiblingCount,
           isInherited: false,
           isFamilyLevel: content?.productFamily ? true : false,
         }
-      });
+      };
+      // Explicitly set imagenDestacada AFTER spread to ensure ecom fallback is never overridden
+      responseData.imagenDestacada = imagenDestacada || ecomImageUrl || null;
+
+      res.json(responseData);
     } catch (error) {
       console.error("Error fetching product content:", error);
       res.status(500).json({ message: "Failed to fetch product content" });
