@@ -2690,8 +2690,10 @@ export class DatabaseStorage implements IStorage {
 
     for (const sp of excludedSalespeople) {
       const excludedClients = excludeMap.get(sp)!;
+      // Use ILIKE pattern matching for client exclusions (e.g., 'POCURO' matches 'CONSTRUCTORA POCURO SPA')
+      const clientExclusions = excludedClients.map(c => sql`${factVentas.nokoen} NOT ILIKE ${'%' + c + '%'}`);
       orParts.push(
-        sql`(${factVentas.nokofu} = ${sp} AND ${factVentas.nokoen} NOT IN (${sql.join(excludedClients.map(c => sql`${c}`), sql`, `)}))`
+        sql`(${factVentas.nokofu} = ${sp} AND ${sql.join(clientExclusions, sql` AND `)})`
       );
     }
 

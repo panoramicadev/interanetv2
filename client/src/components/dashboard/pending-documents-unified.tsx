@@ -213,14 +213,42 @@ export default function PendingDocumentsUnified({ selectedPeriod, filterType, sa
         if (!nvvDataRaw) return nvvDataRaw;
         if (!branchConfig || branchConfig.salespeople.length === 0) return nvvDataRaw;
         const branchNames = new Set(branchConfig.salespeople.map(s => s.toUpperCase()));
-        return nvvDataRaw.filter(sp => branchNames.has(sp.salespersonName?.trim().toUpperCase() || ''));
+        let filtered = nvvDataRaw.filter(sp => branchNames.has(sp.salespersonName?.trim().toUpperCase() || ''));
+        // Apply client exclusions (e.g., POCURO from MAURICIO CHAPARRO)
+        if (branchConfig.excludeClients) {
+            for (const exc of branchConfig.excludeClients) {
+                filtered = filtered.map(sp => {
+                    if (sp.salespersonName?.trim().toUpperCase() !== exc.salesperson.toUpperCase()) return sp;
+                    const excludeSet = exc.clients.map(c => c.toUpperCase());
+                    const filteredRecords = sp.records.filter(r => !excludeSet.some(ec => (r.NOKOEN || '').toUpperCase().includes(ec)));
+                    const totalAmount = filteredRecords.reduce((s, r) => s + r.totalPendiente, 0);
+                    const totalUnits = filteredRecords.reduce((s, r) => s + r.cantidadPendiente, 0);
+                    return { ...sp, records: filteredRecords, totalAmount, totalUnits, totalOrders: filteredRecords.length };
+                }).filter(sp => sp.records.length > 0);
+            }
+        }
+        return filtered;
     }, [nvvDataRaw, branchConfig]);
 
     const gdvData = useMemo(() => {
         if (!gdvDataRaw) return gdvDataRaw;
         if (!branchConfig || branchConfig.salespeople.length === 0) return gdvDataRaw;
         const branchNames = new Set(branchConfig.salespeople.map(s => s.toUpperCase()));
-        return gdvDataRaw.filter(sp => branchNames.has(sp.salespersonName?.trim().toUpperCase() || ''));
+        let filtered = gdvDataRaw.filter(sp => branchNames.has(sp.salespersonName?.trim().toUpperCase() || ''));
+        // Apply client exclusions (e.g., POCURO from MAURICIO CHAPARRO)
+        if (branchConfig.excludeClients) {
+            for (const exc of branchConfig.excludeClients) {
+                filtered = filtered.map(sp => {
+                    if (sp.salespersonName?.trim().toUpperCase() !== exc.salesperson.toUpperCase()) return sp;
+                    const excludeSet = exc.clients.map(c => c.toUpperCase());
+                    const filteredRecords = sp.records.filter(r => !excludeSet.some(ec => (r.cliente || '').toUpperCase().includes(ec)));
+                    const totalAmount = filteredRecords.reduce((s, r) => s + (r.monto || 0), 0);
+                    const totalUnits = filteredRecords.reduce((s, r) => s + (r.cantidad || 0), 0);
+                    return { ...sp, records: filteredRecords, totalAmount, totalUnits, totalGuias: filteredRecords.length };
+                }).filter(sp => sp.records.length > 0);
+            }
+        }
+        return filtered;
     }, [gdvDataRaw, branchConfig]);
 
     // ─── NVV Totals ───

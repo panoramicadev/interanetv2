@@ -1948,6 +1948,7 @@ export const quotes = pgTable("quotes", {
   taxRate: numeric("tax_rate", { precision: 5, scale: 2 }).default("19"), // IVA rate (19% default)
   taxAmount: numeric("tax_amount", { precision: 15, scale: 2 }), // Calculated tax
   total: numeric("total", { precision: 15, scale: 2 }), // Final total
+  paymentCondition: varchar("payment_condition"), // Payment condition: transferencia, boton_pago, credito_30, credito_45, credito_60
   notes: text("notes"), // Additional notes
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1999,6 +2000,7 @@ export const insertQuoteSchema = createInsertSchema(quotes, {
   clientAddress: z.string().optional(),
   status: z.enum(["draft", "sent", "accepted", "rejected", "converted"]).default("draft"),
   validUntil: z.string().optional().or(z.null()),
+  paymentCondition: z.string().optional(),
   notes: z.string().optional(),
 }).omit({
   id: true,

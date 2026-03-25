@@ -7912,7 +7912,32 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/tomador/init', requireAuth, asyncHandler(async (req: any, res: any) => {
     const user = req.user;
 
-    const [orders, units, colors] = await Promise.all([
+    // Fetch quote stats for the KPI cards
+    const quoteStatsPromise = (async () => {
+      try {
+        const filters: any = { limit: 500, offset: 0 };
+        if (user.role === 'salesperson') {
+          filters.createdBy = user.id;
+        }
+        const allQuotes = await storage.getQuotes(filters);
+        
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        
+        const activeQuotes = allQuotes.filter((q: any) => q.status === 'draft' || q.status === 'sent').length;
+        const totalAmount = allQuotes
+          .filter((q: any) => q.status === 'draft' || q.status === 'sent')
+          .reduce((sum: number, q: any) => sum + (parseFloat(q.total) || 0), 0);
+        const monthlyCount = allQuotes.filter((q: any) => new Date(q.createdAt) >= monthStart).length;
+        const acceptedCount = allQuotes.filter((q: any) => q.status === 'accepted' || q.status === 'converted').length;
+        
+        return { activeQuotes, totalAmount, monthlyCount, acceptedCount, totalQuotes: allQuotes.length };
+      } catch {
+        return { activeQuotes: 0, totalAmount: 0, monthlyCount: 0, acceptedCount: 0, totalQuotes: 0 };
+      }
+    })();
+
+    const [orders, units, colors, quoteStats] = await Promise.all([
       storage.getOrders({
         userRole: user.role,
         userId: user.id,
@@ -7921,9 +7946,10 @@ export function registerRoutes(app: Express): Server {
       }),
       storage.getAvailableUnits(),
       storage.getAllProductColors(),
+      quoteStatsPromise,
     ]);
 
-    res.json({ orders, units, colors });
+    res.json({ orders, units, colors, quoteStats });
   }));
 
   app.get('/api/orders', requireAuth, async (req: any, res) => {
@@ -8200,9 +8226,14 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "Not authorized to create quotes" });
       }
 
+      // Allow admin/supervisor to assign the quote to a different user (salesperson)
+      const effectiveCreatedBy = (['admin', 'supervisor'].includes(user.role) && req.body.createdBy)
+        ? req.body.createdBy
+        : user.id;
+
       const validatedData = insertQuoteSchema.parse({
         ...req.body,
-        createdBy: user.id
+        createdBy: effectiveCreatedBy
       });
 
       // Prepare data for storage with proper type conversions

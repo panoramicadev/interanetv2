@@ -25,7 +25,7 @@ import EcommerceOrdersList, { QuoteFromOrderData } from "@/components/order-take
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit, Mail, Download, Share2, ChevronRight } from "lucide-react";
+import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit, Mail, Download, Share2, ChevronRight, TrendingUp, BarChart3, CheckCircle2, Clock } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { nanoid } from "nanoid";
@@ -79,8 +79,18 @@ interface QuoteFormData {
   clientPhone?: string;
   clientAddress?: string;
   validUntil?: string;
+  paymentCondition?: string;
   notes?: string;
 }
+
+const PAYMENT_CONDITIONS: { value: string; label: string }[] = [
+  { value: 'transferencia', label: 'Transferencia Bancaria' },
+  { value: 'boton_pago', label: 'Botón de Pago (Tarjeta)' },
+  { value: 'credito', label: 'Crédito' },
+  { value: 'credito_30', label: 'Crédito a 30 días' },
+  { value: 'credito_45', label: 'Crédito a 45 días' },
+  { value: 'credito_60', label: 'Crédito a 60 días' },
+];
 
 interface CustomProductData {
   productName: string;
@@ -102,6 +112,7 @@ const INITIAL_QUOTE_FORM: QuoteFormData = {
   clientPhone: "",
   clientAddress: "",
   validUntil: "",
+  paymentCondition: "",
   notes: "",
 };
 
@@ -497,9 +508,7 @@ const QuotePDFDocument = ({ quote, items }: { quote: any; items: any[] }) => {
         {/* Header Section with Logo */}
         <View style={pdfStyles.headerSection}>
           <View style={pdfStyles.logoContainer}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#fd6301', letterSpacing: 0.5 }}>PINTURAS</Text>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#fd6301', letterSpacing: 0.5 }}>PANORÁMICA</Text>
-            <Text style={{ fontSize: 7, color: '#666', marginTop: 2 }}>30 años sirviendo a Chile</Text>
+            <Image src="/panoramica-logo.png" style={{ width: 140, height: 'auto' }} />
           </View>
           <View style={pdfStyles.headerRight}>
             <Text style={pdfStyles.mainTitle}>COTIZACIÓN</Text>
@@ -577,10 +586,7 @@ const QuotePDFDocument = ({ quote, items }: { quote: any; items: any[] }) => {
             <Text style={pdfStyles.totalLabel}>Subtotal:</Text>
             <Text style={pdfStyles.totalValue}>{formatCurrency(quote.subtotal)}</Text>
           </View>
-          <View style={pdfStyles.totalRow}>
-            <Text style={pdfStyles.totalLabel}>Subtotal neto:</Text>
-            <Text style={pdfStyles.totalValue}>{formatCurrency(quote.subtotal)}</Text>
-          </View>
+
           <View style={pdfStyles.totalRow}>
             <Text style={pdfStyles.totalLabel}>IVA (19%):</Text>
             <Text style={pdfStyles.totalValue}>{formatCurrency(quote.taxAmount)}</Text>
@@ -859,6 +865,16 @@ export default function TomadorPedidos() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [productQuantities, setProductQuantities] = useState<Record<string, number>>({});
 
+  // Salesperson assignment for admin/supervisor
+  const [selectedCreatorId, setSelectedCreatorId] = useState<string>("");
+  const isAdminOrSupervisor = user?.role === 'admin' || user?.role === 'supervisor';
+
+  // Fetch users list for salesperson assignment dropdown (admin/supervisor only)
+  const { data: allUsers } = useQuery<any[]>({
+    queryKey: ['/api/users'],
+    enabled: isAdminOrSupervisor,
+  });
+
   // Builder client search states (autocomplete inside Constructor de Presupuesto)
   const [builderClientSearch, setBuilderClientSearch] = useState("");
   const [debouncedBuilderClientSearch, setDebouncedBuilderClientSearch] = useState("");
@@ -1086,11 +1102,18 @@ export default function TomadorPedidos() {
     toast({ title: 'Producto personalizado agregado' });
   };
 
-  // Consolidated init query - fetches orders + units + colors in one HTTP roundtrip
+  // Consolidated init query - fetches orders + units + colors + quoteStats in one HTTP roundtrip
   const { data: tomadorInit } = useQuery<{
     orders: any[];
     units: string[];
     colors: string[];
+    quoteStats: {
+      activeQuotes: number;
+      totalAmount: number;
+      monthlyCount: number;
+      acceptedCount: number;
+      totalQuotes: number;
+    };
   }>({
     queryKey: ['/api/tomador/init'],
     queryFn: async () => {
@@ -1824,6 +1847,8 @@ export default function TomadorPedidos() {
           status: "draft" as const,
           // Convert validUntil string to ISO string if it exists
           validUntil: quoteForm.validUntil ? new Date(quoteForm.validUntil).toISOString() : null,
+          // Allow admin/supervisor to assign creator
+          ...(isAdminOrSupervisor && selectedCreatorId ? { createdBy: selectedCreatorId } : {}),
         };
 
         const response = await apiRequest(`/api/quotes/${editingQuoteId}`, {
@@ -2299,10 +2324,7 @@ export default function TomadorPedidos() {
           <span>Descuento aplicado:</span>
           <span>-${formatCurrency(discount)}</span>
         </div>` : ''}
-        <div class="total-row">
-          <span>Subtotal neto:</span>
-          <span>${formatCurrency(netTotal)}</span>
-        </div>
+
         <div class="total-row">
           <span>IVA (19%):</span>
           <span>${formatCurrency(tax)}</span>
@@ -2321,7 +2343,11 @@ export default function TomadorPedidos() {
           <li>Precios válidos por 7 días hábiles desde la emisión de esta cotización.</li>
           <li>Todos los precios están expresados en pesos chilenos (CLP) e incluyen IVA.</li>
           <li>Los productos están sujetos a disponibilidad de stock.</li>
-          <li>Condiciones de pago: según acuerdo comercial.</li>
+          <li><strong>Condición de pago:</strong> ${(() => {
+            const pc = (quote as any).paymentCondition || quoteForm.paymentCondition || '';
+            const found = [{ value: 'transferencia', label: 'Transferencia Bancaria' }, { value: 'boton_pago', label: 'Botón de Pago (Tarjeta)' }, { value: 'credito', label: 'Crédito' }, { value: 'credito_30', label: 'Crédito a 30 días' }, { value: 'credito_45', label: 'Crédito a 45 días' }, { value: 'credito_60', label: 'Crédito a 60 días' }].find(p => p.value === pc);
+            return found ? found.label : 'Según acuerdo comercial';
+          })()}</li>
         </ul>
       </div>
     </div>
@@ -2989,10 +3015,7 @@ export default function TomadorPedidos() {
           <span>Subtotal:</span>
           <span>${formatCurrency(subtotal)}</span>
         </div>
-        <div class="total-row">
-          <span>Subtotal neto:</span>
-          <span>${formatCurrency(netTotal)}</span>
-        </div>
+
         <div class="total-row">
           <span>IVA (19%):</span>
           <span>${formatCurrency(tax)}</span>
@@ -3144,6 +3167,8 @@ export default function TomadorPedidos() {
           status: "draft" as const,
           // Convert validUntil string to ISO string if it exists
           validUntil: quoteForm.validUntil ? new Date(quoteForm.validUntil).toISOString() : null,
+          // Allow admin/supervisor to assign creator
+          ...(isAdminOrSupervisor && selectedCreatorId ? { createdBy: selectedCreatorId } : {}),
         };
 
         const response = await apiRequest(`/api/quotes/${editingQuoteId}`, {
@@ -3221,6 +3246,8 @@ export default function TomadorPedidos() {
           status: "draft" as const,
           // Convert validUntil string to ISO string if it exists
           validUntil: quoteForm.validUntil ? new Date(quoteForm.validUntil).toISOString() : null,
+          // Allow admin/supervisor to assign creator
+          ...(isAdminOrSupervisor && selectedCreatorId ? { createdBy: selectedCreatorId } : {}),
         };
 
         const response = await apiRequest('/api/quotes', {
@@ -3512,11 +3539,12 @@ export default function TomadorPedidos() {
 
   return (
     <>
-      {/* Premium Header */}
+      {/* Premium Header with Action Buttons */}
       <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 ${isMobile ? 'px-4 py-5 mx-3 mt-3' : 'px-6 py-8 mx-3 sm:mx-4 lg:mx-6 mt-8'}`}>
         {/* Background decorative elements */}
         <div className="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-orange-500/10 rounded-full blur-3xl" />
         <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-orange-600/5 rounded-full blur-[100px]" />
 
         <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -3532,23 +3560,14 @@ export default function TomadorPedidos() {
               </p>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className={`${isMobile
-        ? 'px-3 pb-12 mt-3'
-        : 'px-3 sm:px-4 lg:px-6 pb-12 mt-6'
-        }`}>
-        <div className={`space-y-6 ${isMobile ? 'space-y-4' : ''}`}>
-
-          {/* Create Quote Button - Hidden in mobile when client search is open */}
+          {/* Action Buttons in Header */}
           {!(isMobile && showClientSearch) && (
-            <div className={`${isMobile ? 'grid grid-cols-2 gap-2' : 'flex justify-end gap-3'}`}>
+            <div className="flex items-center gap-2">
               <Button
                 onClick={handleCreateQuoteForNewClient}
-                className={`bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 ${isMobile ? 'w-full h-12 text-sm font-semibold rounded-xl' : 'rounded-xl px-6'
-                  }`}
-                size={isMobile ? "sm" : "lg"}
+                className={`bg-gradient-to-r from-orange-400 to-orange-600 hover:from-orange-500 hover:to-orange-700 text-white shadow-lg shadow-orange-500/30 flex items-center justify-center gap-2 border border-orange-400/30 ${isMobile ? 'h-10 text-xs font-semibold rounded-xl px-3' : 'rounded-xl px-5 h-10'}`}
+                size="sm"
                 data-testid="button-create-quote-new-client"
               >
                 <Calculator className="w-4 h-4" />
@@ -3557,9 +3576,8 @@ export default function TomadorPedidos() {
               <Link href="/presupuestos-avanzados">
                 <Button
                   variant="outline"
-                  className={`border-orange-200 text-orange-600 hover:bg-orange-50 bg-orange-50/50 flex items-center justify-center gap-2 ${isMobile ? 'w-full h-12 text-sm font-semibold rounded-xl' : 'rounded-xl px-6'
-                    }`}
-                  size={isMobile ? "sm" : "lg"}
+                  className={`border-slate-600 text-slate-300 hover:bg-slate-700/50 hover:text-white bg-slate-800/50 backdrop-blur-sm flex items-center justify-center gap-2 ${isMobile ? 'h-10 text-xs font-semibold rounded-xl px-3' : 'rounded-xl px-5 h-10'}`}
+                  size="sm"
                   data-testid="button-presupuestos-avanzados"
                 >
                   <FileText className="w-4 h-4" />
@@ -3568,6 +3586,99 @@ export default function TomadorPedidos() {
               </Link>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* KPI Stats Cards */}
+      {!isMobile && (
+        <div className="grid grid-cols-4 gap-4 px-3 sm:px-4 lg:px-6 -mt-5 relative z-10">
+          {[
+            {
+              label: "Cotizaciones Activas",
+              value: tomadorInit?.quoteStats?.activeQuotes ?? '—',
+              icon: FileText,
+              gradient: "from-blue-500 to-blue-600",
+              bgLight: "bg-blue-50",
+              textColor: "text-blue-600",
+              shadowColor: "shadow-blue-500/10",
+            },
+            {
+              label: "Monto en Cotizaciones",
+              value: tomadorInit?.quoteStats?.totalAmount != null
+                ? `$${Math.round(tomadorInit.quoteStats.totalAmount).toLocaleString('es-CL')}`
+                : '—',
+              icon: TrendingUp,
+              gradient: "from-emerald-500 to-emerald-600",
+              bgLight: "bg-emerald-50",
+              textColor: "text-emerald-600",
+              shadowColor: "shadow-emerald-500/10",
+            },
+            {
+              label: "Cotizaciones del Mes",
+              value: tomadorInit?.quoteStats?.monthlyCount ?? '—',
+              icon: BarChart3,
+              gradient: "from-violet-500 to-violet-600",
+              bgLight: "bg-violet-50",
+              textColor: "text-violet-600",
+              shadowColor: "shadow-violet-500/10",
+            },
+            {
+              label: "Aprobadas / Convertidas",
+              value: tomadorInit?.quoteStats?.acceptedCount ?? '—',
+              icon: CheckCircle2,
+              gradient: "from-amber-500 to-orange-500",
+              bgLight: "bg-amber-50",
+              textColor: "text-amber-600",
+              shadowColor: "shadow-amber-500/10",
+            },
+          ].map((kpi, idx) => (
+            <div
+              key={idx}
+              className={`bg-white rounded-2xl border border-gray-100 p-5 shadow-sm ${kpi.shadowColor} hover:shadow-md hover:border-gray-200 transition-all duration-300 group`}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className={`h-10 w-10 rounded-xl ${kpi.bgLight} flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
+                  <kpi.icon className={`h-5 w-5 ${kpi.textColor}`} />
+                </div>
+              </div>
+              <div className="text-2xl font-bold text-gray-900 tracking-tight">
+                {kpi.value}
+              </div>
+              <div className="text-xs text-gray-500 mt-1 font-medium">
+                {kpi.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Mobile KPI Cards - Compact */}
+      {isMobile && (
+        <div className="grid grid-cols-2 gap-2 px-3 -mt-3 relative z-10">
+          {[
+            { label: "Activas", value: tomadorInit?.quoteStats?.activeQuotes ?? '—', icon: FileText, color: "text-blue-600", bg: "bg-blue-50" },
+            { label: "Monto", value: tomadorInit?.quoteStats?.totalAmount != null ? `$${Math.round(tomadorInit.quoteStats.totalAmount / 1000).toLocaleString('es-CL')}K` : '—', icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
+            { label: "Mes", value: tomadorInit?.quoteStats?.monthlyCount ?? '—', icon: BarChart3, color: "text-violet-600", bg: "bg-violet-50" },
+            { label: "Aprobadas", value: tomadorInit?.quoteStats?.acceptedCount ?? '—', icon: CheckCircle2, color: "text-amber-600", bg: "bg-amber-50" },
+          ].map((kpi, idx) => (
+            <div key={idx} className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm flex items-center gap-3">
+              <div className={`h-9 w-9 rounded-lg ${kpi.bg} flex items-center justify-center flex-shrink-0`}>
+                <kpi.icon className={`h-4 w-4 ${kpi.color}`} />
+              </div>
+              <div>
+                <div className="text-base font-bold text-gray-900 leading-tight">{kpi.value}</div>
+                <div className="text-[10px] text-gray-500 font-medium">{kpi.label}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className={`${isMobile
+        ? 'px-3 pb-12 mt-4'
+        : 'px-3 sm:px-4 lg:px-6 pb-12 mt-6'
+        }`}>
+        <div className={`space-y-6 ${isMobile ? 'space-y-4' : ''}`}>
 
           {/* Client Search Section - Mobile Optimized */}
           {isMobile ? (
@@ -4146,6 +4257,47 @@ export default function TomadorPedidos() {
                             className="text-base"
                             style={{ fontSize: '16px' }}
                           />
+                        </div>
+                        {/* Salesperson Assignment - Admin/Supervisor only */}
+                        {isAdminOrSupervisor && allUsers && allUsers.length > 0 && (
+                          <div>
+                            <Label htmlFor="mobile-creator">Asignar a Vendedor</Label>
+                            <Select
+                              value={selectedCreatorId || "self"}
+                              onValueChange={(value) => setSelectedCreatorId(value === "self" ? "" : value)}
+                            >
+                              <SelectTrigger className="h-12 text-base" style={{ fontSize: '16px' }} data-testid="mobile-select-creator">
+                                <SelectValue placeholder="Yo mismo (administrador)" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="self">Yo mismo (administrador)</SelectItem>
+                                {allUsers.filter((u: any) => u.isActive !== false).map((u: any) => (
+                                  <SelectItem key={u.id} value={u.id}>
+                                    {u.salespersonName || u.email} {u.role === 'supervisor' ? '(Supervisor)' : u.role === 'admin' ? '(Admin)' : ''}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-gray-500 mt-1">Seleccione el vendedor que genera esta cotización</p>
+                          </div>
+                        )}
+                        {/* Payment Condition */}
+                        <div>
+                          <Label htmlFor="mobile-payment-condition">Condición de Pago</Label>
+                          <Select
+                            value={quoteForm.paymentCondition || "none"}
+                            onValueChange={(value) => setQuoteForm(prev => ({ ...prev, paymentCondition: value === "none" ? "" : value }))}
+                          >
+                            <SelectTrigger className="h-12 text-base" style={{ fontSize: '16px' }} data-testid="mobile-select-payment">
+                              <SelectValue placeholder="Seleccionar condición de pago" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Sin especificar</SelectItem>
+                              {PAYMENT_CONDITIONS.map((pc) => (
+                                <SelectItem key={pc.value} value={pc.value}>{pc.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </CardContent>
                     </Card>
@@ -4828,6 +4980,47 @@ export default function TomadorPedidos() {
                                 data-testid="modal-textarea-notes"
                                 placeholder="Condiciones especiales, términos, etc."
                               />
+                            </div>
+                            {/* Salesperson Assignment - Admin/Supervisor only */}
+                            {isAdminOrSupervisor && allUsers && allUsers.length > 0 && (
+                              <div className="col-span-2">
+                                <Label htmlFor="modal-creator">Asignar a Vendedor</Label>
+                                <Select
+                                  value={selectedCreatorId || "self"}
+                                  onValueChange={(value) => setSelectedCreatorId(value === "self" ? "" : value)}
+                                >
+                                  <SelectTrigger data-testid="modal-select-creator">
+                                    <SelectValue placeholder="Yo mismo (administrador)" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="self">Yo mismo (administrador)</SelectItem>
+                                    {allUsers.filter((u: any) => u.isActive !== false).map((u: any) => (
+                                      <SelectItem key={u.id} value={u.id}>
+                                        {u.salespersonName || u.email} {u.role === 'supervisor' ? '(Supervisor)' : u.role === 'admin' ? '(Admin)' : ''}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <p className="text-xs text-gray-500 mt-1">Seleccione el vendedor que genera esta cotización</p>
+                              </div>
+                            )}
+                            {/* Payment Condition */}
+                            <div>
+                              <Label htmlFor="modal-payment-condition">Condición de Pago</Label>
+                              <Select
+                                value={quoteForm.paymentCondition || "none"}
+                                onValueChange={(value) => setQuoteForm(prev => ({ ...prev, paymentCondition: value === "none" ? "" : value }))}
+                              >
+                                <SelectTrigger data-testid="modal-select-payment">
+                                  <SelectValue placeholder="Seleccionar condición de pago" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">Sin especificar</SelectItem>
+                                  {PAYMENT_CONDITIONS.map((pc) => (
+                                    <SelectItem key={pc.value} value={pc.value}>{pc.label}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </div>
                           </div>
                         </CardContent>
