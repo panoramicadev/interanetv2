@@ -929,7 +929,7 @@ export default function TomadorPedidos() {
   });
 
   const computedCustomUnitPrice = customProduct.pricingMode === 'calculated'
-    ? (customProduct.profitMargin > 0 ? Math.round(customProduct.costOfProduction / (customProduct.profitMargin / 100)) : 0)
+    ? (customProduct.profitMargin > 0 && customProduct.profitMargin < 100 ? Math.round(customProduct.costOfProduction / (1 - customProduct.profitMargin / 100)) : 0)
     : customProduct.directPrice;
 
   // Función para verificar si el RUT existe
