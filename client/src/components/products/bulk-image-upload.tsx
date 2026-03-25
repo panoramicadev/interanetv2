@@ -232,8 +232,38 @@ export default function BulkImageUpload({ onComplete }: BulkImageUploadProps) {
         </div>
       </div>
 
-      {/* Drop Zone (only when not processing) */}
-      {!isProcessing && !isComplete && (
+      {/* Upload Loading State */}
+      {isUploading && (
+        <div className="space-y-4">
+          <div className="border-2 border-orange-300 bg-orange-50/50 dark:bg-orange-950/20 rounded-xl p-8 text-center">
+            <div className="flex flex-col items-center gap-4">
+              <div className="relative">
+                <div className="w-16 h-16 rounded-full border-4 border-orange-200 border-t-orange-500 animate-spin"></div>
+                <Upload className="h-6 w-6 text-orange-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-gray-100 text-lg">
+                  Subiendo archivo...
+                </p>
+                <p className="text-sm text-gray-500 mt-1">
+                  {selectedFile?.name} ({((selectedFile?.size || 0) / (1024 * 1024)).toFixed(1)} MB)
+                </p>
+                <p className="text-xs text-gray-400 mt-2">
+                  Esto puede tomar unos momentos dependiendo del tamaño del archivo
+                </p>
+              </div>
+              <div className="w-full max-w-xs">
+                <div className="h-1.5 bg-orange-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-orange-500 rounded-full animate-pulse" style={{ width: '60%' }}></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Drop Zone (only when not uploading, processing, or complete) */}
+      {!isUploading && !isProcessing && !isComplete && (
         <>
           <div
             onDragOver={handleDragOver}
@@ -306,17 +336,8 @@ export default function BulkImageUpload({ onComplete }: BulkImageUploadProps) {
                 disabled={isUploading}
                 className="bg-orange-500 hover:bg-orange-600 text-white gap-2"
               >
-                {isUploading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Subiendo...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4" />
-                    Iniciar Carga
-                  </>
-                )}
+                <Upload className="h-4 w-4" />
+                Iniciar Carga
               </Button>
             </div>
           )}

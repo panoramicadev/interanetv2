@@ -532,11 +532,11 @@ export default function ListaPrecios() {
                       <TableCell className="font-mono text-xs py-2" data-testid={`text-codigo-${item.id}`}>
                         {item.codigo}
                       </TableCell>
-                      <TableCell className="text-xs py-2 max-w-[200px]" data-testid={`text-producto-${item.id}`}>
+                      <TableCell className="text-xs py-2 max-w-[280px]" data-testid={`text-producto-${item.id}`}>
                         <TooltipProvider delayDuration={200}>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span className="block truncate cursor-default">{item.producto}</span>
+                              <span className="block leading-tight cursor-default">{item.producto}</span>
                             </TooltipTrigger>
                             <TooltipContent side="top" className="max-w-xs text-xs">
                               {item.producto}
