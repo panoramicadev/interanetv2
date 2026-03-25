@@ -6451,6 +6451,23 @@ export function registerRoutes(app: Express): Server {
     res.json(stats);
   }));
 
+  // Get ecommerce product image URL by codigo (for product detail page fallback)
+  app.get('/api/ecommerce/admin/product-image/:codigo', requireAuth, async (req: any, res: any) => {
+    try {
+      const { codigo } = req.params;
+      const { ecommerceProducts, priceList } = await import('@shared/schema');
+      const [result] = await db
+        .select({ imagenUrl: ecommerceProducts.imagenUrl })
+        .from(ecommerceProducts)
+        .innerJoin(priceList, eq(ecommerceProducts.priceListId, priceList.id))
+        .where(eq(priceList.codigo, codigo))
+        .limit(1);
+      res.json({ imagenUrl: result?.imagenUrl || null });
+    } catch (error) {
+      res.json({ imagenUrl: null });
+    }
+  });
+
   // Update eCommerce product in admin panel
   app.patch('/api/ecommerce/admin/productos/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
@@ -9771,6 +9788,7 @@ export function registerRoutes(app: Express): Server {
       };
       // Explicitly set imagenDestacada AFTER spread to ensure ecom fallback is never overridden
       responseData.imagenDestacada = imagenDestacada || ecomImageUrl || null;
+      console.log(`[PRODUCT-CONTENT] ${codigo} -> imagenDestacada: ${responseData.imagenDestacada ? responseData.imagenDestacada.substring(0, 60) + '...' : 'NULL'}, ecomImageUrl: ${ecomImageUrl ? 'SET' : 'NULL'}`);
 
       res.json(responseData);
     } catch (error) {

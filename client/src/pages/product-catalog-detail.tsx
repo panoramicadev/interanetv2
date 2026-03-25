@@ -172,9 +172,18 @@ export default function ProductCatalogDetail() {
         enabled: !!codigo,
     });
 
-    // Resolve the best available image
-    // The product-content API already falls back to ecommerce_products.imagenUrl if imagenDestacada is empty
-    const productImageUrl = content?.imagenDestacada || null;
+    // Fetch ecommerce product image directly as a fallback
+    const { data: ecomProduct } = useQuery<{ imagenUrl?: string }>({
+        queryKey: ['/api/ecommerce/admin/product-image', codigo],
+        queryFn: async () => {
+            const res = await apiRequest('GET', `/api/ecommerce/admin/product-image/${encodeURIComponent(codigo!)}`);
+            return res.json();
+        },
+        enabled: !!codigo,
+    });
+
+    // Resolve the best available image (multiple fallback sources)
+    const productImageUrl = content?.imagenDestacada || ecomProduct?.imagenUrl || null;
 
     // Sync content into form state when loaded
     useEffect(() => {
