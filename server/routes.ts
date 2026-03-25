@@ -10805,10 +10805,38 @@ export function registerRoutes(app: Express): Server {
       const uniqueFileName = `${sku}_${timestamp}${fileExtension}`;
 
       try {
-        // Use Object Storage (persistent) instead of local filesystem (ephemeral on Railway)
-        const objectStorageService = new ObjectStorageService();
-        const imageUrl = await objectStorageService.uploadImage(uniqueFileName, imageBuffer, getContentType(fileExtension.substring(1)));
-        console.log(`☁️ [ZIP IMPORT] Saved to Object Storage: ${imageUrl}`);
+        let imageUrl: string;
+
+        // Use Supabase Storage
+        if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY && process.env.SUPABASE_STORAGE_BUCKET) {
+          const { createClient } = await import('@supabase/supabase-js');
+          const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+          const bucket = process.env.SUPABASE_STORAGE_BUCKET;
+
+          const { data, error } = await supabase.storage
+            .from(bucket)
+            .upload(`product-images/${uniqueFileName}`, imageBuffer, {
+              contentType: getContentType(fileExtension.substring(1)),
+              upsert: true,
+            });
+
+          if (error) {
+            console.error(`❌ [ZIP IMPORT] Supabase Storage error for ${sku}:`, error.message);
+            throw error;
+          }
+
+          const { data: urlData } = supabase.storage
+            .from(bucket)
+            .getPublicUrl(`product-images/${uniqueFileName}`);
+
+          imageUrl = urlData.publicUrl;
+          console.log(`☁️ [ZIP IMPORT] Saved to Supabase Storage: ${imageUrl}`);
+        } else {
+          // Fallback: local storage
+          const localStorage = new (await import('./localImageStorage')).LocalImageStorage();
+          imageUrl = await localStorage.uploadImage(uniqueFileName, imageBuffer, getContentType(fileExtension.substring(1)));
+          console.log(`📁 [ZIP IMPORT] Saved to local storage: ${imageUrl}`);
+        }
 
         // Update product with new image URL
         await db
@@ -11418,6 +11446,95 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/nvv/total-pending', requireAuth, asyncHandler(async (req: any, res: any) => {
     const total = await storage.getTotalPendingNVV();
     res.json({ total });
+  }));
+
+  // NVV Chart Data - daily/weekly/monthly trend (mirrors /api/sales/chart-data)
+  app.get('/api/nvv/chart-data', requireAuth, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
+    const { period = 'daily', selectedPeriod, filterType, salesperson, segment, client } = req.query;
+
+    const dateRange = selectedPeriod && filterType
+      ? getDateRange(selectedPeriod as string, filterType as string)
+      : { startDate: undefined, endDate: undefined };
+
+    // Build WHERE conditions
+    const conditions: string[] = [];
+    const params: string[] = [];
+    let paramIdx = 1;
+
+    if (dateRange.startDate) {
+      conditions.push(`feemdo >= $${paramIdx}`);
+      params.push(dateRange.startDate);
+      paramIdx++;
+    }
+    if (dateRange.endDate) {
+      conditions.push(`feemdo <= $${paramIdx}`);
+      params.push(dateRange.endDate);
+      paramIdx++;
+    }
+    if (salesperson) {
+      conditions.push(`nombre_vendedor = $${paramIdx}`);
+      params.push(salesperson as string);
+      paramIdx++;
+    }
+    if (segment) {
+      conditions.push(`nombre_segmento_cliente = $${paramIdx}`);
+      params.push(segment as string);
+      paramIdx++;
+    }
+    if (client) {
+      conditions.push(`nokoen = $${paramIdx}`);
+      params.push(client as string);
+      paramIdx++;
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    // Determine grouping expression
+    let groupExpr: string;
+    if (period === 'daily') {
+      groupExpr = "TO_CHAR(feemdo::date, 'YYYY-MM-DD')";
+    } else if (period === 'weekly') {
+      groupExpr = "TO_CHAR(DATE_TRUNC('week', feemdo::date), 'YYYY-\"W\"IW')";
+    } else {
+      groupExpr = "TO_CHAR(feemdo::date, 'YYYY-MM')";
+    }
+
+    const query = `
+      SELECT ${groupExpr} as period, COALESCE(SUM(CAST(monto AS numeric)), 0) as sales
+      FROM nvv.fact_nvv
+      ${whereClause}
+      GROUP BY ${groupExpr}
+      ORDER BY period ASC
+    `;
+
+    // Use raw SQL with parameter interpolation (safe — params are validated strings)
+    let finalQuery = query;
+    params.forEach((p, i) => {
+      finalQuery = finalQuery.replace(`$${i + 1}`, `'${p.replace(/'/g, "''")}'`);
+    });
+
+    const result = await db.execute(sql.raw(finalQuery));
+    const rows = (result as any).rows || result;
+
+    let chartData = rows.map((r: any) => ({
+      period: r.period,
+      sales: Number(r.sales) || 0,
+    }));
+
+    // Transform labels to Spanish month names for yearly monthly view
+    if (filterType === 'year' && period === 'monthly') {
+      const monthNames: { [key: string]: string } = {
+        '01': 'Enero', '02': 'Febrero', '03': 'Marzo', '04': 'Abril',
+        '05': 'Mayo', '06': 'Junio', '07': 'Julio', '08': 'Agosto',
+        '09': 'Septiembre', '10': 'Octubre', '11': 'Noviembre', '12': 'Diciembre'
+      };
+      chartData = chartData.map((item: any) => ({
+        ...item,
+        period: monthNames[item.period.split('-')[1]] || item.period
+      }));
+    }
+
+    res.json(chartData);
   }));
 
   // Region Management Endpoints
@@ -17184,7 +17301,7 @@ export function registerRoutes(app: Express): Server {
 
   // Get last GRI (Guía de Recepción Interna) unit prices per SKU from SQL Server
   // Reference: Bodega 006
-  let griPriceCache: { data: Record<string, number>; timestamp: number } | null = null;
+  let griPriceCache: { data: Record<string, { price: number; date: string | null }>; timestamp: number } | null = null;
   const GRI_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
   app.get('/api/inventory/gri-prices', requireAuth, asyncHandler(async (req: any, res: any) => {
@@ -17227,18 +17344,19 @@ export function registerRoutes(app: Express): Server {
             AND d.KOPRCT IS NOT NULL
             AND d.PPPRNE > 0
         )
-        SELECT sku, precio_unitario
+        SELECT sku, precio_unitario, fecha
         FROM RankedGRI
         WHERE rn = 1
       `);
 
       await pool.close();
 
-      // Build SKU -> price map
-      const priceMap: Record<string, number> = {};
+      // Build SKU -> { price, date } map
+      const priceMap: Record<string, { price: number; date: string | null }> = {};
       for (const row of result.recordset) {
         if (row.sku && row.precio_unitario) {
-          priceMap[row.sku.toUpperCase()] = Number(row.precio_unitario);
+          const fecha = row.fecha ? new Date(row.fecha).toISOString().split('T')[0] : null;
+          priceMap[row.sku.toUpperCase()] = { price: Number(row.precio_unitario), date: fecha };
         }
       }
 

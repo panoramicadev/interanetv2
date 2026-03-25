@@ -52,7 +52,7 @@ export default function ListaPreciosMix() {
   });
 
   // GRI prices for real cost (same source as Lista Comercial)
-  const { data: griPrices } = useQuery<Record<string, number>>({
+  const { data: griPrices } = useQuery<Record<string, { price: number; date: string | null }>>({
     queryKey: ['/api/inventory/gri-prices'],
     queryFn: async () => {
       const response = await fetch('/api/inventory/gri-prices', { credentials: 'include' });
@@ -242,8 +242,9 @@ export default function ListaPreciosMix() {
                 <TableBody>
                   {data.items.map((item) => {
                     // Cost from GRI (primary) or price_list JOIN (fallback)
-                    const griCosto = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
-                    const costoNum = griCosto || (item.costoProduccion ? parseFloat(item.costoProduccion) : null);
+                    const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
+                    const costoNum = griEntry?.price || (item.costoProduccion ? parseFloat(item.costoProduccion) : null);
+                    const costoDate = griEntry?.date ?? null;
                     const precioNum = item.precio ? parseFloat(item.precio) : null;
                     let margen: number | null = null;
                     if (precioNum && costoNum && precioNum > 0) {
@@ -267,7 +268,16 @@ export default function ListaPreciosMix() {
                           {formatCurrency(item.precio)}
                         </TableCell>
                         <TableCell className="text-right text-xs py-2 font-semibold text-amber-700 dark:text-amber-400">
-                          {costoNum ? formatCurrency(costoNum) : "-"}
+                          {costoNum ? (
+                            <div>
+                              {formatCurrency(costoNum)}
+                              {costoDate && (
+                                <span className="block text-[9px] leading-tight mt-0.5 font-normal text-muted-foreground/60">
+                                  {new Date(costoDate + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' })}
+                                </span>
+                              )}
+                            </div>
+                          ) : "-"}
                         </TableCell>
                         <TableCell className="text-right text-xs py-2 font-semibold">
                           {margen !== null ? (

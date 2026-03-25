@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -88,7 +89,7 @@ export default function ListaPrecios() {
   });
 
   // Query para obtener precios GRI (costo producción desde SQL Server)
-  const { data: griPrices } = useQuery<Record<string, number>>({
+  const { data: griPrices } = useQuery<Record<string, { price: number; date: string | null }>>({
     queryKey: ['/api/inventory/gri-prices'],
     queryFn: async () => {
       const response = await fetch('/api/inventory/gri-prices', { credentials: 'include' });
@@ -531,14 +532,24 @@ export default function ListaPrecios() {
                       <TableCell className="font-mono text-xs py-2" data-testid={`text-codigo-${item.id}`}>
                         {item.codigo}
                       </TableCell>
-                      <TableCell className="text-xs py-2 max-w-[200px] truncate" data-testid={`text-producto-${item.id}`}>
-                        {item.producto}
+                      <TableCell className="text-xs py-2 max-w-[200px]" data-testid={`text-producto-${item.id}`}>
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="block truncate cursor-default">{item.producto}</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs text-xs">
+                              {item.producto}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </TableCell>
                       <TableCell className="text-xs py-2" data-testid={`text-unidad-${item.id}`}>
                         {item.unidad || '-'}
                       </TableCell>
                       {(() => {
-                        const costoGri = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
+                        const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
+                        const costoGri = griEntry?.price ?? null;
                         const costo = costoGri || (item as any).costoProduccion;
                         const costoNum = typeof costo === 'string' ? parseFloat(costo) : costo;
 
@@ -591,14 +602,27 @@ export default function ListaPrecios() {
                         );
                       })()}
                       <TableCell className="text-right text-xs py-2 font-semibold text-amber-700 dark:text-amber-400" data-testid={`text-costo-${item.id}`}>
-                        {item.codigo && griPrices?.[item.codigo.toUpperCase()]
-                          ? formatCurrency(griPrices[item.codigo.toUpperCase()])
-                          : (item as any).costoProduccion ? formatCurrency((item as any).costoProduccion) : '-'}
+                        {(() => {
+                          const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
+                          const costoValue = griEntry?.price ?? (item as any).costoProduccion;
+                          const costoDate = griEntry?.date ?? null;
+                          if (!costoValue) return '-';
+                          return (
+                            <div>
+                              {formatCurrency(costoValue)}
+                              {costoDate && (
+                                <span className="block text-[9px] leading-tight mt-0.5 font-normal text-muted-foreground/60">
+                                  {new Date(costoDate + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' })}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="text-right text-xs py-2 font-semibold" data-testid={`text-margen-${item.id}`}>
                         {(() => {
-                          const costoGri = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
-                          const costo = costoGri || (item as any).costoProduccion;
+                          const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
+                          const costo = griEntry?.price ?? (item as any).costoProduccion;
                           const minimo = typeof item.minimo === 'string' ? parseFloat(item.minimo) : item.minimo;
                           if (!costo || !minimo || costo === 0) return '-';
                           const margen = ((minimo - costo) / minimo) * 100;
@@ -608,8 +632,8 @@ export default function ListaPrecios() {
                       </TableCell>
                       <TableCell className="py-2" data-testid={`text-simulador-${item.id}`}>
                         {(() => {
-                          const costoGri = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
-                          const costo = costoGri || (item as any).costoProduccion;
+                          const griEntry = item.codigo ? griPrices?.[item.codigo.toUpperCase()] : null;
+                          const costo = griEntry?.price ?? (item as any).costoProduccion;
                           const costoNum = typeof costo === 'string' ? parseFloat(costo) : costo;
                           const simPrice = simulatorPrices[item.id];
                           const simNum = simPrice ? parseFloat(simPrice) : null;

@@ -10,6 +10,7 @@ import SalesProjectionCard from "@/components/dashboard/sales-projection-card";
 import SalesChart from "@/components/dashboard/sales-chart";
 import TopProductsChart from "@/components/dashboard/top-products-chart";
 import SegmentChart from "@/components/dashboard/segment-chart";
+import SalespersonChart from "@/components/dashboard/salesperson-chart";
 import ComunasChart from "@/components/dashboard/comunas-chart";
 import TopClientsPanel from "@/components/dashboard/top-clients-panel";
 import TopSalespeoplePanel from "@/components/dashboard/top-salespeople-panel";
@@ -1930,6 +1931,21 @@ export default function Dashboard() {
                   onSegmentClick={(segmentName) => {
                     setGlobalFilter({ type: "segment", value: segmentName });
                     setSelectedFilter("segment");
+                  }}
+                />
+              </CardWrapper>
+            )}
+
+            {/* Ventas por Vendedor - Cuando hay un segmento seleccionado */}
+            {globalFilter.type === "segment" && globalFilter.value && (
+              <CardWrapper>
+                <SalespersonChart
+                  selectedPeriod={selectedPeriod}
+                  filterType={filterType}
+                  segment={globalFilter.value}
+                  onSalespersonClick={(name) => {
+                    setGlobalFilter({ type: "salesperson", value: name });
+                    setSelectedFilter("salesperson");
                   }}
                 />
               </CardWrapper>

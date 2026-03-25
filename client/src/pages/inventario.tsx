@@ -602,7 +602,7 @@ function InventoryTable({
   });
 
   // Fetch GRI prices (last unit price per SKU from Bodega 006)
-  const { data: griPrices } = useQuery<Record<string, number>>({
+  const { data: griPrices } = useQuery<Record<string, { price: number; date: string | null }>>({
     queryKey: ['/api/inventory/gri-prices'],
     queryFn: async () => {
       const response = await fetch('/api/inventory/gri-prices', { credentials: 'include' });
@@ -781,9 +781,20 @@ function InventoryTable({
                               {item.averagePrice ? `$${item.averagePrice.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
                             </TableCell>
                             <TableCell className="text-xs text-right font-semibold text-amber-700 dark:text-amber-400 py-1 px-2 whitespace-nowrap">
-                              {griPrices?.[item.productSku?.toUpperCase()] 
-                                ? `$${griPrices[item.productSku.toUpperCase()].toLocaleString('es-CL', { maximumFractionDigits: 0 })}`
-                                : '-'}
+                              {(() => {
+                                const griEntry = griPrices?.[item.productSku?.toUpperCase()];
+                                if (!griEntry) return '-';
+                                return (
+                                  <div>
+                                    {`$${griEntry.price.toLocaleString('es-CL', { maximumFractionDigits: 0 })}`}
+                                    {griEntry.date && (
+                                      <span className="block text-[9px] leading-tight mt-0.5 font-normal text-muted-foreground/60">
+                                        {new Date(griEntry.date + 'T00:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' })}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </TableCell>
                             <TableCell className="text-xs text-right font-bold text-indigo-700 dark:text-indigo-400 py-1 px-2 whitespace-nowrap">
                               {item.totalValue ? `$${item.totalValue.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
