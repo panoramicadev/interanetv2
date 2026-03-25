@@ -859,6 +859,11 @@ export default function TomadorPedidos() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [productQuantities, setProductQuantities] = useState<Record<string, number>>({});
 
+  // Builder client search states (autocomplete inside Constructor de Presupuesto)
+  const [builderClientSearch, setBuilderClientSearch] = useState("");
+  const [debouncedBuilderClientSearch, setDebouncedBuilderClientSearch] = useState("");
+  const [showBuilderClientResults, setShowBuilderClientResults] = useState(false);
+
   // Debounce search input for client search - wait 600ms after user stops typing
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -876,6 +881,14 @@ export default function TomadorPedidos() {
 
     return () => clearTimeout(timer);
   }, [productSearchTerm]);
+
+  // Debounce builder client search - wait 400ms
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedBuilderClientSearch(builderClientSearch);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [builderClientSearch]);
 
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -916,7 +929,7 @@ export default function TomadorPedidos() {
   });
 
   const computedCustomUnitPrice = customProduct.pricingMode === 'calculated'
-    ? Math.round(customProduct.costOfProduction * (1 + customProduct.profitMargin / 100))
+    ? (customProduct.profitMargin > 0 ? Math.round(customProduct.costOfProduction / (customProduct.profitMargin / 100)) : 0)
     : customProduct.directPrice;
 
   // Función para verificar si el RUT existe
@@ -1288,6 +1301,22 @@ export default function TomadorPedidos() {
   // Extract clients array from response (same as client management)
   const clients = clientsData?.clients || [];
 
+  // Builder client search query (autocomplete inside Constructor de Presupuesto)
+  const { data: builderClientsData, isLoading: isLoadingBuilderClients } = useQuery({
+    queryKey: ['/api/clients', { search: debouncedBuilderClientSearch, context: 'builder' }],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (debouncedBuilderClientSearch) params.set('search', debouncedBuilderClientSearch);
+      params.set('limit', '10');
+      params.set('offset', '0');
+      const response = await fetch(`/api/clients?${params}`, { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch clients');
+      return response.json() as Promise<{ clients: Client[]; totalCount: number; currentPage: number; totalPages: number; }>;
+    },
+    enabled: debouncedBuilderClientSearch.length >= 2,
+  });
+  const builderClients = builderClientsData?.clients || [];
+
   // Fetch existing orders
   const { data: orders = [], isLoading: isLoadingOrders } = useQuery<Order[]>({
     queryKey: ['/api/orders'],
@@ -1391,6 +1420,23 @@ export default function TomadorPedidos() {
     setEditingQuoteId(null); // Clear editing state for new quote
     setDefaultMobileTab("products"); // Start on products tab since client info is filled
     setShowQuoteBuilder(true);
+  };
+
+  // Select client from builder autocomplete dropdown
+  const handleSelectBuilderClient = (client: Client) => {
+    setQuoteForm(prev => ({
+      ...prev,
+      clientName: client.nokoen,
+      clientId: client.id,
+      clientRut: client.rten || "",
+      clientEmail: client.email || "",
+      clientPhone: client.foen || "",
+      clientAddress: `${client.dien || ""} ${client.comuna || ""}`.trim(),
+    }));
+    setBuilderClientSearch("");
+    setDebouncedBuilderClientSearch("");
+    setShowBuilderClientResults(false);
+    setHasUnsavedChanges(true);
   };
 
   // Open quote builder for new client
@@ -3954,17 +4000,76 @@ export default function TomadorPedidos() {
                         <CardTitle className="text-lg">Información del Cliente</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        <div>
+                        <div className="relative">
                           <Label htmlFor="mobile-client-name">Nombre del Cliente *</Label>
-                          <Input
-                            id="mobile-client-name"
-                            value={quoteForm.clientName}
-                            onChange={(e) => setQuoteForm(prev => ({ ...prev, clientName: e.target.value }))}
-                            data-testid="mobile-input-client-name"
-                            placeholder="Nombre completo del cliente"
-                            className="h-12 text-base"
-                            style={{ fontSize: '16px' }}
-                          />
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                            <Input
+                              id="mobile-client-name"
+                              value={quoteForm.clientName}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setQuoteForm(prev => ({ ...prev, clientName: val, clientId: undefined }));
+                                setBuilderClientSearch(val);
+                                setShowBuilderClientResults(val.length >= 2);
+                              }}
+                              onFocus={() => {
+                                if (quoteForm.clientName.length >= 2) {
+                                  setBuilderClientSearch(quoteForm.clientName);
+                                  setShowBuilderClientResults(true);
+                                }
+                              }}
+                              onBlur={() => setTimeout(() => setShowBuilderClientResults(false), 200)}
+                              data-testid="mobile-input-client-name"
+                              placeholder="Buscar cliente por nombre..."
+                              className="h-12 text-base pl-9"
+                              style={{ fontSize: '16px' }}
+                              autoComplete="off"
+                            />
+                          </div>
+                          {/* Autocomplete dropdown */}
+                          {showBuilderClientResults && debouncedBuilderClientSearch.length >= 2 && (
+                            <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+                              {isLoadingBuilderClients ? (
+                                <div className="p-4 space-y-3">
+                                  {[...Array(3)].map((_, i) => (
+                                    <div key={i} className="flex items-center gap-3 animate-pulse">
+                                      <div className="w-9 h-9 bg-gray-200 rounded-lg flex-shrink-0" />
+                                      <div className="flex-1 space-y-1.5">
+                                        <div className="h-3.5 w-32 bg-gray-200 rounded" />
+                                        <div className="h-3 w-24 bg-gray-100 rounded" />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : builderClients.length > 0 ? (
+                                builderClients.map((client: Client) => (
+                                  <button
+                                    key={client.id}
+                                    type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => handleSelectBuilderClient(client)}
+                                    className="w-full text-left px-4 py-3 hover:bg-orange-50 transition-colors flex items-center gap-3 border-b border-gray-50 last:border-b-0"
+                                  >
+                                    <div className="w-9 h-9 bg-gradient-to-br from-orange-100 to-amber-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                                      <User className="w-4 h-4 text-orange-600" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-semibold text-gray-900 truncate">{client.nokoen}</p>
+                                      <div className="flex items-center gap-2 mt-0.5">
+                                        {client.rten && <span className="text-xs text-gray-500">RUT: {client.rten}</span>}
+                                        {client.dien && <span className="text-xs text-gray-400 truncate">• {client.dien}</span>}
+                                      </div>
+                                    </div>
+                                  </button>
+                                ))
+                              ) : (
+                                <div className="p-4 text-center text-sm text-gray-500">
+                                  No se encontraron clientes
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <div>
                           <Label htmlFor="mobile-client-rut">RUT</Label>
@@ -4592,15 +4697,75 @@ export default function TomadorPedidos() {
                       <CollapsibleContent>
                         <CardContent className="pt-0">
                           <div className="grid grid-cols-2 gap-4">
-                            <div>
+                            <div className="relative">
                               <Label htmlFor="modal-client-name">Nombre del Cliente *</Label>
-                              <Input
-                                id="modal-client-name"
-                                value={quoteForm.clientName}
-                                onChange={(e) => setQuoteForm(prev => ({ ...prev, clientName: e.target.value }))}
-                                data-testid="modal-input-client-name"
-                                placeholder="Nombre completo del cliente"
-                              />
+                              <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                                <Input
+                                  id="modal-client-name"
+                                  value={quoteForm.clientName}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setQuoteForm(prev => ({ ...prev, clientName: val, clientId: undefined }));
+                                    setBuilderClientSearch(val);
+                                    setShowBuilderClientResults(val.length >= 2);
+                                  }}
+                                  onFocus={() => {
+                                    if (quoteForm.clientName.length >= 2) {
+                                      setBuilderClientSearch(quoteForm.clientName);
+                                      setShowBuilderClientResults(true);
+                                    }
+                                  }}
+                                  onBlur={() => setTimeout(() => setShowBuilderClientResults(false), 200)}
+                                  data-testid="modal-input-client-name"
+                                  placeholder="Buscar cliente por nombre..."
+                                  className="pl-9"
+                                  autoComplete="off"
+                                />
+                              </div>
+                              {/* Autocomplete dropdown */}
+                              {showBuilderClientResults && debouncedBuilderClientSearch.length >= 2 && (
+                                <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden max-h-56 overflow-y-auto">
+                                  {isLoadingBuilderClients ? (
+                                    <div className="p-3 space-y-2.5">
+                                      {[...Array(3)].map((_, i) => (
+                                        <div key={i} className="flex items-center gap-3 animate-pulse">
+                                          <div className="w-8 h-8 bg-gray-200 rounded-lg flex-shrink-0" />
+                                          <div className="flex-1 space-y-1.5">
+                                            <div className="h-3.5 w-32 bg-gray-200 rounded" />
+                                            <div className="h-3 w-24 bg-gray-100 rounded" />
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : builderClients.length > 0 ? (
+                                    builderClients.map((client: Client) => (
+                                      <button
+                                        key={client.id}
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => handleSelectBuilderClient(client)}
+                                        className="w-full text-left px-3 py-2.5 hover:bg-orange-50 transition-colors flex items-center gap-3 border-b border-gray-50 last:border-b-0"
+                                      >
+                                        <div className="w-8 h-8 bg-gradient-to-br from-orange-100 to-amber-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                                          <User className="w-4 h-4 text-orange-600" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-sm font-semibold text-gray-900 truncate">{client.nokoen}</p>
+                                          <div className="flex items-center gap-2 mt-0.5">
+                                            {client.rten && <span className="text-xs text-gray-500">RUT: {client.rten}</span>}
+                                            {client.dien && <span className="text-xs text-gray-400 truncate">• {client.dien}</span>}
+                                          </div>
+                                        </div>
+                                      </button>
+                                    ))
+                                  ) : (
+                                    <div className="p-3 text-center text-sm text-gray-500">
+                                      No se encontraron clientes
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             <div>
                               <Label htmlFor="modal-client-rut">RUT</Label>
