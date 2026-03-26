@@ -554,73 +554,61 @@ export default function TiendaPage() {
       {/* Header */}
       <header className="bg-white shadow-sm border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Top bar with contact info */}
-          <div className="hidden md:flex items-center justify-between py-2 text-sm text-gray-600 border-b border-gray-100">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center gap-1">
-                <Phone className="h-4 w-4" />
-                <span>{storeConfig?.phone || "+56 2 2345 6789"}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Mail className="h-4 w-4" />
-                <span>{storeConfig?.email || "contacto@panoramica.cl"}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <MapPin className="h-4 w-4" />
-                <span>{storeConfig?.address || "Santiago, Chile"}</span>
-              </div>
+          {/* Top accent strip */}
+          <div className="hidden md:flex items-center justify-between py-1.5 text-xs text-gray-500 border-b border-gray-100">
+            <div className="flex items-center gap-5">
+              <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{storeConfig?.phone || "+56 2 2345 6789"}</span>
+              <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{storeConfig?.email || "contacto@panoramica.cl"}</span>
+              <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{storeConfig?.address || "Santiago, Chile"}</span>
             </div>
-            <div className="text-[#FF6E23] font-medium">
-              ¡Envío gratis en compras sobre $250.000!
-            </div>
+            <span className="text-[#FF6E23] font-semibold text-xs">Envío gratis sobre $250.000</span>
           </div>
 
           {/* Main header */}
-          <div className="flex items-center justify-between py-4">
+          <div className="flex items-center justify-between py-3 gap-4">
             {/* Logo */}
             <Link href="/tienda">
-              <div className="flex items-center cursor-pointer">
+              <div className="flex items-center cursor-pointer flex-shrink-0">
                 <img 
                   src={storeConfig?.logoUrl || "/panoramica-logo.png"} 
                   alt="Panorámica"
-                  className="h-12 md:h-16 w-auto"
+                  className="h-10 md:h-12 w-auto"
                 />
               </div>
             </Link>
 
             {/* Search Bar - Desktop */}
-            <div className="hidden md:flex flex-1 max-w-2xl mx-8">
+            <div className="hidden md:flex flex-1 max-w-xl">
               <div className="relative w-full">
-                <Search className="absolute left-4 top-3.5 h-5 w-5 text-gray-400" />
+                <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="¿Qué estás buscando?"
+                  placeholder="Buscar productos..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-12 pr-4 py-3 text-base rounded-full border-2 border-gray-200 focus:border-[#FF6E23] focus:ring-[#FF6E23]"
+                  className="pl-10 pr-4 py-2 text-sm rounded-full border border-gray-200 focus:border-[#FF6E23] focus:ring-1 focus:ring-[#FF6E23] bg-gray-50 hover:bg-white transition-colors"
                   data-testid="input-search-tienda"
                 />
               </div>
             </div>
 
             {/* Right section */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
               {/* User Menu */}
               {user && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button 
                       variant="ghost" 
-                      className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 rounded-lg"
+                      size="sm"
+                      className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-100 rounded-lg"
                       data-testid="button-user-menu"
                     >
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-[#FF6E23] rounded-full flex items-center justify-center">
-                          <User className="h-4 w-4 text-white" />
-                        </div>
-                        <span className="hidden md:block text-sm font-medium text-gray-700">
-                          {user.firstName || user.email}
-                        </span>
+                      <div className="w-7 h-7 bg-[#FF6E23] rounded-full flex items-center justify-center">
+                        <User className="h-3.5 w-3.5 text-white" />
                       </div>
+                      <span className="hidden lg:block text-sm font-medium text-gray-700 max-w-[100px] truncate">
+                        {user.firstName || user.email?.split('@')[0]}
+                      </span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
@@ -666,24 +654,25 @@ export default function TiendaPage() {
               {/* Mobile menu toggle */}
               <Button
                 variant="ghost"
-                className="md:hidden p-2"
+                size="sm"
+                className="md:hidden p-1.5"
                 onClick={() => setShowMobileMenu(!showMobileMenu)}
                 data-testid="button-mobile-menu"
               >
-                {showMobileMenu ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                {showMobileMenu ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </Button>
             </div>
           </div>
 
           {/* Mobile search */}
-          <div className="md:hidden pb-4">
+          <div className="md:hidden pb-3">
             <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="Buscar productos..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 border-gray-300 rounded-lg"
+                className="pl-9 text-sm border-gray-200 rounded-full bg-gray-50"
                 data-testid="input-search-mobile"
               />
             </div>
@@ -803,20 +792,6 @@ export default function TiendaPage() {
           ))}
         </div>
         
-        {/* Navigation dots */}
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2 z-10">
-          {banners.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => setCurrentSlide(index)}
-              className={`w-3 h-3 rounded-full transition-all duration-300 hover:scale-110 ${
-                index === currentSlide ? 'bg-white shadow-lg' : 'bg-white/60 hover:bg-white/80'
-              }`}
-              data-testid={`banner-dot-${index}`}
-              aria-label={`Ir a slide ${index + 1}`}
-            />
-          ))}
-        </div>
       </section>
 
       {/* Hero Banner - Hidden when static banner is present */}
