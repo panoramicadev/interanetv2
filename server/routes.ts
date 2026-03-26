@@ -7780,10 +7780,14 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "No autorizado" });
       }
 
-      const allUsers = await storage.getAllUsers();
-      const clientUsers = allUsers.filter((u: any) => u.role === 'client');
+      // Direct query on users table for role='client'
+      const { users: usersTable } = await import('@shared/schema');
+      const { eq } = await import('drizzle-orm');
+      const { db } = await import('./db');
       
-      // For each client user, try to get their client record for extra info
+      const clientUsers = await db.select().from(usersTable).where(eq(usersTable.role, 'client'));
+      
+      // Enrich each client user with their client record
       const enrichedClients = await Promise.all(clientUsers.map(async (clientUser: any) => {
         try {
           const clientRecord = await storage.getClientByUserId(clientUser.id);
@@ -7794,10 +7798,10 @@ export function registerRoutes(app: Express): Server {
             lastName: clientUser.lastName,
             role: clientUser.role,
             createdAt: clientUser.createdAt,
-            lastLogin: clientUser.lastLogin,
+            lastLogin: clientUser.lastLogin || null,
             isActive: clientUser.isActive !== false,
             clientCode: clientRecord?.codigo || null,
-            clientName: clientRecord?.nombre || clientUser.firstName ? `${clientUser.firstName || ''} ${clientUser.lastName || ''}`.trim() : clientUser.email,
+            clientName: clientRecord?.nombre || (clientUser.firstName ? `${clientUser.firstName || ''} ${clientUser.lastName || ''}`.trim() : clientUser.email),
             rut: clientRecord?.rut || null,
             phone: clientRecord?.phone || null,
             address: clientRecord?.dien || null,
@@ -7812,7 +7816,7 @@ export function registerRoutes(app: Express): Server {
             lastName: clientUser.lastName,
             role: clientUser.role,
             createdAt: clientUser.createdAt,
-            lastLogin: clientUser.lastLogin,
+            lastLogin: clientUser.lastLogin || null,
             isActive: clientUser.isActive !== false,
             clientCode: null,
             clientName: clientUser.firstName ? `${clientUser.firstName || ''} ${clientUser.lastName || ''}`.trim() : clientUser.email,
