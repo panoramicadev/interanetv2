@@ -1178,26 +1178,22 @@ export default function TiendaPage() {
                                 {activeVariants.map(variant => {
                                   const variantQty = quantities[variant.sku] || variant.minUnit || 1;
                                   return (
-                                    <div key={variant.sku} className="bg-gray-50 border border-gray-100 rounded-lg p-2 sm:p-2.5 hover:border-[#FF6E23]/20 transition-all">
-                                      <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2">
-                                        {/* Format + Price */}
-                                        <div className="flex items-center justify-between sm:flex-1 sm:min-w-0">
-                                          <div className="flex items-center gap-1.5">
-                                            <span className="text-xs font-bold text-gray-800 truncate">{variant.format}</span>
-                                            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700 whitespace-nowrap hidden sm:inline">
+                                    <div key={variant.sku} className="bg-gray-50 border border-gray-100 rounded-lg p-2.5 hover:border-[#FF6E23]/20 transition-all">
+                                      {/* Desktop: single row layout */}
+                                      <div className="hidden sm:flex items-center gap-2">
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-xs font-bold text-gray-800">{variant.format}</span>
+                                            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700 whitespace-nowrap">
                                               Disponible
                                             </span>
                                           </div>
                                           {variant.price && variant.price > 0 ? (
-                                            <span className="text-sm font-bold text-gray-900 sm:hidden">{formatPrice(variant.price)}</span>
-                                          ) : null}
+                                            <span className="text-sm font-bold text-gray-900">{formatPrice(variant.price)}</span>
+                                          ) : (
+                                            <span className="text-[10px] text-gray-400">Sin precio</span>
+                                          )}
                                         </div>
-                                        {variant.price && variant.price > 0 ? (
-                                          <span className="text-sm font-bold text-gray-900 hidden sm:block">{formatPrice(variant.price)}</span>
-                                        ) : (
-                                          <span className="text-[10px] text-gray-400 hidden sm:block">Sin precio</span>
-                                        )}
-                                        {/* Qty selector + Add */}
                                         <div className="flex items-center gap-1.5 flex-shrink-0">
                                           <div className="inline-flex items-center border border-gray-200 rounded-md overflow-hidden bg-white">
                                             <button
@@ -1231,6 +1227,53 @@ export default function TiendaPage() {
                                           </button>
                                         </div>
                                       </div>
+
+                                      {/* Mobile: stacked two-row layout */}
+                                      <div className="sm:hidden space-y-2">
+                                        {/* Row 1: Format name + price */}
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-xs font-bold text-gray-800">{variant.format}</span>
+                                          {variant.price && variant.price > 0 ? (
+                                            <span className="text-sm font-bold text-gray-900">{formatPrice(variant.price)}</span>
+                                          ) : (
+                                            <span className="text-[10px] text-gray-400">Sin precio</span>
+                                          )}
+                                        </div>
+                                        {/* Row 2: Qty controls + cart button */}
+                                        <div className="flex items-center justify-end gap-1.5">
+                                          <div className="inline-flex items-center border border-gray-200 rounded-md overflow-hidden bg-white">
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); setQuantities(prev => ({ ...prev, [variant.sku]: Math.max(variant.minUnit || 1, variantQty - (variant.stepSize || 1)) })); }}
+                                              className="w-8 h-8 flex items-center justify-center hover:bg-gray-50 text-gray-400"
+                                              disabled={variantQty <= (variant.minUnit || 1)}
+                                            >
+                                              <Minus className="w-3 h-3" />
+                                            </button>
+                                            <input
+                                              type="number"
+                                              value={variantQty}
+                                              onChange={e => { e.stopPropagation(); setQuantities(prev => ({ ...prev, [variant.sku]: Math.max(variant.minUnit || 1, parseInt(e.target.value) || variant.minUnit || 1) })); }}
+                                              onClick={e => e.stopPropagation()}
+                                              className="w-10 h-8 text-center text-sm font-bold border-x border-gray-200 bg-white focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                              min={variant.minUnit || 1}
+                                              step={variant.stepSize || 1}
+                                            />
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); setQuantities(prev => ({ ...prev, [variant.sku]: variantQty + (variant.stepSize || 1) })); }}
+                                              className="w-8 h-8 flex items-center justify-center hover:bg-gray-50 text-gray-400"
+                                            >
+                                              <Plus className="w-3 h-3" />
+                                            </button>
+                                          </div>
+                                          <button
+                                            className="h-8 px-3 rounded-md bg-[#FF6E23] hover:bg-[#E55E13] text-white transition-all font-bold text-xs flex items-center gap-1.5"
+                                            onClick={(e) => { e.stopPropagation(); addGroupedVariantToCart(variant, product.genericName); }}
+                                          >
+                                            <ShoppingCart className="h-3.5 w-3.5" />
+                                          </button>
+                                        </div>
+                                      </div>
+
                                       {variant.price && variant.price > 0 && variantQty > 1 && (
                                         <div className="text-[10px] text-[#FF6E23] font-semibold mt-1 text-right">
                                           Total: {formatPrice(variant.price * variantQty)}
