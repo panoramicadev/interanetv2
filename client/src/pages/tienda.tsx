@@ -922,7 +922,7 @@ export default function TiendaPage() {
                   key={product.genericName}
                   className={`rounded-2xl border-2 overflow-hidden transition-all duration-300 flex flex-col ${
                     isExpanded
-                      ? 'border-[#FF6E23]/40 shadow-lg shadow-orange-100/50 bg-white col-span-2 md:col-span-3 lg:col-span-4'
+                      ? 'border-[#FF6E23]/40 shadow-lg shadow-orange-100/50 bg-white col-span-2'
                       : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-md'
                   }`}
                 >
@@ -985,211 +985,178 @@ export default function TiendaPage() {
                         </div>
                       </div>
                     ) : (
-                      /* Expanded Header (same as before but inline) */
-                      <div className="p-4 flex items-center gap-4">
-                        <div className="w-16 h-16 rounded-xl flex-shrink-0 overflow-hidden border-2 border-[#FF6E23]/30 shadow-sm">
-                          {product.imageUrl ? (
-                            <img
-                              src={product.imageUrl}
-                              alt={product.genericName}
-                              className="w-full h-full object-cover"
-                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                            />
-                          ) : (
-                            <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center">
-                              <ImageIcon className="w-6 h-6 text-gray-300" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-base font-bold uppercase leading-tight text-[#FF6E23]">
-                            {product.genericName}
-                          </h3>
-                          {(product.tags || []).length > 0 && (
-                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                              {(product.tags || []).map(tag => (
-                                <span key={tag} className={`text-xs px-2.5 py-1 rounded-full font-bold whitespace-nowrap shadow-sm ${
-                                  tag === 'Mejor Precio' ? 'bg-emerald-500 text-white' :
-                                  tag === 'Rápida Rotación' ? 'bg-blue-500 text-white' :
-                                  tag === 'Pocas Unidades' ? 'bg-amber-500 text-white' :
-                                  'bg-gray-500 text-white'
-                                }`}>
-                                  {tag === 'Mejor Precio' ? '💰 ' : tag === 'Rápida Rotación' ? '🔥 ' : tag === 'Pocas Unidades' ? '⚠️ ' : ''}{tag}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          {product.breveResena && (
-                            <p className="text-sm text-gray-500 mt-1 line-clamp-1">{product.breveResena}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <div className="text-right">
-                            <span className="text-sm font-semibold text-gray-500">
-                              {colorKeys.length} color{colorKeys.length !== 1 ? 'es' : ''}
-                            </span>
-                            <span className="text-xs text-gray-400 block">
-                              {totalVariants} formato{totalVariants !== 1 ? 's' : ''}
-                            </span>
+                      /* Expanded Header — compact horizontal bar */
+                      <div className="px-4 py-3 flex items-center gap-3">
+                        <h3 className="text-sm font-bold uppercase text-[#FF6E23] flex-1 min-w-0 truncate">
+                          {product.genericName}
+                        </h3>
+                        {(product.tags || []).length > 0 && (
+                          <div className="flex items-center gap-1">
+                            {(product.tags || []).slice(0, 2).map(tag => (
+                              <span key={tag} className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                                tag === 'Mejor Precio' ? 'bg-emerald-500 text-white' :
+                                tag === 'Rápida Rotación' ? 'bg-blue-500 text-white' :
+                                tag === 'Pocas Unidades' ? 'bg-amber-500 text-white' :
+                                'bg-gray-500 text-white'
+                              }`}>
+                                {tag}
+                              </span>
+                            ))}
                           </div>
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[#FF6E23] text-white">
-                            <ChevronDown className="h-5 w-5" />
-                          </div>
+                        )}
+                        <span className="text-xs text-gray-400 flex-shrink-0">
+                          {colorKeys.length} color{colorKeys.length !== 1 ? 'es' : ''}
+                        </span>
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center bg-[#FF6E23] text-white flex-shrink-0">
+                          <ChevronDown className="h-3.5 w-3.5" />
                         </div>
                       </div>
                     )}
                   </div>
 
-                  {/* Expanded Content — Modern Variant Selector */}
-                  {isExpanded && (() => {
-                    // Auto-select first color if none selected
-                    const selectedColorKey = `selected-${product.genericName}`;
-                    const activeColor = expandedColors.has(selectedColorKey) 
-                      ? Array.from(expandedColors).find(k => k.startsWith(`${product.genericName}-`))?.replace(`${product.genericName}-`, '') || colorKeys[0]
-                      : colorKeys[0];
-                    const activeVariants = product.colors[activeColor] || [];
-                    const activeColorImg = activeVariants.find(v => v.imageUrl)?.imageUrl || product.imageUrl;
+                  {/* Expanded Content — Slide-down with image left, options right */}
+                  <div
+                    className="overflow-hidden transition-all duration-300 ease-in-out"
+                    style={{
+                      maxHeight: isExpanded ? '600px' : '0px',
+                      opacity: isExpanded ? 1 : 0,
+                    }}
+                  >
+                    {(() => {
+                      const selectedColorKey = `selected-${product.genericName}`;
+                      const activeColor = expandedColors.has(selectedColorKey) 
+                        ? Array.from(expandedColors).find(k => k.startsWith(`${product.genericName}-`))?.replace(`${product.genericName}-`, '') || colorKeys[0]
+                        : colorKeys[0];
+                      const activeVariants = product.colors[activeColor] || [];
+                      const activeColorImg = activeVariants.find(v => v.imageUrl)?.imageUrl || product.imageUrl;
 
-                    return (
-                      <div className="border-t-2 border-[#FF6E23]/20">
-                        <div className="p-5">
-                          {/* Top: Image + Color Selector */}
-                          <div className="flex flex-col md:flex-row gap-6">
-                            {/* Product image for selected color */}
-                            <div className="w-full md:w-48 h-48 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 flex-shrink-0">
+                      return (
+                        <div className="border-t border-[#FF6E23]/10 flex flex-row">
+                          {/* Left: Product Image */}
+                          <div className="w-36 md:w-44 flex-shrink-0 bg-gradient-to-br from-gray-50 to-white p-3 flex items-start justify-center">
+                            <div className="w-full aspect-square rounded-xl overflow-hidden bg-white shadow-sm border border-gray-100">
                               {activeColorImg ? (
                                 <img src={activeColorImg} alt={`${product.genericName} ${activeColor}`} className="w-full h-full object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center">
-                                  <ImageIcon className="w-12 h-12 text-gray-200" />
+                                  <ImageIcon className="w-10 h-10 text-gray-200" />
                                 </div>
                               )}
                             </div>
+                          </div>
 
-                            <div className="flex-1 min-w-0">
-                              {/* Color Chips */}
-                              <div className="mb-4">
-                                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">
-                                  Color — {activeColor}
-                                </span>
-                                <div className="flex flex-wrap gap-2">
-                                  {colorKeys.map(color => {
-                                    const isActive = color === activeColor;
-                                    const colorImg = product.colors[color]?.find(v => v.imageUrl)?.imageUrl;
-                                    return (
-                                      <button
-                                        key={color}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          // Update active color via expandedColors
-                                          setExpandedColors(prev => {
-                                            const s = new Set(prev);
-                                            // Remove old selections for this product
-                                            Array.from(s).filter(k => k.startsWith(`${product.genericName}-`)).forEach(k => s.delete(k));
-                                            s.add(`${product.genericName}-${color}`);
-                                            s.add(selectedColorKey);
-                                            return s;
-                                          });
-                                        }}
-                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                                          isActive
-                                            ? 'bg-[#FF6E23] text-white shadow-md shadow-orange-200'
-                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                        }`}
-                                      >
-                                        {colorImg && (
-                                          <div className="w-5 h-5 rounded-full overflow-hidden border border-white/50 flex-shrink-0">
-                                            <img src={colorImg} alt={color} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                          </div>
-                                        )}
-                                        <span className="capitalize text-xs">{color.toLowerCase()}</span>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
+                          {/* Right: Color chips + Format cards */}
+                          <div className="flex-1 min-w-0 p-3 overflow-y-auto" style={{ maxHeight: '560px' }}>
+                            {/* Color Chips */}
+                            <div className="mb-3">
+                              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5 block">Color</span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {colorKeys.map(color => {
+                                  const isActive = color === activeColor;
+                                  return (
+                                    <button
+                                      key={color}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setExpandedColors(prev => {
+                                          const s = new Set(prev);
+                                          Array.from(s).filter(k => k.startsWith(`${product.genericName}-`)).forEach(k => s.delete(k));
+                                          s.add(`${product.genericName}-${color}`);
+                                          s.add(selectedColorKey);
+                                          return s;
+                                        });
+                                      }}
+                                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${
+                                        isActive
+                                          ? 'bg-[#FF6E23] text-white shadow-sm'
+                                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                      }`}
+                                    >
+                                      {color.toLowerCase()}
+                                    </button>
+                                  );
+                                })}
                               </div>
+                            </div>
 
-                              {/* Format Cards for selected color */}
-                              <div>
-                                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">
-                                  Formato — {activeVariants.length} opcion{activeVariants.length !== 1 ? 'es' : ''}
-                                </span>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                  {activeVariants.map(variant => {
-                                    const stock = Math.round(Number(variant.stock) || 0);
-                                    const variantQty = quantities[variant.sku] || variant.minUnit || 1;
-                                    return (
-                                      <div key={variant.sku} className="bg-white border-2 border-gray-100 rounded-xl p-3 hover:border-[#FF6E23]/30 hover:shadow-sm transition-all">
-                                        {/* Format name + stock */}
-                                        <div className="flex items-center justify-between mb-2">
-                                          <span className="text-sm font-bold text-gray-800">{variant.format}</span>
-                                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                                            stock > 0
-                                              ? 'bg-emerald-100 text-emerald-700'
-                                              : 'bg-red-50 text-red-500'
-                                          }`}>
-                                            {stock > 0 ? `${stock} uds` : 'Agotado'}
-                                          </span>
-                                        </div>
-                                        {/* Price */}
-                                        <div className="mb-2">
+                            {/* Format Cards */}
+                            <div>
+                              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5 block">
+                                Formato · {activeVariants.length} opcion{activeVariants.length !== 1 ? 'es' : ''}
+                              </span>
+                              <div className="space-y-2">
+                                {activeVariants.map(variant => {
+                                  const stock = Math.round(Number(variant.stock) || 0);
+                                  const variantQty = quantities[variant.sku] || variant.minUnit || 1;
+                                  return (
+                                    <div key={variant.sku} className="bg-gray-50 border border-gray-100 rounded-lg p-2.5 hover:border-[#FF6E23]/20 transition-all">
+                                      <div className="flex items-center gap-2">
+                                        {/* Format + Price */}
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-xs font-bold text-gray-800">{variant.format}</span>
+                                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${
+                                              stock > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-50 text-red-500'
+                                            }`}>
+                                              {stock > 0 ? `${stock} uds` : 'Agotado'}
+                                            </span>
+                                          </div>
                                           {variant.price && variant.price > 0 ? (
-                                            <span className="text-lg font-bold text-gray-900">{formatPrice(variant.price)}</span>
+                                            <span className="text-sm font-bold text-gray-900">{formatPrice(variant.price)}</span>
                                           ) : (
-                                            <span className="text-sm text-gray-400">Sin precio</span>
+                                            <span className="text-[10px] text-gray-400">Sin precio</span>
                                           )}
                                         </div>
-                                        {/* Qty + Add */}
-                                        <div className="flex items-center gap-2">
-                                          <div className="inline-flex items-center border border-gray-200 rounded-lg overflow-hidden bg-gray-50 flex-1">
+                                        {/* Qty selector + Add */}
+                                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                                          <div className="inline-flex items-center border border-gray-200 rounded-md overflow-hidden bg-white">
                                             <button
                                               onClick={(e) => { e.stopPropagation(); setQuantities(prev => ({ ...prev, [variant.sku]: Math.max(variant.minUnit || 1, variantQty - (variant.stepSize || 1)) })); }}
-                                              className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 text-gray-500"
+                                              className="w-7 h-7 flex items-center justify-center hover:bg-gray-50 text-gray-400"
                                               disabled={variantQty <= (variant.minUnit || 1)}
                                             >
-                                              <Minus className="w-3 h-3" />
+                                              <Minus className="w-2.5 h-2.5" />
                                             </button>
                                             <input
                                               type="number"
                                               value={variantQty}
                                               onChange={e => { e.stopPropagation(); setQuantities(prev => ({ ...prev, [variant.sku]: Math.max(variant.minUnit || 1, parseInt(e.target.value) || variant.minUnit || 1) })); }}
                                               onClick={e => e.stopPropagation()}
-                                              className="w-10 h-8 text-center text-sm font-bold border-x border-gray-200 bg-white focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                              className="w-8 h-7 text-center text-xs font-bold border-x border-gray-200 bg-white focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                               min={variant.minUnit || 1}
                                               step={variant.stepSize || 1}
                                             />
                                             <button
                                               onClick={(e) => { e.stopPropagation(); setQuantities(prev => ({ ...prev, [variant.sku]: variantQty + (variant.stepSize || 1) })); }}
-                                              className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 text-gray-500"
+                                              className="w-7 h-7 flex items-center justify-center hover:bg-gray-50 text-gray-400"
                                             >
-                                              <Plus className="w-3 h-3" />
+                                              <Plus className="w-2.5 h-2.5" />
                                             </button>
                                           </div>
                                           <button
-                                            className="h-8 px-3 rounded-lg bg-[#FF6E23] hover:bg-[#E55E13] text-white transition-all shadow-sm font-bold text-xs flex items-center gap-1 flex-shrink-0"
+                                            className="h-7 px-2.5 rounded-md bg-[#FF6E23] hover:bg-[#E55E13] text-white transition-all font-bold text-[10px] flex items-center gap-1"
                                             onClick={(e) => { e.stopPropagation(); addGroupedVariantToCart(variant, product.genericName); }}
                                           >
-                                            <ShoppingCart className="h-3.5 w-3.5" />
+                                            <ShoppingCart className="h-3 w-3" />
                                             <span className="hidden sm:inline">Agregar</span>
                                           </button>
                                         </div>
-                                        {/* Total preview */}
-                                        {variant.price && variant.price > 0 && variantQty > 1 && (
-                                          <div className="text-xs text-[#FF6E23] font-semibold mt-1 text-right">
-                                            Total: {formatPrice(variant.price * variantQty)}
-                                          </div>
-                                        )}
                                       </div>
-                                    );
-                                  })}
-                                </div>
+                                      {variant.price && variant.price > 0 && variantQty > 1 && (
+                                        <div className="text-[10px] text-[#FF6E23] font-semibold mt-1 text-right">
+                                          Total: {formatPrice(variant.price * variantQty)}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })()}
+                      );
+                    })()}
+                  </div>
                 </div>
               );
             })}
