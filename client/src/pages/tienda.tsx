@@ -38,7 +38,8 @@ import {
   HelpCircle,
   Loader2,
   LockKeyhole,
-  UserPlus
+  UserPlus,
+  Truck
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -741,49 +742,52 @@ export default function TiendaPage() {
 
   return (
     <>
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b sticky top-0 z-50">
+    <div className="min-h-screen bg-[#f8f9fb]">
+      {/* Header — Modern SaaS */}
+      <header className="bg-white/80 backdrop-blur-xl sticky top-0 z-50 border-b border-gray-200/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Top accent strip */}
-          <div className="hidden md:flex items-center justify-between py-1.5 text-xs text-gray-500 border-b border-gray-100">
-            <div className="flex items-center gap-5">
-              <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{storeConfig?.phone || "+56 2 2345 6789"}</span>
-              <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{storeConfig?.email || "contacto@panoramica.cl"}</span>
-              <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{storeConfig?.address || "Santiago, Chile"}</span>
+          {/* Top micro-strip */}
+          <div className="hidden md:flex items-center justify-between py-1 text-[11px] text-gray-400 border-b border-gray-100/80">
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1 hover:text-gray-600 transition-colors"><Phone className="h-3 w-3" />{storeConfig?.phone || "+56 2 2345 6789"}</span>
+              <span className="flex items-center gap-1 hover:text-gray-600 transition-colors"><Mail className="h-3 w-3" />{storeConfig?.email || "contacto@panoramica.cl"}</span>
+              <span className="flex items-center gap-1 hover:text-gray-600 transition-colors"><MapPin className="h-3 w-3" />{storeConfig?.address || "Santiago, Chile"}</span>
             </div>
-            <span className="text-[#FF6E23] font-semibold text-xs">Envío gratis sobre $250.000</span>
+            <span className="text-[#FF6E23] font-semibold flex items-center gap-1">
+              <Truck className="h-3 w-3" />
+              Envío gratis sobre $250.000
+            </span>
           </div>
 
           {/* Main header */}
           <div className="flex items-center justify-between py-3 gap-4">
             {/* Logo */}
             <Link href="/tienda">
-              <div className="flex items-center cursor-pointer flex-shrink-0">
+              <div className="flex items-center cursor-pointer flex-shrink-0 group">
                 <img 
                   src={storeConfig?.logoUrl || "/panoramica-logo.png"} 
                   alt="Panorámica"
-                  className="h-10 md:h-12 w-auto"
+                  className="h-9 md:h-11 w-auto transition-transform group-hover:scale-[1.02]"
                 />
               </div>
             </Link>
 
-            {/* Search Bar - Desktop */}
-            <div className="hidden md:flex flex-1 max-w-xl">
-              <div className="relative w-full">
-                <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-gray-400" />
+            {/* Search Bar — Premium glass */}
+            <div className="hidden md:flex flex-1 max-w-lg">
+              <div className="relative w-full group">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-[#FF6E23] transition-colors" />
                 <Input
-                  placeholder="Buscar productos..."
+                  placeholder="Buscar productos, familias..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-2 text-sm rounded-full border border-gray-200 focus:border-[#FF6E23] focus:ring-1 focus:ring-[#FF6E23] bg-gray-50 hover:bg-white transition-colors"
+                  className="pl-10 pr-4 h-10 text-sm rounded-xl border-gray-200 focus:border-[#FF6E23] focus:ring-2 focus:ring-[#FF6E23]/10 bg-gray-50/80 hover:bg-white transition-all shadow-sm"
                   data-testid="input-search-tienda"
                 />
               </div>
             </div>
 
             {/* Right section */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               {/* User Menu */}
               {user && (
                 <DropdownMenu>
@@ -791,45 +795,45 @@ export default function TiendaPage() {
                     <Button 
                       variant="ghost" 
                       size="sm"
-                      className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-100 rounded-lg"
+                      className="flex items-center gap-2 px-2.5 py-1.5 hover:bg-gray-50 rounded-xl transition-all"
                       data-testid="button-user-menu"
                     >
-                      <div className="w-7 h-7 bg-[#FF6E23] rounded-full flex items-center justify-center">
-                        <User className="h-3.5 w-3.5 text-white" />
+                      <div className="w-8 h-8 bg-gradient-to-br from-[#FF6E23] to-[#E55E13] rounded-xl flex items-center justify-center shadow-sm shadow-orange-200">
+                        <User className="h-4 w-4 text-white" />
                       </div>
-                      <span className="hidden lg:block text-sm font-medium text-gray-700 max-w-[100px] truncate">
+                      <span className="hidden lg:block text-sm font-semibold text-gray-700 max-w-[100px] truncate">
                         {user.firstName || user.email?.split('@')[0]}
                       </span>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuContent align="end" className="w-56 rounded-xl shadow-xl border-gray-200/80 p-1">
                     <DropdownMenuLabel>
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium">
+                      <div className="flex flex-col space-y-1 px-1">
+                        <p className="text-sm font-semibold">
                           {user.firstName && user.lastName 
                             ? `${user.firstName} ${user.lastName}` 
                             : user.firstName || user.email}
                         </p>
-                        <p className="text-xs text-gray-500">{user.email}</p>
+                        <p className="text-xs text-gray-400">{user.email}</p>
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
-                      <Link href="/mis-pedidos" className="flex items-center cursor-pointer">
-                        <Package className="mr-2 h-4 w-4" />
+                      <Link href="/mis-pedidos" className="flex items-center cursor-pointer rounded-lg px-2 py-1.5">
+                        <Package className="mr-2 h-4 w-4 text-gray-400" />
                         <span>Mis Pedidos</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/mi-cuenta" className="flex items-center cursor-pointer">
-                        <LayoutDashboard className="mr-2 h-4 w-4" />
+                      <Link href="/mi-cuenta" className="flex items-center cursor-pointer rounded-lg px-2 py-1.5">
+                        <LayoutDashboard className="mr-2 h-4 w-4 text-gray-400" />
                         <span>Mi Cuenta</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem 
                       onClick={() => logoutMutation.mutate()}
-                      className="flex items-center cursor-pointer text-red-600"
+                      className="flex items-center cursor-pointer text-red-500 hover:text-red-600 rounded-lg px-2 py-1.5"
                       data-testid="button-logout"
                     >
                       <LogOut className="mr-2 h-4 w-4" />
@@ -846,7 +850,7 @@ export default function TiendaPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="md:hidden p-1.5"
+                className="md:hidden p-2 rounded-xl hover:bg-gray-100"
                 onClick={() => setShowMobileMenu(!showMobileMenu)}
                 data-testid="button-mobile-menu"
               >
@@ -858,61 +862,54 @@ export default function TiendaPage() {
           {/* Mobile search */}
           <div className="md:hidden pb-3">
             <div className="relative">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="Buscar productos..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 text-sm border-gray-200 rounded-full bg-gray-50"
+                className="pl-10 text-sm border-gray-200 rounded-xl bg-gray-50/80 h-10 shadow-sm"
                 data-testid="input-search-mobile"
               />
             </div>
           </div>
         </div>
 
-        {/* Navigation Bar */}
-        <nav className={`bg-black ${showMobileMenu ? 'block' : 'hidden'} md:block`}>
+        {/* Navigation Bar — Subtle with pills */}
+        <nav className={`${showMobileMenu ? 'block' : 'hidden'} md:block border-t border-gray-100/80 bg-white/60 backdrop-blur-sm`}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col md:flex-row md:justify-between md:items-center py-3">
-              {/* Left Section - Main categories with icons */}
-              <div className="flex flex-col md:flex-row md:items-center md:space-x-4">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center py-2">
+              {/* Left Section */}
+              <div className="flex flex-col md:flex-row md:items-center md:gap-1">
                 {/* Categories Dropdown */}
                 <div className="relative group">
                   <button 
-                    className="flex items-center text-white hover:text-white/80 px-2 py-1 text-sm font-bold uppercase transition-colors duration-200"
+                    className="flex items-center text-gray-700 hover:text-[#FF6E23] px-3 py-2 text-sm font-semibold transition-all rounded-lg hover:bg-orange-50/50"
                     onClick={() => setShowCategoriesDropdown(!showCategoriesDropdown)}
                     onMouseEnter={() => setShowCategoriesDropdown(true)}
                     data-testid="button-nav-categories"
                     aria-expanded={showCategoriesDropdown}
                     aria-haspopup="true"
                   >
-                    <Grid3X3 className="h-4 w-4 mr-2" />
-                    CATEGORÍAS
-                    <ChevronDown className={`h-4 w-4 ml-1 transition-transform duration-200 ${showCategoriesDropdown ? 'rotate-180' : ''}`} />
+                    <Grid3X3 className="h-4 w-4 mr-1.5 opacity-60" />
+                    Categorías
+                    <ChevronDown className={`h-3.5 w-3.5 ml-1 transition-transform duration-200 opacity-40 ${showCategoriesDropdown ? 'rotate-180' : ''}`} />
                   </button>
-                  {/* Dropdown menu - works on both hover (desktop) and click (mobile) */}
                   <div 
-                    className={`absolute left-0 mt-1 w-64 bg-white rounded-md shadow-lg z-50 transition-all duration-200 ${showCategoriesDropdown ? 'opacity-100 visible' : 'opacity-0 invisible'} md:group-hover:opacity-100 md:group-hover:visible`}
+                    className={`absolute left-0 mt-1 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 transition-all duration-200 ${showCategoriesDropdown ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-1'} md:group-hover:opacity-100 md:group-hover:visible md:group-hover:translate-y-0`}
                     onMouseLeave={() => setShowCategoriesDropdown(false)}
                   >
-                    <div className="py-2">
+                    <div className="p-1.5">
                       <button
-                        onClick={() => {
-                          setSelectedCategory('all');
-                          setShowCategoriesDropdown(false);
-                        }}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => { setSelectedCategory('all'); setShowCategoriesDropdown(false); }}
+                        className="block w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg font-medium transition-colors"
                       >
                         Todas las categorías
                       </button>
                       {categories.map((category) => (
                         <button
                           key={category}
-                          onClick={() => {
-                            setSelectedCategory(category);
-                            setShowCategoriesDropdown(false);
-                          }}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          onClick={() => { setSelectedCategory(category); setShowCategoriesDropdown(false); }}
+                          className={`block w-full text-left px-3 py-2 text-sm rounded-lg font-medium transition-colors ${selectedCategory === category ? 'bg-[#FF6E23]/10 text-[#FF6E23]' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`}
                         >
                           {category}
                         </button>
@@ -921,37 +918,27 @@ export default function TiendaPage() {
                   </div>
                 </div>
 
-                {/* Recommended Products */}
-                <a
-                  href="#productos"
-                  className="flex items-center text-white hover:text-white/80 px-2 py-1 text-sm font-bold uppercase transition-colors duration-200 whitespace-nowrap"
-                  data-testid="link-nav-recomendados"
-                >
-                  <Award className="h-4 w-4 mr-2" />
-                  RECOMENDADOS
+                <a href="#productos" className="flex items-center text-gray-600 hover:text-[#FF6E23] px-3 py-2 text-sm font-semibold transition-all rounded-lg hover:bg-orange-50/50" data-testid="link-nav-recomendados">
+                  <Award className="h-4 w-4 mr-1.5 opacity-60" />
+                  Recomendados
                 </a>
 
-                {/* Special Offers */}
-                <a
-                  href="#ofertas"
-                  className="flex items-center text-white hover:text-white/80 px-2 py-1 text-sm font-bold uppercase transition-colors duration-200 whitespace-nowrap"
-                  data-testid="link-nav-ofertas"
-                >
-                  <Percent className="h-4 w-4 mr-2" />
-                  OFERTAS
+                <a href="#ofertas" className="flex items-center text-gray-600 hover:text-[#FF6E23] px-3 py-2 text-sm font-semibold transition-all rounded-lg hover:bg-orange-50/50" data-testid="link-nav-ofertas">
+                  <Percent className="h-4 w-4 mr-1.5 opacity-60" />
+                  Ofertas
                 </a>
               </div>
 
-              {/* Right Section - Existing navigation items */}
-              <div className="flex flex-col md:flex-row md:items-center md:space-x-4 mt-3 md:mt-0">
+              {/* Right Section */}
+              <div className="flex flex-col md:flex-row md:items-center md:gap-1 mt-2 md:mt-0">
                 {navigationItems.map((item) => (
                   <a
                     key={item.name}
                     href={item.href}
-                    className="text-white hover:text-white/80 px-2 py-1 text-sm font-bold uppercase transition-colors duration-200 whitespace-nowrap"
+                    className="text-gray-500 hover:text-gray-900 px-3 py-2 text-sm font-medium transition-all rounded-lg hover:bg-gray-50"
                     data-testid={`link-nav-${item.name.toLowerCase()}`}
                   >
-                    {item.name.toUpperCase()}
+                    {item.name}
                   </a>
                 ))}
               </div>
@@ -1044,26 +1031,26 @@ export default function TiendaPage() {
           </div>
         </section>
       )}
-      {/* Filters Section */}
-      <section className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-            <div className="flex items-center gap-4">
-              <h2 className="text-lg font-semibold text-gray-900">
-                Nuestros Productos
+      {/* Filters Section — Modern SaaS */}
+      <section className="bg-white/70 backdrop-blur-sm border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-bold text-gray-900 tracking-tight">
+                Catálogo
               </h2>
-              <Badge variant="secondary" className="bg-[#FF6E23]/10 text-[#FF6E23]">
-                {groupedCatalog.length} productos
-              </Badge>
+              <div className="h-5 w-px bg-gray-200" />
+              <span className="text-sm text-gray-400 font-medium">
+                {groupedCatalog.length} producto{groupedCatalog.length !== 1 ? 's' : ''}
+              </span>
             </div>
             
-            {/* Category Filter */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="w-[200px] border-gray-300" data-testid="select-category-tienda">
+                <SelectTrigger className="w-[200px] border-gray-200 rounded-xl text-sm h-9 shadow-sm hover:border-gray-300 transition-colors" data-testid="select-category-tienda">
                   <SelectValue placeholder="Todas las categorías" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl">
                   <SelectItem value="all">Todas las categorías</SelectItem>
                   {categories.map((category) => (
                     <SelectItem key={category} value={category}>
@@ -1106,7 +1093,7 @@ export default function TiendaPage() {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {groupedCatalog.map(product => {
               const colorKeys = Object.keys(product.colors)
                 .sort((a, b) => product.colors[b].length - product.colors[a].length);
@@ -1116,47 +1103,46 @@ export default function TiendaPage() {
               return (
                 <div
                   key={product.genericName}
-                  className={`rounded-2xl border-2 overflow-hidden transition-all duration-300 flex flex-col ${
+                  className={`rounded-2xl overflow-hidden transition-all duration-300 flex flex-col ${
                     isExpanded
-                      ? 'border-[#FF6E23]/40 shadow-lg shadow-orange-100/50 bg-white lg:col-span-2'
-                      : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-md'
+                      ? 'border border-[#FF6E23]/30 shadow-xl shadow-orange-100/40 bg-white lg:col-span-2 ring-1 ring-[#FF6E23]/10'
+                      : 'border border-gray-200/80 bg-white hover:border-gray-300/80 hover:shadow-lg hover:shadow-gray-100/60'
                   }`}
                 >
-                  {/* Product Card (collapsed) - Horizontal layout */}
+                  {/* Product Card (collapsed) */}
                   <div
                     className={`cursor-pointer transition-all duration-200 ${
-                      isExpanded ? 'bg-gradient-to-r from-orange-50 to-amber-50' : 'hover:bg-gray-50/80'
+                      isExpanded ? 'bg-gradient-to-r from-orange-50/80 to-amber-50/60' : 'hover:bg-gray-50/40'
                     }`}
                     onClick={() => toggleProduct(product.genericName)}
                   >
                     {!isExpanded ? (
-                      /* Horizontal Card View */
                       <div className="flex">
-                        {/* Product Image - Left side */}
-                        <div className="w-36 sm:w-44 flex-shrink-0 overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 relative">
+                        {/* Product Image */}
+                        <div className="w-28 sm:w-40 flex-shrink-0 overflow-hidden bg-gradient-to-br from-gray-50 to-white relative group">
                           {product.imageUrl ? (
                             <img
                               src={product.imageUrl}
                               alt={product.genericName}
-                              className="w-full h-full object-cover aspect-square"
+                              className="w-full h-full object-cover aspect-square transition-transform duration-300 group-hover:scale-105"
                               onError={(e) => {
                                 (e.target as HTMLImageElement).style.display = 'none';
                               }}
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center aspect-square">
-                              <ImageIcon className="w-12 h-12 text-gray-200" />
+                              <ImageIcon className="w-10 h-10 text-gray-200" />
                             </div>
                           )}
                           {/* Tags overlay */}
                           {(product.tags || []).length > 0 && (
                             <div className="absolute top-2 left-2 flex flex-col gap-1">
                               {(product.tags || []).slice(0, 2).map(tag => (
-                                <span key={tag} className={`text-[10px] px-2 py-0.5 rounded-full font-bold whitespace-nowrap shadow-sm ${
-                                  tag === 'Mejor Precio' ? 'bg-emerald-500 text-white' :
-                                  tag === 'Rápida Rotación' ? 'bg-blue-500 text-white' :
-                                  tag === 'Pocas Unidades' ? 'bg-amber-500 text-white' :
-                                  'bg-gray-500 text-white'
+                                <span key={tag} className={`text-[9px] px-2 py-0.5 rounded-md font-bold whitespace-nowrap backdrop-blur-sm ${
+                                  tag === 'Mejor Precio' ? 'bg-emerald-500/90 text-white' :
+                                  tag === 'Rápida Rotación' ? 'bg-blue-500/90 text-white' :
+                                  tag === 'Pocas Unidades' ? 'bg-amber-500/90 text-white' :
+                                  'bg-gray-600/90 text-white'
                                 }`}>
                                   {tag}
                                 </span>
@@ -1164,29 +1150,29 @@ export default function TiendaPage() {
                             </div>
                           )}
                         </div>
-                        {/* Product Info - Right side */}
-                        <div className="flex-1 p-4 flex flex-col justify-between min-w-0">
+                        {/* Product Info */}
+                        <div className="flex-1 p-3 sm:p-4 flex flex-col justify-between min-w-0">
                           <div>
-                            <h3 className="text-sm font-bold uppercase leading-tight text-gray-800 line-clamp-2">
+                            <h3 className="text-[13px] sm:text-sm font-bold uppercase leading-tight text-gray-900 line-clamp-2 tracking-tight">
                               {product.genericName}
                             </h3>
                             {product.breveResena && (
-                              <p className="text-xs text-gray-500 mt-1.5 line-clamp-3 leading-relaxed">{product.breveResena}</p>
+                              <p className="text-[11px] text-gray-400 mt-1 line-clamp-2 leading-relaxed">{product.breveResena}</p>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 mt-3">
-                            <span className="inline-flex items-center gap-1 bg-gradient-to-r from-orange-50 to-amber-50 text-[#FF6E23] text-[10px] font-bold px-2 py-0.5 rounded-full border border-orange-100">
+                          <div className="flex items-center gap-1.5 mt-2.5">
+                            <span className="inline-flex items-center gap-1 bg-orange-50 text-[#FF6E23] text-[10px] font-bold px-2 py-0.5 rounded-md">
                               <Palette className="w-2.5 h-2.5" /> {colorKeys.length}
                             </span>
-                            <span className="inline-flex items-center gap-1 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-100">
+                            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-md">
                               <Box className="w-2.5 h-2.5" /> {totalVariants}
                             </span>
                             <span className="flex-1" />
                             <button
                               onClick={(e) => { e.stopPropagation(); openInfoModal(product.genericName); }}
-                              className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-full transition-colors"
+                              className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500 hover:text-[#FF6E23] bg-gray-50 hover:bg-orange-50 px-2.5 py-1 rounded-lg transition-all"
                             >
-                              <Info className="w-3 h-3" /> Ver más
+                              <Info className="w-3 h-3" /> Detalles
                             </button>
                             <ChevronRight className="h-4 w-4 text-gray-300" />
                           </div>
