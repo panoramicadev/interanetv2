@@ -105,6 +105,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: ShoppingCart,
       children: [
         {
+          href: "/ecommerce-pedidos",
+          label: "Pedidos",
+          icon: PackageSearch,
+        },
+        {
           href: "/ecommerce",
           label: "Gestión eCommerce",
           icon: ShoppingCart,
@@ -392,6 +397,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "eCommerce",
       icon: ShoppingCart,
       children: [
+        {
+          href: "/ecommerce-pedidos",
+          label: "Pedidos",
+          icon: PackageSearch,
+        },
         {
           href: "/ecommerce",
           label: "Gestión eCommerce",
