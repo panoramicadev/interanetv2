@@ -10,8 +10,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Tag, MapPin } from "lucide-react";
+import { X, Tag, MapPin, ShoppingBag, Package, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 
 const formatPrice = (price: number): string => {
   return `$${new Intl.NumberFormat('es-CL', {
@@ -30,6 +40,7 @@ export default function BillingSummary() {
   const [customAddress, setCustomAddress] = useState("");
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   // Fetch client data to get addresses
   const { data: clientData } = useQuery<{ dien?: string; cmen?: string; comuna?: string }>({
@@ -184,12 +195,12 @@ export default function BillingSummary() {
       return;
     }
 
-    // 3. Final confirmation
-    if (!window.confirm(`¿Confirmar pedido por ${formatPrice(state.total)}?\n\n• ${state.itemCount} producto(s)\n• ${state.unitCount} unidades totales\n• Incluye IVA (19%)`)) {
-      return;
-    }
+    // 3. Show confirmation modal
+    setShowConfirmDialog(true);
+  };
 
-    // 4. Process order
+  const processOrder = async () => {
+    setShowConfirmDialog(false);
     setIsSubmitting(true);
     try {
       const orderData = {
@@ -219,16 +230,17 @@ export default function BillingSummary() {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || 'Error al procesar el pedido');
       }
+      const createdOrder = await response.json();
 
       toast({
         title: "¡Pedido confirmado!",
-        description: `Tu pedido por ${formatPrice(state.total)} ha sido enviado correctamente. Un vendedor lo revisará pronto.`,
+        description: `Tu pedido ha sido enviado correctamente.`,
       });
 
-      // Clear cart after successful order
+      // Redirect to thank you page
       setTimeout(() => {
-        window.location.href = '/tienda';
-      }, 2000);
+        window.location.href = `/pedido-confirmado?id=${createdOrder.id || ''}`;
+      }, 1000);
 
     } catch (error: any) {
       console.error('Error creating order:', error);
@@ -255,6 +267,7 @@ export default function BillingSummary() {
   const total = state.total;
 
   return (
+    <>
     <Card className="bg-white dark:bg-gray-800 shadow-sm border-gray-200 dark:border-gray-700">
       <CardHeader className="pb-4">
         <CardTitle className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -473,5 +486,67 @@ export default function BillingSummary() {
         </div>
       </CardContent>
     </Card>
+
+    {/* Confirmation Dialog */}
+    <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+      <AlertDialogContent className="max-w-md">
+        <AlertDialogHeader>
+          <div className="flex justify-center mb-3">
+            <div className="w-14 h-14 bg-[#FF6E23]/10 rounded-full flex items-center justify-center">
+              <ShoppingBag className="h-7 w-7 text-[#FF6E23]" />
+            </div>
+          </div>
+          <AlertDialogTitle className="text-center text-xl">
+            Confirmar pedido
+          </AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-4 pt-2">
+              <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500 flex items-center gap-2"><Package className="h-4 w-4" />Productos</span>
+                  <span className="text-sm font-semibold text-gray-800">{state.itemCount} producto{state.itemCount !== 1 ? 's' : ''}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500">Unidades totales</span>
+                  <span className="text-sm font-semibold text-gray-800">{state.unitCount}</span>
+                </div>
+                {state.discountAmount > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-green-600">Descuento</span>
+                    <span className="text-sm font-semibold text-green-600">-{formatPrice(state.discountAmount)}</span>
+                  </div>
+                )}
+                <Separator />
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500">Impuestos (IVA 19%)</span>
+                  <span className="text-sm font-medium text-gray-700">{formatPrice(state.taxAmount)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-bold text-gray-900">Total</span>
+                  <span className="text-xl font-bold text-[#FF6E23]">{formatPrice(state.total)}</span>
+                </div>
+              </div>
+              {shippingAddress && (
+                <div className="flex items-start gap-2 text-sm text-gray-500">
+                  <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span>{shippingAddress}</span>
+                </div>
+              )}
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="flex gap-3 pt-2">
+          <AlertDialogCancel className="flex-1">Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={processOrder}
+            className="flex-1 bg-[#FF6E23] hover:bg-[#FF6E23]/90 text-white font-semibold"
+          >
+            <CheckCircle2 className="h-4 w-4 mr-2" />
+            Confirmar
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

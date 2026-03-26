@@ -89,6 +89,7 @@ import PresupuestoVentas from "@/pages/presupuesto-ventas";
 import MisPedidos from "@/pages/mis-pedidos";
 import SeguimientoPedidos from "@/pages/seguimiento-pedidos";
 import EcommercePedidos from "@/pages/ecommerce-pedidos";
+import PedidoConfirmado from "@/pages/pedido-confirmado";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -111,6 +112,7 @@ function Router() {
       <Route path="/tienda">{() => <Tienda />}</Route>
       <Route path="/shop">{() => <Shop />}</Route>
       <Route path="/carrito">{() => <Carrito />}</Route>
+      <Route path="/pedido-confirmado">{() => <PedidoConfirmado />}</Route>
 
       {/* Catálogo público de vendedores */}
       <Route path="/catalogo/:slug">{() => <CatalogoPublico />}</Route>
