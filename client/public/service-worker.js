@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v3.0.0';
+const CACHE_VERSION = 'v4.0.0';
 const CACHE_NAME = `panoramica-cache-${CACHE_VERSION}`;
 const ASSETS_CACHE = `panoramica-assets-${CACHE_VERSION}`;
 
@@ -46,6 +46,12 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (url.pathname.startsWith('/api/')) {
+    return;
+  }
+
+  // Skip cross-origin requests entirely (e.g., Supabase storage, Google Fonts, external CDNs)
+  // These should be handled by the browser directly, not cached by our service worker
+  if (url.origin !== self.location.origin) {
     return;
   }
 
