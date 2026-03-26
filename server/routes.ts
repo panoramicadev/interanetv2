@@ -10084,14 +10084,15 @@ export function registerRoutes(app: Express): Server {
         if (rowTags.length > 0 && product.tags.length === 0) product.tags = rowTags;
         if (!product.breveResena && (row as any).breve_resena) product.breveResena = (row as any).breve_resena;
 
-        // Image priority: prefer BLANCO color + GALON format
+        // Image priority: prefer BLANCO color + GALON format, then BALDE
         const rowImageUrl = (row as any).imagen_url || (row as any).imagen_destacada || null;
         if (rowImageUrl) {
           let priority = 1;
           const colorUpper = color.toUpperCase();
           const formatUpper = formatUnit.toUpperCase();
           if (colorUpper.includes('BLANCO') || colorUpper === 'BLANCO') priority += 10;
-          if (formatUpper.includes('GALON') || formatUpper.includes('GALÓN')) priority += 5;
+          if (formatUpper.includes('GALON') || formatUpper.includes('GALÓN') || formatUpper.includes('GL')) priority += 5;
+          else if (formatUpper.includes('BALDE') || formatUpper.includes('BLD')) priority += 3;
           if (priority > product.imageUrlPriority) {
             product.imageUrl = rowImageUrl;
             product.imageUrlPriority = priority;
