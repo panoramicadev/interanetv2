@@ -401,14 +401,15 @@ export default function Dashboard() {
   });
   const lastSyncDate = lastSyncInfo?.completedAt || lastSyncInfo?.createdAt;
   const lastSyncLabel = lastSyncDate ? (() => {
-    const diff = Date.now() - new Date(lastSyncDate).getTime();
+    const syncDate = new Date(lastSyncDate);
+    const diff = Date.now() - syncDate.getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return 'Ahora';
     if (mins < 60) return `Hace ${mins}m`;
     const hrs = Math.floor(mins / 60);
     if (hrs < 24) return `Hace ${hrs}h`;
-    const days = Math.floor(hrs / 24);
-    return `Hace ${days}d`;
+    // More than 24h: show the actual date/time
+    return syncDate.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   })() : null;
 
   const handleSyncAll = async () => {
@@ -1766,7 +1767,7 @@ export default function Dashboard() {
                   )}
                 </Button>
                 {lastSyncLabel && (
-                  <span className="text-[9px] text-gray-400 mt-0.5 whitespace-nowrap">{lastSyncLabel}</span>
+                  <span className="text-[10px] text-gray-400 mt-0.5 whitespace-nowrap" title={lastSyncDate ? new Date(lastSyncDate).toLocaleString('es-CL') : ''}>{lastSyncLabel}</span>
                 )}
               </div>
               <div className="flex-shrink-0">
