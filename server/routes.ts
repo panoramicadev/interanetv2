@@ -7772,6 +7772,66 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // List all client users (for eCommerce users management)
+  app.get('/api/users/clients', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const user = req.user;
+      if (!['admin', 'supervisor'].includes(user.role)) {
+        return res.status(403).json({ message: "No autorizado" });
+      }
+
+      const allUsers = await storage.getAllUsers();
+      const clientUsers = allUsers.filter((u: any) => u.role === 'client');
+      
+      // For each client user, try to get their client record for extra info
+      const enrichedClients = await Promise.all(clientUsers.map(async (clientUser: any) => {
+        try {
+          const clientRecord = await storage.getClientByUserId(clientUser.id);
+          return {
+            id: clientUser.id,
+            email: clientUser.email,
+            firstName: clientUser.firstName,
+            lastName: clientUser.lastName,
+            role: clientUser.role,
+            createdAt: clientUser.createdAt,
+            lastLogin: clientUser.lastLogin,
+            isActive: clientUser.isActive !== false,
+            clientCode: clientRecord?.codigo || null,
+            clientName: clientRecord?.nombre || clientUser.firstName ? `${clientUser.firstName || ''} ${clientUser.lastName || ''}`.trim() : clientUser.email,
+            rut: clientRecord?.rut || null,
+            phone: clientRecord?.phone || null,
+            address: clientRecord?.dien || null,
+            commune: clientRecord?.comuna || null,
+            assignedSalesperson: clientRecord?.assignedSalespersonUserId || null,
+          };
+        } catch {
+          return {
+            id: clientUser.id,
+            email: clientUser.email,
+            firstName: clientUser.firstName,
+            lastName: clientUser.lastName,
+            role: clientUser.role,
+            createdAt: clientUser.createdAt,
+            lastLogin: clientUser.lastLogin,
+            isActive: clientUser.isActive !== false,
+            clientCode: null,
+            clientName: clientUser.firstName ? `${clientUser.firstName || ''} ${clientUser.lastName || ''}`.trim() : clientUser.email,
+            rut: null,
+            phone: null,
+            address: null,
+            commune: null,
+            assignedSalesperson: null,
+          };
+        }
+      }));
+
+      res.json(enrichedClients);
+    } catch (error) {
+      console.error("Error fetching client users:", error);
+      res.status(500).json({ message: "Failed to fetch client users" });
+    }
+  });
+
   // Search clients (for CRM lead creation from existing clients)
   app.get('/api/users/clients/search', requireCommercialAccess, async (req: any, res) => {
     try {

@@ -115,6 +115,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           label: "Panorámica Market",
           icon: Gift,
         },
+        {
+          href: "/ecommerce-usuarios",
+          label: "Usuarios",
+          icon: Users,
+        },
       ],
       separator: true,
     },
@@ -407,6 +412,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/panoramica-market",
           label: "Panorámica Market",
           icon: Gift,
+        },
+        {
+          href: "/ecommerce-usuarios",
+          label: "Usuarios",
+          icon: Users,
         },
       ],
       separator: true,

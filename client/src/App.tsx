@@ -90,6 +90,7 @@ import MisPedidos from "@/pages/mis-pedidos";
 import SeguimientoPedidos from "@/pages/seguimiento-pedidos";
 import EcommercePedidos from "@/pages/ecommerce-pedidos";
 import PedidoConfirmado from "@/pages/pedido-confirmado";
+import EcommerceUsuarios from "@/pages/ecommerce-usuarios";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -181,6 +182,7 @@ function Router() {
             <Route path="/lista-precios" component={ListaPrecios} />
             <Route path="/ecommerce" component={EcommerceAdmin} />
             <Route path="/ecommerce-pedidos" component={EcommercePedidos} />
+            <Route path="/ecommerce-usuarios" component={EcommerceUsuarios} />
             <Route path="/panoramica-market" component={PanoramicaMarketPage} />
             <Route path="/shopify-products" component={ShopifyProducts} />
             <Route path="/clientes" component={Clients} />
