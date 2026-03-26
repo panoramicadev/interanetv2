@@ -10084,15 +10084,21 @@ export function registerRoutes(app: Express): Server {
         if (rowTags.length > 0 && product.tags.length === 0) product.tags = rowTags;
         if (!product.breveResena && (row as any).breve_resena) product.breveResena = (row as any).breve_resena;
 
-        // Image priority: prefer BLANCO color + GALON format, then BALDE
+        // Image priority: STRONGLY prefer GALON format + BLANCO color
         const rowImageUrl = (row as any).imagen_url || (row as any).imagen_destacada || null;
         if (rowImageUrl) {
           let priority = 1;
           const colorUpper = color.toUpperCase();
           const formatUpper = formatUnit.toUpperCase();
+          // Color priority: BLANCO is most desirable
           if (colorUpper.includes('BLANCO') || colorUpper === 'BLANCO') priority += 10;
-          if (formatUpper.includes('GALON') || formatUpper.includes('GALÓN') || formatUpper.includes('GL')) priority += 5;
-          else if (formatUpper.includes('BALDE') || formatUpper.includes('BLD')) priority += 3;
+          // Format priority: GALON >> BALDE >> everything else >> 1/4
+          const is14 = formatUpper.includes('1/4') || formatUpper.includes('CUARTO');
+          const isGalon = !is14 && (formatUpper.includes('GALON') || formatUpper.includes('GALÓN') || /\bGL\b/.test(formatUpper));
+          const isBalde = formatUpper.includes('BALDE') || formatUpper.includes('BLD') || formatUpper.includes('BD4') || formatUpper.includes('BD5');
+          if (isGalon) priority += 20;
+          else if (isBalde) priority += 10;
+          else if (is14) priority -= 5; // Penalize 1/4 — never use as group image
           if (priority > product.imageUrlPriority) {
             product.imageUrl = rowImageUrl;
             product.imageUrlPriority = priority;

@@ -497,6 +497,7 @@ export default function TiendaPage() {
         quantity: validatedQuantity,
         minQuantity: validation.minQuantity,
         quantityStep: validation.stepQuantity,
+        imageUrl: variant.imageUrl || undefined,
       });
 
       toast({
@@ -613,11 +614,18 @@ export default function TiendaPage() {
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
-                      <Link href="/" className="flex items-center cursor-pointer">
-                        <LayoutDashboard className="mr-2 h-4 w-4" />
-                        <span>Ir al Dashboard</span>
+                      <Link href="/mis-pedidos" className="flex items-center cursor-pointer">
+                        <Package className="mr-2 h-4 w-4" />
+                        <span>Mis Pedidos</span>
                       </Link>
                     </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/" className="flex items-center cursor-pointer">
+                        <LayoutDashboard className="mr-2 h-4 w-4" />
+                        <span>Mi Cuenta</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem 
                       onClick={() => logoutMutation.mutate()}
                       className="flex items-center cursor-pointer text-red-600"
@@ -910,7 +918,7 @@ export default function TiendaPage() {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {groupedCatalog.map(product => {
               const colorKeys = Object.keys(product.colors)
                 .sort((a, b) => product.colors[b].length - product.colors[a].length);
@@ -974,12 +982,16 @@ export default function TiendaPage() {
                             {product.genericName}
                           </h3>
                           {product.breveResena && (
-                            <p className="text-xs text-gray-400 mt-1 line-clamp-1">{product.breveResena}</p>
+                            <p className="text-xs text-gray-400 mt-1 line-clamp-2 hover:line-clamp-none transition-all cursor-pointer" title="Clic para ver más">{product.breveResena}</p>
                           )}
-                          <div className="flex items-center justify-between mt-2">
-                            <span className="text-xs text-gray-400">
-                              {colorKeys.length} color{colorKeys.length !== 1 ? 'es' : ''} · {totalVariants} formato{totalVariants !== 1 ? 's' : ''}
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className="inline-flex items-center gap-1 bg-gradient-to-r from-orange-50 to-amber-50 text-[#FF6E23] text-[10px] font-bold px-2 py-0.5 rounded-full border border-orange-100">
+                              <Palette className="w-2.5 h-2.5" /> {colorKeys.length}
                             </span>
+                            <span className="inline-flex items-center gap-1 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-100">
+                              <Box className="w-2.5 h-2.5" /> {totalVariants}
+                            </span>
+                            <span className="flex-1" />
                             <ChevronRight className="h-4 w-4 text-gray-300" />
                           </div>
                         </div>
@@ -1004,11 +1016,16 @@ export default function TiendaPage() {
                             ))}
                           </div>
                         )}
-                        <span className="text-xs text-gray-400 flex-shrink-0">
-                          {colorKeys.length} color{colorKeys.length !== 1 ? 'es' : ''}
-                        </span>
-                        <div className="w-6 h-6 rounded-full flex items-center justify-center bg-[#FF6E23] text-white flex-shrink-0">
-                          <ChevronDown className="h-3.5 w-3.5" />
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <span className="inline-flex items-center gap-1 bg-orange-50 text-[#FF6E23] text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            <Palette className="w-2.5 h-2.5" /> {colorKeys.length}
+                          </span>
+                          <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            <Box className="w-2.5 h-2.5" /> {totalVariants}
+                          </span>
+                        </div>
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-200 hover:bg-red-100 text-gray-500 hover:text-red-500 transition-colors flex-shrink-0">
+                          <X className="h-3.5 w-3.5" />
                         </div>
                       </div>
                     )}
@@ -1053,6 +1070,7 @@ export default function TiendaPage() {
                               <div className="flex flex-wrap gap-1.5">
                                 {colorKeys.map(color => {
                                   const isActive = color === activeColor;
+                                  const colorImg = product.colors[color]?.find(v => v.imageUrl)?.imageUrl;
                                   return (
                                     <button
                                       key={color}
@@ -1066,12 +1084,17 @@ export default function TiendaPage() {
                                           return s;
                                         });
                                       }}
-                                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${
+                                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${
                                         isActive
                                           ? 'bg-[#FF6E23] text-white shadow-sm'
                                           : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                       }`}
                                     >
+                                      {colorImg && (
+                                        <div className="w-4 h-4 rounded-full overflow-hidden border border-white/60 flex-shrink-0">
+                                          <img src={colorImg} alt={color} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                        </div>
+                                      )}
                                       {color.toLowerCase()}
                                     </button>
                                   );
