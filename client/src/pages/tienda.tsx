@@ -550,6 +550,12 @@ export default function TiendaPage() {
     { name: "Contacto", href: "#contacto" },
   ];
 
+  // Login Gate state
+  const [showRegisterForm, setShowRegisterForm] = useState(false);
+  const [registerForm, setRegisterForm] = useState({ empresa: '', rut: '', contacto: '', email: '', telefono: '', ciudad: '' });
+  const [registerLoading, setRegisterLoading] = useState(false);
+  const [registerSuccess, setRegisterSuccess] = useState(false);
+
   // Login Gate — show exclusive access screen when not authenticated
   if (!user) {
     return (
@@ -557,7 +563,7 @@ export default function TiendaPage() {
         {/* Subtle pattern */}
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-40" />
 
-        <div className="relative text-center max-w-md mx-auto">
+        <div className="relative text-center max-w-md mx-auto w-full">
           {/* Logo */}
           <div className="mb-8">
             <img
@@ -567,44 +573,167 @@ export default function TiendaPage() {
             />
           </div>
 
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 bg-[#FF6E23]/20 text-[#FF6E23] px-4 py-1.5 rounded-full text-sm font-bold mb-6 backdrop-blur-sm border border-[#FF6E23]/30">
-            <ShoppingCart className="h-4 w-4" />
-            Plataforma eCommerce
-          </div>
+          {!showRegisterForm && !registerSuccess && (
+            <>
+              {/* Badge */}
+              <div className="inline-flex items-center gap-2 bg-[#FF6E23]/20 text-[#FF6E23] px-4 py-1.5 rounded-full text-sm font-bold mb-6 backdrop-blur-sm border border-[#FF6E23]/30">
+                <ShoppingCart className="h-4 w-4" />
+                Plataforma eCommerce
+              </div>
 
-          {/* Title */}
-          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3 leading-tight">
-            Plataforma exclusiva<br />para clientes Panorámica
-          </h1>
+              <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3 leading-tight">
+                Plataforma exclusiva<br />para clientes Panorámica
+              </h1>
 
-          {/* Description */}
-          <p className="text-gray-400 text-base sm:text-lg mb-8 leading-relaxed">
-            Accede a nuestro catálogo completo con precios especiales, realiza pedidos y gestiona tu cuenta.
-          </p>
+              <p className="text-gray-400 text-base sm:text-lg mb-8 leading-relaxed">
+                Accede a nuestro catálogo completo con precios especiales, realiza pedidos y gestiona tu cuenta.
+              </p>
 
-          {/* Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <a
-              href="/auth"
-              className="inline-flex items-center justify-center gap-2 bg-[#FF6E23] hover:bg-[#E55E13] text-white font-bold px-8 py-3 rounded-xl transition-all shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 text-base"
-            >
-              <LockKeyhole className="h-4 w-4" />
-              Iniciar Sesión
-            </a>
-            <a
-              href="/auth"
-              className="inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-3 rounded-xl transition-all backdrop-blur-sm border border-white/20 text-base"
-            >
-              <UserPlus className="h-4 w-4" />
-              Crear Cuenta
-            </a>
-          </div>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <a
+                  href="/login"
+                  className="inline-flex items-center justify-center gap-2 bg-[#FF6E23] hover:bg-[#E55E13] text-white font-bold px-8 py-3 rounded-xl transition-all shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 text-base"
+                >
+                  <LockKeyhole className="h-4 w-4" />
+                  Iniciar Sesión
+                </a>
+                <button
+                  onClick={() => setShowRegisterForm(true)}
+                  className="inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-3 rounded-xl transition-all backdrop-blur-sm border border-white/20 text-base"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Crear Cuenta
+                </button>
+              </div>
 
-          {/* Footer note */}
-          <p className="text-gray-500 text-xs mt-10">
-            ¿Necesitas ayuda? Contáctanos al {storeConfig?.phone || "+56 2 2345 6789"}
-          </p>
+              <p className="text-gray-500 text-xs mt-10">
+                ¿Necesitas ayuda? Contáctanos al {storeConfig?.phone || "+56 2 2345 6789"}
+              </p>
+            </>
+          )}
+
+          {/* Registration Form */}
+          {showRegisterForm && !registerSuccess && (
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 text-left">
+              <h2 className="text-xl font-bold text-white mb-1">Solicitar Cuenta</h2>
+              <p className="text-gray-400 text-sm mb-5">Completa tus datos y te contactaremos para activar tu acceso.</p>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 mb-1 block">Empresa / Razón Social *</label>
+                  <input
+                    type="text"
+                    value={registerForm.empresa}
+                    onChange={e => setRegisterForm(p => ({ ...p, empresa: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#FF6E23]/50"
+                    placeholder="Ej: Constructora ABC Ltda."
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 mb-1 block">RUT Empresa *</label>
+                  <input
+                    type="text"
+                    value={registerForm.rut}
+                    onChange={e => setRegisterForm(p => ({ ...p, rut: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#FF6E23]/50"
+                    placeholder="Ej: 76.123.456-7"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-400 mb-1 block">Nombre Contacto *</label>
+                    <input
+                      type="text"
+                      value={registerForm.contacto}
+                      onChange={e => setRegisterForm(p => ({ ...p, contacto: e.target.value }))}
+                      className="w-full px-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#FF6E23]/50"
+                      placeholder="Juan Pérez"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-400 mb-1 block">Teléfono *</label>
+                    <input
+                      type="tel"
+                      value={registerForm.telefono}
+                      onChange={e => setRegisterForm(p => ({ ...p, telefono: e.target.value }))}
+                      className="w-full px-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#FF6E23]/50"
+                      placeholder="+56 9 1234 5678"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 mb-1 block">Correo Electrónico *</label>
+                  <input
+                    type="email"
+                    value={registerForm.email}
+                    onChange={e => setRegisterForm(p => ({ ...p, email: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#FF6E23]/50"
+                    placeholder="contacto@empresa.cl"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 mb-1 block">Ciudad</label>
+                  <input
+                    type="text"
+                    value={registerForm.ciudad}
+                    onChange={e => setRegisterForm(p => ({ ...p, ciudad: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#FF6E23]/50"
+                    placeholder="Santiago"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-5">
+                <button
+                  onClick={() => setShowRegisterForm(false)}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-white/10 text-white font-semibold text-sm hover:bg-white/20 transition-all border border-white/20"
+                >
+                  Volver
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!registerForm.empresa || !registerForm.rut || !registerForm.contacto || !registerForm.email || !registerForm.telefono) return;
+                    setRegisterLoading(true);
+                    try {
+                      await fetch('/api/ecommerce/account-request', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(registerForm),
+                      });
+                      setRegisterSuccess(true);
+                    } catch (err) {
+                      console.error(err);
+                    } finally {
+                      setRegisterLoading(false);
+                    }
+                  }}
+                  disabled={registerLoading || !registerForm.empresa || !registerForm.rut || !registerForm.contacto || !registerForm.email || !registerForm.telefono}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white font-bold text-sm transition-all shadow-lg shadow-orange-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {registerLoading ? 'Enviando...' : 'Enviar Solicitud'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Success message */}
+          {registerSuccess && (
+            <div className="bg-emerald-500/10 backdrop-blur-sm border border-emerald-500/30 rounded-2xl p-6 text-center">
+              <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <Check className="h-7 w-7 text-emerald-400" />
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">¡Solicitud Enviada!</h2>
+              <p className="text-gray-400 text-sm mb-5">
+                Hemos recibido tu solicitud. Nuestro equipo la revisará y te contactará a la brevedad para activar tu cuenta.
+              </p>
+              <button
+                onClick={() => { setRegisterSuccess(false); setShowRegisterForm(false); setRegisterForm({ empresa: '', rut: '', contacto: '', email: '', telefono: '', ciudad: '' }); }}
+                className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-6 py-2.5 rounded-xl transition-all border border-white/20 text-sm"
+              >
+                Volver al inicio
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -692,7 +821,7 @@ export default function TiendaPage() {
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/" className="flex items-center cursor-pointer">
+                      <Link href="/mi-cuenta" className="flex items-center cursor-pointer">
                         <LayoutDashboard className="mr-2 h-4 w-4" />
                         <span>Mi Cuenta</span>
                       </Link>

@@ -6683,6 +6683,60 @@ export function registerRoutes(app: Express): Server {
     
     res.json({ success: true, productFamily, categoryName: groupName });
   }));
+  // ===================== Account Request API (public, no auth) =====================
+
+  // Submit an account request from the login gate
+  app.post('/api/ecommerce/account-request', asyncHandler(async (req: any, res: any) => {
+    const { empresa, rut, contacto, email, telefono, ciudad } = req.body;
+    if (!empresa || !rut || !contacto || !email || !telefono) {
+      return res.status(400).json({ message: 'Campos requeridos faltantes' });
+    }
+
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+
+    // Get existing requests
+    const existingResult = await db.execute(sql`
+      SELECT value FROM app_config WHERE key = 'ecommerce_account_requests'
+    `);
+    let requests: any[] = [];
+    if (existingResult.rows?.length > 0) {
+      try { requests = JSON.parse(existingResult.rows[0].value as string); } catch {}
+    }
+
+    // Add new request
+    const newRequest = {
+      id: `req_${Date.now()}`,
+      empresa, rut, contacto, email, telefono, ciudad,
+      status: 'pendiente',
+      createdAt: new Date().toISOString(),
+    };
+    requests.push(newRequest);
+
+    // Upsert
+    if (existingResult.rows?.length > 0) {
+      await db.execute(sql`UPDATE app_config SET value = ${JSON.stringify(requests)} WHERE key = 'ecommerce_account_requests'`);
+    } else {
+      await db.execute(sql`INSERT INTO app_config (key, value) VALUES ('ecommerce_account_requests', ${JSON.stringify(requests)})`);
+    }
+
+    res.json({ success: true, id: newRequest.id });
+  }));
+
+  // Get account requests (admin only)
+  app.get('/api/ecommerce/account-requests', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (!['admin', 'supervisor'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    const result = await db.execute(sql`SELECT value FROM app_config WHERE key = 'ecommerce_account_requests'`);
+    let requests: any[] = [];
+    if (result.rows?.length > 0) {
+      try { requests = JSON.parse(result.rows[0].value as string); } catch {}
+    }
+    res.json(requests);
+  }));
 
   // ===================== eCommerce Admin API Routes (Simple) =====================
 
