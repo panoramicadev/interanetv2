@@ -7840,54 +7840,42 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "No autorizado" });
       }
 
-      // Direct query on users table for role='client'
-      const { users: usersTable } = await import('@shared/schema');
-      const { eq } = await import('drizzle-orm');
+      // Query clients table directly - this is the source of truth for client records
+      const { clients: clientsTable, users: usersTable } = await import('@shared/schema');
+      const { eq, desc } = await import('drizzle-orm');
       const { db } = await import('./db');
       
-      const clientUsers = await db.select().from(usersTable).where(eq(usersTable.role, 'client'));
+      const allClients = await db.select().from(clientsTable).orderBy(desc(clientsTable.createdAt));
       
-      // Enrich each client user with their client record
-      const enrichedClients = await Promise.all(clientUsers.map(async (clientUser: any) => {
-        try {
-          const clientRecord = await storage.getClientByUserId(clientUser.id);
-          return {
-            id: clientUser.id,
-            email: clientUser.email,
-            firstName: clientUser.firstName,
-            lastName: clientUser.lastName,
-            role: clientUser.role,
-            createdAt: clientUser.createdAt,
-            lastLogin: clientUser.lastLogin || null,
-            isActive: clientUser.isActive !== false,
-            clientCode: clientRecord?.codigo || null,
-            clientName: clientRecord?.nombre || (clientUser.firstName ? `${clientUser.firstName || ''} ${clientUser.lastName || ''}`.trim() : clientUser.email),
-            rut: clientRecord?.rut || null,
-            phone: clientRecord?.phone || null,
-            address: clientRecord?.dien || null,
-            commune: clientRecord?.comuna || null,
-            assignedSalesperson: clientRecord?.assignedSalespersonUserId || null,
-          };
-        } catch {
-          return {
-            id: clientUser.id,
-            email: clientUser.email,
-            firstName: clientUser.firstName,
-            lastName: clientUser.lastName,
-            role: clientUser.role,
-            createdAt: clientUser.createdAt,
-            lastLogin: clientUser.lastLogin || null,
-            isActive: clientUser.isActive !== false,
-            clientCode: null,
-            clientName: clientUser.firstName ? `${clientUser.firstName || ''} ${clientUser.lastName || ''}`.trim() : clientUser.email,
-            rut: null,
-            phone: null,
-            address: null,
-            commune: null,
-            assignedSalesperson: null,
-          };
-        }
-      }));
+      // Get all client users (to check which ones have login credentials)
+      const clientUserRecords = await db.select({
+        id: usersTable.id,
+        email: usersTable.email,
+        createdAt: usersTable.createdAt,
+      }).from(usersTable).where(eq(usersTable.role, 'client'));
+      
+      const userMap = new Map(clientUserRecords.map(u => [u.id, u]));
+      
+      const enrichedClients = allClients.map((client: any) => {
+        const linkedUser = client.userId ? userMap.get(client.userId) : null;
+        return {
+          id: client.id,
+          clientCode: client.koen || null,
+          clientName: client.nokoen || 'Sin nombre',
+          rut: client.rten || null,
+          email: linkedUser?.email || client.email || null,
+          phone: client.foen || null,
+          address: client.dien || null,
+          commune: client.cmen || client.comuna || null,
+          hasCredentials: !!client.userId && !!linkedUser,
+          userId: client.userId || null,
+          assignedSalesperson: client.assignedSalespersonUserId || null,
+          salesRepCode: client.kofuen || null,
+          createdAt: client.createdAt,
+          creditLimit: client.crlt ? parseFloat(client.crlt) : null,
+          creditAvailable: client.cren ? parseFloat(client.cren) : null,
+        };
+      });
 
       res.json(enrichedClients);
     } catch (error) {
