@@ -29,6 +29,7 @@ function FletesContent() {
   
   const FORMATS = [
     { key: '1_4_galon', label: '1/4 Galón', description: 'Formato pequeño, envase de 1/4 de galón' },
+    { key: 'galon', label: 'Galón', description: 'Envase de 1 galón' },
     { key: 'bd_4gl', label: 'Balde 4 GL', description: 'Balde de 4 galones' },
     { key: 'bd_5gl', label: 'Balde 5 GL', description: 'Balde de 5 galones' },
   ];
