@@ -58,11 +58,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: LayoutDashboard,
       separator: true,
     },
-    {
-      href: "/seguimiento-pedidos",
-      label: "Pedidos",
-      icon: PackageSearch,
-    },
+
     {
       href: "/tomador-pedidos",
       label: "Tomador de Pedidos",
@@ -425,11 +421,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Panel de Trabajo",
       icon: CheckCircle2,
     },
-    {
-      href: "/seguimiento-pedidos",
-      label: "Pedidos",
-      icon: PackageSearch,
-    },
+
     {
       href: "/tomador-pedidos",
       label: "Tomador de Pedidos",
