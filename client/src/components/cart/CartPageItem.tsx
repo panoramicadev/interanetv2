@@ -283,53 +283,51 @@ export default function CartPageItem({ item, showDivider = true }: CartPageItemP
             )}
           </div>
 
-          {/* Product Options */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Packaging Selector */}
-            <div className="space-y-2">
-              <Label htmlFor={`packaging-${item.id}`} className="text-sm font-medium">
-                Envase
-              </Label>
-              <Select 
-                value={currentPackaging} 
-                onValueChange={handlePackagingChange}
-                data-testid={`select-packaging-${item.productId}`}
-              >
-                <SelectTrigger id={`packaging-${item.id}`}>
-                  <SelectValue placeholder="Seleccionar envase" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availablePackaging.map((packaging) => (
-                    <SelectItem key={packaging} value={packaging}>
-                      {packaging}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Color Selector */}
-            <div className="space-y-2">
-              <Label htmlFor={`color-${item.id}`} className="text-sm font-medium">
-                Color
-              </Label>
-              <Select 
-                value={item.selectedColor || 'BLANCO'} 
-                onValueChange={handleColorChange}
-                data-testid={`select-color-${item.productId}`}
-              >
-                <SelectTrigger id={`color-${item.id}`}>
-                  <SelectValue placeholder="Seleccionar color" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableColors.map((color) => (
-                    <SelectItem key={color} value={color}>
-                      {color}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Product Format & Color - Read-only display */}
+          <div className="flex flex-wrap gap-3">
+            {/* Format/Packaging info from unit */}
+            {item.unit && (
+              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                <span className="text-xs font-medium text-gray-500 uppercase">Envase</span>
+                <span className="text-sm font-semibold text-gray-800">{item.unit}</span>
+              </div>
+            )}
+            {/* Color extracted from selectedColor or product code */}
+            {(item.selectedColor || (() => {
+              // Try to extract color from product code (e.g., PCA106BANAT06 -> NATURAL)
+              const code = (item.productCode || '').toUpperCase();
+              const colorMap: Record<string, string> = {
+                'BLANC': 'BLANCO', 'NEGRO': 'NEGRO', 'GRIS': 'GRIS', 'AZUL': 'AZUL',
+                'ROJO': 'ROJO', 'VERDE': 'VERDE', 'AMARI': 'AMARILLO', 'CAFE': 'CAFÉ',
+                'NAT': 'NATURAL', 'MAPLE': 'MAPLE', 'CAOBA': 'CAOBA', 'NOGL': 'NOGAL',
+                'CASTA': 'CASTAÑO', 'CEDER': 'CEDRO', 'ROBLE': 'ROBLE', 'ALMEN': 'ALMENDRA',
+                'CREMA': 'CREMA', 'MARFI': 'MARFIL', 'CORAL': 'CORAL', 'TERRA': 'TERRACOTA',
+              };
+              for (const [key, val] of Object.entries(colorMap)) {
+                if (code.includes(key)) return val;
+              }
+              return null;
+            })()) && (
+              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                <span className="text-xs font-medium text-gray-500 uppercase">Color</span>
+                <span className="text-sm font-semibold text-gray-800">
+                  {item.selectedColor || (() => {
+                    const code = (item.productCode || '').toUpperCase();
+                    const colorMap: Record<string, string> = {
+                      'BLANC': 'BLANCO', 'NEGRO': 'NEGRO', 'GRIS': 'GRIS', 'AZUL': 'AZUL',
+                      'ROJO': 'ROJO', 'VERDE': 'VERDE', 'AMARI': 'AMARILLO', 'CAFE': 'CAFÉ',
+                      'NAT': 'NATURAL', 'MAPLE': 'MAPLE', 'CAOBA': 'CAOBA', 'NOGL': 'NOGAL',
+                      'CASTA': 'CASTAÑO', 'CEDER': 'CEDRO', 'ROBLE': 'ROBLE', 'ALMEN': 'ALMENDRA',
+                      'CREMA': 'CREMA', 'MARFI': 'MARFIL', 'CORAL': 'CORAL', 'TERRA': 'TERRACOTA',
+                    };
+                    for (const [key, val] of Object.entries(colorMap)) {
+                      if (code.includes(key)) return val;
+                    }
+                    return '';
+                  })()}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Price and Quantity Section */}
