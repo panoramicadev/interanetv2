@@ -394,6 +394,23 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [showSyncModal]);
 
+  // Fetch last sync timestamp
+  const { data: lastSyncInfo } = useQuery<{ createdAt?: string; completedAt?: string }>({ 
+    queryKey: ['/api/etl/sync-sales/status'],
+    refetchInterval: 60000,
+  });
+  const lastSyncDate = lastSyncInfo?.completedAt || lastSyncInfo?.createdAt;
+  const lastSyncLabel = lastSyncDate ? (() => {
+    const diff = Date.now() - new Date(lastSyncDate).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Ahora';
+    if (mins < 60) return `Hace ${mins}m`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `Hace ${hrs}h`;
+    const days = Math.floor(hrs / 24);
+    return `Hace ${days}d`;
+  })() : null;
+
   const handleSyncAll = async () => {
     try {
       setIsSyncAllRunning(true);
@@ -1731,8 +1748,8 @@ export default function Dashboard() {
                   onChange={(val) => val && setSelection(val)}
                 />
               </div>
-              {/* Sync All Button aligned to the right alongside the other filters */}
-              <div className="flex-shrink-0">
+              {/* Sync button + last sync time */}
+              <div className="flex-shrink-0 flex flex-col items-center">
                 <Button
                   variant="outline"
                   size="icon"
@@ -1748,6 +1765,9 @@ export default function Dashboard() {
                     <Zap className="h-4 w-4 text-orange-500" />
                   )}
                 </Button>
+                {lastSyncLabel && (
+                  <span className="text-[9px] text-gray-400 mt-0.5 whitespace-nowrap">{lastSyncLabel}</span>
+                )}
               </div>
               <div className="flex-shrink-0">
                 <Button
