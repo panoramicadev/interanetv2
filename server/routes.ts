@@ -6439,6 +6439,66 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Update order status
+  app.patch('/api/ecommerce/orders/:id/status', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const { status } = req.body;
+    const user = req.user;
+
+    if (!['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const validStatuses = ['pending', 'approved', 'modified', 'rejected', 'sent', 'archived'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Estado inválido' });
+    }
+
+    const { ecommerceOrders } = await import('@shared/schema');
+    const { eq } = await import('drizzle-orm');
+    const { db } = await import('./db');
+
+    const [updated] = await db.update(ecommerceOrders)
+      .set({
+        status,
+        ...(status === 'approved' ? { approvedAt: new Date(), approvedById: user.id } : {}),
+        ...(status === 'modified' ? { modifiedAt: new Date(), modifiedById: user.id } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(ecommerceOrders.id, id))
+      .returning();
+
+    if (!updated) {
+      return res.status(404).json({ message: 'Pedido no encontrado' });
+    }
+
+    res.json(updated);
+  }));
+
+  // Delete order
+  app.delete('/api/ecommerce/orders/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const user = req.user;
+
+    if (!['admin', 'supervisor'].includes(user.role)) {
+      return res.status(403).json({ message: 'Solo admin o supervisor pueden eliminar pedidos' });
+    }
+
+    const { ecommerceOrders } = await import('@shared/schema');
+    const { eq } = await import('drizzle-orm');
+    const { db } = await import('./db');
+
+    const [deleted] = await db.delete(ecommerceOrders)
+      .where(eq(ecommerceOrders.id, id))
+      .returning();
+
+    if (!deleted) {
+      return res.status(404).json({ message: 'Pedido no encontrado' });
+    }
+
+    res.json({ success: true, message: 'Pedido eliminado' });
+  }));
+
   // ===================== End eCommerce Orders API Routes =====================
 
   // ===================== eCommerce Admin API Routes (Simple) =====================

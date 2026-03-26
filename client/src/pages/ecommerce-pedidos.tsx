@@ -5,7 +5,8 @@ import { es } from "date-fns/locale";
 import {
   ShoppingCart, Clock, CheckCircle, XCircle, Package, Eye, FileText,
   Phone, Mail, Search, Filter, ArrowLeft, User, MapPin, ChevronRight,
-  Truck, DollarSign, Calendar, AlertCircle, MoreHorizontal
+  Truck, DollarSign, Calendar, AlertCircle, MoreHorizontal,
+  Pencil, Archive, Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,17 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 
 // Types
 interface OrderItem {
@@ -91,10 +103,14 @@ const statusConfig: Record<string, { label: string; color: string; bg: string; i
 };
 
 // ==================== ORDER DETAIL VIEW ====================
-function OrderDetail({ order, onBack }: { order: EcommerceOrder; onBack: () => void }) {
+function OrderDetail({ order, onBack, onOrderDeleted }: { order: EcommerceOrder; onBack: () => void; onOrderDeleted?: () => void }) {
   const items = getOrderItems(order);
   const status = statusConfig[order.status] || statusConfig.pending;
   const StatusIcon = status.icon;
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const subtotal = parseFloat(order.subtotal || '0') || items.reduce((sum, i) => sum + (i.subtotal || (i.unitPrice || i.price || 0) * i.quantity), 0);
   const tax = parseFloat(order.tax || '0') || Math.round(subtotal * 0.19);
   const total = parseFloat(order.total || '0');
@@ -127,14 +143,109 @@ function OrderDetail({ order, onBack }: { order: EcommerceOrder; onBack: () => v
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="rounded-xl">
-            <MoreHorizontal className="w-4 h-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="rounded-xl">
+                <MoreHorizontal className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                onClick={async () => {
+                  const newStatus = order.status === 'pending' ? 'approved' : 'pending';
+                  try {
+                    await fetch(`/api/ecommerce/orders/${order.id}/status`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'include',
+                      body: JSON.stringify({ status: newStatus }),
+                    });
+                    queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
+                    toast({ title: `Estado cambiado a ${statusConfig[newStatus]?.label || newStatus}` });
+                    onBack();
+                  } catch {
+                    toast({ title: 'Error al cambiar estado', variant: 'destructive' });
+                  }
+                }}
+                className="cursor-pointer"
+              >
+                <Pencil className="w-4 h-4 mr-2" />
+                {order.status === 'pending' ? 'Aprobar Pedido' : 'Marcar Pendiente'}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={async () => {
+                  try {
+                    await fetch(`/api/ecommerce/orders/${order.id}/status`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'include',
+                      body: JSON.stringify({ status: 'archived' }),
+                    });
+                    queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
+                    toast({ title: 'Pedido archivado' });
+                    onBack();
+                  } catch {
+                    toast({ title: 'Error al archivar', variant: 'destructive' });
+                  }
+                }}
+                className="cursor-pointer"
+              >
+                <Archive className="w-4 h-4 mr-2" />
+                Archivar
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => setShowDeleteDialog(true)}
+                className="cursor-pointer text-red-600 focus:text-red-600"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Eliminar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button size="sm" className="rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white">
             <FileText className="w-4 h-4 mr-2" />
             Generar Cotización
           </Button>
         </div>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <AlertDialogContent className="max-w-sm">
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar pedido?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción eliminará permanentemente el pedido #{order.id.slice(0, 8).toUpperCase()}. No se puede deshacer.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={async () => {
+                  setIsDeleting(true);
+                  try {
+                    await fetch(`/api/ecommerce/orders/${order.id}`, {
+                      method: 'DELETE',
+                      credentials: 'include',
+                    });
+                    queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
+                    toast({ title: 'Pedido eliminado' });
+                    onOrderDeleted?.();
+                    onBack();
+                  } catch {
+                    toast({ title: 'Error al eliminar', variant: 'destructive' });
+                  } finally {
+                    setIsDeleting(false);
+                  }
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white"
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Eliminando...' : 'Eliminar'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -390,7 +501,7 @@ export default function EcommercePedidos() {
   if (selectedOrder) {
     return (
       <div className="max-w-6xl mx-auto p-6">
-        <OrderDetail order={selectedOrder} onBack={() => setSelectedOrder(null)} />
+        <OrderDetail order={selectedOrder} onBack={() => setSelectedOrder(null)} onOrderDeleted={() => setSelectedOrder(null)} />
       </div>
     );
   }
