@@ -30,7 +30,13 @@ import {
   LogOut,
   Palette,
   Box,
-  Package
+  Package,
+  Info,
+  Play,
+  FileText,
+  Ruler,
+  HelpCircle,
+  Loader2
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -269,6 +275,22 @@ export default function TiendaPage() {
   // Cart state management
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [showFloatingCart, setShowFloatingCart] = useState(false);
+
+  // Product info modal state
+  const [infoModal, setInfoModal] = useState<{ open: boolean; productName: string; loading: boolean; data: any | null }>({
+    open: false, productName: '', loading: false, data: null
+  });
+
+  const openInfoModal = async (productName: string) => {
+    setInfoModal({ open: true, productName, loading: true, data: null });
+    try {
+      const res = await fetch(`/api/public/product-content/${encodeURIComponent(productName)}`);
+      const data = await res.json();
+      setInfoModal(prev => ({ ...prev, loading: false, data }));
+    } catch {
+      setInfoModal(prev => ({ ...prev, loading: false, data: null }));
+    }
+  };
   const { toast } = useToast();
   const { addItem } = useCart();
   
@@ -918,7 +940,7 @@ export default function TiendaPage() {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {groupedCatalog.map(product => {
               const colorKeys = Object.keys(product.colors)
                 .sort((a, b) => product.colors[b].length - product.colors[a].length);
@@ -930,11 +952,11 @@ export default function TiendaPage() {
                   key={product.genericName}
                   className={`rounded-2xl border-2 overflow-hidden transition-all duration-300 flex flex-col ${
                     isExpanded
-                      ? 'border-[#FF6E23]/40 shadow-lg shadow-orange-100/50 bg-white col-span-2'
+                      ? 'border-[#FF6E23]/40 shadow-lg shadow-orange-100/50 bg-white lg:col-span-2'
                       : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-md'
                   }`}
                 >
-                  {/* Product Card (collapsed) */}
+                  {/* Product Card (collapsed) - Horizontal layout */}
                   <div
                     className={`cursor-pointer transition-all duration-200 ${
                       isExpanded ? 'bg-gradient-to-r from-orange-50 to-amber-50' : 'hover:bg-gray-50/80'
@@ -942,21 +964,21 @@ export default function TiendaPage() {
                     onClick={() => toggleProduct(product.genericName)}
                   >
                     {!isExpanded ? (
-                      /* Grid Card View */
-                      <div className="flex flex-col">
-                        {/* Product Image Area */}
-                        <div className="aspect-square w-full overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 relative">
+                      /* Horizontal Card View */
+                      <div className="flex">
+                        {/* Product Image - Left side */}
+                        <div className="w-36 sm:w-44 flex-shrink-0 overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 relative">
                           {product.imageUrl ? (
                             <img
                               src={product.imageUrl}
                               alt={product.genericName}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-cover aspect-square"
                               onError={(e) => {
                                 (e.target as HTMLImageElement).style.display = 'none';
                               }}
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center">
+                            <div className="w-full h-full flex items-center justify-center aspect-square">
                               <ImageIcon className="w-12 h-12 text-gray-200" />
                             </div>
                           )}
@@ -976,15 +998,17 @@ export default function TiendaPage() {
                             </div>
                           )}
                         </div>
-                        {/* Product Info */}
-                        <div className="p-3">
-                          <h3 className="text-sm font-bold uppercase leading-tight text-gray-800 line-clamp-2">
-                            {product.genericName}
-                          </h3>
-                          {product.breveResena && (
-                            <p className="text-xs text-gray-400 mt-1 line-clamp-2 hover:line-clamp-none transition-all cursor-pointer" title="Clic para ver más">{product.breveResena}</p>
-                          )}
-                          <div className="flex items-center gap-2 mt-2">
+                        {/* Product Info - Right side */}
+                        <div className="flex-1 p-4 flex flex-col justify-between min-w-0">
+                          <div>
+                            <h3 className="text-sm font-bold uppercase leading-tight text-gray-800 line-clamp-2">
+                              {product.genericName}
+                            </h3>
+                            {product.breveResena && (
+                              <p className="text-xs text-gray-500 mt-1.5 line-clamp-3 leading-relaxed">{product.breveResena}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-3">
                             <span className="inline-flex items-center gap-1 bg-gradient-to-r from-orange-50 to-amber-50 text-[#FF6E23] text-[10px] font-bold px-2 py-0.5 rounded-full border border-orange-100">
                               <Palette className="w-2.5 h-2.5" /> {colorKeys.length}
                             </span>
@@ -992,6 +1016,12 @@ export default function TiendaPage() {
                               <Box className="w-2.5 h-2.5" /> {totalVariants}
                             </span>
                             <span className="flex-1" />
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openInfoModal(product.genericName); }}
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-full transition-colors"
+                            >
+                              <Info className="w-3 h-3" /> Ver más
+                            </button>
                             <ChevronRight className="h-4 w-4 text-gray-300" />
                           </div>
                         </div>
@@ -1478,6 +1508,178 @@ export default function TiendaPage() {
       isOpen={showFloatingCart} 
       onClose={() => setShowFloatingCart(false)} 
     />
+
+    {/* Product Info Modal */}
+    {infoModal.open && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setInfoModal({ open: false, productName: '', loading: false, data: null })}>
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+        <div
+          className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto mx-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Modal header */}
+          <div className="sticky top-0 bg-white border-b px-5 py-4 rounded-t-2xl flex items-center justify-between z-10">
+            <div>
+              <h3 className="font-bold text-lg text-gray-800 uppercase">{infoModal.productName}</h3>
+              <p className="text-sm text-gray-500">Ficha Técnica del Producto</p>
+            </div>
+            <button
+              onClick={() => setInfoModal({ open: false, productName: '', loading: false, data: null })}
+              className="p-2 rounded-xl hover:bg-gray-100 transition-colors"
+            >
+              <X className="h-5 w-5 text-gray-500" />
+            </button>
+          </div>
+
+          {/* Modal body */}
+          <div className="px-5 py-5">
+            {infoModal.loading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-[#FF6E23]" />
+                <span className="ml-3 text-base text-gray-500">Cargando información...</span>
+              </div>
+            ) : !infoModal.data ? (
+              <div className="text-center py-16">
+                <Package className="h-14 w-14 text-gray-300 mx-auto mb-4" />
+                <p className="text-base text-gray-500 font-medium">No hay información técnica disponible.</p>
+                <p className="text-sm text-gray-400 mt-1">El administrador puede cargarla desde el panel.</p>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {/* Featured Image */}
+                {infoModal.data.imagenDestacada && (
+                  <div className="rounded-xl overflow-hidden border-2 border-gray-100">
+                    <img
+                      src={infoModal.data.imagenDestacada}
+                      alt={infoModal.productName}
+                      className="w-full max-h-64 object-contain bg-gray-50"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  </div>
+                )}
+
+                {infoModal.data.breveResena && (
+                  <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                    <p className="text-base text-blue-800 font-medium">{infoModal.data.breveResena}</p>
+                  </div>
+                )}
+
+                {/* YouTube Video */}
+                {infoModal.data.youtubeUrl && (() => {
+                  const url = infoModal.data.youtubeUrl;
+                  let videoId: string | null = null;
+                  try {
+                    if (url.includes('youtu.be/')) {
+                      videoId = url.split('youtu.be/')[1]?.split(/[?&#]/)[0] || null;
+                    } else if (url.includes('youtube.com')) {
+                      const urlObj = new URL(url);
+                      videoId = urlObj.searchParams.get('v');
+                    }
+                  } catch {}
+                  if (videoId) {
+                    return (
+                      <div className="rounded-xl overflow-hidden border-2 border-gray-100">
+                        <iframe
+                          src={`https://www.youtube.com/embed/${videoId}`}
+                          className="w-full aspect-video"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                          title="Video del producto"
+                        />
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
+                {infoModal.data.descripcion && (
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-500 uppercase mb-2">Descripción</h4>
+                    <p className="text-base text-gray-700">{infoModal.data.descripcion}</p>
+                  </div>
+                )}
+                {infoModal.data.usos && (
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-500 uppercase mb-2">Usos y Aplicaciones</h4>
+                    <p className="text-base text-gray-700">{infoModal.data.usos}</p>
+                  </div>
+                )}
+                {infoModal.data.presentacion && (
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-500 uppercase mb-2">Presentaciones</h4>
+                    <p className="text-base text-gray-700">{infoModal.data.presentacion}</p>
+                  </div>
+                )}
+                {infoModal.data.rendimiento && (
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-500 uppercase mb-2">Rendimiento</h4>
+                    <p className="text-base text-gray-700">{infoModal.data.rendimiento}</p>
+                  </div>
+                )}
+                {infoModal.data.preparacionSuperficie && (
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-500 uppercase mb-2">Preparación de Superficie</h4>
+                    <p className="text-base text-gray-700">{infoModal.data.preparacionSuperficie}</p>
+                  </div>
+                )}
+                {infoModal.data.modoAplicacion && (
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-500 uppercase mb-2">Modo de Aplicación</h4>
+                    <p className="text-base text-gray-700">{infoModal.data.modoAplicacion}</p>
+                  </div>
+                )}
+                {(infoModal.data.tiempoSecado || infoModal.data.capas || infoModal.data.dilucion) && (
+                  <div className="grid grid-cols-3 gap-3">
+                    {infoModal.data.tiempoSecado && (
+                      <div className="bg-gray-50 rounded-xl p-3">
+                        <p className="text-xs font-bold text-gray-500 uppercase">Secado</p>
+                        <p className="text-sm text-gray-700 mt-1 font-medium">{infoModal.data.tiempoSecado}</p>
+                      </div>
+                    )}
+                    {infoModal.data.capas && (
+                      <div className="bg-gray-50 rounded-xl p-3">
+                        <p className="text-xs font-bold text-gray-500 uppercase">Capas</p>
+                        <p className="text-sm text-gray-700 mt-1 font-medium">{infoModal.data.capas}</p>
+                      </div>
+                    )}
+                    {infoModal.data.dilucion && (
+                      <div className="bg-gray-50 rounded-xl p-3">
+                        <p className="text-xs font-bold text-gray-500 uppercase">Dilución</p>
+                        <p className="text-sm text-gray-700 mt-1 font-medium">{infoModal.data.dilucion}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {infoModal.data.observaciones && (
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-500 uppercase mb-2">Observaciones</h4>
+                    <p className="text-base text-gray-700">{infoModal.data.observaciones}</p>
+                  </div>
+                )}
+
+                {/* FAQs */}
+                {(infoModal.data.preguntasFrecuentes || []).length > 0 && (
+                  <div className="border-t pt-5 mt-5">
+                    <h4 className="text-sm font-bold text-gray-500 uppercase mb-3 flex items-center gap-2">
+                      <HelpCircle className="h-4 w-4" />
+                      Preguntas Frecuentes
+                    </h4>
+                    <div className="space-y-3">
+                      {(infoModal.data.preguntasFrecuentes as Array<{pregunta: string; respuesta: string}>).map((faq: {pregunta: string; respuesta: string}, i: number) => (
+                        <div key={i} className="bg-purple-50/50 rounded-xl p-4 border border-purple-100">
+                          <p className="text-base font-bold text-purple-800">{faq.pregunta}</p>
+                          <p className="text-sm text-purple-700 mt-1.5">{faq.respuesta}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }
