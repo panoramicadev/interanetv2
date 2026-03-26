@@ -36,7 +36,9 @@ import {
   FileText,
   Ruler,
   HelpCircle,
-  Loader2
+  Loader2,
+  LockKeyhole,
+  UserPlus
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -547,6 +549,66 @@ export default function TiendaPage() {
   const navigationItems = [
     { name: "Contacto", href: "#contacto" },
   ];
+
+  // Login Gate — show exclusive access screen when not authenticated
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-4">
+        {/* Subtle pattern */}
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-40" />
+
+        <div className="relative text-center max-w-md mx-auto">
+          {/* Logo */}
+          <div className="mb-8">
+            <img
+              src={storeConfig?.logoUrl || "/panoramica-logo.png"}
+              alt="Panorámica"
+              className="h-20 sm:h-24 mx-auto drop-shadow-2xl"
+            />
+          </div>
+
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 bg-[#FF6E23]/20 text-[#FF6E23] px-4 py-1.5 rounded-full text-sm font-bold mb-6 backdrop-blur-sm border border-[#FF6E23]/30">
+            <ShoppingCart className="h-4 w-4" />
+            Plataforma eCommerce
+          </div>
+
+          {/* Title */}
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3 leading-tight">
+            Plataforma exclusiva<br />para clientes Panorámica
+          </h1>
+
+          {/* Description */}
+          <p className="text-gray-400 text-base sm:text-lg mb-8 leading-relaxed">
+            Accede a nuestro catálogo completo con precios especiales, realiza pedidos y gestiona tu cuenta.
+          </p>
+
+          {/* Buttons */}
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <a
+              href="/auth"
+              className="inline-flex items-center justify-center gap-2 bg-[#FF6E23] hover:bg-[#E55E13] text-white font-bold px-8 py-3 rounded-xl transition-all shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 text-base"
+            >
+              <LockKeyhole className="h-4 w-4" />
+              Iniciar Sesión
+            </a>
+            <a
+              href="/auth"
+              className="inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-3 rounded-xl transition-all backdrop-blur-sm border border-white/20 text-base"
+            >
+              <UserPlus className="h-4 w-4" />
+              Crear Cuenta
+            </a>
+          </div>
+
+          {/* Footer note */}
+          <p className="text-gray-500 text-xs mt-10">
+            ¿Necesitas ayuda? Contáctanos al {storeConfig?.phone || "+56 2 2345 6789"}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
