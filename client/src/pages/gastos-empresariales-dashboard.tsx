@@ -94,25 +94,34 @@ function compressImageToJpeg(imgElement: HTMLImageElement, maxWidth = 800, quali
   return canvas.toDataURL('image/jpeg', quality);
 }
 
-// Fetch a file blob from URL — tries proxy first (most reliable for Supabase), then direct
+// Fetch a file blob from URL — proxy first for external (avoids CORS), then direct fallback
 async function fetchFileBlob(fileUrl: string): Promise<Blob> {
   const isExternal = fileUrl.startsWith('http') && !fileUrl.includes(window.location.hostname);
 
   if (isExternal) {
-    // Try direct first (Supabase public URLs should work)
+    // Server proxy FIRST — no CORS issues for server-to-server
     try {
-      const res = await fetchWithTimeout(fileUrl);
+      const proxyRes = await fetchWithTimeout(
+        `/api/proxy-file?url=${encodeURIComponent(fileUrl)}`,
+        { credentials: 'include' },
+        15000 // 15s for large PDFs
+      );
+      if (proxyRes.ok) return await proxyRes.blob();
+      console.warn('[PDF] Proxy failed:', proxyRes.status, fileUrl.substring(0, 80));
+    } catch (e) {
+      console.warn('[PDF] Proxy error:', e, fileUrl.substring(0, 80));
+    }
+    // Fallback: direct fetch (might work for truly public URLs)
+    try {
+      const res = await fetchWithTimeout(fileUrl, {}, 10000);
       if (res.ok) return await res.blob();
     } catch {}
-    // Fallback: server proxy
-    const proxyRes = await fetchWithTimeout(`/api/proxy-file?url=${encodeURIComponent(fileUrl)}`, { credentials: 'include' });
-    if (proxyRes.ok) return await proxyRes.blob();
-    throw new Error(`Failed to fetch: ${proxyRes.status}`);
+    throw new Error(`Failed to fetch external file: ${fileUrl.substring(0, 80)}`);
   }
 
   // Local URL
-  const res = await fetchWithTimeout(fileUrl, { credentials: 'include' });
-  if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
+  const res = await fetchWithTimeout(fileUrl, { credentials: 'include' }, 10000);
+  if (!res.ok) throw new Error(`Failed to fetch local: ${res.status}`);
   return await res.blob();
 }
 

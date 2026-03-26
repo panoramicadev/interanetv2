@@ -573,16 +573,27 @@ export function registerRoutes(app: Express): Server {
         if (pattern instanceof RegExp && pattern.test(hostname)) return res.status(403).json({ message: 'URL no permitida' });
       }
 
-      const supabaseDomain = process.env.SUPABASE_URL ? new URL(process.env.SUPABASE_URL).hostname : '';
-      const allowedDomains = ['storage.googleapis.com', 'supabase.co', 'supabase.in', supabaseDomain, 'replit.dev', 'replit.app'].filter(Boolean);
+      let supabaseDomain = '';
+      try {
+        if (process.env.SUPABASE_URL) supabaseDomain = new URL(process.env.SUPABASE_URL).hostname;
+      } catch {}
+      const allowedDomains = [
+        'storage.googleapis.com', 'supabase.co', 'supabase.in',
+        'amazonaws.com', 'railway.app', 'replit.dev', 'replit.app',
+        supabaseDomain,
+      ].filter(Boolean);
       const isAllowed = allowedDomains.some(d => hostname === d || hostname.endsWith(`.${d}`));
       if (!isAllowed) {
-        console.warn(`[PROXY-FILE] Blocked: ${hostname}`);
-        return res.status(403).json({ message: 'Dominio no permitido' });
+        console.warn(`[PROXY-FILE] Blocked hostname: "${hostname}". Allowed: [${allowedDomains.join(', ')}]`);
+        return res.status(403).json({ message: `Dominio no permitido: ${hostname}` });
       }
 
+      console.log(`[PROXY-FILE] Fetching: ${hostname}${parsedUrl.pathname.substring(0, 60)}`);
       const response = await fetch(fileUrl);
-      if (!response.ok) return res.status(response.status).json({ message: 'Error al obtener archivo' });
+      if (!response.ok) {
+        console.warn(`[PROXY-FILE] Upstream error ${response.status} for ${hostname}`);
+        return res.status(response.status).json({ message: `Upstream error: ${response.status}` });
+      }
 
       const contentType = response.headers.get('content-type') || 'application/octet-stream';
       const contentLength = response.headers.get('content-length');
@@ -591,6 +602,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       const buffer = Buffer.from(await response.arrayBuffer());
+      console.log(`[PROXY-FILE] OK: ${buffer.length} bytes (${contentType})`);
       res.setHeader('Content-Type', contentType);
       res.setHeader('Cache-Control', 'public, max-age=3600');
       res.send(buffer);
