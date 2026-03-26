@@ -6334,8 +6334,25 @@ export function registerRoutes(app: Express): Server {
     }
 
     try {
-      // Validate request body
-      const validationResult = insertEcommerceOrderSchema.safeParse(req.body);
+      // Validate request body - use relaxed schema without server-populated fields
+      const { z } = await import('zod');
+      const clientOrderSchema = z.object({
+        items: z.array(z.object({
+          productId: z.string().optional(),
+          productName: z.string(),
+          sku: z.string().optional(),
+          quantity: z.number().positive(),
+          unitPrice: z.number().positive(),
+          totalPrice: z.number().positive(),
+        })),
+        subtotal: z.number().nonnegative(),
+        tax: z.number().nonnegative(),
+        total: z.number().positive(),
+        notes: z.string().optional().nullable(),
+        shippingAddress: z.string().optional().nullable(),
+      });
+
+      const validationResult = clientOrderSchema.safeParse(req.body);
       if (!validationResult.success) {
         return res.status(400).json({
           message: 'Error de validación',
