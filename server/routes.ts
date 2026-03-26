@@ -483,6 +483,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Allowed domains for image sources (Object Storage, CDN, Replit)
+      const supabaseDomain = process.env.SUPABASE_URL ? new URL(process.env.SUPABASE_URL).hostname : '';
       const allowedDomains = [
         'storage.googleapis.com',
         'storage.cloud.google.com',
@@ -490,6 +491,9 @@ export function registerRoutes(app: Express): Server {
         'replit.dev',
         'replit.app',
         'repl.co',
+        'supabase.co',
+        'supabase.in',
+        supabaseDomain,
         process.env.REPLIT_DEV_DOMAIN || '',
         process.env.REPL_SLUG ? `${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` : ''
       ].filter(Boolean);
@@ -541,6 +545,58 @@ export function registerRoutes(app: Express): Server {
         message: 'Error al procesar la imagen',
         error: error instanceof Error ? error.message : 'Error desconocido'
       });
+    }
+  }));
+
+  // Proxy endpoint for fetching external files (PDFs, images from Supabase/S3)
+  // Used by PDF generation when direct client-side fetch fails due to CORS
+  app.get('/api/proxy-file', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const fileUrl = req.query.url as string;
+      if (!fileUrl) return res.status(400).json({ message: 'URL requerida' });
+
+      let parsedUrl: URL;
+      try { parsedUrl = new URL(fileUrl); } catch { return res.status(400).json({ message: 'URL inv\u00e1lida' }); }
+
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        return res.status(400).json({ message: 'Protocolo no permitido' });
+      }
+
+      const hostname = parsedUrl.hostname.toLowerCase();
+      const blockedPatterns = [
+        'localhost', '127.0.0.1', '0.0.0.0', '::1',
+        /^10\.\d+\.\d+\.\d+$/, /^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/, /^192\.168\.\d+\.\d+$/,
+        '169.254.169.254', 'metadata.google.internal'
+      ];
+      for (const pattern of blockedPatterns) {
+        if (typeof pattern === 'string' && hostname === pattern) return res.status(403).json({ message: 'URL no permitida' });
+        if (pattern instanceof RegExp && pattern.test(hostname)) return res.status(403).json({ message: 'URL no permitida' });
+      }
+
+      const supabaseDomain = process.env.SUPABASE_URL ? new URL(process.env.SUPABASE_URL).hostname : '';
+      const allowedDomains = ['storage.googleapis.com', 'supabase.co', 'supabase.in', supabaseDomain, 'replit.dev', 'replit.app'].filter(Boolean);
+      const isAllowed = allowedDomains.some(d => hostname === d || hostname.endsWith(`.${d}`));
+      if (!isAllowed) {
+        console.warn(`[PROXY-FILE] Blocked: ${hostname}`);
+        return res.status(403).json({ message: 'Dominio no permitido' });
+      }
+
+      const response = await fetch(fileUrl);
+      if (!response.ok) return res.status(response.status).json({ message: 'Error al obtener archivo' });
+
+      const contentType = response.headers.get('content-type') || 'application/octet-stream';
+      const contentLength = response.headers.get('content-length');
+      if (contentLength && parseInt(contentLength) > 50 * 1024 * 1024) {
+        return res.status(413).json({ message: 'Archivo demasiado grande' });
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.send(buffer);
+    } catch (error) {
+      console.error('[PROXY-FILE] Error:', error);
+      res.status(500).json({ message: 'Error al descargar archivo' });
     }
   }));
 

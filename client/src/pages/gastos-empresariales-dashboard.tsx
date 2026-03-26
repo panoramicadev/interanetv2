@@ -72,6 +72,7 @@ async function loadImageForPdf(imageUrl: string): Promise<{ base64: string; form
     ? imageUrl
     : `${window.location.origin}${imageUrl}`;
 
+  const isExternal = absoluteUrl.startsWith('http') && !absoluteUrl.includes(window.location.hostname);
   let blob: Blob;
 
   try {
@@ -82,22 +83,40 @@ async function loadImageForPdf(imageUrl: string): Promise<{ base64: string; form
     if (response.ok) {
       blob = await response.blob();
     } else {
-      // Fallback: load image directly without EXIF correction
+      // Fallback: load image directly
       console.warn('EXIF normalization failed, loading image directly');
-      const directResponse = await fetch(absoluteUrl, { credentials: 'include' });
-      if (!directResponse.ok) {
-        throw new Error(`Failed to load image: HTTP ${directResponse.status}`);
+      if (isExternal) {
+        // External URLs: try without credentials first, then proxy
+        const directResponse = await fetch(absoluteUrl);
+        if (directResponse.ok) {
+          blob = await directResponse.blob();
+        } else {
+          const proxyResponse = await fetch(`/api/proxy-file?url=${encodeURIComponent(absoluteUrl)}`, { credentials: 'include' });
+          if (!proxyResponse.ok) throw new Error(`Failed to load image: HTTP ${proxyResponse.status}`);
+          blob = await proxyResponse.blob();
+        }
+      } else {
+        const directResponse = await fetch(absoluteUrl, { credentials: 'include' });
+        if (!directResponse.ok) throw new Error(`Failed to load image: HTTP ${directResponse.status}`);
+        blob = await directResponse.blob();
       }
-      blob = await directResponse.blob();
     }
   } catch (error) {
-    // Fallback: load image directly without EXIF correction
     console.warn('EXIF normalization error, loading image directly:', error);
-    const directResponse = await fetch(absoluteUrl, { credentials: 'include' });
-    if (!directResponse.ok) {
-      throw new Error(`Failed to load image: HTTP ${directResponse.status}`);
+    if (isExternal) {
+      const directResponse = await fetch(absoluteUrl);
+      if (directResponse.ok) {
+        blob = await directResponse.blob();
+      } else {
+        const proxyResponse = await fetch(`/api/proxy-file?url=${encodeURIComponent(absoluteUrl)}`, { credentials: 'include' });
+        if (!proxyResponse.ok) throw new Error(`Failed to load image: HTTP ${proxyResponse.status}`);
+        blob = await proxyResponse.blob();
+      }
+    } else {
+      const directResponse = await fetch(absoluteUrl, { credentials: 'include' });
+      if (!directResponse.ok) throw new Error(`Failed to load image: HTTP ${directResponse.status}`);
+      blob = await directResponse.blob();
     }
-    blob = await directResponse.blob();
   }
 
   let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
@@ -117,8 +136,22 @@ async function loadImageForPdf(imageUrl: string): Promise<{ base64: string; form
 // Function to convert first page of PDF to base64 image
 async function pdfToImage(pdfUrl: string, width: number = 400): Promise<string | null> {
   try {
-    // Fetch PDF as ArrayBuffer to handle CORS properly
-    const response = await fetch(pdfUrl, { credentials: 'include' });
+    const isExternal = pdfUrl.startsWith('http') && !pdfUrl.includes(window.location.hostname);
+    
+    // Try fetching: external URLs don't need credentials, local ones do
+    let response: Response;
+    if (isExternal) {
+      // External URLs (Supabase/S3) - fetch without credentials to avoid CORS preflight
+      response = await fetch(pdfUrl);
+      if (!response.ok) {
+        // Retry via proxy if direct fetch fails
+        const proxyUrl = `/api/proxy-file?url=${encodeURIComponent(pdfUrl)}`;
+        response = await fetch(proxyUrl, { credentials: 'include' });
+      }
+    } else {
+      response = await fetch(pdfUrl, { credentials: 'include' });
+    }
+    
     if (!response.ok) {
       console.error('Failed to fetch PDF:', response.status);
       return null;
@@ -1254,7 +1287,16 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
                 : `${window.location.origin}${previewPath}`;
 
               try {
-                const previewResponse = await fetch(previewUrl, { credentials: 'include' });
+                const isExternalPreview = previewUrl.startsWith('http') && !previewUrl.includes(window.location.hostname);
+                let previewResponse: Response;
+                if (isExternalPreview) {
+                  previewResponse = await fetch(previewUrl);
+                  if (!previewResponse.ok) {
+                    previewResponse = await fetch(`/api/proxy-file?url=${encodeURIComponent(previewUrl)}`, { credentials: 'include' });
+                  }
+                } else {
+                  previewResponse = await fetch(previewUrl, { credentials: 'include' });
+                }
                 if (previewResponse.ok) {
                   const previewBlob = await previewResponse.blob();
                   const previewBase64 = await new Promise<string>((resolve) => {
