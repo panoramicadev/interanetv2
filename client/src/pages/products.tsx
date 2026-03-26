@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2, Globe, ShoppingCart, Tags, Image, Settings, Link, Palette, BarChart3, Layers, ChevronLeft, ChevronRight, ExternalLink, RefreshCw, BookOpen, ImageIcon, Truck, Save, DollarSign, Tag } from "lucide-react";
+import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2, Globe, ShoppingCart, Tags, Image, Settings, Link, Palette, BarChart3, Layers, ChevronLeft, ChevronRight, ChevronDown, ExternalLink, RefreshCw, BookOpen, ImageIcon, Truck, Save, DollarSign, Tag, Plus, Trash2 } from "lucide-react";
 import { PriceList } from "@shared/schema";
 import GroupedCatalog from "@/components/grouped-catalog";
 import { InventarioContent } from "@/pages/inventario";
@@ -146,6 +146,9 @@ function FletesContent() {
 function CategoriasEtiquetasContent() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatDesc, setNewCatDesc] = useState("");
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
 
   const AVAILABLE_TAGS = ["Mejor Precio", "Rápida Rotación", "Pocas Unidades"];
   const TAG_COLORS: Record<string, string> = {
@@ -153,8 +156,12 @@ function CategoriasEtiquetasContent() {
     "Rápida Rotación": "bg-blue-500",
     "Pocas Unidades": "bg-amber-500",
   };
+  const CATEGORY_COLORS = [
+    "#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899",
+    "#f59e0b", "#06b6d4", "#ef4444", "#84cc16", "#6366f1"
+  ];
 
-  // Fetch grouped catalog to get categories and tag assignments
+  // Fetch grouped catalog
   const { data, isLoading } = useQuery<{ catalog: any[]; availableGroups: string[] }>({
     queryKey: ["/api/products/grouped-catalog", { search: "", groupFilter: "all" }],
     queryFn: async () => {
@@ -163,17 +170,85 @@ function CategoriasEtiquetasContent() {
     },
   });
 
+  // Fetch custom categories
+  const { data: customCategories = [] } = useQuery<any[]>({
+    queryKey: ["/api/ecommerce/categories-config"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/ecommerce/categories-config");
+      return res.json();
+    },
+  });
+
   const catalog = data?.catalog || [];
-  const availableGroups = data?.availableGroups || [];
 
   // Group products by their groupName (category)
   const productsByCategory = new Map<string, any[]>();
+  const unassigned: any[] = [];
   catalog.forEach(product => {
-    const cat = product.groupName || "Sin categoría";
-    if (!productsByCategory.has(cat)) productsByCategory.set(cat, []);
-    productsByCategory.get(cat)!.push(product);
+    const cat = product.groupName;
+    if (!cat) {
+      unassigned.push(product);
+    } else {
+      if (!productsByCategory.has(cat)) productsByCategory.set(cat, []);
+      productsByCategory.get(cat)!.push(product);
+    }
   });
 
+  // Create category mutation
+  const createCatMutation = useMutation({
+    mutationFn: async (data: { name: string; description: string }) => {
+      const res = await fetch("/api/ecommerce/categories-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...data, color: CATEGORY_COLORS[customCategories.length % CATEGORY_COLORS.length] }),
+        credentials: "include",
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.message); }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ecommerce/categories-config"] });
+      setNewCatName("");
+      setNewCatDesc("");
+      toast({ title: "Categoría creada", description: "La categoría se creó correctamente." });
+    },
+    onError: (e) => toast({ variant: "destructive", title: "Error", description: String(e.message) }),
+  });
+
+  // Delete category mutation
+  const deleteCatMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/ecommerce/categories-config/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Error al eliminar");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ecommerce/categories-config"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog"] });
+      toast({ title: "Categoría eliminada" });
+    },
+  });
+
+  // Assign product to category
+  const assignMutation = useMutation({
+    mutationFn: async ({ productFamily, categoryName }: { productFamily: string; categoryName: string | null }) => {
+      const res = await fetch("/api/ecommerce/product-category", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productFamily, categoryName }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Error al asignar");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/public/products/grouped"] });
+    },
+    onError: () => toast({ variant: "destructive", title: "Error al asignar producto" }),
+  });
+
+  // Tag mutation
   const tagMutation = useMutation({
     mutationFn: async ({ productFamily, tag, action }: { productFamily: string; tag: string; action: 'add' | 'remove' }) => {
       const res = await fetch("/api/products/grouped-catalog/tags", {
@@ -194,35 +269,87 @@ function CategoriasEtiquetasContent() {
     },
   });
 
+  const toggleCat = (id: string) => {
+    setExpandedCats(prev => {
+      const s = new Set(prev);
+      s.has(id) ? s.delete(id) : s.add(id);
+      return s;
+    });
+  };
+
+  // All category names for the dropdown
+  const allCategoryNames = customCategories.map((c: any) => c.name);
+
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-orange-100/50">
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <p className="text-[10px] font-medium text-orange-600 uppercase tracking-wider">Categorías</p>
-            <p className="text-2xl font-bold text-orange-900">{availableGroups.length}</p>
+            <p className="text-2xl font-bold text-orange-900">{customCategories.length}</p>
           </CardContent>
         </Card>
         <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <p className="text-[10px] font-medium text-blue-600 uppercase tracking-wider">Productos</p>
             <p className="text-2xl font-bold text-blue-900">{catalog.length}</p>
           </CardContent>
         </Card>
         <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
-          <CardContent className="p-4">
-            <p className="text-[10px] font-medium text-green-600 uppercase tracking-wider">Con Etiquetas</p>
-            <p className="text-2xl font-bold text-green-900">{catalog.filter(p => (p.tags || []).length > 0).length}</p>
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-[10px] font-medium text-green-600 uppercase tracking-wider">Asignados</p>
+            <p className="text-2xl font-bold text-green-900">{catalog.filter(p => p.groupName).length}</p>
           </CardContent>
         </Card>
         <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
-          <CardContent className="p-4">
-            <p className="text-[10px] font-medium text-purple-600 uppercase tracking-wider">Sin Etiquetas</p>
-            <p className="text-2xl font-bold text-purple-900">{catalog.filter(p => (p.tags || []).length === 0).length}</p>
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-[10px] font-medium text-purple-600 uppercase tracking-wider">Sin Categoría</p>
+            <p className="text-2xl font-bold text-purple-900">{unassigned.length}</p>
           </CardContent>
         </Card>
       </div>
+
+      {/* Create Category */}
+      <Card className="border-0 shadow-sm rounded-xl">
+        <CardHeader className="bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-t-xl px-6 py-4">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Plus className="h-5 w-5" />
+            Crear Nueva Categoría
+          </CardTitle>
+          <CardDescription className="text-white/80 text-xs mt-0.5">
+            Crea categorías personalizadas para organizar tus productos en la tienda
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1">
+              <Input
+                placeholder="Nombre de la categoría (ej: Pintura para techos)"
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                className="h-10"
+              />
+            </div>
+            <div className="flex-1">
+              <Input
+                placeholder="Descripción (opcional)"
+                value={newCatDesc}
+                onChange={(e) => setNewCatDesc(e.target.value)}
+                className="h-10"
+              />
+            </div>
+            <Button
+              onClick={() => createCatMutation.mutate({ name: newCatName, description: newCatDesc })}
+              disabled={!newCatName.trim() || createCatMutation.isPending}
+              className="bg-orange-500 hover:bg-orange-600 text-white h-10 px-6"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              {createCatMutation.isPending ? "Creando..." : "Crear"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Etiquetas disponibles */}
       <Card className="border-0 shadow-sm rounded-xl">
@@ -231,19 +358,16 @@ function CategoriasEtiquetasContent() {
             <Tags className="h-5 w-5 text-orange-500" />
             Etiquetas Disponibles
           </CardTitle>
-          <CardDescription className="text-xs mt-0.5">
-            Estas etiquetas se muestran en la tienda para destacar productos
-          </CardDescription>
         </CardHeader>
-        <CardContent className="p-6">
+        <CardContent className="p-4 sm:p-6">
           <div className="flex flex-wrap gap-3">
             {AVAILABLE_TAGS.map(tag => {
               const count = catalog.filter(p => (p.tags || []).includes(tag)).length;
               return (
-                <div key={tag} className="flex items-center gap-2 p-3 rounded-xl bg-muted/30 border border-muted">
+                <div key={tag} className="flex items-center gap-2 p-2.5 rounded-xl bg-muted/30 border border-muted">
                   <div className={`w-3 h-3 rounded-full ${TAG_COLORS[tag] || 'bg-gray-500'}`} />
                   <span className="text-sm font-semibold">{tag}</span>
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{count} productos</Badge>
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{count}</Badge>
                 </div>
               );
             })}
@@ -251,71 +375,194 @@ function CategoriasEtiquetasContent() {
         </CardContent>
       </Card>
 
-      {/* Products by Category with tag management */}
-      {isLoading ? (
+      {/* Custom Categories */}
+      {customCategories.map((cat: any) => {
+        const productsInCat = productsByCategory.get(cat.name) || [];
+        const isExpanded = expandedCats.has(cat.id);
+        return (
+          <Card key={cat.id} className="border-0 shadow-sm rounded-xl overflow-hidden">
+            <div
+              className="flex items-center gap-3 px-4 sm:px-6 py-3 cursor-pointer hover:bg-muted/20 transition-colors border-b"
+              onClick={() => toggleCat(cat.id)}
+            >
+              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color || '#f97316' }} />
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-sm">{cat.name}</h3>
+                {cat.description && <p className="text-xs text-muted-foreground truncate">{cat.description}</p>}
+              </div>
+              <Badge variant="outline" className="text-xs flex-shrink-0">{productsInCat.length} productos</Badge>
+              <button
+                onClick={(e) => { e.stopPropagation(); if (confirm(`¿Eliminar la categoría "${cat.name}"?`)) deleteCatMutation.mutate(cat.id); }}
+                className="text-red-400 hover:text-red-600 p-1 rounded transition-colors flex-shrink-0"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+              {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+            </div>
+
+            {isExpanded && (
+              <CardContent className="p-0">
+                {/* Add product selector */}
+                <div className="p-3 sm:p-4 bg-muted/10 border-b flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Agregar producto:</span>
+                  <Select onValueChange={(val) => assignMutation.mutate({ productFamily: val, categoryName: cat.name })}>
+                    <SelectTrigger className="h-8 text-xs flex-1">
+                      <SelectValue placeholder="Seleccionar producto..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {catalog
+                        .filter(p => !p.groupName || p.groupName !== cat.name)
+                        .sort((a: any, b: any) => a.genericName.localeCompare(b.genericName))
+                        .map((p: any) => (
+                          <SelectItem key={p.genericName} value={p.genericName} className="text-xs">
+                            {p.genericName} {p.groupName ? `(${p.groupName})` : ''}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {productsInCat.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/10">
+                        <TableHead className="text-xs uppercase">Producto</TableHead>
+                        <TableHead className="text-xs uppercase w-20">Colores</TableHead>
+                        <TableHead className="text-xs uppercase">Etiquetas</TableHead>
+                        <TableHead className="text-xs uppercase w-12"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {productsInCat.map((product: any) => (
+                        <TableRow key={product.genericName} className="hover:bg-muted/5">
+                          <TableCell className="font-medium text-xs sm:text-sm">{product.genericName}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {Object.keys(product.colors || {}).length}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              {AVAILABLE_TAGS.map(tag => {
+                                const isActive = (product.tags || []).includes(tag);
+                                return (
+                                  <button
+                                    key={tag}
+                                    onClick={() => tagMutation.mutate({
+                                      productFamily: product.genericName,
+                                      tag,
+                                      action: isActive ? 'remove' : 'add',
+                                    })}
+                                    disabled={tagMutation.isPending}
+                                    className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold transition-all ${
+                                      isActive
+                                        ? `${TAG_COLORS[tag]} text-white border-transparent`
+                                        : 'bg-white text-gray-500 border-dashed border-gray-300 hover:border-gray-400'
+                                    }`}
+                                  >
+                                    {isActive ? '✓ ' : '+ '}{tag}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <button
+                              onClick={() => assignMutation.mutate({ productFamily: product.genericName, categoryName: null })}
+                              className="text-red-400 hover:text-red-600 p-1"
+                              title="Quitar de categoría"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="p-8 text-center text-muted-foreground text-sm">
+                    <Package className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                    Sin productos asignados. Usa el selector de arriba para agregar.
+                  </div>
+                )}
+              </CardContent>
+            )}
+          </Card>
+        );
+      })}
+
+      {/* Unassigned Products */}
+      {unassigned.length > 0 && (
+        <Card className="border-0 shadow-sm rounded-xl overflow-hidden border-dashed">
+          <CardHeader className="bg-muted/20 border-b px-4 sm:px-6 py-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-bold flex items-center gap-2 text-muted-foreground">
+                <Package className="h-4 w-4" />
+                Productos sin categoría
+              </CardTitle>
+              <Badge variant="outline" className="text-xs">{unassigned.length}</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/10">
+                  <TableHead className="text-xs uppercase">Producto</TableHead>
+                  <TableHead className="text-xs uppercase w-32 sm:w-48">Asignar a</TableHead>
+                  <TableHead className="text-xs uppercase">Etiquetas</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {unassigned.map((product: any) => (
+                  <TableRow key={product.genericName} className="hover:bg-muted/5">
+                    <TableCell className="font-medium text-xs sm:text-sm">{product.genericName}</TableCell>
+                    <TableCell>
+                      <Select onValueChange={(val) => assignMutation.mutate({ productFamily: product.genericName, categoryName: val })}>
+                        <SelectTrigger className="h-7 text-[11px] w-full">
+                          <SelectValue placeholder="Categoría..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allCategoryNames.map((name: string) => (
+                            <SelectItem key={name} value={name} className="text-xs">{name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {AVAILABLE_TAGS.map(tag => {
+                          const isActive = (product.tags || []).includes(tag);
+                          return (
+                            <button
+                              key={tag}
+                              onClick={() => tagMutation.mutate({
+                                productFamily: product.genericName,
+                                tag,
+                                action: isActive ? 'remove' : 'add',
+                              })}
+                              disabled={tagMutation.isPending}
+                              className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold transition-all ${
+                                isActive
+                                  ? `${TAG_COLORS[tag]} text-white border-transparent`
+                                  : 'bg-white text-gray-500 border-dashed border-gray-300 hover:border-gray-400'
+                              }`}
+                            >
+                              {isActive ? '✓ ' : '+ '}{tag}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {isLoading && (
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-orange-500 border-t-transparent" />
         </div>
-      ) : (
-        Array.from(productsByCategory.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([category, products]) => (
-          <Card key={category} className="border-0 shadow-sm rounded-xl overflow-hidden">
-            <CardHeader className="bg-muted/30 border-b px-6 py-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-bold flex items-center gap-2">
-                  <Package className="h-4 w-4 text-orange-500" />
-                  {category}
-                </CardTitle>
-                <Badge variant="outline" className="text-xs">{products.length} productos</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/10">
-                    <TableHead className="text-xs uppercase w-2/5">Producto</TableHead>
-                    <TableHead className="text-xs uppercase">Colores</TableHead>
-                    <TableHead className="text-xs uppercase">Etiquetas</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {products.map((product: any) => (
-                    <TableRow key={product.genericName} className="hover:bg-muted/5">
-                      <TableCell className="font-medium text-sm">{product.genericName}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {Object.keys(product.colors || {}).length} colores
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1.5">
-                          {AVAILABLE_TAGS.map(tag => {
-                            const isActive = (product.tags || []).includes(tag);
-                            return (
-                              <button
-                                key={tag}
-                                onClick={() => tagMutation.mutate({
-                                  productFamily: product.genericName,
-                                  tag,
-                                  action: isActive ? 'remove' : 'add',
-                                })}
-                                disabled={tagMutation.isPending}
-                                className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold transition-all ${
-                                  isActive
-                                    ? `${TAG_COLORS[tag]} text-white border-transparent`
-                                    : 'bg-white text-gray-500 border-dashed border-gray-300 hover:border-gray-400'
-                                }`}
-                              >
-                                {isActive ? '✓ ' : '+ '}{tag}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        ))
       )}
     </div>
   );

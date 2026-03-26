@@ -6555,6 +6555,135 @@ export function registerRoutes(app: Express): Server {
     res.json({ success: true, rates });
   }));
 
+  // ===================== eCommerce Categories =====================
+
+  // Get custom categories
+  app.get('/api/ecommerce/categories-config', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS app_config (
+        key VARCHAR PRIMARY KEY,
+        value JSONB NOT NULL DEFAULT '{}',
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    const result = await db.execute(sql`
+      SELECT value FROM app_config WHERE key = 'ecommerce_categories'
+    `);
+    
+    const row = (result as any).rows?.[0];
+    res.json(row?.value || []);
+  }));
+
+  // Create a new custom category
+  app.post('/api/ecommerce/categories-config', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (!['admin', 'supervisor'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const { name, description, color } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: 'El nombre de la categoría es requerido' });
+    }
+
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    
+    // Get current categories
+    const result = await db.execute(sql`
+      SELECT value FROM app_config WHERE key = 'ecommerce_categories'
+    `);
+    const row = (result as any).rows?.[0];
+    const categories: any[] = row?.value || [];
+    
+    // Check for duplicates
+    if (categories.some((c: any) => c.name.toLowerCase() === name.trim().toLowerCase())) {
+      return res.status(400).json({ message: 'Ya existe una categoría con ese nombre' });
+    }
+    
+    const newCategory = {
+      id: `cat_${Date.now()}`,
+      name: name.trim(),
+      description: description?.trim() || '',
+      color: color || '#f97316',
+      createdAt: new Date().toISOString(),
+    };
+    
+    categories.push(newCategory);
+    
+    await db.execute(sql`
+      INSERT INTO app_config (key, value, updated_at)
+      VALUES ('ecommerce_categories', ${JSON.stringify(categories)}::jsonb, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(categories)}::jsonb, updated_at = NOW()
+    `);
+    
+    res.json(newCategory);
+  }));
+
+  // Delete a custom category
+  app.delete('/api/ecommerce/categories-config/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (!['admin', 'supervisor'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const { id } = req.params;
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    
+    const result = await db.execute(sql`
+      SELECT value FROM app_config WHERE key = 'ecommerce_categories'
+    `);
+    const row = (result as any).rows?.[0];
+    let categories: any[] = row?.value || [];
+    
+    const deleted = categories.find((c: any) => c.id === id);
+    categories = categories.filter((c: any) => c.id !== id);
+    
+    await db.execute(sql`
+      INSERT INTO app_config (key, value, updated_at)
+      VALUES ('ecommerce_categories', ${JSON.stringify(categories)}::jsonb, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(categories)}::jsonb, updated_at = NOW()
+    `);
+    
+    // Unset group_name for products that were in this category
+    if (deleted) {
+      await db.execute(sql`
+        UPDATE ecommerce_products SET group_name = NULL 
+        WHERE group_name = ${deleted.name}
+      `);
+    }
+    
+    res.json({ success: true });
+  }));
+
+  // Assign a product family to a category (update group_name)
+  app.patch('/api/ecommerce/product-category', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (!['admin', 'supervisor'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const { productFamily, categoryName } = req.body;
+    if (!productFamily) {
+      return res.status(400).json({ message: 'productFamily es requerido' });
+    }
+
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    
+    // Update group_name for all variants of this product family
+    const groupName = categoryName || null;
+    await db.execute(sql`
+      UPDATE ecommerce_products 
+      SET group_name = ${groupName}
+      WHERE variant_generic_display_name = ${productFamily}
+    `);
+    
+    res.json({ success: true, productFamily, categoryName: groupName });
+  }));
+
   // ===================== eCommerce Admin API Routes (Simple) =====================
 
   // Get products for eCommerce admin panel (imports from priceList)

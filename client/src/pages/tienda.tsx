@@ -1053,10 +1053,10 @@ export default function TiendaPage() {
                       const activeColorImg = activeVariants.find(v => v.imageUrl)?.imageUrl || product.imageUrl;
 
                       return (
-                        <div className="border-t border-[#FF6E23]/10 flex flex-row">
+                        <div className="border-t border-[#FF6E23]/10 flex flex-col sm:flex-row">
                           {/* Left: Product Image */}
-                          <div className="w-36 md:w-44 flex-shrink-0 bg-gradient-to-br from-gray-50 to-white p-3 flex items-start justify-center">
-                            <div className="w-full aspect-square rounded-xl overflow-hidden bg-white shadow-sm border border-gray-100">
+                          <div className="w-full sm:w-36 md:w-44 flex-shrink-0 bg-gradient-to-br from-gray-50 to-white p-3 flex items-start justify-center">
+                            <div className="w-28 sm:w-full aspect-square rounded-xl overflow-hidden bg-white shadow-sm border border-gray-100 mx-auto">
                               {activeColorImg ? (
                                 <img src={activeColorImg} alt={`${product.genericName} ${activeColor}`} className="w-full h-full object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                               ) : (
@@ -1116,22 +1116,25 @@ export default function TiendaPage() {
                                 {activeVariants.map(variant => {
                                   const variantQty = quantities[variant.sku] || variant.minUnit || 1;
                                   return (
-                                    <div key={variant.sku} className="bg-gray-50 border border-gray-100 rounded-lg p-2.5 hover:border-[#FF6E23]/20 transition-all">
-                                      <div className="flex items-center gap-2">
+                                    <div key={variant.sku} className="bg-gray-50 border border-gray-100 rounded-lg p-2 sm:p-2.5 hover:border-[#FF6E23]/20 transition-all">
+                                      <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2">
                                         {/* Format + Price */}
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-xs font-bold text-gray-800">{variant.format}</span>
-                                            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700">
+                                        <div className="flex items-center justify-between sm:flex-1 sm:min-w-0">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-xs font-bold text-gray-800 truncate">{variant.format}</span>
+                                            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700 whitespace-nowrap hidden sm:inline">
                                               Disponible
                                             </span>
                                           </div>
                                           {variant.price && variant.price > 0 ? (
-                                            <span className="text-sm font-bold text-gray-900">{formatPrice(variant.price)}</span>
-                                          ) : (
-                                            <span className="text-[10px] text-gray-400">Sin precio</span>
-                                          )}
+                                            <span className="text-sm font-bold text-gray-900 sm:hidden">{formatPrice(variant.price)}</span>
+                                          ) : null}
                                         </div>
+                                        {variant.price && variant.price > 0 ? (
+                                          <span className="text-sm font-bold text-gray-900 hidden sm:block">{formatPrice(variant.price)}</span>
+                                        ) : (
+                                          <span className="text-[10px] text-gray-400 hidden sm:block">Sin precio</span>
+                                        )}
                                         {/* Qty selector + Add */}
                                         <div className="flex items-center gap-1.5 flex-shrink-0">
                                           <div className="inline-flex items-center border border-gray-200 rounded-md overflow-hidden bg-white">
@@ -1163,7 +1166,6 @@ export default function TiendaPage() {
                                             onClick={(e) => { e.stopPropagation(); addGroupedVariantToCart(variant, product.genericName); }}
                                           >
                                             <ShoppingCart className="h-3 w-3" />
-                                            <span className="hidden sm:inline">Agregar</span>
                                           </button>
                                         </div>
                                       </div>
