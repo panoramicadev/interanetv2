@@ -65,100 +65,98 @@ import GastosFilterBar from "@/components/gastos-filter-bar";
 // This avoids dynamic import issues in production builds
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
-// Load image for PDF generation - uses backend endpoint to normalize EXIF orientation
-// This ensures images are correctly oriented in PDF regardless of how they were taken
+// Fetch with timeout helper
+async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs = 8000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...opts, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Compress image via canvas — returns small JPEG base64
+function compressImageToJpeg(imgElement: HTMLImageElement, maxWidth = 800, quality = 0.6): string {
+  let w = imgElement.naturalWidth;
+  let h = imgElement.naturalHeight;
+  if (w > maxWidth) {
+    h = Math.round(h * (maxWidth / w));
+    w = maxWidth;
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+  ctx.drawImage(imgElement, 0, 0, w, h);
+  return canvas.toDataURL('image/jpeg', quality);
+}
+
+// Fetch a file blob from URL — tries proxy first (most reliable for Supabase), then direct
+async function fetchFileBlob(fileUrl: string): Promise<Blob> {
+  const isExternal = fileUrl.startsWith('http') && !fileUrl.includes(window.location.hostname);
+
+  if (isExternal) {
+    // Try direct first (Supabase public URLs should work)
+    try {
+      const res = await fetchWithTimeout(fileUrl);
+      if (res.ok) return await res.blob();
+    } catch {}
+    // Fallback: server proxy
+    const proxyRes = await fetchWithTimeout(`/api/proxy-file?url=${encodeURIComponent(fileUrl)}`, { credentials: 'include' });
+    if (proxyRes.ok) return await proxyRes.blob();
+    throw new Error(`Failed to fetch: ${proxyRes.status}`);
+  }
+
+  // Local URL
+  const res = await fetchWithTimeout(fileUrl, { credentials: 'include' });
+  if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
+  return await res.blob();
+}
+
+// Load image for PDF — fetches, compresses to small JPEG
 async function loadImageForPdf(imageUrl: string): Promise<{ base64: string; format: 'JPEG' | 'PNG' | 'WEBP' }> {
   const absoluteUrl = imageUrl.startsWith('http')
     ? imageUrl
     : `${window.location.origin}${imageUrl}`;
 
-  const isExternal = absoluteUrl.startsWith('http') && !absoluteUrl.includes(window.location.hostname);
-  let blob: Blob;
-
+  // Try normalized endpoint first (handles EXIF rotation)
+  let blob: Blob | null = null;
   try {
-    // Try the backend endpoint that applies EXIF orientation correction
-    const normalizedUrl = `/api/image-normalized?url=${encodeURIComponent(absoluteUrl)}`;
-    const response = await fetch(normalizedUrl, { credentials: 'include' });
+    const res = await fetchWithTimeout(`/api/image-normalized?url=${encodeURIComponent(absoluteUrl)}`, { credentials: 'include' });
+    if (res.ok) blob = await res.blob();
+  } catch {}
 
-    if (response.ok) {
-      blob = await response.blob();
-    } else {
-      // Fallback: load image directly
-      console.warn('EXIF normalization failed, loading image directly');
-      if (isExternal) {
-        // External URLs: try without credentials first, then proxy
-        const directResponse = await fetch(absoluteUrl);
-        if (directResponse.ok) {
-          blob = await directResponse.blob();
-        } else {
-          const proxyResponse = await fetch(`/api/proxy-file?url=${encodeURIComponent(absoluteUrl)}`, { credentials: 'include' });
-          if (!proxyResponse.ok) throw new Error(`Failed to load image: HTTP ${proxyResponse.status}`);
-          blob = await proxyResponse.blob();
-        }
-      } else {
-        const directResponse = await fetch(absoluteUrl, { credentials: 'include' });
-        if (!directResponse.ok) throw new Error(`Failed to load image: HTTP ${directResponse.status}`);
-        blob = await directResponse.blob();
-      }
-    }
-  } catch (error) {
-    console.warn('EXIF normalization error, loading image directly:', error);
-    if (isExternal) {
-      const directResponse = await fetch(absoluteUrl);
-      if (directResponse.ok) {
-        blob = await directResponse.blob();
-      } else {
-        const proxyResponse = await fetch(`/api/proxy-file?url=${encodeURIComponent(absoluteUrl)}`, { credentials: 'include' });
-        if (!proxyResponse.ok) throw new Error(`Failed to load image: HTTP ${proxyResponse.status}`);
-        blob = await proxyResponse.blob();
-      }
-    } else {
-      const directResponse = await fetch(absoluteUrl, { credentials: 'include' });
-      if (!directResponse.ok) throw new Error(`Failed to load image: HTTP ${directResponse.status}`);
-      blob = await directResponse.blob();
-    }
+  // Fallback to direct/proxy fetch
+  if (!blob) {
+    blob = await fetchFileBlob(absoluteUrl);
   }
 
-  let format: 'JPEG' | 'PNG' | 'WEBP' = 'JPEG';
-  if (blob.type === 'image/png') {
-    format = 'PNG';
-  } else if (blob.type === 'image/webp') {
-    format = 'WEBP';
+  // Convert blob to Image, then compress to JPEG via canvas
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    const imgEl = new Image();
+    await new Promise<void>((resolve, reject) => {
+      imgEl.onload = () => resolve();
+      imgEl.onerror = () => reject(new Error('Image decode failed'));
+      imgEl.src = objectUrl;
+    });
+    const compressed = compressImageToJpeg(imgEl, 800, 0.6);
+    if (!compressed) throw new Error('Compression failed');
+    return { base64: compressed, format: 'JPEG' };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
   }
-
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve({ base64: reader.result as string, format });
-    reader.readAsDataURL(blob);
-  });
 }
 
-// Function to convert first page of PDF to base64 image
-async function pdfToImage(pdfUrl: string, width: number = 400): Promise<string | null> {
+// Convert first page of PDF to compressed JPEG image
+async function pdfToImage(pdfUrl: string, width: number = 300): Promise<string | null> {
   try {
-    const isExternal = pdfUrl.startsWith('http') && !pdfUrl.includes(window.location.hostname);
-    
-    // Try fetching: external URLs don't need credentials, local ones do
-    let response: Response;
-    if (isExternal) {
-      // External URLs (Supabase/S3) - fetch without credentials to avoid CORS preflight
-      response = await fetch(pdfUrl);
-      if (!response.ok) {
-        // Retry via proxy if direct fetch fails
-        const proxyUrl = `/api/proxy-file?url=${encodeURIComponent(pdfUrl)}`;
-        response = await fetch(proxyUrl, { credentials: 'include' });
-      }
-    } else {
-      response = await fetch(pdfUrl, { credentials: 'include' });
-    }
-    
-    if (!response.ok) {
-      console.error('Failed to fetch PDF:', response.status);
-      return null;
-    }
-    const arrayBuffer = await response.arrayBuffer();
+    const blob = await fetchFileBlob(pdfUrl);
+    const arrayBuffer = await blob.arrayBuffer();
 
-    // Load PDF from ArrayBuffer data
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
     const page = await pdf.getPage(1);
@@ -174,12 +172,10 @@ async function pdfToImage(pdfUrl: string, width: number = 400): Promise<string |
     canvas.width = scaledViewport.width;
     canvas.height = scaledViewport.height;
 
-    await page.render({
-      canvasContext: context,
-      viewport: scaledViewport
-    }).promise;
+    await page.render({ canvasContext: context, viewport: scaledViewport, canvas } as any).promise;
 
-    return canvas.toDataURL('image/png');
+    // Compress to JPEG instead of PNG
+    return canvas.toDataURL('image/jpeg', 0.6);
   } catch (error) {
     console.error('Error converting PDF to image:', error);
     return null;
@@ -1281,98 +1277,60 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
             if (isPDF) {
               let pdfPreviewLoaded = false;
 
+              // Try preview image first (pre-generated server-side)
               const previewPath = img.previewUrl || img.url.replace(/\.pdf$/i, '_preview.png');
               const previewUrl = previewPath.startsWith('http')
                 ? previewPath
                 : `${window.location.origin}${previewPath}`;
 
               try {
-                const isExternalPreview = previewUrl.startsWith('http') && !previewUrl.includes(window.location.hostname);
-                let previewResponse: Response;
-                if (isExternalPreview) {
-                  previewResponse = await fetch(previewUrl);
-                  if (!previewResponse.ok) {
-                    previewResponse = await fetch(`/api/proxy-file?url=${encodeURIComponent(previewUrl)}`, { credentials: 'include' });
-                  }
-                } else {
-                  previewResponse = await fetch(previewUrl, { credentials: 'include' });
-                }
-                if (previewResponse.ok) {
-                  const previewBlob = await previewResponse.blob();
-                  const previewBase64 = await new Promise<string>((resolve) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result as string);
-                    reader.readAsDataURL(previewBlob);
-                  });
-
+                const previewBlob = await fetchFileBlob(previewUrl);
+                if (previewBlob.type.startsWith('image/')) {
+                  const objUrl = URL.createObjectURL(previewBlob);
                   const imgObj = new Image();
-                  await new Promise((resolve, reject) => {
-                    imgObj.onload = resolve;
-                    imgObj.onerror = reject;
-                    imgObj.src = previewBase64;
+                  await new Promise<void>((resolve, reject) => {
+                    imgObj.onload = () => resolve();
+                    imgObj.onerror = () => reject();
+                    imgObj.src = objUrl;
                   });
+                  const compressed = compressImageToJpeg(imgObj, 600, 0.5);
+                  URL.revokeObjectURL(objUrl);
 
-                  let imgWidth = imgObj.width;
-                  let imgHeight = imgObj.height;
+                  if (compressed) {
+                    let imgWidth = imgObj.naturalWidth > 600 ? 600 : imgObj.naturalWidth;
+                    let imgHeight = imgObj.naturalHeight * (imgWidth / imgObj.naturalWidth);
+                    if (imgWidth > imageMaxWidth) { const r = imageMaxWidth / imgWidth; imgWidth = imageMaxWidth; imgHeight *= r; }
+                    if (imgHeight > imgMaxHeight) { const r = imgMaxHeight / imgHeight; imgHeight *= r; imgWidth *= r; }
 
-                  if (imgWidth > imageMaxWidth) {
-                    const ratio = imageMaxWidth / imgWidth;
-                    imgWidth = imageMaxWidth;
-                    imgHeight = imgHeight * ratio;
+                    doc.addImage(compressed, 'JPEG', imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
+                    pdfPreviewLoaded = true;
                   }
-                  if (imgHeight > imgMaxHeight) {
-                    const ratio = imgMaxHeight / imgHeight;
-                    imgHeight = imgMaxHeight;
-                    imgWidth = imgWidth * ratio;
-                  }
-
-                  doc.addImage(previewBase64, 'PNG', imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
-                  doc.setFontSize(7);
-                  doc.setTextColor(100, 116, 139);
-                  doc.text('(Vista previa del PDF)', imageColumnStart, imgYPos + imgHeight + 4);
-                  doc.setTextColor(0, 0, 0);
-                  pdfPreviewLoaded = true;
                 }
-              } catch (previewError) {
-                console.log('Server preview not available, trying client-side conversion');
-              }
+              } catch {}
 
+              // Fallback: render PDF first page client-side
               if (!pdfPreviewLoaded) {
-                const pdfAbsoluteUrl = img.url.startsWith('http')
-                  ? img.url
-                  : `${window.location.origin}${img.url}`;
-                const pdfImage = await pdfToImage(pdfAbsoluteUrl, 400);
+                const pdfAbsoluteUrl = img.url.startsWith('http') ? img.url : `${window.location.origin}${img.url}`;
+                const pdfImage = await pdfToImage(pdfAbsoluteUrl, 300);
                 if (pdfImage) {
                   const imgObj = new Image();
-                  await new Promise((resolve, reject) => {
-                    imgObj.onload = resolve;
-                    imgObj.onerror = reject;
+                  await new Promise<void>((resolve, reject) => {
+                    imgObj.onload = () => resolve();
+                    imgObj.onerror = () => reject();
                     imgObj.src = pdfImage;
                   });
 
-                  let imgWidth = imgObj.width;
-                  let imgHeight = imgObj.height;
+                  let imgWidth = imgObj.naturalWidth;
+                  let imgHeight = imgObj.naturalHeight;
+                  if (imgWidth > imageMaxWidth) { const r = imageMaxWidth / imgWidth; imgWidth = imageMaxWidth; imgHeight *= r; }
+                  if (imgHeight > imgMaxHeight) { const r = imgMaxHeight / imgHeight; imgHeight *= r; imgWidth *= r; }
 
-                  if (imgWidth > imageMaxWidth) {
-                    const ratio = imageMaxWidth / imgWidth;
-                    imgWidth = imageMaxWidth;
-                    imgHeight = imgHeight * ratio;
-                  }
-                  if (imgHeight > imgMaxHeight) {
-                    const ratio = imgMaxHeight / imgHeight;
-                    imgHeight = imgMaxHeight;
-                    imgWidth = imgWidth * ratio;
-                  }
-
-                  doc.addImage(pdfImage, 'PNG', imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
-                  doc.setFontSize(7);
-                  doc.setTextColor(100, 116, 139);
-                  doc.text('(Primera página del PDF)', imageColumnStart, imgYPos + imgHeight + 4);
-                  doc.setTextColor(0, 0, 0);
+                  doc.addImage(pdfImage, 'JPEG', imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
                   pdfPreviewLoaded = true;
                 }
               }
 
+              // Last fallback: text link
               if (!pdfPreviewLoaded) {
                 doc.setFontSize(9);
                 doc.setFont('helvetica', 'normal');
@@ -1382,31 +1340,22 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
                 doc.setTextColor(0, 0, 0);
               }
             } else {
-              // Use the normalization endpoint to correct EXIF orientation
-              const { base64, format: imgFormat } = await loadImageForPdf(img.url);
+              // Regular image — already compressed by loadImageForPdf
+              const { base64 } = await loadImageForPdf(img.url);
 
               const imgObj = new Image();
-              await new Promise((resolve, reject) => {
-                imgObj.onload = resolve;
-                imgObj.onerror = reject;
+              await new Promise<void>((resolve, reject) => {
+                imgObj.onload = () => resolve();
+                imgObj.onerror = () => reject();
                 imgObj.src = base64;
               });
 
-              let imgWidth = imgObj.width;
-              let imgHeight = imgObj.height;
+              let imgWidth = imgObj.naturalWidth;
+              let imgHeight = imgObj.naturalHeight;
+              if (imgWidth > imageMaxWidth) { const r = imageMaxWidth / imgWidth; imgWidth = imageMaxWidth; imgHeight *= r; }
+              if (imgHeight > imgMaxHeight) { const r = imgMaxHeight / imgHeight; imgHeight *= r; imgWidth *= r; }
 
-              if (imgWidth > imageMaxWidth) {
-                const ratio = imageMaxWidth / imgWidth;
-                imgWidth = imageMaxWidth;
-                imgHeight = imgHeight * ratio;
-              }
-              if (imgHeight > imgMaxHeight) {
-                const ratio = imgMaxHeight / imgHeight;
-                imgHeight = imgMaxHeight;
-                imgWidth = imgWidth * ratio;
-              }
-
-              doc.addImage(base64, imgFormat, imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
+              doc.addImage(base64, 'JPEG', imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
             }
 
             yPos = sectionStartY + sectionHeight + 8;
