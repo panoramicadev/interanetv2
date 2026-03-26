@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2, Globe, ShoppingCart, Tags, Image, Settings, Link, Palette, BarChart3, Layers, ChevronLeft, ChevronRight, ExternalLink, RefreshCw, BookOpen, ImageIcon, Truck, Save, DollarSign } from "lucide-react";
+import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2, Globe, ShoppingCart, Tags, Image, Settings, Link, Palette, BarChart3, Layers, ChevronLeft, ChevronRight, ExternalLink, RefreshCw, BookOpen, ImageIcon, Truck, Save, DollarSign, Tag } from "lucide-react";
 import { PriceList } from "@shared/schema";
 import GroupedCatalog from "@/components/grouped-catalog";
 import { InventarioContent } from "@/pages/inventario";
@@ -139,6 +139,185 @@ function FletesContent() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// Categorías y Etiquetas component
+function CategoriasEtiquetasContent() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const AVAILABLE_TAGS = ["Mejor Precio", "Rápida Rotación", "Pocas Unidades"];
+  const TAG_COLORS: Record<string, string> = {
+    "Mejor Precio": "bg-green-500",
+    "Rápida Rotación": "bg-blue-500",
+    "Pocas Unidades": "bg-amber-500",
+  };
+
+  // Fetch grouped catalog to get categories and tag assignments
+  const { data, isLoading } = useQuery<{ catalog: any[]; availableGroups: string[] }>({
+    queryKey: ["/api/products/grouped-catalog", { search: "", groupFilter: "all" }],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/products/grouped-catalog");
+      return res.json();
+    },
+  });
+
+  const catalog = data?.catalog || [];
+  const availableGroups = data?.availableGroups || [];
+
+  // Group products by their groupName (category)
+  const productsByCategory = new Map<string, any[]>();
+  catalog.forEach(product => {
+    const cat = product.groupName || "Sin categoría";
+    if (!productsByCategory.has(cat)) productsByCategory.set(cat, []);
+    productsByCategory.get(cat)!.push(product);
+  });
+
+  const tagMutation = useMutation({
+    mutationFn: async ({ productFamily, tag, action }: { productFamily: string; tag: string; action: 'add' | 'remove' }) => {
+      const res = await fetch("/api/products/grouped-catalog/tags", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productFamily, tag, action }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/public/products/grouped"] });
+    },
+    onError: (error) => {
+      toast({ variant: "destructive", title: "Error", description: String(error) });
+    },
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-orange-100/50">
+          <CardContent className="p-4">
+            <p className="text-[10px] font-medium text-orange-600 uppercase tracking-wider">Categorías</p>
+            <p className="text-2xl font-bold text-orange-900">{availableGroups.length}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
+          <CardContent className="p-4">
+            <p className="text-[10px] font-medium text-blue-600 uppercase tracking-wider">Productos</p>
+            <p className="text-2xl font-bold text-blue-900">{catalog.length}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50">
+          <CardContent className="p-4">
+            <p className="text-[10px] font-medium text-green-600 uppercase tracking-wider">Con Etiquetas</p>
+            <p className="text-2xl font-bold text-green-900">{catalog.filter(p => (p.tags || []).length > 0).length}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100/50">
+          <CardContent className="p-4">
+            <p className="text-[10px] font-medium text-purple-600 uppercase tracking-wider">Sin Etiquetas</p>
+            <p className="text-2xl font-bold text-purple-900">{catalog.filter(p => (p.tags || []).length === 0).length}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Etiquetas disponibles */}
+      <Card className="border-0 shadow-sm rounded-xl">
+        <CardHeader className="bg-muted/30 border-b px-6 py-4">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Tags className="h-5 w-5 text-orange-500" />
+            Etiquetas Disponibles
+          </CardTitle>
+          <CardDescription className="text-xs mt-0.5">
+            Estas etiquetas se muestran en la tienda para destacar productos
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="flex flex-wrap gap-3">
+            {AVAILABLE_TAGS.map(tag => {
+              const count = catalog.filter(p => (p.tags || []).includes(tag)).length;
+              return (
+                <div key={tag} className="flex items-center gap-2 p-3 rounded-xl bg-muted/30 border border-muted">
+                  <div className={`w-3 h-3 rounded-full ${TAG_COLORS[tag] || 'bg-gray-500'}`} />
+                  <span className="text-sm font-semibold">{tag}</span>
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{count} productos</Badge>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Products by Category with tag management */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-orange-500 border-t-transparent" />
+        </div>
+      ) : (
+        Array.from(productsByCategory.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([category, products]) => (
+          <Card key={category} className="border-0 shadow-sm rounded-xl overflow-hidden">
+            <CardHeader className="bg-muted/30 border-b px-6 py-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <Package className="h-4 w-4 text-orange-500" />
+                  {category}
+                </CardTitle>
+                <Badge variant="outline" className="text-xs">{products.length} productos</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/10">
+                    <TableHead className="text-xs uppercase w-2/5">Producto</TableHead>
+                    <TableHead className="text-xs uppercase">Colores</TableHead>
+                    <TableHead className="text-xs uppercase">Etiquetas</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {products.map((product: any) => (
+                    <TableRow key={product.genericName} className="hover:bg-muted/5">
+                      <TableCell className="font-medium text-sm">{product.genericName}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {Object.keys(product.colors || {}).length} colores
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1.5">
+                          {AVAILABLE_TAGS.map(tag => {
+                            const isActive = (product.tags || []).includes(tag);
+                            return (
+                              <button
+                                key={tag}
+                                onClick={() => tagMutation.mutate({
+                                  productFamily: product.genericName,
+                                  tag,
+                                  action: isActive ? 'remove' : 'add',
+                                })}
+                                disabled={tagMutation.isPending}
+                                className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold transition-all ${
+                                  isActive
+                                    ? `${TAG_COLORS[tag]} text-white border-transparent`
+                                    : 'bg-white text-gray-500 border-dashed border-gray-300 hover:border-gray-400'
+                                }`}
+                              >
+                                {isActive ? '✓ ' : '+ '}{tag}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        ))
+      )}
+    </div>
   );
 }
 
@@ -974,6 +1153,11 @@ export default function ProductsPage() {
             <span className="hidden sm:inline">Fletes</span>
             <span className="sm:hidden">Fletes</span>
           </TabsTrigger>
+          <TabsTrigger value="categorias" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
+            <Tags className="h-4 w-4" />
+            <span className="hidden sm:inline">Categorías y Etiquetas</span>
+            <span className="sm:hidden">Tags</span>
+          </TabsTrigger>
         </TabsList>
 
         {/* Tab de Catálogo SAP (Lista de Precios Comercial) */}
@@ -1172,6 +1356,11 @@ export default function ProductsPage() {
         {/* Tab de Fletes */}
         <TabsContent value="fletes" className="space-y-4 mt-4">
           <FletesContent />
+        </TabsContent>
+
+        {/* Tab de Categorías y Etiquetas */}
+        <TabsContent value="categorias" className="space-y-4 mt-4">
+          <CategoriasEtiquetasContent />
         </TabsContent>
       </Tabs>
 
