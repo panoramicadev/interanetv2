@@ -7840,12 +7840,14 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "No autorizado" });
       }
 
-      // Query clients table directly - this is the source of truth for client records
+      // Query clients table - only those with login credentials (userId set)
       const { clients: clientsTable, users: usersTable } = await import('@shared/schema');
-      const { eq, desc } = await import('drizzle-orm');
+      const { eq, desc, isNotNull } = await import('drizzle-orm');
       const { db } = await import('./db');
       
-      const allClients = await db.select().from(clientsTable).orderBy(desc(clientsTable.createdAt));
+      const allClients = await db.select().from(clientsTable)
+        .where(isNotNull(clientsTable.userId))
+        .orderBy(desc(clientsTable.createdAt));
       
       // Get all client users (to check which ones have login credentials)
       const clientUserRecords = await db.select({
