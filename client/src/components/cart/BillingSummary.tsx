@@ -29,6 +29,7 @@ export default function BillingSummary() {
   const [selectedAddressOption, setSelectedAddressOption] = useState<string>("default");
   const [customAddress, setCustomAddress] = useState("");
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch client data to get addresses
   const { data: clientData } = useQuery<{ dien?: string; cmen?: string; comuna?: string }>({
@@ -156,12 +157,8 @@ export default function BillingSummary() {
   };
 
   const handleConfirmOrder = async () => {
-    // Comprehensive checkout validation
-    const validationErrors: string[] = [];
-
-    // 1. Validate cart state (non-empty cart)
+    // 1. Validate cart is not empty
     if (state.items.length === 0) {
-      validationErrors.push("El carrito está vacío");
       toast({
         title: "Error de validación",
         description: "No puedes confirmar un pedido sin productos en el carrito.",
@@ -170,77 +167,30 @@ export default function BillingSummary() {
       return;
     }
 
-    // 2. Validate each cart item's quantities
+    // 2. Validate quantities
+    const validationErrors: string[] = [];
     for (const item of state.items) {
-      // Check minimum quantity
       if (item.quantity < item.minQuantity) {
         validationErrors.push(`${item.productName}: cantidad mínima ${item.minQuantity}`);
       }
-      
-      // Check quantity step compliance
-      if (item.quantity % item.quantityStep !== 0) {
-        validationErrors.push(`${item.productName}: debe ser múltiplo de ${item.quantityStep}`);
-      }
     }
 
-    // 3. Validate required selections
-    for (const item of state.items) {
-      if (!item.selectedPackaging) {
-        validationErrors.push(`${item.productName}: selecciona un envase`);
-      }
-      if (!item.selectedColor) {
-        validationErrors.push(`${item.productName}: selecciona un color`);
-      }
-    }
-
-    // 4. Validate coupon integrity
-    if (state.appliedCoupons.length > 0) {
-      // Basic coupon validation - in real app, this would be server-side
-      const totalDiscountExpected = state.appliedCoupons.reduce((acc, coupon) => {
-        if (coupon.type === 'fixed') {
-          return acc + coupon.discount;
-        } else {
-          return acc + (state.subtotal * coupon.discount / 100);
-        }
-      }, 0);
-
-      if (Math.abs(state.discountAmount - totalDiscountExpected) > 0.01) {
-        validationErrors.push("Error en cálculo de descuentos");
-      }
-    }
-
-    // 5. Validate total calculation
-    const expectedTotal = (state.subtotal - state.discountAmount) * 1.19; // 19% IVA
-    if (Math.abs(state.total - expectedTotal) > 0.01) {
-      validationErrors.push("Error en cálculo del total");
-    }
-
-    // Show validation errors if any
     if (validationErrors.length > 0) {
       toast({
         title: "Error de validación",
-        description: `Se encontraron ${validationErrors.length} error(es): ${validationErrors.slice(0, 2).join(', ')}${validationErrors.length > 2 ? '...' : ''}`,
+        description: validationErrors.slice(0, 2).join(', '),
         variant: "destructive",
       });
       return;
     }
 
-    // 6. Final confirmation before proceeding
-    const confirmationMessage = `
-      ¿Confirmar pedido por ${formatPrice(state.total)}?
-      
-      • ${state.itemCount} producto(s)
-      • ${state.unitCount} unidades totales
-      • Incluye IVA (19%)
-      ${state.appliedCoupons.length > 0 ? `• ${state.appliedCoupons.length} cupón(es) aplicado(s)` : ''}
-      ${orderNotes.trim() ? `• Notas: ${orderNotes.slice(0, 50)}...` : ''}
-    `.trim();
-
-    if (!window.confirm(confirmationMessage)) {
+    // 3. Final confirmation
+    if (!window.confirm(`¿Confirmar pedido por ${formatPrice(state.total)}?\n\n• ${state.itemCount} producto(s)\n• ${state.unitCount} unidades totales\n• Incluye IVA (19%)`)) {
       return;
     }
 
-    // 7. Process order - send to server
+    // 4. Process order
+    setIsSubmitting(true);
     try {
       const orderData = {
         items: state.items.map(item => ({
@@ -260,9 +210,7 @@ export default function BillingSummary() {
 
       const response = await fetch('/api/ecommerce/orders/client', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(orderData),
       });
@@ -272,16 +220,14 @@ export default function BillingSummary() {
         throw new Error(errorData.message || 'Error al procesar el pedido');
       }
 
-      const createdOrder = await response.json();
-
       toast({
         title: "¡Pedido confirmado!",
         description: `Tu pedido por ${formatPrice(state.total)} ha sido enviado correctamente. Un vendedor lo revisará pronto.`,
       });
 
-      // Clear cart and reset notes after successful order
+      // Clear cart after successful order
       setTimeout(() => {
-        window.location.reload(); // Reload to clear cart
+        window.location.href = '/tienda';
       }, 2000);
 
     } catch (error: any) {
@@ -291,6 +237,8 @@ export default function BillingSummary() {
         description: error.message || "No se pudo procesar tu pedido. Por favor intenta nuevamente.",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -509,11 +457,12 @@ export default function BillingSummary() {
         <div className="pt-4">
           <Button
             onClick={handleConfirmOrder}
+            disabled={isSubmitting || state.items.length === 0}
             className="w-full bg-[#FF6E23] hover:bg-[#FF6E23]/90 text-white font-semibold py-3 text-lg"
             size="lg"
             data-testid="button-confirm-order"
           >
-            Confirmar pedido
+            {isSubmitting ? 'Procesando...' : 'Confirmar pedido'}
           </Button>
         </div>
 
