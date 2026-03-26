@@ -7894,36 +7894,71 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "No autorizado" });
       }
 
-      // Query users table for role='client' - this is the source of truth for login accounts
-      const { users: usersTable, clients: clientsTable } = await import('@shared/schema');
+      const { salespeopleUsers: spUsersTable, clients: clientsTable, users: usersTable } = await import('@shared/schema');
       const { eq, desc } = await import('drizzle-orm');
       const { db } = await import('./db');
       
-      // Get all users with role='client'
-      const clientUsers = await db.select().from(usersTable)
+      // 1. Get client users from salespeople_users table (primary source)
+      const spClientUsers = await db.select().from(spUsersTable)
+        .where(eq(spUsersTable.role, 'client'))
+        .orderBy(desc(spUsersTable.createdAt));
+      
+      // 2. Also get client users from users table (legacy/fallback)
+      const legacyClientUsers = await db.select().from(usersTable)
         .where(eq(usersTable.role, 'client'))
         .orderBy(desc(usersTable.createdAt));
       
-      // Get all clients records to cross-reference
+      // 3. Get all clients records to cross-reference
       const allClients = await db.select().from(clientsTable);
-      
-      // Create lookup maps: by userId and by email
+      const clientByName = new Map(allClients.filter((c: any) => c.nokoen).map((c: any) => [c.nokoen?.toUpperCase(), c]));
       const clientByUserId = new Map(allClients.filter((c: any) => c.userId).map((c: any) => [c.userId, c]));
-      const clientByEmail = new Map(allClients.filter((c: any) => c.email).map((c: any) => [c.email?.toLowerCase(), c]));
       
-      const enrichedClients = clientUsers.map((u: any) => {
-        // Try to find matching client record by userId first, then by email
-        const clientRecord = clientByUserId.get(u.id) || (u.email ? clientByEmail.get(u.email?.toLowerCase()) : null);
+      const results: any[] = [];
+      const seenIds = new Set<string>();
+      
+      // Process salespeople_users client records
+      for (const u of spClientUsers) {
+        seenIds.add(u.id);
+        const clientRecord = clientByName.get(u.salespersonName?.toUpperCase()) || clientByUserId.get(u.id);
         
-        return {
+        results.push({
+          id: u.id,
+          email: u.email || u.publicEmail || null,
+          firstName: u.salespersonName,
+          lastName: null,
+          role: 'client',
+          createdAt: u.createdAt,
+          hasCredentials: true,
+          username: u.username,
+          clientId: clientRecord?.id || null,
+          clientCode: clientRecord?.koen || null,
+          clientName: u.salespersonName || clientRecord?.nokoen || u.email || 'Sin nombre',
+          rut: clientRecord?.rten || null,
+          phone: clientRecord?.foen || u.publicPhone || null,
+          address: clientRecord?.dien || null,
+          commune: clientRecord?.cmen || clientRecord?.comuna || null,
+          assignedSalesperson: clientRecord?.assignedSalespersonUserId || null,
+          salesRepCode: clientRecord?.kofuen || null,
+          creditLimit: clientRecord?.crlt ? parseFloat(clientRecord.crlt) : null,
+          creditAvailable: clientRecord?.cren ? parseFloat(clientRecord.cren) : null,
+          paymentCondition: clientRecord?.cpen || null,
+        });
+      }
+      
+      // Process legacy users table client records (if not already found)
+      for (const u of legacyClientUsers) {
+        if (seenIds.has(u.id)) continue;
+        const clientRecord = clientByUserId.get(u.id);
+        
+        results.push({
           id: u.id,
           email: u.email,
           firstName: u.firstName,
           lastName: u.lastName,
-          role: u.role,
+          role: 'client',
           createdAt: u.createdAt,
-          hasCredentials: true, // All results here have login credentials
-          // Client record data (if linked)
+          hasCredentials: true,
+          username: u.email,
           clientId: clientRecord?.id || null,
           clientCode: clientRecord?.koen || null,
           clientName: clientRecord?.nokoen || (u.firstName ? `${u.firstName || ''} ${u.lastName || ''}`.trim() : u.email),
@@ -7936,10 +7971,10 @@ export function registerRoutes(app: Express): Server {
           creditLimit: clientRecord?.crlt ? parseFloat(clientRecord.crlt) : null,
           creditAvailable: clientRecord?.cren ? parseFloat(clientRecord.cren) : null,
           paymentCondition: clientRecord?.cpen || null,
-        };
-      });
+        });
+      }
 
-      res.json(enrichedClients);
+      res.json(results);
     } catch (error) {
       console.error("Error fetching client users:", error);
       res.status(500).json({ message: "Failed to fetch client users" });
