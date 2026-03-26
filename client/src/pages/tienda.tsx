@@ -1139,7 +1139,6 @@ export default function TiendaPage() {
                               </span>
                               <div className="space-y-2">
                                 {activeVariants.map(variant => {
-                                  const stock = Math.round(Number(variant.stock) || 0);
                                   const variantQty = quantities[variant.sku] || variant.minUnit || 1;
                                   return (
                                     <div key={variant.sku} className="bg-gray-50 border border-gray-100 rounded-lg p-2.5 hover:border-[#FF6E23]/20 transition-all">
@@ -1148,10 +1147,8 @@ export default function TiendaPage() {
                                         <div className="flex-1 min-w-0">
                                           <div className="flex items-center gap-2">
                                             <span className="text-xs font-bold text-gray-800">{variant.format}</span>
-                                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${
-                                              stock > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-50 text-red-500'
-                                            }`}>
-                                              {stock > 0 ? `${stock} uds` : 'Agotado'}
+                                            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700">
+                                              Disponible
                                             </span>
                                           </div>
                                           {variant.price && variant.price > 0 ? (
