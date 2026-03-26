@@ -7894,42 +7894,48 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "No autorizado" });
       }
 
-      // Query clients table - only those with login credentials (userId set)
-      const { clients: clientsTable, users: usersTable } = await import('@shared/schema');
-      const { eq, desc, isNotNull } = await import('drizzle-orm');
+      // Query users table for role='client' - this is the source of truth for login accounts
+      const { users: usersTable, clients: clientsTable } = await import('@shared/schema');
+      const { eq, desc } = await import('drizzle-orm');
       const { db } = await import('./db');
       
-      const allClients = await db.select().from(clientsTable)
-        .where(isNotNull(clientsTable.userId))
-        .orderBy(desc(clientsTable.createdAt));
+      // Get all users with role='client'
+      const clientUsers = await db.select().from(usersTable)
+        .where(eq(usersTable.role, 'client'))
+        .orderBy(desc(usersTable.createdAt));
       
-      // Get all client users (to check which ones have login credentials)
-      const clientUserRecords = await db.select({
-        id: usersTable.id,
-        email: usersTable.email,
-        createdAt: usersTable.createdAt,
-      }).from(usersTable).where(eq(usersTable.role, 'client'));
+      // Get all clients records to cross-reference
+      const allClients = await db.select().from(clientsTable);
       
-      const userMap = new Map(clientUserRecords.map(u => [u.id, u]));
+      // Create lookup maps: by userId and by email
+      const clientByUserId = new Map(allClients.filter((c: any) => c.userId).map((c: any) => [c.userId, c]));
+      const clientByEmail = new Map(allClients.filter((c: any) => c.email).map((c: any) => [c.email?.toLowerCase(), c]));
       
-      const enrichedClients = allClients.map((client: any) => {
-        const linkedUser = client.userId ? userMap.get(client.userId) : null;
+      const enrichedClients = clientUsers.map((u: any) => {
+        // Try to find matching client record by userId first, then by email
+        const clientRecord = clientByUserId.get(u.id) || (u.email ? clientByEmail.get(u.email?.toLowerCase()) : null);
+        
         return {
-          id: client.id,
-          clientCode: client.koen || null,
-          clientName: client.nokoen || 'Sin nombre',
-          rut: client.rten || null,
-          email: linkedUser?.email || client.email || null,
-          phone: client.foen || null,
-          address: client.dien || null,
-          commune: client.cmen || client.comuna || null,
-          hasCredentials: !!client.userId && !!linkedUser,
-          userId: client.userId || null,
-          assignedSalesperson: client.assignedSalespersonUserId || null,
-          salesRepCode: client.kofuen || null,
-          createdAt: client.createdAt,
-          creditLimit: client.crlt ? parseFloat(client.crlt) : null,
-          creditAvailable: client.cren ? parseFloat(client.cren) : null,
+          id: u.id,
+          email: u.email,
+          firstName: u.firstName,
+          lastName: u.lastName,
+          role: u.role,
+          createdAt: u.createdAt,
+          hasCredentials: true, // All results here have login credentials
+          // Client record data (if linked)
+          clientId: clientRecord?.id || null,
+          clientCode: clientRecord?.koen || null,
+          clientName: clientRecord?.nokoen || (u.firstName ? `${u.firstName || ''} ${u.lastName || ''}`.trim() : u.email),
+          rut: clientRecord?.rten || null,
+          phone: clientRecord?.foen || null,
+          address: clientRecord?.dien || null,
+          commune: clientRecord?.cmen || clientRecord?.comuna || null,
+          assignedSalesperson: clientRecord?.assignedSalespersonUserId || null,
+          salesRepCode: clientRecord?.kofuen || null,
+          creditLimit: clientRecord?.crlt ? parseFloat(clientRecord.crlt) : null,
+          creditAvailable: clientRecord?.cren ? parseFloat(clientRecord.cren) : null,
+          paymentCondition: clientRecord?.cpen || null,
         };
       });
 
