@@ -16,11 +16,130 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2, Globe, ShoppingCart, Tags, Image, Settings, Link, Palette, BarChart3, Layers, ChevronLeft, ChevronRight, ExternalLink, RefreshCw, BookOpen, ImageIcon } from "lucide-react";
+import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2, Globe, ShoppingCart, Tags, Image, Settings, Link, Palette, BarChart3, Layers, ChevronLeft, ChevronRight, ExternalLink, RefreshCw, BookOpen, ImageIcon, Truck, Save, DollarSign } from "lucide-react";
 import { PriceList } from "@shared/schema";
 import GroupedCatalog from "@/components/grouped-catalog";
 import { InventarioContent } from "@/pages/inventario";
 import BulkImageUpload from "@/components/products/bulk-image-upload";
+
+// Fletes (Shipping rates) component
+function FletesContent() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  const FORMATS = [
+    { key: '1_4_galon', label: '1/4 Galón', description: 'Formato pequeño, envase de 1/4 de galón' },
+    { key: 'bd_4gl', label: 'Balde 4 GL', description: 'Balde de 4 galones' },
+    { key: 'bd_5gl', label: 'Balde 5 GL', description: 'Balde de 5 galones' },
+  ];
+
+  // Fetch shipping rates
+  const { data: shippingRates = {}, isLoading } = useQuery<Record<string, number>>({
+    queryKey: ['/api/ecommerce/shipping-rates'],
+    queryFn: async () => {
+      try {
+        const res = await apiRequest('GET', '/api/ecommerce/shipping-rates');
+        return await res.json();
+      } catch {
+        return {};
+      }
+    },
+  });
+
+  const [rates, setRates] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Initialize rates from fetched data
+  useEffect(() => {
+    if (Object.keys(shippingRates).length > 0) {
+      const initial: Record<string, string> = {};
+      FORMATS.forEach(f => {
+        initial[f.key] = shippingRates[f.key]?.toString() || '';
+      });
+      setRates(initial);
+    }
+  }, [shippingRates]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const payload: Record<string, number> = {};
+      FORMATS.forEach(f => {
+        const val = parseFloat(rates[f.key] || '0');
+        payload[f.key] = isNaN(val) ? 0 : val;
+      });
+      await apiRequest('PUT', '/api/ecommerce/shipping-rates', payload);
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/shipping-rates'] });
+      toast({ title: 'Tarifas de flete actualizadas' });
+    } catch {
+      toast({ title: 'Error al guardar tarifas', variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Card className="border-0 shadow-sm rounded-xl overflow-hidden">
+      <CardHeader className="bg-muted/30 border-b px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Truck className="h-5 w-5 text-orange-500" />
+              Tarifas de Flete por Formato
+            </CardTitle>
+            <CardDescription className="mt-0.5">
+              Define el costo de envío estándar por tipo de formato de producto
+            </CardDescription>
+          </div>
+          <Button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="gap-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg"
+          >
+            <Save className="h-4 w-4" />
+            {isSaving ? 'Guardando...' : 'Guardar Tarifas'}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="p-6">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-orange-500 border-t-transparent" />
+          </div>
+        ) : (
+          <div className="grid gap-6 max-w-2xl">
+            {FORMATS.map((format) => (
+              <div key={format.key} className="flex items-center gap-6 p-4 rounded-xl bg-muted/30 border border-muted hover:border-orange-200 transition-colors">
+                <div className="flex-1">
+                  <h4 className="text-sm font-bold text-foreground">{format.label}</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5">{format.description}</p>
+                </div>
+                <div className="flex items-center gap-2 w-48">
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={rates[format.key] || ''}
+                    onChange={(e) => setRates(prev => ({ ...prev, [format.key]: e.target.value }))}
+                    className="h-10 rounded-lg text-right font-mono"
+                  />
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">CLP</span>
+                </div>
+              </div>
+            ))}
+
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 mt-2">
+              <Truck className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                Estas tarifas se aplicarán automáticamente en la tienda según el formato del producto al momento del checkout.
+              </p>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 interface Product {
   id: string;
@@ -767,7 +886,7 @@ export default function ProductsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-medium text-blue-600/70 dark:text-blue-400/70 uppercase tracking-wider">Total Productos</p>
-                  <p className="text-2xl font-bold mt-1 text-blue-900 dark:text-blue-100" data-testid="text-total-products">{products.length}</p>
+                  <p className="text-2xl font-bold mt-1 text-blue-900 dark:text-blue-100" data-testid="text-total-products">{priceListResponse?.totalCount || products.length}</p>
                 </div>
                 <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-blue-500/10 dark:bg-blue-400/10 backdrop-blur-sm">
                   <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -782,7 +901,7 @@ export default function ProductsPage() {
                 <div>
                   <p className="text-xs font-medium text-emerald-600/70 dark:text-emerald-400/70 uppercase tracking-wider">Con Precio</p>
                   <p className="text-2xl font-bold mt-1 text-emerald-900 dark:text-emerald-100" data-testid="text-products-with-price">
-                    {products.filter(p =>
+                    {priceList.filter(p => Number(p.lista) > 0 || Number(p.desc10) > 0).length || products.filter(p =>
                       (p.price && parseFloat(p.price) > 0) ||
                       (p.priceProduct && p.priceProduct > 0) ||
                       (p.ecomPrice && p.ecomPrice > 0)
@@ -848,6 +967,11 @@ export default function ProductsPage() {
             <Package className="h-4 w-4" />
             <span className="hidden sm:inline">Inventario</span>
             <span className="sm:hidden">Inv</span>
+          </TabsTrigger>
+          <TabsTrigger value="fletes" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
+            <Truck className="h-4 w-4" />
+            <span className="hidden sm:inline">Fletes</span>
+            <span className="sm:hidden">Fletes</span>
           </TabsTrigger>
         </TabsList>
 
@@ -1042,6 +1166,11 @@ export default function ProductsPage() {
         {/* Tab de Inventario */}
         <TabsContent value="inventario" className="space-y-4 mt-4">
           <InventarioContent />
+        </TabsContent>
+
+        {/* Tab de Fletes */}
+        <TabsContent value="fletes" className="space-y-4 mt-4">
+          <FletesContent />
         </TabsContent>
       </Tabs>
 

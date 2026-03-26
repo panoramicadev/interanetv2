@@ -6501,6 +6501,60 @@ export function registerRoutes(app: Express): Server {
 
   // ===================== End eCommerce Orders API Routes =====================
 
+  // ===================== eCommerce Shipping Rates =====================
+
+  // Get shipping rates
+  app.get('/api/ecommerce/shipping-rates', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    
+    // Ensure table exists
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS app_config (
+        key VARCHAR PRIMARY KEY,
+        value JSONB NOT NULL DEFAULT '{}',
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    const result = await db.execute(sql`
+      SELECT value FROM app_config WHERE key = 'ecommerce_shipping_rates'
+    `);
+    
+    const row = (result as any).rows?.[0];
+    res.json(row?.value || {});
+  }));
+
+  // Update shipping rates
+  app.put('/api/ecommerce/shipping-rates', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    if (!['admin', 'supervisor'].includes(user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    
+    const rates = req.body;
+    
+    // Ensure table exists
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS app_config (
+        key VARCHAR PRIMARY KEY,
+        value JSONB NOT NULL DEFAULT '{}',
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    await db.execute(sql`
+      INSERT INTO app_config (key, value, updated_at) 
+      VALUES ('ecommerce_shipping_rates', ${JSON.stringify(rates)}::jsonb, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(rates)}::jsonb, updated_at = NOW()
+    `);
+    
+    res.json({ success: true, rates });
+  }));
+
   // ===================== eCommerce Admin API Routes (Simple) =====================
 
   // Get products for eCommerce admin panel (imports from priceList)
