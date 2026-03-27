@@ -36,6 +36,8 @@ import {
   factVentas,
   etlExecutionLog,
   gastosEmpresariales,
+  // Store
+  storeBanners,
   // CMMS tables
   mantencionesPlanificadas,
   solicitudesMantencion,
@@ -10417,6 +10419,174 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ message: "Failed to fetch store banners" });
     }
   });
+
+  // ==========================================
+  // ADMIN BANNER CRUD ENDPOINTS
+  // ==========================================
+
+  // Get all banners (admin - includes inactive)
+  app.get('/api/ecommerce/admin/banners', requireAuth, requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const allBanners = await db
+        .select()
+        .from(storeBanners)
+        .orderBy(storeBanners.orden);
+      res.json(allBanners);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error fetching banners', error: error.message });
+    }
+  }));
+
+  // Create banner with image upload
+  app.post('/api/ecommerce/admin/banners',
+    requireAuth,
+    requireAdminOrSupervisor,
+    uploadSingleImage.fields([
+      { name: 'imagenDesktop', maxCount: 1 },
+      { name: 'imagenMobile', maxCount: 1 },
+    ]),
+    asyncHandler(async (req: any, res: any) => {
+      try {
+        const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+        const objectStorageService = new ObjectStorageService();
+
+        let imagenDesktopUrl = req.body.imagenDesktop || '';
+        let imagenMobileUrl = req.body.imagenMobile || '';
+
+        // Upload desktop image
+        if (files?.imagenDesktop?.[0]) {
+          const file = files.imagenDesktop[0];
+          const imageName = `banner_desktop_${Date.now()}_${file.originalname}`;
+          imagenDesktopUrl = await objectStorageService.uploadImage(
+            imageName, file.buffer, file.mimetype || 'image/png'
+          );
+        }
+
+        // Upload mobile image
+        if (files?.imagenMobile?.[0]) {
+          const file = files.imagenMobile[0];
+          const imageName = `banner_mobile_${Date.now()}_${file.originalname}`;
+          imagenMobileUrl = await objectStorageService.uploadImage(
+            imageName, file.buffer, file.mimetype || 'image/png'
+          );
+        }
+
+        if (!imagenDesktopUrl) {
+          return res.status(400).json({ message: 'Se requiere una imagen de escritorio' });
+        }
+
+        const [banner] = await db.insert(storeBanners).values({
+          titulo: req.body.titulo || 'Banner',
+          subtitulo: req.body.subtitulo || null,
+          descripcion: req.body.descripcion || null,
+          imagenDesktop: imagenDesktopUrl,
+          imagenMobile: imagenMobileUrl || null,
+          colorFondo: req.body.colorFondo || '#FF6B35',
+          colorTexto: req.body.colorTexto || '#FFFFFF',
+          linkUrl: req.body.linkUrl || null,
+          orden: parseInt(req.body.orden) || 0,
+          activo: req.body.activo !== 'false',
+          tipoVisualizacion: req.body.tipoVisualizacion || 'hero',
+        }).returning();
+
+        res.json(banner);
+      } catch (error: any) {
+        console.error('Error creating banner:', error);
+        res.status(500).json({ message: 'Error creating banner', error: error.message });
+      }
+    })
+  );
+
+  // Update banner
+  app.patch('/api/ecommerce/admin/banners/:id',
+    requireAuth,
+    requireAdminOrSupervisor,
+    uploadSingleImage.fields([
+      { name: 'imagenDesktop', maxCount: 1 },
+      { name: 'imagenMobile', maxCount: 1 },
+    ]),
+    asyncHandler(async (req: any, res: any) => {
+      try {
+        const { id } = req.params;
+        const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+        const objectStorageService = new ObjectStorageService();
+        const updates: any = {};
+
+        // Upload new desktop image if provided
+        if (files?.imagenDesktop?.[0]) {
+          const file = files.imagenDesktop[0];
+          const imageName = `banner_desktop_${Date.now()}_${file.originalname}`;
+          updates.imagenDesktop = await objectStorageService.uploadImage(
+            imageName, file.buffer, file.mimetype || 'image/png'
+          );
+        }
+
+        // Upload new mobile image if provided
+        if (files?.imagenMobile?.[0]) {
+          const file = files.imagenMobile[0];
+          const imageName = `banner_mobile_${Date.now()}_${file.originalname}`;
+          updates.imagenMobile = await objectStorageService.uploadImage(
+            imageName, file.buffer, file.mimetype || 'image/png'
+          );
+        }
+
+        // Update text fields if provided
+        if (req.body.titulo !== undefined) updates.titulo = req.body.titulo;
+        if (req.body.subtitulo !== undefined) updates.subtitulo = req.body.subtitulo;
+        if (req.body.descripcion !== undefined) updates.descripcion = req.body.descripcion;
+        if (req.body.colorFondo !== undefined) updates.colorFondo = req.body.colorFondo;
+        if (req.body.colorTexto !== undefined) updates.colorTexto = req.body.colorTexto;
+        if (req.body.linkUrl !== undefined) updates.linkUrl = req.body.linkUrl;
+        if (req.body.orden !== undefined) updates.orden = parseInt(req.body.orden);
+        if (req.body.activo !== undefined) updates.activo = req.body.activo === 'true' || req.body.activo === true;
+
+        updates.updatedAt = new Date();
+
+        const [updated] = await db.update(storeBanners)
+          .set(updates)
+          .where(eq(storeBanners.id, id))
+          .returning();
+
+        if (!updated) {
+          return res.status(404).json({ message: 'Banner no encontrado' });
+        }
+
+        res.json(updated);
+      } catch (error: any) {
+        console.error('Error updating banner:', error);
+        res.status(500).json({ message: 'Error updating banner', error: error.message });
+      }
+    })
+  );
+
+  // Toggle banner active state
+  app.patch('/api/ecommerce/admin/banners/:id/toggle', requireAuth, requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const [banner] = await db.select().from(storeBanners).where(eq(storeBanners.id, id)).limit(1);
+      if (!banner) return res.status(404).json({ message: 'Banner no encontrado' });
+
+      const [updated] = await db.update(storeBanners)
+        .set({ activo: !banner.activo, updatedAt: new Date() })
+        .where(eq(storeBanners.id, id))
+        .returning();
+
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error toggling banner', error: error.message });
+    }
+  }));
+
+  // Delete banner
+  app.delete('/api/ecommerce/admin/banners/:id', requireAuth, requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      await db.delete(storeBanners).where(eq(storeBanners.id, id));
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error deleting banner', error: error.message });
+    }
+  }));
 
   // Get ecommerce products with images and prices (excluding grouped products)
   app.get('/api/store/products', async (req: any, res) => {

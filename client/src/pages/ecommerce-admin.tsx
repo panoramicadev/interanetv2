@@ -94,6 +94,194 @@ const catalogFormSchema = z.object({
 
 type CatalogFormData = z.infer<typeof catalogFormSchema>;
 
+// Banner Form Component
+function BannerForm({ onSuccess, existingBanner }: { onSuccess: () => void; existingBanner?: any }) {
+  const [titulo, setTitulo] = useState(existingBanner?.titulo || '');
+  const [linkUrl, setLinkUrl] = useState(existingBanner?.linkUrl || '');
+  const [orden, setOrden] = useState(existingBanner?.orden?.toString() || '0');
+  const [desktopFile, setDesktopFile] = useState<File | null>(null);
+  const [mobileFile, setMobileFile] = useState<File | null>(null);
+  const [desktopPreview, setDesktopPreview] = useState(existingBanner?.imagenDesktop || '');
+  const [mobilePreview, setMobilePreview] = useState(existingBanner?.imagenMobile || '');
+  const [saving, setSaving] = useState(false);
+  const { toast } = useToast();
+
+  const handleDesktopChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setDesktopFile(file);
+      setDesktopPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setMobileFile(file);
+      setMobilePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!existingBanner && !desktopFile) {
+      toast({ title: 'Error', description: 'Se requiere una imagen de escritorio', variant: 'destructive' });
+      return;
+    }
+    setSaving(true);
+    try {
+      const formData = new FormData();
+      formData.append('titulo', titulo || 'Banner');
+      formData.append('linkUrl', linkUrl);
+      formData.append('orden', orden);
+      if (desktopFile) formData.append('imagenDesktop', desktopFile);
+      if (mobileFile) formData.append('imagenMobile', mobileFile);
+
+      const url = existingBanner
+        ? `/api/ecommerce/admin/banners/${existingBanner.id}`
+        : '/api/ecommerce/admin/banners';
+      const method = existingBanner ? 'PATCH' : 'POST';
+
+      const res = await fetch(url, { method, body: formData });
+      if (!res.ok) throw new Error((await res.json()).message || 'Error');
+      onSuccess();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label>Título (interno)</Label>
+        <Input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Ej: Promoción Verano" />
+      </div>
+
+      <div>
+        <Label>Imagen Escritorio <span className="text-red-500">*</span></Label>
+        <p className="text-xs text-muted-foreground mb-1">Recomendado: 1920×600px o similar</p>
+        <Input type="file" accept="image/*" onChange={handleDesktopChange} />
+        {desktopPreview && (
+          <img src={desktopPreview} alt="Desktop preview" className="mt-2 rounded-lg border max-h-32 w-full object-cover" />
+        )}
+      </div>
+
+      <div>
+        <Label>Imagen Móvil (opcional)</Label>
+        <p className="text-xs text-muted-foreground mb-1">Recomendado: 768×400px o similar</p>
+        <Input type="file" accept="image/*" onChange={handleMobileChange} />
+        {mobilePreview && (
+          <img src={mobilePreview} alt="Mobile preview" className="mt-2 rounded-lg border max-h-32 w-full object-cover" />
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>URL de destino (opcional)</Label>
+          <Input value={linkUrl} onChange={e => setLinkUrl(e.target.value)} placeholder="https://..." />
+        </div>
+        <div>
+          <Label>Orden</Label>
+          <Input type="number" value={orden} onChange={e => setOrden(e.target.value)} min="0" />
+        </div>
+      </div>
+
+      <Button onClick={handleSubmit} disabled={saving} className="w-full bg-gradient-to-r from-orange-500 to-pink-500 text-white">
+        {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Guardando...</> : existingBanner ? 'Actualizar Banner' : 'Crear Banner'}
+      </Button>
+    </div>
+  );
+}
+
+// Banner List Component
+function BannerList() {
+  const { toast } = useToast();
+  const { data: banners = [], isLoading } = useQuery<any[]>({
+    queryKey: ['/api/ecommerce/admin/banners'],
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/ecommerce/admin/banners/${id}/toggle`, { method: 'PATCH' });
+      if (!res.ok) throw new Error('Error');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/banners'] });
+      toast({ title: 'Banner actualizado' });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/ecommerce/admin/banners/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Error');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/banners'] });
+      toast({ title: 'Banner eliminado' });
+    },
+  });
+
+  if (isLoading) return <div className="text-center py-6 text-muted-foreground">Cargando banners...</div>;
+
+  if (banners.length === 0) {
+    return (
+      <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-xl">
+        <Image className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+        <p className="text-sm text-muted-foreground">No hay banners configurados</p>
+        <p className="text-xs text-muted-foreground">Usa el botón "Nuevo Banner" para agregar uno</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {banners.map((banner: any) => (
+        <div key={banner.id} className={`rounded-xl border overflow-hidden transition-all ${banner.activo ? 'border-emerald-200 shadow-sm' : 'border-gray-200 opacity-60'}`}>
+          <div className="relative aspect-[16/6] bg-gray-100">
+            <img src={banner.imagenDesktop} alt={banner.titulo} className="w-full h-full object-cover" />
+            {banner.imagenMobile && (
+              <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                <Phone className="h-2.5 w-2.5" /> Móvil ✓
+              </div>
+            )}
+            <div className={`absolute top-1.5 left-1.5 text-[9px] px-2 py-0.5 rounded-full font-bold ${banner.activo ? 'bg-emerald-500 text-white' : 'bg-gray-500 text-white'}`}>
+              {banner.activo ? 'Activo' : 'Inactivo'}
+            </div>
+          </div>
+          <div className="p-3">
+            <div className="flex items-center justify-between mb-1">
+              <h4 className="font-semibold text-sm truncate">{banner.titulo}</h4>
+              <span className="text-xs text-muted-foreground">Orden: {banner.orden}</span>
+            </div>
+            <div className="flex items-center gap-1.5 mt-2">
+              <Button
+                size="sm"
+                variant={banner.activo ? 'outline' : 'default'}
+                className="flex-1 h-7 text-xs"
+                onClick={() => toggleMutation.mutate(banner.id)}
+              >
+                {banner.activo ? <><EyeOff className="h-3 w-3 mr-1" /> Desactivar</> : <><Eye className="h-3 w-3 mr-1" /> Activar</>}
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-7 text-xs px-2"
+                onClick={() => { if (confirm('¿Eliminar este banner?')) deleteMutation.mutate(banner.id); }}
+              >
+                <XCircle className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function EcommerceAdmin() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -1139,6 +1327,46 @@ export default function EcommerceAdmin() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Banner Management Section */}
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-pink-500 flex items-center justify-center">
+                  <Image className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Banners de la Tienda</CardTitle>
+                  <p className="text-sm text-muted-foreground">Administra los banners del carrusel de tu tienda online</p>
+                </div>
+              </div>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 gap-2 text-white">
+                    <Plus className="h-4 w-4" />
+                    Nuevo Banner
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle>Crear Nuevo Banner</DialogTitle>
+                    <DialogDescription>Sube imágenes para escritorio y móvil</DialogDescription>
+                  </DialogHeader>
+                  <BannerForm onSuccess={() => {
+                    queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/banners'] });
+                    toast({ title: 'Banner creado', description: 'El banner se creó correctamente' });
+                  }} />
+                </DialogContent>
+              </Dialog>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <BannerList />
+          </CardContent>
+        </Card>
       )}
 
       {/* Catálogos Públicos - Solo Admin */}

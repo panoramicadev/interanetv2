@@ -1665,8 +1665,8 @@ export default function SalespersonDetail({
                 </div>
               )}
 
-              {/* Promesas de Compra - Always show for salespeople */}
-              {vendedorId && (
+              {/* Promesas de Compra - Only show when there's data */}
+              {vendedorId && !isLoadingPromesas && promesasVendedor.length > 0 && (
                 <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50">
                   <CardContent className="pt-4 pb-4 sm:pt-6 sm:pb-6">
                     <div className="space-y-3 sm:space-y-4">

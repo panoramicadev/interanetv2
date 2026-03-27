@@ -269,12 +269,6 @@ export default function TiendaPage() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   
-  const banners = [
-    { src: bannerCopper, alt: "Oferta del Mes - Esmalte Copper" },
-    { src: bannerStain, alt: "Oferta del Mes - Stain Impregnante" },
-    { src: bannerDespacho, alt: "Despacho Gratis - 3% OFF" }
-  ];
-  
   // Cart state management
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [showFloatingCart, setShowFloatingCart] = useState(false);
@@ -296,16 +290,6 @@ export default function TiendaPage() {
   };
   const { toast } = useToast();
   const { addItem } = useCart();
-  
-  // Carousel auto-rotation effect
-  useEffect(() => {
-    if (!isHovered) {
-      const interval = setInterval(() => {
-        setCurrentSlide(prev => (prev + 1) % banners.length);
-      }, 4000); // 4 seconds
-      return () => clearInterval(interval);
-    }
-  }, [isHovered, banners.length]);
 
   // Quantity management functions
   const getProductQuantity = (productId: string, unidad: string | undefined): number => {
@@ -441,6 +425,25 @@ export default function TiendaPage() {
     queryKey: ['/api/store/banners'],
     retry: false,
   });
+
+  // Use DB banners if available, otherwise fallback to hardcoded
+  const banners = storeBanners.length > 0
+    ? storeBanners.map(b => ({ src: b.imagenDesktop, alt: b.titulo, mobileSrc: b.imagenMobile, linkUrl: b.linkUrl }))
+    : [
+        { src: bannerCopper, alt: "Oferta del Mes - Esmalte Copper" },
+        { src: bannerStain, alt: "Oferta del Mes - Stain Impregnante" },
+        { src: bannerDespacho, alt: "Despacho Gratis - 3% OFF" }
+      ];
+
+  // Carousel auto-rotation effect
+  useEffect(() => {
+    if (!isHovered) {
+      const interval = setInterval(() => {
+        setCurrentSlide(prev => (prev + 1) % banners.length);
+      }, 4000);
+      return () => clearInterval(interval);
+    }
+  }, [isHovered, banners.length]);
 
   // Fetch grouped store products (same grouping logic as salesperson catalog, with prices)
   const { data: groupedData, isLoading: productsLoading } = useQuery<StoreCatalogResponse>({
@@ -1157,7 +1160,7 @@ export default function TiendaPage() {
                               {product.genericName}
                             </h3>
                             {product.breveResena && (
-                              <p className="text-[11px] text-gray-400 mt-1 line-clamp-2 leading-relaxed">{product.breveResena}</p>
+                              <p className="text-[13px] text-gray-600 mt-1.5 line-clamp-2 leading-relaxed italic">{product.breveResena}</p>
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 mt-2.5">

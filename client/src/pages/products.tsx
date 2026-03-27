@@ -142,6 +142,49 @@ function FletesContent() {
   );
 }
 
+// Product adder component for categories (uses its own state for the select)
+function CategoryProductAdder({ catalog, categoryName, assignMutation }: {
+  catalog: any[];
+  categoryName: string;
+  assignMutation: any;
+}) {
+  const [selectedProduct, setSelectedProduct] = useState('');
+  return (
+    <div className="p-3 sm:p-4 bg-muted/10 border-b flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+      <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Agregar producto:</span>
+      <Select value={selectedProduct} onValueChange={setSelectedProduct}>
+        <SelectTrigger className="h-8 text-xs flex-1">
+          <SelectValue placeholder="Seleccionar producto..." />
+        </SelectTrigger>
+        <SelectContent>
+          {catalog
+            .filter((p: any) => !p.groupName || p.groupName !== categoryName)
+            .sort((a: any, b: any) => a.genericName.localeCompare(b.genericName))
+            .map((p: any) => (
+              <SelectItem key={p.genericName} value={p.genericName} className="text-xs">
+                {p.genericName} {p.groupName ? `(${p.groupName})` : ''}
+              </SelectItem>
+            ))}
+        </SelectContent>
+      </Select>
+      <Button
+        size="sm"
+        className="h-8 px-4 bg-orange-500 hover:bg-orange-600 text-white text-xs gap-1"
+        disabled={!selectedProduct || assignMutation.isPending}
+        onClick={() => {
+          if (selectedProduct) {
+            assignMutation.mutate({ productFamily: selectedProduct, categoryName });
+            setSelectedProduct('');
+          }
+        }}
+      >
+        <Plus className="h-3.5 w-3.5" />
+        Agregar
+      </Button>
+    </div>
+  );
+}
+
 // Categorías y Etiquetas component
 function CategoriasEtiquetasContent() {
   const { toast } = useToast();
@@ -403,24 +446,11 @@ function CategoriasEtiquetasContent() {
             {isExpanded && (
               <CardContent className="p-0">
                 {/* Add product selector */}
-                <div className="p-3 sm:p-4 bg-muted/10 border-b flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Agregar producto:</span>
-                  <Select onValueChange={(val) => assignMutation.mutate({ productFamily: val, categoryName: cat.name })}>
-                    <SelectTrigger className="h-8 text-xs flex-1">
-                      <SelectValue placeholder="Seleccionar producto..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {catalog
-                        .filter(p => !p.groupName || p.groupName !== cat.name)
-                        .sort((a: any, b: any) => a.genericName.localeCompare(b.genericName))
-                        .map((p: any) => (
-                          <SelectItem key={p.genericName} value={p.genericName} className="text-xs">
-                            {p.genericName} {p.groupName ? `(${p.groupName})` : ''}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <CategoryProductAdder
+                  catalog={catalog}
+                  categoryName={cat.name}
+                  assignMutation={assignMutation}
+                />
 
                 {productsInCat.length > 0 ? (
                   <Table>
