@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers, Users, Phone, Mail, Link as LinkIcon, Check, X, Loader2, User, ChevronDown, ChevronRight } from "lucide-react";
+import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers, Users, Phone, Mail, Link as LinkIcon, Check, X, Loader2, User, ChevronDown, ChevronRight, Truck, Save } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
 import { useForm } from "react-hook-form";
@@ -93,6 +93,116 @@ const catalogFormSchema = z.object({
 });
 
 type CatalogFormData = z.infer<typeof catalogFormSchema>;
+
+// Shipping Rates Configuration Component
+function ShippingRatesSection() {
+  const { toast } = useToast();
+  const [rates, setRates] = useState<Record<string, number>>({
+    '1_4_galon': 0,
+    'galon': 0,
+    'bd_4gl': 0,
+    'bd_5gl': 0,
+  });
+  const [isSaving, setIsSaving] = useState(false);
+
+  const { data: savedRates, isLoading } = useQuery<Record<string, number>>({
+    queryKey: ['/api/ecommerce/shipping-rates'],
+    queryFn: async () => {
+      const res = await fetch('/api/ecommerce/shipping-rates', { credentials: 'include' });
+      if (!res.ok) return {};
+      return res.json();
+    },
+  });
+
+  // Update local state when data loads
+  React.useEffect(() => {
+    if (savedRates) {
+      setRates(prev => ({ ...prev, ...savedRates }));
+    }
+  }, [savedRates]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const res = await fetch('/api/ecommerce/shipping-rates', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(rates),
+      });
+      if (!res.ok) throw new Error('Error al guardar');
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/shipping-rates'] });
+      toast({ title: 'Tarifas guardadas', description: 'Las tarifas de despacho se han actualizado correctamente.' });
+    } catch {
+      toast({ title: 'Error', description: 'No se pudieron guardar las tarifas.', variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const formatLabels: Record<string, { label: string; desc: string }> = {
+    '1_4_galon': { label: '1/4 Galón', desc: 'Precio flete por unidad' },
+    'galon': { label: 'Galón', desc: 'Precio flete por unidad' },
+    'bd_4gl': { label: 'Balde 4 Galones', desc: 'Precio flete por unidad' },
+    'bd_5gl': { label: 'Balde 5 Galones', desc: 'Precio flete por unidad' },
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+              <Truck className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Tarifas de Despacho</CardTitle>
+              <p className="text-sm text-muted-foreground">Define el costo de flete por tipo de envase</p>
+            </div>
+          </div>
+          <Button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 gap-2 text-white"
+          >
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Guardar tarifas
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="text-center py-6 text-muted-foreground text-sm">Cargando tarifas...</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {Object.entries(formatLabels).map(([key, { label, desc }]) => (
+              <div key={key} className="border rounded-xl p-4 bg-muted/20 space-y-2">
+                <Label className="font-semibold text-sm">{label}</Label>
+                <p className="text-xs text-muted-foreground">{desc}</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-muted-foreground">$</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={rates[key] || ''}
+                    onChange={(e) => setRates(prev => ({
+                      ...prev,
+                      [key]: parseFloat(e.target.value) || 0,
+                    }))}
+                    placeholder="0"
+                    className="h-9"
+                  />
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">/ unidad</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 // Banner Form Component
 function BannerForm({ onSuccess, existingBanner }: { onSuccess: () => void; existingBanner?: any }) {
@@ -1327,6 +1437,11 @@ export default function EcommerceAdmin() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Shipping Rates Section */}
+      {isAdmin && (
+        <ShippingRatesSection />
       )}
 
       {/* Banner Management Section */}

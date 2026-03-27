@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Tag, MapPin, ShoppingBag, Package, CheckCircle2 } from "lucide-react";
+import { X, Tag, MapPin, ShoppingBag, Package, CheckCircle2, Truck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -41,6 +41,17 @@ export default function BillingSummary() {
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+
+  // Fetch shipping rates from admin config
+  const { data: shippingRates = {} } = useQuery<Record<string, number>>({
+    queryKey: ['/api/ecommerce/shipping-rates'],
+    queryFn: async () => {
+      const res = await fetch('/api/ecommerce/shipping-rates', { credentials: 'include' });
+      if (!res.ok) return {};
+      return res.json();
+    },
+    staleTime: 60000, // 1 minute
+  });
 
   // Fetch client data to get addresses
   const { data: clientData } = useQuery<{ dien?: string; cmen?: string; comuna?: string }>({
@@ -210,11 +221,15 @@ export default function BillingSummary() {
           sku: item.productCode || item.productId,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          totalPrice: item.subtotal
+          totalPrice: item.subtotal,
+          imageUrl: item.imageUrl || null,
+          selectedColor: item.selectedColor || null,
+          selectedPackaging: item.selectedPackaging || null,
         })),
         subtotal: state.subtotal - state.discountAmount,
         tax: state.taxAmount,
-        total: state.total,
+        shipping: shippingCost,
+        total: state.total + shippingCost,
         notes: orderNotes.trim() || null,
         shippingAddress: shippingAddress.trim() || null
       };
@@ -257,14 +272,33 @@ export default function BillingSummary() {
   // Calculate neto (subtotal without any discounts or taxes)
   const neto = state.subtotal;
   
+  // Calculate shipping cost based on item units
+  const getShippingRateKey = (unit: string): string | null => {
+    if (!unit) return null;
+    const normalized = unit.toUpperCase().trim();
+    if (/(?:1\s*[\/\-]\s*4|CUARTO)/i.test(normalized)) return '1_4_galon';
+    if (/(?:BD|BALDE)\s*[-_\s]*5|5\s*GAL/i.test(normalized)) return 'bd_5gl';
+    if (/(?:BD|BALDE)\s*[-_\s]*4|4\s*GAL/i.test(normalized)) return 'bd_4gl';
+    if (/(?:^|\b)(?:GL|GAL[ÓO]N)(?:\b|$)/i.test(normalized) && !/BD|BALDE|CUARTO|1\s*\//i.test(normalized)) return 'galon';
+    return null;
+  };
+
+  const shippingCost = state.items.reduce((total, item) => {
+    const rateKey = getShippingRateKey(item.unit);
+    if (rateKey && shippingRates[rateKey]) {
+      return total + Math.round(shippingRates[rateKey] * item.quantity);
+    }
+    return total;
+  }, 0);
+  
   // Calculate final subtotal after discounts
   const subtotalAfterDiscount = neto - state.discountAmount;
   
   // Tax calculation (IVA 19%)
   const taxAmount = state.taxAmount;
   
-  // Final total
-  const total = state.total;
+  // Final total (includes shipping)
+  const total = state.total + shippingCost;
 
   return (
     <>
@@ -339,6 +373,19 @@ export default function BillingSummary() {
               {formatPrice(taxAmount)}
             </span>
           </div>
+
+          {/* Shipping / Despacho */}
+          {shippingCost > 0 && (
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
+                <Truck className="h-3.5 w-3.5" />
+                Despacho:
+              </span>
+              <span className="font-medium text-gray-900 dark:text-white" data-testid="text-billing-shipping">
+                {formatPrice(shippingCost)}
+              </span>
+            </div>
+          )}
 
           <Separator />
 
@@ -521,9 +568,15 @@ export default function BillingSummary() {
                   <span className="text-sm text-gray-500">Impuestos (IVA 19%)</span>
                   <span className="text-sm font-medium text-gray-700">{formatPrice(state.taxAmount)}</span>
                 </div>
+                {shippingCost > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500 flex items-center gap-2"><Truck className="h-4 w-4" />Despacho</span>
+                    <span className="text-sm font-medium text-gray-700">{formatPrice(shippingCost)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
                   <span className="text-base font-bold text-gray-900">Total</span>
-                  <span className="text-xl font-bold text-[#FF6E23]">{formatPrice(state.total)}</span>
+                  <span className="text-xl font-bold text-[#FF6E23]">{formatPrice(total)}</span>
                 </div>
               </div>
               {shippingAddress && (
