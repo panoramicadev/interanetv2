@@ -6719,11 +6719,11 @@ export function registerRoutes(app: Express): Server {
       ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(categories)}::jsonb, updated_at = NOW()
     `);
     
-    // Unset group_name for products that were in this category
+    // Unset categoria for products that were in this category
     if (deleted) {
       await db.execute(sql`
-        UPDATE ecommerce_products SET group_name = NULL 
-        WHERE group_name = ${deleted.name}
+        UPDATE ecommerce_products SET categoria = NULL 
+        WHERE categoria = ${deleted.name}
       `);
     }
     
@@ -6744,11 +6744,11 @@ export function registerRoutes(app: Express): Server {
     const { db } = await import('./db');
     const { sql } = await import('drizzle-orm');
     
-    // Update group_name for all variants of this product family
+    // Update categoria for all variants of this product family
     const groupName = categoryName || null;
     await db.execute(sql`
       UPDATE ecommerce_products 
-      SET group_name = ${groupName}
+      SET categoria = ${groupName}
       WHERE variant_generic_display_name = ${productFamily}
     `);
     
