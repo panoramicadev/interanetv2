@@ -23,6 +23,7 @@ import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-
 import PendingDocumentsUnified from "@/components/dashboard/pending-documents-unified";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 import TopClientsPanel from "@/components/dashboard/top-clients-panel";
+import SalesChart from "@/components/dashboard/sales-chart";
 
 interface SegmentClient {
   clientName: string;
@@ -1455,6 +1456,17 @@ export default function SegmentDetail({
                   filterType={filterType}
                   segment={segmentName}
                 />
+              )}
+
+              {/* Tendencia de Ventas */}
+              {segmentName && (
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                  <SalesChart
+                    selectedPeriod={selectedPeriod}
+                    filterType={filterType}
+                    segment={segmentName}
+                  />
+                </div>
               )}
 
               {/* Data Tables */}

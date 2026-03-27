@@ -19,6 +19,7 @@ import SalespersonPendingNVV from "@/components/dashboard/salesperson-pending-nv
 import SalespersonPendingGDV from "@/components/dashboard/salesperson-pending-gdv";
 import PendingDocumentsUnified from "@/components/dashboard/pending-documents-unified";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
+import SalesChart from "@/components/dashboard/sales-chart";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerTrigger, DrawerFooter } from "@/components/ui/drawer";
@@ -1651,6 +1652,17 @@ export default function SalespersonDetail({
                   filterType={filterType}
                   salesperson={salespersonName}
                 />
+              )}
+
+              {/* Tendencia de Ventas */}
+              {salespersonName && (
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                  <SalesChart
+                    selectedPeriod={selectedPeriod}
+                    filterType={filterType}
+                    salesperson={salespersonName}
+                  />
+                </div>
               )}
 
               {/* Promesas de Compra - Always show for salespeople */}
