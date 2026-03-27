@@ -1749,8 +1749,8 @@ export default function Dashboard() {
                   onChange={(val) => val && setSelection(val)}
                 />
               </div>
-              {/* Sync button + last sync time */}
-              <div className="flex-shrink-0 flex flex-col items-center">
+              {/* Sync button + last sync badge */}
+              <div className="flex-shrink-0 relative">
                 <Button
                   variant="outline"
                   size="icon"
@@ -1758,7 +1758,7 @@ export default function Dashboard() {
                   disabled={isSyncAllRunning}
                   className="h-9 w-9 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-colors rounded-lg border-gray-200 dark:border-gray-700"
                   data-testid="button-desktop-sync-all"
-                  title="Sincronizar todo"
+                  title={lastSyncDate ? `Última sync: ${new Date(lastSyncDate).toLocaleString('es-CL')}` : 'Sincronizar todo'}
                 >
                   {isSyncAllRunning ? (
                     <Loader2 className="h-4 w-4 text-orange-500 animate-spin" />
@@ -1767,7 +1767,9 @@ export default function Dashboard() {
                   )}
                 </Button>
                 {lastSyncLabel && (
-                  <span className="text-[10px] text-gray-400 mt-0.5 whitespace-nowrap" title={lastSyncDate ? new Date(lastSyncDate).toLocaleString('es-CL') : ''}>{lastSyncLabel}</span>
+                  <span className="absolute -top-2 -right-2 bg-gray-100 text-gray-500 text-[8px] font-medium px-1.5 py-0.5 rounded-full border border-gray-200 whitespace-nowrap pointer-events-none" title={lastSyncDate ? new Date(lastSyncDate).toLocaleString('es-CL') : ''}>
+                    {lastSyncLabel}
+                  </span>
                 )}
               </div>
               <div className="flex-shrink-0">
