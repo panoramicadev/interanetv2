@@ -34,6 +34,7 @@ import {
   insertHitoMarketingSchema,
   nvvPendingSales,
   factVentas,
+  etlExecutionLog,
   gastosEmpresariales,
   // CMMS tables
   mantencionesPlanificadas,
@@ -17986,8 +17987,33 @@ export function registerRoutes(app: Express): Server {
   // Get last sales sync info
   app.get('/api/etl/sync-sales/status', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const lastSync = await storage.getLastSalesSync();
-      res.json(lastSync);
+      // Check both sync sources and return the most recent
+      const lastManualSync = await storage.getLastSalesSync();
+      
+      // Also check the incremental ETL execution log (used by the scheduler)
+      const [lastIncrementalSync] = await db
+        .select({
+          createdAt: etlExecutionLog.startTime,
+          completedAt: etlExecutionLog.endTime,
+          status: etlExecutionLog.status,
+        })
+        .from(etlExecutionLog)
+        .where(sql`etl_name = 'ventas_incremental' AND status = 'success'`)
+        .orderBy(desc(etlExecutionLog.endTime))
+        .limit(1);
+      
+      // Pick the most recent between manual and incremental
+      const manualDate = lastManualSync?.completedAt ? new Date(lastManualSync.completedAt).getTime() : 0;
+      const incrementalDate = lastIncrementalSync?.completedAt ? new Date(lastIncrementalSync.completedAt).getTime() : 0;
+      
+      if (incrementalDate > manualDate && lastIncrementalSync) {
+        res.json({
+          createdAt: lastIncrementalSync.createdAt,
+          completedAt: lastIncrementalSync.completedAt,
+        });
+      } else {
+        res.json(lastManualSync);
+      }
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener última sincronización de ventas', error: error.message });
     }
