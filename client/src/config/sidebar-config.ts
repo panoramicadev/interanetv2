@@ -106,11 +106,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: PackageSearch,
         },
         {
-          href: "/ecommerce",
-          label: "Gestión eCommerce",
-          icon: ShoppingCart,
-        },
-        {
           href: "/panoramica-market",
           label: "Panorámica Market",
           icon: Gift,
@@ -119,6 +114,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/ecommerce-usuarios",
           label: "Usuarios",
           icon: Users,
+        },
+        {
+          href: "/ecommerce",
+          label: "Gestión eCommerce",
+          icon: ShoppingCart,
         },
       ],
       separator: true,
@@ -404,11 +404,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: PackageSearch,
         },
         {
-          href: "/ecommerce",
-          label: "Gestión eCommerce",
-          icon: ShoppingCart,
-        },
-        {
           href: "/panoramica-market",
           label: "Panorámica Market",
           icon: Gift,
@@ -417,6 +412,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/ecommerce-usuarios",
           label: "Usuarios",
           icon: Users,
+        },
+        {
+          href: "/ecommerce",
+          label: "Gestión eCommerce",
+          icon: ShoppingCart,
         },
       ],
       separator: true,
