@@ -66,7 +66,7 @@ import GastosFilterBar from "@/components/gastos-filter-bar";
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
 // Fetch with timeout helper
-async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs = 8000): Promise<Response> {
+async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs = 30000): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -104,7 +104,7 @@ async function fetchFileBlob(fileUrl: string): Promise<Blob> {
       const proxyRes = await fetchWithTimeout(
         `/api/proxy-file?url=${encodeURIComponent(fileUrl)}`,
         { credentials: 'include' },
-        15000 // 15s for large PDFs
+        30000 // 30s for large files
       );
       if (proxyRes.ok) return await proxyRes.blob();
       console.warn('[PDF] Proxy failed:', proxyRes.status, fileUrl.substring(0, 80));
@@ -113,51 +113,63 @@ async function fetchFileBlob(fileUrl: string): Promise<Blob> {
     }
     // Fallback: direct fetch (might work for truly public URLs)
     try {
-      const res = await fetchWithTimeout(fileUrl, {}, 10000);
+      const res = await fetchWithTimeout(fileUrl, {}, 20000);
       if (res.ok) return await res.blob();
     } catch {}
     throw new Error(`Failed to fetch external file: ${fileUrl.substring(0, 80)}`);
   }
 
   // Local URL
-  const res = await fetchWithTimeout(fileUrl, { credentials: 'include' }, 10000);
+  const res = await fetchWithTimeout(fileUrl, { credentials: 'include' }, 20000);
   if (!res.ok) throw new Error(`Failed to fetch local: ${res.status}`);
   return await res.blob();
 }
 
 // Load image for PDF — fetches, compresses to small JPEG
-async function loadImageForPdf(imageUrl: string): Promise<{ base64: string; format: 'JPEG' | 'PNG' | 'WEBP' }> {
+async function loadImageForPdf(imageUrl: string, retries = 2): Promise<{ base64: string; format: 'JPEG' | 'PNG' | 'WEBP' }> {
   const absoluteUrl = imageUrl.startsWith('http')
     ? imageUrl
     : `${window.location.origin}${imageUrl}`;
 
-  // Try normalized endpoint first (handles EXIF rotation)
-  let blob: Blob | null = null;
-  try {
-    const res = await fetchWithTimeout(`/api/image-normalized?url=${encodeURIComponent(absoluteUrl)}`, { credentials: 'include' });
-    if (res.ok) blob = await res.blob();
-  } catch {}
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      // Try normalized endpoint first (handles EXIF rotation)
+      let blob: Blob | null = null;
+      try {
+        const res = await fetchWithTimeout(`/api/image-normalized?url=${encodeURIComponent(absoluteUrl)}`, { credentials: 'include' }, 30000);
+        if (res.ok) blob = await res.blob();
+      } catch {}
 
-  // Fallback to direct/proxy fetch
-  if (!blob) {
-    blob = await fetchFileBlob(absoluteUrl);
-  }
+      // Fallback to direct/proxy fetch
+      if (!blob) {
+        blob = await fetchFileBlob(absoluteUrl);
+      }
 
-  // Convert blob to Image, then compress to JPEG via canvas
-  const objectUrl = URL.createObjectURL(blob);
-  try {
-    const imgEl = new Image();
-    await new Promise<void>((resolve, reject) => {
-      imgEl.onload = () => resolve();
-      imgEl.onerror = () => reject(new Error('Image decode failed'));
-      imgEl.src = objectUrl;
-    });
-    const compressed = compressImageToJpeg(imgEl, 800, 0.6);
-    if (!compressed) throw new Error('Compression failed');
-    return { base64: compressed, format: 'JPEG' };
-  } finally {
-    URL.revokeObjectURL(objectUrl);
+      // Convert blob to Image, then compress to JPEG via canvas
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const imgEl = new Image();
+        await new Promise<void>((resolve, reject) => {
+          imgEl.onload = () => resolve();
+          imgEl.onerror = () => reject(new Error('Image decode failed'));
+          imgEl.src = objectUrl;
+        });
+        const compressed = compressImageToJpeg(imgEl, 800, 0.6);
+        if (!compressed) throw new Error('Compression failed');
+        return { base64: compressed, format: 'JPEG' };
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    } catch (err) {
+      console.warn(`[PDF] Image load attempt ${attempt + 1}/${retries + 1} failed for: ${absoluteUrl.substring(0, 80)}`, err);
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // Wait 1s, 2s between retries
+      } else {
+        throw err;
+      }
+    }
   }
+  throw new Error('All retries exhausted');
 }
 
 // Convert first page of PDF to compressed JPEG image
