@@ -24957,7 +24957,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       .where(
         and(
           eq(salesTransactions.nokoen, linkedClient.nokoen!),
-          eq(salesTransactions.tido, 'NVV')
+          inArray(salesTransactions.tido, ['NVV', 'GDV'])
         )
       )
       .orderBy(desc(salesTransactions.feemdo))

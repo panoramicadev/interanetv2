@@ -342,6 +342,7 @@ export default function SeguimientoClientes() {
           vendedores={vendedores}
           isAdminOrSupervisor={isAdminOrSupervisor}
           onUpdateVendedor={(vendedorId: string) => updateMutation.mutate({ id: selectedClient.id, data: { vendedorId } })}
+          onUpdate={(data: any) => updateMutation.mutate({ id: selectedClient.id, data })}
         />
       )}
     </div>
@@ -681,7 +682,7 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
 }
 
 // ─── Client Detail Modal ──────────────────────────────────────────────
-function ClientDetailModal({ open, onOpenChange, client, onDelete, onRefresh, vendedores, isAdminOrSupervisor, onUpdateVendedor }: {
+function ClientDetailModal({ open, onOpenChange, client, onDelete, onRefresh, vendedores, isAdminOrSupervisor, onUpdateVendedor, onUpdate }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   client: any;
@@ -690,6 +691,7 @@ function ClientDetailModal({ open, onOpenChange, client, onDelete, onRefresh, ve
   vendedores: any[];
   isAdminOrSupervisor: boolean;
   onUpdateVendedor: (vendedorId: string) => void;
+  onUpdate: (data: any) => void;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -805,63 +807,142 @@ function ClientDetailModal({ open, onOpenChange, client, onDelete, onRefresh, ve
         </div>
 
         <div className="p-6 space-y-4">
-          {/* Vendedor Assignment */}
-          <div className="flex items-center gap-3 bg-muted/30 rounded-lg px-3 py-2">
-            <User className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-            <span className="text-xs font-medium text-muted-foreground flex-shrink-0">Vendedor:</span>
+          {/* Editable Info Section */}
+          <div className="space-y-3">
+            {/* Vendedor Row */}
+            <div className="flex items-center gap-3 bg-muted/30 rounded-lg px-3 py-2">
+              <User className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+              <span className="text-xs font-medium text-muted-foreground flex-shrink-0">Vendedor:</span>
+              {isAdminOrSupervisor ? (
+                <select
+                  className="text-sm bg-background border rounded-md px-3 py-1 cursor-pointer hover:border-indigo-400 transition-colors flex-1 max-w-xs"
+                  value={vendedores.some((v: any) => v.id === client.vendedorId) ? client.vendedorId : ""}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    onUpdateVendedor(e.target.value);
+                  }}
+                >
+                  {!vendedores.some((v: any) => v.id === client.vendedorId) && (
+                    <option value="" disabled>{client.vendedorNombre} (actual)</option>
+                  )}
+                  {vendedores.map((v: any) => (
+                    <option key={v.id} value={v.id}>{v.salespersonName}</option>
+                  ))}
+                </select>
+              ) : (
+                <span className="text-sm font-medium">{client.vendedorNombre}</span>
+              )}
+            </div>
+
+            {/* Editable Fields Grid */}
+            {isAdminOrSupervisor && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Nombre</label>
+                  <input
+                    className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none"
+                    defaultValue={client.nombre}
+                    onBlur={(e) => {
+                      if (e.target.value !== client.nombre) {
+                        onUpdate({ nombre: e.target.value });
+                      }
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Empresa</label>
+                  <input
+                    className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none"
+                    defaultValue={client.empresa || ""}
+                    placeholder="Nombre empresa"
+                    onBlur={(e) => {
+                      if (e.target.value !== (client.empresa || "")) {
+                        onUpdate({ empresa: e.target.value });
+                      }
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Teléfono</label>
+                  <input
+                    className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none"
+                    defaultValue={client.telefono || ""}
+                    placeholder="+56 9..."
+                    onBlur={(e) => {
+                      if (e.target.value !== (client.telefono || "")) {
+                        onUpdate({ telefono: e.target.value });
+                      }
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Email</label>
+                  <input
+                    className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none"
+                    defaultValue={client.email || ""}
+                    placeholder="correo@ejemplo.cl"
+                    onBlur={(e) => {
+                      if (e.target.value !== (client.email || "")) {
+                        onUpdate({ email: e.target.value });
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Read-only for non-admins */}
+            {!isAdminOrSupervisor && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {client.telefono && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Phone className="w-4 h-4 text-muted-foreground" />
+                    <span>{client.telefono}</span>
+                  </div>
+                )}
+                {client.email && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Mail className="w-4 h-4 text-muted-foreground" />
+                    <span className="truncate">{client.email}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 text-sm">
+                  <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                  <span>{formatDate(client.createdAt)}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Notas */}
             {isAdminOrSupervisor ? (
-              <select
-                className="text-sm bg-background border rounded-md px-3 py-1 cursor-pointer hover:border-indigo-400 transition-colors flex-1 max-w-xs"
-                value={client.vendedorId || ""}
-                onChange={(e) => {
-                  e.stopPropagation();
-                  onUpdateVendedor(e.target.value);
-                }}
-              >
-                <option value="" disabled>Seleccionar vendedor...</option>
-                {vendedores.map((v: any) => (
-                  <option key={v.id} value={v.id}>{v.salespersonName}</option>
-                ))}
-              </select>
-            ) : (
-              <span className="text-sm font-medium">{client.vendedorNombre}</span>
-            )}
-          </div>
-
-          {/* Contact Info */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {client.telefono && (
-              <div className="flex items-center gap-2 text-sm">
-                <Phone className="w-4 h-4 text-muted-foreground" />
-                <span>{client.telefono}</span>
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Notas</label>
+                <textarea
+                  className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none resize-none min-h-[60px]"
+                  defaultValue={client.notas || ""}
+                  placeholder="Notas del cliente..."
+                  rows={2}
+                  onBlur={(e) => {
+                    if (e.target.value !== (client.notas || "")) {
+                      onUpdate({ notas: e.target.value });
+                    }
+                  }}
+                />
               </div>
-            )}
-            {client.email && (
-              <div className="flex items-center gap-2 text-sm">
-                <Mail className="w-4 h-4 text-muted-foreground" />
-                <span className="truncate">{client.email}</span>
+            ) : client.notas ? (
+              <div className="bg-muted/30 rounded-lg p-3">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Notas</p>
+                <p className="text-sm">{client.notas}</p>
               </div>
-            )}
-            <div className="flex items-center gap-2 text-sm">
-              <CalendarDays className="w-4 h-4 text-muted-foreground" />
-              <span>{formatDate(client.createdAt)}</span>
-            </div>
+            ) : null}
           </div>
-
-          {/* Notas */}
-          {client.notas && (
-            <div className="bg-muted/30 rounded-lg p-3">
-              <p className="text-xs font-medium text-muted-foreground mb-1">Notas</p>
-              <p className="text-sm">{client.notas}</p>
-            </div>
-          )}
 
           {/* Tabs */}
           <Tabs defaultValue="hitos" className="w-full">
             <TabsList className="w-full grid grid-cols-5">
               <TabsTrigger value="hitos">Historial ({client.hitos?.length || 0})</TabsTrigger>
               <TabsTrigger value="nuevo-hito">Nuevo Hito</TabsTrigger>
-              <TabsTrigger value="nvv">Seguimiento Pedido</TabsTrigger>
+              <TabsTrigger value="nvv">Pedidos en Curso</TabsTrigger>
               <TabsTrigger value="pedidos">Pedidos</TabsTrigger>
               <TabsTrigger value="rut">RUT / Compras</TabsTrigger>
             </TabsList>
@@ -1190,8 +1271,8 @@ function NVVTab({ client }: { client: any }) {
     return (
       <div className="text-center py-8 text-muted-foreground">
         <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
-        <p className="text-sm font-medium">Sin notas de venta (NVV)</p>
-        <p className="text-xs mt-1">No se encontraron NVV para este cliente.</p>
+        <p className="text-sm font-medium">Sin pedidos en curso</p>
+        <p className="text-xs mt-1">No se encontraron NVV o GDV para este cliente.</p>
       </div>
     );
   }
@@ -1204,10 +1285,10 @@ function NVVTab({ client }: { client: any }) {
     "Despachado": "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
   };
 
-  // Group by nudo to show grouped NVVs
+  // Group by tido+nudo to show grouped docs
   const groupedByNudo: Record<string, any[]> = {};
   for (const nvv of nvvs) {
-    const key = nvv.nudo || 'sin-numero';
+    const key = `${nvv.tido}-${nvv.nudo || 'sin-numero'}`;
     if (!groupedByNudo[key]) groupedByNudo[key] = [];
     groupedByNudo[key].push(nvv);
   }
@@ -1216,7 +1297,7 @@ function NVVTab({ client }: { client: any }) {
     <div className="space-y-2">
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-medium text-muted-foreground">
-          {Object.keys(groupedByNudo).length} NVV encontradas ({nvvs.length} líneas)
+          {Object.keys(groupedByNudo).length} pedidos encontrados ({nvvs.length} líneas)
         </p>
         <Button variant="ghost" size="sm" onClick={loadNVVs} className="h-7 text-xs">
           <RefreshCw className="w-3 h-3 mr-1" />
@@ -1235,8 +1316,8 @@ function NVVTab({ client }: { client: any }) {
               {/* NVV Header */}
               <div className="bg-muted/30 px-3 py-2 flex items-center justify-between border-b">
                 <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-amber-500" />
-                  <span className="font-mono text-sm font-semibold">NVV #{nudo}</span>
+                  <FileText className={`w-4 h-4 ${firstItem.tido === 'GDV' ? 'text-purple-500' : 'text-amber-500'}`} />
+                  <span className="font-mono text-sm font-semibold">{firstItem.tido} #{firstItem.nudo}</span>
                   <Badge className={`text-[10px] px-1.5 py-0 h-5 border-0 ${estadoClass}`}>
                     {estadoLabel}
                   </Badge>
