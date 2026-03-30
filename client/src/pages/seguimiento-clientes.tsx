@@ -21,13 +21,9 @@ import { useToast } from "@/hooks/use-toast";
 
 // ─── Constants ────────────────────────────────────────────────────────
 const ESTADOS = [
-  { value: "nuevo", label: "Nuevo", icon: Sparkles, color: "from-slate-400 to-slate-500", bgCard: "bg-slate-50 dark:bg-slate-900/30", badge: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300", border: "border-slate-200 dark:border-slate-700" },
-  { value: "contactado", label: "Contactado", icon: PhoneCall, color: "from-blue-400 to-blue-600", bgCard: "bg-blue-50 dark:bg-blue-900/20", badge: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300", border: "border-blue-200 dark:border-blue-800" },
   { value: "cotizacion", label: "Cotización", icon: FileText, color: "from-amber-400 to-amber-600", bgCard: "bg-amber-50 dark:bg-amber-900/20", badge: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300", border: "border-amber-200 dark:border-amber-800" },
   { value: "venta", label: "Venta", icon: ShoppingCart, color: "from-emerald-400 to-emerald-600", bgCard: "bg-emerald-50 dark:bg-emerald-900/20", badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300", border: "border-emerald-200 dark:border-emerald-800" },
   { value: "despacho", label: "Despacho", icon: Truck, color: "from-purple-400 to-purple-600", bgCard: "bg-purple-50 dark:bg-purple-900/20", badge: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300", border: "border-purple-200 dark:border-purple-800" },
-  { value: "completado", label: "Completado", icon: CheckCircle2, color: "from-green-500 to-green-700", bgCard: "bg-green-50 dark:bg-green-900/20", badge: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300", border: "border-green-200 dark:border-green-800" },
-  { value: "perdido", label: "Perdido", icon: X, color: "from-red-400 to-red-600", bgCard: "bg-red-50 dark:bg-red-900/20", badge: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300", border: "border-red-200 dark:border-red-800" },
 ];
 
 const PRIORIDADES = [
@@ -839,9 +835,10 @@ function ClientDetailModal({ open, onOpenChange, client, onDelete, onRefresh }: 
 
           {/* Tabs */}
           <Tabs defaultValue="hitos" className="w-full">
-            <TabsList className="w-full grid grid-cols-4">
+            <TabsList className="w-full grid grid-cols-5">
               <TabsTrigger value="hitos">Historial ({client.hitos?.length || 0})</TabsTrigger>
               <TabsTrigger value="nuevo-hito">Nuevo Hito</TabsTrigger>
+              <TabsTrigger value="nvv">Seguimiento Pedido</TabsTrigger>
               <TabsTrigger value="pedidos">Pedidos</TabsTrigger>
               <TabsTrigger value="rut">RUT / Compras</TabsTrigger>
             </TabsList>
@@ -1010,6 +1007,11 @@ function ClientDetailModal({ open, onOpenChange, client, onDelete, onRefresh }: 
               )}
             </TabsContent>
 
+            {/* Seguimiento Pedido (NVV) Tab */}
+            <TabsContent value="nvv" className="mt-4">
+              <NVVTab client={client} />
+            </TabsContent>
+
             {/* Pedidos Tab */}
             <TabsContent value="pedidos" className="mt-4">
               <PedidosTab client={client} />
@@ -1111,6 +1113,130 @@ function PedidosTab({ client }: { client: any }) {
                   </p>
                   <p className="text-[11px] text-muted-foreground">{formatDate(p.feemdo)}</p>
                 </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── NVV Tab (Seguimiento Pedido / Notas de Venta) ────────────────────
+function NVVTab({ client }: { client: any }) {
+  const [nvvs, setNvvs] = useState<any[] | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const loadNVVs = async () => {
+    if (!client.rut && !client.clienteId) {
+      setNvvs([]);
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/crm/seguimiento/${client.id}/nvv`);
+      if (res.ok) {
+        const data = await res.json();
+        setNvvs(data.nvvs || []);
+      }
+    } catch { /* ignore */ }
+    setIsLoading(false);
+  };
+
+  useState(() => { loadNVVs(); });
+
+  if (!client.rut && !client.clienteId) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <Link2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
+        <p className="text-sm font-medium">Sin RUT vinculado</p>
+        <p className="text-xs mt-1">Vincula un RUT en la pestaña "RUT / Compras" para ver las NVV.</p>
+      </div>
+    );
+  }
+
+  if (isLoading || nvvs === null) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <RefreshCw className="w-5 h-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (nvvs.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
+        <p className="text-sm font-medium">Sin notas de venta (NVV)</p>
+        <p className="text-xs mt-1">No se encontraron NVV para este cliente.</p>
+      </div>
+    );
+  }
+
+  const estadoColors: Record<string, string> = {
+    "Facturado": "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+    "Pendiente": "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
+    "Anulado": "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+    "En Proceso": "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+    "Despachado": "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+  };
+
+  // Group by nudo to show grouped NVVs
+  const groupedByNudo: Record<string, any[]> = {};
+  for (const nvv of nvvs) {
+    const key = nvv.nudo || 'sin-numero';
+    if (!groupedByNudo[key]) groupedByNudo[key] = [];
+    groupedByNudo[key].push(nvv);
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-medium text-muted-foreground">
+          {Object.keys(groupedByNudo).length} NVV encontradas ({nvvs.length} líneas)
+        </p>
+        <Button variant="ghost" size="sm" onClick={loadNVVs} className="h-7 text-xs">
+          <RefreshCw className="w-3 h-3 mr-1" />
+          Actualizar
+        </Button>
+      </div>
+      <div className="max-h-80 overflow-y-auto space-y-3 pr-1">
+        {Object.entries(groupedByNudo).map(([nudo, items]) => {
+          const firstItem = items[0];
+          const estadoLabel = firstItem.eslido || firstItem.esdo || "Pendiente";
+          const estadoClass = estadoColors[estadoLabel] || "bg-muted text-muted-foreground";
+          const totalMonto = items.reduce((sum: number, item: any) => sum + parseFloat(item.vanedo || "0"), 0);
+
+          return (
+            <div key={nudo} className="border rounded-lg overflow-hidden">
+              {/* NVV Header */}
+              <div className="bg-muted/30 px-3 py-2 flex items-center justify-between border-b">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-amber-500" />
+                  <span className="font-mono text-sm font-semibold">NVV #{nudo}</span>
+                  <Badge className={`text-[10px] px-1.5 py-0 h-5 border-0 ${estadoClass}`}>
+                    {estadoLabel}
+                  </Badge>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                    ${totalMonto.toLocaleString("es-CL")}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">{formatDate(firstItem.feemdo)}</p>
+                </div>
+              </div>
+              {/* Line items */}
+              <div className="divide-y">
+                {items.map((item: any, i: number) => (
+                  <div key={item.id || i} className="px-3 py-1.5 flex items-center justify-between text-xs hover:bg-muted/10">
+                    <span className="text-muted-foreground flex-1 truncate pr-2">
+                      {item.nokoprct || "Sin detalle"}
+                    </span>
+                    <span className="font-medium text-right flex-shrink-0">
+                      ${parseFloat(item.vanedo || "0").toLocaleString("es-CL")}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           );

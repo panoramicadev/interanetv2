@@ -24575,7 +24575,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       rut: req.body.rut || null,
       vendedorId,
       vendedorNombre,
-      estado: req.body.estado || 'nuevo',
+      estado: req.body.estado || 'cotizacion',
       prioridad: req.body.prioridad || 'media',
       notas: req.body.notas || null,
       proximoContacto: req.body.proximoContacto ? new Date(req.body.proximoContacto) : null,
@@ -24895,6 +24895,56 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
     res.json({
       compras: recentSales,
       nuevosHitosCreados: newHitosCreated,
+      clienteVinculado: linkedClient,
+    });
+  }));
+
+  // GET /api/crm/seguimiento/:id/nvv — Get NVV (Notas de Venta) for a client
+  app.get('/api/crm/seguimiento/:id/nvv', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+
+    const [existing] = await db.select()
+      .from(crmSeguimientoClientes)
+      .where(eq(crmSeguimientoClientes.id, id))
+      .limit(1);
+
+    if (!existing || !existing.rut) {
+      return res.json({ nvvs: [], message: 'Sin RUT asociado' });
+    }
+
+    const [linkedClient] = await db.select()
+      .from(clients)
+      .where(eq(clients.rten, existing.rut))
+      .limit(1);
+
+    if (!linkedClient) {
+      return res.json({ nvvs: [], message: 'Cliente no encontrado en base de datos de ventas' });
+    }
+
+    const nvvSales = await db.select({
+      id: salesTransactions.id,
+      nudo: salesTransactions.nudo,
+      feemdo: salesTransactions.feemdo,
+      tido: salesTransactions.tido,
+      nokoprct: salesTransactions.nokoprct,
+      nokoen: salesTransactions.nokoen,
+      vanedo: salesTransactions.vanedo,
+      eslido: salesTransactions.eslido,
+      esdo: salesTransactions.esdo,
+      nokofu: salesTransactions.nokofu,
+    })
+      .from(salesTransactions)
+      .where(
+        and(
+          eq(salesTransactions.nokoen, linkedClient.nokoen!),
+          eq(salesTransactions.tido, 'NVV')
+        )
+      )
+      .orderBy(desc(salesTransactions.feemdo))
+      .limit(50);
+
+    res.json({
+      nvvs: nvvSales,
       clienteVinculado: linkedClient,
     });
   }));
