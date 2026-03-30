@@ -66,7 +66,7 @@ import GastosFilterBar from "@/components/gastos-filter-bar";
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
 // Fetch with timeout helper
-async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs = 30000): Promise<Response> {
+async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs = 20000): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -75,6 +75,25 @@ async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs =
   } finally {
     clearTimeout(timer);
   }
+}
+
+// Wrap any promise with a hard timeout — prevents infinite hangs
+function withTimeout<T>(promise: Promise<T>, ms: number, label = ''): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`Timeout ${ms}ms: ${label}`)), ms))
+  ]);
+}
+
+// Load an Image element with a timeout — prevents hanging on bad src
+function loadImageElement(src: string, timeoutMs = 10000): Promise<HTMLImageElement> {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const imgEl = new Image();
+    const timer = setTimeout(() => { imgEl.src = ''; reject(new Error('Image load timeout')); }, timeoutMs);
+    imgEl.onload = () => { clearTimeout(timer); resolve(imgEl); };
+    imgEl.onerror = () => { clearTimeout(timer); reject(new Error('Image load error')); };
+    imgEl.src = src;
+  });
 }
 
 // Compress image via canvas — returns small JPEG base64
@@ -104,7 +123,7 @@ async function fetchFileBlob(fileUrl: string): Promise<Blob> {
       const proxyRes = await fetchWithTimeout(
         `/api/proxy-file?url=${encodeURIComponent(fileUrl)}`,
         { credentials: 'include' },
-        30000 // 30s for large files
+        20000
       );
       if (proxyRes.ok) return await proxyRes.blob();
       console.warn('[PDF] Proxy failed:', proxyRes.status, fileUrl.substring(0, 80));
@@ -113,7 +132,7 @@ async function fetchFileBlob(fileUrl: string): Promise<Blob> {
     }
     // Fallback: direct fetch (might work for truly public URLs)
     try {
-      const res = await fetchWithTimeout(fileUrl, {}, 20000);
+      const res = await fetchWithTimeout(fileUrl, {}, 15000);
       if (res.ok) return await res.blob();
     } catch {}
     throw new Error(`Failed to fetch external file: ${fileUrl.substring(0, 80)}`);
@@ -136,7 +155,7 @@ async function loadImageForPdf(imageUrl: string, retries = 2): Promise<{ base64:
       // Try normalized endpoint first (handles EXIF rotation)
       let blob: Blob | null = null;
       try {
-        const res = await fetchWithTimeout(`/api/image-normalized?url=${encodeURIComponent(absoluteUrl)}`, { credentials: 'include' }, 30000);
+        const res = await fetchWithTimeout(`/api/image-normalized?url=${encodeURIComponent(absoluteUrl)}`, { credentials: 'include' }, 15000);
         if (res.ok) blob = await res.blob();
       } catch {}
 
@@ -148,12 +167,7 @@ async function loadImageForPdf(imageUrl: string, retries = 2): Promise<{ base64:
       // Convert blob to Image, then compress to JPEG via canvas
       const objectUrl = URL.createObjectURL(blob);
       try {
-        const imgEl = new Image();
-        await new Promise<void>((resolve, reject) => {
-          imgEl.onload = () => resolve();
-          imgEl.onerror = () => reject(new Error('Image decode failed'));
-          imgEl.src = objectUrl;
-        });
+        const imgEl = await loadImageElement(objectUrl, 10000);
         const compressed = compressImageToJpeg(imgEl, 800, 0.6);
         if (!compressed) throw new Error('Compression failed');
         return { base64: compressed, format: 'JPEG' };
@@ -163,7 +177,7 @@ async function loadImageForPdf(imageUrl: string, retries = 2): Promise<{ base64:
     } catch (err) {
       console.warn(`[PDF] Image load attempt ${attempt + 1}/${retries + 1} failed for: ${absoluteUrl.substring(0, 80)}`, err);
       if (attempt < retries) {
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // Wait 1s, 2s between retries
+        await new Promise(r => setTimeout(r, 1500));
       } else {
         throw err;
       }
@@ -1111,194 +1125,19 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
         const imageColumnStart = margin + infoColumnWidth + gapBetweenColumns;
         const imageMaxWidth = pageWidth - imageColumnStart - margin;
 
-        for (const img of allImages) {
+        // Pre-fetch all images in parallel batches (max 3 at a time) to avoid sequential blocking
+        const PER_IMAGE_TIMEOUT = 35000; // 35s hard limit per image (generous to not lose photos)
+        const BATCH_SIZE = 3;
+        type PreloadedImage = { base64: string; width: number; height: number } | null;
+        const preloadedImages: PreloadedImage[] = new Array(allImages.length).fill(null);
+
+        const preloadSingleImage = async (img: ImageInfo, index: number): Promise<void> => {
           try {
             const isPDF = img.url.toLowerCase().endsWith('.pdf');
-            const sectionHeight = img.type === 'fondo' ? 102 : 120;
-
-            if (yPos + sectionHeight > pageHeight - 20) {
-              doc.addPage();
-              yPos = margin;
-            }
-
-            const sectionStartY = yPos;
-
-            doc.setDrawColor(229, 231, 235);
-            doc.setFillColor(255, 255, 255);
-            doc.roundedRect(margin, yPos - 3, infoColumnWidth, sectionHeight, 3, 3, 'FD');
-
-            const tipoLabel = img.type === 'fondo' ? 'COMPROBANTE DE FONDO' : 'COMPROBANTE DE GASTO';
-            const headerColor = img.type === 'fondo' ? [22, 163, 74] : [59, 130, 246];
-            doc.setFillColor(headerColor[0], headerColor[1], headerColor[2]);
-            doc.roundedRect(margin, yPos - 3, infoColumnWidth, 10, 3, 3, 'F');
-            doc.rect(margin, yPos + 4, infoColumnWidth, 3, 'F');
-
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(255, 255, 255);
-            doc.text(tipoLabel, margin + infoColumnWidth / 2, yPos + 3, { align: 'center' });
-            doc.setTextColor(0, 0, 0);
-            yPos += 14;
-
-            const labelX = margin + 4;
-            const valueX = margin + 28;
-            const lineHeight = 6.5;
-
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(100, 116, 139);
-            doc.text('Vendedor', labelX, yPos);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(15, 23, 42);
-            doc.text(String(img.vendedor).substring(0, 22), valueX, yPos);
-            yPos += lineHeight;
-
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(100, 116, 139);
-            doc.text('Monto', labelX, yPos);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(22, 163, 74);
-            doc.text(img.monto, valueX, yPos);
-            yPos += lineHeight;
-
-            if (img.type === 'fondo' && img.fechaInicio && img.fechaTermino) {
-              doc.setFont('helvetica', 'bold');
-              doc.setTextColor(100, 116, 139);
-              doc.text('F. Inicio', labelX, yPos);
-              doc.setFont('helvetica', 'normal');
-              doc.setTextColor(15, 23, 42);
-              doc.text(img.fechaInicio, valueX, yPos);
-              yPos += lineHeight;
-
-              doc.setFont('helvetica', 'bold');
-              doc.setTextColor(100, 116, 139);
-              doc.text('F. Término', labelX, yPos);
-              doc.setFont('helvetica', 'normal');
-              doc.setTextColor(15, 23, 42);
-              doc.text(img.fechaTermino, valueX, yPos);
-              yPos += lineHeight;
-            } else {
-              doc.setFont('helvetica', 'bold');
-              doc.setTextColor(100, 116, 139);
-              doc.text('Fecha', labelX, yPos);
-              doc.setFont('helvetica', 'normal');
-              doc.setTextColor(15, 23, 42);
-              doc.text(img.fecha, valueX, yPos);
-              yPos += lineHeight;
-            }
-
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(100, 116, 139);
-            doc.text('Tipo', labelX, yPos);
-            doc.setFont('helvetica', 'normal');
-            const financColor = img.financiamiento.includes('Fondo') ? [22, 163, 74] : [234, 88, 12];
-            doc.setTextColor(financColor[0], financColor[1], financColor[2]);
-            doc.text(img.financiamiento, valueX, yPos);
-            doc.setTextColor(0, 0, 0);
-            yPos += lineHeight;
-
-            if (img.type === 'gasto') {
-              doc.setFont('helvetica', 'bold');
-              doc.setTextColor(100, 116, 139);
-              doc.text('Categoría', labelX, yPos);
-              doc.setFont('helvetica', 'normal');
-              doc.setTextColor(15, 23, 42);
-              doc.text(String(img.categoria || '-').substring(0, 18), valueX, yPos);
-              yPos += lineHeight;
-
-              doc.setFont('helvetica', 'bold');
-              doc.setTextColor(100, 116, 139);
-              doc.text('Documento', labelX, yPos);
-              doc.setFont('helvetica', 'normal');
-              doc.setTextColor(15, 23, 42);
-              doc.text(String(img.tipoDocumento || '-').substring(0, 16), valueX, yPos);
-              yPos += lineHeight;
-
-              if (img.proveedor && img.proveedor !== '-') {
-                doc.setFont('helvetica', 'bold');
-                doc.setTextColor(100, 116, 139);
-                doc.text('Proveedor', labelX, yPos);
-                doc.setFont('helvetica', 'normal');
-                doc.setTextColor(15, 23, 42);
-                doc.text(String(img.proveedor).substring(0, 18), valueX, yPos);
-                yPos += lineHeight;
-              }
-
-              if (img.ruta && img.ruta !== '-') {
-                doc.setFont('helvetica', 'bold');
-                doc.setTextColor(100, 116, 139);
-                doc.text('Ruta', labelX, yPos);
-                doc.setFont('helvetica', 'normal');
-                doc.setTextColor(15, 23, 42);
-                doc.text(String(img.ruta).substring(0, 18), valueX, yPos);
-                yPos += lineHeight;
-              }
-
-              if (img.clientes && img.clientes !== '-') {
-                doc.setFont('helvetica', 'bold');
-                doc.setTextColor(100, 116, 139);
-                doc.text('Cliente(s)', labelX, yPos);
-                doc.setFont('helvetica', 'normal');
-                doc.setTextColor(15, 23, 42);
-                doc.text(String(img.clientes).substring(0, 18), valueX, yPos);
-                yPos += lineHeight;
-              }
-
-              if (img.ciudad && img.ciudad !== '-') {
-                doc.setFont('helvetica', 'bold');
-                doc.setTextColor(100, 116, 139);
-                doc.text('Ciudad', labelX, yPos);
-                doc.setFont('helvetica', 'normal');
-                doc.setTextColor(15, 23, 42);
-                doc.text(String(img.ciudad).substring(0, 18), valueX, yPos);
-                yPos += lineHeight;
-              }
-            } else {
-              doc.setFont('helvetica', 'bold');
-              doc.setTextColor(100, 116, 139);
-              doc.text('Tipo Fondo', labelX, yPos);
-              doc.setFont('helvetica', 'normal');
-              doc.setTextColor(15, 23, 42);
-              doc.text(String(img.tipoFondo || '-').substring(0, 16), valueX, yPos);
-              yPos += lineHeight;
-
-              doc.setFont('helvetica', 'bold');
-              doc.setTextColor(100, 116, 139);
-              doc.text('Estado', labelX, yPos);
-              doc.setFont('helvetica', 'normal');
-              const estadoColor = img.estado === 'activo' ? [22, 163, 74] : [220, 38, 38];
-              doc.setTextColor(estadoColor[0], estadoColor[1], estadoColor[2]);
-              doc.text(String(img.estado || '-').substring(0, 16), valueX, yPos);
-              doc.setTextColor(0, 0, 0);
-              yPos += lineHeight;
-            }
-
-            if (img.descripcion && img.descripcion !== '-') {
-              doc.setFont('helvetica', 'bold');
-              doc.setTextColor(100, 116, 139);
-              doc.text('Nota', labelX, yPos);
-              doc.setFont('helvetica', 'normal');
-              doc.setTextColor(15, 23, 42);
-              const notaMaxWidth = infoColumnWidth - 32;
-              const notaLines = doc.splitTextToSize(String(img.descripcion), notaMaxWidth);
-              const maxLines = Math.min(notaLines.length, 4);
-              for (let i = 0; i < maxLines; i++) {
-                doc.text(notaLines[i], valueX, yPos + (i * 4));
-              }
-              yPos += (maxLines - 1) * 4;
-            }
-
-            doc.setDrawColor(229, 231, 235);
-            doc.setFillColor(249, 250, 251);
-            doc.roundedRect(imageColumnStart, sectionStartY - 3, imageMaxWidth, sectionHeight, 3, 3, 'FD');
-
-            const imgYPos = sectionStartY + 5;
-            const imgMaxHeight = sectionHeight - 16;
+            let result: PreloadedImage = null;
 
             if (isPDF) {
-              let pdfPreviewLoaded = false;
-
-              // Try preview image first (pre-generated server-side)
+              // Try preview image first
               const previewPath = img.previewUrl || img.url.replace(/\.pdf$/i, '_preview.png');
               const previewUrl = previewPath.startsWith('http')
                 ? previewPath
@@ -1308,86 +1147,285 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
                 const previewBlob = await fetchFileBlob(previewUrl);
                 if (previewBlob.type.startsWith('image/')) {
                   const objUrl = URL.createObjectURL(previewBlob);
-                  const imgObj = new Image();
-                  await new Promise<void>((resolve, reject) => {
-                    imgObj.onload = () => resolve();
-                    imgObj.onerror = () => reject();
-                    imgObj.src = objUrl;
-                  });
-                  const compressed = compressImageToJpeg(imgObj, 600, 0.5);
-                  URL.revokeObjectURL(objUrl);
-
-                  if (compressed) {
-                    let imgWidth = imgObj.naturalWidth > 600 ? 600 : imgObj.naturalWidth;
-                    let imgHeight = imgObj.naturalHeight * (imgWidth / imgObj.naturalWidth);
-                    if (imgWidth > imageMaxWidth) { const r = imageMaxWidth / imgWidth; imgWidth = imageMaxWidth; imgHeight *= r; }
-                    if (imgHeight > imgMaxHeight) { const r = imgMaxHeight / imgHeight; imgHeight *= r; imgWidth *= r; }
-
-                    doc.addImage(compressed, 'JPEG', imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
-                    pdfPreviewLoaded = true;
+                  try {
+                    const imgObj = await loadImageElement(objUrl, 10000);
+                    const compressed = compressImageToJpeg(imgObj, 600, 0.5);
+                    if (compressed) {
+                      result = { base64: compressed, width: imgObj.naturalWidth > 600 ? 600 : imgObj.naturalWidth, height: imgObj.naturalHeight * ((imgObj.naturalWidth > 600 ? 600 : imgObj.naturalWidth) / imgObj.naturalWidth) };
+                    }
+                  } finally {
+                    URL.revokeObjectURL(objUrl);
                   }
                 }
               } catch {}
 
               // Fallback: render PDF first page client-side
-              if (!pdfPreviewLoaded) {
+              if (!result) {
                 const pdfAbsoluteUrl = img.url.startsWith('http') ? img.url : `${window.location.origin}${img.url}`;
                 const pdfImage = await pdfToImage(pdfAbsoluteUrl, 300);
                 if (pdfImage) {
-                  const imgObj = new Image();
-                  await new Promise<void>((resolve, reject) => {
-                    imgObj.onload = () => resolve();
-                    imgObj.onerror = () => reject();
-                    imgObj.src = pdfImage;
-                  });
-
-                  let imgWidth = imgObj.naturalWidth;
-                  let imgHeight = imgObj.naturalHeight;
-                  if (imgWidth > imageMaxWidth) { const r = imageMaxWidth / imgWidth; imgWidth = imageMaxWidth; imgHeight *= r; }
-                  if (imgHeight > imgMaxHeight) { const r = imgMaxHeight / imgHeight; imgHeight *= r; imgWidth *= r; }
-
-                  doc.addImage(pdfImage, 'JPEG', imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
-                  pdfPreviewLoaded = true;
+                  const imgObj = await loadImageElement(pdfImage, 10000);
+                  result = { base64: pdfImage, width: imgObj.naturalWidth, height: imgObj.naturalHeight };
                 }
               }
-
-              // Last fallback: text link
-              if (!pdfPreviewLoaded) {
-                doc.setFontSize(9);
-                doc.setFont('helvetica', 'normal');
-                doc.text('Documento PDF:', imageColumnStart, imgYPos);
-                doc.setTextColor(0, 0, 255);
-                doc.textWithLink('[Ver PDF adjunto]', imageColumnStart, imgYPos + 7, { url: img.url });
-                doc.setTextColor(0, 0, 0);
-              }
             } else {
-              // Regular image — already compressed by loadImageForPdf
+              // Regular image
               const { base64 } = await loadImageForPdf(img.url);
-
-              const imgObj = new Image();
-              await new Promise<void>((resolve, reject) => {
-                imgObj.onload = () => resolve();
-                imgObj.onerror = () => reject();
-                imgObj.src = base64;
-              });
-
-              let imgWidth = imgObj.naturalWidth;
-              let imgHeight = imgObj.naturalHeight;
-              if (imgWidth > imageMaxWidth) { const r = imageMaxWidth / imgWidth; imgWidth = imageMaxWidth; imgHeight *= r; }
-              if (imgHeight > imgMaxHeight) { const r = imgMaxHeight / imgHeight; imgHeight *= r; imgWidth *= r; }
-
-              doc.addImage(base64, 'JPEG', imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
+              const imgObj = await loadImageElement(base64, 10000);
+              result = { base64, width: imgObj.naturalWidth, height: imgObj.naturalHeight };
             }
 
-            yPos = sectionStartY + sectionHeight + 8;
-
+            preloadedImages[index] = result;
           } catch (e) {
-            console.error('Error loading image:', img.url, e);
-            imageErrors++;
-            doc.setFontSize(9);
-            doc.text(`Comprobante - ${img.vendedor} - [Error al cargar imagen]`, margin, yPos);
-            yPos += 15;
+            console.warn(`[PDF] Preload failed for image ${index}:`, img.url.substring(0, 60), e);
+            preloadedImages[index] = null;
           }
+        };
+
+        // Phase 1: Process in parallel batches (fast)
+        for (let batchStart = 0; batchStart < allImages.length; batchStart += BATCH_SIZE) {
+          const batch = allImages.slice(batchStart, batchStart + BATCH_SIZE);
+          await Promise.allSettled(
+            batch.map((img, i) =>
+              withTimeout(
+                preloadSingleImage(img, batchStart + i),
+                PER_IMAGE_TIMEOUT,
+                `img-${batchStart + i}`
+              ).catch(() => { preloadedImages[batchStart + i] = null; })
+            )
+          );
+        }
+
+        // Phase 2: Sequential retry for any images that failed — try harder one by one
+        const failedIndices = preloadedImages.map((p, i) => p === null ? i : -1).filter(i => i >= 0);
+        if (failedIndices.length > 0) {
+          console.log(`[PDF] ${failedIndices.length} images failed in parallel, retrying sequentially...`);
+          for (const idx of failedIndices) {
+            try {
+              await preloadSingleImage(allImages[idx], idx);
+              if (preloadedImages[idx]) {
+                console.log(`[PDF] ✅ Retry succeeded for image ${idx}`);
+              }
+            } catch (e) {
+              console.warn(`[PDF] ❌ Final retry also failed for image ${idx}:`, e);
+            }
+          }
+        }
+
+        // Now render all images into the PDF (fast — no network calls)
+        for (let idx = 0; idx < allImages.length; idx++) {
+          const img = allImages[idx];
+          const preloaded = preloadedImages[idx];
+          const isPDF = img.url.toLowerCase().endsWith('.pdf');
+          const sectionHeight = img.type === 'fondo' ? 102 : 120;
+
+          if (yPos + sectionHeight > pageHeight - 20) {
+            doc.addPage();
+            yPos = margin;
+          }
+
+          const sectionStartY = yPos;
+
+          doc.setDrawColor(229, 231, 235);
+          doc.setFillColor(255, 255, 255);
+          doc.roundedRect(margin, yPos - 3, infoColumnWidth, sectionHeight, 3, 3, 'FD');
+
+          const tipoLabel = img.type === 'fondo' ? 'COMPROBANTE DE FONDO' : 'COMPROBANTE DE GASTO';
+          const headerColor = img.type === 'fondo' ? [22, 163, 74] : [59, 130, 246];
+          doc.setFillColor(headerColor[0], headerColor[1], headerColor[2]);
+          doc.roundedRect(margin, yPos - 3, infoColumnWidth, 10, 3, 3, 'F');
+          doc.rect(margin, yPos + 4, infoColumnWidth, 3, 'F');
+
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(255, 255, 255);
+          doc.text(tipoLabel, margin + infoColumnWidth / 2, yPos + 3, { align: 'center' });
+          doc.setTextColor(0, 0, 0);
+          yPos += 14;
+
+          const labelX = margin + 4;
+          const valueX = margin + 28;
+          const lineHeight = 6.5;
+
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(100, 116, 139);
+          doc.text('Vendedor', labelX, yPos);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(15, 23, 42);
+          doc.text(String(img.vendedor).substring(0, 22), valueX, yPos);
+          yPos += lineHeight;
+
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(100, 116, 139);
+          doc.text('Monto', labelX, yPos);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(22, 163, 74);
+          doc.text(img.monto, valueX, yPos);
+          yPos += lineHeight;
+
+          if (img.type === 'fondo' && img.fechaInicio && img.fechaTermino) {
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(100, 116, 139);
+            doc.text('F. Inicio', labelX, yPos);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(15, 23, 42);
+            doc.text(img.fechaInicio, valueX, yPos);
+            yPos += lineHeight;
+
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(100, 116, 139);
+            doc.text('F. Término', labelX, yPos);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(15, 23, 42);
+            doc.text(img.fechaTermino, valueX, yPos);
+            yPos += lineHeight;
+          } else {
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(100, 116, 139);
+            doc.text('Fecha', labelX, yPos);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(15, 23, 42);
+            doc.text(img.fecha, valueX, yPos);
+            yPos += lineHeight;
+          }
+
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(100, 116, 139);
+          doc.text('Tipo', labelX, yPos);
+          doc.setFont('helvetica', 'normal');
+          const financColor = img.financiamiento.includes('Fondo') ? [22, 163, 74] : [234, 88, 12];
+          doc.setTextColor(financColor[0], financColor[1], financColor[2]);
+          doc.text(img.financiamiento, valueX, yPos);
+          doc.setTextColor(0, 0, 0);
+          yPos += lineHeight;
+
+          if (img.type === 'gasto') {
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(100, 116, 139);
+            doc.text('Categoría', labelX, yPos);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(15, 23, 42);
+            doc.text(String(img.categoria || '-').substring(0, 18), valueX, yPos);
+            yPos += lineHeight;
+
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(100, 116, 139);
+            doc.text('Documento', labelX, yPos);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(15, 23, 42);
+            doc.text(String(img.tipoDocumento || '-').substring(0, 16), valueX, yPos);
+            yPos += lineHeight;
+
+            if (img.proveedor && img.proveedor !== '-') {
+              doc.setFont('helvetica', 'bold');
+              doc.setTextColor(100, 116, 139);
+              doc.text('Proveedor', labelX, yPos);
+              doc.setFont('helvetica', 'normal');
+              doc.setTextColor(15, 23, 42);
+              doc.text(String(img.proveedor).substring(0, 18), valueX, yPos);
+              yPos += lineHeight;
+            }
+
+            if (img.ruta && img.ruta !== '-') {
+              doc.setFont('helvetica', 'bold');
+              doc.setTextColor(100, 116, 139);
+              doc.text('Ruta', labelX, yPos);
+              doc.setFont('helvetica', 'normal');
+              doc.setTextColor(15, 23, 42);
+              doc.text(String(img.ruta).substring(0, 18), valueX, yPos);
+              yPos += lineHeight;
+            }
+
+            if (img.clientes && img.clientes !== '-') {
+              doc.setFont('helvetica', 'bold');
+              doc.setTextColor(100, 116, 139);
+              doc.text('Cliente(s)', labelX, yPos);
+              doc.setFont('helvetica', 'normal');
+              doc.setTextColor(15, 23, 42);
+              doc.text(String(img.clientes).substring(0, 18), valueX, yPos);
+              yPos += lineHeight;
+            }
+
+            if (img.ciudad && img.ciudad !== '-') {
+              doc.setFont('helvetica', 'bold');
+              doc.setTextColor(100, 116, 139);
+              doc.text('Ciudad', labelX, yPos);
+              doc.setFont('helvetica', 'normal');
+              doc.setTextColor(15, 23, 42);
+              doc.text(String(img.ciudad).substring(0, 18), valueX, yPos);
+              yPos += lineHeight;
+            }
+          } else {
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(100, 116, 139);
+            doc.text('Tipo Fondo', labelX, yPos);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(15, 23, 42);
+            doc.text(String(img.tipoFondo || '-').substring(0, 16), valueX, yPos);
+            yPos += lineHeight;
+
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(100, 116, 139);
+            doc.text('Estado', labelX, yPos);
+            doc.setFont('helvetica', 'normal');
+            const estadoColor = img.estado === 'activo' ? [22, 163, 74] : [220, 38, 38];
+            doc.setTextColor(estadoColor[0], estadoColor[1], estadoColor[2]);
+            doc.text(String(img.estado || '-').substring(0, 16), valueX, yPos);
+            doc.setTextColor(0, 0, 0);
+            yPos += lineHeight;
+          }
+
+          if (img.descripcion && img.descripcion !== '-') {
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(100, 116, 139);
+            doc.text('Nota', labelX, yPos);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(15, 23, 42);
+            const notaMaxWidth = infoColumnWidth - 32;
+            const notaLines = doc.splitTextToSize(String(img.descripcion), notaMaxWidth);
+            const maxLines = Math.min(notaLines.length, 4);
+            for (let i = 0; i < maxLines; i++) {
+              doc.text(notaLines[i], valueX, yPos + (i * 4));
+            }
+            yPos += (maxLines - 1) * 4;
+          }
+
+          doc.setDrawColor(229, 231, 235);
+          doc.setFillColor(249, 250, 251);
+          doc.roundedRect(imageColumnStart, sectionStartY - 3, imageMaxWidth, sectionHeight, 3, 3, 'FD');
+
+          const imgYPos = sectionStartY + 5;
+          const imgMaxHeight = sectionHeight - 16;
+
+          if (preloaded) {
+            // Image was successfully preloaded — render it
+            let imgWidth = preloaded.width;
+            let imgHeight = preloaded.height;
+            if (imgWidth > imageMaxWidth) { const r = imageMaxWidth / imgWidth; imgWidth = imageMaxWidth; imgHeight *= r; }
+            if (imgHeight > imgMaxHeight) { const r = imgMaxHeight / imgHeight; imgHeight *= r; imgWidth *= r; }
+            doc.addImage(preloaded.base64, 'JPEG', imageColumnStart, imgYPos, imgWidth, imgHeight, undefined, 'FAST');
+          } else if (isPDF) {
+            // PDF could not be rendered — show text link
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(0, 0, 0);
+            doc.text('Documento PDF:', imageColumnStart, imgYPos);
+            doc.setTextColor(0, 0, 255);
+            doc.textWithLink('[Ver PDF adjunto]', imageColumnStart, imgYPos + 7, { url: img.url });
+            doc.setTextColor(0, 0, 0);
+            imageErrors++;
+          } else {
+            // Regular image failed to load
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(150, 150, 150);
+            doc.text('[Imagen no disponible]', imageColumnStart + 5, imgYPos + 10);
+            doc.setTextColor(0, 0, 0);
+            imageErrors++;
+          }
+
+          yPos = sectionStartY + sectionHeight + 8;
         }
       }
 
