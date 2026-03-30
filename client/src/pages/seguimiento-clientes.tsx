@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 
 // ─── Constants ────────────────────────────────────────────────────────
 const ESTADOS = [
+  { value: "seguimiento", label: "Seguimiento", icon: UserCheck, color: "from-blue-400 to-blue-600", bgCard: "bg-blue-50 dark:bg-blue-900/20", badge: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300", border: "border-blue-200 dark:border-blue-800" },
   { value: "cotizacion", label: "Cotización", icon: FileText, color: "from-amber-400 to-amber-600", bgCard: "bg-amber-50 dark:bg-amber-900/20", badge: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300", border: "border-amber-200 dark:border-amber-800" },
   { value: "venta", label: "Venta", icon: ShoppingCart, color: "from-emerald-400 to-emerald-600", bgCard: "bg-emerald-50 dark:bg-emerald-900/20", badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300", border: "border-emerald-200 dark:border-emerald-800" },
   { value: "despacho", label: "Despacho", icon: Truck, color: "from-purple-400 to-purple-600", bgCard: "bg-purple-50 dark:bg-purple-900/20", badge: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300", border: "border-purple-200 dark:border-purple-800" },
