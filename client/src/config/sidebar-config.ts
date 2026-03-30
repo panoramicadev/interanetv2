@@ -31,7 +31,8 @@ import {
   FileSpreadsheet,
   Sparkles,
   Gift,
-  PackageSearch
+  PackageSearch,
+  UserCheck
 } from "lucide-react";
 
 interface SidebarItem {
@@ -89,6 +90,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/clientes",
       label: "Clientes",
       icon: Users,
+    },
+    {
+      href: "/seguimiento-clientes",
+      label: "Seguimiento CRM",
+      icon: UserCheck,
     },
     {
       href: "/facturas",
@@ -389,6 +395,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Users,
     },
     {
+      href: "/seguimiento-clientes",
+      label: "Seguimiento CRM",
+      icon: UserCheck,
+    },
+    {
       href: "/facturas",
       label: "Finanzas",
       icon: Receipt,
@@ -557,6 +568,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/clientes",
       label: "Clientes",
       icon: Users,
+    },
+    {
+      href: "/seguimiento-clientes",
+      label: "Seguimiento CRM",
+      icon: UserCheck,
     },
     {
       href: "/marketing",

@@ -61,8 +61,14 @@ import {
   gastosMarketing,
   // Bitácora de seguimiento de pedidos
   pedidoBitacora,
+  // CRM Seguimiento de Clientes
+  crmSeguimientoClientes,
+  crmSeguimientoHitos,
+  insertCrmSeguimientoClienteSchema,
+  insertCrmSeguimientoHitoSchema,
+  salespeopleUsers,
 } from "../shared/schema";
-import { eq, and, isNotNull, isNull, ne, sql, desc, or, sum, countDistinct, inArray } from "drizzle-orm";
+import { eq, and, isNotNull, isNull, ne, sql, desc, asc, or, sum, count, countDistinct, inArray, ilike, gte, lte } from "drizzle-orm";
 import { emailService } from "./services/email";
 import { executeIncrementalETL, getETLStatus, updateETLConfig, etlProgressEmitter, sqlServerBreaker } from "./etl-incremental";
 import { executeGDVETL, gdvEtlProgressEmitter, gdvSqlServerBreaker } from "./etl-gdv";
@@ -24357,6 +24363,556 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       res.status(500).json({ message: error.message });
     }
   });
+
+  // ==================================================================================
+  // CRM — SEGUIMIENTO DE CLIENTES (Pipeline de Ventas)
+  // ==================================================================================
+
+  // GET /api/crm/seguimiento/stats — Pipeline statistics
+  app.get('/api/crm/seguimiento/stats', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    const vendedorFilter = req.query.vendedor as string;
+
+    // Build where conditions
+    const conditions: any[] = [eq(crmSeguimientoClientes.active, true)];
+
+    if (user.role === 'salesperson') {
+      // Salespeople only see their own clients
+      const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
+      if (spUser.length > 0) {
+        conditions.push(eq(crmSeguimientoClientes.vendedorId, spUser[0].id));
+      } else {
+        return res.json({ total: 0, porEstado: {}, porPrioridad: {} });
+      }
+    } else if (vendedorFilter && (user.role === 'admin' || user.role === 'supervisor')) {
+      conditions.push(eq(crmSeguimientoClientes.vendedorId, vendedorFilter));
+    }
+
+    const allClients = await db.select()
+      .from(crmSeguimientoClientes)
+      .where(and(...conditions));
+
+    const porEstado: Record<string, number> = {};
+    const porPrioridad: Record<string, number> = {};
+    let sinContacto7Dias = 0;
+    const ahora = new Date();
+
+    for (const c of allClients) {
+      porEstado[c.estado] = (porEstado[c.estado] || 0) + 1;
+      porPrioridad[c.prioridad] = (porPrioridad[c.prioridad] || 0) + 1;
+      if (c.ultimoContacto) {
+        const diff = (ahora.getTime() - new Date(c.ultimoContacto).getTime()) / (1000 * 60 * 60 * 24);
+        if (diff > 7) sinContacto7Dias++;
+      } else {
+        sinContacto7Dias++;
+      }
+    }
+
+    res.json({
+      total: allClients.length,
+      porEstado,
+      porPrioridad,
+      sinContacto7Dias,
+    });
+  }));
+
+  // GET /api/crm/seguimiento — List tracked clients
+  app.get('/api/crm/seguimiento', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    const { vendedor, estado, prioridad, busqueda, limit: limitStr, offset: offsetStr } = req.query;
+
+    const conditions: any[] = [eq(crmSeguimientoClientes.active, true)];
+
+    // Role-based filtering
+    if (user.role === 'salesperson') {
+      const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
+      if (spUser.length > 0) {
+        conditions.push(eq(crmSeguimientoClientes.vendedorId, spUser[0].id));
+      } else {
+        return res.json([]);
+      }
+    } else if (vendedor && (user.role === 'admin' || user.role === 'supervisor')) {
+      conditions.push(eq(crmSeguimientoClientes.vendedorId, vendedor as string));
+    }
+
+    if (estado) {
+      conditions.push(eq(crmSeguimientoClientes.estado, estado as string));
+    }
+    if (prioridad) {
+      conditions.push(eq(crmSeguimientoClientes.prioridad, prioridad as string));
+    }
+    if (busqueda) {
+      const search = `%${busqueda}%`;
+      conditions.push(
+        or(
+          ilike(crmSeguimientoClientes.nombre, search),
+          ilike(crmSeguimientoClientes.empresa, search),
+          ilike(crmSeguimientoClientes.rut, search),
+          ilike(crmSeguimientoClientes.email, search)
+        )!
+      );
+    }
+
+    const queryLimit = parseInt(limitStr as string) || 100;
+    const queryOffset = parseInt(offsetStr as string) || 0;
+
+    const results = await db.select()
+      .from(crmSeguimientoClientes)
+      .where(and(...conditions))
+      .orderBy(desc(crmSeguimientoClientes.updatedAt))
+      .limit(queryLimit)
+      .offset(queryOffset);
+
+    // Get latest hito for each client
+    const clientIds = results.map(r => r.id);
+    let hitosMap: Record<string, any> = {};
+    if (clientIds.length > 0) {
+      const latestHitos = await db
+        .select()
+        .from(crmSeguimientoHitos)
+        .where(inArray(crmSeguimientoHitos.seguimientoId, clientIds))
+        .orderBy(desc(crmSeguimientoHitos.createdAt));
+
+      for (const h of latestHitos) {
+        if (!hitosMap[h.seguimientoId]) {
+          hitosMap[h.seguimientoId] = h;
+        }
+      }
+    }
+
+    const enriched = results.map(r => ({
+      ...r,
+      ultimoHito: hitosMap[r.id] || null,
+    }));
+
+    res.json(enriched);
+  }));
+
+  // GET /api/crm/seguimiento/:id — Client detail with milestones
+  app.get('/api/crm/seguimiento/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const user = req.user;
+
+    const [cliente] = await db.select()
+      .from(crmSeguimientoClientes)
+      .where(eq(crmSeguimientoClientes.id, id))
+      .limit(1);
+
+    if (!cliente) {
+      return res.status(404).json({ message: 'Cliente no encontrado' });
+    }
+
+    // Verify access
+    if (user.role === 'salesperson') {
+      const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
+      if (spUser.length === 0 || spUser[0].id !== cliente.vendedorId) {
+        return res.status(403).json({ message: 'No tienes acceso a este cliente' });
+      }
+    }
+
+    const hitos = await db.select()
+      .from(crmSeguimientoHitos)
+      .where(eq(crmSeguimientoHitos.seguimientoId, id))
+      .orderBy(desc(crmSeguimientoHitos.createdAt));
+
+    // Get linked client info if RUT is set
+    let clienteVinculado = null;
+    if (cliente.clienteId) {
+      const [linked] = await db.select()
+        .from(clients)
+        .where(eq(clients.id, cliente.clienteId))
+        .limit(1);
+      clienteVinculado = linked || null;
+    }
+
+    res.json({
+      ...cliente,
+      hitos,
+      clienteVinculado,
+    });
+  }));
+
+  // POST /api/crm/seguimiento — Create new tracked client
+  app.post('/api/crm/seguimiento', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+
+    // Find salesperson user
+    let vendedorId: string;
+    let vendedorNombre: string;
+
+    if (user.role === 'salesperson') {
+      const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
+      if (spUser.length === 0) {
+        return res.status(400).json({ message: 'Usuario vendedor no encontrado' });
+      }
+      vendedorId = spUser[0].id;
+      vendedorNombre = spUser[0].salespersonName;
+    } else if (req.body.vendedorId && (user.role === 'admin' || user.role === 'supervisor')) {
+      // Admin/supervisor can assign to a specific salesperson
+      const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.id, req.body.vendedorId)).limit(1);
+      if (spUser.length === 0) {
+        return res.status(400).json({ message: 'Vendedor especificado no encontrado' });
+      }
+      vendedorId = spUser[0].id;
+      vendedorNombre = spUser[0].salespersonName;
+    } else {
+      // Admin/supervisor creating for themselves - try to find their salespeople record
+      const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
+      if (spUser.length > 0) {
+        vendedorId = spUser[0].id;
+        vendedorNombre = spUser[0].salespersonName;
+      } else {
+        vendedorId = user.id;
+        vendedorNombre = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+      }
+    }
+
+    const data = {
+      nombre: req.body.nombre,
+      telefono: req.body.telefono || null,
+      email: req.body.email || null,
+      empresa: req.body.empresa || null,
+      rut: req.body.rut || null,
+      vendedorId,
+      vendedorNombre,
+      estado: req.body.estado || 'nuevo',
+      prioridad: req.body.prioridad || 'media',
+      notas: req.body.notas || null,
+      proximoContacto: req.body.proximoContacto ? new Date(req.body.proximoContacto) : null,
+      montoEstimado: req.body.montoEstimado || null,
+      origen: req.body.origen || 'manual',
+    };
+
+    if (!data.nombre) {
+      return res.status(400).json({ message: 'El nombre es requerido' });
+    }
+
+    // If RUT is provided, try to link with existing client
+    let clienteId: string | null = null;
+    if (data.rut) {
+      const [existingClient] = await db.select()
+        .from(clients)
+        .where(eq(clients.rten, data.rut))
+        .limit(1);
+      if (existingClient) {
+        clienteId = existingClient.id;
+      }
+    }
+
+    const [created] = await db.insert(crmSeguimientoClientes)
+      .values({
+        ...data,
+        clienteId,
+      })
+      .returning();
+
+    // Create initial milestone
+    await db.insert(crmSeguimientoHitos).values({
+      seguimientoId: created.id,
+      tipo: 'nota',
+      descripcion: `Cliente creado en seguimiento. ${data.notas ? 'Nota: ' + data.notas : ''}`,
+      autorId: user.id,
+      autorNombre: vendedorNombre,
+    });
+
+    res.status(201).json(created);
+  }));
+
+  // PATCH /api/crm/seguimiento/:id — Update tracked client
+  app.patch('/api/crm/seguimiento/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const user = req.user;
+
+    // Verify client exists
+    const [existing] = await db.select()
+      .from(crmSeguimientoClientes)
+      .where(eq(crmSeguimientoClientes.id, id))
+      .limit(1);
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Cliente no encontrado' });
+    }
+
+    // Verify access for salesperson
+    if (user.role === 'salesperson') {
+      const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
+      if (spUser.length === 0 || spUser[0].id !== existing.vendedorId) {
+        return res.status(403).json({ message: 'No tienes acceso a modificar este cliente' });
+      }
+    }
+
+    const updateData: any = { updatedAt: new Date() };
+    const allowedFields = ['nombre', 'telefono', 'email', 'empresa', 'estado', 'prioridad', 'notas', 'montoEstimado', 'origen', 'proximoContacto'];
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        if (field === 'proximoContacto' && req.body[field]) {
+          updateData[field] = new Date(req.body[field]);
+        } else {
+          updateData[field] = req.body[field];
+        }
+      }
+    }
+
+    // If estado changed, log it as a milestone
+    if (req.body.estado && req.body.estado !== existing.estado) {
+      const vendedorNombre = existing.vendedorNombre;
+      await db.insert(crmSeguimientoHitos).values({
+        seguimientoId: id,
+        tipo: 'sistema',
+        descripcion: `Estado cambiado de "${existing.estado}" a "${req.body.estado}"`,
+        autorId: user.id,
+        autorNombre: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+      });
+    }
+
+    const [updated] = await db.update(crmSeguimientoClientes)
+      .set(updateData)
+      .where(eq(crmSeguimientoClientes.id, id))
+      .returning();
+
+    res.json(updated);
+  }));
+
+  // DELETE /api/crm/seguimiento/:id — Soft delete
+  app.delete('/api/crm/seguimiento/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const user = req.user;
+
+    const [existing] = await db.select()
+      .from(crmSeguimientoClientes)
+      .where(eq(crmSeguimientoClientes.id, id))
+      .limit(1);
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Cliente no encontrado' });
+    }
+
+    // Only admin or owner can delete
+    if (user.role === 'salesperson') {
+      const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
+      if (spUser.length === 0 || spUser[0].id !== existing.vendedorId) {
+        return res.status(403).json({ message: 'No tienes acceso a eliminar este cliente' });
+      }
+    }
+
+    await db.update(crmSeguimientoClientes)
+      .set({ active: false, updatedAt: new Date() })
+      .where(eq(crmSeguimientoClientes.id, id));
+
+    res.json({ success: true });
+  }));
+
+  // POST /api/crm/seguimiento/:id/hito — Add milestone
+  app.post('/api/crm/seguimiento/:id/hito', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const user = req.user;
+
+    const [existing] = await db.select()
+      .from(crmSeguimientoClientes)
+      .where(eq(crmSeguimientoClientes.id, id))
+      .limit(1);
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Cliente no encontrado' });
+    }
+
+    // Verify access
+    if (user.role === 'salesperson') {
+      const spUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, user.email)).limit(1);
+      if (spUser.length === 0 || spUser[0].id !== existing.vendedorId) {
+        return res.status(403).json({ message: 'No tienes acceso a este cliente' });
+      }
+    }
+
+    const { tipo, descripcion, documentoTipo, documentoNumero } = req.body;
+
+    if (!tipo || !descripcion) {
+      return res.status(400).json({ message: 'Tipo y descripción son requeridos' });
+    }
+
+    const autorNombre = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+
+    const [hito] = await db.insert(crmSeguimientoHitos).values({
+      seguimientoId: id,
+      tipo,
+      descripcion,
+      autorId: user.id,
+      autorNombre,
+      documentoTipo: documentoTipo || null,
+      documentoNumero: documentoNumero || null,
+      autoDetectado: false,
+    }).returning();
+
+    // Update ultimo contacto on the seguimiento record
+    const contactTypes = ['contacto', 'llamada', 'cotizacion', 'visita', 'venta'];
+    if (contactTypes.includes(tipo)) {
+      await db.update(crmSeguimientoClientes)
+        .set({ ultimoContacto: new Date(), updatedAt: new Date() })
+        .where(eq(crmSeguimientoClientes.id, id));
+    }
+
+    res.status(201).json(hito);
+  }));
+
+  // POST /api/crm/seguimiento/:id/vincular-rut — Link RUT
+  app.post('/api/crm/seguimiento/:id/vincular-rut', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const { rut } = req.body;
+    const user = req.user;
+
+    if (!rut) {
+      return res.status(400).json({ message: 'RUT es requerido' });
+    }
+
+    const [existing] = await db.select()
+      .from(crmSeguimientoClientes)
+      .where(eq(crmSeguimientoClientes.id, id))
+      .limit(1);
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Cliente no encontrado' });
+    }
+
+    // Find client by RUT
+    const [linkedClient] = await db.select()
+      .from(clients)
+      .where(eq(clients.rten, rut))
+      .limit(1);
+
+    const updateData: any = {
+      rut,
+      updatedAt: new Date(),
+    };
+
+    if (linkedClient) {
+      updateData.clienteId = linkedClient.id;
+    }
+
+    const [updated] = await db.update(crmSeguimientoClientes)
+      .set(updateData)
+      .where(eq(crmSeguimientoClientes.id, id))
+      .returning();
+
+    // Log milestone
+    const autorNombre = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+    await db.insert(crmSeguimientoHitos).values({
+      seguimientoId: id,
+      tipo: 'sistema',
+      descripcion: linkedClient
+        ? `RUT ${rut} vinculado. Cliente encontrado: ${linkedClient.nokoen || 'Sin nombre'}`
+        : `RUT ${rut} asociado. No se encontró cliente en la base de datos de ventas.`,
+      autorId: user.id,
+      autorNombre,
+      autoDetectado: false,
+    });
+
+    res.json({
+      ...updated,
+      clienteVinculado: linkedClient || null,
+    });
+  }));
+
+  // GET /api/crm/seguimiento/:id/detectar-compras — Detect purchases by RUT
+  app.get('/api/crm/seguimiento/:id/detectar-compras', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+
+    const [existing] = await db.select()
+      .from(crmSeguimientoClientes)
+      .where(eq(crmSeguimientoClientes.id, id))
+      .limit(1);
+
+    if (!existing || !existing.rut) {
+      return res.json({ compras: [], message: 'Sin RUT asociado' });
+    }
+
+    // Find client by RUT in the clients table
+    const [linkedClient] = await db.select()
+      .from(clients)
+      .where(eq(clients.rten, existing.rut))
+      .limit(1);
+
+    if (!linkedClient) {
+      return res.json({ compras: [], message: 'Cliente no encontrado en base de datos de ventas' });
+    }
+
+    // Search recent sales transactions by client name
+    const recentSales = await db.select({
+      id: salesTransactions.id,
+      nudo: salesTransactions.nudo,
+      feemdo: salesTransactions.feemdo,
+      tido: salesTransactions.tido,
+      nokoprct: salesTransactions.nokoprct,
+      nokoen: salesTransactions.nokoen,
+      vanedo: salesTransactions.vanedo,
+      eslido: salesTransactions.eslido,
+    })
+      .from(salesTransactions)
+      .where(eq(salesTransactions.nokoen, linkedClient.nokoen!))
+      .orderBy(desc(salesTransactions.feemdo))
+      .limit(20);
+
+    // Auto-create milestones for newly detected documents
+    const existingAutoHitos = await db.select()
+      .from(crmSeguimientoHitos)
+      .where(
+        and(
+          eq(crmSeguimientoHitos.seguimientoId, id),
+          eq(crmSeguimientoHitos.autoDetectado, true)
+        )
+      );
+
+    const existingDocNumbers = new Set(
+      existingAutoHitos.map(h => h.documentoNumero).filter(Boolean)
+    );
+
+    let newHitosCreated = 0;
+    for (const sale of recentSales) {
+      if (sale.nudo && !existingDocNumbers.has(sale.nudo)) {
+        const docTipo = sale.tido || 'factura';
+        await db.insert(crmSeguimientoHitos).values({
+          seguimientoId: id,
+          tipo: 'sistema',
+          descripcion: `Documento detectado: ${docTipo} #${sale.nudo} — ${sale.nokoprct || 'Sin producto'} — $${sale.vanedo || '0'}`,
+          autorId: 'sistema',
+          autorNombre: 'Sistema Automático',
+          documentoTipo: docTipo,
+          documentoNumero: sale.nudo,
+          autoDetectado: true,
+        });
+        newHitosCreated++;
+        existingDocNumbers.add(sale.nudo);
+      }
+    }
+
+    // Update estado if we found sales documents
+    if (newHitosCreated > 0 && existing.estado === 'nuevo') {
+      await db.update(crmSeguimientoClientes)
+        .set({ estado: 'contactado', updatedAt: new Date() })
+        .where(eq(crmSeguimientoClientes.id, id));
+    }
+
+    res.json({
+      compras: recentSales,
+      nuevosHitosCreados: newHitosCreated,
+      clienteVinculado: linkedClient,
+    });
+  }));
+
+  // GET /api/crm/vendedores — Get list of salespeople for admin/supervisor dropdown
+  app.get('/api/crm/vendedores', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const vendedores = await db.select({
+      id: salespeopleUsers.id,
+      salespersonName: salespeopleUsers.salespersonName,
+      email: salespeopleUsers.email,
+      isActive: salespeopleUsers.isActive,
+    })
+      .from(salespeopleUsers)
+      .where(eq(salespeopleUsers.isActive, true))
+      .orderBy(asc(salespeopleUsers.salespersonName));
+
+    res.json(vendedores);
+  }));
 
   const httpServer = createServer(app);
   return httpServer;

@@ -8,6 +8,34 @@ interface ImageZoomViewerProps {
   className?: string;
 }
 
+// Route external URLs through server proxy to avoid CORS
+// Also rewrites old Supabase domains to the current one
+const OLD_SUPABASE_HOSTS = [
+  'madsymjqjzvuyvmuoyej.supabase.co',
+];
+
+function getProxiedUrl(url: string): string {
+  if (!url) return url;
+  // Relative URLs are internal — no proxy needed
+  if (url.startsWith('/') || url.startsWith('blob:') || url.startsWith('data:')) return url;
+  
+  // Rewrite old Supabase domains to the current one
+  let fixedUrl = url;
+  for (const oldHost of OLD_SUPABASE_HOSTS) {
+    if (fixedUrl.includes(oldHost)) {
+      fixedUrl = fixedUrl.replace(oldHost, 'xyqnvkievatlsqestjuf.supabase.co');
+    }
+  }
+  
+  // External URLs (Supabase, S3, etc.) → proxy through the server
+  try {
+    const parsed = new URL(fixedUrl);
+    if (['http:', 'https:'].includes(parsed.protocol)) {
+      return `/api/proxy-file?url=${encodeURIComponent(fixedUrl)}`;
+    }
+  } catch { /* not a valid URL, return as-is */ }
+  return fixedUrl;
+}
 export function ImageZoomViewer({ src, alt = "Image", className = "" }: ImageZoomViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -15,33 +43,29 @@ export function ImageZoomViewer({ src, alt = "Image", className = "" }: ImageZoo
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [rotation, setRotation] = useState(0);
-  const [imageSrc, setImageSrc] = useState(src);
+  const [imageSrc, setImageSrc] = useState(() => getProxiedUrl(src));
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
 
   // When src changes, reset state and clean up blob URLs
   useEffect(() => {
-    setImageSrc(src);
+    const proxied = getProxiedUrl(src);
+    setImageSrc(proxied);
     setIsLoading(true);
     setHasError(false);
     return () => {
-      // Clean up any blob URLs
       if (imageSrc.startsWith('blob:')) {
         URL.revokeObjectURL(imageSrc);
       }
     };
   }, [src]);
 
-  // If the direct <img> load fails, fetch as blob
+  // If the direct <img> load fails, try fetch as blob
   const handleImageError = useCallback(async () => {
-    if (imageSrc === src) {
+    // If we already tried proxy, try raw fetch as last resort
+    if (imageSrc !== src && !imageSrc.startsWith('blob:')) {
       try {
-        // For relative URLs (internal), use credentials; for external, omit
-        const isRelative = src.startsWith('/');
-        const response = await fetch(src, { 
-          mode: isRelative ? 'same-origin' : 'cors', 
-          credentials: isRelative ? 'include' : 'omit' 
-        });
+        const response = await fetch(imageSrc, { credentials: 'include' });
         if (response.ok) {
           const blob = await response.blob();
           const blobUrl = URL.createObjectURL(blob);
@@ -49,7 +73,21 @@ export function ImageZoomViewer({ src, alt = "Image", className = "" }: ImageZoo
           return;
         }
       } catch (e) {
-        console.warn('[ImageZoomViewer] Blob fallback also failed:', e);
+        console.warn('[ImageZoomViewer] Proxy blob fallback also failed:', e);
+      }
+    }
+    // Try direct URL as last fallback
+    if (imageSrc !== src && !imageSrc.startsWith('blob:')) {
+      try {
+        const response = await fetch(src, { mode: 'cors', credentials: 'omit' });
+        if (response.ok) {
+          const blob = await response.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          setImageSrc(blobUrl);
+          return;
+        }
+      } catch (e) {
+        console.warn('[ImageZoomViewer] Direct blob fallback also failed:', e);
       }
     }
     setHasError(true);

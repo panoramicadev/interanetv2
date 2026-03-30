@@ -89,6 +89,7 @@ import ConfiguracionPage from "@/pages/configuracion";
 import PresupuestoVentas from "@/pages/presupuesto-ventas";
 import MisPedidos from "@/pages/mis-pedidos";
 import SeguimientoPedidos from "@/pages/seguimiento-pedidos";
+import SeguimientoClientes from "@/pages/seguimiento-clientes";
 import EcommercePedidos from "@/pages/ecommerce-pedidos";
 import PedidoConfirmado from "@/pages/pedido-confirmado";
 import EcommerceUsuarios from "@/pages/ecommerce-usuarios";
@@ -223,6 +224,7 @@ function Router() {
             }} />
             <Route path="/tomador-pedidos" component={TomadorPedidos} />
             <Route path="/seguimiento-pedidos" component={SeguimientoPedidos} />
+            <Route path="/seguimiento-clientes" component={SeguimientoClientes} />
             <Route path="/presupuestos-avanzados" component={PresupuestosAvanzados} />
             <Route path="/tareas" component={TareasPage} />
             <Route path="/visitas-tecnicas" component={VisitasTecnicasPage} />

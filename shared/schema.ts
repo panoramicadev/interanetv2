@@ -6901,3 +6901,137 @@ export const pedidoBitacora = pgTable("pedido_bitacora", {
 
 export type PedidoBitacora = typeof pedidoBitacora.$inferSelect;
 export type InsertPedidoBitacora = typeof pedidoBitacora.$inferInsert;
+
+// ==================================================================================
+// CRM — SEGUIMIENTO DE CLIENTES (Pipeline de Ventas)
+// ==================================================================================
+
+export const CRM_ESTADOS = {
+  NUEVO: 'nuevo',
+  CONTACTADO: 'contactado',
+  COTIZACION: 'cotizacion',
+  VENTA: 'venta',
+  DESPACHO: 'despacho',
+  COMPLETADO: 'completado',
+  PERDIDO: 'perdido',
+} as const;
+
+export type CrmEstado = typeof CRM_ESTADOS[keyof typeof CRM_ESTADOS];
+
+export const CRM_PRIORIDADES = {
+  BAJA: 'baja',
+  MEDIA: 'media',
+  ALTA: 'alta',
+} as const;
+
+export type CrmPrioridad = typeof CRM_PRIORIDADES[keyof typeof CRM_PRIORIDADES];
+
+export const CRM_HITO_TIPOS = {
+  CONTACTO: 'contacto',
+  LLAMADA: 'llamada',
+  COTIZACION: 'cotizacion',
+  VISITA: 'visita',
+  VENTA: 'venta',
+  DESPACHO: 'despacho',
+  NOTA: 'nota',
+  SISTEMA: 'sistema',
+} as const;
+
+export type CrmHitoTipo = typeof CRM_HITO_TIPOS[keyof typeof CRM_HITO_TIPOS];
+
+export const CRM_ORIGENES = {
+  MANUAL: 'manual',
+  REFERIDO: 'referido',
+  WEB: 'web',
+  LLAMADA: 'llamada',
+} as const;
+
+// Clientes en seguimiento (Pipeline CRM)
+export const crmSeguimientoClientes = pgTable("crm_seguimiento_clientes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nombre: text("nombre").notNull(),
+  telefono: varchar("telefono"),
+  email: varchar("email"),
+  empresa: varchar("empresa"),
+  rut: varchar("rut"), // RUT asociado (opcional, vincula con clients.rten)
+  clienteId: varchar("cliente_id"), // FK a clients.id si se vincula un RUT
+  vendedorId: varchar("vendedor_id").notNull(), // FK a salespeople_users.id
+  vendedorNombre: varchar("vendedor_nombre").notNull(), // Denormalizado para performance
+  estado: varchar("estado").notNull().default("nuevo"), // nuevo, contactado, cotizacion, venta, despacho, completado, perdido
+  prioridad: varchar("prioridad").notNull().default("media"), // baja, media, alta
+  notas: text("notas"), // Notas iniciales
+  ultimoContacto: timestamp("ultimo_contacto"), // Fecha del último contacto registrado
+  proximoContacto: timestamp("proximo_contacto"), // Fecha programada del próximo contacto
+  montoEstimado: numeric("monto_estimado", { precision: 15, scale: 2 }), // Monto estimado de la oportunidad
+  origen: varchar("origen").default("manual"), // manual, referido, web, llamada
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  vendedorIdx: index("IDX_crm_seg_vendedor").on(table.vendedorId),
+  estadoIdx: index("IDX_crm_seg_estado").on(table.estado),
+  rutIdx: index("IDX_crm_seg_rut").on(table.rut),
+  activeIdx: index("IDX_crm_seg_active").on(table.active),
+  createdIdx: index("IDX_crm_seg_created").on(table.createdAt),
+}));
+
+// Hitos/eventos del seguimiento
+export const crmSeguimientoHitos = pgTable("crm_seguimiento_hitos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  seguimientoId: varchar("seguimiento_id").notNull(), // FK a crm_seguimiento_clientes.id
+  tipo: varchar("tipo").notNull(), // contacto, llamada, cotizacion, visita, venta, despacho, nota, sistema
+  descripcion: text("descripcion").notNull(),
+  autorId: varchar("autor_id").notNull(), // Quién registró el hito
+  autorNombre: varchar("autor_nombre").notNull(),
+  documentoTipo: varchar("documento_tipo"), // nvv, gdv, factura
+  documentoNumero: varchar("documento_numero"),
+  autoDetectado: boolean("auto_detectado").default(false), // Si fue detectado automáticamente
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  seguimientoIdx: index("IDX_crm_hito_seguimiento").on(table.seguimientoId),
+  tipoIdx: index("IDX_crm_hito_tipo").on(table.tipo),
+  createdIdx: index("IDX_crm_hito_created").on(table.createdAt),
+}));
+
+// Relaciones
+export const crmSeguimientoClientesRelations = relations(crmSeguimientoClientes, ({ many, one }) => ({
+  hitos: many(crmSeguimientoHitos),
+  cliente: one(clients, {
+    fields: [crmSeguimientoClientes.clienteId],
+    references: [clients.id],
+  }),
+}));
+
+export const crmSeguimientoHitosRelations = relations(crmSeguimientoHitos, ({ one }) => ({
+  seguimiento: one(crmSeguimientoClientes, {
+    fields: [crmSeguimientoHitos.seguimientoId],
+    references: [crmSeguimientoClientes.id],
+  }),
+}));
+
+// Types
+export type CrmSeguimientoCliente = typeof crmSeguimientoClientes.$inferSelect;
+export type InsertCrmSeguimientoCliente = typeof crmSeguimientoClientes.$inferInsert;
+export type CrmSeguimientoHito = typeof crmSeguimientoHitos.$inferSelect;
+export type InsertCrmSeguimientoHito = typeof crmSeguimientoHitos.$inferInsert;
+
+// Validation schemas
+export const insertCrmSeguimientoClienteSchema = createInsertSchema(crmSeguimientoClientes, {
+  nombre: z.string().min(1, "Nombre es requerido"),
+  email: z.string().email("Email inválido").optional().or(z.literal("")).nullable(),
+  estado: z.enum(["nuevo", "contactado", "cotizacion", "venta", "despacho", "completado", "perdido"]).default("nuevo"),
+  prioridad: z.enum(["baja", "media", "alta"]).default("media"),
+  origen: z.enum(["manual", "referido", "web", "llamada"]).default("manual"),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCrmSeguimientoHitoSchema = createInsertSchema(crmSeguimientoHitos, {
+  descripcion: z.string().min(1, "Descripción es requerida"),
+  tipo: z.enum(["contacto", "llamada", "cotizacion", "visita", "venta", "despacho", "nota", "sistema"]),
+}).omit({
+  id: true,
+  createdAt: true,
+});
