@@ -152,7 +152,7 @@ export default function GastosEmpresariales() {
   const [showSolicitarFondoDialog, setShowSolicitarFondoDialog] = useState(false);
   const [showCrearFondoDialog, setShowCrearFondoDialog] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
-  const [activeMainTab, setActiveMainTab] = useState("rendicion");
+  const [activeMainTab, setActiveMainTab] = useState("dashboard");
   const dashboardRef = useRef<DashboardExportHandle>(null);
   const [, forceUpdate] = useState(0);
   const [showEditFechaDialog, setShowEditFechaDialog] = useState(false);

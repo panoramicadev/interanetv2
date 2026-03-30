@@ -66,7 +66,7 @@ import GastosFilterBar from "@/components/gastos-filter-bar";
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
 // Fetch with timeout helper
-async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs = 20000): Promise<Response> {
+async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs = 10000): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -97,7 +97,7 @@ function loadImageElement(src: string, timeoutMs = 10000): Promise<HTMLImageElem
 }
 
 // Compress image via canvas — returns small JPEG base64
-function compressImageToJpeg(imgElement: HTMLImageElement, maxWidth = 800, quality = 0.6): string {
+function compressImageToJpeg(imgElement: HTMLImageElement, maxWidth = 600, quality = 0.5): string {
   let w = imgElement.naturalWidth;
   let h = imgElement.naturalHeight;
   if (w > maxWidth) {
@@ -123,7 +123,7 @@ async function fetchFileBlob(fileUrl: string): Promise<Blob> {
       const proxyRes = await fetchWithTimeout(
         `/api/proxy-file?url=${encodeURIComponent(fileUrl)}`,
         { credentials: 'include' },
-        20000
+        8000
       );
       if (proxyRes.ok) return await proxyRes.blob();
       console.warn('[PDF] Proxy failed:', proxyRes.status, fileUrl.substring(0, 80));
@@ -132,14 +132,14 @@ async function fetchFileBlob(fileUrl: string): Promise<Blob> {
     }
     // Fallback: direct fetch (might work for truly public URLs)
     try {
-      const res = await fetchWithTimeout(fileUrl, {}, 15000);
+      const res = await fetchWithTimeout(fileUrl, {}, 8000);
       if (res.ok) return await res.blob();
     } catch {}
     throw new Error(`Failed to fetch external file: ${fileUrl.substring(0, 80)}`);
   }
 
   // Local URL
-  const res = await fetchWithTimeout(fileUrl, { credentials: 'include' }, 20000);
+  const res = await fetchWithTimeout(fileUrl, { credentials: 'include' }, 10000);
   if (!res.ok) throw new Error(`Failed to fetch local: ${res.status}`);
   return await res.blob();
 }
@@ -155,7 +155,7 @@ async function loadImageForPdf(imageUrl: string, retries = 2): Promise<{ base64:
       // Try normalized endpoint first (handles EXIF rotation)
       let blob: Blob | null = null;
       try {
-        const res = await fetchWithTimeout(`/api/image-normalized?url=${encodeURIComponent(absoluteUrl)}`, { credentials: 'include' }, 15000);
+        const res = await fetchWithTimeout(`/api/image-normalized?url=${encodeURIComponent(absoluteUrl)}`, { credentials: 'include' }, 8000);
         if (res.ok) blob = await res.blob();
       } catch {}
 
@@ -167,8 +167,8 @@ async function loadImageForPdf(imageUrl: string, retries = 2): Promise<{ base64:
       // Convert blob to Image, then compress to JPEG via canvas
       const objectUrl = URL.createObjectURL(blob);
       try {
-        const imgEl = await loadImageElement(objectUrl, 10000);
-        const compressed = compressImageToJpeg(imgEl, 800, 0.6);
+        const imgEl = await loadImageElement(objectUrl, 6000);
+        const compressed = compressImageToJpeg(imgEl, 600, 0.5);
         if (!compressed) throw new Error('Compression failed');
         return { base64: compressed, format: 'JPEG' };
       } finally {
@@ -1125,9 +1125,9 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
         const imageColumnStart = margin + infoColumnWidth + gapBetweenColumns;
         const imageMaxWidth = pageWidth - imageColumnStart - margin;
 
-        // Pre-fetch all images in parallel batches (max 3 at a time) to avoid sequential blocking
-        const PER_IMAGE_TIMEOUT = 35000; // 35s hard limit per image (generous to not lose photos)
-        const BATCH_SIZE = 3;
+        // Pre-fetch all images in parallel batches (max 5 at a time) for speed
+        const PER_IMAGE_TIMEOUT = 12000; // 12s per image — fast fail to keep PDF generation snappy
+        const BATCH_SIZE = 5;
         type PreloadedImage = { base64: string; width: number; height: number } | null;
         const preloadedImages: PreloadedImage[] = new Array(allImages.length).fill(null);
 
@@ -1149,7 +1149,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
                   const objUrl = URL.createObjectURL(previewBlob);
                   try {
                     const imgObj = await loadImageElement(objUrl, 10000);
-                    const compressed = compressImageToJpeg(imgObj, 600, 0.5);
+                    const compressed = compressImageToJpeg(imgObj, 500, 0.4);
                     if (compressed) {
                       result = { base64: compressed, width: imgObj.naturalWidth > 600 ? 600 : imgObj.naturalWidth, height: imgObj.naturalHeight * ((imgObj.naturalWidth > 600 ? 600 : imgObj.naturalWidth) / imgObj.naturalWidth) };
                     }
@@ -1170,7 +1170,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
               }
             } else {
               // Regular image
-              const { base64 } = await loadImageForPdf(img.url);
+              const { base64 } = await loadImageForPdf(img.url, 1);
               const imgObj = await loadImageElement(base64, 10000);
               result = { base64, width: imgObj.naturalWidth, height: imgObj.naturalHeight };
             }
@@ -1196,11 +1196,12 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
           );
         }
 
-        // Phase 2: Sequential retry for any images that failed — try harder one by one
+        // Phase 2: Sequential retry for failed images — limited to 3 to keep it fast
         const failedIndices = preloadedImages.map((p, i) => p === null ? i : -1).filter(i => i >= 0);
-        if (failedIndices.length > 0) {
-          console.log(`[PDF] ${failedIndices.length} images failed in parallel, retrying sequentially...`);
-          for (const idx of failedIndices) {
+        if (failedIndices.length > 0 && failedIndices.length <= 5) {
+          const retrySlice = failedIndices.slice(0, 3);
+          console.log(`[PDF] ${failedIndices.length} images failed, retrying ${retrySlice.length} sequentially...`);
+          for (const idx of retrySlice) {
             try {
               await preloadSingleImage(allImages[idx], idx);
               if (preloadedImages[idx]) {
@@ -1210,6 +1211,8 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
               console.warn(`[PDF] ❌ Final retry also failed for image ${idx}:`, e);
             }
           }
+        } else if (failedIndices.length > 5) {
+          console.warn(`[PDF] ${failedIndices.length} images failed — skipping retries (likely network issue)`);
         }
 
         // Now render all images into the PDF (fast — no network calls)
