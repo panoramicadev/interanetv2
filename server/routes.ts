@@ -24603,6 +24603,7 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       .values({
         ...data,
         clienteId,
+        ultimoContacto: new Date(),
       })
       .returning();
 
