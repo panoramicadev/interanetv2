@@ -24655,9 +24655,28 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       }
     }
 
+    // Handle vendedor reassignment (admin/supervisor only)
+    if (req.body.vendedorId && (user.role === 'admin' || user.role === 'supervisor')) {
+      const [newVendedor] = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.id, req.body.vendedorId)).limit(1);
+      if (newVendedor) {
+        updateData.vendedorId = newVendedor.id;
+        updateData.vendedorNombre = newVendedor.salespersonName;
+
+        // Log vendedor change as milestone
+        if (existing.vendedorId !== newVendedor.id) {
+          await db.insert(crmSeguimientoHitos).values({
+            seguimientoId: id,
+            tipo: 'sistema',
+            descripcion: `Vendedor reasignado de "${existing.vendedorNombre}" a "${newVendedor.salespersonName}"`,
+            autorId: user.id,
+            autorNombre: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+          });
+        }
+      }
+    }
+
     // If estado changed, log it as a milestone
     if (req.body.estado && req.body.estado !== existing.estado) {
-      const vendedorNombre = existing.vendedorNombre;
       await db.insert(crmSeguimientoHitos).values({
         seguimientoId: id,
         tipo: 'sistema',

@@ -338,6 +338,9 @@ export default function SeguimientoClientes() {
           client={selectedClient}
           onDelete={() => deleteMutation.mutate(selectedClient.id)}
           onRefresh={() => handleViewClient(selectedClient)}
+          vendedores={vendedores}
+          isAdminOrSupervisor={isAdminOrSupervisor}
+          onUpdateVendedor={(vendedorId: string) => updateMutation.mutate({ id: selectedClient.id, data: { vendedorId } })}
         />
       )}
     </div>
@@ -677,12 +680,15 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
 }
 
 // ─── Client Detail Modal ──────────────────────────────────────────────
-function ClientDetailModal({ open, onOpenChange, client, onDelete, onRefresh }: {
+function ClientDetailModal({ open, onOpenChange, client, onDelete, onRefresh, vendedores, isAdminOrSupervisor, onUpdateVendedor }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   client: any;
   onDelete: () => void;
   onRefresh: () => void;
+  vendedores: any[];
+  isAdminOrSupervisor: boolean;
+  onUpdateVendedor: (vendedorId: string) => void;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -814,7 +820,23 @@ function ClientDetailModal({ open, onOpenChange, client, onDelete, onRefresh }: 
             )}
             <div className="flex items-center gap-2 text-sm">
               <User className="w-4 h-4 text-muted-foreground" />
-              <span>{client.vendedorNombre}</span>
+              {isAdminOrSupervisor ? (
+                <select
+                  className="text-sm bg-transparent border rounded px-2 py-0.5 cursor-pointer hover:border-indigo-400 transition-colors"
+                  value={client.vendedorId || ""}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    onUpdateVendedor(e.target.value);
+                  }}
+                >
+                  <option value="" disabled>Seleccionar vendedor...</option>
+                  {vendedores.map((v: any) => (
+                    <option key={v.id} value={v.id}>{v.salespersonName}</option>
+                  ))}
+                </select>
+              ) : (
+                <span>{client.vendedorNombre}</span>
+              )}
             </div>
             <div className="flex items-center gap-2 text-sm">
               <CalendarDays className="w-4 h-4 text-muted-foreground" />
