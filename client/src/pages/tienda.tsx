@@ -973,105 +973,57 @@ export default function TiendaPage() {
         
       </section>
 
-      {/* ─── Category Showcase ─── */}
+      {/* ─── Category Showcase ─── */}      {/* ─── Category Bar ─── */}
       {categories.length > 0 && (
-        <section className="bg-gradient-to-b from-gray-50 to-white py-10 md:py-14">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            {/* Section Header */}
-            <div className="text-center mb-8">
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-[0.2em] uppercase text-[#FF6E23] bg-orange-50 px-3.5 py-1 rounded-full mb-3">
-                <Grid3X3 className="h-3 w-3" />
-                Nuestras Líneas
+        <section className="bg-white border-b border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide">
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap flex-shrink-0">
+                Categorías
               </span>
-              <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">
-                Explora por Categoría
-              </h2>
-              <p className="text-gray-500 text-sm mt-2 max-w-md mx-auto">
-                Encuentra la solución perfecta para tu proyecto
-              </p>
-            </div>
-
-            {/* Category Cards Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-              {/* "All" card */}
+              <div className="h-4 w-px bg-gray-200 flex-shrink-0" />
+              
+              {/* All pill */}
               <button
                 onClick={() => setSelectedCategory('all')}
-                className={`group relative overflow-hidden rounded-2xl transition-all duration-300 text-left ${
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
                   selectedCategory === 'all'
-                    ? 'ring-2 ring-[#FF6E23] ring-offset-2 shadow-xl shadow-orange-200/50 scale-[1.02]'
-                    : 'hover:shadow-lg hover:scale-[1.01] hover:ring-1 hover:ring-orange-200'
+                    ? 'bg-gray-900 text-white shadow-sm'
+                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-900 border border-gray-200'
                 }`}
-                data-testid="category-card-all"
+                data-testid="category-pill-all"
               >
-                <div className={`p-5 md:p-6 ${
-                  selectedCategory === 'all'
-                    ? 'bg-gradient-to-br from-[#FF6E23] to-[#E55E13]'
-                    : 'bg-gradient-to-br from-gray-800 to-gray-900 group-hover:from-gray-700 group-hover:to-gray-800'
+                <Package className="h-3.5 w-3.5" />
+                Todos
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-0.5 ${
+                  selectedCategory === 'all' ? 'bg-white/20 text-white' : 'bg-gray-200/80 text-gray-500'
                 }`}>
-                  {/* Decorative circles */}
-                  <div className="absolute top-0 right-0 w-20 h-20 bg-white/5 rounded-full -translate-y-8 translate-x-8" />
-                  <div className="absolute bottom-0 left-0 w-14 h-14 bg-white/5 rounded-full translate-y-6 -translate-x-6" />
-                  
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${
-                    selectedCategory === 'all' ? 'bg-white/20' : 'bg-white/10 group-hover:bg-white/15'
-                  }`}>
-                    <Package className="h-5 w-5 text-white" />
-                  </div>
-                  <h3 className="text-sm md:text-base font-bold text-white leading-tight">
-                    Todos los Productos
-                  </h3>
-                  <p className="text-[11px] text-white/60 mt-1 font-medium">
-                    {groupedCatalog.length} producto{groupedCatalog.length !== 1 ? 's' : ''}
-                  </p>
-                </div>
+                  {groupedCatalog.length}
+                </span>
               </button>
 
-              {/* Dynamic category cards */}
-              {categories.map((category, index) => {
-                // Gradient palettes for different categories (cycle through them)
-                const gradients = [
-                  { from: 'from-sky-500', to: 'to-blue-600', hover: 'group-hover:from-sky-400 group-hover:to-blue-500', light: 'bg-sky-50', accent: 'text-sky-600', ring: 'ring-sky-400' },
-                  { from: 'from-emerald-500', to: 'to-teal-600', hover: 'group-hover:from-emerald-400 group-hover:to-teal-500', light: 'bg-emerald-50', accent: 'text-emerald-600', ring: 'ring-emerald-400' },
-                  { from: 'from-violet-500', to: 'to-purple-600', hover: 'group-hover:from-violet-400 group-hover:to-purple-500', light: 'bg-violet-50', accent: 'text-violet-600', ring: 'ring-violet-400' },
-                  { from: 'from-amber-500', to: 'to-orange-600', hover: 'group-hover:from-amber-400 group-hover:to-orange-500', light: 'bg-amber-50', accent: 'text-amber-600', ring: 'ring-amber-400' },
-                  { from: 'from-rose-500', to: 'to-pink-600', hover: 'group-hover:from-rose-400 group-hover:to-pink-500', light: 'bg-rose-50', accent: 'text-rose-600', ring: 'ring-rose-400' },
-                  { from: 'from-cyan-500', to: 'to-blue-600', hover: 'group-hover:from-cyan-400 group-hover:to-blue-500', light: 'bg-cyan-50', accent: 'text-cyan-600', ring: 'ring-cyan-400' },
-                ];
-                const g = gradients[index % gradients.length];
+              {/* Category pills */}
+              {categories.map((category) => {
                 const isActive = selectedCategory === category;
-                const categoryProducts = groupedCatalog.filter(p => p.groupName === category);
+                const count = groupedCatalog.filter(p => p.groupName === category).length;
 
                 return (
                   <button
                     key={category}
                     onClick={() => setSelectedCategory(isActive ? 'all' : category)}
-                    className={`group relative overflow-hidden rounded-2xl transition-all duration-300 text-left ${
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
                       isActive
-                        ? `ring-2 ${g.ring} ring-offset-2 shadow-xl scale-[1.02]`
-                        : 'hover:shadow-lg hover:scale-[1.01]'
+                        ? 'bg-[#FF6E23] text-white shadow-sm shadow-orange-200/50'
+                        : 'bg-gray-50 text-gray-600 hover:bg-orange-50 hover:text-[#FF6E23] border border-gray-200 hover:border-orange-200'
                     }`}
-                    data-testid={`category-card-${category}`}
+                    data-testid={`category-pill-${category}`}
                   >
-                    <div className={`p-5 md:p-6 bg-gradient-to-br ${g.from} ${g.to} ${!isActive ? g.hover : ''}`}>
-                      {/* Decorative elements */}
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -translate-y-10 translate-x-10" />
-                      <div className="absolute bottom-0 left-0 w-16 h-16 bg-white/5 rounded-full translate-y-8 -translate-x-8" />
-                      {isActive && (
-                        <div className="absolute top-3 right-3 w-5 h-5 bg-white/30 rounded-full flex items-center justify-center">
-                          <Check className="h-3 w-3 text-white" />
-                        </div>
-                      )}
-                      
-                      <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center mb-3 backdrop-blur-sm">
-                        <Palette className="h-5 w-5 text-white" />
-                      </div>
-                      <h3 className="text-sm md:text-base font-bold text-white leading-tight relative">
-                        {category}
-                      </h3>
-                      <p className="text-[11px] text-white/60 mt-1 font-medium relative">
-                        {categoryProducts.length} producto{categoryProducts.length !== 1 ? 's' : ''}
-                      </p>
-                    </div>
+                    {category}
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-0.5 ${
+                      isActive ? 'bg-white/20 text-white' : 'bg-gray-200/80 text-gray-500'
+                    }`}>
+                      {count}
+                    </span>
                   </button>
                 );
               })}

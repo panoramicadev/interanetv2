@@ -10493,22 +10493,16 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Get store categories (including product groups)
+  // Get store categories — ONLY admin-created categories from ecommerce_categories table
   app.get('/api/store/categories', async (req: any, res) => {
     try {
-      // Get categories from individual products
-      const productCategories = await storage.getEcommerceCategories();
-
-      // Get categories from product groups
-      const groups = await storage.getProductGroups({ activo: true });
-      const groupCategories = groups
-        .map(g => g.categoria)
-        .filter((cat): cat is string => !!cat && cat.trim() !== '');
-
-      // Combine and deduplicate categories
-      const allCategories = Array.from(new Set([...productCategories, ...groupCategories])).sort();
-
-      res.json(allCategories);
+      const adminCategories = await storage.getEcommerceAdminCategories();
+      // Only return active categories, as plain string array
+      const categoryNames = adminCategories
+        .filter(c => c.activa)
+        .map(c => c.nombre)
+        .sort();
+      res.json(categoryNames);
     } catch (error) {
       console.error("Error fetching store categories:", error);
       res.status(500).json({ message: "Failed to fetch store categories" });
