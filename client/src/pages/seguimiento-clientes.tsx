@@ -372,7 +372,7 @@ function ClientCard({ client, onClick, onUpdateEstado }: {
         {/* Header */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1 min-w-0">
-            <h4 className="font-semibold text-base truncate">{client.nombre}</h4>
+            <h4 className="font-semibold text-base truncate uppercase">{client.nombre}</h4>
             {client.empresa && (
               <p className="text-xs text-muted-foreground mt-0.5 truncate">{client.empresa}</p>
             )}
@@ -768,12 +768,12 @@ function ClientDetailModal({ open, onOpenChange, client, onDelete, onRefresh, ve
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0">
         {/* Header with gradient */}
         <div className={`bg-gradient-to-r ${estadoConfig.color} p-6 text-white rounded-t-lg`}>
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-xl font-bold">{client.nombre}</h2>
+              <h2 className="text-xl font-bold uppercase">{client.nombre}</h2>
               {client.empresa && (
                 <p className="flex items-center gap-1.5 text-white/80 mt-1">
                   <Building2 className="w-4 h-4" />
