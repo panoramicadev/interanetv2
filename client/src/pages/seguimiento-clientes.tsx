@@ -514,9 +514,9 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
       ...f,
       nombre: client.nokoen || client.name || "",
       rut: client.rten || client.rut || "",
-      email: client.emailen || client.email || "",
+      email: client.email || "",
       empresa: client.nokoen || "",
-      telefono: client.telen || client.phone || f.telefono,
+      telefono: client.foen || client.phone || f.telefono,
     }));
     setSearchQuery(client.nokoen || client.name || "");
     setShowSuggestions(false);
@@ -600,7 +600,7 @@ function CreateClientModal({ open, onOpenChange, onSubmit, isLoading, vendedores
                         <p className="text-sm font-medium truncate">{c.nokoen || c.name}</p>
                         <p className="text-xs text-muted-foreground truncate">
                           {c.rten && <span className="font-mono mr-2">RUT: {c.rten}</span>}
-                          {c.emailen && <span>{c.emailen}</span>}
+                          {c.email && <span>{c.email}</span>}
                         </p>
                       </div>
                     </button>
