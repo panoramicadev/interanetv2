@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
   Search, 
@@ -472,7 +471,6 @@ export default function TiendaPage() {
   });
 
   // Get active hero banner
-  const heroBanner = storeBanners.find(b => b.activo && b.titulo.includes("OFERTA"));
 
   // Toggle expand product / color
   const toggleProduct = (name: string) => {
@@ -975,71 +973,119 @@ export default function TiendaPage() {
         
       </section>
 
-      {/* Hero Banner - Hidden when static banner is present */}
-      {false && heroBanner && (
-        <section 
-          className="relative py-12 md:py-20 overflow-hidden"
-          style={{ 
-            backgroundColor: heroBanner?.colorFondo,
-            color: heroBanner?.colorTexto 
-          }}
-        >
+      {/* ─── Category Showcase ─── */}
+      {categories.length > 0 && (
+        <section className="bg-gradient-to-b from-gray-50 to-white py-10 md:py-14">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-              {/* Content */}
-              <div className="text-center lg:text-left">
-                <div className="mb-4">
-                  <Badge className="bg-white text-[#FF6E23] px-4 py-2 text-sm font-bold mb-4">
-                    {heroBanner?.titulo}
-                  </Badge>
-                </div>
-                <h1 className="text-4xl md:text-6xl font-bold mb-4 leading-tight">
-                  {heroBanner?.subtitulo || "STAIN"}
-                </h1>
-                <p className="text-lg md:text-xl mb-6 opacity-90">
-                  {heroBanner?.descripcion || "IMPERMEANTE DE MADERA"}
-                </p>
-                <div className="flex flex-col sm:flex-row gap-4 items-center justify-center lg:justify-start">
-                  <div className="text-center">
-                    <div className="text-sm opacity-80">Desde</div>
-                    <div className="text-3xl md:text-4xl font-bold">$12.990</div>
-                  </div>
-                  <Button 
-                    className="bg-white text-[#FF6E23] hover:bg-gray-100 px-8 py-3 rounded-full font-semibold text-lg"
-                    data-testid="button-ver-ofertas"
-                  >
-                    Ver Ofertas
-                  </Button>
-                </div>
-              </div>
+            {/* Section Header */}
+            <div className="text-center mb-8">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-[0.2em] uppercase text-[#FF6E23] bg-orange-50 px-3.5 py-1 rounded-full mb-3">
+                <Grid3X3 className="h-3 w-3" />
+                Nuestras Líneas
+              </span>
+              <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">
+                Explora por Categoría
+              </h2>
+              <p className="text-gray-500 text-sm mt-2 max-w-md mx-auto">
+                Encuentra la solución perfecta para tu proyecto
+              </p>
+            </div>
 
-              {/* Image placeholder */}
-              <div className="relative">
-                <div className="aspect-square bg-white/10 rounded-2xl flex items-center justify-center">
-                  {heroBanner?.imagenDesktop ? (
-                    <img 
-                      src={heroBanner?.imagenDesktop}
-                      alt={heroBanner?.subtitulo || "Producto destacado"}
-                      className="max-w-full max-h-full object-contain rounded-2xl"
-                    />
-                  ) : (
-                    <div className="text-center text-white/60">
-                      <ImageIcon className="h-16 w-16 mx-auto mb-2" />
-                      <p>Imagen del producto</p>
-                    </div>
-                  )}
+            {/* Category Cards Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+              {/* "All" card */}
+              <button
+                onClick={() => setSelectedCategory('all')}
+                className={`group relative overflow-hidden rounded-2xl transition-all duration-300 text-left ${
+                  selectedCategory === 'all'
+                    ? 'ring-2 ring-[#FF6E23] ring-offset-2 shadow-xl shadow-orange-200/50 scale-[1.02]'
+                    : 'hover:shadow-lg hover:scale-[1.01] hover:ring-1 hover:ring-orange-200'
+                }`}
+                data-testid="category-card-all"
+              >
+                <div className={`p-5 md:p-6 ${
+                  selectedCategory === 'all'
+                    ? 'bg-gradient-to-br from-[#FF6E23] to-[#E55E13]'
+                    : 'bg-gradient-to-br from-gray-800 to-gray-900 group-hover:from-gray-700 group-hover:to-gray-800'
+                }`}>
+                  {/* Decorative circles */}
+                  <div className="absolute top-0 right-0 w-20 h-20 bg-white/5 rounded-full -translate-y-8 translate-x-8" />
+                  <div className="absolute bottom-0 left-0 w-14 h-14 bg-white/5 rounded-full translate-y-6 -translate-x-6" />
+                  
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${
+                    selectedCategory === 'all' ? 'bg-white/20' : 'bg-white/10 group-hover:bg-white/15'
+                  }`}>
+                    <Package className="h-5 w-5 text-white" />
+                  </div>
+                  <h3 className="text-sm md:text-base font-bold text-white leading-tight">
+                    Todos los Productos
+                  </h3>
+                  <p className="text-[11px] text-white/60 mt-1 font-medium">
+                    {groupedCatalog.length} producto{groupedCatalog.length !== 1 ? 's' : ''}
+                  </p>
                 </div>
-              </div>
+              </button>
+
+              {/* Dynamic category cards */}
+              {categories.map((category, index) => {
+                // Gradient palettes for different categories (cycle through them)
+                const gradients = [
+                  { from: 'from-sky-500', to: 'to-blue-600', hover: 'group-hover:from-sky-400 group-hover:to-blue-500', light: 'bg-sky-50', accent: 'text-sky-600', ring: 'ring-sky-400' },
+                  { from: 'from-emerald-500', to: 'to-teal-600', hover: 'group-hover:from-emerald-400 group-hover:to-teal-500', light: 'bg-emerald-50', accent: 'text-emerald-600', ring: 'ring-emerald-400' },
+                  { from: 'from-violet-500', to: 'to-purple-600', hover: 'group-hover:from-violet-400 group-hover:to-purple-500', light: 'bg-violet-50', accent: 'text-violet-600', ring: 'ring-violet-400' },
+                  { from: 'from-amber-500', to: 'to-orange-600', hover: 'group-hover:from-amber-400 group-hover:to-orange-500', light: 'bg-amber-50', accent: 'text-amber-600', ring: 'ring-amber-400' },
+                  { from: 'from-rose-500', to: 'to-pink-600', hover: 'group-hover:from-rose-400 group-hover:to-pink-500', light: 'bg-rose-50', accent: 'text-rose-600', ring: 'ring-rose-400' },
+                  { from: 'from-cyan-500', to: 'to-blue-600', hover: 'group-hover:from-cyan-400 group-hover:to-blue-500', light: 'bg-cyan-50', accent: 'text-cyan-600', ring: 'ring-cyan-400' },
+                ];
+                const g = gradients[index % gradients.length];
+                const isActive = selectedCategory === category;
+                const categoryProducts = groupedCatalog.filter(p => p.groupName === category);
+
+                return (
+                  <button
+                    key={category}
+                    onClick={() => setSelectedCategory(isActive ? 'all' : category)}
+                    className={`group relative overflow-hidden rounded-2xl transition-all duration-300 text-left ${
+                      isActive
+                        ? `ring-2 ${g.ring} ring-offset-2 shadow-xl scale-[1.02]`
+                        : 'hover:shadow-lg hover:scale-[1.01]'
+                    }`}
+                    data-testid={`category-card-${category}`}
+                  >
+                    <div className={`p-5 md:p-6 bg-gradient-to-br ${g.from} ${g.to} ${!isActive ? g.hover : ''}`}>
+                      {/* Decorative elements */}
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -translate-y-10 translate-x-10" />
+                      <div className="absolute bottom-0 left-0 w-16 h-16 bg-white/5 rounded-full translate-y-8 -translate-x-8" />
+                      {isActive && (
+                        <div className="absolute top-3 right-3 w-5 h-5 bg-white/30 rounded-full flex items-center justify-center">
+                          <Check className="h-3 w-3 text-white" />
+                        </div>
+                      )}
+                      
+                      <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center mb-3 backdrop-blur-sm">
+                        <Palette className="h-5 w-5 text-white" />
+                      </div>
+                      <h3 className="text-sm md:text-base font-bold text-white leading-tight relative">
+                        {category}
+                      </h3>
+                      <p className="text-[11px] text-white/60 mt-1 font-medium relative">
+                        {categoryProducts.length} producto{categoryProducts.length !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </section>
       )}
-      {/* Filters Section — Modern SaaS */}
-      <section className="bg-white/70 backdrop-blur-sm border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+
+      {/* ─── Catalog Header with pill filters ─── */}
+      <section className="bg-white border-b border-gray-100 sticky top-[108px] z-30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
             <div className="flex items-center gap-3">
-              <h2 className="text-lg font-bold text-gray-900 tracking-tight">
+              <h2 className="text-lg font-bold text-gray-900 tracking-tight" id="productos">
                 Catálogo
               </h2>
               <div className="h-5 w-px bg-gray-200" />
@@ -1048,20 +1094,33 @@ export default function TiendaPage() {
               </span>
             </div>
             
-            <div className="flex items-center gap-2">
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="w-[200px] border-gray-200 rounded-xl text-sm h-9 shadow-sm hover:border-gray-300 transition-colors" data-testid="select-category-tienda">
-                  <SelectValue placeholder="Todas las categorías" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  <SelectItem value="all">Todas las categorías</SelectItem>
-                  {categories.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Pill-style category filters */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                onClick={() => setSelectedCategory('all')}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
+                  selectedCategory === 'all'
+                    ? 'bg-gray-900 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-800'
+                }`}
+                data-testid="pill-filter-all"
+              >
+                Todos
+              </button>
+              {categories.map((category) => (
+                <button
+                  key={category}
+                  onClick={() => setSelectedCategory(selectedCategory === category ? 'all' : category)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
+                    selectedCategory === category
+                      ? 'bg-[#FF6E23] text-white shadow-sm shadow-orange-200'
+                      : 'bg-gray-100 text-gray-600 hover:bg-orange-50 hover:text-[#FF6E23]'
+                  }`}
+                  data-testid={`pill-filter-${category}`}
+                >
+                  {category}
+                </button>
+              ))}
             </div>
           </div>
         </div>
