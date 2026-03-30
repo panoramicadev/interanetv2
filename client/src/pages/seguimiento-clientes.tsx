@@ -5,7 +5,7 @@ import {
   Phone, Mail, Building2, User, Plus, Search, X,
   Clock, CalendarDays, MessageSquare, PhoneCall, FileText,
   MapPin, AlertTriangle, CheckCircle2, Truck, ShoppingCart,
-  UserCheck, Send, Link2, Sparkles, MoreVertical, Trash2, Edit3, RefreshCw
+  UserCheck, Send, Link2, Sparkles, MoreVertical, Trash2, Edit3, RefreshCw, ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -372,10 +372,30 @@ function ClientCard({ client, onClick, onUpdateEstado }: {
               <p className="text-xs text-muted-foreground mt-0.5 truncate">{client.empresa}</p>
             )}
           </div>
-          <Badge className={`text-[10px] px-2 py-0.5 h-5 ${estadoConfig.badge} border-0 flex-shrink-0 ml-2`}>
-            <estadoConfig.icon className="w-3 h-3 mr-1" />
-            {estadoConfig.label}
-          </Badge>
+          <div onClick={e => e.stopPropagation()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className={`inline-flex items-center text-[10px] px-2 py-0.5 h-5 rounded-full font-medium ${estadoConfig.badge} border-0 flex-shrink-0 ml-2 cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-indigo-300 transition-all`}>
+                  <estadoConfig.icon className="w-3 h-3 mr-1" />
+                  {estadoConfig.label}
+                  <ChevronDown className="w-2.5 h-2.5 ml-1 opacity-60" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                {ESTADOS.map(e => (
+                  <DropdownMenuItem
+                    key={e.value}
+                    onClick={() => onUpdateEstado(client.id, e.value)}
+                    disabled={e.value === client.estado}
+                    className="text-xs"
+                  >
+                    <e.icon className="w-3.5 h-3.5 mr-2" />
+                    {e.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         {/* Info items with icons */}
@@ -429,29 +449,6 @@ function ClientCard({ client, onClick, onUpdateEstado }: {
         )}
       </div>
 
-      {/* Quick estado change — top-right on hover */}
-      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="secondary" size="sm" className="h-7 w-7 p-0 shadow-sm">
-              <MoreVertical className="w-3.5 h-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-40">
-            {ESTADOS.map(e => (
-              <DropdownMenuItem
-                key={e.value}
-                onClick={() => onUpdateEstado(client.id, e.value)}
-                disabled={e.value === client.estado}
-                className="text-xs"
-              >
-                <e.icon className="w-3.5 h-3.5 mr-2" />
-                {e.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
     </div>
   );
 }
