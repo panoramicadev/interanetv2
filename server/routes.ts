@@ -24957,11 +24957,12 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       .where(
         and(
           eq(salesTransactions.nokoen, linkedClient.nokoen!),
-          inArray(salesTransactions.tido, ['NVV', 'GDV'])
+          inArray(salesTransactions.tido, ['NVV', 'GDV']),
+          sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '6 months'`
         )
       )
       .orderBy(desc(salesTransactions.feemdo))
-      .limit(50);
+      .limit(100);
 
     res.json({
       nvvs: nvvSales,

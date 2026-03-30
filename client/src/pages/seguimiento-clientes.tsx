@@ -700,6 +700,7 @@ function ClientDetailModal({ open, onOpenChange, client, onDelete, onRefresh, ve
   const [rutInput, setRutInput] = useState(client.rut || "");
   const [detectedPurchases, setDetectedPurchases] = useState<any[] | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [showEditFields, setShowEditFields] = useState(false);
 
   const estadoConfig = getEstadoConfig(client.estado);
 
@@ -808,9 +809,9 @@ function ClientDetailModal({ open, onOpenChange, client, onDelete, onRefresh, ve
         </div>
 
         <div className="p-6 space-y-4">
-          {/* Editable Info Section */}
+          {/* Compact Info Summary + Collapsible Edit */}
           <div className="space-y-3">
-            {/* Vendedor Row */}
+            {/* Vendedor Row (always visible) */}
             <div className="flex items-center gap-3 bg-muted/30 rounded-lg px-3 py-2">
               <User className="w-4 h-4 text-indigo-500 flex-shrink-0" />
               <span className="text-xs font-medium text-muted-foreground flex-shrink-0">Vendedor:</span>
@@ -835,107 +836,107 @@ function ClientDetailModal({ open, onOpenChange, client, onDelete, onRefresh, ve
               )}
             </div>
 
-            {/* Editable Fields Grid */}
+            {/* Compact info row (always visible) */}
+            <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+              {client.telefono && (
+                <span className="flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5" /> {client.telefono}
+                </span>
+              )}
+              {client.email && (
+                <span className="flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5" /> {client.email}
+                </span>
+              )}
+              <span className="flex items-center gap-1.5">
+                <CalendarDays className="w-3.5 h-3.5" /> {formatDate(client.createdAt)}
+              </span>
+            </div>
+
+            {/* Collapsible Edit Section */}
             {isAdminOrSupervisor && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Nombre</label>
-                  <input
-                    className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none"
-                    defaultValue={client.nombre}
-                    onBlur={(e) => {
-                      if (e.target.value !== client.nombre) {
-                        onUpdate({ nombre: e.target.value });
-                      }
-                    }}
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Empresa</label>
-                  <input
-                    className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none"
-                    defaultValue={client.empresa || ""}
-                    placeholder="Nombre empresa"
-                    onBlur={(e) => {
-                      if (e.target.value !== (client.empresa || "")) {
-                        onUpdate({ empresa: e.target.value });
-                      }
-                    }}
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Teléfono</label>
-                  <input
-                    className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none"
-                    defaultValue={client.telefono || ""}
-                    placeholder="+56 9..."
-                    onBlur={(e) => {
-                      if (e.target.value !== (client.telefono || "")) {
-                        onUpdate({ telefono: e.target.value });
-                      }
-                    }}
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Email</label>
-                  <input
-                    className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none"
-                    defaultValue={client.email || ""}
-                    placeholder="correo@ejemplo.cl"
-                    onBlur={(e) => {
-                      if (e.target.value !== (client.email || "")) {
-                        onUpdate({ email: e.target.value });
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-            )}
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowEditFields(!showEditFields)}
+                  className="flex items-center gap-2 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  {showEditFields ? "Ocultar edición" : "Editar datos del cliente"}
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showEditFields ? "rotate-180" : ""}`} />
+                </button>
 
-            {/* Read-only for non-admins */}
-            {!isAdminOrSupervisor && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {client.telefono && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Phone className="w-4 h-4 text-muted-foreground" />
-                    <span>{client.telefono}</span>
+                {showEditFields && (
+                  <div className="space-y-3 border rounded-lg p-3 bg-muted/10 animate-in slide-in-from-top-2 duration-200">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Nombre</label>
+                        <input
+                          className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none"
+                          defaultValue={client.nombre}
+                          onBlur={(e) => {
+                            if (e.target.value !== client.nombre) onUpdate({ nombre: e.target.value });
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Empresa</label>
+                        <input
+                          className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none"
+                          defaultValue={client.empresa || ""}
+                          placeholder="Nombre empresa"
+                          onBlur={(e) => {
+                            if (e.target.value !== (client.empresa || "")) onUpdate({ empresa: e.target.value });
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Teléfono</label>
+                        <input
+                          className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none"
+                          defaultValue={client.telefono || ""}
+                          placeholder="+56 9..."
+                          onBlur={(e) => {
+                            if (e.target.value !== (client.telefono || "")) onUpdate({ telefono: e.target.value });
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Email</label>
+                        <input
+                          className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none"
+                          defaultValue={client.email || ""}
+                          placeholder="correo@ejemplo.cl"
+                          onBlur={(e) => {
+                            if (e.target.value !== (client.email || "")) onUpdate({ email: e.target.value });
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Notas</label>
+                      <textarea
+                        className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none resize-none min-h-[60px]"
+                        defaultValue={client.notas || ""}
+                        placeholder="Notas del cliente..."
+                        rows={2}
+                        onBlur={(e) => {
+                          if (e.target.value !== (client.notas || "")) onUpdate({ notas: e.target.value });
+                        }}
+                      />
+                    </div>
                   </div>
                 )}
-                {client.email && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Mail className="w-4 h-4 text-muted-foreground" />
-                    <span className="truncate">{client.email}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-2 text-sm">
-                  <CalendarDays className="w-4 h-4 text-muted-foreground" />
-                  <span>{formatDate(client.createdAt)}</span>
-                </div>
-              </div>
+              </>
             )}
 
-            {/* Notas */}
-            {isAdminOrSupervisor ? (
-              <div>
-                <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Notas</label>
-                <textarea
-                  className="w-full text-sm bg-background border rounded-md px-3 py-1.5 hover:border-indigo-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors outline-none resize-none min-h-[60px]"
-                  defaultValue={client.notas || ""}
-                  placeholder="Notas del cliente..."
-                  rows={2}
-                  onBlur={(e) => {
-                    if (e.target.value !== (client.notas || "")) {
-                      onUpdate({ notas: e.target.value });
-                    }
-                  }}
-                />
-              </div>
-            ) : client.notas ? (
+            {/* Read-only notas for non-admins */}
+            {!isAdminOrSupervisor && client.notas && (
               <div className="bg-muted/30 rounded-lg p-3">
                 <p className="text-xs font-medium text-muted-foreground mb-1">Notas</p>
                 <p className="text-sm">{client.notas}</p>
               </div>
-            ) : null}
+            )}
           </div>
 
           {/* Tabs */}
