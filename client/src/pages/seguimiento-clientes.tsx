@@ -804,9 +804,32 @@ function ClientDetailModal({ open, onOpenChange, client, onDelete, onRefresh, ve
           </div>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-4">
+          {/* Vendedor Assignment */}
+          <div className="flex items-center gap-3 bg-muted/30 rounded-lg px-3 py-2">
+            <User className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+            <span className="text-xs font-medium text-muted-foreground flex-shrink-0">Vendedor:</span>
+            {isAdminOrSupervisor ? (
+              <select
+                className="text-sm bg-background border rounded-md px-3 py-1 cursor-pointer hover:border-indigo-400 transition-colors flex-1 max-w-xs"
+                value={client.vendedorId || ""}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  onUpdateVendedor(e.target.value);
+                }}
+              >
+                <option value="" disabled>Seleccionar vendedor...</option>
+                {vendedores.map((v: any) => (
+                  <option key={v.id} value={v.id}>{v.salespersonName}</option>
+                ))}
+              </select>
+            ) : (
+              <span className="text-sm font-medium">{client.vendedorNombre}</span>
+            )}
+          </div>
+
           {/* Contact Info */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {client.telefono && (
               <div className="flex items-center gap-2 text-sm">
                 <Phone className="w-4 h-4 text-muted-foreground" />
@@ -819,26 +842,6 @@ function ClientDetailModal({ open, onOpenChange, client, onDelete, onRefresh, ve
                 <span className="truncate">{client.email}</span>
               </div>
             )}
-            <div className="flex items-center gap-2 text-sm">
-              <User className="w-4 h-4 text-muted-foreground" />
-              {isAdminOrSupervisor ? (
-                <select
-                  className="text-sm bg-transparent border rounded px-2 py-0.5 cursor-pointer hover:border-indigo-400 transition-colors"
-                  value={client.vendedorId || ""}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    onUpdateVendedor(e.target.value);
-                  }}
-                >
-                  <option value="" disabled>Seleccionar vendedor...</option>
-                  {vendedores.map((v: any) => (
-                    <option key={v.id} value={v.id}>{v.salespersonName}</option>
-                  ))}
-                </select>
-              ) : (
-                <span>{client.vendedorNombre}</span>
-              )}
-            </div>
             <div className="flex items-center gap-2 text-sm">
               <CalendarDays className="w-4 h-4 text-muted-foreground" />
               <span>{formatDate(client.createdAt)}</span>
