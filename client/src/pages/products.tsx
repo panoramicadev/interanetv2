@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2, Globe, ShoppingCart, Tags, Image, Settings, Link, Palette, BarChart3, Layers, ChevronLeft, ChevronRight, ChevronDown, ExternalLink, RefreshCw, BookOpen, ImageIcon, Truck, Save, DollarSign, Tag, Plus, Trash2 } from "lucide-react";
+import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2, Globe, ShoppingCart, Tags, Image, Settings, Link, Palette, BarChart3, Layers, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ExternalLink, RefreshCw, BookOpen, ImageIcon, Truck, Save, DollarSign, Tag, Plus, Trash2 } from "lucide-react";
 import { PriceList } from "@shared/schema";
 import GroupedCatalog from "@/components/grouped-catalog";
 import { InventarioContent } from "@/pages/inventario";
@@ -300,6 +300,24 @@ function CategoriasEtiquetasContent() {
     onError: (e) => toast({ variant: "destructive", title: "Error", description: String(e.message) }),
   });
 
+  // Reorder category mutation
+  const reorderCatMutation = useMutation({
+    mutationFn: async ({ id, direction }: { id: string; direction: 'up' | 'down' }) => {
+      const res = await fetch("/api/ecommerce/categories-config/reorder", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, direction }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Error al reordenar");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ecommerce/categories-config"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/store/categories"] });
+    },
+  });
+
   // Assign product to category
   const assignMutation = useMutation({
     mutationFn: async ({ productFamily, categoryName }: { productFamily: string; categoryName: string | null }) => {
@@ -458,7 +476,7 @@ function CategoriasEtiquetasContent() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4 sm:p-6 space-y-4">
-          {customCategories.map((cat: any) => {
+          {customCategories.map((cat: any, catIdx: number) => {
             const productsInCat = productsByCategory.get(cat.name) || [];
             const isExpanded = expandedCats.has(cat.id);
             return (
@@ -528,6 +546,24 @@ function CategoriasEtiquetasContent() {
                   <Badge variant="secondary" className="text-[11px] font-bold px-2.5 py-0.5 flex-shrink-0">
                     {productsInCat.length} producto{productsInCat.length !== 1 ? 's' : ''}
                   </Badge>
+                  <div className="flex flex-col -my-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => reorderCatMutation.mutate({ id: cat.id, direction: 'up' })}
+                      disabled={catIdx === 0 || reorderCatMutation.isPending}
+                      className="text-muted-foreground hover:text-orange-500 disabled:opacity-20 disabled:cursor-not-allowed p-0.5 transition-colors"
+                      title="Subir"
+                    >
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => reorderCatMutation.mutate({ id: cat.id, direction: 'down' })}
+                      disabled={catIdx === customCategories.length - 1 || reorderCatMutation.isPending}
+                      className="text-muted-foreground hover:text-orange-500 disabled:opacity-20 disabled:cursor-not-allowed p-0.5 transition-colors"
+                      title="Bajar"
+                    >
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                   <button
                     onClick={(e) => { e.stopPropagation(); if (confirm(`¿Eliminar la categoría "${cat.name}"?`)) deleteCatMutation.mutate(cat.id); }}
                     className="text-red-400 hover:text-red-600 p-1 rounded transition-colors flex-shrink-0"

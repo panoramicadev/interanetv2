@@ -6793,6 +6793,48 @@ export function registerRoutes(app: Express): Server {
     res.json(categories[catIndex]);
   }));
 
+  // Reorder categories (swap two categories)
+  app.put('/api/ecommerce/categories-config/reorder', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (!['admin', 'supervisor'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const { id, direction } = req.body; // direction: 'up' or 'down'
+    if (!id || !['up', 'down'].includes(direction)) {
+      return res.status(400).json({ message: 'ID y dirección (up/down) requeridos' });
+    }
+
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    
+    const result = await db.execute(sql`
+      SELECT value FROM app_config WHERE key = 'ecommerce_categories'
+    `);
+    const row = (result as any).rows?.[0];
+    let categories: any[] = row?.value || [];
+    
+    const currentIndex = categories.findIndex((c: any) => c.id === id);
+    if (currentIndex === -1) {
+      return res.status(404).json({ message: 'Categoría no encontrada' });
+    }
+
+    const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (swapIndex < 0 || swapIndex >= categories.length) {
+      return res.status(400).json({ message: 'No se puede mover más' });
+    }
+
+    // Swap
+    [categories[currentIndex], categories[swapIndex]] = [categories[swapIndex], categories[currentIndex]];
+    
+    await db.execute(sql`
+      INSERT INTO app_config (key, value, updated_at)
+      VALUES ('ecommerce_categories', ${JSON.stringify(categories)}::jsonb, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(categories)}::jsonb, updated_at = NOW()
+    `);
+    
+    res.json(categories);
+  }));
+
   // Assign a product family to a category (update group_name)
   app.patch('/api/ecommerce/product-category', requireAuth, asyncHandler(async (req: any, res: any) => {
     if (!['admin', 'supervisor'].includes(req.user.role)) {
@@ -10680,7 +10722,7 @@ export function registerRoutes(app: Express): Server {
         const configRow = (configResult as any).rows?.[0];
         const customCategories: any[] = configRow?.value || [];
         if (customCategories.length > 0) {
-          const catNames = customCategories.map((c: any) => c.name).sort();
+          const catNames = customCategories.map((c: any) => c.name);
           return res.json(catNames);
         }
       } catch (e) {
