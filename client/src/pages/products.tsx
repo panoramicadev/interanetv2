@@ -159,7 +159,10 @@ function CategoryProductAdder({ catalog, categoryName, assignMutation }: {
           </SelectTrigger>
           <SelectContent>
             {catalog
-              .filter((p: any) => !p.groupName || p.groupName !== categoryName)
+              .filter((p: any) => {
+                const cats: string[] = p.categories || (p.groupName ? [p.groupName] : []);
+                return !cats.includes(categoryName); // Show if NOT already in this category
+              })
               .sort((a: any, b: any) => a.genericName.localeCompare(b.genericName))
               .map((p: any) => (
                 <SelectItem key={p.genericName} value={p.genericName} className="text-xs">
@@ -228,16 +231,18 @@ function CategoriasEtiquetasContent() {
 
   const catalog = data?.catalog || [];
 
-  // Group products by their groupName (category)
+  // Group products by their categories (multi-category support)
   const productsByCategory = new Map<string, any[]>();
   const unassigned: any[] = [];
   catalog.forEach(product => {
-    const cat = product.groupName;
-    if (!cat) {
+    const cats: string[] = product.categories || (product.groupName ? [product.groupName] : []);
+    if (cats.length === 0) {
       unassigned.push(product);
     } else {
-      if (!productsByCategory.has(cat)) productsByCategory.set(cat, []);
-      productsByCategory.get(cat)!.push(product);
+      cats.forEach(cat => {
+        if (!productsByCategory.has(cat)) productsByCategory.set(cat, []);
+        productsByCategory.get(cat)!.push(product);
+      });
     }
   });
 
@@ -320,11 +325,11 @@ function CategoriasEtiquetasContent() {
 
   // Assign product to category
   const assignMutation = useMutation({
-    mutationFn: async ({ productFamily, categoryName }: { productFamily: string; categoryName: string | null }) => {
+    mutationFn: async ({ productFamily, categoryName, action }: { productFamily: string; categoryName: string | null; action?: 'add' | 'remove' }) => {
       const res = await fetch("/api/ecommerce/product-category", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productFamily, categoryName }),
+        body: JSON.stringify({ productFamily, categoryName, action: action || 'add' }),
         credentials: "include",
       });
       if (!res.ok) throw new Error("Error al asignar");
@@ -600,7 +605,7 @@ function CategoriasEtiquetasContent() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                assignMutation.mutate({ productFamily: product.genericName, categoryName: null });
+                                assignMutation.mutate({ productFamily: product.genericName, categoryName: cat.name, action: 'remove' });
                               }}
                               className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 -mr-1 transition-opacity"
                               title="Quitar de categoría"
@@ -668,7 +673,7 @@ function CategoriasEtiquetasContent() {
                               </TableCell>
                               <TableCell>
                                 <button
-                                  onClick={() => assignMutation.mutate({ productFamily: product.genericName, categoryName: null })}
+                                  onClick={() => assignMutation.mutate({ productFamily: product.genericName, categoryName: cat.name, action: 'remove' })}
                                   className="text-red-400 hover:text-red-600 p-1"
                                   title="Quitar de categoría"
                                 >

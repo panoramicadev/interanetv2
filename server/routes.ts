@@ -5778,16 +5778,26 @@ export function registerRoutes(app: Express): Server {
         GROUP BY kopr
       ) stk ON stk.kopr = pl.codigo
       LEFT JOIN product_content pc ON pc.codigo = pl.codigo
-      WHERE ep.categoria IS NOT NULL
       ORDER BY ep.variant_generic_display_name, ep.color, ep.format_unit
     `);
 
     const rows = Array.isArray(result) ? result : (result as any).rows || [];
 
+    // Load multi-category assignments from app_config
+    let multiCatAssignments: Record<string, string[]> = {};
+    try {
+      const mcResult = await db.execute(sql`
+        SELECT value FROM app_config WHERE key = 'product_category_assignments'
+      `);
+      const mcRow = (mcResult as any).rows?.[0];
+      multiCatAssignments = mcRow?.value || {};
+    } catch {}
+
     // Structure: Product Group → Colors → Formats
     const productsMap = new Map<string, {
       genericName: string;
       groupName: string | null;
+      categories: string[];
       tags: string[];
       breveResena: string | null;
       colors: Map<string, any[]>;
@@ -5802,22 +5812,30 @@ export function registerRoutes(app: Express): Server {
       let rowTags: string[] = [];
       try { rowTags = JSON.parse(row.tags || '[]'); } catch { rowTags = []; }
 
+      // Multi-category assignments (from app_config) take priority
+      const assignedCategories = multiCatAssignments[genericName] || (groupName ? [groupName] : []);
+
       if (search) {
         const s = (search as string).toLowerCase();
         const matches =
           sku.toLowerCase().includes(s) ||
           genericName.toLowerCase().includes(s) ||
           color.toLowerCase().includes(s) ||
-          (groupName && groupName.toLowerCase().includes(s));
+          (groupName && groupName.toLowerCase().includes(s)) ||
+          assignedCategories.some(c => c.toLowerCase().includes(s));
         if (!matches) continue;
       }
 
-      if (groupFilter && groupFilter !== 'all' && groupName !== groupFilter) continue;
+      if (groupFilter && groupFilter !== 'all') {
+        // Filter by category — check multi-cat assignments
+        if (!assignedCategories.includes(groupFilter as string)) continue;
+      }
 
       if (!productsMap.has(genericName)) {
         productsMap.set(genericName, {
           genericName,
-          groupName,
+          groupName: assignedCategories[0] || groupName,
+          categories: assignedCategories,
           tags: rowTags,
           breveResena: (row as any).breve_resena || null,
           colors: new Map(),
@@ -5871,6 +5889,7 @@ export function registerRoutes(app: Express): Server {
     const catalog = Array.from(productsMap.values()).map(p => ({
       genericName: p.genericName,
       groupName: p.groupName,
+      categories: p.categories,
       tags: p.tags,
       breveResena: p.breveResena,
       colors: Object.fromEntries(p.colors),
@@ -6841,7 +6860,8 @@ export function registerRoutes(app: Express): Server {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
-    const { productFamily, categoryName } = req.body;
+    const { productFamily, categoryName, action } = req.body;
+    // action: 'add' (default), 'remove', or 'set' (legacy single-category)
     if (!productFamily) {
       return res.status(400).json({ message: 'productFamily es requerido' });
     }
@@ -6849,15 +6869,46 @@ export function registerRoutes(app: Express): Server {
     const { db } = await import('./db');
     const { sql } = await import('drizzle-orm');
     
-    // Update categoria for all variants of this product family
-    const groupName = categoryName || null;
+    // Get current multi-category assignments
+    const result = await db.execute(sql`
+      SELECT value FROM app_config WHERE key = 'product_category_assignments'
+    `);
+    const row = (result as any).rows?.[0];
+    let assignments: Record<string, string[]> = {};
+    try { assignments = row?.value || {}; } catch { assignments = {}; }
+    
+    const currentCats = assignments[productFamily] || [];
+    
+    if (action === 'remove') {
+      // Remove from specific category
+      assignments[productFamily] = currentCats.filter(c => c !== categoryName);
+      if (assignments[productFamily].length === 0) delete assignments[productFamily];
+    } else if (categoryName === null) {
+      // Remove from all categories
+      delete assignments[productFamily];
+    } else {
+      // Add to category (default)
+      if (!currentCats.includes(categoryName)) {
+        assignments[productFamily] = [...currentCats, categoryName];
+      }
+    }
+    
+    await db.execute(sql`
+      INSERT INTO app_config (key, value, updated_at)
+      VALUES ('product_category_assignments', ${JSON.stringify(assignments)}::jsonb, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(assignments)}::jsonb, updated_at = NOW()
+    `);
+    
+    // Also update the legacy ecommerce_products.categoria field (first category or null)
+    const newCats = assignments[productFamily] || [];
+    const primaryCat = newCats.length > 0 ? newCats[0] : null;
     await db.execute(sql`
       UPDATE ecommerce_products 
-      SET categoria = ${groupName}
+      SET categoria = ${primaryCat}
       WHERE variant_generic_display_name = ${productFamily}
     `);
     
-    res.json({ success: true, productFamily, categoryName: groupName });
+    res.json({ success: true, productFamily, categories: newCats });
   }));
   // ===================== Account Request API (public, no auth) =====================
 
