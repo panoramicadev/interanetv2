@@ -9554,6 +9554,125 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Price List endpoints
+
+  // Export price list as CSV
+  app.get('/api/price-list/export/csv', requireAuth, async (req: any, res) => {
+    try {
+      const { search, unidad, color } = req.query;
+
+      // Fetch ALL items (no pagination) for export
+      const result = await storage.getPriceList({
+        search: search as string,
+        unidad: unidad as string,
+        color: color as string,
+        limit: 100000,
+        offset: 0,
+      });
+
+      // Build CSV header
+      const headers = ['codigo', 'producto', 'unidad', 'lista', 'desc10', 'desc10_5', 'desc10_5_3', 'minimo', 'canalDigital', 'costoProduccion', 'rendimiento', 'unidadMedida'];
+      const csvRows = [headers.join(',')];
+
+      for (const item of result.items) {
+        const row = [
+          `"${(item.codigo || '').replace(/"/g, '""')}"`,
+          `"${(item.producto || '').replace(/"/g, '""')}"`,
+          `"${(item.unidad || '').replace(/"/g, '""')}"`,
+          item.lista || '',
+          item.desc10 || '',
+          item.desc10_5 || '',
+          item.desc10_5_3 || '',
+          item.minimo || '',
+          item.canalDigital || '',
+          (item as any).costoProduccion || '',
+          (item as any).rendimiento || '',
+          `"${((item as any).unidadMedida || '').replace(/"/g, '""')}"`,
+        ];
+        csvRows.push(row.join(','));
+      }
+
+      const csvContent = csvRows.join('\n');
+      const fileName = `lista_precios_${new Date().toISOString().slice(0, 10)}.csv`;
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      // BOM for UTF-8 Excel compatibility
+      res.send('\uFEFF' + csvContent);
+    } catch (error) {
+      console.error("Error exporting price list CSV:", error);
+      res.status(500).json({ message: "Failed to export price list" });
+    }
+  });
+
+  // Bulk price adjustment — increase/decrease all prices by percentage
+  app.post('/api/price-list/bulk-adjust', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Not authorized for bulk price adjustments" });
+      }
+
+      const { percentage, fields, unidad } = req.body;
+
+      if (typeof percentage !== 'number' || percentage === 0) {
+        return res.status(400).json({ message: "Porcentaje de ajuste inválido" });
+      }
+
+      if (Math.abs(percentage) > 100) {
+        return res.status(400).json({ message: "El porcentaje no puede exceder ±100%" });
+      }
+
+      // Fields to adjust (default: all price columns)
+      const validFields = ['lista', 'desc10', 'desc10_5', 'desc10_5_3', 'minimo', 'canalDigital'];
+      const fieldsToAdjust = (fields && Array.isArray(fields) && fields.length > 0)
+        ? fields.filter((f: string) => validFields.includes(f))
+        : validFields;
+
+      if (fieldsToAdjust.length === 0) {
+        return res.status(400).json({ message: "No se seleccionaron campos válidos para ajustar" });
+      }
+
+      const multiplier = 1 + (percentage / 100);
+
+      // Build dynamic SET clause
+      const setClauses = fieldsToAdjust.map((field: string) => {
+        const columnName = field === 'desc10_5' ? 'desc10_5'
+          : field === 'desc10_5_3' ? 'desc10_5_3'
+          : field === 'canalDigital' ? 'canal_digital'
+          : field === 'costoProduccion' ? 'costo_produccion'
+          : field;
+        return `${columnName} = ROUND(${columnName} * ${multiplier}, 0)`;
+      }).join(', ');
+
+      let query = `UPDATE price_list SET ${setClauses}, updated_at = NOW()`;
+
+      // Optional filter by unit
+      const conditions: string[] = [];
+      if (unidad && unidad.trim() !== '') {
+        conditions.push(`unidad = '${unidad.replace(/'/g, "''")}'`);
+      }
+
+      if (conditions.length > 0) {
+        query += ` WHERE ${conditions.join(' AND ')}`;
+      }
+
+      const result = await db.execute(sql.raw(query));
+      const affectedRows = (result as any).rowCount || (result as any).length || 0;
+
+      console.log(`[BULK-ADJUST] ${user.username} adjusted prices by ${percentage}% on fields [${fieldsToAdjust.join(',')}]${unidad ? ` for unit: ${unidad}` : ''} — ${affectedRows} rows affected`);
+
+      res.json({
+        message: `Precios ajustados exitosamente`,
+        percentage,
+        fields: fieldsToAdjust,
+        affectedRows,
+      });
+    } catch (error) {
+      console.error("Error in bulk price adjustment:", error);
+      res.status(500).json({ message: "Error al ajustar precios masivamente" });
+    }
+  });
+
   app.get('/api/price-list', requireAuth, async (req, res) => {
     try {
       const { search, unidad, tipoProducto, color, limit = 50, offset = 0 } = req.query;

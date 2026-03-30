@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { DollarSign, Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, List } from "lucide-react";
+import { DollarSign, Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, List, TrendingUp, TrendingDown, Percent, Check } from "lucide-react";
 import { PriceList } from "@shared/schema";
 import ListaPreciosMix from "./lista-precios-mix";
 
@@ -34,6 +34,13 @@ export default function ListaPrecios() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isBulkAdjustOpen, setIsBulkAdjustOpen] = useState(false);
+  const [bulkAdjustPercentage, setBulkAdjustPercentage] = useState("");
+  const [bulkAdjustDirection, setBulkAdjustDirection] = useState<'up' | 'down'>('up');
+  const [bulkAdjustFields, setBulkAdjustFields] = useState<string[]>(['lista', 'desc10', 'desc10_5', 'desc10_5_3', 'minimo', 'canalDigital']);
+  const [bulkAdjustUnit, setBulkAdjustUnit] = useState("");
+  const [bulkAdjustConfirm, setBulkAdjustConfirm] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [newProduct, setNewProduct] = useState({
     codigo: "",
     producto: "",
@@ -217,6 +224,70 @@ export default function ListaPrecios() {
     },
   });
 
+  // Mutación para ajuste masivo de precios
+  const bulkAdjustMutation = useMutation({
+    mutationFn: async (params: { percentage: number; fields: string[]; unidad?: string }) => {
+      return apiRequest('POST', '/api/price-list/bulk-adjust', params);
+    },
+    onSuccess: async (response) => {
+      const result = await response.json();
+      toast({
+        title: "Precios ajustados",
+        description: `Se ajustaron ${result.affectedRows} productos (${result.percentage > 0 ? '+' : ''}${result.percentage}%)`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/price-list'] });
+      setIsBulkAdjustOpen(false);
+      setBulkAdjustPercentage("");
+      setBulkAdjustConfirm(false);
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "No se pudieron ajustar los precios",
+      });
+      setBulkAdjustConfirm(false);
+    },
+  });
+
+  const handleBulkAdjust = () => {
+    const pct = parseFloat(bulkAdjustPercentage);
+    if (isNaN(pct) || pct <= 0 || pct > 100) return;
+    const finalPct = bulkAdjustDirection === 'up' ? pct : -pct;
+    bulkAdjustMutation.mutate({
+      percentage: finalPct,
+      fields: bulkAdjustFields,
+      unidad: bulkAdjustUnit || undefined,
+    });
+  };
+
+  const handleExportCSV = async () => {
+    setIsExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.append('search', search);
+      if (selectedUnidad) params.append('unidad', selectedUnidad);
+      if (selectedColor) params.append('color', selectedColor);
+      const url = `/api/price-list/export/csv${params.toString() ? '?' + params.toString() : ''}`;
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) throw new Error('Export failed');
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `lista_precios_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      toast({ title: "Exportación exitosa", description: "El archivo CSV se descargó correctamente" });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo exportar la lista de precios" });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleCreateProduct = () => {
     const lista = newProduct.lista ? parseFloat(newProduct.lista) : null;
     const rendimiento = newProduct.rendimiento ? parseFloat(newProduct.rendimiento) : null;
@@ -333,9 +404,26 @@ export default function ListaPrecios() {
             <Plus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Agregar</span>
           </Button>
-          <Button variant="outline" size="sm" className="flex items-center gap-1.5 text-xs" disabled>
-            <Download className="h-3.5 w-3.5" />
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex items-center gap-1.5 text-xs" 
+            onClick={handleExportCSV}
+            disabled={isExporting}
+            data-testid="button-export-csv"
+          >
+            {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
             <span className="hidden sm:inline">Exportar</span>
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex items-center gap-1.5 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800" 
+            onClick={() => { setIsBulkAdjustOpen(true); setBulkAdjustConfirm(false); setBulkAdjustPercentage(''); }}
+            data-testid="button-bulk-adjust"
+          >
+            <Percent className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Ajuste Masivo</span>
           </Button>
           <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
             <DialogTrigger asChild>
@@ -1159,6 +1247,183 @@ export default function ListaPrecios() {
               {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Crear Producto
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Ajuste Masivo de Precios */}
+      <Dialog open={isBulkAdjustOpen} onOpenChange={(open) => { setIsBulkAdjustOpen(open); if (!open) setBulkAdjustConfirm(false); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Percent className="h-5 w-5 text-amber-600" />
+              Ajuste Masivo de Precios
+            </DialogTitle>
+            <DialogDescription>
+              Aumenta o disminuye todos los precios de la lista de forma porcentual
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-5 py-2">
+            {/* Direction toggle */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setBulkAdjustDirection('up')}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
+                  bulkAdjustDirection === 'up'
+                    ? 'bg-emerald-100 text-emerald-800 border-2 border-emerald-400 shadow-sm'
+                    : 'bg-gray-50 text-gray-500 border-2 border-gray-200 hover:bg-gray-100'
+                }`}
+                data-testid="toggle-adjust-up"
+              >
+                <TrendingUp className="h-4 w-4" />
+                Aumentar
+              </button>
+              <button
+                onClick={() => setBulkAdjustDirection('down')}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
+                  bulkAdjustDirection === 'down'
+                    ? 'bg-red-100 text-red-800 border-2 border-red-400 shadow-sm'
+                    : 'bg-gray-50 text-gray-500 border-2 border-gray-200 hover:bg-gray-100'
+                }`}
+                data-testid="toggle-adjust-down"
+              >
+                <TrendingDown className="h-4 w-4" />
+                Disminuir
+              </button>
+            </div>
+
+            {/* Percentage input */}
+            <div>
+              <Label className="text-sm font-semibold text-gray-700 mb-1.5 block">Porcentaje de ajuste</Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  placeholder="Ej: 5"
+                  min="0.1"
+                  max="100"
+                  step="0.1"
+                  value={bulkAdjustPercentage}
+                  onChange={(e) => { setBulkAdjustPercentage(e.target.value); setBulkAdjustConfirm(false); }}
+                  className="pr-10 text-lg font-bold h-12"
+                  data-testid="input-bulk-percentage"
+                />
+                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-lg font-bold text-gray-400">%</span>
+              </div>
+              {bulkAdjustPercentage && parseFloat(bulkAdjustPercentage) > 0 && (
+                <p className={`text-xs mt-1.5 font-medium ${bulkAdjustDirection === 'up' ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {bulkAdjustDirection === 'up' ? '↑' : '↓'} Todos los precios se {bulkAdjustDirection === 'up' ? 'multiplicarán' : 'reducirán'} por {(1 + (bulkAdjustDirection === 'up' ? 1 : -1) * parseFloat(bulkAdjustPercentage) / 100).toFixed(4)}x
+                </p>
+              )}
+            </div>
+
+            {/* Fields to adjust */}
+            <div>
+              <Label className="text-sm font-semibold text-gray-700 mb-2 block">Columnas a ajustar</Label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { key: 'lista', label: 'Lista' },
+                  { key: 'desc10', label: 'Desc10' },
+                  { key: 'desc10_5', label: 'Desc10+5' },
+                  { key: 'desc10_5_3', label: 'Desc10+5+3' },
+                  { key: 'minimo', label: 'Mínimo' },
+                  { key: 'canalDigital', label: 'Canal Digital' },
+                ].map(({ key, label }) => (
+                  <label
+                    key={key}
+                    className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium cursor-pointer transition-all ${
+                      bulkAdjustFields.includes(key)
+                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                        : 'bg-gray-50 text-gray-400 border border-gray-200'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={bulkAdjustFields.includes(key)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setBulkAdjustFields([...bulkAdjustFields, key]);
+                        } else {
+                          setBulkAdjustFields(bulkAdjustFields.filter(f => f !== key));
+                        }
+                      }}
+                      className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Optional unit filter */}
+            <div>
+              <Label className="text-sm font-semibold text-gray-700 mb-1.5 block">Filtrar por formato (opcional)</Label>
+              <Select
+                value={bulkAdjustUnit}
+                onValueChange={(value) => setBulkAdjustUnit(value === "all" ? "" : value)}
+              >
+                <SelectTrigger className="h-9 text-sm" data-testid="select-bulk-unit">
+                  <SelectValue placeholder="Todos los formatos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los formatos</SelectItem>
+                  {availableUnits.map((unit) => (
+                    <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter className="flex flex-col gap-2 sm:flex-col">
+            {!bulkAdjustConfirm ? (
+              <Button
+                onClick={() => setBulkAdjustConfirm(true)}
+                disabled={!bulkAdjustPercentage || parseFloat(bulkAdjustPercentage) <= 0 || bulkAdjustFields.length === 0}
+                className={`w-full h-11 text-sm font-bold ${
+                  bulkAdjustDirection === 'up'
+                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+                data-testid="button-bulk-preview"
+              >
+                {bulkAdjustDirection === 'up' ? <TrendingUp className="h-4 w-4 mr-2" /> : <TrendingDown className="h-4 w-4 mr-2" />}
+                {bulkAdjustDirection === 'up' ? 'Aumentar' : 'Disminuir'} {bulkAdjustPercentage || '0'}% — Vista previa
+              </Button>
+            ) : (
+              <div className="space-y-2 w-full">
+                <div className={`p-3 rounded-xl text-sm font-medium ${
+                  bulkAdjustDirection === 'up' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'
+                }`}>
+                  <p className="font-bold mb-1">⚠️ Confirmar ajuste masivo</p>
+                  <p>Se {bulkAdjustDirection === 'up' ? 'aumentarán' : 'disminuirán'} <strong>{bulkAdjustPercentage}%</strong> las columnas: <strong>{bulkAdjustFields.join(', ')}</strong>{bulkAdjustUnit ? ` (solo formato: ${bulkAdjustUnit})` : ' (todos los productos)'}.</p>
+                  <p className="mt-1 text-xs opacity-70">Esta acción no se puede deshacer.</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setBulkAdjustConfirm(false)}
+                    data-testid="button-bulk-cancel"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleBulkAdjust}
+                    disabled={bulkAdjustMutation.isPending}
+                    className={`flex-1 font-bold ${
+                      bulkAdjustDirection === 'up'
+                        ? 'bg-emerald-600 hover:bg-emerald-700'
+                        : 'bg-red-600 hover:bg-red-700'
+                    }`}
+                    data-testid="button-bulk-confirm"
+                  >
+                    {bulkAdjustMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+                    Sí, aplicar ajuste
+                  </Button>
+                </div>
+              </div>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
