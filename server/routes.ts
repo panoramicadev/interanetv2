@@ -10493,15 +10493,33 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Get store categories — ONLY admin-created categories from ecommerce_categories table
+  // Get store categories — from admin-created categories OR from actual product data
   app.get('/api/store/categories', async (req: any, res) => {
     try {
+      // First try admin-created categories from ecommerce_categories table
       const adminCategories = await storage.getEcommerceAdminCategories();
-      // Only return active categories, as plain string array
-      const categoryNames = adminCategories
+      const adminCategoryNames = adminCategories
         .filter(c => c.activa)
-        .map(c => c.nombre)
-        .sort();
+        .map(c => c.nombre);
+
+      if (adminCategoryNames.length > 0) {
+        return res.json(adminCategoryNames.sort());
+      }
+
+      // Fallback: get distinct categories directly from active ecommerce_products
+      const { ecommerceProducts } = await import('@shared/schema');
+      const result = await db
+        .selectDistinct({ categoria: ecommerceProducts.categoria })
+        .from(ecommerceProducts)
+        .where(and(
+          eq(ecommerceProducts.activo, true),
+          sql`${ecommerceProducts.categoria} IS NOT NULL AND ${ecommerceProducts.categoria} != ''`
+        ))
+        .orderBy(ecommerceProducts.categoria);
+
+      const categoryNames = result
+        .map(r => r.categoria)
+        .filter((cat): cat is string => !!cat);
       res.json(categoryNames);
     } catch (error) {
       console.error("Error fetching store categories:", error);
