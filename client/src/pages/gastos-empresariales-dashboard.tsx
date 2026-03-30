@@ -187,11 +187,38 @@ async function loadImageForPdf(imageUrl: string, retries = 2): Promise<{ base64:
 }
 
 // Convert first page of PDF to compressed JPEG image
-async function pdfToImage(pdfUrl: string, width: number = 300): Promise<string | null> {
+async function pdfToImage(pdfUrl: string, width: number = 500): Promise<string | null> {
   try {
-    const blob = await fetchFileBlob(pdfUrl);
-    const arrayBuffer = await blob.arrayBuffer();
+    // Use proxy for external URLs to avoid CORS
+    const isExternal = pdfUrl.startsWith('http') && !pdfUrl.includes(window.location.hostname);
+    let blob: Blob;
+    
+    if (isExternal) {
+      // Try proxy first (avoids CORS issues for Supabase PDFs)
+      try {
+        const proxyRes = await fetchWithTimeout(
+          `/api/proxy-file?url=${encodeURIComponent(pdfUrl)}`,
+          { credentials: 'include' },
+          15000
+        );
+        if (proxyRes.ok) {
+          blob = await proxyRes.blob();
+        } else {
+          throw new Error(`Proxy returned ${proxyRes.status}`);
+        }
+      } catch (proxyErr) {
+        console.warn('[PDF-Preview] Proxy failed, trying direct:', proxyErr);
+        const directRes = await fetchWithTimeout(pdfUrl, {}, 10000);
+        if (!directRes.ok) throw new Error(`Direct fetch failed: ${directRes.status}`);
+        blob = await directRes.blob();
+      }
+    } else {
+      const res = await fetchWithTimeout(pdfUrl, { credentials: 'include' }, 10000);
+      if (!res.ok) throw new Error(`Local fetch failed: ${res.status}`);
+      blob = await res.blob();
+    }
 
+    const arrayBuffer = await blob.arrayBuffer();
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
     const page = await pdf.getPage(1);
@@ -209,10 +236,9 @@ async function pdfToImage(pdfUrl: string, width: number = 300): Promise<string |
 
     await page.render({ canvasContext: context, viewport: scaledViewport, canvas } as any).promise;
 
-    // Compress to JPEG instead of PNG
-    return canvas.toDataURL('image/jpeg', 0.6);
+    return canvas.toDataURL('image/jpeg', 0.5);
   } catch (error) {
-    console.error('Error converting PDF to image:', error);
+    console.error('[PDF-Preview] Error converting PDF to image:', error);
     return null;
   }
 }
@@ -1186,13 +1212,15 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
         for (let batchStart = 0; batchStart < allImages.length; batchStart += BATCH_SIZE) {
           const batch = allImages.slice(batchStart, batchStart + BATCH_SIZE);
           await Promise.allSettled(
-            batch.map((img, i) =>
-              withTimeout(
+            batch.map((img, i) => {
+              const isPdf = img.url.toLowerCase().endsWith('.pdf');
+              const timeout = isPdf ? 20000 : PER_IMAGE_TIMEOUT; // PDFs need more time
+              return withTimeout(
                 preloadSingleImage(img, batchStart + i),
-                PER_IMAGE_TIMEOUT,
+                timeout,
                 `img-${batchStart + i}`
-              ).catch(() => { preloadedImages[batchStart + i] = null; })
-            )
+              ).catch(() => { preloadedImages[batchStart + i] = null; });
+            })
           );
         }
 
