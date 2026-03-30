@@ -965,7 +965,7 @@ export default function TiendaPage() {
                 }`}
                 data-testid={`filter-cat-${category}`}
               >
-                {category}
+                {category.toUpperCase()}
               </button>
             ))}
 
