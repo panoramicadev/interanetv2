@@ -6736,6 +6736,63 @@ export function registerRoutes(app: Express): Server {
     res.json({ success: true });
   }));
 
+  // Rename a custom category
+  app.patch('/api/ecommerce/categories-config/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (!['admin', 'supervisor'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const { id } = req.params;
+    const { name, description, color } = req.body;
+    
+    if (name !== undefined && (!name || !name.trim())) {
+      return res.status(400).json({ message: 'El nombre de la categoría es requerido' });
+    }
+
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    
+    const result = await db.execute(sql`
+      SELECT value FROM app_config WHERE key = 'ecommerce_categories'
+    `);
+    const row = (result as any).rows?.[0];
+    let categories: any[] = row?.value || [];
+    
+    const catIndex = categories.findIndex((c: any) => c.id === id);
+    if (catIndex === -1) {
+      return res.status(404).json({ message: 'Categoría no encontrada' });
+    }
+
+    const oldName = categories[catIndex].name;
+    const newName = name?.trim() || oldName;
+    
+    // Check for duplicate names (excluding this category)
+    if (name && categories.some((c: any, i: number) => i !== catIndex && c.name.toLowerCase() === newName.toLowerCase())) {
+      return res.status(400).json({ message: 'Ya existe una categoría con ese nombre' });
+    }
+
+    // Update the category
+    if (name) categories[catIndex].name = newName;
+    if (description !== undefined) categories[catIndex].description = description.trim();
+    if (color) categories[catIndex].color = color;
+    
+    await db.execute(sql`
+      INSERT INTO app_config (key, value, updated_at)
+      VALUES ('ecommerce_categories', ${JSON.stringify(categories)}::jsonb, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(categories)}::jsonb, updated_at = NOW()
+    `);
+    
+    // If name changed, update all products referencing the old name
+    if (name && oldName !== newName) {
+      await db.execute(sql`
+        UPDATE ecommerce_products SET categoria = ${newName}
+        WHERE categoria = ${oldName}
+      `);
+    }
+    
+    res.json(categories[catIndex]);
+  }));
+
   // Assign a product family to a category (update group_name)
   app.patch('/api/ecommerce/product-category', requireAuth, asyncHandler(async (req: any, res: any) => {
     if (!['admin', 'supervisor'].includes(req.user.role)) {
@@ -10615,7 +10672,22 @@ export function registerRoutes(app: Express): Server {
   // Get store categories — from admin-created categories OR from actual product data
   app.get('/api/store/categories', async (req: any, res) => {
     try {
-      // First try admin-created categories from ecommerce_categories table
+      // Priority 1: Custom categories from app_config (Productos > Categorías y Etiquetas)
+      try {
+        const configResult = await db.execute(sql`
+          SELECT value FROM app_config WHERE key = 'ecommerce_categories'
+        `);
+        const configRow = (configResult as any).rows?.[0];
+        const customCategories: any[] = configRow?.value || [];
+        if (customCategories.length > 0) {
+          const catNames = customCategories.map((c: any) => c.name).sort();
+          return res.json(catNames);
+        }
+      } catch (e) {
+        console.log('[store/categories] app_config lookup skipped:', e);
+      }
+
+      // Priority 2: Admin-created categories from ecommerce_categories table
       const adminCategories = await storage.getEcommerceAdminCategories();
       const adminCategoryNames = adminCategories
         .filter(c => c.activa)

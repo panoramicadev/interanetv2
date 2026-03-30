@@ -194,6 +194,8 @@ function CategoriasEtiquetasContent() {
   const [newCatName, setNewCatName] = useState("");
   const [newCatDesc, setNewCatDesc] = useState("");
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editingCatName, setEditingCatName] = useState("");
 
   const AVAILABLE_TAGS = ["Mejor Precio", "Rápida Rotación", "Pocas Unidades"];
   const TAG_COLORS: Record<string, string> = {
@@ -272,6 +274,30 @@ function CategoriasEtiquetasContent() {
       queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog"] });
       toast({ title: "Categoría eliminada" });
     },
+  });
+
+  // Rename category mutation
+  const renameCatMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const res = await fetch(`/api/ecommerce/categories-config/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+        credentials: "include",
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.message); }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ecommerce/categories-config"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/public/products/grouped"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/store/categories"] });
+      setEditingCatId(null);
+      setEditingCatName("");
+      toast({ title: "Categoría renombrada" });
+    },
+    onError: (e) => toast({ variant: "destructive", title: "Error", description: String(e.message) }),
   });
 
   // Assign product to category
@@ -440,12 +466,64 @@ function CategoriasEtiquetasContent() {
                 {/* Category Header */}
                 <div
                   className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-gray-50 to-white dark:from-slate-800 dark:to-slate-900 cursor-pointer hover:from-gray-100 dark:hover:from-slate-700 transition-all"
-                  onClick={() => toggleCat(cat.id)}
+                  onClick={() => editingCatId !== cat.id && toggleCat(cat.id)}
                 >
                   <div className="w-4 h-4 rounded-lg flex-shrink-0 shadow-sm" style={{ backgroundColor: cat.color || '#f97316' }} />
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-sm text-foreground">{cat.name}</h3>
-                    {cat.description && <p className="text-[11px] text-muted-foreground truncate">{cat.description}</p>}
+                    {editingCatId === cat.id ? (
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <Input
+                          value={editingCatName}
+                          onChange={(e) => setEditingCatName(e.target.value)}
+                          className="h-7 text-sm font-bold w-48"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && editingCatName.trim()) {
+                              renameCatMutation.mutate({ id: cat.id, name: editingCatName.trim() });
+                            }
+                            if (e.key === 'Escape') {
+                              setEditingCatId(null);
+                              setEditingCatName("");
+                            }
+                          }}
+                        />
+                        <Button
+                          size="sm"
+                          className="h-7 px-2 bg-green-500 hover:bg-green-600 text-white text-xs"
+                          disabled={!editingCatName.trim() || renameCatMutation.isPending}
+                          onClick={() => renameCatMutation.mutate({ id: cat.id, name: editingCatName.trim() })}
+                        >
+                          {renameCatMutation.isPending ? '...' : '✓'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => { setEditingCatId(null); setEditingCatName(""); }}
+                        >
+                          ✕
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="font-bold text-sm text-foreground">{cat.name}</h3>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingCatId(cat.id);
+                            setEditingCatName(cat.name);
+                          }}
+                          className="text-muted-foreground hover:text-orange-500 p-0.5 rounded transition-colors opacity-0 group-hover:opacity-100 hover:opacity-100"
+                          style={{ opacity: 0.4 }}
+                          onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                          onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.4')}
+                          title="Renombrar categoría"
+                        >
+                          <Edit className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
+                    {cat.description && editingCatId !== cat.id && <p className="text-[11px] text-muted-foreground truncate">{cat.description}</p>}
                   </div>
                   <Badge variant="secondary" className="text-[11px] font-bold px-2.5 py-0.5 flex-shrink-0">
                     {productsInCat.length} producto{productsInCat.length !== 1 ? 's' : ''}
