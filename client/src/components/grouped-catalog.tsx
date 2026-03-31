@@ -357,26 +357,12 @@ export default function GroupedCatalog() {
                             className="flex items-center gap-3 p-4 cursor-pointer hover:bg-muted/30 transition-colors"
                             onClick={() => toggleProduct(product.genericName)}
                         >
-                            {/* Reorder arrows */}
-                            <div className="flex flex-col gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
-                                    disabled={reorderMutation.isPending || catalog.indexOf(product) === 0}
-                                    onClick={() => reorderMutation.mutate({ productName: product.genericName, direction: 'up' })}
-                                >
-                                    <ArrowUp className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
-                                    disabled={reorderMutation.isPending || catalog.indexOf(product) === catalog.length - 1}
-                                    onClick={() => reorderMutation.mutate({ productName: product.genericName, direction: 'down' })}
-                                >
-                                    <ArrowDown className="h-3.5 w-3.5" />
-                                </Button>
+                            {/* Position number */}
+                            <div 
+                                className="flex-shrink-0 w-7 h-7 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs font-bold border border-orange-200"
+                                title={`Posición ${catalog.indexOf(product) + 1}`}
+                            >
+                                {catalog.indexOf(product) + 1}
                             </div>
                             {isExpanded ? (
                                 <ChevronDown className="h-5 w-5 text-muted-foreground flex-shrink-0" />

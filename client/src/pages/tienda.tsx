@@ -247,6 +247,9 @@ export default function TiendaPage() {
   // Cart state management
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [showFloatingCart, setShowFloatingCart] = useState(false);
+  
+  // FAQ modal state
+  const [showFaqModal, setShowFaqModal] = useState(false);
 
   // Product info modal state
   const [infoModal, setInfoModal] = useState<{ open: boolean; productName: string; loading: boolean; data: any | null }>({
@@ -749,10 +752,20 @@ export default function TiendaPage() {
               <span className="flex items-center gap-1 hover:text-gray-600 transition-colors"><Mail className="h-3 w-3" />{storeConfig?.email || "contacto@panoramica.cl"}</span>
               <span className="flex items-center gap-1 hover:text-gray-600 transition-colors"><MapPin className="h-3 w-3" />{storeConfig?.address || "Santiago, Chile"}</span>
             </div>
-            <span className="text-[#FF6E23] font-semibold flex items-center gap-1">
-              <Truck className="h-3 w-3" />
-              Envío gratis sobre $250.000
-            </span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowFaqModal(true)}
+                className="flex items-center gap-1 hover:text-gray-600 transition-colors cursor-pointer font-medium"
+              >
+                <HelpCircle className="h-3 w-3" />
+                Preguntas Frecuentes
+              </button>
+              <span className="text-gray-200">|</span>
+              <span className="text-[#FF6E23] font-semibold flex items-center gap-1">
+                <Truck className="h-3 w-3" />
+                Envío gratis sobre $250.000
+              </span>
+            </div>
           </div>
 
           {/* Main header */}
@@ -1816,6 +1829,68 @@ export default function TiendaPage() {
         </div>
       </div>
     )}
+    {/* ─── FAQ Modal ─── */}
+    <Dialog open={showFaqModal} onOpenChange={setShowFaqModal}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-xl">
+            <HelpCircle className="h-5 w-5 text-[#FF6E23]" />
+            Preguntas Frecuentes
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 mt-4">
+          {[
+            {
+              pregunta: "¿Cómo puedo realizar un pedido?",
+              respuesta: "Navegue por nuestro catálogo, seleccione los productos que necesita ajustando las cantidades, y haga clic en el botón del carrito para revisar su pedido. Luego presione \"Enviar Pedido\" para confirmar. Recibirá una confirmación por correo electrónico."
+            },
+            {
+              pregunta: "¿Cuál es el monto mínimo de compra?",
+              respuesta: "El monto mínimo de compra varía según el tipo de producto y formato. Los galones se venden en unidades individuales, mientras que los formatos de 1/4 de galón tienen un mínimo de 6 unidades. Consulte las especificaciones de cada producto para más detalles."
+            },
+            {
+              pregunta: "¿Cuáles son los costos de envío?",
+              respuesta: "Los costos de envío se calculan según el volumen de su pedido y la zona de despacho. Pedidos sobre $250.000 tienen envío gratuito dentro de la Región Metropolitana. Para regiones, consulte con nuestro equipo de ventas."
+            },
+            {
+              pregunta: "¿Cuánto tiempo tarda el despacho?",
+              respuesta: "Los pedidos dentro de la Región Metropolitana se despachan en 24 a 48 horas hábiles. Para regiones, el plazo es de 3 a 5 días hábiles dependiendo de la ubicación. Recibirá un aviso cuando su pedido sea despachado."
+            },
+            {
+              pregunta: "¿Qué métodos de pago aceptan?",
+              respuesta: "Aceptamos transferencia bancaria y pago contra factura para clientes con crédito aprobado. Al enviar su pedido, recibirá los datos bancarios para realizar la transferencia. El pedido se procesará una vez confirmado el pago."
+            },
+            {
+              pregunta: "¿Puedo ver el rendimiento de los productos?",
+              respuesta: "Sí, en la ficha técnica de cada producto puede encontrar información sobre rendimiento por m², tiempos de secado, y recomendaciones de aplicación. Haga clic en \"Detalles\" en cualquier producto para ver su información completa."
+            },
+            {
+              pregunta: "¿Cómo solicito una cotización formal?",
+              respuesta: "Puede agregar los productos que necesita al carrito y enviar el pedido. Nuestro equipo comercial le enviará una cotización formal con los precios y condiciones aplicables a su cuenta."
+            },
+            {
+              pregunta: "¿Qué hago si un producto no tiene stock?",
+              respuesta: "Si un producto muestra stock 0, puede contactarnos directamente al correo o teléfono indicado en la parte superior de la tienda. Nuestro equipo le informará sobre disponibilidad y tiempos de reposición."
+            },
+          ].map((faq, i) => (
+            <details key={i} className="group bg-gray-50 rounded-xl border border-gray-200 overflow-hidden transition-all hover:border-[#FF6E23]/30">
+              <summary className="flex items-center justify-between p-4 cursor-pointer select-none list-none">
+                <span className="text-sm font-semibold text-gray-800 pr-4">{faq.pregunta}</span>
+                <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0 transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="px-4 pb-4 pt-0">
+                <p className="text-sm text-gray-600 leading-relaxed">{faq.respuesta}</p>
+              </div>
+            </details>
+          ))}
+        </div>
+        <div className="mt-6 pt-4 border-t text-center">
+          <p className="text-xs text-gray-400">
+            ¿Tiene alguna otra consulta? Contáctenos al {storeConfig?.phone || "+56 2 2345 6789"} o escríbanos a {storeConfig?.email || "contacto@panoramica.cl"}
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
     </>
   );
 }
