@@ -819,7 +819,7 @@ export default function TiendaPage() {
               {(topbarConfig?.freeShipping?.visible !== false) && freeShippingThreshold > 0 && (
                 <span className="text-[#FF6E23] font-semibold flex items-center gap-1">
                   <Truck className="h-3 w-3" />
-                  Envío gratis sobre ${freeShippingThreshold > 0 ? `$${freeShippingThreshold.toLocaleString('es-CL')}` : ''}
+                  Envío gratis sobre {freeShippingThreshold > 0 ? `$${freeShippingThreshold.toLocaleString('es-CL')}` : ''}
                 </span>
               )}
               {topbarConfig?.customText?.visible && topbarConfig.customText.value && (

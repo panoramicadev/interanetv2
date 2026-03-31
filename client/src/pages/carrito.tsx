@@ -2,12 +2,12 @@ import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { useCart } from "@/hooks/useCart";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
-import { ShoppingBag, ArrowLeft, Trash2, Minus, Plus, Package } from "lucide-react";
+import { ShoppingBag, ArrowLeft, Trash2, Minus, Plus, Package, FileDown } from "lucide-react";
 import { BillingSummary } from "@/components/cart";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 const formatPrice = (price: number): string => {
   return `$${new Intl.NumberFormat('es-CL', {
@@ -33,9 +33,17 @@ const extractColor = (code: string): string | null => {
   return null;
 };
 
+const escapeHtml = (text: string | null | undefined): string => {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+};
+
 export default function Carrito() {
   const { state, clearCart, updateQuantity, removeItem } = useCart();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -60,7 +68,7 @@ export default function Carrito() {
   if (isEmpty) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="container mx-auto px-4 py-8">
+        <div className="container mx-auto px-2 sm:px-4 py-6">
           <div className="flex items-center gap-4 mb-8">
             <Link href="/tienda">
               <Button variant="ghost" size="sm" data-testid="button-back-to-shop">
@@ -130,11 +138,188 @@ export default function Carrito() {
     updateQuantity(item.id, newQty);
   };
 
+  // PDF Export — mirrors tomador-pedidos style
+  const handleExportPDF = () => {
+    const subtotal = state.items.reduce((sum, item) => sum + item.subtotal, 0);
+    const shipping = 0; // Calculated elsewhere
+    const tax = subtotal * 0.19;
+    const total = subtotal + tax;
+    const formatCurrency = (n: number) => `$${Math.round(n).toLocaleString('es-CL').replace(/,/g, '.')}`;
+    const now = new Date().toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+    const productRows = state.items.map(item => {
+      const color = item.selectedColor || extractColor(item.productCode);
+      return `<tr>
+        <td>
+          <div class="product-name">${escapeHtml(item.productName)}</div>
+          <div class="product-code">SKU: ${escapeHtml(item.productCode)}${color ? ` • ${color}` : ''}</div>
+        </td>
+        <td class="text-center">${escapeHtml(item.unit) || 'UN'}</td>
+        <td class="text-center">${item.quantity}</td>
+        <td class="text-right">${formatCurrency(item.unitPrice)}</td>
+        <td class="text-right" style="color: #fd6301; font-weight: 600;">${formatCurrency(item.subtotal)}</td>
+      </tr>`;
+    }).join('');
+
+    const userName = user?.firstName && user?.lastName 
+      ? `${user.firstName} ${user.lastName}` 
+      : user?.firstName || user?.email || 'Cliente';
+
+    const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Carrito - ${userName}</title>
+  <style>
+    @page { size: A4; margin: 15mm; }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; color: #333; font-size: 14px; line-height: 1.4; }
+    .container { max-width: 100%; margin: 0 auto; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 2px solid #fd6301; padding-bottom: 15px; }
+    .header-left { flex-shrink: 0; }
+    .header-right { text-align: right; }
+    .header img { max-height: 60px; width: auto; }
+    .header h1 { color: #fd6301; margin: 0; font-size: 24px; font-weight: bold; }
+    .header-info { font-size: 13px; color: #374151; margin-top: 8px; }
+    .header-info p { margin: 4px 0; }
+    .section { margin-bottom: 15px; }
+    .section h3 { color: #fd6301; margin: 0 0 10px 0; font-size: 16px; font-weight: bold; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 13px; }
+    th { background: linear-gradient(to right, #fd6301, #e55100); color: white; padding: 8px; text-align: left; font-weight: bold; font-size: 12px; }
+    td { padding: 8px; border-bottom: 1px solid #e5e7eb; }
+    tr:nth-child(even) { background-color: #fafafa; }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+    .product-name { font-weight: 600; color: #1f2937; font-size: 13px; }
+    .product-code { color: #6b7280; font-size: 11px; margin-top: 2px; }
+    .totals { background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
+    .total-row { display: flex; justify-content: space-between; margin: 6px 0; font-size: 14px; }
+    .total-row span:first-child { color: #374151; font-weight: 500; }
+    .total-row span:last-child { font-weight: 600; }
+    .final-total { font-size: 16px; font-weight: bold; border-top: 2px solid #e2e8f0; padding-top: 10px; margin-top: 8px; }
+    .final-total span:last-child { color: #fd6301; }
+    .payment-info { background-color: #fff7ed; border: 1px solid #fdba74; padding: 12px; border-radius: 6px; font-size: 12px; }
+    .payment-info h4 { color: #ea580c; margin: 0 0 10px 0; font-size: 14px; }
+    .payment-info p { margin: 0 0 8px 0; }
+    .payment-info a { color: #2563eb; text-decoration: underline; word-break: break-all; }
+    .payment-section { margin-bottom: 10px; }
+    .payment-section:last-child { margin-bottom: 0; }
+    @media print {
+      body { margin: 0; font-size: 12px; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-left">
+        <img src="${window.location.origin}/panoramica-logo.png" alt="Logo Panorámica" style="width:220px;height:auto;display:block" />
+      </div>
+      <div class="header-right">
+        <h1>PEDIDO</h1>
+        <div class="header-info">
+          <p><strong>Fecha:</strong> ${now}</p>
+          <p><strong>Cliente:</strong> ${escapeHtml(userName)}</p>
+          ${user?.email ? `<p><strong>Email:</strong> ${escapeHtml(user.email)}</p>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Detalle de Productos</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th class="text-center">Unidad</th>
+            <th class="text-center">Cant.</th>
+            <th class="text-right">Precio</th>
+            <th class="text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${productRows}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <div class="totals">
+        <div class="total-row">
+          <span>Subtotal (Neto):</span>
+          <span>${formatCurrency(subtotal)}</span>
+        </div>
+        <div class="total-row">
+          <span>IVA (19%):</span>
+          <span>${formatCurrency(tax)}</span>
+        </div>
+        <div class="total-row final-total">
+          <span>Total:</span>
+          <span>${formatCurrency(total)}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="payment-info">
+        <h4>Información de Pagos</h4>
+        <div class="payment-section">
+          <p><strong>Link de pagos con tarjetas:</strong><br>
+          <a href="https://micrositios.getnet.cl/pinturaspanoramica">https://micrositios.getnet.cl/pinturaspanoramica</a></p>
+        </div>
+        <div class="payment-section">
+          <p><strong>Pagos con transferencia dirigirlos a:</strong><br>
+          Pintureria Panoramica Limitada<br>
+          RUT: 78.652.260-9<br>
+          Cuenta Corriente Banco Santander: 2592916-0<br>
+          Email: <a href="mailto:contacto@pinturaspanoramica.cl">contacto@pinturaspanoramica.cl</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="no-print" style="margin-top: 20px; text-align: center;">
+    <button onclick="window.print()" style="padding: 10px 20px; background-color: #fd6301; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+      Imprimir / Descargar PDF
+    </button>
+  </div>
+  <script>
+    window.addEventListener('load', function() {
+      var img = document.querySelector('.header-left img');
+      function doPrint() {
+        window.focus();
+        window.print();
+      }
+      if (img && !img.complete) {
+        img.onload = doPrint;
+        img.onerror = doPrint;
+        setTimeout(doPrint, 3000);
+      } else {
+        setTimeout(doPrint, 500);
+      }
+    });
+  </script>
+</body>
+</html>`;
+
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+    } else {
+      toast({
+        title: "Error",
+        description: "No se pudo abrir la ventana de PDF. Verifique que el navegador no bloquee ventanas emergentes.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
             <Link href="/tienda">
               <Button variant="ghost" size="sm" data-testid="button-back-to-shop-header">
@@ -143,38 +328,50 @@ export default function Carrito() {
               </Button>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white" data-testid="text-cart-title">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white" data-testid="text-cart-title">
                 Mi carrito
               </h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400" data-testid="text-cart-count">
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400" data-testid="text-cart-count">
                 {state.itemCount} Producto{state.itemCount !== 1 ? 's' : ''}
               </p>
             </div>
           </div>
           
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleClearCart}
-            className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950 border-red-200 dark:border-red-800"
-            data-testid="button-clear-cart"
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Eliminar todos
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportPDF}
+              className="text-[#FF6E23] hover:text-[#E55E13] hover:bg-orange-50 border-orange-200"
+              data-testid="button-export-pdf"
+            >
+              <FileDown className="h-4 w-4 mr-1.5" />
+              Exportar PDF
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClearCart}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950 border-red-200 dark:border-red-800"
+              data-testid="button-clear-cart"
+            >
+              <Trash2 className="h-4 w-4 mr-1.5" />
+              Vaciar
+            </Button>
+          </div>
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Side - Products Table (2/3 width on desktop) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+          {/* Left Side - Products Table */}
           <div className="lg:col-span-2">
             <Card className="bg-white dark:bg-gray-800 shadow-sm border-gray-200 dark:border-gray-700 overflow-hidden">
               {/* Desktop Table Header */}
-              <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+              <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-4 py-2 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
                 <div>Producto</div>
-                <div className="w-28 text-center">Precio Unit.</div>
-                <div className="w-36 text-center">Cantidad</div>
-                <div className="w-28 text-right">Subtotal</div>
+                <div className="w-24 text-center">Precio Unit.</div>
+                <div className="w-32 text-center">Cantidad</div>
+                <div className="w-24 text-right">Subtotal</div>
                 <div className="w-8"></div>
               </div>
 
@@ -190,11 +387,10 @@ export default function Carrito() {
                       data-testid={`cart-page-item-${item.productId}`}
                     >
                       {/* Desktop Row */}
-                      <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 items-center px-4 py-3">
+                      <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 items-center px-4 py-2.5">
                         {/* Product Info */}
                         <div className="flex items-center gap-3 min-w-0">
-                          {/* Small thumbnail */}
-                          <div className="w-10 h-10 flex-shrink-0 bg-gray-100 dark:bg-gray-800 rounded overflow-hidden border border-gray-200">
+                          <div className="w-9 h-9 flex-shrink-0 bg-gray-100 dark:bg-gray-800 rounded overflow-hidden border border-gray-200">
                             {item.imageUrl ? (
                               <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-cover" />
                             ) : (
@@ -209,25 +405,21 @@ export default function Carrito() {
                             </p>
                             <div className="flex items-center gap-2 mt-0.5">
                               <span className="text-[11px] font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{item.productCode}</span>
-                              {item.unit && (
-                                <span className="text-[11px] text-gray-400">{item.unit}</span>
-                              )}
-                              {color && (
-                                <span className="text-[11px] text-gray-400">• {color}</span>
-                              )}
+                              {item.unit && <span className="text-[11px] text-gray-400">{item.unit}</span>}
+                              {color && <span className="text-[11px] text-gray-400">• {color}</span>}
                             </div>
                           </div>
                         </div>
 
                         {/* Unit Price */}
-                        <div className="w-28 text-center">
+                        <div className="w-24 text-center">
                           <span className="text-sm font-medium text-gray-700 dark:text-gray-300" data-testid={`text-unit-price-${item.productId}`}>
                             {formatPrice(item.unitPrice)}
                           </span>
                         </div>
 
                         {/* Quantity Controls */}
-                        <div className="w-36 flex items-center justify-center gap-1">
+                        <div className="w-32 flex items-center justify-center gap-1">
                           <Button
                             variant="ghost"
                             size="sm"
@@ -250,7 +442,7 @@ export default function Carrito() {
                                 if (e.key === 'Escape') setEditingId(null);
                               }}
                               autoFocus
-                              className="w-16 h-7 text-center text-sm px-1 font-mono"
+                              className="w-14 h-7 text-center text-sm px-1 font-mono"
                               min={item.minQuantity}
                               step={item.quantityStep}
                               data-testid={`input-quantity-${item.productId}`}
@@ -258,7 +450,7 @@ export default function Carrito() {
                           ) : (
                             <button
                               onClick={() => startEdit(item)}
-                              className="w-16 h-7 text-center text-sm font-mono font-semibold rounded-md border border-gray-200 bg-white hover:border-[#FF6E23] hover:text-[#FF6E23] transition-colors cursor-text"
+                              className="w-14 h-7 text-center text-sm font-mono font-semibold rounded-md border border-gray-200 bg-white hover:border-[#FF6E23] hover:text-[#FF6E23] transition-colors cursor-text"
                               data-testid={`input-quantity-${item.productId}`}
                             >
                               {item.quantity}
@@ -277,7 +469,7 @@ export default function Carrito() {
                         </div>
 
                         {/* Subtotal */}
-                        <div className="w-28 text-right">
+                        <div className="w-24 text-right">
                           <span className="text-sm font-bold text-gray-900 dark:text-white" data-testid={`text-subtotal-${item.productId}`}>
                             {formatPrice(item.subtotal)}
                           </span>
@@ -295,25 +487,25 @@ export default function Carrito() {
                         </div>
                       </div>
 
-                      {/* Mobile Row - Compact Card */}
-                      <div className="md:hidden px-4 py-3">
-                        <div className="flex items-start gap-3">
+                      {/* Mobile Row - Compact */}
+                      <div className="md:hidden px-3 py-2.5">
+                        <div className="flex items-start gap-2.5">
                           {/* Small thumbnail */}
-                          <div className="w-12 h-12 flex-shrink-0 bg-gray-100 rounded overflow-hidden border border-gray-200">
+                          <div className="w-10 h-10 flex-shrink-0 bg-gray-100 rounded overflow-hidden border border-gray-200">
                             {item.imageUrl ? (
                               <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
-                                <Package className="h-5 w-5 text-gray-400" />
+                                <Package className="h-4 w-4 text-gray-400" />
                               </div>
                             )}
                           </div>
                           
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start justify-between gap-1">
                               <div className="min-w-0">
-                                <p className="text-sm font-semibold text-gray-900 truncate">{item.productName}</p>
-                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                <p className="text-[13px] font-semibold text-gray-900 truncate leading-tight">{item.productName}</p>
+                                <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                                   <span className="text-[10px] font-mono text-gray-500 bg-gray-100 px-1 py-0.5 rounded">{item.productCode}</span>
                                   {item.unit && <span className="text-[10px] text-gray-400">{item.unit}</span>}
                                   {color && <span className="text-[10px] text-gray-400">• {color}</span>}
@@ -321,21 +513,21 @@ export default function Carrito() {
                               </div>
                               <button
                                 onClick={() => handleRemove(item)}
-                                className="p-1 text-gray-400 hover:text-red-500 flex-shrink-0"
+                                className="p-1 text-gray-400 hover:text-red-500 flex-shrink-0 -mr-1"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
                             </div>
                             
                             {/* Price + Qty row */}
-                            <div className="flex items-center justify-between mt-2">
-                              <span className="text-xs text-gray-500">{formatPrice(item.unitPrice)} c/u</span>
+                            <div className="flex items-center justify-between mt-1.5">
+                              <span className="text-[11px] text-gray-500">{formatPrice(item.unitPrice)} c/u</span>
                               
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-0.5">
                                 <Button variant="ghost" size="sm" onClick={() => decrement(item)} disabled={item.quantity <= item.minQuantity} className="h-6 w-6 p-0">
                                   <Minus className="h-2.5 w-2.5" />
                                 </Button>
-                                <span className="text-sm font-mono font-semibold w-10 text-center">{item.quantity}</span>
+                                <span className="text-sm font-mono font-semibold w-8 text-center">{item.quantity}</span>
                                 <Button variant="ghost" size="sm" onClick={() => increment(item)} className="h-6 w-6 p-0">
                                   <Plus className="h-2.5 w-2.5" />
                                 </Button>
@@ -352,8 +544,8 @@ export default function Carrito() {
               </div>
 
               {/* Table Footer */}
-              <div className="px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <span className="text-xs text-gray-500">{state.items.length} líneas • {state.itemCount} unidades</span>
+              <div className="px-3 sm:px-4 py-2 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <span className="text-[11px] sm:text-xs text-gray-500">{state.items.length} líneas • {state.itemCount} unidades</span>
                 <span className="text-sm font-bold text-gray-900 dark:text-white">
                   Neto: {formatPrice(state.items.reduce((sum, item) => sum + item.subtotal, 0))}
                 </span>
@@ -361,7 +553,7 @@ export default function Carrito() {
             </Card>
           </div>
 
-          {/* Right Side - Billing Summary (1/3 width on desktop) */}
+          {/* Right Side - Billing Summary */}
           <div className="lg:col-span-1">
             <div className="sticky top-8">
               <BillingSummary />
@@ -370,11 +562,11 @@ export default function Carrito() {
         </div>
 
         {/* Continue Shopping */}
-        <div className="mt-8 text-center">
+        <div className="mt-6 text-center">
           <Link href="/tienda">
             <Button 
               variant="outline" 
-              className="mt-2"
+              size="sm"
               data-testid="button-continue-shopping-bottom"
             >
               Continuar comprando
