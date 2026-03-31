@@ -84,6 +84,7 @@ function FletesContent() {
   };
 
   return (
+    <>
     <Card className="border-0 shadow-sm rounded-xl overflow-hidden">
       <CardHeader className="bg-muted/30 border-b px-6 py-4">
         <div className="flex items-center justify-between">
@@ -139,6 +140,103 @@ function FletesContent() {
                 Estas tarifas se aplicarán automáticamente en la tienda según el formato del producto al momento del checkout.
               </p>
             </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+
+    {/* Free Shipping Threshold Config */}
+    <FreeShippingThresholdConfig />
+  </>
+  );
+}
+
+// Free Shipping Threshold sub-component
+function FreeShippingThresholdConfig() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: thresholdData, isLoading } = useQuery<{ threshold: number }>({
+    queryKey: ['/api/ecommerce/free-shipping-threshold'],
+    retry: false,
+  });
+
+  const [thresholdValue, setThresholdValue] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (thresholdData?.threshold !== undefined) {
+      setThresholdValue(thresholdData.threshold.toString());
+    }
+  }, [thresholdData]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await apiRequest('PUT', '/api/ecommerce/free-shipping-threshold', {
+        threshold: parseFloat(thresholdValue) || 0
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/free-shipping-threshold'] });
+      toast({ title: 'Monto de envío gratis actualizado' });
+    } catch {
+      toast({ title: 'Error al guardar', variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Card className="border-0 shadow-sm rounded-xl overflow-hidden mt-4">
+      <CardHeader className="bg-emerald-50/50 dark:bg-emerald-950/20 border-b px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Package className="h-5 w-5 text-emerald-500" />
+              Envío Gratis
+            </CardTitle>
+            <CardDescription className="mt-0.5">
+              Monto mínimo de compra para envío gratuito. Se muestra en la tienda y en el carrito.
+            </CardDescription>
+          </div>
+          <Button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="gap-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg"
+          >
+            <Save className="h-4 w-4" />
+            {isSaving ? 'Guardando...' : 'Guardar'}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="p-6">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-emerald-500 border-t-transparent" />
+          </div>
+        ) : (
+          <div className="max-w-md">
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Monto mínimo para envío gratis (CLP)
+            </label>
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+              <Input
+                type="number"
+                placeholder="250000"
+                value={thresholdValue}
+                onChange={(e) => setThresholdValue(e.target.value)}
+                className="h-10 rounded-lg text-right font-mono max-w-xs"
+              />
+              <span className="text-xs text-muted-foreground whitespace-nowrap">CLP</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Ej: 250000 se mostrará como "Envío gratis sobre $250.000" en la tienda.
+              {thresholdValue && parseFloat(thresholdValue) > 0 && (
+                <span className="block mt-1 text-emerald-600 font-medium">
+                  → Envío gratis sobre ${parseFloat(thresholdValue).toLocaleString('es-CL')}
+                </span>
+              )}
+            </p>
           </div>
         )}
       </CardContent>
@@ -2329,11 +2427,7 @@ export default function ProductsPage() {
             <span className="hidden sm:inline">Categorías y Etiquetas</span>
             <span className="sm:hidden">Tags</span>
           </TabsTrigger>
-          <TabsTrigger value="orden" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
-            <ArrowUpDown className="h-4 w-4" />
-            <span className="hidden sm:inline">Orden</span>
-            <span className="sm:hidden">Orden</span>
-          </TabsTrigger>
+          {/* Tab Orden oculta — ya se gestiona desde Catálogo Agrupado */}
         </TabsList>
 
         {/* Tab de Catálogo SAP (Lista de Precios Comercial) */}
@@ -2539,10 +2633,7 @@ export default function ProductsPage() {
           <CategoriasEtiquetasContent />
         </TabsContent>
 
-        {/* Tab de Orden de Productos */}
-        <TabsContent value="orden" className="space-y-4 mt-4">
-          <OrdenProductosContent />
-        </TabsContent>
+        {/* Tab Orden oculta — ya se gestiona desde Catálogo Agrupado */}
       </Tabs>
 
       {/* Dialog para editar precio */}

@@ -6676,6 +6676,41 @@ export function registerRoutes(app: Express): Server {
     res.json({ success: true, rates });
   }));
 
+  // Get free shipping threshold (public - no auth needed for store page)
+  app.get('/api/ecommerce/free-shipping-threshold', asyncHandler(async (req: any, res: any) => {
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    
+    const result = await db.execute(sql`
+      SELECT value FROM app_config WHERE key = 'ecommerce_free_shipping_threshold'
+    `);
+    
+    const row = (result as any).rows?.[0];
+    res.json({ threshold: row?.value?.threshold ?? 250000 });
+  }));
+
+  // Update free shipping threshold
+  app.put('/api/ecommerce/free-shipping-threshold', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    if (!['admin', 'supervisor'].includes(user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    
+    const { threshold } = req.body;
+    const value = JSON.stringify({ threshold: Number(threshold) || 0 });
+    
+    await db.execute(sql`
+      INSERT INTO app_config (key, value, updated_at) 
+      VALUES ('ecommerce_free_shipping_threshold', ${value}::jsonb, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = ${value}::jsonb, updated_at = NOW()
+    `);
+    
+    res.json({ success: true, threshold: Number(threshold) });
+  }));
+
   // ===================== eCommerce Categories =====================
 
   // Get custom categories

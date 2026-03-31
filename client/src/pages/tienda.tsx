@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -251,6 +251,20 @@ export default function TiendaPage() {
   // FAQ modal state
   const [showFaqModal, setShowFaqModal] = useState(false);
 
+  // Header height tracking for sticky filter bar
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const update = () => setHeaderHeight(el.offsetHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // Product info modal state
   const [infoModal, setInfoModal] = useState<{ open: boolean; productName: string; loading: boolean; data: any | null }>({
     open: false, productName: '', loading: false, data: null
@@ -397,6 +411,13 @@ export default function TiendaPage() {
     queryKey: ['/api/store/config'],
     retry: false,
   });
+
+  // Fetch free shipping threshold
+  const { data: freeShippingData } = useQuery<{ threshold: number }>({
+    queryKey: ['/api/ecommerce/free-shipping-threshold'],
+    retry: false,
+  });
+  const freeShippingThreshold = freeShippingData?.threshold ?? 250000;
 
   // Fetch store banners
   const { data: storeBanners = [] } = useQuery<StoreBanner[]>({
@@ -743,7 +764,7 @@ export default function TiendaPage() {
     <>
     <div className="min-h-screen bg-[#f8f9fb]">
       {/* Header — Modern SaaS */}
-      <header className="bg-white/80 backdrop-blur-xl sticky top-0 z-50 border-b border-gray-200/60">
+      <header ref={headerRef} className="bg-white/80 backdrop-blur-xl sticky top-0 z-50 border-b border-gray-200/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Top micro-strip */}
           <div className="hidden md:flex items-center justify-between py-1 text-[11px] text-gray-400 border-b border-gray-100/80">
@@ -763,7 +784,7 @@ export default function TiendaPage() {
               <span className="text-gray-200">|</span>
               <span className="text-[#FF6E23] font-semibold flex items-center gap-1">
                 <Truck className="h-3 w-3" />
-                Envío gratis sobre $250.000
+                Envío gratis sobre ${freeShippingThreshold > 0 ? `$${freeShippingThreshold.toLocaleString('es-CL')}` : ''}
               </span>
             </div>
           </div>
@@ -911,7 +932,7 @@ export default function TiendaPage() {
       </section>
 
       {/* ─── Filter Bar: Categories + Tags ─── */}
-      <section className="bg-white border-b border-gray-100 sticky top-0 z-40">
+      <section className="bg-white border-b border-gray-100 sticky z-40 shadow-sm" style={{ top: `${headerHeight}px` }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
           {/* Catalog title + count */}
           <div className="flex items-center gap-3 mb-3">
@@ -1850,7 +1871,7 @@ export default function TiendaPage() {
             },
             {
               pregunta: "¿Cuáles son los costos de envío?",
-              respuesta: "Los costos de envío se calculan según el volumen de su pedido y la zona de despacho. Pedidos sobre $250.000 tienen envío gratuito dentro de la Región Metropolitana. Para regiones, consulte con nuestro equipo de ventas."
+              respuesta: `Los costos de envío se calculan según el volumen de su pedido y la zona de despacho. Pedidos sobre $${freeShippingThreshold.toLocaleString('es-CL')} tienen envío gratuito dentro de la Región Metropolitana. Para regiones, consulte con nuestro equipo de ventas.`
             },
             {
               pregunta: "¿Cuánto tiempo tarda el despacho?",

@@ -5,6 +5,7 @@ import { X, ShoppingCart, ArrowRight, Minus, Plus, Trash2, Package } from "lucid
 import { Link } from "wouter";
 import { useCart } from "@/hooks/useCart";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useQuery } from "@tanstack/react-query";
 
 interface FloatingCartProps {
   isOpen: boolean;
@@ -111,7 +112,11 @@ function ModernCartItem({ item }: { item: any }) {
 // The cart content (shared between mobile and desktop)
 function CartContent({ state, onClose }: { state: any; onClose: () => void }) {
   const isEmpty = state.items.length === 0;
-  const FREE_SHIPPING_THRESHOLD = 250000;
+  const { data: thresholdData } = useQuery<{ threshold: number }>({
+    queryKey: ['/api/ecommerce/free-shipping-threshold'],
+    retry: false,
+  });
+  const FREE_SHIPPING_THRESHOLD = thresholdData?.threshold ?? 250000;
   const progress = Math.min(100, (state.subtotal / FREE_SHIPPING_THRESHOLD) * 100);
   const remaining = FREE_SHIPPING_THRESHOLD - state.subtotal;
 
