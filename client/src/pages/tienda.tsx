@@ -1161,6 +1161,27 @@ export default function TiendaPage() {
                             {product.breveResena && (
                               <p className="text-[13px] text-gray-600 mt-1.5 line-clamp-2 leading-relaxed italic">{product.breveResena}</p>
                             )}
+                            {/* Available formats */}
+                            {(() => {
+                              const allFormats = new Set<string>();
+                              Object.values(product.colors).flat().forEach(v => {
+                                if (v.format) allFormats.add(v.format);
+                              });
+                              const formats = Array.from(allFormats);
+                              if (formats.length === 0) return null;
+                              return (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {formats.map(fmt => (
+                                    <span
+                                      key={fmt}
+                                      className="inline-flex items-center text-[9px] sm:text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200/60"
+                                    >
+                                      {fmt}
+                                    </span>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                           </div>
                           <div className="flex items-center gap-1.5 mt-2.5">
                             <span className="inline-flex items-center gap-1 bg-orange-50 text-[#FF6E23] text-[10px] font-bold px-2 py-0.5 rounded-md">
