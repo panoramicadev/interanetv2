@@ -2409,7 +2409,7 @@ export default function ProductsPage() {
           </TabsTrigger>
           <TabsTrigger value="grouped" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
             <Layers className="h-4 w-4" />
-            <span className="hidden sm:inline">Catálogo Agrupado</span>
+            <span className="hidden sm:inline">Agrupación Comercial</span>
             <span className="sm:hidden">Agrupado</span>
           </TabsTrigger>
           <TabsTrigger value="inventario" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">

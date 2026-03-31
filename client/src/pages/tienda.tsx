@@ -421,12 +421,24 @@ export default function TiendaPage() {
     retry: false,
   });
 
-  // Fetch free shipping threshold
+  // Fetch topbar configuration (controls visibility and values)
+  const { data: topbarConfig } = useQuery<{
+    phone: { value: string; visible: boolean };
+    email: { value: string; visible: boolean };
+    address: { value: string; visible: boolean };
+    faq: { visible: boolean };
+    freeShipping: { threshold: number; visible: boolean };
+  }>({
+    queryKey: ['/api/ecommerce/topbar-config'],
+    retry: false,
+  });
+
+  // Fetch free shipping threshold (fallback — topbar config takes priority)
   const { data: freeShippingData } = useQuery<{ threshold: number }>({
     queryKey: ['/api/ecommerce/free-shipping-threshold'],
     retry: false,
   });
-  const freeShippingThreshold = freeShippingData?.threshold ?? 250000;
+  const freeShippingThreshold = topbarConfig?.freeShipping?.threshold ?? freeShippingData?.threshold ?? 250000;
 
   // Fetch store banners
   const { data: storeBanners = [] } = useQuery<StoreBanner[]>({
@@ -778,23 +790,35 @@ export default function TiendaPage() {
           {/* Top micro-strip */}
           <div className="hidden md:flex items-center justify-between py-1 text-[11px] text-gray-400 border-b border-gray-100/80">
             <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1 hover:text-gray-600 transition-colors"><Phone className="h-3 w-3" />{storeConfig?.phone || "+56 2 2345 6789"}</span>
-              <span className="flex items-center gap-1 hover:text-gray-600 transition-colors"><Mail className="h-3 w-3" />{storeConfig?.email || "contacto@panoramica.cl"}</span>
-              <span className="flex items-center gap-1 hover:text-gray-600 transition-colors"><MapPin className="h-3 w-3" />{storeConfig?.address || "Santiago, Chile"}</span>
+              {(topbarConfig?.phone?.visible !== false) && (
+                <span className="flex items-center gap-1 hover:text-gray-600 transition-colors"><Phone className="h-3 w-3" />{topbarConfig?.phone?.value || storeConfig?.phone || "+56 2 2345 6789"}</span>
+              )}
+              {(topbarConfig?.email?.visible !== false) && (
+                <span className="flex items-center gap-1 hover:text-gray-600 transition-colors"><Mail className="h-3 w-3" />{topbarConfig?.email?.value || storeConfig?.email || "contacto@panoramica.cl"}</span>
+              )}
+              {(topbarConfig?.address?.visible !== false) && (
+                <span className="flex items-center gap-1 hover:text-gray-600 transition-colors"><MapPin className="h-3 w-3" />{topbarConfig?.address?.value || storeConfig?.address || "Santiago, Chile"}</span>
+              )}
             </div>
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowFaqModal(true)}
-                className="flex items-center gap-1 hover:text-gray-600 transition-colors cursor-pointer font-medium"
-              >
-                <HelpCircle className="h-3 w-3" />
-                Preguntas Frecuentes
-              </button>
-              <span className="text-gray-200">|</span>
-              <span className="text-[#FF6E23] font-semibold flex items-center gap-1">
-                <Truck className="h-3 w-3" />
-                Envío gratis sobre ${freeShippingThreshold > 0 ? `$${freeShippingThreshold.toLocaleString('es-CL')}` : ''}
-              </span>
+              {(topbarConfig?.faq?.visible !== false) && (
+                <>
+                  <button
+                    onClick={() => setShowFaqModal(true)}
+                    className="flex items-center gap-1 hover:text-gray-600 transition-colors cursor-pointer font-medium"
+                  >
+                    <HelpCircle className="h-3 w-3" />
+                    Preguntas Frecuentes
+                  </button>
+                  <span className="text-gray-200">|</span>
+                </>
+              )}
+              {(topbarConfig?.freeShipping?.visible !== false) && freeShippingThreshold > 0 && (
+                <span className="text-[#FF6E23] font-semibold flex items-center gap-1">
+                  <Truck className="h-3 w-3" />
+                  Envío gratis sobre ${freeShippingThreshold > 0 ? `$${freeShippingThreshold.toLocaleString('es-CL')}` : ''}
+                </span>
+              )}
             </div>
           </div>
 
@@ -965,10 +989,10 @@ export default function TiendaPage() {
       </section>
 
       {/* ─── Filter Bar: Categories + Tags ─── */}
-      <section className="bg-white border-b border-gray-100 sticky z-40 shadow-sm" style={{ top: `${headerHeight}px` }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
+      <section className="bg-white/95 backdrop-blur-md border-b border-gray-100 sticky z-40 shadow-[0_1px_3px_rgba(0,0,0,0.04)]" style={{ top: `${headerHeight}px` }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           {/* Catalog title + count */}
-          <div className="flex items-center gap-3 mb-3">
+          <div className="flex items-center gap-3 mb-4">
             <h2 className="text-lg font-bold text-gray-900 tracking-tight" id="productos">
               Catálogo
             </h2>
@@ -978,38 +1002,40 @@ export default function TiendaPage() {
             </span>
           </div>
 
-          {/* Tags row (above categories) */}
+          {/* Tags row — styled as colored pill badges */}
           {availableTags.length > 0 && (
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-3 mb-3 border-b border-gray-100/80">
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap flex-shrink-0 mr-1">
+                Etiquetas
+              </span>
               {availableTags.map(({ name, count }) => {
                 const isActive = selectedTag === name;
-                const tagColors: Record<string, { active: string; inactive: string }> = {
-                  'Mejor Precio': { active: 'bg-emerald-500 text-white shadow-sm', inactive: 'text-emerald-700 hover:bg-emerald-50' },
-                  'Rápida Rotación': { active: 'bg-blue-500 text-white shadow-sm', inactive: 'text-blue-700 hover:bg-blue-50' },
-                  'Pocas Unidades': { active: 'bg-amber-500 text-white shadow-sm', inactive: 'text-amber-700 hover:bg-amber-50' },
+                const tagStyles: Record<string, { bg: string; activeBg: string; dot: string; text: string; activeText: string; border: string }> = {
+                  'Producto Destacado': { bg: 'bg-violet-50', activeBg: 'bg-gradient-to-r from-violet-500 to-purple-600', dot: 'bg-violet-400', text: 'text-violet-700', activeText: 'text-white', border: 'border-violet-200' },
+                  'Mejor Precio': { bg: 'bg-emerald-50', activeBg: 'bg-gradient-to-r from-emerald-500 to-teal-600', dot: 'bg-emerald-400', text: 'text-emerald-700', activeText: 'text-white', border: 'border-emerald-200' },
+                  'Rápida Rotación': { bg: 'bg-blue-50', activeBg: 'bg-gradient-to-r from-blue-500 to-indigo-600', dot: 'bg-blue-400', text: 'text-blue-700', activeText: 'text-white', border: 'border-blue-200' },
+                  'Pocas Unidades': { bg: 'bg-amber-50', activeBg: 'bg-gradient-to-r from-amber-500 to-orange-600', dot: 'bg-amber-400', text: 'text-amber-700', activeText: 'text-white', border: 'border-amber-200' },
+                  'Oferta': { bg: 'bg-rose-50', activeBg: 'bg-gradient-to-r from-rose-500 to-pink-600', dot: 'bg-rose-400', text: 'text-rose-700', activeText: 'text-white', border: 'border-rose-200' },
                 };
-                const colors = tagColors[name] || { active: 'bg-gray-700 text-white shadow-sm', inactive: 'text-gray-600 hover:bg-gray-100' };
-                const dotColors: Record<string, string> = {
-                  'Mejor Precio': 'bg-emerald-400',
-                  'Rápida Rotación': 'bg-blue-400',
-                  'Pocas Unidades': 'bg-amber-400',
-                };
+                const style = tagStyles[name] || { bg: 'bg-gray-50', activeBg: 'bg-gradient-to-r from-gray-600 to-gray-700', dot: 'bg-gray-400', text: 'text-gray-700', activeText: 'text-white', border: 'border-gray-200' };
 
                 return (
                   <button
                     key={name}
                     onClick={() => setSelectedTag(isActive ? null : name)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
-                      isActive ? colors.active : `bg-gray-100 ${colors.inactive}`
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap flex-shrink-0 border ${
+                      isActive
+                        ? `${style.activeBg} ${style.activeText} border-transparent shadow-md shadow-black/10 scale-[1.02]`
+                        : `${style.bg} ${style.text} ${style.border} hover:shadow-sm hover:scale-[1.01]`
                     }`}
                     data-testid={`filter-tag-${name}`}
                   >
                     <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                      isActive ? 'bg-white/60' : (dotColors[name] || 'bg-gray-400')
+                      isActive ? 'bg-white/70' : style.dot
                     }`} />
                     {name}
-                    <span className={`text-[10px] font-bold ${
-                      isActive ? 'text-white/70' : 'text-gray-400'
+                    <span className={`text-[10px] font-bold ml-0.5 px-1.5 py-0 rounded-full ${
+                      isActive ? 'bg-white/20 text-white' : 'bg-black/5 text-gray-500'
                     }`}>
                       {count}
                     </span>
@@ -1019,18 +1045,18 @@ export default function TiendaPage() {
             </div>
           )}
 
-          {/* Categories row */}
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-0.5">
-            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap flex-shrink-0">
+          {/* Categories row — horizontal segmented control style */}
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap flex-shrink-0 mr-1">
               Categoría
             </span>
             
             <button
               onClick={() => setSelectedCategory('all')}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 whitespace-nowrap flex-shrink-0 border ${
                 selectedCategory === 'all'
-                  ? 'bg-gray-900 text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ? 'bg-gray-900 text-white border-gray-900 shadow-md shadow-gray-900/20'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-800'
               }`}
               data-testid="filter-cat-all"
             >
@@ -1040,14 +1066,14 @@ export default function TiendaPage() {
               <button
                 key={category}
                 onClick={() => setSelectedCategory(selectedCategory === category ? 'all' : category)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 whitespace-nowrap flex-shrink-0 border ${
                   selectedCategory === category
-                    ? 'bg-[#FF6E23] text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-600 hover:bg-orange-50 hover:text-[#FF6E23]'
+                    ? 'bg-[#FF6E23] text-white border-[#FF6E23] shadow-md shadow-orange-500/20'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-[#FF6E23]/40 hover:bg-orange-50 hover:text-[#FF6E23]'
                 }`}
                 data-testid={`filter-cat-${category}`}
               >
-                {category.toUpperCase()}
+                {category}
               </button>
             ))}
 
@@ -1055,7 +1081,7 @@ export default function TiendaPage() {
             {(selectedCategory !== 'all' || selectedTag) && (
               <button
                 onClick={() => { setSelectedCategory('all'); setSelectedTag(null); }}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 transition-all whitespace-nowrap flex-shrink-0 ml-1"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-500 bg-red-50 border border-red-100 hover:bg-red-100 hover:border-red-200 transition-all whitespace-nowrap flex-shrink-0 ml-1"
                 data-testid="filter-clear"
               >
                 <X className="h-3 w-3" />

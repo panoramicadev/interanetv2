@@ -789,65 +789,15 @@ export default function ClientPortal() {
     if (path === '/mis-pedidos') return 'pedidos';
     if (path === '/panoramica-market-cliente') return 'market';
     const tab = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null;
-    if (tab === 'ai') return 'ai';
     if (tab === 'pedidos') return 'pedidos';
     if (tab === 'market') return 'market';
     return 'dashboard';
   };
-  const [activeTab, setActiveTab] = useState<"dashboard" | "pedidos" | "market" | "ai">(getInitialTab() as any);
-  const aiChat = useAiChat();
+  const [activeTab] = useState<"dashboard" | "pedidos" | "market">(getInitialTab() as any);
 
   return (
     <div className="space-y-4">
-      {/* Tab bar */}
-      <div className="flex items-center gap-2 p-1 bg-gray-100 rounded-xl overflow-x-auto">
-        <button
-          onClick={() => setActiveTab("dashboard")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
-            activeTab === "dashboard"
-              ? "bg-white shadow-sm text-gray-900"
-              : "text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <BarChart3 className="w-4 h-4" />
-          Dashboard
-        </button>
-        <button
-          onClick={() => setActiveTab("pedidos")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
-            activeTab === "pedidos"
-              ? "bg-white shadow-sm text-gray-900"
-              : "text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <ClipboardList className="w-4 h-4" />
-          Mis Pedidos
-        </button>
-        <button
-          onClick={() => setActiveTab("market")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
-            activeTab === "market"
-              ? "bg-white shadow-sm text-gray-900"
-              : "text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <Gift className="w-4 h-4" />
-          Panorámica Market
-        </button>
-        <button
-          onClick={() => setActiveTab("ai")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
-            activeTab === "ai"
-              ? "bg-white shadow-sm text-gray-900"
-              : "text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <Bot className="w-4 h-4" />
-          Asistente IA
-        </button>
-      </div>
-
-      {/* Content */}
+      {/* Content — tabs are already in the header via ClientEcommerceLayout */}
       <div className="min-h-[500px]">
         {activeTab === "dashboard" && (
           <DashboardTab salesperson={salespersonName} />
@@ -858,22 +808,8 @@ export default function ClientPortal() {
         {activeTab === "market" && (
           <PanoramicaMarketTab />
         )}
-        {activeTab === "ai" && (
-          <div className="bg-white rounded-2xl shadow-sm border overflow-hidden" style={{ height: "600px" }}>
-            <AiChatView
-              messages={aiChat.messages}
-              isLoading={aiChat.isLoading}
-              error={aiChat.error}
-              onSendMessage={aiChat.sendMessage}
-              onClearHistory={aiChat.clearHistory}
-              onNewConversation={aiChat.newConversation}
-              suggestions={CLIENT_AI_SUGGESTIONS}
-              welcomeTitle="Asistente Panorámica"
-              welcomeSubtitle="¿En qué puedo ayudarte hoy? Pregunta sobre productos, disponibilidad o recomendaciones."
-            />
-          </div>
-        )}
       </div>
     </div>
   );
 }
+

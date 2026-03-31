@@ -132,7 +132,7 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
                 </Link>
               </>
             ) : user?.role === 'client' ? (
-              // Cliente ve Productos y Asistente IA
+              // Cliente ve Productos
               <>
                 <Link href="/client-portal">
                   <Button
@@ -143,18 +143,6 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
                   >
                     <Package className="w-5 h-5 mr-3" />
                     Productos
-                  </Button>
-                </Link>
-
-                <Link href="/client-portal?tab=ai">
-                  <Button
-                    variant="ghost"
-                    className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${location === "/client-portal" && typeof window !== 'undefined' && window.location.search.includes('tab=ai') ? "bg-slate-800 text-white" : ""
-                      }`}
-                    data-testid="nav-client-ai"
-                  >
-                    <Bot className="w-5 h-5 mr-3" />
-                    Asistente IA
                   </Button>
                 </Link>
               </>

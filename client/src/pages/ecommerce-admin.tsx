@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers, Users, Phone, Mail, Link as LinkIcon, Check, X, Loader2, User, ChevronDown, ChevronRight, Truck, Save } from "lucide-react";
+import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers, Users, Phone, Mail, Link as LinkIcon, Check, X, Loader2, User, ChevronDown, ChevronRight, Truck, Save, Layout, MapPin, HelpCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
 import { useForm } from "react-hook-form";
@@ -197,6 +197,272 @@ function ShippingRatesSection() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Topbar Configuration Component
+interface TopbarConfigData {
+  phone: { value: string; visible: boolean };
+  email: { value: string; visible: boolean };
+  address: { value: string; visible: boolean };
+  faq: { visible: boolean };
+  freeShipping: { threshold: number; visible: boolean };
+}
+
+function TopbarConfigSection() {
+  const { toast } = useToast();
+  const [isSaving, setIsSaving] = useState(false);
+  const [config, setConfig] = useState<TopbarConfigData>({
+    phone: { value: '+56 2 2345 6789', visible: true },
+    email: { value: 'contacto@panoramica.cl', visible: true },
+    address: { value: 'Santiago, Chile', visible: true },
+    faq: { visible: true },
+    freeShipping: { threshold: 250000, visible: true },
+  });
+
+  const { data: savedConfig, isLoading } = useQuery<TopbarConfigData>({
+    queryKey: ['/api/ecommerce/topbar-config'],
+    queryFn: async () => {
+      const res = await fetch('/api/ecommerce/topbar-config', { credentials: 'include' });
+      if (!res.ok) return config;
+      return res.json();
+    },
+  });
+
+  React.useEffect(() => {
+    if (savedConfig) {
+      setConfig(prev => ({
+        phone: { ...prev.phone, ...savedConfig.phone },
+        email: { ...prev.email, ...savedConfig.email },
+        address: { ...prev.address, ...savedConfig.address },
+        faq: { ...prev.faq, ...savedConfig.faq },
+        freeShipping: { ...prev.freeShipping, ...savedConfig.freeShipping },
+      }));
+    }
+  }, [savedConfig]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const res = await fetch('/api/ecommerce/topbar-config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(config),
+      });
+      if (!res.ok) throw new Error('Error al guardar');
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/topbar-config'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/free-shipping-threshold'] });
+      toast({ title: 'Topbar actualizado', description: 'La configuración del topbar se guardó correctamente.' });
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo guardar la configuración del topbar.', variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const topbarItems = [
+    {
+      key: 'phone' as const,
+      label: 'Teléfono',
+      description: 'Número de contacto visible en el topbar',
+      icon: Phone,
+      hasValue: true,
+      placeholder: '+56 2 2345 6789',
+    },
+    {
+      key: 'email' as const,
+      label: 'Correo Electrónico',
+      description: 'Email de contacto visible en el topbar',
+      icon: Mail,
+      hasValue: true,
+      placeholder: 'contacto@empresa.cl',
+    },
+    {
+      key: 'address' as const,
+      label: 'Dirección',
+      description: 'Ubicación visible en el topbar',
+      icon: MapPin,
+      hasValue: true,
+      placeholder: 'Santiago, Chile',
+    },
+    {
+      key: 'faq' as const,
+      label: 'Preguntas Frecuentes',
+      description: 'Botón de FAQ en el topbar',
+      icon: HelpCircle,
+      hasValue: false,
+      placeholder: '',
+    },
+  ];
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+              <Layout className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Configuración del Topbar</CardTitle>
+              <p className="text-sm text-muted-foreground">Edita los datos y controla qué elementos se muestran en la barra superior de la tienda</p>
+            </div>
+          </div>
+          <Button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 gap-2 text-white"
+          >
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Guardar configuración
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="text-center py-6 text-muted-foreground text-sm">Cargando configuración...</div>
+        ) : (
+          <div className="space-y-3">
+            {/* Preview */}
+            <div className="rounded-xl border bg-white dark:bg-slate-900 p-3 mb-4">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Vista previa del Topbar</p>
+              <div className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-gray-50 dark:bg-slate-800 text-[11px] text-gray-500">
+                <div className="flex items-center gap-4">
+                  {config.phone.visible && (
+                    <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{config.phone.value}</span>
+                  )}
+                  {config.email.visible && (
+                    <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{config.email.value}</span>
+                  )}
+                  {config.address.visible && (
+                    <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{config.address.value}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  {config.faq.visible && (
+                    <span className="flex items-center gap-1 font-medium"><HelpCircle className="h-3 w-3" />Preguntas Frecuentes</span>
+                  )}
+                  {config.freeShipping.visible && config.freeShipping.threshold > 0 && (
+                    <span className="text-[#FF6E23] font-semibold flex items-center gap-1">
+                      <Truck className="h-3 w-3" />
+                      Envío gratis sobre ${config.freeShipping.threshold.toLocaleString('es-CL')}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Editable items */}
+            {topbarItems.map(item => {
+              const Icon = item.icon;
+              const itemConfig = config[item.key];
+              const isVisible = itemConfig.visible;
+              return (
+                <div
+                  key={item.key}
+                  className={`border rounded-xl p-4 transition-all ${
+                    isVisible ? 'bg-white dark:bg-slate-900 border-gray-200' : 'bg-muted/30 border-dashed border-gray-200 opacity-60'
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      isVisible ? 'bg-violet-100 dark:bg-violet-900/30' : 'bg-gray-100 dark:bg-gray-800'
+                    }`}>
+                      <Icon className={`h-4 w-4 ${isVisible ? 'text-violet-600' : 'text-gray-400'}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-sm font-semibold">{item.label}</span>
+                        <Badge variant={isVisible ? 'default' : 'secondary'} className={`text-[9px] px-1.5 py-0 h-4 ${
+                          isVisible ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : ''
+                        }`}>
+                          {isVisible ? 'Visible' : 'Oculto'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{item.description}</p>
+                    </div>
+                    {item.hasValue && (
+                      <Input
+                        value={'value' in itemConfig ? (itemConfig as any).value : ''}
+                        onChange={(e) => setConfig(prev => ({
+                          ...prev,
+                          [item.key]: { ...prev[item.key], value: e.target.value }
+                        }))}
+                        placeholder={item.placeholder}
+                        className="w-56 h-9 text-sm"
+                        disabled={!isVisible}
+                      />
+                    )}
+                    <Switch
+                      checked={isVisible}
+                      onCheckedChange={(checked) => setConfig(prev => ({
+                        ...prev,
+                        [item.key]: { ...prev[item.key], visible: checked }
+                      }))}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Free Shipping — special item with numeric input */}
+            <div
+              className={`border rounded-xl p-4 transition-all ${
+                config.freeShipping.visible ? 'bg-white dark:bg-slate-900 border-gray-200' : 'bg-muted/30 border-dashed border-gray-200 opacity-60'
+              }`}
+            >
+              <div className="flex items-center gap-4">
+                <div className={`h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                  config.freeShipping.visible ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-gray-100 dark:bg-gray-800'
+                }`}>
+                  <Truck className={`h-4 w-4 ${config.freeShipping.visible ? 'text-emerald-600' : 'text-gray-400'}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-sm font-semibold">Envío Gratis</span>
+                    <Badge variant={config.freeShipping.visible ? 'default' : 'secondary'} className={`text-[9px] px-1.5 py-0 h-4 ${
+                      config.freeShipping.visible ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : ''
+                    }`}>
+                      {config.freeShipping.visible ? 'Visible' : 'Oculto'}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Monto mínimo para envío gratuito. Se muestra en el topbar y en el carrito.</p>
+                  {config.freeShipping.threshold > 0 && config.freeShipping.visible && (
+                    <p className="text-xs text-emerald-600 font-medium mt-0.5">
+                      → Envío gratis sobre ${config.freeShipping.threshold.toLocaleString('es-CL')}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-medium text-muted-foreground">$</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={config.freeShipping.threshold || ''}
+                    onChange={(e) => setConfig(prev => ({
+                      ...prev,
+                      freeShipping: { ...prev.freeShipping, threshold: parseFloat(e.target.value) || 0 }
+                    }))}
+                    placeholder="250000"
+                    className="w-36 h-9 text-sm text-right font-mono"
+                    disabled={!config.freeShipping.visible}
+                  />
+                </div>
+                <Switch
+                  checked={config.freeShipping.visible}
+                  onCheckedChange={(checked) => setConfig(prev => ({
+                    ...prev,
+                    freeShipping: { ...prev.freeShipping, visible: checked }
+                  }))}
+                />
+              </div>
+            </div>
           </div>
         )}
       </CardContent>
@@ -1437,6 +1703,11 @@ export default function EcommerceAdmin() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Topbar Configuration Section */}
+      {isAdmin && (
+        <TopbarConfigSection />
       )}
 
       {/* Shipping Rates Section */}

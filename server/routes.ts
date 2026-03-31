@@ -6711,6 +6711,61 @@ export function registerRoutes(app: Express): Server {
     res.json({ success: true, threshold: Number(threshold) });
   }));
 
+  // ===================== eCommerce Topbar Configuration =====================
+
+  // Get topbar config (public — store page reads this)
+  app.get('/api/ecommerce/topbar-config', asyncHandler(async (req: any, res: any) => {
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+
+    const result = await db.execute(sql`
+      SELECT value FROM app_config WHERE key = 'ecommerce_topbar_config'
+    `);
+
+    const row = (result as any).rows?.[0];
+    // Default config — everything visible with placeholder values
+    const defaults = {
+      phone: { value: "+56 2 2345 6789", visible: true },
+      email: { value: "contacto@panoramica.cl", visible: true },
+      address: { value: "Santiago, Chile", visible: true },
+      faq: { visible: true },
+      freeShipping: { threshold: 250000, visible: true },
+    };
+    res.json(row?.value || defaults);
+  }));
+
+  // Update topbar config (admin only)
+  app.put('/api/ecommerce/topbar-config', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const user = req.user;
+    if (!['admin', 'supervisor'].includes(user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+
+    const config = req.body;
+    const value = JSON.stringify(config);
+
+    await db.execute(sql`
+      INSERT INTO app_config (key, value, updated_at)
+      VALUES ('ecommerce_topbar_config', ${value}::jsonb, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = ${value}::jsonb, updated_at = NOW()
+    `);
+
+    // Also sync free shipping threshold with the dedicated key so FloatingCart keeps working
+    if (config.freeShipping?.threshold !== undefined) {
+      const thresholdValue = JSON.stringify({ threshold: Number(config.freeShipping.threshold) || 0 });
+      await db.execute(sql`
+        INSERT INTO app_config (key, value, updated_at)
+        VALUES ('ecommerce_free_shipping_threshold', ${thresholdValue}::jsonb, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = ${thresholdValue}::jsonb, updated_at = NOW()
+      `);
+    }
+
+    res.json({ success: true, config });
+  }));
+
   // ===================== eCommerce Categories =====================
 
   // Get custom categories
@@ -11159,7 +11214,7 @@ export function registerRoutes(app: Express): Server {
           GROUP BY kopr
         ) stk ON stk.kopr = pl.codigo
         LEFT JOIN product_content pc ON pc.codigo = pl.codigo
-        WHERE ep.categoria IS NOT NULL AND ep.activo = true
+        WHERE ep.activo = true
         ORDER BY ep.variant_generic_display_name, ep.color, ep.format_unit
       `);
       const rows = Array.isArray(result) ? result : (result as any).rows || [];
