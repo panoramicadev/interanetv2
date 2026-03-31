@@ -16,8 +16,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2, Globe, ShoppingCart, Tags, Image, Settings, Link, Palette, BarChart3, Layers, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ExternalLink, RefreshCw, BookOpen, ImageIcon, Truck, Save, DollarSign, Tag, Plus, Trash2 } from "lucide-react";
+import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2, Globe, ShoppingCart, Tags, Image, Settings, Link, Palette, BarChart3, Layers, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ExternalLink, RefreshCw, BookOpen, ImageIcon, Truck, Save, DollarSign, Tag, Plus, Trash2, ArrowUpDown, GripVertical } from "lucide-react";
 import { PriceList } from "@shared/schema";
+import { PRODUCT_FORMATS } from "@shared/format-utils";
 import GroupedCatalog from "@/components/grouped-catalog";
 import { InventarioContent } from "@/pages/inventario";
 import BulkImageUpload from "@/components/products/bulk-image-upload";
@@ -27,12 +28,15 @@ function FletesContent() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
-  const FORMATS = [
-    { key: '1_4_galon', label: '1/4 Galón', description: 'Formato pequeño, envase de 1/4 de galón' },
-    { key: 'galon', label: 'Galón', description: 'Envase de 1 galón' },
-    { key: 'bd_4gl', label: 'Balde 4 GL', description: 'Balde de 4 galones' },
-    { key: 'bd_5gl', label: 'Balde 5 GL', description: 'Balde de 5 galones' },
-  ];
+  // Derive shipping format options from the centralized PRODUCT_FORMATS
+  const FORMATS = Object.entries(PRODUCT_FORMATS)
+    .filter(([, def]) => def.shippingKey !== 'unidad') // Exclude 'Unidad' from shipping rates
+    .sort(([, a], [, b]) => a.sortOrder - b.sortOrder)
+    .map(([, def]) => ({
+      key: def.shippingKey,
+      label: def.label,
+      description: `Precio flete por unidad — ${def.label}`,
+    }));
 
   // Fetch shipping rates
   const { data: shippingRates = {}, isLoading } = useQuery<Record<string, number>>({
@@ -776,6 +780,572 @@ function CategoriasEtiquetasContent() {
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-orange-500 border-t-transparent" />
         </div>
       )}
+    </div>
+  );
+}
+
+// Orden de Productos component
+function OrdenProductosContent() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isSaving, setIsSaving] = useState(false);
+  const [searchFilter, setSearchFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+
+  // Image picker state
+  const [imagePickerOpen, setImagePickerOpen] = useState(false);
+  const [imagePickerProduct, setImagePickerProduct] = useState<any>(null);
+  const [customImages, setCustomImages] = useState<Record<string, string>>({});
+  const [imageSaving, setImageSaving] = useState(false);
+
+  // Fetch grouped catalog to get all generic product names
+  const { data: catalogData, isLoading: catalogLoading } = useQuery<{ catalog: any[] }>({
+    queryKey: ["/api/store/products/grouped"],
+    queryFn: async () => {
+      const res = await fetch("/api/store/products/grouped", { credentials: "include" });
+      if (!res.ok) throw new Error('Failed');
+      return res.json();
+    },
+  });
+
+  // Fetch saved product order
+  const { data: savedOrder = [], isLoading: orderLoading } = useQuery<string[]>({
+    queryKey: ["/api/ecommerce/product-order"],
+    queryFn: async () => {
+      const res = await fetch("/api/ecommerce/product-order", { credentials: "include" });
+      if (!res.ok) throw new Error('Failed');
+      return res.json();
+    },
+  });
+
+  // Fetch saved product group images
+  const { data: savedImages = {} } = useQuery<Record<string, string>>({
+    queryKey: ["/api/ecommerce/product-group-images"],
+    queryFn: async () => {
+      const res = await fetch("/api/ecommerce/product-group-images", { credentials: "include" });
+      if (!res.ok) return {};
+      return res.json();
+    },
+  });
+
+  useEffect(() => {
+    setCustomImages(savedImages);
+  }, [savedImages]);
+
+  // Fetch categories for filter
+  const { data: customCategories = [] } = useQuery<any[]>({
+    queryKey: ["/api/ecommerce/categories-config"],
+    queryFn: async () => {
+      const res = await fetch("/api/ecommerce/categories-config", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  // Build ordered list: saved order first, then any new products not in saved order
+  const [orderedProducts, setOrderedProducts] = useState<any[]>([]);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  useEffect(() => {
+    if (!catalogData?.catalog) return;
+    const catalog = catalogData.catalog;
+    
+    if (savedOrder.length > 0) {
+      const catalogMap = new Map<string, any>();
+      catalog.forEach(p => catalogMap.set(p.genericName, p));
+      
+      const ordered: any[] = [];
+      savedOrder.forEach(name => {
+        if (catalogMap.has(name)) {
+          ordered.push(catalogMap.get(name)!);
+          catalogMap.delete(name);
+        }
+      });
+      
+      const remaining = Array.from(catalogMap.values()).sort((a, b) => 
+        a.genericName.localeCompare(b.genericName)
+      );
+      
+      setOrderedProducts([...ordered, ...remaining]);
+    } else {
+      setOrderedProducts([...catalog]);
+    }
+    setHasChanges(false);
+  }, [catalogData, savedOrder]);
+
+  const moveProduct = (index: number, direction: 'up' | 'down') => {
+    const newOrder = [...orderedProducts];
+    const swapIndex = direction === 'up' ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= newOrder.length) return;
+    [newOrder[index], newOrder[swapIndex]] = [newOrder[swapIndex], newOrder[index]];
+    setOrderedProducts(newOrder);
+    setHasChanges(true);
+  };
+
+  const moveToTop = (index: number) => {
+    if (index === 0) return;
+    const newOrder = [...orderedProducts];
+    const [item] = newOrder.splice(index, 1);
+    newOrder.unshift(item);
+    setOrderedProducts(newOrder);
+    setHasChanges(true);
+  };
+
+  const moveToBottom = (index: number) => {
+    if (index === orderedProducts.length - 1) return;
+    const newOrder = [...orderedProducts];
+    const [item] = newOrder.splice(index, 1);
+    newOrder.push(item);
+    setOrderedProducts(newOrder);
+    setHasChanges(true);
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const order = orderedProducts.map(p => p.genericName);
+      const res = await fetch('/api/ecommerce/product-order', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order }),
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Error al guardar');
+      queryClient.invalidateQueries({ queryKey: ["/api/ecommerce/product-order"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/store/products/grouped"] });
+      setHasChanges(false);
+      toast({ title: "Orden guardado", description: `Se guardó el orden de ${order.length} productos.` });
+    } catch {
+      toast({ title: "Error al guardar", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Image picker: extract all unique images from a product's variants
+  const getAvailableImages = (product: any): { url: string; label: string }[] => {
+    const images: { url: string; label: string }[] = [];
+    const seen = new Set<string>();
+    const colors = product.colors || {};
+    
+    for (const [colorName, variants] of Object.entries(colors)) {
+      for (const v of (variants as any[])) {
+        if (v.imageUrl && !seen.has(v.imageUrl)) {
+          seen.add(v.imageUrl);
+          images.push({
+            url: v.imageUrl,
+            label: `${colorName} — ${v.format || 'Sin formato'}`,
+          });
+        }
+      }
+    }
+    return images;
+  };
+
+  // Save image for a specific product group
+  const handleSaveImage = async (genericName: string, imageUrl: string | null) => {
+    setImageSaving(true);
+    try {
+      const res = await fetch('/api/ecommerce/product-group-images', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ genericName, imageUrl }),
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Error');
+      
+      // Update local state immediately
+      setCustomImages(prev => {
+        const next = { ...prev };
+        if (imageUrl) {
+          next[genericName] = imageUrl;
+        } else {
+          delete next[genericName];
+        }
+        return next;
+      });
+      
+      queryClient.invalidateQueries({ queryKey: ["/api/ecommerce/product-group-images"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/store/products/grouped"] });
+      toast({ title: imageUrl ? "Imagen actualizada" : "Imagen restablecida", description: genericName });
+      setImagePickerOpen(false);
+    } catch {
+      toast({ title: "Error al guardar imagen", variant: "destructive" });
+    } finally {
+      setImageSaving(false);
+    }
+  };
+
+  // Filter products for display
+  const filteredProducts = orderedProducts.filter(p => {
+    if (searchFilter) {
+      if (!p.genericName.toLowerCase().includes(searchFilter.toLowerCase())) return false;
+    }
+    if (categoryFilter !== 'all') {
+      if (p.groupName !== categoryFilter) return false;
+    }
+    return true;
+  });
+
+  // Get real index in orderedProducts
+  const getRealIndex = (product: any) => orderedProducts.findIndex(p => p.genericName === product.genericName);
+
+  // Get effective image for a product (custom override or auto)
+  const getEffectiveImage = (product: any): string | null => {
+    return customImages[product.genericName] || product.imageUrl || null;
+  };
+
+  const isLoading = catalogLoading || orderLoading;
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <Card className="border-0 shadow-sm rounded-xl overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-indigo-500 to-violet-500 text-white rounded-t-xl px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <ArrowUpDown className="h-5 w-5" />
+                Orden e Imágenes de Productos
+              </CardTitle>
+              <CardDescription className="text-white/80 text-xs mt-0.5">
+                Controla el orden y la imagen destacada de cada grupo de productos en la tienda.
+              </CardDescription>
+            </div>
+            <Button
+              onClick={handleSave}
+              disabled={isSaving || !hasChanges}
+              className={`gap-2 rounded-lg font-bold transition-all ${
+                hasChanges 
+                  ? 'bg-white text-indigo-600 hover:bg-indigo-50 shadow-lg' 
+                  : 'bg-white/20 text-white/60 cursor-not-allowed'
+              }`}
+            >
+              <Save className="h-4 w-4" />
+              {isSaving ? 'Guardando...' : hasChanges ? 'Guardar Orden' : 'Sin cambios'}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar producto..."
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                className="pl-10 h-10 rounded-lg"
+              />
+            </div>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="h-10 w-48 rounded-lg">
+                <SelectValue placeholder="Categoría" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las categorías</SelectItem>
+                {customCategories.map((c: any) => (
+                  <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {hasChanges && (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 mt-3">
+              <Save className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                Tienes cambios sin guardar. Presiona "Guardar Orden" para aplicar el nuevo orden en la tienda.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Product List */}
+      <Card className="border-0 shadow-sm rounded-xl overflow-hidden">
+        <CardHeader className="bg-muted/30 border-b px-6 py-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <Package className="h-4 w-4 text-indigo-500" />
+              {filteredProducts.length} productos
+              {(searchFilter || categoryFilter !== 'all') && ` (filtrados de ${orderedProducts.length})`}
+            </CardTitle>
+            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-semibold">
+                #1 = Primer producto visible
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 font-semibold">
+                📷 Click imagen = Cambiar
+              </span>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-indigo-500 border-t-transparent" />
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Package className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p className="text-sm font-medium">No se encontraron productos</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100 dark:divide-slate-800">
+              {filteredProducts.map((product) => {
+                const realIdx = getRealIndex(product);
+                const colorCount = Object.keys(product.colors || {}).length;
+                const tags: string[] = product.tags || [];
+                const effectiveImage = getEffectiveImage(product);
+                const hasCustomImage = !!customImages[product.genericName];
+                return (
+                  <div
+                    key={product.genericName}
+                    className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors group"
+                  >
+                    {/* Position Number */}
+                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-100 to-violet-100 dark:from-indigo-900/40 dark:to-violet-900/40 flex items-center justify-center">
+                      <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                        {realIdx + 1}
+                      </span>
+                    </div>
+
+                    {/* Grip Handle */}
+                    <GripVertical className="h-4 w-4 text-muted-foreground/30 flex-shrink-0" />
+
+                    {/* Product Image — Clickable for image picker */}
+                    <button
+                      onClick={() => {
+                        setImagePickerProduct(product);
+                        setImagePickerOpen(true);
+                      }}
+                      className={`relative w-12 h-12 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0 transition-all border-2 hover:shadow-md hover:scale-105 cursor-pointer ${
+                        hasCustomImage 
+                          ? 'border-emerald-400 ring-1 ring-emerald-200' 
+                          : 'border-transparent bg-gray-100 dark:bg-slate-800 hover:border-indigo-300'
+                      }`}
+                      title="Click para cambiar imagen destacada"
+                    >
+                      {effectiveImage ? (
+                        <img src={effectiveImage} alt={product.genericName} className="w-full h-full object-cover" />
+                      ) : (
+                        <ImageIcon className="h-5 w-5 text-muted-foreground/40" />
+                      )}
+                      {/* Edit overlay */}
+                      <div className="absolute inset-0 bg-black/0 hover:bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-all rounded-lg">
+                        <Edit className="h-4 w-4 text-white drop-shadow" />
+                      </div>
+                      {/* Custom image indicator */}
+                      {hasCustomImage && (
+                        <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border border-white" title="Imagen personalizada" />
+                      )}
+                    </button>
+
+                    {/* Product Info */}
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-bold text-foreground truncate">{product.genericName}</h4>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {product.groupName && (
+                          <span className="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">
+                            {product.groupName}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-muted-foreground">
+                          {colorCount} color{colorCount !== 1 ? 'es' : ''}
+                        </span>
+                        {tags.length > 0 && (
+                          <div className="flex gap-0.5">
+                            {tags.map((tag: string) => (
+                              <div
+                                key={tag}
+                                className={`w-2 h-2 rounded-full ${
+                                  tag === 'Mejor Precio' ? 'bg-green-500' :
+                                  tag === 'Rápida Rotación' ? 'bg-blue-500' :
+                                  tag === 'Pocas Unidades' ? 'bg-amber-500' : 'bg-gray-400'
+                                }`}
+                                title={tag}
+                              />
+                            ))}
+                          </div>
+                        )}
+                        {hasCustomImage && (
+                          <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded-full">
+                            📷 personalizada
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Move Controls */}
+                    <div className="flex items-center gap-0.5 flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => moveToTop(realIdx)}
+                        disabled={realIdx === 0}
+                        className="p-1 rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-muted-foreground hover:text-indigo-600 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                        title="Mover al inicio"
+                      >
+                        <ChevronUp className="h-3.5 w-3.5" />
+                        <ChevronUp className="h-3.5 w-3.5 -mt-2.5" />
+                      </button>
+                      <button
+                        onClick={() => moveProduct(realIdx, 'up')}
+                        disabled={realIdx === 0}
+                        className="p-1.5 rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-muted-foreground hover:text-indigo-600 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                        title="Subir"
+                      >
+                        <ChevronUp className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => moveProduct(realIdx, 'down')}
+                        disabled={realIdx === orderedProducts.length - 1}
+                        className="p-1.5 rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-muted-foreground hover:text-indigo-600 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                        title="Bajar"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => moveToBottom(realIdx)}
+                        disabled={realIdx === orderedProducts.length - 1}
+                        className="p-1 rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-muted-foreground hover:text-indigo-600 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                        title="Mover al final"
+                      >
+                        <ChevronDown className="h-3.5 w-3.5" />
+                        <ChevronDown className="h-3.5 w-3.5 -mt-2.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Image Picker Dialog */}
+      <Dialog open={imagePickerOpen} onOpenChange={setImagePickerOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <ImageIcon className="h-5 w-5 text-indigo-500" />
+              Imagen Destacada
+            </DialogTitle>
+            <DialogDescription>
+              {imagePickerProduct?.genericName} — Selecciona la imagen que aparecerá en el catálogo de la tienda
+            </DialogDescription>
+          </DialogHeader>
+          
+          {imagePickerProduct && (() => {
+            const availableImages = getAvailableImages(imagePickerProduct);
+            const currentCustom = customImages[imagePickerProduct.genericName];
+            const autoImage = imagePickerProduct.imageUrl;
+            
+            return (
+              <div className="space-y-4 pt-2">
+                {/* Current Image */}
+                <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 border border-muted">
+                  <div className="w-20 h-20 rounded-lg overflow-hidden bg-white border flex items-center justify-center flex-shrink-0">
+                    {(currentCustom || autoImage) ? (
+                      <img src={currentCustom || autoImage} alt="Actual" className="w-full h-full object-cover" />
+                    ) : (
+                      <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-bold">Imagen Actual</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {currentCustom ? (
+                        <span className="text-emerald-600 font-semibold">📷 Imagen personalizada (manual)</span>
+                      ) : (
+                        <span className="text-blue-600 font-semibold">🤖 Selección automática (GALÓN BLANCO prioridad)</span>
+                      )}
+                    </p>
+                    {currentCustom && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-2 h-7 text-xs text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                        onClick={() => handleSaveImage(imagePickerProduct.genericName, null)}
+                        disabled={imageSaving}
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Restablecer a automático
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Available Images Grid */}
+                {availableImages.length > 0 ? (
+                  <div>
+                    <h4 className="text-sm font-bold mb-3 flex items-center gap-2">
+                      <Palette className="h-4 w-4 text-indigo-500" />
+                      Imágenes de Variantes Disponibles
+                      <Badge variant="secondary" className="text-[10px]">{availableImages.length}</Badge>
+                    </h4>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                      {availableImages.map((img) => {
+                        const isSelected = currentCustom === img.url;
+                        return (
+                          <button
+                            key={img.url}
+                            onClick={() => handleSaveImage(imagePickerProduct.genericName, img.url)}
+                            disabled={imageSaving}
+                            className={`relative rounded-xl overflow-hidden border-2 transition-all hover:shadow-lg group aspect-square ${
+                              isSelected 
+                                ? 'border-emerald-500 ring-2 ring-emerald-200 shadow-md' 
+                                : 'border-gray-200 dark:border-slate-700 hover:border-indigo-400'
+                            }`}
+                          >
+                            <img 
+                              src={img.url} 
+                              alt={img.label} 
+                              className="w-full h-full object-cover"
+                            />
+                            {/* Label */}
+                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2 pt-6">
+                              <p className="text-white text-[9px] font-semibold leading-tight truncate">
+                                {img.label}
+                              </p>
+                            </div>
+                            {/* Selected indicator */}
+                            {isSelected && (
+                              <div className="absolute top-1.5 right-1.5 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center shadow-md">
+                                <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                              </div>
+                            )}
+                            {/* Hover overlay */}
+                            {!isSelected && (
+                              <div className="absolute inset-0 bg-indigo-500/0 group-hover:bg-indigo-500/10 transition-colors flex items-center justify-center">
+                                <span className="text-white text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity bg-indigo-600/80 px-3 py-1 rounded-full">
+                                  Seleccionar
+                                </span>
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <ImageIcon className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm font-medium">No hay imágenes de variantes disponibles</p>
+                    <p className="text-xs mt-1">Las imágenes se asignan individualmente a cada SKU desde el tab de Catálogo Agrupado</p>
+                  </div>
+                )}
+
+                {imageSaving && (
+                  <div className="flex items-center justify-center py-2">
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-500 border-t-transparent" />
+                    <span className="ml-2 text-xs text-muted-foreground">Guardando...</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1617,6 +2187,11 @@ export default function ProductsPage() {
             <span className="hidden sm:inline">Categorías y Etiquetas</span>
             <span className="sm:hidden">Tags</span>
           </TabsTrigger>
+          <TabsTrigger value="orden" className="flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-foreground">
+            <ArrowUpDown className="h-4 w-4" />
+            <span className="hidden sm:inline">Orden</span>
+            <span className="sm:hidden">Orden</span>
+          </TabsTrigger>
         </TabsList>
 
         {/* Tab de Catálogo SAP (Lista de Precios Comercial) */}
@@ -1820,6 +2395,11 @@ export default function ProductsPage() {
         {/* Tab de Categorías y Etiquetas */}
         <TabsContent value="categorias" className="space-y-4 mt-4">
           <CategoriasEtiquetasContent />
+        </TabsContent>
+
+        {/* Tab de Orden de Productos */}
+        <TabsContent value="orden" className="space-y-4 mt-4">
+          <OrdenProductosContent />
         </TabsContent>
       </Tabs>
 

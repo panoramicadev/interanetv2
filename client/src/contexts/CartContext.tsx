@@ -6,6 +6,7 @@ import {
   CART_CONFIG,
   cartStateSchema 
 } from '@shared/schema';
+import { getFormatQuantityRules } from '@shared/format-utils';
 
 // ================================
 // CART CALCULATION UTILITIES
@@ -13,30 +14,18 @@ import {
 
 /**
  * Get quantity validation rules based on unit type
- * Enhanced with better regex patterns and normalization
+ * Uses the centralized format-utils module for normalization
  */
 export const getQuantityRules = (unit: string | undefined) => {
   if (!unit) return CART_CONFIG.QUANTITY_RULES.DEFAULT;
   
-  // Normalize unit: trim, uppercase, remove extra spaces
-  const normalizedUnit = unit.toUpperCase().trim().replace(/\s+/g, ' ');
+  const rules = getFormatQuantityRules(unit);
   
-  // BD4 and BD5 (Baldes) - individual units - Enhanced pattern matching
-  if (/(?:BD|BALDE)\s*[-_\s]*[45]|\bBALDE\s*(?:DE\s*)?[45]\s*GAL[ÓO]N(?:ES)?|\b[45]\s*GAL[ÓO]N(?:ES)?\s*BALDE/i.test(normalizedUnit)) {
-    return normalizedUnit.includes('4') ? CART_CONFIG.QUANTITY_RULES.BD4 : CART_CONFIG.QUANTITY_RULES.BD5;
-  }
+  // Map to CART_CONFIG format for backward compatibility
+  if (rules.minQuantity === 6) return CART_CONFIG.QUANTITY_RULES['1/4'];
+  if (rules.minQuantity === 4) return CART_CONFIG.QUANTITY_RULES.GL;
   
-  // 1/4 (1/4 de Galón) - multiples of 6 - Enhanced pattern matching
-  if (/(?:1\s*[\/\-]\s*4|UN\s*CUARTO|CUARTO(?:\s*(?:DE\s*)?GAL[ÓO]N)?|(?:0[\.,])?25\s*GAL[ÓO]N)/i.test(normalizedUnit)) {
-    return CART_CONFIG.QUANTITY_RULES['1/4'];
-  }
-  
-  // GL (Galones) - multiples of 4 - Enhanced pattern matching  
-  if (/(?:^|\b)(?:GL|GAL[ÓO]N(?:ES)?)(?:\b|$)|LITRO/i.test(normalizedUnit) && 
-      !/(?:BD|BALDE|1\s*\/\s*4|CUARTO)/i.test(normalizedUnit)) {
-    return CART_CONFIG.QUANTITY_RULES.GL;
-  }
-  
+  // For BD4/BD5/Unidad — all use minQuantity=1, stepQuantity=1
   return CART_CONFIG.QUANTITY_RULES.DEFAULT;
 };
 

@@ -6910,6 +6910,100 @@ export function registerRoutes(app: Express): Server {
     
     res.json({ success: true, productFamily, categories: newCats });
   }));
+  // ===================== Product Display Order API =====================
+
+  // Get product display order
+  app.get('/api/ecommerce/product-order', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS app_config (
+        key VARCHAR PRIMARY KEY,
+        value JSONB NOT NULL DEFAULT '{}',
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    const result = await db.execute(sql`
+      SELECT value FROM app_config WHERE key = 'ecommerce_product_order'
+    `);
+    const row = (result as any).rows?.[0];
+    res.json(row?.value || []);
+  }));
+
+  // Save product display order (array of generic product names in desired order)
+  app.put('/api/ecommerce/product-order', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (!['admin', 'supervisor'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const { order } = req.body; // string[] of genericName values
+    if (!Array.isArray(order)) {
+      return res.status(400).json({ message: 'Se requiere un array de nombres de productos' });
+    }
+
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+
+    await db.execute(sql`
+      INSERT INTO app_config (key, value, updated_at)
+      VALUES ('ecommerce_product_order', ${JSON.stringify(order)}::jsonb, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(order)}::jsonb, updated_at = NOW()
+    `);
+
+    res.json({ success: true, order });
+  }));
+
+  // Get product group images (manual overrides)
+  app.get('/api/ecommerce/product-group-images', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+
+    const result = await db.execute(sql`
+      SELECT value FROM app_config WHERE key = 'ecommerce_product_group_images'
+    `);
+    const row = (result as any).rows?.[0];
+    res.json(row?.value || {});
+  }));
+
+  // Save product group image (single product)
+  app.put('/api/ecommerce/product-group-images', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (!['admin', 'supervisor'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const { genericName, imageUrl } = req.body;
+    if (!genericName) {
+      return res.status(400).json({ message: 'genericName es requerido' });
+    }
+
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+
+    // Get current images
+    const result = await db.execute(sql`
+      SELECT value FROM app_config WHERE key = 'ecommerce_product_group_images'
+    `);
+    const row = (result as any).rows?.[0];
+    const images: Record<string, string> = row?.value || {};
+
+    if (imageUrl) {
+      images[genericName] = imageUrl;
+    } else {
+      // If imageUrl is null/empty, remove the override (go back to auto)
+      delete images[genericName];
+    }
+
+    await db.execute(sql`
+      INSERT INTO app_config (key, value, updated_at)
+      VALUES ('ecommerce_product_group_images', ${JSON.stringify(images)}::jsonb, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(images)}::jsonb, updated_at = NOW()
+    `);
+
+    res.json({ success: true, genericName, imageUrl: imageUrl || null });
+  }));
+
   // ===================== Account Request API (public, no auth) =====================
 
   // Submit an account request from the login gate
@@ -9878,6 +9972,11 @@ export function registerRoutes(app: Express): Server {
       }
 
       const validatedData = insertPriceListSchema.parse(req.body);
+      // Normalize format/unit value
+      const { normalizeFormat } = await import('../shared/format-utils.js');
+      if (validatedData.unidad) {
+        validatedData.unidad = normalizeFormat(validatedData.unidad) || validatedData.unidad;
+      }
       const item = await storage.createPriceListItem(validatedData);
 
       res.status(201).json(item);
@@ -9909,6 +10008,11 @@ export function registerRoutes(app: Express): Server {
       }
 
       const validatedData = insertPriceListSchema.partial().parse(req.body);
+      // Normalize format/unit value
+      if (validatedData.unidad) {
+        const { normalizeFormat } = await import('../shared/format-utils.js');
+        validatedData.unidad = normalizeFormat(validatedData.unidad) || validatedData.unidad;
+      }
       const updatedItem = await storage.updatePriceListItem(id, validatedData);
 
       res.json(updatedItem);
@@ -10145,8 +10249,16 @@ export function registerRoutes(app: Express): Server {
 
       // Clear existing price list and import new data
       console.log(`💾 Importing ${validatedItems.length} valid items...`);
+
+      // Normalize format/unit values before insertion (prevent dirty data)
+      const { normalizeFormat } = await import('../shared/format-utils.js');
+      const normalizedItems = validatedItems.map(item => ({
+        ...item,
+        unidad: normalizeFormat(item.unidad) || item.unidad,
+      }));
+
       await storage.deleteAllPriceListItems();
-      await storage.createMultiplePriceListItems(validatedItems);
+      await storage.createMultiplePriceListItems(normalizedItems);
 
       console.log('✅ Import completed successfully!');
 
@@ -10952,7 +11064,7 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      const catalog = Array.from(productsMap.values()).map(p => ({
+      let catalog = Array.from(productsMap.values()).map(p => ({
         genericName: p.genericName,
         groupName: p.groupName,
         tags: p.tags,
@@ -10960,6 +11072,48 @@ export function registerRoutes(app: Express): Server {
         imageUrl: p.imageUrl,
         colors: Object.fromEntries(p.colors),
       }));
+
+      // Apply custom display order from app_config
+      try {
+        const orderResult = await db.execute(sql`
+          SELECT value FROM app_config WHERE key = 'ecommerce_product_order'
+        `);
+        const orderRow = (orderResult as any).rows?.[0];
+        const productOrder: string[] = orderRow?.value || [];
+        
+        if (productOrder.length > 0) {
+          const orderMap = new Map<string, number>();
+          productOrder.forEach((name, idx) => orderMap.set(name, idx));
+          
+          catalog.sort((a, b) => {
+            const orderA = orderMap.has(a.genericName) ? orderMap.get(a.genericName)! : Number.MAX_SAFE_INTEGER;
+            const orderB = orderMap.has(b.genericName) ? orderMap.get(b.genericName)! : Number.MAX_SAFE_INTEGER;
+            if (orderA !== orderB) return orderA - orderB;
+            return a.genericName.localeCompare(b.genericName);
+          });
+        }
+      } catch (orderError) {
+        console.log('[store/products/grouped] product order lookup skipped:', orderError);
+      }
+
+      // Apply manual image overrides from app_config
+      try {
+        const imgResult = await db.execute(sql`
+          SELECT value FROM app_config WHERE key = 'ecommerce_product_group_images'
+        `);
+        const imgRow = (imgResult as any).rows?.[0];
+        const manualImages: Record<string, string> = imgRow?.value || {};
+        
+        if (Object.keys(manualImages).length > 0) {
+          catalog.forEach(p => {
+            if (manualImages[p.genericName]) {
+              p.imageUrl = manualImages[p.genericName];
+            }
+          });
+        }
+      } catch (imgError) {
+        console.log('[store/products/grouped] manual images lookup skipped:', imgError);
+      }
 
       res.json({ catalog, totalProducts: (rows as any[]).length });
     } catch (error) {

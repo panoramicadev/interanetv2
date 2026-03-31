@@ -13091,7 +13091,8 @@ export class DatabaseStorage implements IStorage {
       for (const term of searchTerms) {
         // Handle common unit mappings
         let mappedTerm = term;
-        if (term === 'galon' || term === 'galón') mappedTerm = 'gl';
+        if (term === 'galon' || term === 'galón' || term === 'gl') mappedTerm = 'galon';
+        if (term === 'balde' || term === 'bd') mappedTerm = 'balde';
 
         const pattern = `%${mappedTerm}%`;
         conditions.push(
@@ -13193,13 +13194,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAvailableUnits(): Promise<string[]> {
-    const result = await db
-      .selectDistinct({ unidad: priceList.unidad })
-      .from(priceList)
-      .where(sql`${priceList.unidad} IS NOT NULL AND ${priceList.unidad} != ''`)
-      .orderBy(priceList.unidad);
-
-    return result.map(row => row.unidad).filter(Boolean) as string[];
+    // Return canonical formats from the single source of truth
+    const { getCanonicalFormats } = await import('../shared/format-utils.js');
+    return getCanonicalFormats();
   }
 
   async getProductTypes(): Promise<string[]> {

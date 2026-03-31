@@ -46,6 +46,7 @@ import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
 import { validateQuantity as validateCartQuantity } from "@/contexts/CartContext";
 import { FloatingCart, CartToggle } from "@/components/cart";
+import { getFormatQuantityRules } from "@shared/format-utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -199,51 +200,25 @@ const getProductDescription = (product: StoreProduct): string | undefined => {
   return product.description || product.descripcion;
 };
 
-// Improved quantity logic functions with precise regex patterns
+// Quantity logic using centralized format-utils
 const getQuantityJumpRule = (unidad: string | undefined): number => {
-  if (!unidad) return 1;
-  
-  const unit = unidad.toUpperCase().trim();
-  
-  // BD4 and BD5 (Baldes) - individual units - Check this FIRST to avoid conflicts
-  // More robust pattern to handle various formats: BD4, BD-4, BD 4, /BD4, BD4/, etc.
-  if (/BD\s*[-\s]?\s*[45]|\bBALDE\s*(4|5)\b|\bBD[45]\b/i.test(unit)) {
-    return 1;
-  }
-  
-  // 1/4 (1/4 de Galón) - multiples of 6 - Check this BEFORE GL to avoid conflicts
-  // Precise fraction matching for various formats: 1/4, 1 / 4, CUARTO
-  if (/1\s*\/\s*4|\bCUARTO\b/i.test(unit)) {
-    return 6;
-  }
-  
-  // GL (Galones) - multiples of 4 - Use precise word boundary matching
-  if (/\bGL\b|\bGAL[ÓO]N/i.test(unit)) {
-    return 4;
-  }
-  
-  // Default to individual units
-  return 1;
+  return getFormatQuantityRules(unidad).stepQuantity;
 };
 
 const getMinimumQuantity = (unidad: string | undefined): number => {
-  return getQuantityJumpRule(unidad);
+  return getFormatQuantityRules(unidad).minQuantity;
 };
 
 const getQuantityLabel = (unidad: string | undefined): string => {
-  const jump = getQuantityJumpRule(unidad);
-  if (jump === 1) return "Mín: 1 unidad";
-  return `Mín: ${jump} unidades`;
+  const rules = getFormatQuantityRules(unidad);
+  if (rules.minQuantity === 1) return "Mín: 1 unidad";
+  return `Mín: ${rules.minQuantity} unidades`;
 };
 
 const validateQuantity = (quantity: number, unidad: string | undefined): number => {
-  const jump = getQuantityJumpRule(unidad);
-  const minQuantity = getMinimumQuantity(unidad);
-  
-  if (quantity < minQuantity) return minQuantity;
-  
-  // Round to nearest valid quantity
-  return Math.max(minQuantity, Math.floor(quantity / jump) * jump);
+  const rules = getFormatQuantityRules(unidad);
+  if (quantity < rules.minQuantity) return rules.minQuantity;
+  return Math.max(rules.minQuantity, Math.floor(quantity / rules.stepQuantity) * rules.stepQuantity);
 };
 
 export default function TiendaPage() {

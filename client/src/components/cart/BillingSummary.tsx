@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { X, Tag, MapPin, ShoppingBag, Package, CheckCircle2, Truck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getShippingKey } from "@shared/format-utils";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -273,18 +274,8 @@ export default function BillingSummary() {
   const neto = state.subtotal;
   
   // Calculate shipping cost based on item units
-  const getShippingRateKey = (unit: string): string | null => {
-    if (!unit) return null;
-    const normalized = unit.toUpperCase().trim();
-    if (/(?:1\s*[\/\-]\s*4|CUARTO)/i.test(normalized)) return '1_4_galon';
-    if (/(?:BD|BALDE)\s*[-_\s]*5|5\s*GAL/i.test(normalized)) return 'bd_5gl';
-    if (/(?:BD|BALDE)\s*[-_\s]*4|4\s*GAL/i.test(normalized)) return 'bd_4gl';
-    if (/(?:^|\b)(?:GL|GAL[ÓO]N)(?:\b|$)/i.test(normalized) && !/BD|BALDE|CUARTO|1\s*\//i.test(normalized)) return 'galon';
-    return null;
-  };
-
   const shippingCost = state.items.reduce((total, item) => {
-    const rateKey = getShippingRateKey(item.unit);
+    const rateKey = getShippingKey(item.unit);
     if (rateKey && shippingRates[rateKey]) {
       return total + Math.round(shippingRates[rateKey] * item.quantity);
     }
