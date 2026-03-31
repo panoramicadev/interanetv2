@@ -5895,6 +5895,29 @@ export function registerRoutes(app: Express): Server {
       colors: Object.fromEntries(p.colors),
     }));
 
+    // Apply custom display order from app_config (same logic as store endpoint)
+    try {
+      const orderResult = await db.execute(sql`
+        SELECT value FROM app_config WHERE key = 'ecommerce_product_order'
+      `);
+      const orderRow = (orderResult as any).rows?.[0];
+      const productOrder: string[] = orderRow?.value || [];
+      
+      if (productOrder.length > 0) {
+        const orderMap = new Map<string, number>();
+        productOrder.forEach((name, idx) => orderMap.set(name, idx));
+        
+        catalog.sort((a, b) => {
+          const orderA = orderMap.has(a.genericName) ? orderMap.get(a.genericName)! : Number.MAX_SAFE_INTEGER;
+          const orderB = orderMap.has(b.genericName) ? orderMap.get(b.genericName)! : Number.MAX_SAFE_INTEGER;
+          if (orderA !== orderB) return orderA - orderB;
+          return a.genericName.localeCompare(b.genericName);
+        });
+      }
+    } catch (orderError) {
+      console.log('[grouped-catalog] product order lookup skipped:', orderError);
+    }
+
     const availableGroups = [...new Set((rows as any[]).map((r: any) => r.group_name).filter(Boolean))].sort();
 
     res.json({ catalog, availableGroups, totalProducts: (rows as any[]).length });
@@ -6955,6 +6978,65 @@ export function registerRoutes(app: Express): Server {
     res.json({ success: true, order });
   }));
 
+  // Swap product position up/down (arrow-based reordering like categories)
+  app.put('/api/ecommerce/product-order/swap', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (!['admin', 'supervisor'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const { productName, direction } = req.body; // direction: 'up' or 'down'
+    if (!productName || !['up', 'down'].includes(direction)) {
+      return res.status(400).json({ message: 'productName y dirección (up/down) requeridos' });
+    }
+
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+
+    // Get current order
+    const result = await db.execute(sql`
+      SELECT value FROM app_config WHERE key = 'ecommerce_product_order'
+    `);
+    const row = (result as any).rows?.[0];
+    let order: string[] = row?.value || [];
+
+    // If no order exists yet, we need to build it from the current catalog
+    if (order.length === 0) {
+      // Fetch all generic names from ecommerce_products
+      const catalogResult = await db.execute(sql`
+        SELECT DISTINCT variant_generic_display_name as name
+        FROM ecommerce_products
+        WHERE variant_generic_display_name IS NOT NULL
+        ORDER BY variant_generic_display_name
+      `);
+      order = ((catalogResult as any).rows || []).map((r: any) => r.name).filter(Boolean);
+    }
+
+    const currentIndex = order.indexOf(productName);
+    if (currentIndex === -1) {
+      // Product not in order — add it at the end and retry
+      order.push(productName);
+      const currentIndex2 = order.indexOf(productName);
+      const swapIndex2 = direction === 'up' ? currentIndex2 - 1 : currentIndex2 + 1;
+      if (swapIndex2 >= 0 && swapIndex2 < order.length) {
+        [order[currentIndex2], order[swapIndex2]] = [order[swapIndex2], order[currentIndex2]];
+      }
+    } else {
+      const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+      if (swapIndex < 0 || swapIndex >= order.length) {
+        return res.status(400).json({ message: 'No se puede mover más' });
+      }
+      [order[currentIndex], order[swapIndex]] = [order[swapIndex], order[currentIndex]];
+    }
+
+    // Save updated order
+    await db.execute(sql`
+      INSERT INTO app_config (key, value, updated_at)
+      VALUES ('ecommerce_product_order', ${JSON.stringify(order)}::jsonb, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(order)}::jsonb, updated_at = NOW()
+    `);
+
+    res.json({ success: true, order });
+  }));
   // Get product group images (manual overrides)
   app.get('/api/ecommerce/product-group-images', requireAuth, asyncHandler(async (req: any, res: any) => {
     const { db } = await import('./db');

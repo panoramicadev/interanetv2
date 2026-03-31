@@ -1,0 +1,71 @@
+Latex Extra Cubirente
+Esmalte al Agua Hospitalario
+Epoxy Copper
+
+
+PCAEPOXKITB06 - KIT EPOXYCOPPER BLANCO (A+B) C/COBR EPOXICO AB.- 179.990
+
+DiJoViSa303020
+
+Tareas -> Panel de Trabajo
+Tareas -> Seguimiento
+Estimaciones Semanal -> Estimacion de ventas
+
+936c76fa196b508c8dd4a0a5af2ecf67
+
+
+Crear Worker en Cloudflare Dashboard
+Ve a dash.cloudflare.com → Workers & Pages (menú izquierdo)
+Create → Create Worker
+Dale nombre: inmopilot-subdomain-proxy
+Click Deploy (con el código default)
+Una vez creado, click Edit Code y reemplaza todo con esto:
+javascript
+addEventListener("fetch", event => {
+  event.respondWith(handleRequest(event.request));
+});
+async function handleRequest(request) {
+  const url = new URL(request.url);
+  const originalHost = url.hostname;
+  if (originalHost === "inmoo.app" || originalHost === "www.inmoo.app") {
+    return fetch(request);
+  }
+  url.hostname = "co1iuoxo.up.railway.app";
+  const headers = new Headers(request.headers);
+  headers.set("X-Original-Host", originalHost);
+  headers.set("Host", "co1iuoxo.up.railway.app");
+  return fetch(new Request(url.toString(), {
+    method: request.method,
+    headers: headers,
+    body: request.body,
+    redirect: "follow",
+  }));
+}
+Click Save and Deploy
+Luego ve a Settings → Triggers → Add Route
+Route: *.inmoo.app/*
+Zone: inmoo.app
+Click Add Route
+Una vez que hagas esto, avisame y actualizo el servidor para leer el header X-Original-Host y detectar el subdomain correctamente.
+
+
+61990
+
+
+ventas@goautoparts.cl
+$m*w^tmhM2Kz
+
+otto@goautoparts.cl
+v|0ME&>+6iX
+
+felipe@goautopars.cl
+#ee;y0Nf8
+
+Dora gonzales
+Maria macarena
+Hugo uretra 
+
+
+Novillo gordo
+Vaca gorda
+Vaquilla gorda 

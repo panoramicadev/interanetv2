@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
-    Search, Package, Palette, ChevronDown, ChevronRight,
-    Weight, Ruler, Truck, Loader2, Upload, Trash2, Box, Tag
+    Search, Package, Palette, ChevronDown, ChevronRight, ChevronUp,
+    Weight, Ruler, Truck, Loader2, Upload, Trash2, Box, Tag, ArrowUp, ArrowDown
 } from "lucide-react";
 
 interface FormatVariant {
@@ -162,6 +162,24 @@ export default function GroupedCatalog() {
         },
         onError: () => {
             toast({ variant: "destructive", title: "Error", description: "No se pudo limpiar la tabla." });
+        },
+    });
+
+    // Reorder product mutation (swap up/down)
+    const reorderMutation = useMutation({
+        mutationFn: async ({ productName, direction }: { productName: string; direction: 'up' | 'down' }) => {
+            const res = await fetch("/api/ecommerce/product-order/swap", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ productName, direction }),
+                credentials: "include",
+            });
+            if (!res.ok) throw new Error("Error al reordenar");
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/public/products/grouped"] });
         },
     });
 
@@ -339,6 +357,27 @@ export default function GroupedCatalog() {
                             className="flex items-center gap-3 p-4 cursor-pointer hover:bg-muted/30 transition-colors"
                             onClick={() => toggleProduct(product.genericName)}
                         >
+                            {/* Reorder arrows */}
+                            <div className="flex flex-col gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                                    disabled={reorderMutation.isPending || catalog.indexOf(product) === 0}
+                                    onClick={() => reorderMutation.mutate({ productName: product.genericName, direction: 'up' })}
+                                >
+                                    <ArrowUp className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                                    disabled={reorderMutation.isPending || catalog.indexOf(product) === catalog.length - 1}
+                                    onClick={() => reorderMutation.mutate({ productName: product.genericName, direction: 'down' })}
+                                >
+                                    <ArrowDown className="h-3.5 w-3.5" />
+                                </Button>
+                            </div>
                             {isExpanded ? (
                                 <ChevronDown className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                             ) : (
