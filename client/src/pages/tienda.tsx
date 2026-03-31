@@ -224,6 +224,7 @@ const validateQuantity = (quantity: number, unidad: string | undefined): number 
 export default function TiendaPage() {
   const { user, logoutMutation } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<StoreProduct | null>(null);
@@ -264,6 +265,14 @@ export default function TiendaPage() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Debounce search — 300ms delay for AJAX instant search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   // Product info modal state
   const [infoModal, setInfoModal] = useState<{ open: boolean; productName: string; loading: boolean; data: any | null }>({
@@ -446,10 +455,10 @@ export default function TiendaPage() {
 
   // Fetch grouped store products (same grouping logic as salesperson catalog, with prices)
   const { data: groupedData, isLoading: productsLoading } = useQuery<StoreCatalogResponse>({
-    queryKey: ['/api/store/products/grouped', searchTerm, selectedCategory],
+    queryKey: ['/api/store/products/grouped', debouncedSearch, selectedCategory],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (searchTerm) params.append('search', searchTerm);
+      if (debouncedSearch) params.append('search', debouncedSearch);
       if (selectedCategory && selectedCategory !== 'all') params.append('category', selectedCategory);
       
       const url = `/api/store/products/grouped${params.toString() ? '?' + params.toString() : ''}`;
@@ -802,17 +811,29 @@ export default function TiendaPage() {
               </div>
             </Link>
 
-            {/* Search Bar — Premium glass */}
+            {/* Search Bar — AJAX instant search */}
             <div className="hidden md:flex flex-1 max-w-lg">
               <div className="relative w-full group">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-[#FF6E23] transition-colors" />
+                {searchTerm !== debouncedSearch ? (
+                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 border-2 border-[#FF6E23] border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-[#FF6E23] transition-colors" />
+                )}
                 <Input
                   placeholder="Buscar productos, familias..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 h-10 text-sm rounded-xl border-gray-200 focus:border-[#FF6E23] focus:ring-2 focus:ring-[#FF6E23]/10 bg-gray-50/80 hover:bg-white transition-all shadow-sm"
+                  className="pl-10 pr-10 h-10 text-sm rounded-xl border-gray-200 focus:border-[#FF6E23] focus:ring-2 focus:ring-[#FF6E23]/10 bg-gray-50/80 hover:bg-white transition-all shadow-sm"
                   data-testid="input-search-tienda"
                 />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-500 transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -892,14 +913,26 @@ export default function TiendaPage() {
           {/* Mobile search */}
           <div className="md:hidden pb-3">
             <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              {searchTerm !== debouncedSearch ? (
+                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 border-2 border-[#FF6E23] border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              )}
               <Input
                 placeholder="Buscar productos..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 text-sm border-gray-200 rounded-xl bg-gray-50/80 h-10 shadow-sm"
+                className="pl-10 pr-10 text-sm border-gray-200 rounded-xl bg-gray-50/80 h-10 shadow-sm"
                 data-testid="input-search-mobile"
               />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-500 transition-colors"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -945,9 +978,49 @@ export default function TiendaPage() {
             </span>
           </div>
 
-          {/* Filters row */}
+          {/* Tags row (above categories) */}
+          {availableTags.length > 0 && (
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
+              {availableTags.map(({ name, count }) => {
+                const isActive = selectedTag === name;
+                const tagColors: Record<string, { active: string; inactive: string }> = {
+                  'Mejor Precio': { active: 'bg-emerald-500 text-white shadow-sm', inactive: 'text-emerald-700 hover:bg-emerald-50' },
+                  'Rápida Rotación': { active: 'bg-blue-500 text-white shadow-sm', inactive: 'text-blue-700 hover:bg-blue-50' },
+                  'Pocas Unidades': { active: 'bg-amber-500 text-white shadow-sm', inactive: 'text-amber-700 hover:bg-amber-50' },
+                };
+                const colors = tagColors[name] || { active: 'bg-gray-700 text-white shadow-sm', inactive: 'text-gray-600 hover:bg-gray-100' };
+                const dotColors: Record<string, string> = {
+                  'Mejor Precio': 'bg-emerald-400',
+                  'Rápida Rotación': 'bg-blue-400',
+                  'Pocas Unidades': 'bg-amber-400',
+                };
+
+                return (
+                  <button
+                    key={name}
+                    onClick={() => setSelectedTag(isActive ? null : name)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
+                      isActive ? colors.active : `bg-gray-100 ${colors.inactive}`
+                    }`}
+                    data-testid={`filter-tag-${name}`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                      isActive ? 'bg-white/60' : (dotColors[name] || 'bg-gray-400')
+                    }`} />
+                    {name}
+                    <span className={`text-[10px] font-bold ${
+                      isActive ? 'text-white/70' : 'text-gray-400'
+                    }`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Categories row */}
           <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-0.5">
-            {/* Category section */}
             <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap flex-shrink-0">
               Categoría
             </span>
@@ -977,53 +1050,6 @@ export default function TiendaPage() {
                 {category.toUpperCase()}
               </button>
             ))}
-
-            {/* Divider between categories and tags */}
-            {availableTags.length > 0 && (
-              <>
-                <div className="h-4 w-px bg-gray-200 flex-shrink-0 mx-1" />
-                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap flex-shrink-0">
-                  Etiqueta
-                </span>
-              </>
-            )}
-
-            {/* Tag pills */}
-            {availableTags.map(({ name, count }) => {
-              const isActive = selectedTag === name;
-              const tagColors: Record<string, { active: string; inactive: string }> = {
-                'Mejor Precio': { active: 'bg-emerald-500 text-white shadow-sm', inactive: 'text-emerald-700 hover:bg-emerald-50' },
-                'Rápida Rotación': { active: 'bg-blue-500 text-white shadow-sm', inactive: 'text-blue-700 hover:bg-blue-50' },
-                'Pocas Unidades': { active: 'bg-amber-500 text-white shadow-sm', inactive: 'text-amber-700 hover:bg-amber-50' },
-              };
-              const colors = tagColors[name] || { active: 'bg-gray-700 text-white shadow-sm', inactive: 'text-gray-600 hover:bg-gray-100' };
-              const dotColors: Record<string, string> = {
-                'Mejor Precio': 'bg-emerald-400',
-                'Rápida Rotación': 'bg-blue-400',
-                'Pocas Unidades': 'bg-amber-400',
-              };
-
-              return (
-                <button
-                  key={name}
-                  onClick={() => setSelectedTag(isActive ? null : name)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
-                    isActive ? colors.active : `bg-gray-100 ${colors.inactive}`
-                  }`}
-                  data-testid={`filter-tag-${name}`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                    isActive ? 'bg-white/60' : (dotColors[name] || 'bg-gray-400')
-                  }`} />
-                  {name}
-                  <span className={`text-[10px] font-bold ${
-                    isActive ? 'text-white/70' : 'text-gray-400'
-                  }`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
 
             {/* Clear all filters */}
             {(selectedCategory !== 'all' || selectedTag) && (
