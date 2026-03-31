@@ -32,6 +32,7 @@ import { nanoid } from "nanoid";
 import { Client, Order, PriceList, Quote } from "@shared/schema";
 import html2pdf from "html2pdf.js";
 import { Document, Page, Text, View, StyleSheet, pdf, Image } from '@react-pdf/renderer';
+import { getShippingKey as getShippingKeyFn } from '@shared/format-utils';
 import { motion, AnimatePresence } from "framer-motion";
 // HTML/CSS PDF generator - replaces jsPDF for exact specification compliance
 
@@ -487,7 +488,7 @@ const pdfStyles = StyleSheet.create({
 });
 
 // React-PDF Document Component
-const QuotePDFDocument = ({ quote, items }: { quote: any; items: any[] }) => {
+const QuotePDFDocument = ({ quote, items, shippingCost = 0 }: { quote: any; items: any[]; shippingCost?: number }) => {
   const formatCurrency = (value: number | string) => {
     const num = typeof value === 'string' ? parseFloat(value) : value;
     return `$${num.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -586,6 +587,13 @@ const QuotePDFDocument = ({ quote, items }: { quote: any; items: any[] }) => {
             <Text style={pdfStyles.totalLabel}>Subtotal:</Text>
             <Text style={pdfStyles.totalValue}>{formatCurrency(quote.subtotal)}</Text>
           </View>
+
+          {shippingCost > 0 && (
+            <View style={pdfStyles.totalRow}>
+              <Text style={[pdfStyles.totalLabel, { color: '#fd6301' }]}>Flete:</Text>
+              <Text style={[pdfStyles.totalValue, { color: '#fd6301' }]}>{formatCurrency(shippingCost)}</Text>
+            </View>
+          )}
 
           <View style={pdfStyles.totalRow}>
             <Text style={pdfStyles.totalLabel}>IVA (19%):</Text>
@@ -922,6 +930,7 @@ export default function TomadorPedidos() {
   const [defaultMobileTab, setDefaultMobileTab] = useState<"client" | "products" | "cart">("client"); // Default tab for mobile
   const [isSavingQuote, setIsSavingQuote] = useState(false); // Track if quote is being saved
   const [showCartAnimation, setShowCartAnimation] = useState(false); // Track cart add animation
+  const [showShipping, setShowShipping] = useState(false); // Toggle shipping cost visibility
 
   // Ficha de Creación de Cliente states
   const [showFichaClienteDialog, setShowFichaClienteDialog] = useState(false);
@@ -1123,6 +1132,33 @@ export default function TomadorPedidos() {
     },
     staleTime: 30000, // 30 seconds
   });
+
+  // Fetch shipping rates from product config
+  const { data: shippingRates = {} } = useQuery<Record<string, number>>({
+    queryKey: ['/api/ecommerce/shipping-rates'],
+    queryFn: async () => {
+      try {
+        const res = await fetch('/api/ecommerce/shipping-rates', { credentials: 'include' });
+        if (!res.ok) return {};
+        return res.json();
+      } catch { return {}; }
+    },
+    staleTime: 60000,
+  });
+
+  // Calculate shipping cost for a cart item based on its unit
+  const getItemShippingCost = useCallback((item: CartItem): number => {
+    if (!item.productUnit) return 0;
+    const key = getShippingKeyFn(item.productUnit);
+    if (!key || !shippingRates[key]) return 0;
+    return shippingRates[key] * item.quantity;
+  }, [shippingRates]);
+
+  // Total shipping cost
+  const totalShippingCost = useMemo(() => {
+    if (!showShipping) return 0;
+    return cart.reduce((sum, item) => sum + getItemShippingCost(item), 0);
+  }, [cart, showShipping, getItemShippingCost]);
 
   // Fetch available units for filtering
   const { data: availableUnits = [] } = useQuery<string[]>({
@@ -1831,8 +1867,10 @@ export default function TomadorPedidos() {
     try {
       // First save the quote to get real server data
       const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
-      const tax = subtotal * 0.19; // 19% IVA
-      const total = subtotal + tax;
+      const shippingForSave = totalShippingCost;
+      const subtotalWithShipping = subtotal + shippingForSave;
+      const tax = subtotalWithShipping * 0.19; // 19% IVA
+      const total = subtotalWithShipping + tax;
 
       let savedQuote: Quote;
       const savedItems: any[] = [];
@@ -2325,6 +2363,13 @@ export default function TomadorPedidos() {
           <span>-${formatCurrency(discount)}</span>
         </div>` : ''}
 
+        ${totalShippingCost > 0 ? `
+        <div class="total-row">
+          <span style="color: #fd6301;">Flete:</span>
+          <span style="color: #fd6301; font-weight: 600;">${formatCurrency(totalShippingCost)}</span>
+        </div>
+        ` : ''}
+
         <div class="total-row">
           <span>IVA (19%):</span>
           <span>${formatCurrency(tax)}</span>
@@ -2506,8 +2551,8 @@ export default function TomadorPedidos() {
           notes: quoteForm.notes || '',
           createdAt: new Date().toISOString(),
           subtotal: cart.reduce((sum, item) => sum + item.totalPrice, 0),
-          taxAmount: cart.reduce((sum, item) => sum + item.totalPrice, 0) * 0.19,
-          total: cart.reduce((sum, item) => sum + item.totalPrice, 0) * 1.19
+          taxAmount: (cart.reduce((sum, item) => sum + item.totalPrice, 0) + totalShippingCost) * 0.19,
+          total: (cart.reduce((sum, item) => sum + item.totalPrice, 0) + totalShippingCost) * 1.19
         };
 
         items = cart.map(item => ({
@@ -2521,7 +2566,7 @@ export default function TomadorPedidos() {
       }
 
       // Generate PDF using React-PDF
-      const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={items} />).toBlob();
+      const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={items} shippingCost={totalShippingCost} />).toBlob();
       const url = URL.createObjectURL(pdfBlob);
 
       // Generate filename with new format: ClientName-DDMMYY-NNN.pdf
@@ -2715,6 +2760,12 @@ export default function TomadorPedidos() {
           <span>Subtotal:</span>
           <span>${formatCurrency(subtotal)}</span>
         </div>
+        ${totalShippingCost > 0 ? `
+        <div class="total-row">
+          <span style="color: #fd6301;">Flete:</span>
+          <span style="color: #fd6301; font-weight: 600;">${formatCurrency(totalShippingCost)}</span>
+        </div>
+        ` : ''}
         <div class="total-row">
           <span>IVA (19%):</span>
           <span>${formatCurrency(tax)}</span>
@@ -3016,6 +3067,13 @@ export default function TomadorPedidos() {
           <span>${formatCurrency(subtotal)}</span>
         </div>
 
+        ${totalShippingCost > 0 ? `
+        <div class="total-row">
+          <span style="color: #fd6301;">Flete:</span>
+          <span style="color: #fd6301; font-weight: 600;">${formatCurrency(totalShippingCost)}</span>
+        </div>
+        ` : ''}
+
         <div class="total-row">
           <span>IVA (19%):</span>
           <span>${formatCurrency(tax)}</span>
@@ -3152,8 +3210,9 @@ export default function TomadorPedidos() {
     try {
       // Calculate totals
       const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
-      const tax = subtotal * 0.19; // 19% IVA
-      const total = subtotal + tax;
+      const subtotalWithShipping = subtotal + totalShippingCost;
+      const tax = subtotalWithShipping * 0.19; // 19% IVA
+      const total = subtotalWithShipping + tax;
 
       let quote: Quote;
 
@@ -3386,7 +3445,7 @@ export default function TomadorPedidos() {
       };
 
       // Generate PDF using React-PDF
-      const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={items} />).toBlob();
+      const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={items} shippingCost={totalShippingCost} />).toBlob();
 
       // Generate filename with new format: ClientName-DDMMYY-NNN.pdf
       const pdfFilename = generatePDFFilename(
@@ -3534,8 +3593,10 @@ export default function TomadorPedidos() {
 
   // Calculate totals
   const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
-  const tax = subtotal * 0.19; // 19% IVA
-  const total = subtotal + tax;
+  const shippingCost = totalShippingCost;
+  const subtotalWithShipping = subtotal + shippingCost;
+  const tax = subtotalWithShipping * 0.19; // 19% IVA
+  const total = subtotalWithShipping + tax;
 
   return (
     <>
@@ -4709,6 +4770,21 @@ export default function TomadorPedidos() {
                                   {formatCurrency(subtotal)}
                                 </span>
                               </div>
+                              {/* Shipping toggle */}
+                              <div className="flex items-center justify-between text-sm">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={showShipping}
+                                    onChange={() => setShowShipping(!showShipping)}
+                                    className="rounded border-gray-300 text-orange-500 focus:ring-orange-500 h-3.5 w-3.5"
+                                  />
+                                  <span className="text-muted-foreground">Incluir flete</span>
+                                </label>
+                                {showShipping && (
+                                  <span className="font-medium text-orange-600">{formatCurrency(shippingCost)}</span>
+                                )}
+                              </div>
                               <div className="flex justify-between text-sm">
                                 <span>IVA (19%):</span>
                                 <span className="font-medium" data-testid="mobile-cart-tax">
@@ -5369,6 +5445,21 @@ export default function TomadorPedidos() {
                         <div className="flex justify-between text-sm">
                           <span>Subtotal:</span>
                           <span data-testid="modal-text-subtotal">{formatCurrency(subtotal)}</span>
+                        </div>
+                        {/* Shipping toggle */}
+                        <div className="flex items-center justify-between text-sm">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={showShipping}
+                              onChange={() => setShowShipping(!showShipping)}
+                              className="rounded border-gray-300 text-orange-500 focus:ring-orange-500 h-3.5 w-3.5"
+                            />
+                            <span className="text-muted-foreground">Incluir flete</span>
+                          </label>
+                          {showShipping && (
+                            <span className="text-orange-600 font-medium">{formatCurrency(shippingCost)}</span>
+                          )}
                         </div>
                         <div className="flex justify-between text-sm">
                           <span>IVA (19%):</span>

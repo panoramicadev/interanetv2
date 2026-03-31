@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
@@ -7,10 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
     Search, Package, Palette, ChevronDown, ChevronRight, ChevronUp,
-    Weight, Ruler, Truck, Loader2, Upload, Trash2, Box, Tag, ArrowUp, ArrowDown
+    Weight, Ruler, Truck, Loader2, Upload, Trash2, Box, Tag, ArrowUp, ArrowDown, ImageIcon, Check
 } from "lucide-react";
 
 interface FormatVariant {
@@ -230,20 +231,104 @@ export default function GroupedCatalog() {
     const [editingPosition, setEditingPosition] = useState<string | null>(null);
     const [editingPositionValue, setEditingPositionValue] = useState("");
 
-    const AVAILABLE_TAGS = ["Mejor Precio", "Rápida Rotación", "Pocas Unidades"];
-    const TAG_STYLES: Record<string, { active: string; inactive: string }> = {
-        "Mejor Precio": { 
-            active: "bg-green-500 text-white border-green-600 shadow-green-200 shadow-md ring-2 ring-green-300",
-            inactive: "bg-white text-green-700 border-dashed border-green-300 hover:bg-green-50 hover:border-green-400"
+    // Dynamic tags from API
+    const TAG_COLOR_MAP: Record<string, { active: string; inactive: string }> = {
+        green: { active: 'bg-green-500 text-white border-green-600 shadow-green-200 shadow-md ring-2 ring-green-300', inactive: 'bg-white text-green-700 border-dashed border-green-300 hover:bg-green-50' },
+        blue: { active: 'bg-blue-500 text-white border-blue-600 shadow-blue-200 shadow-md ring-2 ring-blue-300', inactive: 'bg-white text-blue-700 border-dashed border-blue-300 hover:bg-blue-50' },
+        amber: { active: 'bg-amber-500 text-white border-amber-600 shadow-amber-200 shadow-md ring-2 ring-amber-300', inactive: 'bg-white text-amber-700 border-dashed border-amber-300 hover:bg-amber-50' },
+        red: { active: 'bg-red-500 text-white border-red-600', inactive: 'bg-white text-red-700 border-dashed border-red-300 hover:bg-red-50' },
+        purple: { active: 'bg-purple-500 text-white border-purple-600', inactive: 'bg-white text-purple-700 border-dashed border-purple-300 hover:bg-purple-50' },
+        pink: { active: 'bg-pink-500 text-white border-pink-600', inactive: 'bg-white text-pink-700 border-dashed border-pink-300 hover:bg-pink-50' },
+        cyan: { active: 'bg-cyan-500 text-white border-cyan-600', inactive: 'bg-white text-cyan-700 border-dashed border-cyan-300 hover:bg-cyan-50' },
+        orange: { active: 'bg-orange-500 text-white border-orange-600', inactive: 'bg-white text-orange-700 border-dashed border-orange-300 hover:bg-orange-50' },
+        indigo: { active: 'bg-indigo-500 text-white border-indigo-600', inactive: 'bg-white text-indigo-700 border-dashed border-indigo-300 hover:bg-indigo-50' },
+        teal: { active: 'bg-teal-500 text-white border-teal-600', inactive: 'bg-white text-teal-700 border-dashed border-teal-300 hover:bg-teal-50' },
+    };
+    const TAG_BADGE_BG: Record<string, string> = {
+        green: 'bg-green-500 text-white border-green-600',
+        blue: 'bg-blue-500 text-white border-blue-600',
+        amber: 'bg-amber-500 text-white border-amber-600',
+        red: 'bg-red-500 text-white border-red-600',
+        purple: 'bg-purple-500 text-white border-purple-600',
+        pink: 'bg-pink-500 text-white border-pink-600',
+        cyan: 'bg-cyan-500 text-white border-cyan-600',
+        orange: 'bg-orange-500 text-white border-orange-600',
+        indigo: 'bg-indigo-500 text-white border-indigo-600',
+        teal: 'bg-teal-500 text-white border-teal-600',
+    };
+
+    const { data: dynamicTags = [] } = useQuery<{ name: string; color: string }[]>({
+        queryKey: ['/api/ecommerce/tags'],
+        queryFn: async () => {
+            const res = await fetch('/api/ecommerce/tags', { credentials: 'include' });
+            if (!res.ok) return [];
+            return res.json();
         },
-        "Rápida Rotación": { 
-            active: "bg-blue-500 text-white border-blue-600 shadow-blue-200 shadow-md ring-2 ring-blue-300",
-            inactive: "bg-white text-blue-700 border-dashed border-blue-300 hover:bg-blue-50 hover:border-blue-400"
+    });
+
+    // Product group images
+    const { data: savedGroupImages = {} } = useQuery<Record<string, string>>({
+        queryKey: ['/api/ecommerce/product-group-images'],
+        queryFn: async () => {
+            const res = await fetch('/api/ecommerce/product-group-images', { credentials: 'include' });
+            if (!res.ok) return {};
+            return res.json();
         },
-        "Pocas Unidades": { 
-            active: "bg-amber-500 text-white border-amber-600 shadow-amber-200 shadow-md ring-2 ring-amber-300",
-            inactive: "bg-white text-amber-700 border-dashed border-amber-300 hover:bg-amber-50 hover:border-amber-400"
-        },
+    });
+
+    const [imagePickerOpen, setImagePickerOpen] = useState(false);
+    const [imagePickerProduct, setImagePickerProduct] = useState<any>(null);
+    const [imageSaving, setImageSaving] = useState(false);
+
+    // Extract all unique images from a product
+    const getAvailableImages = (product: any): { url: string; label: string }[] => {
+        const images: { url: string; label: string }[] = [];
+        const seen = new Set<string>();
+        const colors = product.colors || {};
+        for (const [colorName, variants] of Object.entries(colors)) {
+            for (const v of (variants as any[])) {
+                if (v.imageUrl && !seen.has(v.imageUrl)) {
+                    seen.add(v.imageUrl);
+                    images.push({ url: v.imageUrl, label: `${colorName} — ${v.format || 'Sin formato'}` });
+                }
+            }
+        }
+        return images;
+    };
+
+    // Get display image for a product
+    const getProductImage = (product: any): string | null => {
+        if (savedGroupImages[product.genericName]) return savedGroupImages[product.genericName];
+        // Auto-select first available image
+        const colors = product.colors || {};
+        for (const variants of Object.values(colors)) {
+            for (const v of (variants as any[])) {
+                if (v.imageUrl) return v.imageUrl;
+            }
+        }
+        return null;
+    };
+
+    // Save image for product group
+    const handleSaveImage = async (genericName: string, imageUrl: string | null) => {
+        setImageSaving(true);
+        try {
+            const res = await fetch('/api/ecommerce/product-group-images', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ genericName, imageUrl }),
+                credentials: 'include',
+            });
+            if (!res.ok) throw new Error('Error');
+            queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/product-group-images'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/store/products/grouped'] });
+            toast({ title: imageUrl ? 'Imagen actualizada' : 'Imagen restablecida', description: genericName });
+            setImagePickerOpen(false);
+        } catch {
+            toast({ title: 'Error al guardar imagen', variant: 'destructive' });
+        } finally {
+            setImageSaving(false);
+        }
     };
 
     const tagMutation = useMutation({
@@ -455,7 +540,24 @@ export default function GroupedCatalog() {
                             ) : (
                                 <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                             )}
-                            <Package className="h-5 w-5 text-orange-500 flex-shrink-0" />
+                            {/* Product thumbnail */}
+                            <div
+                                className="w-10 h-10 rounded-lg overflow-hidden border bg-white flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-orange-300 transition-all"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setImagePickerProduct(product);
+                                    setImagePickerOpen(true);
+                                }}
+                                title="Clic para cambiar imagen destacada"
+                            >
+                                {getProductImage(product) ? (
+                                    <img src={getProductImage(product)!} alt={product.genericName} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-gray-50">
+                                        <ImageIcon className="h-4 w-4 text-gray-300" />
+                                    </div>
+                                )}
+                            </div>
                             <div className="flex-1 min-w-0">
                                 <h3 className="font-semibold text-lg">{product.genericName}</h3>
                                 {product.breveResena && (
@@ -470,43 +572,42 @@ export default function GroupedCatalog() {
                                     {product.groupName}
                                 </Badge>
                             )}
-                            {(product.tags || []).map(tag => (
-                                <Badge key={tag} className={`text-[10px] font-bold border ${
-                                    tag === 'Mejor Precio' ? 'bg-green-500 text-white border-green-600' :
-                                    tag === 'Rápida Rotación' ? 'bg-blue-500 text-white border-blue-600' :
-                                    tag === 'Pocas Unidades' ? 'bg-amber-500 text-white border-amber-600' :
-                                    'bg-gray-100 text-gray-700'
-                                }`}>
-                                    {tag}
-                                </Badge>
-                            ))}
+                            {(product.tags || []).map((tag: string) => {
+                                const tagDef = dynamicTags.find(t => t.name === tag);
+                                const bgClass = tagDef ? TAG_BADGE_BG[tagDef.color] || 'bg-gray-100 text-gray-700' : 'bg-gray-100 text-gray-700';
+                                return (
+                                    <Badge key={tag} className={`text-[10px] font-bold border ${bgClass}`}>
+                                        {tag}
+                                    </Badge>
+                                );
+                            })}
                         </div>
 
                         {/* Colors section */}
                         {isExpanded && (
                             <div className="border-t">
-                                {/* Tag toggles */}
+                                {/* Tag toggles — Dynamic */}
                                 <div className="p-3 bg-muted/20 border-b flex items-center gap-2 flex-wrap">
                                     <Tag className="h-3.5 w-3.5 text-muted-foreground" />
                                     <span className="text-xs font-medium text-muted-foreground mr-1">Etiquetas:</span>
-                                    {AVAILABLE_TAGS.map(tag => {
-                                        const isActive = (product.tags || []).includes(tag);
-                                        const styles = TAG_STYLES[tag] || { active: 'bg-gray-500 text-white', inactive: 'bg-white text-gray-600 border-dashed border-gray-300' };
+                                    {dynamicTags.map((tagObj) => {
+                                        const isActive = (product.tags || []).includes(tagObj.name);
+                                        const styles = TAG_COLOR_MAP[tagObj.color] || { active: 'bg-gray-500 text-white', inactive: 'bg-white text-gray-600 border-dashed border-gray-300' };
                                         return (
                                             <button
-                                                key={tag}
+                                                key={tagObj.name}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     tagMutation.mutate({
                                                         productFamily: product.genericName,
-                                                        tag,
+                                                        tag: tagObj.name,
                                                         action: isActive ? 'remove' : 'add',
                                                     });
                                                 }}
                                                 disabled={tagMutation.isPending}
                                                 className={`text-[11px] px-2.5 py-1 rounded-full border font-semibold transition-all duration-200 ${isActive ? styles.active : styles.inactive}`}
                                             >
-                                                {isActive ? '✓ ' : '+ '}{tag}
+                                                {isActive ? '✓ ' : '+ '}{tagObj.name}
                                             </button>
                                         );
                                     })}
@@ -628,4 +729,7 @@ export default function GroupedCatalog() {
             )}
         </div>
     );
+}
+
+
 }

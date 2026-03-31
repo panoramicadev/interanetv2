@@ -5764,6 +5764,7 @@ export function registerRoutes(app: Express): Server {
         ep.packaging_pallet_name, ep.packaging_pallet_unit, ep.packaging_amount_per_pallet,
         ep.group_id,
         ep.price_list_id,
+        ep.imagen_url,
         pl.codigo as sku,
         pl.producto as product_name,
         pl.unidad as unit,
@@ -5864,6 +5865,7 @@ export function registerRoutes(app: Express): Server {
         minUnit: row.min_unit,
         stepSize: row.step_size,
         description: row.description,
+        imageUrl: (row as any).imagen_url || null,
         dimensions: {
           weight: row.weight, weightUnit: row.weight_unit,
           length: row.length, lengthUnit: row.length_unit,

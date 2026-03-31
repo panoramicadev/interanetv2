@@ -1232,7 +1232,7 @@ export default function TiendaPage() {
                                           <img src={colorImg} alt={color} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                                         </div>
                                       )}
-                                      {color.toLowerCase()}
+                                      {color.toUpperCase()}
                                     </button>
                                   );
                                 })}
