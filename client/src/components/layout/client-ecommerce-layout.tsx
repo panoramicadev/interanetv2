@@ -4,15 +4,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 import {
   LayoutDashboard,
-  ShoppingBag,
   ClipboardList,
-  User,
   LogOut,
   ShoppingCart,
   Menu,
   X,
   ChevronRight,
-  Palette
+  Gift
 } from "lucide-react";
 
 interface StoreConfig {
@@ -24,8 +22,7 @@ interface StoreConfig {
 const navItems = [
   { label: "Mi Panel", href: "/mi-cuenta", icon: LayoutDashboard },
   { label: "Mis Pedidos", href: "/mis-pedidos", icon: ClipboardList },
-  { label: "Solicitar Cotización", href: "/solicitar-cotizacion", icon: ShoppingBag },
-  { label: "Tintometría", href: "/tintometria/selector", icon: Palette },
+  { label: "Panorámica Market", href: "/panoramica-market-cliente", icon: Gift },
 ];
 
 export default function ClientEcommerceLayout({ children }: { children: ReactNode }) {

@@ -133,11 +133,9 @@ function Router() {
           <Route path="/" component={() => { window.location.replace('/tienda'); return null; }} />
           {/* Account management pages use eCommerce layout */}
           <Route path="/mi-cuenta">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
-          <Route path="/mis-pedidos">{() => <ClientEcommerceLayout><MisPedidos /></ClientEcommerceLayout>}</Route>
-          <Route path="/solicitar-cotizacion">{() => <ClientEcommerceLayout><div className="p-6"><h1 className="text-2xl font-bold">Solicitar Cotización</h1><p>Página en construcción</p></div></ClientEcommerceLayout>}</Route>
+          <Route path="/mis-pedidos">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
+          <Route path="/panoramica-market-cliente">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
           <Route path="/client-portal">{() => <ClientEcommerceLayout><ClientPortal /></ClientEcommerceLayout>}</Route>
-          <Route path="/tintometria/selector">{() => <ClientEcommerceLayout><TintometriaSelector /></ClientEcommerceLayout>}</Route>
-          <Route path="/tintometria/calculadora">{() => <ClientEcommerceLayout><TintometriaCalculadora /></ClientEcommerceLayout>}</Route>
           <Route component={() => { window.location.replace('/tienda'); return null; }} />
         </>
       ) : (
