@@ -7037,6 +7037,62 @@ export function registerRoutes(app: Express): Server {
 
     res.json({ success: true, order });
   }));
+
+  // ===================== Ecommerce Tags API =====================
+
+  const DEFAULT_TAGS = [
+    { name: 'Mejor Precio', color: 'green' },
+    { name: 'Rápida Rotación', color: 'blue' },
+    { name: 'Pocas Unidades', color: 'amber' },
+  ];
+
+  // Get all tags
+  app.get('/api/ecommerce/tags', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+
+    const result = await db.execute(sql`
+      SELECT value FROM app_config WHERE key = 'ecommerce_tags'
+    `);
+    const row = (result as any).rows?.[0];
+    res.json(row?.value || DEFAULT_TAGS);
+  }));
+
+  // Save tags (full replace)
+  app.put('/api/ecommerce/tags', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (!['admin', 'supervisor'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const { tags } = req.body;
+    if (!Array.isArray(tags)) {
+      return res.status(400).json({ message: 'Se requiere un array de etiquetas' });
+    }
+
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+
+    await db.execute(sql`
+      INSERT INTO app_config (key, value, updated_at)
+      VALUES ('ecommerce_tags', ${JSON.stringify(tags)}::jsonb, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(tags)}::jsonb, updated_at = NOW()
+    `);
+
+    res.json({ success: true, tags });
+  }));
+
+  // Public tags endpoint (for store)
+  app.get('/api/store/tags', asyncHandler(async (req: any, res: any) => {
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+
+    const result = await db.execute(sql`
+      SELECT value FROM app_config WHERE key = 'ecommerce_tags'
+    `);
+    const row = (result as any).rows?.[0];
+    res.json(row?.value || DEFAULT_TAGS);
+  }));
+
   // Get product group images (manual overrides)
   app.get('/api/ecommerce/product-group-images', requireAuth, asyncHandler(async (req: any, res: any) => {
     const { db } = await import('./db');

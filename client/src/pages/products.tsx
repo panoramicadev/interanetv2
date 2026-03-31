@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2, Globe, ShoppingCart, Tags, Image, Settings, Link, Palette, BarChart3, Layers, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ExternalLink, RefreshCw, BookOpen, ImageIcon, Truck, Save, DollarSign, Tag, Plus, Trash2, ArrowUpDown, GripVertical } from "lucide-react";
+import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2, Globe, ShoppingCart, Tags, Image, Settings, Link, Palette, BarChart3, Layers, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ExternalLink, RefreshCw, BookOpen, ImageIcon, Truck, Save, DollarSign, Tag, Plus, Trash2, ArrowUpDown, GripVertical, Check, X } from "lucide-react";
 import { PriceList } from "@shared/schema";
 import { PRODUCT_FORMATS } from "@shared/format-utils";
 import GroupedCatalog from "@/components/grouped-catalog";
@@ -204,11 +204,76 @@ function CategoriasEtiquetasContent() {
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [editingCatName, setEditingCatName] = useState("");
 
-  const AVAILABLE_TAGS = ["Mejor Precio", "Rápida Rotación", "Pocas Unidades"];
-  const TAG_COLORS: Record<string, string> = {
-    "Mejor Precio": "bg-green-500",
-    "Rápida Rotación": "bg-blue-500",
-    "Pocas Unidades": "bg-amber-500",
+  const TAG_COLOR_OPTIONS = ['green', 'blue', 'amber', 'red', 'purple', 'pink', 'cyan', 'orange', 'indigo', 'teal'];
+  const TAG_COLOR_MAP: Record<string, string> = {
+    green: 'bg-green-500', blue: 'bg-blue-500', amber: 'bg-amber-500', red: 'bg-red-500',
+    purple: 'bg-purple-500', pink: 'bg-pink-500', cyan: 'bg-cyan-500', orange: 'bg-orange-500',
+    indigo: 'bg-indigo-500', teal: 'bg-teal-500',
+  };
+
+  // Fetch tags from API
+  const { data: availableTags = [] } = useQuery<{ name: string; color: string }[]>({
+    queryKey: ['/api/ecommerce/tags'],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/ecommerce/tags");
+      return res.json();
+    },
+  });
+
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState("green");
+  const [editingTagIdx, setEditingTagIdx] = useState<number | null>(null);
+  const [editingTagName, setEditingTagName] = useState("");
+
+  const saveTagsMutation = useMutation({
+    mutationFn: async (tags: { name: string; color: string }[]) => {
+      const res = await fetch("/api/ecommerce/tags", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Error al guardar etiquetas");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/tags'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/store/tags'] });
+      toast({ title: "Etiquetas actualizadas" });
+    },
+    onError: () => {
+      toast({ variant: "destructive", title: "Error", description: "No se pudieron guardar" });
+    },
+  });
+
+  const addTag = () => {
+    if (!newTagName.trim()) return;
+    if (availableTags.some(t => t.name.toLowerCase() === newTagName.trim().toLowerCase())) {
+      toast({ variant: "destructive", title: "Error", description: "Ya existe una etiqueta con ese nombre" });
+      return;
+    }
+    saveTagsMutation.mutate([...availableTags, { name: newTagName.trim(), color: newTagColor }]);
+    setNewTagName("");
+    setNewTagColor("green");
+  };
+
+  const removeTag = (idx: number) => {
+    if (!confirm(`¿Eliminar etiqueta "${availableTags[idx].name}"?`)) return;
+    saveTagsMutation.mutate(availableTags.filter((_, i) => i !== idx));
+  };
+
+  const saveEditTag = (idx: number) => {
+    if (!editingTagName.trim()) return;
+    const updated = [...availableTags];
+    updated[idx] = { ...updated[idx], name: editingTagName.trim() };
+    saveTagsMutation.mutate(updated);
+    setEditingTagIdx(null);
+  };
+
+  const updateTagColor = (idx: number, color: string) => {
+    const updated = [...availableTags];
+    updated[idx] = { ...updated[idx], color };
+    saveTagsMutation.mutate(updated);
   };
   const CATEGORY_COLORS = [
     "#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899",
@@ -449,7 +514,7 @@ function CategoriasEtiquetasContent() {
         </CardContent>
       </Card>
 
-      {/* Etiquetas disponibles */}
+      {/* Etiquetas disponibles — Editable */}
       <Card className="border-0 shadow-sm rounded-xl">
         <CardHeader className="bg-muted/30 border-b px-6 py-4">
           <CardTitle className="text-base flex items-center gap-2">
@@ -457,18 +522,94 @@ function CategoriasEtiquetasContent() {
             Etiquetas Disponibles
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-4 sm:p-6">
+        <CardContent className="p-4 sm:p-6 space-y-4">
+          {/* Existing tags */}
           <div className="flex flex-wrap gap-3">
-            {AVAILABLE_TAGS.map(tag => {
-              const count = catalog.filter(p => (p.tags || []).includes(tag)).length;
+            {availableTags.map((tag, idx) => {
+              const count = catalog.filter(p => (p.tags || []).includes(tag.name)).length;
+              const isEditing = editingTagIdx === idx;
               return (
-                <div key={tag} className="flex items-center gap-2 p-2.5 rounded-xl bg-muted/30 border border-muted">
-                  <div className={`w-3 h-3 rounded-full ${TAG_COLORS[tag] || 'bg-gray-500'}`} />
-                  <span className="text-sm font-semibold">{tag}</span>
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{count}</Badge>
+                <div key={idx} className="flex items-center gap-2 p-2.5 rounded-xl bg-muted/30 border border-muted group">
+                  {/* Color dot — click to change */}
+                  <div className="relative">
+                    <button
+                      className={`w-4 h-4 rounded-full ${TAG_COLOR_MAP[tag.color] || 'bg-gray-500'} cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-gray-300 transition-all`}
+                      onClick={() => {
+                        const currentIdx = TAG_COLOR_OPTIONS.indexOf(tag.color);
+                        const nextColor = TAG_COLOR_OPTIONS[(currentIdx + 1) % TAG_COLOR_OPTIONS.length];
+                        updateTagColor(idx, nextColor);
+                      }}
+                      title="Cambiar color"
+                    />
+                  </div>
+                  {isEditing ? (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={editingTagName}
+                        onChange={e => setEditingTagName(e.target.value)}
+                        className="h-6 text-xs w-28 px-1.5"
+                        onKeyDown={e => e.key === 'Enter' && saveEditTag(idx)}
+                        autoFocus
+                      />
+                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => saveEditTag(idx)}>
+                        <Check className="h-3 w-3 text-green-600" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setEditingTagIdx(null)}>
+                        <X className="h-3 w-3 text-red-500" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <span
+                        className="text-sm font-semibold cursor-pointer hover:text-orange-600 transition-colors"
+                        onClick={() => { setEditingTagIdx(idx); setEditingTagName(tag.name); }}
+                        title="Clic para editar"
+                      >
+                        {tag.name}
+                      </span>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{count}</Badge>
+                      <button
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-600 ml-1"
+                        onClick={() => removeTag(idx)}
+                        title="Eliminar etiqueta"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </>
+                  )}
                 </div>
               );
             })}
+          </div>
+
+          {/* Add new tag */}
+          <div className="flex items-center gap-2 pt-2 border-t">
+            <div className="flex items-center gap-2 flex-1">
+              <button
+                className={`w-5 h-5 rounded-full ${TAG_COLOR_MAP[newTagColor] || 'bg-gray-500'} cursor-pointer hover:ring-2 hover:ring-offset-1 transition-all flex-shrink-0`}
+                onClick={() => {
+                  const idx = TAG_COLOR_OPTIONS.indexOf(newTagColor);
+                  setNewTagColor(TAG_COLOR_OPTIONS[(idx + 1) % TAG_COLOR_OPTIONS.length]);
+                }}
+                title="Cambiar color"
+              />
+              <Input
+                value={newTagName}
+                onChange={e => setNewTagName(e.target.value)}
+                placeholder="Nueva etiqueta..."
+                className="h-8 text-sm"
+                onKeyDown={e => e.key === 'Enter' && addTag()}
+              />
+            </div>
+            <Button
+              size="sm"
+              onClick={addTag}
+              disabled={!newTagName.trim() || saveTagsMutation.isPending}
+              className="h-8 gap-1 bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Agregar
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -601,9 +742,10 @@ function CategoriasEtiquetasContent() {
                             )}
                             {tags.length > 0 && (
                               <div className="flex gap-0.5 ml-0.5">
-                                {tags.map((tag: string) => (
-                                  <div key={tag} className={`w-2 h-2 rounded-full ${TAG_COLORS[tag] || 'bg-gray-400'}`} title={tag} />
-                                ))}
+                                {tags.map((tag: string) => {
+                                  const tagDef = availableTags.find(t => t.name === tag);
+                                  return <div key={tag} className={`w-2 h-2 rounded-full ${tagDef ? TAG_COLOR_MAP[tagDef.color] || 'bg-gray-400' : 'bg-gray-400'}`} title={tag} />;
+                                })}
                               </div>
                             )}
                             <button
@@ -652,24 +794,24 @@ function CategoriasEtiquetasContent() {
                               </TableCell>
                               <TableCell>
                                 <div className="flex flex-wrap gap-1">
-                                  {AVAILABLE_TAGS.map(tag => {
-                                    const isActive = (product.tags || []).includes(tag);
+                                  {availableTags.map((tagObj: { name: string; color: string }) => {
+                                    const isActive = (product.tags || []).includes(tagObj.name);
                                     return (
                                       <button
-                                        key={tag}
+                                        key={tagObj.name}
                                         onClick={() => tagMutation.mutate({
                                           productFamily: product.genericName,
-                                          tag,
+                                          tag: tagObj.name,
                                           action: isActive ? 'remove' : 'add',
                                         })}
                                         disabled={tagMutation.isPending}
                                         className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold transition-all ${
                                           isActive
-                                            ? `${TAG_COLORS[tag]} text-white border-transparent`
+                                            ? `${TAG_COLOR_MAP[tagObj.color] || 'bg-gray-500'} text-white border-transparent`
                                             : 'bg-white text-gray-500 border-dashed border-gray-300 hover:border-gray-400'
                                         }`}
                                       >
-                                        {isActive ? '✓ ' : '+ '}{tag}
+                                        {isActive ? '✓ ' : '+ '}{tagObj.name}
                                       </button>
                                     );
                                   })}
@@ -744,24 +886,24 @@ function CategoriasEtiquetasContent() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {AVAILABLE_TAGS.map(tag => {
-                          const isActive = (product.tags || []).includes(tag);
+                        {availableTags.map((tagObj: { name: string; color: string }) => {
+                          const isActive = (product.tags || []).includes(tagObj.name);
                           return (
                             <button
-                              key={tag}
+                              key={tagObj.name}
                               onClick={() => tagMutation.mutate({
                                 productFamily: product.genericName,
-                                tag,
+                                tag: tagObj.name,
                                 action: isActive ? 'remove' : 'add',
                               })}
                               disabled={tagMutation.isPending}
                               className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold transition-all ${
                                 isActive
-                                  ? `${TAG_COLORS[tag]} text-white border-transparent`
+                                  ? `${TAG_COLOR_MAP[tagObj.color] || 'bg-gray-500'} text-white border-transparent`
                                   : 'bg-white text-gray-500 border-dashed border-gray-300 hover:border-gray-400'
                               }`}
                             >
-                              {isActive ? '✓ ' : '+ '}{tag}
+                              {isActive ? '✓ ' : '+ '}{tagObj.name}
                             </button>
                           );
                         })}

@@ -183,6 +183,53 @@ export default function GroupedCatalog() {
         },
     });
 
+    // Set position mutation (move product to a specific index)
+    const setPositionMutation = useMutation({
+        mutationFn: async ({ productName, newPosition }: { productName: string; newPosition: number }) => {
+            // First get current order
+            const orderRes = await fetch("/api/ecommerce/product-order", { credentials: "include" });
+            let order: string[] = await orderRes.json();
+
+            // If order is empty, build from catalog
+            if (!Array.isArray(order) || order.length === 0) {
+                order = catalog.map((p: any) => p.genericName);
+            }
+
+            // Remove product from current position
+            order = order.filter(n => n !== productName);
+            // Ensure product names not in order get appended
+            const catalogNames = catalog.map((p: any) => p.genericName);
+            catalogNames.forEach((name: string) => {
+                if (!order.includes(name)) order.push(name);
+            });
+            // Remove product again in case it was added
+            order = order.filter(n => n !== productName);
+
+            // Clamp position
+            const targetIdx = Math.max(0, Math.min(newPosition - 1, order.length));
+            order.splice(targetIdx, 0, productName);
+
+            // Save
+            const res = await fetch("/api/ecommerce/product-order", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ order }),
+                credentials: "include",
+            });
+            if (!res.ok) throw new Error("Error al guardar orden");
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/products/grouped-catalog"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/public/products/grouped"] });
+            setEditingPosition(null);
+        },
+    });
+
+    // State for editing position number
+    const [editingPosition, setEditingPosition] = useState<string | null>(null);
+    const [editingPositionValue, setEditingPositionValue] = useState("");
+
     const AVAILABLE_TAGS = ["Mejor Precio", "Rápida Rotación", "Pocas Unidades"];
     const TAG_STYLES: Record<string, { active: string; inactive: string }> = {
         "Mejor Precio": { 
@@ -357,12 +404,51 @@ export default function GroupedCatalog() {
                             className="flex items-center gap-3 p-4 cursor-pointer hover:bg-muted/30 transition-colors"
                             onClick={() => toggleProduct(product.genericName)}
                         >
-                            {/* Position number */}
-                            <div 
-                                className="flex-shrink-0 w-7 h-7 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs font-bold border border-orange-200"
-                                title={`Posición ${catalog.indexOf(product) + 1}`}
-                            >
-                                {catalog.indexOf(product) + 1}
+                            {/* Editable Position number */}
+                            <div onClick={(e) => e.stopPropagation()}>
+                                {editingPosition === product.genericName ? (
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        max={catalog.length}
+                                        value={editingPositionValue}
+                                        onChange={e => setEditingPositionValue(e.target.value)}
+                                        onBlur={() => {
+                                            const num = parseInt(editingPositionValue);
+                                            if (num && num >= 1 && num <= catalog.length && num !== catalog.indexOf(product) + 1) {
+                                                setPositionMutation.mutate({ productName: product.genericName, newPosition: num });
+                                            } else {
+                                                setEditingPosition(null);
+                                            }
+                                        }}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter') {
+                                                const num = parseInt(editingPositionValue);
+                                                if (num && num >= 1 && num <= catalog.length) {
+                                                    setPositionMutation.mutate({ productName: product.genericName, newPosition: num });
+                                                } else {
+                                                    setEditingPosition(null);
+                                                }
+                                            }
+                                            if (e.key === 'Escape') setEditingPosition(null);
+                                        }}
+                                        className="w-9 h-7 text-center text-xs font-bold rounded-full border-2 border-orange-400 bg-orange-50 text-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300"
+                                        autoFocus
+                                    />
+                                ) : (
+                                    <div 
+                                        className="flex-shrink-0 w-7 h-7 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs font-bold border border-orange-200 cursor-pointer hover:bg-orange-200 hover:border-orange-300 transition-colors"
+                                        title="Clic para cambiar posición"
+                                        onClick={() => {
+                                            setEditingPosition(product.genericName);
+                                            setEditingPositionValue(String(catalog.indexOf(product) + 1));
+                                        }}
+                                    >
+                                        {setPositionMutation.isPending && editingPosition === product.genericName
+                                            ? '...'
+                                            : catalog.indexOf(product) + 1}
+                                    </div>
+                                )}
                             </div>
                             {isExpanded ? (
                                 <ChevronDown className="h-5 w-5 text-muted-foreground flex-shrink-0" />
