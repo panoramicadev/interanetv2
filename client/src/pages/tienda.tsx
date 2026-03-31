@@ -419,6 +419,7 @@ export default function TiendaPage() {
   const { data: storeConfig } = useQuery<StoreConfig>({
     queryKey: ['/api/store/config'],
     retry: false,
+    staleTime: 300_000, // 5 min
   });
 
   // Fetch topbar configuration (controls visibility and values)
@@ -440,6 +441,7 @@ export default function TiendaPage() {
   const { data: freeShippingData } = useQuery<{ threshold: number }>({
     queryKey: ['/api/ecommerce/free-shipping-threshold'],
     retry: false,
+    staleTime: 300_000, // 5 min
   });
   const freeShippingThreshold = topbarConfig?.freeShipping?.threshold ?? freeShippingData?.threshold ?? 250000;
 
@@ -447,6 +449,7 @@ export default function TiendaPage() {
   const { data: storeBanners = [] } = useQuery<StoreBanner[]>({
     queryKey: ['/api/store/banners'],
     retry: false,
+    staleTime: 300_000, // 5 min
   });
 
   // Use DB banners if available, otherwise fallback to hardcoded
@@ -482,6 +485,8 @@ export default function TiendaPage() {
       return response.json();
     },
     retry: false,
+    staleTime: 30_000, // Cache for 30s — server also caches
+    placeholderData: (prev: any) => prev, // Keep previous data during transitions
   });
 
   const groupedCatalog: StoreGenericProduct[] = useMemo(() => {
@@ -511,6 +516,7 @@ export default function TiendaPage() {
   const { data: categories = [] } = useQuery<string[]>({
     queryKey: ['/api/store/categories'],
     retry: false,
+    staleTime: 300_000, // Categories rarely change — cache 5 min
   });
 
   // Get active hero banner

@@ -6421,6 +6421,7 @@ export function registerRoutes(app: Express): Server {
       orden: null,
     };
     const product = await storage.createEcommerceProduct(ecommerceProduct);
+    invalidateStoreCache();
     res.status(201).json(product);
   }));
 
@@ -6452,6 +6453,7 @@ export function registerRoutes(app: Express): Server {
 
     try {
       const product = await storage.updateEcommerceProduct(kopr, validationResult.data);
+      invalidateStoreCache();
       res.json(product);
     } catch (error: any) {
       if (error.message.includes('not found')) {
@@ -6463,10 +6465,12 @@ export function registerRoutes(app: Express): Server {
 
   // Toggle eCommerce active status (admin/supervisor only)
   app.patch('/api/ecommerce/products/:kopr/toggle-active', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    // Will invalidate store cache at the end
     const { kopr } = req.params;
 
     try {
       const product = await storage.toggleEcommerceActive(kopr);
+      invalidateStoreCache();
       res.json(product);
     } catch (error: any) {
       if (error.message.includes('not found')) {
@@ -7120,6 +7124,7 @@ export function registerRoutes(app: Express): Server {
       ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(order)}::jsonb, updated_at = NOW()
     `);
 
+    invalidateStoreCache();
     res.json({ success: true, order });
   }));
 
@@ -7180,6 +7185,7 @@ export function registerRoutes(app: Express): Server {
       ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(order)}::jsonb, updated_at = NOW()
     `);
 
+    invalidateStoreCache();
     res.json({ success: true, order });
   }));
 
@@ -7264,6 +7270,7 @@ export function registerRoutes(app: Express): Server {
     const result = await db.execute(sql`
       SELECT value FROM app_config WHERE key = 'ecommerce_tags'
     `);
+    invalidateStoreCache();
     const row = (result as any).rows?.[0];
     res.json(row?.value || DEFAULT_TAGS);
   }));
@@ -7314,6 +7321,7 @@ export function registerRoutes(app: Express): Server {
       ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(images)}::jsonb, updated_at = NOW()
     `);
 
+    invalidateStoreCache();
     res.json({ success: true, genericName, imageUrl: imageUrl || null });
   }));
 
@@ -11266,169 +11274,204 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Get grouped products for the store (same grouping as salesperson catalog, but with prices)
+  // ──────── Store Catalog Cache ────────
+  // In-memory cache for the full grouped catalog to avoid 3 DB queries per request
+  let _storeCatalogCache: { catalog: any[]; totalProducts: number; builtAt: number } | null = null;
+  const STORE_CACHE_TTL = 60_000; // 60 seconds
+
+  // Invalidate store cache (call this when products/order/images change)
+  const invalidateStoreCache = () => { _storeCatalogCache = null; };
+
+  // Build the full catalog
+  const buildStoreCatalog = async (): Promise<{ catalog: any[]; totalProducts: number }> => {
+    // Check cache first
+    if (_storeCatalogCache && Date.now() - _storeCatalogCache.builtAt < STORE_CACHE_TTL) {
+      return _storeCatalogCache;
+    }
+
+    const result = await db.execute(sql`
+      SELECT
+        ep.id as ecom_id,
+        ep.categoria as group_name,
+        ep.descripcion as description,
+        ep.variant_generic_display_name,
+        ep.color,
+        ep.format_unit,
+        ep.min_unit,
+        ep.step_size,
+        ep.price_list_id,
+        ep.tags,
+        ep.imagen_url,
+        ep.precio_ecommerce as precio,
+        pl.codigo as sku,
+        pl.producto as product_name,
+        pl.unidad as unit,
+        COALESCE(stk.total_stock, 0) as total_stock,
+        pc.breve_resena,
+        pc.imagen_destacada
+      FROM ecommerce_products ep
+      LEFT JOIN price_list pl ON ep.price_list_id = pl.id
+      LEFT JOIN (
+        SELECT kopr, SUM(COALESCE(physical_stock2, 0)) as total_stock
+        FROM product_stock
+        GROUP BY kopr
+      ) stk ON stk.kopr = pl.codigo
+      LEFT JOIN product_content pc ON pc.codigo = pl.codigo
+      WHERE ep.activo = true
+      ORDER BY ep.variant_generic_display_name, ep.color, ep.format_unit
+    `);
+    const rows = Array.isArray(result) ? result : (result as any).rows || [];
+
+    const productsMap = new Map<string, {
+      genericName: string;
+      groupName: string | null;
+      tags: string[];
+      breveResena: string | null;
+      imageUrl: string | null;
+      imageUrlPriority: number;
+      colors: Map<string, any[]>;
+    }>();
+
+    for (const row of rows as any[]) {
+      const groupName = row.group_name || null;
+      const genericName = (row.variant_generic_display_name || row.product_name || 'Sin Nombre').trim();
+      const color = (row.color || 'Sin Color').trim();
+      const formatUnit = row.format_unit || row.unit || 'Sin formato';
+      const sku = row.sku || row.price_list_id || '';
+      let rowTags: string[] = [];
+      try { rowTags = JSON.parse(row.tags || '[]'); } catch { rowTags = []; }
+
+      if (!productsMap.has(genericName)) {
+        productsMap.set(genericName, { genericName, groupName, tags: rowTags, breveResena: (row as any).breve_resena || null, imageUrl: null, imageUrlPriority: 0, colors: new Map() });
+      }
+      const product = productsMap.get(genericName)!;
+      if (rowTags.length > 0 && product.tags.length === 0) product.tags = rowTags;
+      if (!product.breveResena && (row as any).breve_resena) product.breveResena = (row as any).breve_resena;
+
+      // Image priority: STRONGLY prefer GALON format + BLANCO color
+      const rowImageUrl = (row as any).imagen_url || (row as any).imagen_destacada || null;
+      if (rowImageUrl) {
+        let priority = 1;
+        const colorUpper = color.toUpperCase();
+        const formatUpper = formatUnit.toUpperCase();
+        if (colorUpper.includes('BLANCO') || colorUpper === 'BLANCO') priority += 10;
+        const is14 = formatUpper.includes('1/4') || formatUpper.includes('CUARTO');
+        const isGalon = !is14 && (formatUpper.includes('GALON') || formatUpper.includes('GALÓN') || /\bGL\b/.test(formatUpper));
+        const isBalde = formatUpper.includes('BALDE') || formatUpper.includes('BLD') || formatUpper.includes('BD4') || formatUpper.includes('BD5');
+        if (isGalon) priority += 20;
+        else if (isBalde) priority += 10;
+        else if (is14) priority -= 5;
+        if (priority > product.imageUrlPriority) {
+          product.imageUrl = rowImageUrl;
+          product.imageUrlPriority = priority;
+        }
+      }
+      if (!product.colors.has(color)) {
+        product.colors.set(color, []);
+      }
+
+      product.colors.get(color)!.push({
+        ecomId: row.ecom_id,
+        sku,
+        name: row.product_name || genericName,
+        color,
+        format: formatUnit,
+        groupName,
+        price: row.precio ? parseFloat(row.precio) : null,
+        stock: parseFloat(row.total_stock) || 0,
+        minUnit: row.min_unit || 1,
+        stepSize: row.step_size || 1,
+        description: row.description,
+        imageUrl: (row as any).imagen_url || null,
+      });
+    }
+
+    let catalog = Array.from(productsMap.values()).map(p => ({
+      genericName: p.genericName,
+      groupName: p.groupName,
+      tags: p.tags,
+      breveResena: p.breveResena,
+      imageUrl: p.imageUrl,
+      colors: Object.fromEntries(p.colors),
+      // Precompute searchable text for fast filtering
+      _searchText: [
+        p.genericName,
+        ...(Array.from(p.colors.values()).flat().map((v: any) => `${v.sku} ${v.color} ${v.format}`)),
+      ].join(' ').toLowerCase(),
+    }));
+
+    // Apply custom display order from app_config
+    try {
+      const orderResult = await db.execute(sql`
+        SELECT value FROM app_config WHERE key = 'ecommerce_product_order'
+      `);
+      const orderRow = (orderResult as any).rows?.[0];
+      const productOrder: string[] = orderRow?.value || [];
+      
+      if (productOrder.length > 0) {
+        const orderMap = new Map<string, number>();
+        productOrder.forEach((name, idx) => orderMap.set(name, idx));
+        
+        catalog.sort((a, b) => {
+          const orderA = orderMap.has(a.genericName) ? orderMap.get(a.genericName)! : Number.MAX_SAFE_INTEGER;
+          const orderB = orderMap.has(b.genericName) ? orderMap.get(b.genericName)! : Number.MAX_SAFE_INTEGER;
+          if (orderA !== orderB) return orderA - orderB;
+          return a.genericName.localeCompare(b.genericName);
+        });
+      }
+    } catch (orderError) {
+      console.log('[store/products/grouped] product order lookup skipped:', orderError);
+    }
+
+    // Apply manual image overrides from app_config
+    try {
+      const imgResult = await db.execute(sql`
+        SELECT value FROM app_config WHERE key = 'ecommerce_product_group_images'
+      `);
+      const imgRow = (imgResult as any).rows?.[0];
+      const manualImages: Record<string, string> = imgRow?.value || {};
+      
+      if (Object.keys(manualImages).length > 0) {
+        catalog.forEach(p => {
+          if (manualImages[p.genericName]) {
+            p.imageUrl = manualImages[p.genericName];
+          }
+        });
+      }
+    } catch (imgError) {
+      console.log('[store/products/grouped] manual images lookup skipped:', imgError);
+    }
+
+    const result2 = { catalog, totalProducts: (rows as any[]).length, builtAt: Date.now() };
+    _storeCatalogCache = result2;
+    console.log(`[STORE CACHE] Built catalog: ${catalog.length} groups, ${(rows as any[]).length} products`);
+    return result2;
+  };
+
   app.get('/api/store/products/grouped', async (req: any, res) => {
     try {
       const { search, category } = req.query;
-      const result = await db.execute(sql`
-        SELECT
-          ep.id as ecom_id,
-          ep.categoria as group_name,
-          ep.descripcion as description,
-          ep.variant_generic_display_name,
-          ep.color,
-          ep.format_unit,
-          ep.min_unit,
-          ep.step_size,
-          ep.price_list_id,
-          ep.tags,
-          ep.imagen_url,
-          ep.precio_ecommerce as precio,
-          pl.codigo as sku,
-          pl.producto as product_name,
-          pl.unidad as unit,
-          COALESCE(stk.total_stock, 0) as total_stock,
-          pc.breve_resena,
-          pc.imagen_destacada
-        FROM ecommerce_products ep
-        LEFT JOIN price_list pl ON ep.price_list_id = pl.id
-        LEFT JOIN (
-          SELECT kopr, SUM(COALESCE(physical_stock2, 0)) as total_stock
-          FROM product_stock
-          GROUP BY kopr
-        ) stk ON stk.kopr = pl.codigo
-        LEFT JOIN product_content pc ON pc.codigo = pl.codigo
-        WHERE ep.activo = true
-        ORDER BY ep.variant_generic_display_name, ep.color, ep.format_unit
-      `);
-      const rows = Array.isArray(result) ? result : (result as any).rows || [];
+      const fullCatalog = await buildStoreCatalog();
 
-      const productsMap = new Map<string, {
-        genericName: string;
-        groupName: string | null;
-        tags: string[];
-        breveResena: string | null;
-        imageUrl: string | null;
-        imageUrlPriority: number;
-        colors: Map<string, any[]>;
-      }>();
+      let filtered = fullCatalog.catalog;
 
-      for (const row of rows as any[]) {
-        const groupName = row.group_name || null;
-        const genericName = (row.variant_generic_display_name || row.product_name || 'Sin Nombre').trim();
-        const color = (row.color || 'Sin Color').trim();
-        const formatUnit = row.format_unit || row.unit || 'Sin formato';
-        const sku = row.sku || row.price_list_id || '';
-        let rowTags: string[] = [];
-        try { rowTags = JSON.parse(row.tags || '[]'); } catch { rowTags = []; }
-
-        // Search filter
-        if (search) {
-          const s = (search as string).toLowerCase();
-          if (!(sku.toLowerCase().includes(s) || genericName.toLowerCase().includes(s) || color.toLowerCase().includes(s))) continue;
-        }
-
-        // Category filter
-        if (category && category !== 'all' && groupName !== category) continue;
-
-        if (!productsMap.has(genericName)) {
-          productsMap.set(genericName, { genericName, groupName, tags: rowTags, breveResena: (row as any).breve_resena || null, imageUrl: null, imageUrlPriority: 0, colors: new Map() });
-        }
-        const product = productsMap.get(genericName)!;
-        if (rowTags.length > 0 && product.tags.length === 0) product.tags = rowTags;
-        if (!product.breveResena && (row as any).breve_resena) product.breveResena = (row as any).breve_resena;
-
-        // Image priority: STRONGLY prefer GALON format + BLANCO color
-        const rowImageUrl = (row as any).imagen_url || (row as any).imagen_destacada || null;
-        if (rowImageUrl) {
-          let priority = 1;
-          const colorUpper = color.toUpperCase();
-          const formatUpper = formatUnit.toUpperCase();
-          // Color priority: BLANCO is most desirable
-          if (colorUpper.includes('BLANCO') || colorUpper === 'BLANCO') priority += 10;
-          // Format priority: GALON >> BALDE >> everything else >> 1/4
-          const is14 = formatUpper.includes('1/4') || formatUpper.includes('CUARTO');
-          const isGalon = !is14 && (formatUpper.includes('GALON') || formatUpper.includes('GALÓN') || /\bGL\b/.test(formatUpper));
-          const isBalde = formatUpper.includes('BALDE') || formatUpper.includes('BLD') || formatUpper.includes('BD4') || formatUpper.includes('BD5');
-          if (isGalon) priority += 20;
-          else if (isBalde) priority += 10;
-          else if (is14) priority -= 5; // Penalize 1/4 — never use as group image
-          if (priority > product.imageUrlPriority) {
-            product.imageUrl = rowImageUrl;
-            product.imageUrlPriority = priority;
-          }
-        }
-        if (!product.colors.has(color)) {
-          product.colors.set(color, []);
-        }
-
-        product.colors.get(color)!.push({
-          ecomId: row.ecom_id,
-          sku,
-          name: row.product_name || genericName,
-          color,
-          format: formatUnit,
-          groupName,
-          price: row.precio ? parseFloat(row.precio) : null,
-          stock: parseFloat(row.total_stock) || 0,
-          minUnit: row.min_unit || 1,
-          stepSize: row.step_size || 1,
-          description: row.description,
-          imageUrl: (row as any).imagen_url || null,
-        });
+      // Filter by category
+      if (category && category !== 'all') {
+        filtered = filtered.filter(p => p.groupName === category);
       }
 
-      let catalog = Array.from(productsMap.values()).map(p => ({
-        genericName: p.genericName,
-        groupName: p.groupName,
-        tags: p.tags,
-        breveResena: p.breveResena,
-        imageUrl: p.imageUrl,
-        colors: Object.fromEntries(p.colors),
-      }));
-
-      // Apply custom display order from app_config
-      try {
-        const orderResult = await db.execute(sql`
-          SELECT value FROM app_config WHERE key = 'ecommerce_product_order'
-        `);
-        const orderRow = (orderResult as any).rows?.[0];
-        const productOrder: string[] = orderRow?.value || [];
-        
-        if (productOrder.length > 0) {
-          const orderMap = new Map<string, number>();
-          productOrder.forEach((name, idx) => orderMap.set(name, idx));
-          
-          catalog.sort((a, b) => {
-            const orderA = orderMap.has(a.genericName) ? orderMap.get(a.genericName)! : Number.MAX_SAFE_INTEGER;
-            const orderB = orderMap.has(b.genericName) ? orderMap.get(b.genericName)! : Number.MAX_SAFE_INTEGER;
-            if (orderA !== orderB) return orderA - orderB;
-            return a.genericName.localeCompare(b.genericName);
-          });
-        }
-      } catch (orderError) {
-        console.log('[store/products/grouped] product order lookup skipped:', orderError);
+      // Filter by search
+      if (search) {
+        const s = (search as string).toLowerCase().trim();
+        filtered = filtered.filter(p => (p as any)._searchText.includes(s));
       }
 
-      // Apply manual image overrides from app_config
-      try {
-        const imgResult = await db.execute(sql`
-          SELECT value FROM app_config WHERE key = 'ecommerce_product_group_images'
-        `);
-        const imgRow = (imgResult as any).rows?.[0];
-        const manualImages: Record<string, string> = imgRow?.value || {};
-        
-        if (Object.keys(manualImages).length > 0) {
-          catalog.forEach(p => {
-            if (manualImages[p.genericName]) {
-              p.imageUrl = manualImages[p.genericName];
-            }
-          });
-        }
-      } catch (imgError) {
-        console.log('[store/products/grouped] manual images lookup skipped:', imgError);
-      }
+      // Strip internal _searchText field before sending
+      const cleanCatalog = filtered.map(({ _searchText, ...rest }: any) => rest);
 
-      res.json({ catalog, totalProducts: (rows as any[]).length });
+      // Cache for 30s on browser side
+      res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+      res.json({ catalog: cleanCatalog, totalProducts: fullCatalog.totalProducts });
     } catch (error) {
       console.error('Error fetching store grouped products:', error);
       res.status(500).json({ message: 'Error al cargar productos agrupados' });
