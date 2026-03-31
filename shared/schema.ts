@@ -1230,6 +1230,7 @@ export const salespeopleUsers = pgTable("salespeople_users", {
   role: varchar("role").default("salesperson"), // "admin" | "supervisor" | "salesperson" | "tecnico_obra" | "client" | "reception" | "jefe_planta" | "mantencion"
   supervisorId: varchar("supervisor_id"), // ID del supervisor que gestiona este vendedor (solo para role="salesperson")
   assignedSegment: varchar("assigned_segment"), // Segmento asignado al supervisor (solo para role="supervisor")
+  clientRut: varchar("client_rut"), // RUT del cliente asociado (solo para role="client")
 
   // Campos para catálogo público
   publicSlug: varchar("public_slug").unique(), // URL amigable (ej: "pablo-soto")
@@ -1269,6 +1270,7 @@ export const insertSalespersonUserSchema = createInsertSchema(salespeopleUsers, 
   role: z.enum(["admin", "supervisor", "salesperson", "tecnico_obra", "client", "reception", "laboratorio", "area_materia_prima", "area_colores", "area_aplicacion", "area_envase", "area_etiqueta", "area_produccion", "area_logistica", "produccion", "logistica_bodega", "planificacion", "bodega_materias_primas", "prevencion_riesgos", "jefe_planta", "mantencion", "recursos_humanos", "marketing"]).default("salesperson"),
   supervisorId: z.string().optional().nullable(),
   assignedSegment: z.string().optional().nullable(),
+  clientRut: z.string().optional().nullable(),
   publicSlug: z.string().regex(/^[a-z0-9-]+$/, "Slug debe contener solo letras minúsculas, números y guiones").optional().nullable(),
   profileImageUrl: z.string().url("URL de imagen inválida").optional().or(z.literal("")).nullable(),
   publicPhone: z.string().optional().nullable(),

@@ -459,6 +459,10 @@ export async function bootstrapDatabase(): Promise<void> {
     `);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_price_list_mix_codigo ON price_list_mix(codigo)`);
 
+    // 12. Add client_rut to salespeople_users for linking client users to business entities
+    console.log('  🔗 Verificando columna client_rut en salespeople_users...');
+    await db.execute(sql`ALTER TABLE salespeople_users ADD COLUMN IF NOT EXISTS client_rut VARCHAR`);
+
     console.log('✅ Bootstrap de base de datos completado');
     
   } catch (error: any) {

@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers, Users, Phone, Mail, Link as LinkIcon, Check, X, Loader2, User, ChevronDown, ChevronRight, Truck, Save, Layout, MapPin, HelpCircle } from "lucide-react";
+import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers, Users, Phone, Mail, Link as LinkIcon, Check, X, Loader2, User, ChevronDown, ChevronRight, Truck, Save, Layout, MapPin, HelpCircle, FileText } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
 import { useForm } from "react-hook-form";
@@ -211,6 +211,7 @@ interface TopbarConfigData {
   address: { value: string; visible: boolean };
   faq: { visible: boolean };
   freeShipping: { threshold: number; visible: boolean };
+  customText: { value: string; visible: boolean };
 }
 
 function TopbarConfigSection() {
@@ -222,6 +223,7 @@ function TopbarConfigSection() {
     address: { value: 'Santiago, Chile', visible: true },
     faq: { visible: true },
     freeShipping: { threshold: 250000, visible: true },
+    customText: { value: '', visible: false },
   });
 
   const { data: savedConfig, isLoading } = useQuery<TopbarConfigData>({
@@ -241,6 +243,7 @@ function TopbarConfigSection() {
         address: { ...prev.address, ...savedConfig.address },
         faq: { ...prev.faq, ...savedConfig.faq },
         freeShipping: { ...prev.freeShipping, ...savedConfig.freeShipping },
+        customText: { ...prev.customText, ...(savedConfig as any).customText },
       }));
     }
   }, [savedConfig]);
@@ -353,6 +356,11 @@ function TopbarConfigSection() {
                       Envío gratis sobre ${config.freeShipping.threshold.toLocaleString('es-CL')}
                     </span>
                   )}
+                  {config.customText.visible && config.customText.value && (
+                    <span className="text-[#FF6E23] font-semibold">
+                      {config.customText.value}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -459,6 +467,49 @@ function TopbarConfigSection() {
                   onCheckedChange={(checked) => setConfig(prev => ({
                     ...prev,
                     freeShipping: { ...prev.freeShipping, visible: checked }
+                  }))}
+                />
+              </div>
+            </div>
+
+            {/* Custom Text Field */}
+            <div
+              className={`border rounded-xl p-4 transition-all ${
+                config.customText.visible ? 'bg-white dark:bg-slate-900 border-gray-200' : 'bg-muted/30 border-dashed border-gray-200 opacity-60'
+              }`}
+            >
+              <div className="flex items-center gap-4">
+                <div className={`h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                  config.customText.visible ? 'bg-orange-100 dark:bg-orange-900/30' : 'bg-gray-100 dark:bg-gray-800'
+                }`}>
+                  <FileText className={`h-4 w-4 ${config.customText.visible ? 'text-orange-600' : 'text-gray-400'}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-sm font-semibold">Texto Personalizado</span>
+                    <Badge variant={config.customText.visible ? 'default' : 'secondary'} className={`text-[9px] px-1.5 py-0 h-4 ${
+                      config.customText.visible ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : ''
+                    }`}>
+                      {config.customText.visible ? 'Visible' : 'Oculto'}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Texto libre que aparece a la derecha del topbar. Ej: "Retiro Gratis en Bodega"</p>
+                </div>
+                <Input
+                  value={config.customText.value}
+                  onChange={(e) => setConfig(prev => ({
+                    ...prev,
+                    customText: { ...prev.customText, value: e.target.value }
+                  }))}
+                  placeholder="Retiro Gratis en Bodega"
+                  className="w-56 h-9 text-sm"
+                  disabled={!config.customText.visible}
+                />
+                <Switch
+                  checked={config.customText.visible}
+                  onCheckedChange={(checked) => setConfig(prev => ({
+                    ...prev,
+                    customText: { ...prev.customText, visible: checked }
                   }))}
                 />
               </div>

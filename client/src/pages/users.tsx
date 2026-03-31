@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Plus, Edit, Trash2, Users, Check, ChevronsUpDown } from "lucide-react";
+import { Plus, Edit, Trash2, Users, Check, ChevronsUpDown, Search, Building2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -31,6 +31,8 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState<SalespersonUser | null>(null);
   const [roleFilter, setRoleFilter] = useState<string>("todos");
   const [clientSearchOpen, setClientSearchOpen] = useState(false);
+  const [createRutSearch, setCreateRutSearch] = useState('');
+  const [editRutSearch, setEditRutSearch] = useState('');
 
   // Verificar permisos de admin
   const [, setLocation] = useLocation();
@@ -107,6 +109,19 @@ export default function UsersPage() {
   const { data: segmentsData = [] } = useQuery<Array<{ segment: string; totalSales: number; percentage: number }>>({
     queryKey: ["/api/sales/segments?period=2025-09&filterType=month"],
     enabled: user?.role === 'admin' || user?.role === 'supervisor',
+  });
+
+  // RUT search queries
+  const { data: createRutResult } = useQuery<{ found: boolean; client: any }>({
+    queryKey: ['/api/clients/search-by-rut', createRutSearch],
+    queryFn: () => fetch(`/api/clients/search-by-rut?rut=${encodeURIComponent(createRutSearch)}`, { credentials: 'include' }).then(r => r.json()),
+    enabled: createRutSearch.length >= 4,
+  });
+
+  const { data: editRutResult } = useQuery<{ found: boolean; client: any }>({
+    queryKey: ['/api/clients/search-by-rut', editRutSearch],
+    queryFn: () => fetch(`/api/clients/search-by-rut?rut=${encodeURIComponent(editRutSearch)}`, { credentials: 'include' }).then(r => r.json()),
+    enabled: editRutSearch.length >= 4,
   });
 
   // Helper para extraer mensaje de error del backend
@@ -311,12 +326,14 @@ export default function UsersPage() {
       salespersonName: user.salespersonName,
       username: user.username ?? "",
       email: user.email ?? "",
-      password: "", // No mostrar la contraseña actual
+      password: "",
       isActive: user.isActive ?? true,
       role: (user.role ?? "salesperson") as "admin" | "supervisor" | "salesperson" | "tecnico_obra" | "client",
       supervisorId: user.supervisorId ?? "none",
       assignedSegment: user.assignedSegment ?? "none",
+      clientRut: (user as any).clientRut ?? "",
     });
+    setEditRutSearch((user as any).clientRut ?? '');
     setIsEditDialogOpen(true);
   };
 
@@ -552,6 +569,56 @@ export default function UsersPage() {
                             </FormItem>
                           )}
                         />
+                      )}
+
+                      {/* RUT field for clients */}
+                      {createForm.watch("role") === "client" && (
+                        <div className="space-y-2">
+                          <FormField
+                            control={createForm.control}
+                            name="clientRut"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>RUT del Cliente</FormLabel>
+                                <div className="relative">
+                                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                  <FormControl>
+                                    <Input
+                                      {...field}
+                                      value={field.value ?? ''}
+                                      placeholder="Ej: 76.123.456-7"
+                                      className="pl-9"
+                                      data-testid="input-client-rut"
+                                      onChange={(e) => {
+                                        field.onChange(e.target.value);
+                                        setCreateRutSearch(e.target.value);
+                                      }}
+                                    />
+                                  </FormControl>
+                                </div>
+                                <FormDescription>
+                                  Ingresa el RUT para asociar este usuario con un cliente del sistema
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          {createRutResult?.found && createRutResult.client && (
+                            <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                              <Building2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-emerald-800 truncate">{createRutResult.client.nokoen}</p>
+                                <p className="text-xs text-emerald-600">RUT: {createRutResult.client.rten} • Código: {createRutResult.client.koen}</p>
+                              </div>
+                              <Check className="h-4 w-4 text-emerald-500 flex-shrink-0 ml-auto" />
+                            </div>
+                          )}
+                          {createRutSearch.length >= 4 && createRutResult && !createRutResult.found && (
+                            <div className="p-2 rounded-lg bg-amber-50 border border-amber-200">
+                              <p className="text-xs text-amber-700">No se encontró un cliente con este RUT</p>
+                            </div>
+                          )}
+                        </div>
                       )}
 
                       {/* Campo de texto para roles que no requieren selección de lista */}
@@ -839,6 +906,57 @@ export default function UsersPage() {
                     )}
                   />
                 )}
+
+                {/* RUT field for client role in edit dialog */}
+                {editForm.watch("role") === "client" && (
+                  <div className="space-y-2">
+                    <FormField
+                      control={editForm.control}
+                      name="clientRut"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>RUT del Cliente</FormLabel>
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <FormControl>
+                              <Input
+                                {...field}
+                                value={field.value ?? ''}
+                                placeholder="Ej: 76.123.456-7"
+                                className="pl-9"
+                                data-testid="input-edit-client-rut"
+                                onChange={(e) => {
+                                  field.onChange(e.target.value);
+                                  setEditRutSearch(e.target.value);
+                                }}
+                              />
+                            </FormControl>
+                          </div>
+                          <FormDescription>
+                            Ingresa el RUT para asociar este usuario con un cliente del sistema
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    {editRutResult?.found && editRutResult.client && (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                        <Building2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-emerald-800 truncate">{editRutResult.client.nokoen}</p>
+                          <p className="text-xs text-emerald-600">RUT: {editRutResult.client.rten} • Código: {editRutResult.client.koen}</p>
+                        </div>
+                        <Check className="h-4 w-4 text-emerald-500 flex-shrink-0 ml-auto" />
+                      </div>
+                    )}
+                    {editRutSearch.length >= 4 && editRutResult && !editRutResult.found && (
+                      <div className="p-2 rounded-lg bg-amber-50 border border-amber-200">
+                        <p className="text-xs text-amber-700">No se encontró un cliente con este RUT</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <FormField
                   control={editForm.control}
                   name="isActive"

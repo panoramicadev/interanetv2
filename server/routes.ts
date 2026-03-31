@@ -1701,6 +1701,44 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Search client by RUT - returns client info for user association
+  app.get('/api/clients/search-by-rut', requireAuth, async (req, res) => {
+    try {
+      const { rut } = req.query;
+      if (!rut || typeof rut !== 'string' || rut.trim().length < 3) {
+        return res.json({ found: false, client: null });
+      }
+
+      const cleanRut = rut.replace(/[\.\-\s]/g, '').trim().toUpperCase();
+      const clients = await storage.getClients({ search: rut.trim(), limit: 50 });
+
+      const matchedClient = clients.find((client: any) => {
+        if (!client.rten) return false;
+        const clientRut = client.rten.replace(/[\.\-\s]/g, '').trim().toUpperCase();
+        return clientRut === cleanRut || clientRut.startsWith(cleanRut) || cleanRut.startsWith(clientRut);
+      });
+
+      if (matchedClient) {
+        res.json({
+          found: true,
+          client: {
+            id: matchedClient.id,
+            koen: matchedClient.koen,
+            nokoen: matchedClient.nokoen,
+            rten: matchedClient.rten,
+            email: matchedClient.email,
+            dien: matchedClient.dien,
+          },
+        });
+      } else {
+        res.json({ found: false, client: null });
+      }
+    } catch (error) {
+      console.error('Error searching client by RUT:', error);
+      res.status(500).json({ message: 'Error al buscar cliente por RUT' });
+    }
+  });
+
   // Get unique business types for client filtering
   app.get('/api/clients/business-types', requireAuth, async (req, res) => {
     try {
@@ -4837,16 +4875,31 @@ export function registerRoutes(app: Express): Server {
 
       const updatedUser = await storage.updateSalespersonUser(id, validatedUser);
 
+      // If clientRut was set, link this user to the corresponding client
+      if (validatedUser.clientRut) {
+        try {
+          const { db: dbInstance } = await import('./db');
+          const { sql: sqlTag } = await import('drizzle-orm');
+          const cleanRut = validatedUser.clientRut.replace(/[\.\-\s]/g, '').trim().toUpperCase();
+          // Find client by RUT and set userId
+          await dbInstance.execute(sqlTag`
+            UPDATE clients SET user_id = ${id}
+            WHERE UPPER(REPLACE(REPLACE(REPLACE(rten, '.', ''), '-', ''), ' ', '')) = ${cleanRut}
+          `);
+          console.log(`[USER] Linked user ${id} to client with RUT ${validatedUser.clientRut}`);
+        } catch (linkError) {
+          console.warn('[WARN] Failed to link user to client:', linkError);
+        }
+      }
+
       // Si se cambió email o password, invalidar sesiones activas del usuario
       if (isCriticalUpdate) {
         console.log('[DEBUG] Critical update detected (email/password), invalidating sessions for user:', id);
-        // Obtener todas las sesiones activas y eliminar las de este usuario
         try {
           await storage.invalidateUserSessions(id);
           console.log('[DEBUG] User sessions invalidated successfully');
         } catch (sessionError) {
           console.warn('[WARN] Failed to invalidate user sessions:', sessionError);
-          // No fallar la actualización del usuario por esto
         }
       }
 
@@ -7150,7 +7203,7 @@ export function registerRoutes(app: Express): Server {
     res.json(row?.value || DEFAULT_TAGS);
   }));
 
-  // Save tags (full replace)
+  // Save tags (full replace) — also cascade-remove deleted tags from products
   app.put('/api/ecommerce/tags', requireAuth, asyncHandler(async (req: any, res: any) => {
     if (!['admin', 'supervisor'].includes(req.user.role)) {
       return res.status(403).json({ message: 'No autorizado' });
@@ -7164,11 +7217,41 @@ export function registerRoutes(app: Express): Server {
     const { db } = await import('./db');
     const { sql } = await import('drizzle-orm');
 
+    // Get old tags to detect deletions
+    const oldResult = await db.execute(sql`
+      SELECT value FROM app_config WHERE key = 'ecommerce_tags'
+    `);
+    const oldRow = (oldResult as any).rows?.[0];
+    const oldTags: Array<{name: string}> = oldRow?.value || [];
+    const newTagNames = new Set(tags.map((t: any) => t.name));
+    const removedTagNames = oldTags.filter(t => !newTagNames.has(t.name)).map(t => t.name);
+
+    // Save new tags
     await db.execute(sql`
       INSERT INTO app_config (key, value, updated_at)
       VALUES ('ecommerce_tags', ${JSON.stringify(tags)}::jsonb, NOW())
       ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(tags)}::jsonb, updated_at = NOW()
     `);
+
+    // Cascade remove deleted tags from all products
+    if (removedTagNames.length > 0) {
+      console.log(`[TAGS] Removing deleted tags from products: ${removedTagNames.join(', ')}`);
+      const allProducts = await db.execute(sql`
+        SELECT id, tags FROM ecommerce_products WHERE tags IS NOT NULL AND tags != '[]' AND tags != ''
+      `);
+      const rows = (allProducts as any).rows || [];
+      let updated = 0;
+      for (const row of rows) {
+        let productTags: string[] = [];
+        try { productTags = JSON.parse(row.tags || '[]'); } catch { continue; }
+        const filtered = productTags.filter((t: string) => !removedTagNames.includes(t));
+        if (filtered.length !== productTags.length) {
+          await db.execute(sql`UPDATE ecommerce_products SET tags = ${JSON.stringify(filtered)} WHERE id = ${row.id}`);
+          updated++;
+        }
+      }
+      if (updated > 0) console.log(`[TAGS] Cleaned tags from ${updated} products`);
+    }
 
     res.json({ success: true, tags });
   }));

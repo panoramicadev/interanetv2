@@ -428,8 +428,11 @@ export default function TiendaPage() {
     address: { value: string; visible: boolean };
     faq: { visible: boolean };
     freeShipping: { threshold: number; visible: boolean };
+    customText?: { value: string; visible: boolean };
   }>({
     queryKey: ['/api/ecommerce/topbar-config'],
+    staleTime: 0,
+    refetchOnMount: 'always',
     retry: false,
   });
 
@@ -819,23 +822,28 @@ export default function TiendaPage() {
                   Envío gratis sobre ${freeShippingThreshold > 0 ? `$${freeShippingThreshold.toLocaleString('es-CL')}` : ''}
                 </span>
               )}
+              {topbarConfig?.customText?.visible && topbarConfig.customText.value && (
+                <span className="text-[#FF6E23] font-semibold flex items-center gap-1">
+                  {topbarConfig.customText.value}
+                </span>
+              )}
             </div>
           </div>
 
           {/* Main header */}
-          <div className="flex items-center justify-between py-3 gap-4">
+          <div className="flex items-center justify-between py-2 md:py-3 gap-2 md:gap-4">
             {/* Logo */}
             <Link href="/tienda">
               <div className="flex items-center cursor-pointer flex-shrink-0 group">
                 <img 
                   src={storeConfig?.logoUrl || "/panoramica-logo.png"} 
                   alt="Panorámica"
-                  className="h-9 md:h-11 w-auto transition-transform group-hover:scale-[1.02]"
+                  className="h-8 md:h-11 w-auto transition-transform group-hover:scale-[1.02]"
                 />
               </div>
             </Link>
 
-            {/* Search Bar — AJAX instant search */}
+            {/* Search Bar — Desktop */}
             <div className="hidden md:flex flex-1 max-w-lg">
               <div className="relative w-full group">
                 {searchTerm !== debouncedSearch ? (
@@ -861,8 +869,34 @@ export default function TiendaPage() {
               </div>
             </div>
 
+            {/* Mobile Search Bar — inline */}
+            <div className="md:hidden flex-1 mx-1">
+              <div className="relative w-full">
+                {searchTerm !== debouncedSearch ? (
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 border-2 border-[#FF6E23] border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                )}
+                <Input
+                  placeholder="Buscar productos..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8 pr-8 text-xs h-9 border-gray-200 rounded-lg bg-gray-50/80 shadow-sm"
+                  data-testid="input-search-mobile"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-500 transition-colors"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Right section */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               {/* User Menu */}
               {user && (
                 <DropdownMenu>
@@ -870,11 +904,11 @@ export default function TiendaPage() {
                     <Button 
                       variant="ghost" 
                       size="sm"
-                      className="flex items-center gap-2 px-2.5 py-1.5 hover:bg-gray-50 rounded-xl transition-all"
+                      className="flex items-center gap-2 px-1.5 md:px-2.5 py-1.5 hover:bg-gray-50 rounded-xl transition-all"
                       data-testid="button-user-menu"
                     >
-                      <div className="w-8 h-8 bg-gradient-to-br from-[#FF6E23] to-[#E55E13] rounded-xl flex items-center justify-center shadow-sm shadow-orange-200">
-                        <User className="h-4 w-4 text-white" />
+                      <div className="w-7 h-7 md:w-8 md:h-8 bg-gradient-to-br from-[#FF6E23] to-[#E55E13] rounded-lg md:rounded-xl flex items-center justify-center shadow-sm shadow-orange-200">
+                        <User className="h-3.5 w-3.5 md:h-4 md:w-4 text-white" />
                       </div>
                       <span className="hidden lg:block text-sm font-semibold text-gray-700 max-w-[100px] truncate">
                         {user.firstName || user.email?.split('@')[0]}
@@ -925,38 +959,12 @@ export default function TiendaPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="md:hidden p-2 rounded-xl hover:bg-gray-100"
+                className="md:hidden p-1.5 rounded-lg hover:bg-gray-100"
                 onClick={() => setShowMobileMenu(!showMobileMenu)}
                 data-testid="button-mobile-menu"
               >
-                {showMobileMenu ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                {showMobileMenu ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
               </Button>
-            </div>
-          </div>
-
-          {/* Mobile search */}
-          <div className="md:hidden pb-3">
-            <div className="relative">
-              {searchTerm !== debouncedSearch ? (
-                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 border-2 border-[#FF6E23] border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              )}
-              <Input
-                placeholder="Buscar productos..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-10 text-sm border-gray-200 rounded-xl bg-gray-50/80 h-10 shadow-sm"
-                data-testid="input-search-mobile"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-500 transition-colors"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -964,7 +972,8 @@ export default function TiendaPage() {
 
       </header>
       
-      {/* Banner Carousel - Full Width */}
+      {/* Banner Carousel - Full Width (hidden when searching) */}
+      {!searchTerm && (
       <section 
         className="w-screen relative overflow-hidden"
         onMouseEnter={() => setIsHovered(true)}
@@ -987,76 +996,59 @@ export default function TiendaPage() {
         </div>
         
       </section>
+      )}
 
       {/* ─── Filter Bar: Categories + Tags ─── */}
-      <section className="bg-white/95 backdrop-blur-md border-b border-gray-100 sticky z-40 shadow-[0_1px_3px_rgba(0,0,0,0.04)]" style={{ top: `${headerHeight}px` }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          {/* Catalog title + count */}
-          <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-lg font-bold text-gray-900 tracking-tight" id="productos">
-              Catálogo
-            </h2>
-            <div className="h-5 w-px bg-gray-200" />
-            <span className="text-sm text-gray-400 font-medium">
-              {groupedCatalog.length} producto{groupedCatalog.length !== 1 ? 's' : ''}
-            </span>
+      <section className="bg-white/95 backdrop-blur-md border-b border-gray-100 sticky z-40" style={{ top: `${headerHeight}px` }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+          {/* Row 1: Title + Tags inline */}
+          <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide">
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <h2 className="text-sm font-bold text-gray-900" id="productos">Catálogo</h2>
+              <span className="text-xs text-gray-400">{groupedCatalog.length}</span>
+            </div>
+            {availableTags.length > 0 && (
+              <>
+                <div className="h-4 w-px bg-gray-200 flex-shrink-0" />
+                <div className="flex items-center gap-1.5">
+                  {availableTags.map(({ name, count }) => {
+                    const isActive = selectedTag === name;
+                    const colors: Record<string, { dot: string; active: string; text: string }> = {
+                      'Producto Destacado': { dot: 'bg-violet-400', active: 'bg-violet-500 text-white', text: 'text-violet-700' },
+                      'Mejor Precio': { dot: 'bg-emerald-400', active: 'bg-emerald-500 text-white', text: 'text-emerald-700' },
+                      'Rápida Rotación': { dot: 'bg-blue-400', active: 'bg-blue-500 text-white', text: 'text-blue-700' },
+                      'Pocas Unidades': { dot: 'bg-amber-400', active: 'bg-amber-500 text-white', text: 'text-amber-700' },
+                      'Oferta': { dot: 'bg-rose-400', active: 'bg-rose-500 text-white', text: 'text-rose-700' },
+                    };
+                    const c = colors[name] || { dot: 'bg-gray-400', active: 'bg-gray-600 text-white', text: 'text-gray-600' };
+                    return (
+                      <button
+                        key={name}
+                        onClick={() => setSelectedTag(isActive ? null : name)}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all whitespace-nowrap flex-shrink-0 ${
+                          isActive ? `${c.active} shadow-sm` : `bg-gray-50 ${c.text} hover:bg-gray-100`
+                        }`}
+                        data-testid={`filter-tag-${name}`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-white/60' : c.dot}`} />
+                        {name}
+                        <span className={`text-[9px] ${isActive ? 'text-white/70' : 'text-gray-400'}`}>{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
 
-          {/* Tags row — styled as colored pill badges */}
-          {availableTags.length > 0 && (
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-3 mb-3 border-b border-gray-100/80">
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap flex-shrink-0 mr-1">
-                Etiquetas
-              </span>
-              {availableTags.map(({ name, count }) => {
-                const isActive = selectedTag === name;
-                const tagStyles: Record<string, { bg: string; activeBg: string; dot: string; text: string; activeText: string; border: string }> = {
-                  'Producto Destacado': { bg: 'bg-violet-50', activeBg: 'bg-gradient-to-r from-violet-500 to-purple-600', dot: 'bg-violet-400', text: 'text-violet-700', activeText: 'text-white', border: 'border-violet-200' },
-                  'Mejor Precio': { bg: 'bg-emerald-50', activeBg: 'bg-gradient-to-r from-emerald-500 to-teal-600', dot: 'bg-emerald-400', text: 'text-emerald-700', activeText: 'text-white', border: 'border-emerald-200' },
-                  'Rápida Rotación': { bg: 'bg-blue-50', activeBg: 'bg-gradient-to-r from-blue-500 to-indigo-600', dot: 'bg-blue-400', text: 'text-blue-700', activeText: 'text-white', border: 'border-blue-200' },
-                  'Pocas Unidades': { bg: 'bg-amber-50', activeBg: 'bg-gradient-to-r from-amber-500 to-orange-600', dot: 'bg-amber-400', text: 'text-amber-700', activeText: 'text-white', border: 'border-amber-200' },
-                  'Oferta': { bg: 'bg-rose-50', activeBg: 'bg-gradient-to-r from-rose-500 to-pink-600', dot: 'bg-rose-400', text: 'text-rose-700', activeText: 'text-white', border: 'border-rose-200' },
-                };
-                const style = tagStyles[name] || { bg: 'bg-gray-50', activeBg: 'bg-gradient-to-r from-gray-600 to-gray-700', dot: 'bg-gray-400', text: 'text-gray-700', activeText: 'text-white', border: 'border-gray-200' };
-
-                return (
-                  <button
-                    key={name}
-                    onClick={() => setSelectedTag(isActive ? null : name)}
-                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap flex-shrink-0 border ${
-                      isActive
-                        ? `${style.activeBg} ${style.activeText} border-transparent shadow-md shadow-black/10 scale-[1.02]`
-                        : `${style.bg} ${style.text} ${style.border} hover:shadow-sm hover:scale-[1.01]`
-                    }`}
-                    data-testid={`filter-tag-${name}`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                      isActive ? 'bg-white/70' : style.dot
-                    }`} />
-                    {name}
-                    <span className={`text-[10px] font-bold ml-0.5 px-1.5 py-0 rounded-full ${
-                      isActive ? 'bg-white/20 text-white' : 'bg-black/5 text-gray-500'
-                    }`}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Categories row — horizontal segmented control style */}
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap flex-shrink-0 mr-1">
-              Categoría
-            </span>
-            
+          {/* Row 2: Categories — compact */}
+          <div className="flex items-center gap-1.5 mt-1.5 overflow-x-auto scrollbar-hide">
             <button
               onClick={() => setSelectedCategory('all')}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 whitespace-nowrap flex-shrink-0 border ${
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap flex-shrink-0 ${
                 selectedCategory === 'all'
-                  ? 'bg-gray-900 text-white border-gray-900 shadow-md shadow-gray-900/20'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-800'
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
               }`}
               data-testid="filter-cat-all"
             >
@@ -1066,22 +1058,20 @@ export default function TiendaPage() {
               <button
                 key={category}
                 onClick={() => setSelectedCategory(selectedCategory === category ? 'all' : category)}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 whitespace-nowrap flex-shrink-0 border ${
+                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap flex-shrink-0 ${
                   selectedCategory === category
-                    ? 'bg-[#FF6E23] text-white border-[#FF6E23] shadow-md shadow-orange-500/20'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-[#FF6E23]/40 hover:bg-orange-50 hover:text-[#FF6E23]'
+                    ? 'bg-[#FF6E23] text-white'
+                    : 'text-gray-500 hover:bg-orange-50 hover:text-[#FF6E23]'
                 }`}
                 data-testid={`filter-cat-${category}`}
               >
                 {category}
               </button>
             ))}
-
-            {/* Clear all filters */}
             {(selectedCategory !== 'all' || selectedTag) && (
               <button
                 onClick={() => { setSelectedCategory('all'); setSelectedTag(null); }}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-500 bg-red-50 border border-red-100 hover:bg-red-100 hover:border-red-200 transition-all whitespace-nowrap flex-shrink-0 ml-1"
+                className="flex items-center gap-0.5 px-2 py-1 rounded-md text-[11px] font-semibold text-red-500 hover:bg-red-50 transition-all whitespace-nowrap flex-shrink-0"
                 data-testid="filter-clear"
               >
                 <X className="h-3 w-3" />
