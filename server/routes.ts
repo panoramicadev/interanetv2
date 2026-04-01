@@ -6277,54 +6277,45 @@ export function registerRoutes(app: Express): Server {
   // Create a manual pickup warehouse (from intranet)
   app.post('/api/warehouses', requireCommercialAccess, async (req: any, res) => {
     try {
-      const user = req.user;
       const { name, location } = req.body;
       if (!name) {
         return res.status(400).json({ message: "Nombre de bodega es requerido" });
       }
 
       const { db } = await import('./db');
-      const { sql } = await import('drizzle-orm');
+      const { warehouses } = await import('@shared/schema');
       const crypto = await import('crypto');
       
       const uniqueId = crypto.randomUUID().slice(0, 8);
       const newKobo = `MNL-${uniqueId}`;
       const newKosu = `RET-${uniqueId}`;
-      const loc = location || null;
       
-      // Use raw SQL to be resilient against schema column mismatches
-      const result = await db.execute(sql`
-        INSERT INTO warehouses (id, kobo, kosu, name, branch_name, location, active, is_manual, created_at, updated_at)
-        VALUES (gen_random_uuid(), ${newKobo}, ${newKosu}, ${name}, ${name}, ${loc}, true, true, NOW(), NOW())
-        RETURNING *
-      `);
+      const insertData: any = {
+        kobo: newKobo,
+        kosu: newKosu,
+        name,
+        branchName: name,
+        location: location || null,
+        active: true,
+      };
       
-      const newWarehouse = (result as any).rows?.[0] || (result as any)[0];
-      res.status(201).json(newWarehouse);
+      // Try with isManual first, fall back without if column doesn't exist
+      try {
+        insertData.isManual = true;
+        const [newWarehouse] = await db.insert(warehouses).values(insertData).returning();
+        return res.status(201).json(newWarehouse);
+      } catch (firstErr: any) {
+        // If it fails due to is_manual column, try without it
+        if (firstErr?.message?.includes('is_manual') || firstErr?.message?.includes('column')) {
+          delete insertData.isManual;
+          const [newWarehouse] = await db.insert(warehouses).values(insertData).returning();
+          return res.status(201).json(newWarehouse);
+        }
+        throw firstErr;
+      }
     } catch (error: any) {
       console.error("Error creating warehouse:", error);
-      // If is_manual column doesn't exist, try without it
-      try {
-        const { db } = await import('./db');
-        const { sql } = await import('drizzle-orm');
-        const crypto = await import('crypto');
-        const { name, location } = req.body;
-        const uniqueId = crypto.randomUUID().slice(0, 8);
-        const newKobo = `MNL2-${uniqueId}`;
-        const newKosu = `RET2-${uniqueId}`;
-        const loc = location || null;
-        
-        const result = await db.execute(sql`
-          INSERT INTO warehouses (id, kobo, kosu, name, branch_name, location, active, created_at, updated_at)
-          VALUES (gen_random_uuid(), ${newKobo}, ${newKosu}, ${name}, ${name}, ${loc}, true, NOW(), NOW())
-          RETURNING *
-        `);
-        const newWarehouse = (result as any).rows?.[0] || (result as any)[0];
-        return res.status(201).json(newWarehouse);
-      } catch (fallbackErr: any) {
-        console.error("Fallback warehouse creation also failed:", fallbackErr);
-        return res.status(500).json({ message: "Error al crear bodega", detail: fallbackErr?.message || error?.message || 'Unknown' });
-      }
+      res.status(500).json({ message: "Error al crear bodega", detail: error?.message || 'Unknown' });
     }
   });
 

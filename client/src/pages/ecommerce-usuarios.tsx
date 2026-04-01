@@ -130,6 +130,7 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
       toast({ title: "Guardado", description: "Bodega guardada correctamente." });
       queryClient.invalidateQueries({ queryKey: ["/api/warehouses"] });
       setWarehouseForm({ id: "", name: "", location: "" });
+      setIsWarehouseManagerOpen(false);
     },
     onError: () => {
       toast({ title: "Error", description: "No se pudo guardar la bodega.", variant: "destructive" });
@@ -437,7 +438,7 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
                         <SelectContent>
                           <SelectItem value="none">Sin asignar</SelectItem>
                           {warehouses
-                            .filter((w: any) => w.isManual)
+                            .filter((w: any) => w.isManual || w.is_manual || w.kobo?.startsWith('MNL'))
                             .map((w: any) => (
                               <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
                             ))}
@@ -673,12 +674,12 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
             <div className="flex flex-col h-[280px]">
               <h3 className="text-sm font-semibold mb-3">Bodegas Registradas</h3>
               <div className="flex-1 overflow-y-auto pr-2 space-y-2">
-                {warehouses.filter((w: any) => w.isManual).length === 0 ? (
+                {warehouses.filter((w: any) => w.isManual || w.is_manual || w.kobo?.startsWith('MNL')).length === 0 ? (
                   <div className="text-center py-6 text-sm text-muted-foreground bg-slate-50 dark:bg-slate-800/20 rounded-lg">
                     No hay bodegas registradas manualmente.
                   </div>
                 ) : (
-                  warehouses.filter((w: any) => w.isManual).map((w: any) => (
+                  warehouses.filter((w: any) => w.isManual || w.is_manual || w.kobo?.startsWith('MNL')).map((w: any) => (
                     <div key={w.id} className="p-3 bg-white dark:bg-slate-800 border rounded-lg hover:border-blue-300 transition-colors flex justify-between group">
                       <div className="min-w-0 pr-2">
                         <p className="font-semibold text-sm text-foreground truncate">{w.name}</p>

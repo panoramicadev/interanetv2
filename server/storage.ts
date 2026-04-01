@@ -16055,12 +16055,36 @@ export class DatabaseStorage implements IStorage {
   async createEcommerceOrder(orderData: any) {
     const { ecommerceOrders } = await import('@shared/schema');
 
-    const [newOrder] = await db
-      .insert(ecommerceOrders)
-      .values(orderData)
-      .returning();
+    try {
+      // Only include fields that exist in the schema to avoid column errors
+      const cleanData: any = {
+        clientId: orderData.clientId,
+        clientName: orderData.clientName || 'Cliente',
+        clientEmail: orderData.clientEmail || null,
+        clientPhone: orderData.clientPhone || null,
+        assignedSalespersonId: orderData.assignedSalespersonId || null,
+        assignedSalespersonName: orderData.assignedSalespersonName || null,
+        items: orderData.items,
+        subtotal: String(orderData.subtotal || 0),
+        tax: String(orderData.tax || 0),
+        total: String(orderData.total || 0),
+        status: orderData.status || 'pending',
+        notes: orderData.notes || null,
+        shippingAddress: orderData.shippingAddress || null,
+        paymentCondition: orderData.paymentCondition || null,
+      };
 
-    return newOrder;
+      const [newOrder] = await db
+        .insert(ecommerceOrders)
+        .values(cleanData)
+        .returning();
+
+      return newOrder;
+    } catch (error: any) {
+      console.error('createEcommerceOrder FAILED with data:', JSON.stringify(orderData, null, 2));
+      console.error('createEcommerceOrder error:', error?.message, error?.detail || '');
+      throw error;
+    }
   }
 
   async getEcommerceOrders(filters?: {
