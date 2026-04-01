@@ -273,14 +273,28 @@ export default function BillingSummary() {
   // Calculate neto (subtotal without any discounts or taxes)
   const neto = state.subtotal;
   
-  // Calculate shipping cost based on item units
-  const shippingCost = state.items.reduce((total, item) => {
+  // Calculate shipping cost and breakdown based on item units
+  let shippingCost = 0;
+  const shippingBreakdownMap = new Map<string, { qty: number; cost: number; unit: string }>();
+
+  state.items.forEach(item => {
     const rateKey = getShippingKey(item.unit);
     if (rateKey && shippingRates[rateKey]) {
-      return total + Math.round(shippingRates[rateKey] * item.quantity);
+      const cost = shippingRates[rateKey];
+      shippingCost += Math.round(cost * item.quantity);
+      
+      const existing = shippingBreakdownMap.get(rateKey);
+      if (existing) {
+        existing.qty += item.quantity;
+      } else {
+        shippingBreakdownMap.set(rateKey, { qty: item.quantity, cost, unit: item.unit || rateKey });
+      }
     }
-    return total;
-  }, 0);
+  });
+
+  const shippingBreakdownText = Array.from(shippingBreakdownMap.values())
+    .map(b => `${b.qty}x ${b.unit} a ${formatPrice(b.cost)}`)
+    .join(' + ');
   
   // Calculate final subtotal after discounts
   const subtotalAfterDiscount = neto - state.discountAmount;
@@ -367,11 +381,18 @@ export default function BillingSummary() {
 
           {/* Shipping / Despacho */}
           {shippingCost > 0 && (
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
-                <Truck className="h-3.5 w-3.5" />
-                Despacho:
-              </span>
+            <div className="flex justify-between items-start">
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
+                  <Truck className="h-3.5 w-3.5" />
+                  Despacho:
+                </span>
+                {shippingBreakdownText && (
+                  <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 leading-tight">
+                    ({shippingBreakdownText})
+                  </span>
+                )}
+              </div>
               <span className="font-medium text-gray-900 dark:text-white" data-testid="text-billing-shipping">
                 {formatPrice(shippingCost)}
               </span>
@@ -560,8 +581,15 @@ export default function BillingSummary() {
                   <span className="text-sm font-medium text-gray-700">{formatPrice(state.taxAmount)}</span>
                 </div>
                 {shippingCost > 0 && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500 flex items-center gap-2"><Truck className="h-4 w-4" />Despacho</span>
+                  <div className="flex justify-between items-start">
+                    <div className="flex flex-col">
+                      <span className="text-sm text-gray-500 flex items-center gap-2"><Truck className="h-4 w-4" />Despacho</span>
+                      {shippingBreakdownText && (
+                        <span className="text-[10px] text-gray-400 mt-0.5 ml-6">
+                          ({shippingBreakdownText})
+                        </span>
+                      )}
+                    </div>
                     <span className="text-sm font-medium text-gray-700">{formatPrice(shippingCost)}</span>
                   </div>
                 )}
