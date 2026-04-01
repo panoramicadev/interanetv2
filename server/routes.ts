@@ -11810,7 +11810,7 @@ export function registerRoutes(app: Express): Server {
         const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
         const bucket = process.env.SUPABASE_STORAGE_BUCKET!;
 
-        async function uploadBanner(file: Express.Multer.File, prefix: string) {
+        const uploadBanner = async (file: Express.Multer.File, prefix: string) => {
           const path = await import('path');
           const fileExtension = path.extname(file.originalname);
           const fileName = `banners/${prefix}_${Date.now()}_${Math.random().toString(36).substring(7)}${fileExtension}`;
@@ -11877,7 +11877,7 @@ export function registerRoutes(app: Express): Server {
         const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
         const bucket = process.env.SUPABASE_STORAGE_BUCKET!;
 
-        async function uploadBanner(file: Express.Multer.File, prefix: string) {
+        const uploadBanner = async (file: Express.Multer.File, prefix: string) => {
           const path = await import('path');
           const fileExtension = path.extname(file.originalname);
           const fileName = `banners/${prefix}_${Date.now()}_${Math.random().toString(36).substring(7)}${fileExtension}`;
