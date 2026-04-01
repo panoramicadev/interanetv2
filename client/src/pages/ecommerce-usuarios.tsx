@@ -676,6 +676,8 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
 export default function EcommerceUsuarios() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedClient, setSelectedClient] = useState<ClientUser | null>(null);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: clients = [], isLoading } = useQuery<ClientUser[]>({
     queryKey: ["/api/users/clients"],
@@ -683,6 +685,25 @@ export default function EcommerceUsuarios() {
       const res = await apiRequest("GET", "/api/users/clients");
       return res.json();
     },
+  });
+
+  const { data: rawRequests = [], isLoading: loadingRequests } = useQuery<any[]>({
+    queryKey: ["/api/ecommerce/account-requests"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/ecommerce/account-requests");
+      return res.json();
+    },
+  });
+
+  const updateRequestStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: string, status: string }) => {
+      const res = await apiRequest("PATCH", `/api/ecommerce/account-requests/${id}`, { status });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ecommerce/account-requests"] });
+      toast({ title: "Estado actualizado", description: "La solicitud ha sido procesada correctamente." });
+    }
   });
 
   const filteredClients = clients.filter((c) => {
@@ -696,6 +717,11 @@ export default function EcommerceUsuarios() {
       c.phone?.toLowerCase().includes(q)
     );
   });
+
+  // Requests that are still pending
+  const pendingRequests = rawRequests.filter((r: any) => r.status === 'pendiente');
+  // Past requests
+  const processedRequests = rawRequests.filter((r: any) => r.status !== 'pendiente');
 
   const formatDate = (date: string | null) => {
     if (!date) return "—";
@@ -715,153 +741,276 @@ export default function EcommerceUsuarios() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <Users className="h-6 w-6 text-blue-600" />
+            <ShoppingBag className="h-6 w-6 text-blue-600" />
             Usuarios eCommerce
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Clientes con acceso al portal de compras
+            Gestión de clientes con acceso al portal de compras
           </p>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-blue-600 uppercase">Total Usuarios</p>
-              <p className="text-2xl font-bold text-blue-900">{clients.length}</p>
-            </div>
-            <Users className="h-8 w-8 text-blue-400" />
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-green-50 to-green-100/50 border-green-200">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-green-600 uppercase">Con Ficha Cliente</p>
-              <p className="text-2xl font-bold text-green-900">{clients.filter(c => c.clientId).length}</p>
-            </div>
-            <Building2 className="h-8 w-8 text-green-400" />
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 border-purple-200">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-purple-600 uppercase">Solo Credenciales</p>
-              <p className="text-2xl font-bold text-purple-900">{clients.filter(c => !c.clientId).length}</p>
-            </div>
-            <KeyRound className="h-8 w-8 text-purple-400" />
-          </CardContent>
-        </Card>
-      </div>
+      <Tabs defaultValue="users" className="w-full">
+        <TabsList className="w-full sm:w-auto inline-flex h-auto p-1 bg-muted/50 rounded-xl gap-1">
+          <TabsTrigger value="users" className="flex-1 sm:flex-none flex items-center gap-2 rounded-lg py-2.5 px-4 text-sm">
+            <Users className="h-4 w-4" /> Usuarios Activos
+          </TabsTrigger>
+          <TabsTrigger value="requests" className="flex-1 sm:flex-none flex items-center gap-2 rounded-lg py-2.5 px-4 text-sm relative">
+            <FileText className="h-4 w-4" /> Solicitudes Pendientes
+            {pendingRequests.length > 0 && (
+              <Badge variant="destructive" className="ml-1 px-1.5 py-0 min-w-[1.25rem] h-5 flex items-center justify-center text-[10px] rounded-full absolute -top-2 -right-2 sm:static sm:mr-0">
+                {pendingRequests.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-        <Input
-          placeholder="Buscar por nombre, email, RUT o código..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-9 text-sm"
-        />
-      </div>
-
-      {/* Clients List */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-        </div>
-      ) : filteredClients.length === 0 ? (
-        <Card className="bg-white dark:bg-gray-800">
-          <CardContent className="py-16 text-center">
-            <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-500">
-              {searchTerm ? "Sin resultados" : "No hay clientes registrados"}
-            </h3>
-            <p className="text-sm text-gray-400 mt-1">
-              {searchTerm ? "Intenta con otro término de búsqueda" : "Los usuarios se crean desde la sección de Clientes asignando credenciales"}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-2">
-          {filteredClients.map((client) => (
-            <Card
-              key={client.id}
-              className="bg-white dark:bg-gray-800 hover:shadow-md transition-all cursor-pointer group border border-transparent hover:border-blue-200"
-              onClick={() => setSelectedClient(client)}
-            >
-              <CardContent className="p-4">
-                <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                  {/* Avatar + Name */}
-                  <div className="flex items-center gap-3 min-w-0 lg:w-1/3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                      {(client.clientName || client.email)?.[0]?.toUpperCase() || "?"}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                          {client.clientName}
-                        </h3>
-                      </div>
-                      {client.email && (
-                        <p className="text-xs text-gray-500 flex items-center gap-1 truncate">
-                          <Mail className="h-3 w-3 flex-shrink-0" />
-                          {client.email}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Info pills */}
-                  <div className="flex flex-wrap items-center gap-2 lg:flex-1">
-                    {client.clientCode && (
-                      <span className="inline-flex items-center gap-1 text-xs bg-gray-50 text-gray-600 px-2 py-1 rounded-md border border-gray-100">
-                        <Hash className="h-3 w-3" /> {client.clientCode}
-                      </span>
-                    )}
-                    {client.rut && (
-                      <span className="inline-flex items-center gap-1 text-xs bg-gray-50 text-gray-600 px-2 py-1 rounded-md border border-gray-100">
-                        <Building2 className="h-3 w-3" /> {client.rut}
-                      </span>
-                    )}
-                    {client.phone && (
-                      <span className="inline-flex items-center gap-1 text-xs bg-gray-50 text-gray-600 px-2 py-1 rounded-md border border-gray-100">
-                        <Phone className="h-3 w-3" /> {client.phone}
-                      </span>
-                    )}
-                    {client.commune && (
-                      <span className="inline-flex items-center gap-1 text-xs bg-gray-50 text-gray-600 px-2 py-1 rounded-md border border-gray-100">
-                        <MapPin className="h-3 w-3" /> {client.commune}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Date + Action */}
-                  <div className="flex items-center gap-4 text-xs text-gray-400 lg:w-auto lg:flex-shrink-0">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      {formatDate(client.createdAt)}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity text-blue-600"
-                    >
-                      <Eye className="h-3.5 w-3.5 mr-1" />
-                      Ver perfil
-                    </Button>
-                  </div>
+        <TabsContent value="users" className="space-y-6 mt-6">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200 shadow-sm">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-medium text-blue-600 uppercase tracking-wide">Total Usuarios</p>
+                  <p className="text-2xl font-bold text-blue-900 mt-1">{clients.length}</p>
                 </div>
+                <Users className="h-8 w-8 text-blue-400 opacity-80" />
               </CardContent>
             </Card>
-          ))}
+            <Card className="bg-gradient-to-br from-green-50 to-green-100/50 border-green-200 shadow-sm">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-medium text-green-600 uppercase tracking-wide">Con Ficha Cliente</p>
+                  <p className="text-2xl font-bold text-green-900 mt-1">{clients.filter((c) => c.clientId).length}</p>
+                </div>
+                <Building2 className="h-8 w-8 text-green-400 opacity-80" />
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 border-purple-200 shadow-sm">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-medium text-purple-600 uppercase tracking-wide">Solo Credenciales</p>
+                  <p className="text-2xl font-bold text-purple-900 mt-1">{clients.filter((c) => !c.clientId).length}</p>
+                </div>
+                <KeyRound className="h-8 w-8 text-purple-400 opacity-80" />
+              </CardContent>
+            </Card>
+          </div>
 
-          <p className="text-xs text-gray-400 text-center pt-2">
-            Mostrando {filteredClients.length} de {clients.length} usuarios
-          </p>
-        </div>
-      )}
+          {/* Search */}
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Buscar por nombre, email, RUT o código..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 text-sm rounded-lg"
+            />
+          </div>
+
+          {/* Clients List */}
+          {isLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            </div>
+          ) : filteredClients.length === 0 ? (
+            <Card className="bg-white dark:bg-gray-800 border bg-muted/20">
+              <CardContent className="py-16 text-center">
+                <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-500">
+                  {searchTerm ? "Sin resultados" : "No hay clientes registrados"}
+                </h3>
+                <p className="text-sm text-gray-400 mt-2 max-w-sm mx-auto">
+                  {searchTerm
+                    ? "Intenta con otro término de búsqueda"
+                    : "Los clientes de eCommerce se crean manualmente desde la sección principal de Clientes asignando credenciales y marcándolos como portal B2B."}
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {filteredClients.map((client) => (
+                <Card
+                  key={client.id}
+                  className="bg-white dark:bg-gray-800 hover:shadow-md transition-all cursor-pointer group border border-gray-100 hover:border-blue-200"
+                  onClick={() => setSelectedClient(client)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                      {/* Avatar + Name */}
+                      <div className="flex items-center gap-3 min-w-0 lg:w-1/3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                          {(client.clientName || client.email)?.[0]?.toUpperCase() || "?"}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                              {client.clientName}
+                            </h3>
+                          </div>
+                          {client.email && (
+                            <p className="text-xs text-gray-500 flex items-center gap-1.5 truncate mt-0.5">
+                              <Mail className="h-3 w-3 flex-shrink-0 opacity-70" />
+                              {client.email}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Info pills */}
+                      <div className="flex flex-wrap items-center gap-2 lg:flex-1">
+                        {client.clientCode && (
+                          <span className="inline-flex items-center gap-1.5 text-xs bg-gray-50/80 text-gray-600 px-2.5 py-1 rounded-md border border-gray-100 font-medium">
+                            <Hash className="h-3.5 w-3.5 opacity-60" /> {client.clientCode}
+                          </span>
+                        )}
+                        {client.rut && (
+                          <span className="inline-flex items-center gap-1.5 text-xs bg-gray-50/80 text-gray-600 px-2.5 py-1 rounded-md border border-gray-100 font-medium">
+                            <Building2 className="h-3.5 w-3.5 opacity-60" /> {client.rut}
+                          </span>
+                        )}
+                        {client.phone && (
+                          <span className="inline-flex items-center gap-1.5 text-xs bg-gray-50/80 text-gray-600 px-2.5 py-1 rounded-md border border-gray-100 font-medium">
+                            <Phone className="h-3.5 w-3.5 opacity-60" /> {client.phone}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Date + Action */}
+                      <div className="flex items-center gap-4 text-xs text-gray-400 lg:w-auto lg:flex-shrink-0">
+                        <span className="flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5 opacity-60" />
+                          {formatDate(client.createdAt)}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-3 text-xs opacity-0 group-hover:opacity-100 transition-opacity text-blue-600 bg-blue-50/50 hover:bg-blue-100 hover:text-blue-700"
+                        >
+                          <Eye className="h-3.5 w-3.5 mr-1.5" />
+                          Ver perfil
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              <p className="text-xs text-gray-400 text-center pt-2">
+                Mostrando {filteredClients.length} de {clients.length} usuarios
+              </p>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="requests" className="space-y-6 mt-6">
+          {loadingRequests ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            </div>
+          ) : rawRequests.length === 0 ? (
+            <Card className="bg-white dark:bg-gray-800 border bg-muted/20">
+              <CardContent className="py-16 text-center">
+                <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-500">
+                  No hay solicitudes de cuentas registradas
+                </h3>
+                <p className="text-sm text-gray-400 mt-2 max-w-sm mx-auto">
+                  Cuando los clientes llenan el formulario de registro en la tienda virtual, aparecerán aquí para ser procesados.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              {/* Pending Section */}
+              {pendingRequests.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold flex items-center gap-2 text-gray-700">
+                     <span className="w-2 h-2 rounded-full bg-amber-500" />
+                     Nuevas Solicitudes Pendientes ({pendingRequests.length})
+                  </h3>
+                  {pendingRequests.map((req: any) => (
+                    <Card key={req.id} className="border-amber-200/50 hover:border-amber-300 transition-all shadow-sm">
+                       <CardContent className="p-4 sm:p-5">
+                          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                             <div className="space-y-3">
+                                <div className="flex items-center gap-3">
+                                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold text-sm shadow-sm flex-shrink-0">
+                                      {req.empresa?.[0]?.toUpperCase() || "?"}
+                                   </div>
+                                   <div>
+                                      <h4 className="text-base font-bold text-gray-900 leading-tight">{req.empresa}</h4>
+                                      <span className="text-xs font-medium text-gray-500">{formatDate(req.createdAt)} • RUT: {req.rut}</span>
+                                   </div>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-gray-50">
+                                   <div className="space-y-1">
+                                      <span className="text-[10px] uppercase font-semibold text-gray-400 tracking-wider">Contacto</span>
+                                      <p className="text-sm text-gray-700 font-medium">{req.contacto || '—'}</p>
+                                   </div>
+                                   <div className="space-y-1">
+                                      <span className="text-[10px] uppercase font-semibold text-gray-400 tracking-wider">Email</span>
+                                      <p className="text-sm text-gray-700 font-medium flex items-center gap-1.5"><Mail className="w-3 h-3 opacity-60"/> {req.email || '—'}</p>
+                                   </div>
+                                   <div className="space-y-1">
+                                      <span className="text-[10px] uppercase font-semibold text-gray-400 tracking-wider">Teléfono</span>
+                                      <p className="text-sm text-gray-700 font-medium flex items-center gap-1.5"><Phone className="w-3 h-3 opacity-60"/> {req.telefono || '—'}</p>
+                                   </div>
+                                   <div className="space-y-1">
+                                      <span className="text-[10px] uppercase font-semibold text-gray-400 tracking-wider">Ciudad</span>
+                                      <p className="text-sm text-gray-700 font-medium flex items-center gap-1.5"><MapPin className="w-3 h-3 opacity-60"/> {req.ciudad || '—'}</p>
+                                   </div>
+                                </div>
+                             </div>
+                             <div className="flex md:flex-col gap-2 pt-4 md:pt-0 border-t border-gray-100 md:border-0 shrink-0">
+                                <Button size="sm" variant="outline" className="w-full text-xs bg-white hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300"
+                                   onClick={() => {
+                                      if (confirm(`¿Marcar la solicitud de ${req.empresa} como revisada / aprobada?`)) {
+                                         updateRequestStatus.mutate({ id: req.id, status: 'aprobado' });
+                                      }
+                                   }}
+                                >
+                                   Marcar como revisado
+                                </Button>
+                             </div>
+                          </div>
+                       </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {/* Processed Section */}
+              {processedRequests.length > 0 && (
+                <div className="space-y-3 pt-6 border-t border-gray-100">
+                  <h3 className="text-sm font-semibold flex items-center gap-2 text-gray-500">
+                     <span className="w-2 h-2 rounded-full bg-gray-300" />
+                     Solicitudes Procesadas
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                     {processedRequests.map((req: any) => (
+                        <Card key={req.id} className="border-gray-100 shadow-none bg-gray-50">
+                           <CardContent className="p-3 sm:p-4">
+                              <div className="flex justify-between items-start">
+                                 <div>
+                                    <h4 className="text-sm font-bold text-gray-700">{req.empresa}</h4>
+                                    <p className="text-xs text-gray-500 mt-1">{req.contacto} • {req.email}</p>
+                                    <p className="text-xs text-gray-400 mt-0.5">{req.rut} / {req.telefono}</p>
+                                 </div>
+                                 <Badge variant="outline" className="text-[10px] bg-white text-gray-500 font-medium">
+                                    Revisada
+                                 </Badge>
+                              </div>
+                           </CardContent>
+                        </Card>
+                     ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

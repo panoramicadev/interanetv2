@@ -7515,6 +7515,34 @@ export function registerRoutes(app: Express): Server {
     res.json(requests);
   }));
 
+  // Update account request status (admin only)
+  app.patch('/api/ecommerce/account-requests/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    if (!['admin', 'supervisor'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    const result = await db.execute(sql`SELECT value FROM app_config WHERE key = 'ecommerce_account_requests'`);
+    
+    let requests: any[] = [];
+    if (result.rows?.length > 0) {
+      try { requests = JSON.parse(result.rows[0].value as string); } catch {}
+    }
+    
+    const index = requests.findIndex(r => r.id === id);
+    if (index === -1) {
+      return res.status(404).json({ message: 'Solicitud no encontrada' });
+    }
+    
+    requests[index].status = status;
+    await db.execute(sql`UPDATE app_config SET value = ${JSON.stringify(requests)} WHERE key = 'ecommerce_account_requests'`);
+    
+    res.json(requests[index]);
+  }));
+
   // ===================== eCommerce Admin API Routes (Simple) =====================
 
   // Get products for eCommerce admin panel (imports from priceList)
