@@ -56,7 +56,10 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
   const [commercialForm, setCommercialForm] = useState({
     paymentCondition: client.paymentCondition || "CONTADO",
     creditDays: "",
-    pickupWarehouseId: client.pickupWarehouseId || "none"
+    pickupWarehouseId: client.pickupWarehouseId || "none",
+    salesRepCode: client.salesRepCode || "",
+    creditLimit: client.creditLimit?.toString() || "",
+    creditAvailable: client.creditAvailable?.toString() || ""
   });
   const [isWarehouseManagerOpen, setIsWarehouseManagerOpen] = useState(false);
   const { toast } = useToast();
@@ -64,14 +67,26 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
 
   // Parse credit days if condition is format "CREDITO X DIAS"
   useEffect(() => {
+    let baseCondition = client.paymentCondition || "CONTADO";
+    let days = "";
     if (client.paymentCondition?.toUpperCase().includes('CREDITO')) {
       const match = client.paymentCondition.match(/\d+/);
       if (match) {
-        setCommercialForm(prev => ({ ...prev, creditDays: match[0], paymentCondition: "CREDITO" }));
+        days = match[0];
+        baseCondition = "CREDITO";
       }
-    } else {
-      setCommercialForm(prev => ({ ...prev, paymentCondition: client.paymentCondition || "CONTADO" }));
+    } else if (client.paymentCondition?.toUpperCase().includes('TRANSFERENCIA')) {
+      baseCondition = "TRANSFERENCIA";
     }
+
+    setCommercialForm({
+      paymentCondition: baseCondition,
+      creditDays: days,
+      pickupWarehouseId: client.pickupWarehouseId || "none",
+      salesRepCode: client.salesRepCode || "",
+      creditLimit: client.creditLimit?.toString() || "",
+      creditAvailable: client.creditAvailable?.toString() || ""
+    });
   }, [client]);
 
   // Fetch warehouses
@@ -325,27 +340,60 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
               <CardContent className="space-y-3">
                 {isEditingCommercial ? (
                   <div className="space-y-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Condición de Pago</Label>
-                      <Select 
-                        value={commercialForm.paymentCondition.includes("CREDITO") ? "CREDITO" : "CONTADO"} 
-                        onValueChange={(val) => setCommercialForm(p => ({ ...p, paymentCondition: val }))}
-                      >
-                        <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                        <SelectContent><SelectItem value="CONTADO">Contado</SelectItem><SelectItem value="CREDITO">Crédito</SelectItem></SelectContent>
-                      </Select>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Código Vendedor</Label>
+                        <Input 
+                          className="h-8 text-sm uppercase" placeholder="Ej: V01"
+                          value={commercialForm.salesRepCode} 
+                          onChange={(e) => setCommercialForm(p => ({ ...p, salesRepCode: e.target.value.toUpperCase() }))}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Condición de Pago</Label>
+                        <Select 
+                          value={["CREDITO", "TRANSFERENCIA"].includes(commercialForm.paymentCondition) ? commercialForm.paymentCondition : "CONTADO"} 
+                          onValueChange={(val) => setCommercialForm(p => ({ ...p, paymentCondition: val }))}
+                        >
+                          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="CONTADO">Contado</SelectItem>
+                            <SelectItem value="TRANSFERENCIA">Transferencia</SelectItem>
+                            <SelectItem value="CREDITO">Crédito</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
 
                     {commercialForm.paymentCondition === "CREDITO" && (
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Días de Crédito</Label>
+                      <div className="space-y-1.5 bg-blue-50/50 p-2 rounded-md border border-blue-100">
+                        <Label className="text-xs text-blue-800">Días de Crédito (plazo)</Label>
                         <Input 
-                          type="number" className="h-8 text-sm" placeholder="Ej: 30"
+                          type="number" className="h-8 text-sm bg-white" placeholder="Ej: 30"
                           value={commercialForm.creditDays} 
                           onChange={(e) => setCommercialForm(p => ({ ...p, creditDays: e.target.value }))}
                         />
                       </div>
                     )}
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Límite de Crédito ($)</Label>
+                        <Input 
+                          type="number" className="h-8 text-sm" placeholder="Ej: 5000000"
+                          value={commercialForm.creditLimit} 
+                          onChange={(e) => setCommercialForm(p => ({ ...p, creditLimit: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Crédito Disponible ($)</Label>
+                        <Input 
+                          type="number" className="h-8 text-sm" placeholder="Ej: 5000000"
+                          value={commercialForm.creditAvailable} 
+                          onChange={(e) => setCommercialForm(p => ({ ...p, creditAvailable: e.target.value }))}
+                        />
+                      </div>
+                    </div>
 
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
@@ -381,7 +429,11 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
                              dccr = days;
                           }
                           updateCommercialInfo.mutate({
-                             cpen, dccr, pickupWarehouseId: commercialForm.pickupWarehouseId === "none" ? null : commercialForm.pickupWarehouseId
+                             cpen, dccr, 
+                             pickupWarehouseId: commercialForm.pickupWarehouseId === "none" ? null : commercialForm.pickupWarehouseId,
+                             kofuen: commercialForm.salesRepCode || null,
+                             crlt: commercialForm.creditLimit ? parseFloat(commercialForm.creditLimit) : null,
+                             cren: commercialForm.creditAvailable ? parseFloat(commercialForm.creditAvailable) : null
                           });
                        }}
                        disabled={updateCommercialInfo.isPending}>

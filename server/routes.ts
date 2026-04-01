@@ -8930,7 +8930,7 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/users/clients/:id/commercial-info', requireCommercialAccess, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const { cpen, dccr, pickupWarehouseId, crlt, cren } = req.body;
+      const { cpen, dccr, pickupWarehouseId, crlt, cren, kofuen } = req.body;
       const user = req.user;
 
       if (!['admin', 'supervisor'].includes(user.role)) {
@@ -8953,6 +8953,7 @@ export function registerRoutes(app: Express): Server {
           pickupWarehouseId: pickupWarehouseId !== undefined ? pickupWarehouseId : existingClient[0].pickupWarehouseId,
           crlt: crlt !== undefined ? crlt : existingClient[0].crlt,
           cren: cren !== undefined ? cren : existingClient[0].cren,
+          kofuen: kofuen !== undefined ? kofuen : existingClient[0].kofuen,
           updatedAt: new Date(),
         })
         .where(eq(clients.id, id));
@@ -11420,6 +11421,9 @@ export function registerRoutes(app: Express): Server {
         pl.unidad as unit,
         COALESCE(stk.total_stock, 0) as total_stock,
         pc.breve_resena,
+        pc.descripcion,
+        pc.usos,
+        pc.presentacion,
         pc.imagen_destacada
       FROM ecommerce_products ep
       LEFT JOIN price_list pl ON ep.price_list_id = pl.id
@@ -11439,6 +11443,9 @@ export function registerRoutes(app: Express): Server {
       groupName: string | null;
       tags: string[];
       breveResena: string | null;
+      descripcion: string | null;
+      usos: string | null;
+      presentacion: string | null;
       imageUrl: string | null;
       imageUrlPriority: number;
       colors: Map<string, any[]>;
@@ -11454,11 +11461,21 @@ export function registerRoutes(app: Express): Server {
       try { rowTags = JSON.parse(row.tags || '[]'); } catch { rowTags = []; }
 
       if (!productsMap.has(genericName)) {
-        productsMap.set(genericName, { genericName, groupName, tags: rowTags, breveResena: (row as any).breve_resena || null, imageUrl: null, imageUrlPriority: 0, colors: new Map() });
+        productsMap.set(genericName, { 
+          genericName, groupName, tags: rowTags, 
+          breveResena: (row as any).breve_resena || null, 
+          descripcion: (row as any).descripcion || null,
+          usos: (row as any).usos || null,
+          presentacion: (row as any).presentacion || null,
+          imageUrl: null, imageUrlPriority: 0, colors: new Map() 
+        });
       }
       const product = productsMap.get(genericName)!;
       if (rowTags.length > 0 && product.tags.length === 0) product.tags = rowTags;
       if (!product.breveResena && (row as any).breve_resena) product.breveResena = (row as any).breve_resena;
+      if (!product.descripcion && (row as any).descripcion) product.descripcion = (row as any).descripcion;
+      if (!product.usos && (row as any).usos) product.usos = (row as any).usos;
+      if (!product.presentacion && (row as any).presentacion) product.presentacion = (row as any).presentacion;
 
       // Image priority: STRONGLY prefer GALON format + BLANCO color
       const rowImageUrl = (row as any).imagen_url || (row as any).imagen_destacada || null;
@@ -11503,6 +11520,9 @@ export function registerRoutes(app: Express): Server {
       groupName: p.groupName,
       tags: p.tags,
       breveResena: p.breveResena,
+      descripcion: p.descripcion,
+      usos: p.usos,
+      presentacion: p.presentacion,
       imageUrl: p.imageUrl,
       colors: Object.fromEntries(p.colors),
       // Precompute searchable text for fast filtering
@@ -11511,6 +11531,9 @@ export function registerRoutes(app: Express): Server {
         p.groupName || '',
         p.tags?.join(' ') || '',
         p.breveResena || '',
+        p.descripcion || '',
+        p.usos || '',
+        p.presentacion || '',
         ...(Array.from(p.colors.values()).flat().map((v: any) => `${v.sku} ${v.name || ''} ${v.color} ${v.format} ${v.description || ''}`)),
       ].join(' ').toLowerCase(),
     }));
@@ -11570,13 +11593,15 @@ export function registerRoutes(app: Express): Server {
 
       let filtered = fullCatalog.catalog;
 
-      // Filter by search
+      // Filter by category first
+      if (category && category !== 'all') {
+        filtered = filtered.filter(p => p.groupName === category);
+      }
+
+      // Filter by search text sequentially
       if (search) {
         const s = (search as string).toLowerCase().trim();
         filtered = filtered.filter(p => (p as any)._searchText.includes(s));
-      } else if (category && category !== 'all') {
-        // Only filter by category if no search is active
-        filtered = filtered.filter(p => p.groupName === category);
       }
 
       // Strip internal _searchText field before sending

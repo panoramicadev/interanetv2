@@ -1283,11 +1283,11 @@ export default function TiendaPage() {
                             })()}
                           </div>
                           <div className="flex items-center gap-1.5 mt-2.5">
-                            <span className="inline-flex items-center gap-1 bg-orange-50 text-[#FF6E23] text-[10px] font-bold px-2 py-0.5 rounded-md">
-                              <Palette className="w-2.5 h-2.5" /> {colorKeys.length}
+                            <span title="Colores Disponibles" className="inline-flex items-center gap-1 bg-orange-50 text-[#FF6E23] text-[10px] sm:text-xs font-bold px-2 py-1 rounded-md">
+                              <Palette className="w-3 h-3" /> {colorKeys.length} <span className="font-semibold">Color{colorKeys.length !== 1 ? 'es' : ''}</span>
                             </span>
-                            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                              <Box className="w-2.5 h-2.5" /> {totalVariants}
+                            <span title="Formatos Disponibles" className="inline-flex items-center gap-1 bg-blue-50 text-blue-600 text-[10px] sm:text-xs font-bold px-2 py-1 rounded-md">
+                              <Box className="w-3 h-3" /> {totalVariants} <span className="font-semibold">Formato{totalVariants !== 1 ? 's' : ''}</span>
                             </span>
                             <span className="flex-1" />
                             <button
@@ -1321,11 +1321,11 @@ export default function TiendaPage() {
                           </div>
                         )}
                         <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <span className="inline-flex items-center gap-1 bg-orange-50 text-[#FF6E23] text-[10px] font-bold px-2 py-0.5 rounded-full">
-                            <Palette className="w-2.5 h-2.5" /> {colorKeys.length}
+                          <span title="Colores Disponibles" className="inline-flex items-center gap-1 bg-orange-50 text-[#FF6E23] text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            <Palette className="w-2.5 h-2.5" /> {colorKeys.length} Colores
                           </span>
-                          <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                            <Box className="w-2.5 h-2.5" /> {totalVariants}
+                          <span title="Formatos Disponibles" className="inline-flex items-center gap-1 bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            <Box className="w-2.5 h-2.5" /> {totalVariants} Formatos
                           </span>
                         </div>
                         <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-200 hover:bg-red-100 text-gray-500 hover:text-red-500 transition-colors flex-shrink-0">
