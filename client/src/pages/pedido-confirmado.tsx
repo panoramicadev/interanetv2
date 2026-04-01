@@ -58,50 +58,21 @@ export default function PedidoConfirmado() {
               <>
                 <Separator />
                 <div className="bg-gray-50 rounded-xl p-5 space-y-3">
-                  <div className="flex items-center justify-center gap-2 text-sm text-gray-500 mb-1">
-                    <Package className="h-4 w-4" />
-                    <span>Código de seguimiento</span>
+                  <div className="flex items-center justify-center gap-2 text-base font-semibold text-gray-700 mb-1">
+                    <Package className="h-5 w-5 text-[#FF6E23]" />
+                    <span>Estamos Procesando tu Pedido</span>
                   </div>
                   <div className="text-2xl font-mono font-bold text-[#FF6E23] tracking-wider">
                     #{orderId}
                   </div>
                   <p className="text-xs text-gray-400">
-                    Guarda este código para consultar el estado de tu pedido
+                    Guarda este número de pedido como respaldo de tu solicitud
                   </p>
                 </div>
               </>
             )}
 
-            {/* Status Timeline */}
-            <div className="text-left space-y-3 py-2">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Pedido recibido</p>
-                  <p className="text-xs text-gray-400">Ahora</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <div className="w-2 h-2 bg-gray-300 rounded-full" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-400">Revisión por vendedor</p>
-                  <p className="text-xs text-gray-300">Pendiente</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <div className="w-2 h-2 bg-gray-300 rounded-full" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-400">Presupuesto enviado</p>
-                  <p className="text-xs text-gray-300">Pendiente</p>
-                </div>
-              </div>
-            </div>
+
 
             <Separator />
 
