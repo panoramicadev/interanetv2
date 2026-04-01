@@ -11508,7 +11508,10 @@ export function registerRoutes(app: Express): Server {
       // Precompute searchable text for fast filtering
       _searchText: [
         p.genericName,
-        ...(Array.from(p.colors.values()).flat().map((v: any) => `${v.sku} ${v.color} ${v.format}`)),
+        p.groupName || '',
+        p.tags?.join(' ') || '',
+        p.breveResena || '',
+        ...(Array.from(p.colors.values()).flat().map((v: any) => `${v.sku} ${v.name || ''} ${v.color} ${v.format} ${v.description || ''}`)),
       ].join(' ').toLowerCase(),
     }));
 
@@ -11567,15 +11570,13 @@ export function registerRoutes(app: Express): Server {
 
       let filtered = fullCatalog.catalog;
 
-      // Filter by category
-      if (category && category !== 'all') {
-        filtered = filtered.filter(p => p.groupName === category);
-      }
-
       // Filter by search
       if (search) {
         const s = (search as string).toLowerCase().trim();
         filtered = filtered.filter(p => (p as any)._searchText.includes(s));
+      } else if (category && category !== 'all') {
+        // Only filter by category if no search is active
+        filtered = filtered.filter(p => p.groupName === category);
       }
 
       // Strip internal _searchText field before sending
