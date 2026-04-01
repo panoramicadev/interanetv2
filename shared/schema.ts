@@ -308,6 +308,7 @@ export const warehouses = pgTable("warehouses", {
   branchName: varchar("branch_name"), // Branch Name
   location: text("location"), // Physical location
   active: boolean("active").default(true),
+  isManual: boolean("is_manual").default(false), // Flag for warehouses created manually in intranet vs ERP sync
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -586,6 +587,7 @@ export const clients = pgTable("clients", {
   tipocontr: varchar("tipocontr"), // Contract type
   ferefauto: varchar("ferefauto"), // Auto reference date
   cuentabco: varchar("cuentabco"), // Bank account
+  pickupWarehouseId: varchar("pickup_warehouse_id"), // Manually assigned pickup warehouse
 
   // Pending and alternative clients
   koendpen: varchar("koendpen"), // Pending client

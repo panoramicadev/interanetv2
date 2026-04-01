@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,11 +7,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 import {
   Users, Search, Mail, Phone, MapPin, Calendar, ArrowLeft,
   UserCircle, Hash, Building2, KeyRound, ShoppingBag,
   CreditCard, FileText, TrendingUp, DollarSign, Package,
-  Clock, Eye
+  Clock, Eye, Edit2, Save, X, Plus, Trash2, Home
 } from "lucide-react";
 
 interface ClientUser {
@@ -34,11 +38,90 @@ interface ClientUser {
   creditLimit: number | null;
   creditAvailable: number | null;
   paymentCondition: string | null;
+  pickupWarehouseId: string | null;
+}
+
+interface Warehouse {
+  id: string;
+  kobo: string;
+  kosu: string;
+  name: string;
+  location: string | null;
 }
 
 // ─── Client Profile Detail Panel ─────────────────────────
 function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => void }) {
   const [activeTab, setActiveTab] = useState("overview");
+  const [isEditingCommercial, setIsEditingCommercial] = useState(false);
+  const [commercialForm, setCommercialForm] = useState({
+    paymentCondition: client.paymentCondition || "CONTADO",
+    creditDays: "",
+    pickupWarehouseId: client.pickupWarehouseId || "none"
+  });
+  const [isWarehouseManagerOpen, setIsWarehouseManagerOpen] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Parse credit days if condition is format "CREDITO X DIAS"
+  useEffect(() => {
+    if (client.paymentCondition?.toUpperCase().includes('CREDITO')) {
+      const match = client.paymentCondition.match(/\d+/);
+      if (match) {
+        setCommercialForm(prev => ({ ...prev, creditDays: match[0], paymentCondition: "CREDITO" }));
+      }
+    } else {
+      setCommercialForm(prev => ({ ...prev, paymentCondition: client.paymentCondition || "CONTADO" }));
+    }
+  }, [client]);
+
+  // Fetch warehouses
+  const { data: warehouses = [] } = useQuery<Warehouse[]>({
+    queryKey: ["/api/warehouses"],
+    queryFn: async () => {
+      try {
+        const res = await apiRequest("GET", `/api/warehouses`);
+        return await res.json();
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const [warehouseForm, setWarehouseForm] = useState({ id: "", name: "", location: "" });
+
+  const saveWarehouse = useMutation({
+    mutationFn: async (data: typeof warehouseForm) => {
+      const isNew = !data.id;
+      const method = isNew ? "POST" : "PATCH";
+      const url = isNew ? "/api/warehouses" : `/api/warehouses/${data.id}`;
+      const res = await apiRequest(method, url, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Guardado", description: "Bodega guardada correctamente." });
+      queryClient.invalidateQueries({ queryKey: ["/api/warehouses"] });
+      setWarehouseForm({ id: "", name: "", location: "" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo guardar la bodega.", variant: "destructive" });
+    }
+  });
+
+  const updateCommercialInfo = useMutation({
+    mutationFn: async (data: any) => {
+      if (!client.clientId) throw new Error("Cliente no tiene ID asignado");
+      const res = await apiRequest("PATCH", `/api/users/clients/${client.clientId}/commercial-info`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Guardado", description: "Información comercial actualizada." });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/clients"] });
+      setIsEditingCommercial(false);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo actualizar la información comercial.", variant: "destructive" });
+    }
+  });
 
   // Fetch client orders
   const { data: orders = [] } = useQuery<any[]>({
@@ -227,25 +310,106 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-sm">
-              <CardHeader className="pb-3">
+            <Card className="border-0 shadow-sm relative overflow-visible">
+              <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-base flex items-center gap-2">
                   <CreditCard className="h-4 w-4 text-emerald-500" />
                   Información Comercial
                 </CardTitle>
+                {!isEditingCommercial && client.clientId && (
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-emerald-600" onClick={() => setIsEditingCommercial(true)}>
+                    <Edit2 className="h-3.5 w-3.5 mr-1" /> Editar
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="space-y-3">
-                {[
-                  { label: "Condición de Pago", value: client.paymentCondition },
-                  { label: "Código Vendedor", value: client.salesRepCode },
-                  { label: "Límite de Crédito", value: formatCurrency(client.creditLimit) },
-                  { label: "Crédito Disponible", value: formatCurrency(client.creditAvailable) },
-                ].map(({ label, value }) => (
-                  <div key={label} className="flex items-center justify-between py-2 border-b border-muted/50 last:border-0">
-                    <span className="text-sm text-muted-foreground">{label}</span>
-                    <span className="text-sm font-medium">{value || "—"}</span>
+                {isEditingCommercial ? (
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Condición de Pago</Label>
+                      <Select 
+                        value={commercialForm.paymentCondition.includes("CREDITO") ? "CREDITO" : "CONTADO"} 
+                        onValueChange={(val) => setCommercialForm(p => ({ ...p, paymentCondition: val }))}
+                      >
+                        <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent><SelectItem value="CONTADO">Contado</SelectItem><SelectItem value="CREDITO">Crédito</SelectItem></SelectContent>
+                      </Select>
+                    </div>
+
+                    {commercialForm.paymentCondition === "CREDITO" && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Días de Crédito</Label>
+                        <Input 
+                          type="number" className="h-8 text-sm" placeholder="Ej: 30"
+                          value={commercialForm.creditDays} 
+                          onChange={(e) => setCommercialForm(p => ({ ...p, creditDays: e.target.value }))}
+                        />
+                      </div>
+                    )}
+
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs">Bodega de Retiro Default</Label>
+                        <Button variant="link" size="sm" className="h-auto p-0 text-[10px] text-blue-600" onClick={() => setIsWarehouseManagerOpen(true)}>
+                          <Plus className="h-3 w-3 mr-0.5"/> Gestionar
+                        </Button>
+                      </div>
+                      <Select 
+                        value={commercialForm.pickupWarehouseId} 
+                        onValueChange={(val) => setCommercialForm(p => ({ ...p, pickupWarehouseId: val }))}
+                      >
+                        <SelectTrigger className="h-8 text-sm truncate">
+                          <SelectValue placeholder="Sin asignar..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Sin asignar</SelectItem>
+                          {warehouses.map(w => (
+                            <SelectItem key={w.id} value={w.id}>{w.name} {w.location ? `(${w.location})` : ''}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2">
+                       <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setIsEditingCommercial(false)}>Cancelar</Button>
+                       <Button size="sm" className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700" onClick={() => {
+                          let cpen = commercialForm.paymentCondition;
+                          let dccr = "0";
+                          if (cpen === "CREDITO") {
+                             const days = commercialForm.creditDays || "0";
+                             cpen = `CREDITO ${days} DIAS`;
+                             dccr = days;
+                          }
+                          updateCommercialInfo.mutate({
+                             cpen, dccr, pickupWarehouseId: commercialForm.pickupWarehouseId === "none" ? null : commercialForm.pickupWarehouseId
+                          });
+                       }}
+                       disabled={updateCommercialInfo.isPending}>
+                         {updateCommercialInfo.isPending ? "Guardando..." : "Guardar Cambios"}
+                       </Button>
+                    </div>
                   </div>
-                ))}
+                ) : (
+                  <>
+                    {[
+                      { label: "Condición de Pago", value: client.paymentCondition },
+                      { label: "Código Vendedor", value: client.salesRepCode },
+                      { label: "Límite de Crédito", value: formatCurrency(client.creditLimit) },
+                      { label: "Crédito Disponible", value: formatCurrency(client.creditAvailable) },
+                      { label: "Bodega de Retiro", value: warehouses.find(w => w.id === client.pickupWarehouseId)?.name || "—" },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="flex items-center justify-between py-2 border-b border-muted/50 last:border-0 hover:bg-muted/10">
+                        <span className="text-sm text-muted-foreground">{label}</span>
+                        <span className="text-sm font-medium">{value || "—"}</span>
+                      </div>
+                    ))}
+                    {!client.clientId && (
+                      <div className="p-3 bg-amber-50 rounded-md border border-amber-200 mt-2">
+                        <p className="text-[11px] text-amber-700 font-medium">Usuario sin ficha SAP. No es posible editar la información comercial de este usuario.</p>
+                      </div>
+                    )}
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -372,6 +536,86 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Warehouse Manager Modal */}
+      <Dialog open={isWarehouseManagerOpen} onOpenChange={setIsWarehouseManagerOpen}>
+        <DialogContent className="max-w-2xl bg-white dark:bg-slate-900 border-border shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <Building2 className="h-5 w-5 text-blue-500" />
+              Gestión de Bodegas de Retiro
+            </DialogTitle>
+            <DialogDescription>
+              Crea o edita las bodegas que aparecerán disponibles para que el cliente retire sus compras.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+            {/* Form for new/edit */}
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-border/60">
+              <h3 className="text-sm font-semibold mb-3 flex items-center gap-1.5">
+                {warehouseForm.id ? <><Edit2 className="h-3.5 w-3.5 text-blue-500"/> Editar Bodega</> : <><Plus className="h-3.5 w-3.5 text-emerald-500"/> Nueva Bodega</>}
+              </h3>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Nombre de la Bodega</Label>
+                  <Input 
+                    placeholder="Ej: Sede Central" 
+                    value={warehouseForm.name}
+                    onChange={(e) => setWarehouseForm(p => ({ ...p, name: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Dirección / Ubicación</Label>
+                  <Input 
+                    placeholder="Ej: Av Principal 123" 
+                    value={warehouseForm.location || ""}
+                    onChange={(e) => setWarehouseForm(p => ({ ...p, location: e.target.value }))}
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  {warehouseForm.id && (
+                    <Button variant="ghost" size="sm" onClick={() => setWarehouseForm({ id: "", name: "", location: "" })}>
+                      Cancelar
+                    </Button>
+                  )}
+                  <Button size="sm" 
+                    className="bg-blue-600 hover:bg-blue-700" 
+                    disabled={!warehouseForm.name || saveWarehouse.isPending}
+                    onClick={() => saveWarehouse.mutate(warehouseForm)}
+                  >
+                    {saveWarehouse.isPending ? "Guardando..." : "Guardar"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* List of custom warehouses */}
+            <div className="flex flex-col h-[280px]">
+              <h3 className="text-sm font-semibold mb-3">Bodegas Registradas</h3>
+              <div className="flex-1 overflow-y-auto pr-2 space-y-2">
+                {warehouses.filter((w: any) => w.isManual).length === 0 ? (
+                  <div className="text-center py-6 text-sm text-muted-foreground bg-slate-50 dark:bg-slate-800/20 rounded-lg">
+                    No hay bodegas registradas manualmente.
+                  </div>
+                ) : (
+                  warehouses.filter((w: any) => w.isManual).map((w: any) => (
+                    <div key={w.id} className="p-3 bg-white dark:bg-slate-800 border rounded-lg hover:border-blue-300 transition-colors flex justify-between group">
+                      <div className="min-w-0 pr-2">
+                        <p className="font-semibold text-sm text-foreground truncate">{w.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{w.location || "Sin dirección"}</p>
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 flex-shrink-0 text-blue-600" onClick={() => setWarehouseForm({ id: w.id, name: w.name, location: w.location || "" })}>
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

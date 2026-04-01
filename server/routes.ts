@@ -6274,6 +6274,78 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Create a manual pickup warehouse (from intranet)
+  app.post('/api/warehouses', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const user = req.user;
+      if (!['admin', 'supervisor'].includes(user.role)) {
+        return res.status(403).json({ message: "No autorizado" });
+      }
+
+      const { name, location } = req.body;
+      if (!name) {
+        return res.status(400).json({ message: "Nombre de bodega es requerido" });
+      }
+
+      const { db } = await import('./db');
+      const { warehouses } = await import('@shared/schema');
+      
+      const newCode = `MNL-${Date.now().toString().slice(-6)}`;
+      
+      const [newWarehouse] = await db.insert(warehouses).values({
+        kobo: newCode,
+        kosu: 'RET', // Retiro as nominal branch code 
+        name,
+        branchName: 'Sede Retiro (Intranet)',
+        location: location || null,
+        isManual: true,
+        active: true
+      }).returning();
+      
+      res.status(201).json(newWarehouse);
+    } catch (error) {
+      console.error("Error creating warehouse:", error);
+      res.status(500).json({ message: "Error al crear bodega" });
+    }
+  });
+
+  // Update a manual pickup warehouse
+  app.patch('/api/warehouses/:id', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { name, location, active } = req.body;
+      const user = req.user;
+      
+      if (!['admin', 'supervisor'].includes(user.role)) {
+        return res.status(403).json({ message: "No autorizado" });
+      }
+
+      const { db } = await import('./db');
+      const { warehouses } = await import('@shared/schema');
+      const { eq } = await import('drizzle-orm');
+      
+      const [warehouse] = await db.select().from(warehouses).where(eq(warehouses.id, id));
+      if (!warehouse) {
+        return res.status(404).json({ message: "Bodega no encontrada" });
+      }
+      
+      const [updatedWarehouse] = await db.update(warehouses)
+        .set({
+          name: name !== undefined ? name : warehouse.name,
+          location: location !== undefined ? location : warehouse.location,
+          active: active !== undefined ? active : warehouse.active,
+          updatedAt: new Date(),
+        })
+        .where(eq(warehouses.id, id))
+        .returning();
+        
+      res.json(updatedWarehouse);
+    } catch (error) {
+      console.error("Error updating warehouse:", error);
+      res.status(500).json({ message: "Error al actualizar bodega" });
+    }
+  });
+
   // Get all branches
   app.get('/api/branches', requireAuth, async (req: any, res) => {
     try {
@@ -8767,6 +8839,7 @@ export function registerRoutes(app: Express): Server {
           creditLimit: clientRecord?.crlt ? parseFloat(clientRecord.crlt) : null,
           creditAvailable: clientRecord?.cren ? parseFloat(clientRecord.cren) : null,
           paymentCondition: clientRecord?.cpen || null,
+          pickupWarehouseId: clientRecord?.pickupWarehouseId || null,
         });
       }
       
@@ -8796,6 +8869,7 @@ export function registerRoutes(app: Express): Server {
           creditLimit: clientRecord?.crlt ? parseFloat(clientRecord.crlt) : null,
           creditAvailable: clientRecord?.cren ? parseFloat(clientRecord.cren) : null,
           paymentCondition: clientRecord?.cpen || null,
+          pickupWarehouseId: clientRecord?.pickupWarehouseId || null,
         });
       }
 
@@ -8849,6 +8923,44 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error searching clients:", error);
       res.status(500).json({ message: "Failed to search clients" });
+    }
+  });
+
+  // Update client commercial info
+  app.patch('/api/users/clients/:id/commercial-info', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { cpen, dccr, pickupWarehouseId, crlt, cren } = req.body;
+      const user = req.user;
+
+      if (!['admin', 'supervisor'].includes(user.role)) {
+        return res.status(403).json({ message: "No autorizado" });
+      }
+
+      const { clients } = await import('@shared/schema');
+      const { eq } = await import('drizzle-orm');
+      const { db } = await import('./db');
+
+      const existingClient = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
+      if (existingClient.length === 0) {
+        return res.status(404).json({ message: "Cliente no encontrado" });
+      }
+
+      await db.update(clients)
+        .set({
+          cpen: cpen !== undefined ? cpen : existingClient[0].cpen,
+          dccr: dccr !== undefined ? dccr : existingClient[0].dccr,
+          pickupWarehouseId: pickupWarehouseId !== undefined ? pickupWarehouseId : existingClient[0].pickupWarehouseId,
+          crlt: crlt !== undefined ? crlt : existingClient[0].crlt,
+          cren: cren !== undefined ? cren : existingClient[0].cren,
+          updatedAt: new Date(),
+        })
+        .where(eq(clients.id, id));
+
+      res.json({ success: true, message: "Información comercial actualizada" });
+    } catch (error) {
+      console.error("Error updating commercial info:", error);
+      res.status(500).json({ message: "Error al actualizar información comercial" });
     }
   });
 

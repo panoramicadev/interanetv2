@@ -1076,86 +1076,91 @@ export default function TiendaPage() {
       </section>
       )}
 
-      {/* ─── Filter Bar: Categories + Tags ─── */}
+      {/* ─── Filter Bar: Unified Categories & Tags ─── */}
       <section className="bg-white/95 backdrop-blur-md border-b border-gray-100 sticky z-40" style={{ top: `${headerHeight}px` }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
-          {/* Row 1: Title + Tags inline */}
-          <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide">
-            <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5">
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+            <div className="flex items-center gap-2 flex-shrink-0 pr-3 border-r border-gray-200">
               <h2 className="text-sm font-bold text-gray-900" id="productos">Catálogo</h2>
-              <span className="text-xs text-gray-400">{groupedCatalog.length}</span>
+              <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{groupedCatalog.length}</span>
             </div>
-            {availableTags.length > 0 && (
-              <>
-                <div className="h-4 w-px bg-gray-200 flex-shrink-0" />
-                <div className="flex items-center gap-1.5">
-                  {availableTags.map(({ name, count }) => {
-                    const isActive = selectedTag === name;
-                    const colors: Record<string, { dot: string; active: string; text: string }> = {
-                      'Producto Destacado': { dot: 'bg-violet-400', active: 'bg-violet-500 text-white', text: 'text-violet-700' },
-                      'Mejor Precio': { dot: 'bg-emerald-400', active: 'bg-emerald-500 text-white', text: 'text-emerald-700' },
-                      'Rápida Rotación': { dot: 'bg-blue-400', active: 'bg-blue-500 text-white', text: 'text-blue-700' },
-                      'Pocas Unidades': { dot: 'bg-amber-400', active: 'bg-amber-500 text-white', text: 'text-amber-700' },
-                      'Oferta': { dot: 'bg-rose-400', active: 'bg-rose-500 text-white', text: 'text-rose-700' },
-                    };
-                    const c = colors[name] || { dot: 'bg-gray-400', active: 'bg-gray-600 text-white', text: 'text-gray-600' };
-                    return (
-                      <button
-                        key={name}
-                        onClick={() => setSelectedTag(isActive ? null : name)}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all whitespace-nowrap flex-shrink-0 ${
-                          isActive ? `${c.active} shadow-sm` : `bg-gray-50 ${c.text} hover:bg-gray-100`
-                        }`}
-                        data-testid={`filter-tag-${name}`}
-                      >
-                        <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-white/60' : c.dot}`} />
-                        {name}
-                        <span className={`text-[9px] ${isActive ? 'text-white/70' : 'text-gray-400'}`}>{count}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
 
-          {/* Row 2: Categories — compact */}
-          <div className="flex items-center gap-1.5 mt-1.5 overflow-x-auto scrollbar-hide">
+            {/* "Todos" button */}
             <button
-              onClick={() => setSelectedCategory('all')}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap flex-shrink-0 ${
-                selectedCategory === 'all'
-                  ? 'bg-gray-900 text-white'
-                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+              onClick={() => { setSelectedCategory('all'); setSelectedTag(null); }}
+              className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all whitespace-nowrap flex-shrink-0 border ${
+                selectedCategory === 'all' && !selectedTag
+                  ? 'bg-gray-900 text-white border-gray-900 shadow-sm'
+                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
               }`}
               data-testid="filter-cat-all"
             >
               Todos
             </button>
-            {categories.map((category) => (
-              <button
-                key={category}
-                onClick={() => setSelectedCategory(selectedCategory === category ? 'all' : category)}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap flex-shrink-0 ${
-                  selectedCategory === category
-                    ? 'bg-[#FF6E23] text-white'
-                    : 'text-gray-500 hover:bg-orange-50 hover:text-[#FF6E23]'
-                }`}
-                data-testid={`filter-cat-${category}`}
-              >
-                {category}
-              </button>
-            ))}
-            {(selectedCategory !== 'all' || selectedTag) && (
-              <button
-                onClick={() => { setSelectedCategory('all'); setSelectedTag(null); }}
-                className="flex items-center gap-0.5 px-2 py-1 rounded-md text-[11px] font-semibold text-red-500 hover:bg-red-50 transition-all whitespace-nowrap flex-shrink-0"
-                data-testid="filter-clear"
-              >
-                <X className="h-3 w-3" />
-                Limpiar
-              </button>
+
+            {/* Categories */}
+            {categories.map((category) => {
+              const isActive = selectedCategory === category && !selectedTag;
+              return (
+                <button
+                  key={category}
+                  onClick={() => {
+                    setSelectedCategory(isActive ? 'all' : category);
+                    setSelectedTag(null);
+                  }}
+                  className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all whitespace-nowrap flex-shrink-0 border ${
+                    isActive
+                      ? 'bg-[#FF6E23] text-white border-[#FF6E23] shadow-sm'
+                      : 'bg-white text-gray-500 border-gray-200 hover:border-orange-200 hover:text-[#FF6E23] hover:bg-orange-50'
+                  }`}
+                  data-testid={`filter-cat-${category}`}
+                >
+                  {category}
+                </button>
+              );
+            })}
+
+            {/* Divider if tags exist */}
+            {availableTags.length > 0 && (
+              <div className="h-5 w-px bg-gray-200 flex-shrink-0 mx-2" />
             )}
+
+            {/* Tags */}
+            {availableTags.map(({ name, count }) => {
+              const isActive = selectedTag === name;
+              const colors: Record<string, { bg: string; text: string; activeBg: string; activeText: string }> = {
+                'Producto Destacado': { bg: 'bg-violet-50 border-violet-200', text: 'text-violet-700', activeBg: 'bg-violet-500 border-violet-500', activeText: 'text-white' },
+                'Mejor Precio': { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', activeBg: 'bg-emerald-500 border-emerald-500', activeText: 'text-white' },
+                'Rápida Rotación': { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', activeBg: 'bg-blue-500 border-blue-500', activeText: 'text-white' },
+                'Pocas Unidades': { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', activeBg: 'bg-amber-500 border-amber-500', activeText: 'text-white' },
+                'Oferta': { bg: 'bg-rose-50 border-rose-200', text: 'text-rose-700', activeBg: 'bg-rose-500 border-rose-500', activeText: 'text-white' },
+              };
+              const c = colors[name] || { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-700', activeBg: 'bg-gray-600 border-gray-600', activeText: 'text-white' };
+              
+              return (
+                <button
+                  key={name}
+                  onClick={() => {
+                    if (isActive) {
+                      setSelectedTag(null);
+                      setSelectedCategory('all');
+                    } else {
+                      setSelectedTag(name);
+                      setSelectedCategory('all');
+                    }
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all border whitespace-nowrap flex-shrink-0 ${
+                    isActive ? `${c.activeBg} ${c.activeText} shadow-sm` : `${c.bg} ${c.text} hover:opacity-80`
+                  }`}
+                  data-testid={`filter-tag-${name}`}
+                >
+                  {name}
+                  <span className={`text-[10px] px-1.5 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-white/60 text-gray-600'}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </section>
