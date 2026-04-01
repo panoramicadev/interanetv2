@@ -11370,6 +11370,7 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       await db.delete(storeBanners).where(eq(storeBanners.id, id));
+      delete _storeEndpointCache?.['banners'];
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ message: 'Error deleting banner', error: error.message });
@@ -11805,25 +11806,32 @@ export function registerRoutes(app: Express): Server {
     asyncHandler(async (req: any, res: any) => {
       try {
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-        const objectStorageService = new ObjectStorageService();
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
+        const bucket = process.env.SUPABASE_STORAGE_BUCKET!;
+
+        async function uploadBanner(file: Express.Multer.File, prefix: string) {
+          const path = await import('path');
+          const fileExtension = path.extname(file.originalname);
+          const fileName = `banners/${prefix}_${Date.now()}_${Math.random().toString(36).substring(7)}${fileExtension}`;
+          const { error } = await supabase.storage.from(bucket).upload(fileName, file.buffer, {
+            contentType: file.mimetype || 'image/png',
+            upsert: false
+          });
+          if (error) throw error;
+          const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
+          return data.publicUrl;
+        }
 
         let imagenDesktopUrl = req.body.imagenDesktop || '';
         let imagenMobileUrl = req.body.imagenMobile || '';
 
         if (files?.imagenDesktop?.[0]) {
-          const file = files.imagenDesktop[0];
-          const imageName = `banner_desktop_${Date.now()}_${file.originalname}`;
-          imagenDesktopUrl = await objectStorageService.uploadImage(
-            imageName, file.buffer, file.mimetype || 'image/png'
-          );
+          imagenDesktopUrl = await uploadBanner(files.imagenDesktop[0], 'desktop');
         }
 
         if (files?.imagenMobile?.[0]) {
-          const file = files.imagenMobile[0];
-          const imageName = `banner_mobile_${Date.now()}_${file.originalname}`;
-          imagenMobileUrl = await objectStorageService.uploadImage(
-            imageName, file.buffer, file.mimetype || 'image/png'
-          );
+          imagenMobileUrl = await uploadBanner(files.imagenMobile[0], 'mobile');
         }
 
         if (!imagenDesktopUrl) {
@@ -11844,6 +11852,7 @@ export function registerRoutes(app: Express): Server {
           tipoVisualizacion: req.body.tipoVisualizacion || 'hero',
         }).returning();
 
+        delete _storeEndpointCache?.['banners'];
         res.json(banner);
       } catch (error: any) {
         console.error('Error creating banner:', error);
@@ -11864,23 +11873,31 @@ export function registerRoutes(app: Express): Server {
       try {
         const { id } = req.params;
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-        const objectStorageService = new ObjectStorageService();
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!);
+        const bucket = process.env.SUPABASE_STORAGE_BUCKET!;
+
+        async function uploadBanner(file: Express.Multer.File, prefix: string) {
+          const path = await import('path');
+          const fileExtension = path.extname(file.originalname);
+          const fileName = `banners/${prefix}_${Date.now()}_${Math.random().toString(36).substring(7)}${fileExtension}`;
+          const { error } = await supabase.storage.from(bucket).upload(fileName, file.buffer, {
+            contentType: file.mimetype || 'image/png',
+            upsert: false
+          });
+          if (error) throw error;
+          const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
+          return data.publicUrl;
+        }
+
         const updates: any = {};
 
         if (files?.imagenDesktop?.[0]) {
-          const file = files.imagenDesktop[0];
-          const imageName = `banner_desktop_${Date.now()}_${file.originalname}`;
-          updates.imagenDesktop = await objectStorageService.uploadImage(
-            imageName, file.buffer, file.mimetype || 'image/png'
-          );
+          updates.imagenDesktop = await uploadBanner(files.imagenDesktop[0], 'desktop');
         }
 
         if (files?.imagenMobile?.[0]) {
-          const file = files.imagenMobile[0];
-          const imageName = `banner_mobile_${Date.now()}_${file.originalname}`;
-          updates.imagenMobile = await objectStorageService.uploadImage(
-            imageName, file.buffer, file.mimetype || 'image/png'
-          );
+          updates.imagenMobile = await uploadBanner(files.imagenMobile[0], 'mobile');
         }
 
         if (req.body.titulo !== undefined) updates.titulo = req.body.titulo;
@@ -11903,6 +11920,7 @@ export function registerRoutes(app: Express): Server {
           return res.status(404).json({ message: 'Banner no encontrado' });
         }
 
+        delete _storeEndpointCache?.['banners'];
         res.json(updated);
       } catch (error: any) {
         console.error('Error updating banner:', error);
