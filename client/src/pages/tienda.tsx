@@ -1136,7 +1136,7 @@ export default function TiendaPage() {
           {/* Navigation Arrows */}
           <button 
             onClick={() => setCurrentSlide(prev => (prev === 0 ? banners.length - 1 : prev - 1))}
-            className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/20 hover:bg-black/40 text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-all z-20 opacity-0 group-hover:opacity-100 hidden md:flex"
+            className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 bg-black/30 hover:bg-black/50 text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-all z-20 md:opacity-0 md:group-hover:opacity-100"
             aria-label="Anterior banner"
           >
             <ChevronLeft className="w-6 h-6" />
@@ -1144,7 +1144,7 @@ export default function TiendaPage() {
           
           <button 
             onClick={() => setCurrentSlide(prev => (prev + 1) % banners.length)}
-            className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/20 hover:bg-black/40 text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-all z-20 opacity-0 group-hover:opacity-100 hidden md:flex"
+            className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 bg-black/30 hover:bg-black/50 text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-all z-20 md:opacity-0 md:group-hover:opacity-100"
             aria-label="Siguiente banner"
           >
             <ChevronRight className="w-6 h-6" />
@@ -1165,17 +1165,20 @@ export default function TiendaPage() {
             </div>
 
             {isMobile ? (
-              <>
-                <div className="flex-shrink-0">
+              <div className="flex flex-col gap-2 w-full">
+                {/* Category dropdown - full width */}
+                <div className="w-full">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        className="h-8 text-[11px] font-bold border-gray-200 rounded-lg gap-1.5 bg-white shadow-sm hover:bg-gray-50 flex-shrink-0"
+                        className="h-8 w-full text-[11px] font-bold border-gray-200 rounded-lg gap-1.5 bg-white shadow-sm hover:bg-gray-50 justify-between"
                       >
-                        <Grid3X3 className="h-3 w-3 text-[#FF6E23]" />
-                        {selectedCategory === 'all' ? 'Categorías' : selectedCategory}
+                        <div className="flex items-center gap-1.5">
+                          <Grid3X3 className="h-3 w-3 text-[#FF6E23]" />
+                          {selectedCategory === 'all' ? 'Categorías' : selectedCategory}
+                        </div>
                         <ChevronDown className="h-3 w-3 text-gray-400" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -1208,48 +1211,50 @@ export default function TiendaPage() {
                   </DropdownMenu>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 flex-1 py-1 pl-1">
-                  {/* Tags row for mobile - full width wrap */}
-                  {availableTags.map(({ name, count, color: tagColor }) => {
-                    const isActive = selectedTag === name;
-                    const TAG_UI_COLORS: Record<string, { bg: string; text: string; activeBg: string; activeText: string }> = {
-                      green: { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', activeBg: 'bg-emerald-500 border-emerald-500', activeText: 'text-white' },
-                      blue: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', activeBg: 'bg-blue-500 border-blue-500', activeText: 'text-white' },
-                      amber: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', activeBg: 'bg-amber-500 border-amber-500', activeText: 'text-white' },
-                      red: { bg: 'bg-rose-50 border-rose-200', text: 'text-rose-700', activeBg: 'bg-rose-500 border-rose-500', activeText: 'text-white' },
-                      purple: { bg: 'bg-violet-50 border-violet-200', text: 'text-violet-700', activeBg: 'bg-violet-500 border-violet-500', activeText: 'text-white' },
-                      pink: { bg: 'bg-pink-50 border-pink-200', text: 'text-pink-700', activeBg: 'bg-pink-500 border-pink-500', activeText: 'text-white' },
-                      cyan: { bg: 'bg-cyan-50 border-cyan-200', text: 'text-cyan-700', activeBg: 'bg-cyan-500 border-cyan-500', activeText: 'text-white' },
-                      orange: { bg: 'bg-orange-50 border-orange-200', text: 'text-orange-700', activeBg: 'bg-orange-500 border-orange-500', activeText: 'text-white' },
-                      indigo: { bg: 'bg-indigo-50 border-indigo-200', text: 'text-indigo-700', activeBg: 'bg-indigo-500 border-indigo-500', activeText: 'text-white' },
-                      teal: { bg: 'bg-teal-50 border-teal-200', text: 'text-teal-700', activeBg: 'bg-teal-500 border-teal-500', activeText: 'text-white' },
-                    };
-                    const c = TAG_UI_COLORS[tagColor] || TAG_UI_COLORS['gray'] || { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-700', activeBg: 'bg-gray-600 border-gray-600', activeText: 'text-white' };
-                    
-                    return (
-                      <button
-                        key={name}
-                        onClick={() => {
-                          if (isActive) {
-                            setSelectedTag(null);
-                          } else {
-                            setSelectedTag(name);
-                            setSelectedCategory('all');
-                          }
-                        }}
-                        className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border flex items-center gap-1.5 ${
-                          isActive ? c.activeBg + ' ' + c.activeText : c.bg + ' ' + c.text
-                        } hover:shadow-sm`}
-                        data-testid={`filter-tag-mobile-${name}`}
-                      >
-                        <Tag className="h-3 w-3" />
-                        {name}
-                        <span className={`text-[9px] px-1 rounded-full ${isActive ? 'bg-white/20' : 'bg-gray-200/50'}`}>{count}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
+                {/* Tags row - single horizontal scrollable line */}
+                {availableTags.length > 0 && (
+                  <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-0.5">
+                    {availableTags.map(({ name, count, color: tagColor }) => {
+                      const isActive = selectedTag === name;
+                      const TAG_UI_COLORS: Record<string, { bg: string; text: string; activeBg: string; activeText: string }> = {
+                        green: { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', activeBg: 'bg-emerald-500 border-emerald-500', activeText: 'text-white' },
+                        blue: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', activeBg: 'bg-blue-500 border-blue-500', activeText: 'text-white' },
+                        amber: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', activeBg: 'bg-amber-500 border-amber-500', activeText: 'text-white' },
+                        red: { bg: 'bg-rose-50 border-rose-200', text: 'text-rose-700', activeBg: 'bg-rose-500 border-rose-500', activeText: 'text-white' },
+                        purple: { bg: 'bg-violet-50 border-violet-200', text: 'text-violet-700', activeBg: 'bg-violet-500 border-violet-500', activeText: 'text-white' },
+                        pink: { bg: 'bg-pink-50 border-pink-200', text: 'text-pink-700', activeBg: 'bg-pink-500 border-pink-500', activeText: 'text-white' },
+                        cyan: { bg: 'bg-cyan-50 border-cyan-200', text: 'text-cyan-700', activeBg: 'bg-cyan-500 border-cyan-500', activeText: 'text-white' },
+                        orange: { bg: 'bg-orange-50 border-orange-200', text: 'text-orange-700', activeBg: 'bg-orange-500 border-orange-500', activeText: 'text-white' },
+                        indigo: { bg: 'bg-indigo-50 border-indigo-200', text: 'text-indigo-700', activeBg: 'bg-indigo-500 border-indigo-500', activeText: 'text-white' },
+                        teal: { bg: 'bg-teal-50 border-teal-200', text: 'text-teal-700', activeBg: 'bg-teal-500 border-teal-500', activeText: 'text-white' },
+                      };
+                      const c = TAG_UI_COLORS[tagColor] || { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-700', activeBg: 'bg-gray-600 border-gray-600', activeText: 'text-white' };
+                      
+                      return (
+                        <button
+                          key={name}
+                          onClick={() => {
+                            if (isActive) {
+                              setSelectedTag(null);
+                            } else {
+                              setSelectedTag(name);
+                              setSelectedCategory('all');
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all whitespace-nowrap flex-shrink-0 border flex items-center gap-1.5 ${
+                            isActive ? c.activeBg + ' ' + c.activeText : c.bg + ' ' + c.text
+                          } hover:shadow-sm`}
+                          data-testid={`filter-tag-mobile-${name}`}
+                        >
+                          <Tag className="h-3 w-3" />
+                          {name}
+                          <span className={`text-[9px] px-1 rounded-full ${isActive ? 'bg-white/20' : 'bg-gray-200/50'}`}>{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="flex flex-wrap items-center gap-2">
                 <>
