@@ -6,7 +6,7 @@ import {
   ShoppingCart, Clock, CheckCircle, XCircle, Package, Eye, FileText,
   Phone, Mail, Search, Filter, ArrowLeft, User, MapPin, ChevronRight,
   Truck, DollarSign, Calendar, AlertCircle, MoreHorizontal,
-  Pencil, Archive, Trash2
+  Pencil, Archive, Trash2, FileImage, Landmark
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +60,8 @@ interface EcommerceOrder {
   items: OrderItem[] | string;
   notes?: string;
   quoteId?: string;
+  paymentCondition?: string;
+  paymentReceiptUrl?: string;
   createdAt: string;
   approvedAt?: string;
   modifiedAt?: string;
@@ -429,6 +431,32 @@ function OrderDetail({ order, onBack, onOrderDeleted }: { order: EcommerceOrder;
                     <MapPin className="w-3.5 h-3.5 text-gray-400 mt-0.5" />
                     <span>{order.shippingAddress}</span>
                   </div>
+                </div>
+              )}
+
+              {/* Payment Condition & Receipt */}
+              {order.paymentCondition && (
+                <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
+                  <h5 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Condición de pago</h5>
+                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                    <Landmark className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="font-medium">{order.paymentCondition}</span>
+                  </div>
+                </div>
+              )}
+
+              {order.paymentReceiptUrl && (
+                <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
+                  <h5 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Comprobante de pago</h5>
+                  <a
+                    href={order.paymentReceiptUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-sm text-[#FF6E23] hover:text-[#FF6E23]/80 transition-colors font-medium"
+                  >
+                    <FileImage className="w-4 h-4" />
+                    Ver comprobante enviado
+                  </a>
                 </div>
               )}
             </div>

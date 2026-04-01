@@ -94,8 +94,8 @@ export default function BillingSummary() {
     staleTime: 300_000,
   });
 
-  // Fetch client data to get addresses
-  const { data: clientData } = useQuery<{ dien?: string; cmen?: string; comuna?: string }>({
+  // Fetch client data to get addresses and payment condition
+  const { data: clientData } = useQuery<{ dien?: string; cmen?: string; comuna?: string; cpen?: string }>({
     queryKey: ['/api/clients/by-user', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
@@ -275,7 +275,8 @@ export default function BillingSummary() {
         shipping: deliveryMethod === 'despacho' ? shippingCost : 0,
         total: deliveryMethod === 'despacho' ? state.total + shippingCost : state.total,
         notes: orderNotes.trim() || null,
-        shippingAddress: finalShippingAddress || null
+        shippingAddress: finalShippingAddress || null,
+        paymentCondition: clientData?.cpen || null
       };
 
       const response = await fetch('/api/ecommerce/orders/client', {

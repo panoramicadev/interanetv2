@@ -6600,6 +6600,7 @@ export function registerRoutes(app: Express): Server {
         total: z.number().positive(),
         notes: z.string().optional().nullable(),
         shippingAddress: z.string().optional().nullable(),
+        paymentCondition: z.string().optional().nullable(),
       });
 
       const validationResult = clientOrderSchema.safeParse(req.body);
@@ -6624,7 +6625,8 @@ export function registerRoutes(app: Express): Server {
         clientEmail: req.user.email,
         assignedSalespersonId: client?.assignedSalespersonUserId || null,
         assignedSalespersonName: null, // Will be populated if there's a salesperson
-        status: 'pending'
+        status: 'pending',
+        paymentCondition: orderData.paymentCondition || client?.cpen || null,
       };
 
       // If there's an assigned salesperson, get their name
@@ -6664,6 +6666,20 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
 
+      // If ?id= is provided, return single order
+      if (req.query.id) {
+        const { ecommerceOrders } = await import('@shared/schema');
+        const { eq } = await import('drizzle-orm');
+        const { db } = await import('./db');
+        const result = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, req.query.id));
+        const order = result[0];
+        if (!order) return res.status(404).json({ message: 'Pedido no encontrado' });
+        // Allow owner or admin/supervisor
+        if (order.clientId !== user.id && !['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+          return res.status(403).json({ message: 'No autorizado' });
+        }
+        return res.json(order);
+      }
       // Build filters based on user role
       const filters: any = {};
 
@@ -6721,6 +6737,39 @@ export function registerRoutes(app: Express): Server {
     if (!updated) {
       return res.status(404).json({ message: 'Pedido no encontrado' });
     }
+
+    res.json(updated);
+  }));
+
+  // Update order receipt
+  app.patch('/api/ecommerce/orders/:id/receipt', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const { paymentReceiptUrl } = req.body;
+    const user = req.user;
+
+    const { ecommerceOrders } = await import('@shared/schema');
+    const { eq, and } = await import('drizzle-orm');
+    const { db } = await import('./db');
+
+    // Make sure order exists and user either owns it or is admin/supervisor
+    const result = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, id));
+    const order = result[0];
+
+    if (!order) {
+      return res.status(404).json({ message: 'Pedido no encontrado' });
+    }
+
+    if (order.clientId !== user.id && !['admin', 'supervisor'].includes(user.role)) {
+      return res.status(403).json({ message: 'No autorizado para modificar este pedido' });
+    }
+
+    const [updated] = await db.update(ecommerceOrders)
+      .set({
+        paymentReceiptUrl,
+        updatedAt: new Date(),
+      })
+      .where(eq(ecommerceOrders.id, id))
+      .returning();
 
     res.json(updated);
   }));
@@ -6807,6 +6856,11 @@ export function registerRoutes(app: Express): Server {
 
   // Get free shipping threshold (public - no auth needed for store page)
   app.get('/api/ecommerce/free-shipping-threshold', asyncHandler(async (req: any, res: any) => {
+    const cached = _storeEndpointCache?.['free-shipping'];
+    if (cached && Date.now() - cached.ts < 120_000) {
+      res.set('X-Cache', 'HIT');
+      return res.json(cached.data);
+    }
     const { db } = await import('./db');
     const { sql } = await import('drizzle-orm');
     
@@ -6815,7 +6869,9 @@ export function registerRoutes(app: Express): Server {
     `);
     
     const row = (result as any).rows?.[0];
-    res.json({ threshold: row?.value?.threshold ?? 250000 });
+    const data = { threshold: row?.value?.threshold ?? 250000 };
+    _storeEndpointCache['free-shipping'] = { data, ts: Date.now() };
+    res.json(data);
   }));
 
   // Update free shipping threshold
@@ -6844,6 +6900,11 @@ export function registerRoutes(app: Express): Server {
 
   // Get topbar config (public — store page reads this)
   app.get('/api/ecommerce/topbar-config', asyncHandler(async (req: any, res: any) => {
+    const cached = _storeEndpointCache?.['topbar-config'];
+    if (cached && Date.now() - cached.ts < 120_000) {
+      res.set('X-Cache', 'HIT');
+      return res.json(cached.data);
+    }
     const { db } = await import('./db');
     const { sql } = await import('drizzle-orm');
 
@@ -6860,7 +6921,9 @@ export function registerRoutes(app: Express): Server {
       faq: { visible: true },
       freeShipping: { threshold: 250000, visible: true },
     };
-    res.json(row?.value || defaults);
+    const data = row?.value || defaults;
+    _storeEndpointCache['topbar-config'] = { data, ts: Date.now() };
+    res.json(data);
   }));
 
   // Update topbar config (admin only)
@@ -11215,15 +11278,38 @@ export function registerRoutes(app: Express): Server {
 
   // Store API endpoints (public access)
 
+  // ──── Lightweight in-memory cache for public store endpoints ────
+  // These rarely change and are hit on every /tienda page load.
+  // Cache avoids ~300ms Supabase round-trip per query (×5 endpoints = 1.5s saved).
+  const _storeEndpointCache: Record<string, { data: any; ts: number }> = {};
+  const STORE_EP_TTL = 120_000; // 2 minutes
+  const getStoreCache = (key: string) => {
+    const entry = _storeEndpointCache[key];
+    if (entry && Date.now() - entry.ts < STORE_EP_TTL) return entry.data;
+    return null;
+  };
+  const setStoreCache = (key: string, data: any) => {
+    _storeEndpointCache[key] = { data, ts: Date.now() };
+  };
+  // Invalidate all public caches when admin updates config/banners/categories
+  const invalidateAllStoreCache = () => {
+    Object.keys(_storeEndpointCache).forEach(k => delete _storeEndpointCache[k]);
+    invalidateStoreCache(); // Also invalidate the product catalog cache
+  };
+
   // Get store configuration
   app.get('/api/store/config', async (req: any, res) => {
     try {
+      const cached = getStoreCache('config');
+      if (cached) { res.set('X-Cache', 'HIT'); return res.json(cached); }
       const config = await storage.getStoreConfig();
-      res.json(config || {
+      const result = config || {
         siteName: "Pinturas Panorámica",
         logoUrl: "/panoramica-logo.png",
         primaryColor: "#FF6B35"
-      });
+      };
+      setStoreCache('config', result);
+      res.json(result);
     } catch (error) {
       console.error("Error fetching store config:", error);
       res.status(500).json({ message: "Failed to fetch store configuration" });
@@ -11233,7 +11319,10 @@ export function registerRoutes(app: Express): Server {
   // Get active store banners
   app.get('/api/store/banners', async (req: any, res) => {
     try {
+      const cached = getStoreCache('banners');
+      if (cached) { res.set('X-Cache', 'HIT'); return res.json(cached); }
       const banners = await storage.getStoreBanners();
+      setStoreCache('banners', banners);
       res.json(banners);
     } catch (error) {
       console.error("Error fetching store banners:", error);
@@ -11311,6 +11400,8 @@ export function registerRoutes(app: Express): Server {
   // Get store categories — from admin-created categories OR from actual product data
   app.get('/api/store/categories', async (req: any, res) => {
     try {
+      const cached = getStoreCache('categories');
+      if (cached) { res.set('X-Cache', 'HIT'); return res.json(cached); }
       // Priority 1: Custom categories from app_config (Productos > Categorías y Etiquetas)
       try {
         const configResult = await db.execute(sql`
@@ -11320,6 +11411,7 @@ export function registerRoutes(app: Express): Server {
         const customCategories: any[] = configRow?.value || [];
         if (customCategories.length > 0) {
           const catNames = customCategories.map((c: any) => c.name);
+          setStoreCache('categories', catNames);
           return res.json(catNames);
         }
       } catch (e) {
@@ -11333,7 +11425,9 @@ export function registerRoutes(app: Express): Server {
         .map(c => c.nombre);
 
       if (adminCategoryNames.length > 0) {
-        return res.json(adminCategoryNames.sort());
+        const sorted = adminCategoryNames.sort();
+        setStoreCache('categories', sorted);
+        return res.json(sorted);
       }
 
       // Fallback: get distinct categories directly from active ecommerce_products
@@ -11350,6 +11444,7 @@ export function registerRoutes(app: Express): Server {
       const categoryNames = result
         .map(r => r.categoria)
         .filter((cat): cat is string => !!cat);
+      setStoreCache('categories', categoryNames);
       res.json(categoryNames);
     } catch (error) {
       console.error("Error fetching store categories:", error);
@@ -12950,10 +13045,18 @@ export function registerRoutes(app: Express): Server {
       endDate = new Date(dateRange.endDate);
     }
 
+    let client_rut: string | undefined;
+
+    // If user is a client, override and use their client_rut
+    if (req.user?.role === 'client' && req.user?.client_rut) {
+      client_rut = req.user.client_rut;
+    }
+
     const nvvData = await storage.getNvvBySalesperson({
       salesperson: salesperson as string,
       startDate,
-      endDate
+      endDate,
+      client_rut
     });
 
     res.json(nvvData);

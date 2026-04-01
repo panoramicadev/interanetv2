@@ -274,15 +274,8 @@ export default function FloatingCart({ isOpen, onClose, trigger }: FloatingCartP
                 Carrito de compras con {state.itemCount} productos
               </SheetDescription>
             </div>
-            {/* Bigger close button on mobile */}
-            <button
-              onClick={onClose}
-              className="w-10 h-10 rounded-full bg-gray-100 hover:bg-red-50 flex items-center justify-center text-gray-500 hover:text-red-500 transition-colors"
-              aria-label="Cerrar carrito"
-            >
-              <X className="h-5 w-5" />
-            </button>
           </SheetHeader>
+
           <div className="flex flex-col h-full">
             <CartContent state={state} onClose={onClose} />
           </div>

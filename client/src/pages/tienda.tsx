@@ -38,12 +38,14 @@ import {
   Loader2,
   LockKeyhole,
   UserPlus,
-  Truck
+  Truck,
+  Tag
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { validateQuantity as validateCartQuantity } from "@/contexts/CartContext";
 import { FloatingCart, CartToggle } from "@/components/cart";
 import { getFormatQuantityRules } from "@shared/format-utils";
@@ -223,13 +225,14 @@ const validateQuantity = (quantity: number, unidad: string | undefined): number 
 
 export default function TiendaPage() {
   const { user, logoutMutation } = useAuth();
+  const isMobile = useIsMobile();
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<StoreProduct | null>(null);
   const [showProductDialog, setShowProductDialog] = useState(false);
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
+
   const [showCategoriesDropdown, setShowCategoriesDropdown] = useState(false);
   
   // Variant selection state
@@ -932,7 +935,13 @@ export default function TiendaPage() {
                 <Input
                   placeholder="Buscar productos, familias..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    if (e.target.value) {
+                      setSelectedCategory('all');
+                      setSelectedTag(null);
+                    }
+                  }}
                   className="pl-10 pr-10 h-10 text-sm rounded-xl border-gray-200 focus:border-[#FF6E23] focus:ring-2 focus:ring-[#FF6E23]/10 bg-gray-50/80 hover:bg-white transition-all shadow-sm"
                   data-testid="input-search-tienda"
                 />
@@ -958,7 +967,13 @@ export default function TiendaPage() {
                 <Input
                   placeholder="Buscar productos..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    if (e.target.value) {
+                      setSelectedCategory('all');
+                      setSelectedTag(null);
+                    }
+                  }}
                   className="pl-8 pr-8 text-xs h-9 border-gray-200 rounded-lg bg-gray-50/80 shadow-sm"
                   data-testid="input-search-mobile"
                 />
@@ -1033,16 +1048,7 @@ export default function TiendaPage() {
               {/* Cart */}
               <CartToggle onClick={() => setShowFloatingCart(true)} />
 
-              {/* Mobile menu toggle */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="md:hidden p-1.5 rounded-lg hover:bg-gray-100"
-                onClick={() => setShowMobileMenu(!showMobileMenu)}
-                data-testid="button-mobile-menu"
-              >
-                {showMobileMenu ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-              </Button>
+
             </div>
           </div>
         </div>
@@ -1079,88 +1085,174 @@ export default function TiendaPage() {
       {/* ─── Filter Bar: Unified Categories & Tags ─── */}
       <section className="bg-white/95 backdrop-blur-md border-b border-gray-100 sticky z-40" style={{ top: `${headerHeight}px` }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5">
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-            <div className="flex items-center gap-2 flex-shrink-0 pr-3 border-r border-gray-200">
+          <div className="flex items-center gap-2">
+            {/* Catálogo label - now hidden on mobile */}
+            <div className="hidden md:flex items-center gap-2 flex-shrink-0 pr-3 border-r border-gray-200">
               <h2 className="text-sm font-bold text-gray-900" id="productos">Catálogo</h2>
               <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{groupedCatalog.length}</span>
             </div>
 
-            {/* "Todos" button */}
-            <button
-              onClick={() => { setSelectedCategory('all'); setSelectedTag(null); }}
-              className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all whitespace-nowrap flex-shrink-0 border ${
-                selectedCategory === 'all' && !selectedTag
-                  ? 'bg-gray-900 text-white border-gray-900 shadow-sm'
-                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-              }`}
-              data-testid="filter-cat-all"
-            >
-              Todos
-            </button>
+            {isMobile ? (
+              <>
+                <div className="flex-shrink-0">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="h-8 text-[11px] font-bold border-gray-200 rounded-lg gap-1.5 bg-white shadow-sm hover:bg-gray-50 flex-shrink-0"
+                      >
+                        <Grid3X3 className="h-3 w-3 text-[#FF6E23]" />
+                        {selectedCategory === 'all' ? 'Categorías' : selectedCategory}
+                        <ChevronDown className="h-3 w-3 text-gray-400" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-[200px] p-1 font-bold">
+                      <DropdownMenuItem 
+                        onClick={() => { setSelectedCategory('all'); setSelectedTag(null); }}
+                        className={selectedCategory === 'all' && !selectedTag ? 'bg-gray-100 text-[#FF6E23]' : ''}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span>Todas</span>
+                          {selectedCategory === 'all' && !selectedTag && <Check className="h-3 w-3" />}
+                        </div>
+                      </DropdownMenuItem>
+                      
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel className="text-[9px] uppercase text-gray-400 font-black px-2 py-1">Rubros / Familias</DropdownMenuLabel>
+                      {categories.map((category) => (
+                        <DropdownMenuItem 
+                          key={category}
+                          onClick={() => { setSelectedCategory(category); setSelectedTag(null); }}
+                          className={selectedCategory === category && !selectedTag ? 'bg-gray-100 text-[#FF6E23]' : ''}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span>{category}</span>
+                            {selectedCategory === category && !selectedTag && <Check className="h-3 w-3" />}
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
 
-            {/* Categories */}
-            {categories.map((category) => {
-              const isActive = selectedCategory === category && !selectedTag;
-              return (
-                <button
-                  key={category}
-                  onClick={() => {
-                    setSelectedCategory(isActive ? 'all' : category);
-                    setSelectedTag(null);
-                  }}
-                  className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all whitespace-nowrap flex-shrink-0 border ${
-                    isActive
-                      ? 'bg-[#FF6E23] text-white border-[#FF6E23] shadow-sm'
-                      : 'bg-white text-gray-500 border-gray-200 hover:border-orange-200 hover:text-[#FF6E23] hover:bg-orange-50'
-                  }`}
-                  data-testid={`filter-cat-${category}`}
-                >
-                  {category}
-                </button>
-              );
-            })}
+                <div className="flex items-center gap-2.5 overflow-x-auto scrollbar-hide flex-1 py-1 pl-1">
+                  {/* Tags row for mobile - Restore scrollable tags */}
+                  {availableTags.map(({ name, count }) => {
+                    const isActive = selectedTag === name;
+                    const colors: Record<string, { bg: string; text: string; activeBg: string; activeText: string }> = {
+                      'Producto Destacado': { bg: 'bg-violet-50 border-violet-200', text: 'text-violet-700', activeBg: 'bg-violet-500 border-violet-500', activeText: 'text-white' },
+                      'Mejor Precio': { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', activeBg: 'bg-emerald-500 border-emerald-500', activeText: 'text-white' },
+                      'Rápida Rotación': { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', activeBg: 'bg-blue-500 border-blue-500', activeText: 'text-white' },
+                      'Pocas Unidades': { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', activeBg: 'bg-amber-500 border-amber-500', activeText: 'text-white' },
+                      'Oferta': { bg: 'bg-rose-50 border-rose-200', text: 'text-rose-700', activeBg: 'bg-rose-500 border-rose-500', activeText: 'text-white' },
+                    };
+                    const c = colors[name] || { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-700', activeBg: 'bg-gray-600 border-gray-600', activeText: 'text-white' };
+                    
+                    return (
+                      <button
+                        key={name}
+                        onClick={() => {
+                          if (isActive) {
+                            setSelectedTag(null);
+                          } else {
+                            setSelectedTag(name);
+                            setSelectedCategory('all');
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all whitespace-nowrap flex-shrink-0 border flex items-center gap-1.5 ${
+                          isActive ? c.activeBg + ' ' + c.activeText : c.bg + ' ' + c.text
+                        } hover:shadow-sm`}
+                        data-testid={`filter-tag-mobile-${name}`}
+                      >
+                        <Tag className="h-3 w-3" />
+                        {name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+                <>
+                  {/* "Todos" button */}
+                  <button
+                    onClick={() => { setSelectedCategory('all'); setSelectedTag(null); }}
+                    className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all whitespace-nowrap flex-shrink-0 border ${
+                      selectedCategory === 'all' && !selectedTag
+                        ? 'bg-gray-900 text-white border-gray-900 shadow-sm'
+                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                    }`}
+                    data-testid="filter-cat-all"
+                  >
+                    Todos
+                  </button>
 
-            {/* Divider if tags exist */}
-            {availableTags.length > 0 && (
-              <div className="h-5 w-px bg-gray-200 flex-shrink-0 mx-2" />
+                  {/* Categories */}
+                  {categories.map((category) => {
+                    const isActive = selectedCategory === category && !selectedTag;
+                    return (
+                      <button
+                        key={category}
+                        onClick={() => {
+                          setSelectedCategory(isActive ? 'all' : category);
+                          setSelectedTag(null);
+                        }}
+                        className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all whitespace-nowrap flex-shrink-0 border ${
+                          isActive
+                            ? 'bg-[#FF6E23] text-white border-[#FF6E23] shadow-sm'
+                            : 'bg-white text-gray-500 border-gray-200 hover:border-orange-200 hover:text-[#FF6E23] hover:bg-orange-50'
+                        }`}
+                        data-testid={`filter-cat-${category}`}
+                      >
+                        {category}
+                      </button>
+                    );
+                  })}
+                </>
+
+                {/* Divider if tags exist and not on mobile (tags handled in dropdown on mobile) */}
+                {availableTags.length > 0 && (
+                  <div className="h-5 w-px bg-gray-200 flex-shrink-0 mx-2" />
+                )}
+
+                {/* Tags - only visible on desktop branch */}
+                {availableTags.map(({ name, count }) => {
+                  const isActive = selectedTag === name;
+                  const colors: Record<string, { bg: string; text: string; activeBg: string; activeText: string }> = {
+                    'Producto Destacado': { bg: 'bg-violet-50 border-violet-200', text: 'text-violet-700', activeBg: 'bg-violet-500 border-violet-500', activeText: 'text-white' },
+                    'Mejor Precio': { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', activeBg: 'bg-emerald-500 border-emerald-500', activeText: 'text-white' },
+                    'Rápida Rotación': { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', activeBg: 'bg-blue-500 border-blue-500', activeText: 'text-white' },
+                    'Pocas Unidades': { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', activeBg: 'bg-amber-500 border-amber-500', activeText: 'text-white' },
+                    'Oferta': { bg: 'bg-rose-50 border-rose-200', text: 'text-rose-700', activeBg: 'bg-rose-500 border-rose-500', activeText: 'text-white' },
+                  };
+                  const c = colors[name] || { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-700', activeBg: 'bg-gray-600 border-gray-600', activeText: 'text-white' };
+                  
+                  return (
+                    <button
+                      key={name}
+                      onClick={() => {
+                        if (isActive) {
+                          setSelectedTag(null);
+                          setSelectedCategory('all');
+                        } else {
+                          setSelectedTag(name);
+                          setSelectedCategory('all');
+                        }
+                      }}
+                      className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all whitespace-nowrap flex-shrink-0 border flex items-center gap-1.5 ${
+                        isActive ? c.activeBg + ' ' + c.activeText : c.bg + ' ' + c.text
+                      } hover:shadow-sm`}
+                      data-testid={`filter-tag-${name}`}
+                    >
+                      <Tag className="h-3 w-3" />
+                      {name}
+                      <span className={`text-[9px] px-1 rounded-full ${isActive ? 'bg-white/20' : 'bg-gray-200/50 text-gray-500'}`}>{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
             )}
-
-            {/* Tags */}
-            {availableTags.map(({ name, count }) => {
-              const isActive = selectedTag === name;
-              const colors: Record<string, { bg: string; text: string; activeBg: string; activeText: string }> = {
-                'Producto Destacado': { bg: 'bg-violet-50 border-violet-200', text: 'text-violet-700', activeBg: 'bg-violet-500 border-violet-500', activeText: 'text-white' },
-                'Mejor Precio': { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', activeBg: 'bg-emerald-500 border-emerald-500', activeText: 'text-white' },
-                'Rápida Rotación': { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', activeBg: 'bg-blue-500 border-blue-500', activeText: 'text-white' },
-                'Pocas Unidades': { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', activeBg: 'bg-amber-500 border-amber-500', activeText: 'text-white' },
-                'Oferta': { bg: 'bg-rose-50 border-rose-200', text: 'text-rose-700', activeBg: 'bg-rose-500 border-rose-500', activeText: 'text-white' },
-              };
-              const c = colors[name] || { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-700', activeBg: 'bg-gray-600 border-gray-600', activeText: 'text-white' };
-              
-              return (
-                <button
-                  key={name}
-                  onClick={() => {
-                    if (isActive) {
-                      setSelectedTag(null);
-                      setSelectedCategory('all');
-                    } else {
-                      setSelectedTag(name);
-                      setSelectedCategory('all');
-                    }
-                  }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all border whitespace-nowrap flex-shrink-0 ${
-                    isActive ? `${c.activeBg} ${c.activeText} shadow-sm` : `${c.bg} ${c.text} hover:opacity-80`
-                  }`}
-                  data-testid={`filter-tag-${name}`}
-                >
-                  {name}
-                  <span className={`text-[10px] px-1.5 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-white/60 text-gray-600'}`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
           </div>
         </div>
       </section>
@@ -1220,12 +1312,12 @@ export default function TiendaPage() {
                     {!isExpanded ? (
                       <div className="flex">
                         {/* Product Image */}
-                        <div className="w-28 sm:w-40 flex-shrink-0 overflow-hidden bg-gradient-to-br from-gray-50 to-white relative group">
+                        <div className="w-28 sm:w-40 flex-shrink-0 overflow-hidden bg-gradient-to-br from-gray-50 to-white relative group p-2 sm:p-3">
                           {product.imageUrl ? (
                             <img
                               src={product.imageUrl}
                               alt={product.genericName}
-                              className="w-full h-full object-cover aspect-square transition-transform duration-300 group-hover:scale-105"
+                              className="w-full h-full object-contain aspect-square transition-transform duration-300 group-hover:scale-105 rounded-xl"
                               onError={(e) => {
                                 (e.target as HTMLImageElement).style.display = 'none';
                               }}
@@ -1237,9 +1329,9 @@ export default function TiendaPage() {
                           )}
                           {/* Tags overlay */}
                           {(product.tags || []).length > 0 && (
-                            <div className="absolute top-2 left-2 flex flex-col gap-1">
+                            <div className="absolute top-1 left-1 sm:top-2 sm:left-2 flex flex-col gap-1.5">
                               {(product.tags || []).slice(0, 2).map(tag => (
-                                <span key={tag} className={`text-[9px] px-2 py-0.5 rounded-md font-bold whitespace-nowrap backdrop-blur-sm ${
+                                <span key={tag} className={`text-[8px] sm:text-[9px] px-1.5 sm:px-2 py-0.5 rounded-md font-bold whitespace-nowrap backdrop-blur-sm ${
                                   tag === 'Mejor Precio' ? 'bg-emerald-500/90 text-white' :
                                   tag === 'Rápida Rotación' ? 'bg-blue-500/90 text-white' :
                                   tag === 'Pocas Unidades' ? 'bg-amber-500/90 text-white' :
@@ -1269,12 +1361,13 @@ export default function TiendaPage() {
                               const formats = Array.from(allFormats);
                               if (formats.length === 0) return null;
                               return (
-                                <div className="flex flex-wrap gap-1 mt-2">
+                                <div className="flex flex-wrap gap-1.5 mt-2.5">
                                   {formats.map(fmt => (
                                     <span
                                       key={fmt}
-                                      className="inline-flex items-center text-[9px] sm:text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200/60"
+                                      className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-50 text-slate-600 border border-slate-200/60 shadow-sm"
                                     >
+                                      <Box className="w-2.5 h-2.5 text-slate-400" />
                                       {fmt}
                                     </span>
                                   ))}
@@ -1283,11 +1376,8 @@ export default function TiendaPage() {
                             })()}
                           </div>
                           <div className="flex items-center gap-1.5 mt-2.5">
-                            <span title="Colores Disponibles" className="inline-flex items-center gap-1 bg-orange-50 text-[#FF6E23] text-[10px] sm:text-xs font-bold px-2 py-1 rounded-md">
+                            <span title="Colores Disponibles" className="inline-flex items-center gap-1 bg-orange-50 text-[#FF6E23] text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-md shadow-sm border border-orange-100/50">
                               <Palette className="w-3 h-3" /> {colorKeys.length} <span className="font-semibold">Color{colorKeys.length !== 1 ? 'es' : ''}</span>
-                            </span>
-                            <span title="Formatos Disponibles" className="inline-flex items-center gap-1 bg-blue-50 text-blue-600 text-[10px] sm:text-xs font-bold px-2 py-1 rounded-md">
-                              <Box className="w-3 h-3" /> {totalVariants} <span className="font-semibold">Formato{totalVariants !== 1 ? 's' : ''}</span>
                             </span>
                             <span className="flex-1" />
                             <button
@@ -1321,11 +1411,8 @@ export default function TiendaPage() {
                           </div>
                         )}
                         <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <span title="Colores Disponibles" className="inline-flex items-center gap-1 bg-orange-50 text-[#FF6E23] text-[10px] font-bold px-2 py-0.5 rounded-full">
-                            <Palette className="w-2.5 h-2.5" /> {colorKeys.length} Colores
-                          </span>
-                          <span title="Formatos Disponibles" className="inline-flex items-center gap-1 bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                            <Box className="w-2.5 h-2.5" /> {totalVariants} Formatos
+                          <span title="Colores Disponibles" className="inline-flex items-center gap-1 bg-orange-50 text-[#FF6E23] text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm border border-orange-100/50">
+                            <Palette className="w-2.5 h-2.5" /> {colorKeys.length} Color{colorKeys.length !== 1 ? 'es' : ''}
                           </span>
                         </div>
                         <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gray-200 hover:bg-red-100 text-gray-500 hover:text-red-500 transition-colors flex-shrink-0">

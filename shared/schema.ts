@@ -3514,6 +3514,10 @@ export const ecommerceOrders = pgTable("ecommerce_orders", {
   // Quote reference (if converted to quote)
   quoteId: varchar("quote_id"), // FK to quotes.id
 
+  // Payment information
+  paymentCondition: varchar("payment_condition"),
+  paymentReceiptUrl: text("payment_receipt_url"),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({

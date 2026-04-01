@@ -1353,6 +1353,7 @@ export interface IStorage {
     createdBy?: string;
     status?: string;
     clientName?: string;
+    clientRut?: string;
     userRole?: string;
     userId?: string;
     limit?: number;
@@ -2168,7 +2169,7 @@ export interface IStorage {
     limit: number;
     offset: number;
   }>;
-  getNvvSummary(filters?: NvvFilters): Promise<{
+  getNvvSummary(filters?: NvvFilters & { clientRut?: string }): Promise<{
     totalNvv: number;
     totalAbiertas: number;
     totalCerradas: number;
@@ -2227,6 +2228,7 @@ export interface IStorage {
     montoPendientes: number;
   }>>;
   getNvvDocuments(filters?: NvvFilters & {
+    clientRut?: string;
     limit?: number;
     offset?: number;
   }): Promise<{
@@ -2560,8 +2562,9 @@ export class DatabaseStorage implements IStorage {
     offset?: number;
     client?: string;
     product?: string;
+    client_rut?: string;
   } = {}): Promise<SalesTransaction[]> {
-    const { startDate, endDate, salesperson, segment, limit = 50, offset = 0, client, product } = filters;
+    const { startDate, endDate, salesperson, segment, limit = 50, offset = 0, client, product, client_rut } = filters;
 
     const conditions = [
       sql`${factVentas.tido} != 'GDV'`
@@ -2573,11 +2576,16 @@ export class DatabaseStorage implements IStorage {
     if (endDate) {
       conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
     }
-    if (salesperson) {
-      conditions.push(eq(factVentas.nokofu, salesperson));
-    }
-    if (segment) {
-      conditions.push(eq(factVentas.noruen, segment));
+
+    if (client_rut) {
+      conditions.push(sql`UPPER(TRIM(${factVentas.endo})) = ${client_rut.toUpperCase().trim()}`);
+    } else {
+      if (salesperson) {
+        conditions.push(eq(factVentas.nokofu, salesperson));
+      }
+      if (segment) {
+        conditions.push(eq(factVentas.noruen, segment));
+      }
     }
     if (client) {
       conditions.push(eq(factVentas.nokoen, client));
@@ -2602,6 +2610,7 @@ export class DatabaseStorage implements IStorage {
       caprco2: factVentas.caprco2,
       monto: factVentas.monto,
       esdo: factVentas.esdo,
+      isAppOrder: sql<boolean>`CASE WHEN ${factVentas.kofulido} = 'WEB' THEN true ELSE false END`,
     })
       .from(factVentas)
       .where(whereClause)
@@ -2880,21 +2889,6 @@ export class DatabaseStorage implements IStorage {
   }> {
     const { salesperson, segment, client } = filters;
     const conditions = [];
-
-    // GDV uses volatile data from fact_gdv (full snapshot like NVV)
-    // Filter by eslido (line status) and cantidadPendiente for pending lines
-    conditions.push(
-      or(
-        isNull(factGdv.eslido),
-        eq(factGdv.eslido, '')
-      )
-    );
-    conditions.push(eq(factGdv.cantidadPendiente, true));
-
-    if (salesperson) {
-      const searchTerm = salesperson.toUpperCase().trim();
-      conditions.push(sql`UPPER(TRIM(${factGdv.nokofu})) = ${searchTerm}`);
-    }
     if (segment) {
       conditions.push(eq(factGdv.noruen, segment));
     }
@@ -14137,6 +14131,7 @@ export class DatabaseStorage implements IStorage {
   async getNvvPendingSales(options: {
     status?: string;
     salesperson?: string;
+    clientRut?: string;
     segment?: string;
     startDate?: Date;
     endDate?: Date;
@@ -14306,7 +14301,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getNvvBySalesperson(options: {
-    salesperson: string;
+    salesperson?: string;
+    clientRut?: string;
     startDate?: Date;
     endDate?: Date;
   }): Promise<Array<{
@@ -14325,18 +14321,22 @@ export class DatabaseStorage implements IStorage {
     totalPendiente: number;
   }>> {
     try {
-      const searchTerm = options.salesperson.toUpperCase().trim();
-
       // Build conditions - always filter for pending NVV only (eslido IS NULL or empty)
       const conditions: SQL[] = [
         sql`(${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '')`
       ];
 
-      // Search by either nombre_vendedor (full name) or kofulido (code)
-      conditions.push(sql`(
-        UPPER(TRIM(${factNvv.nombre_vendedor})) = ${searchTerm}
-        OR UPPER(TRIM(${factNvv.kofulido})) = ${searchTerm}
-      )`);
+      // Filter by salesperson OR clientRut
+      // Filter by salesperson OR client_rut
+      if (options.client_rut) {
+        conditions.push(sql`UPPER(TRIM(${factNvv.endo})) = ${options.client_rut.toUpperCase().trim()}`);
+      } else if (options.salesperson) {
+        const searchTerm = options.salesperson.toUpperCase().trim();
+        conditions.push(sql`(
+          UPPER(TRIM(${factNvv.nombre_vendedor})) = ${searchTerm}
+          OR UPPER(TRIM(${factNvv.kofulido})) = ${searchTerm}
+        )`);
+      }
 
       // Add date filters if provided
       if (options.startDate && options.startDate instanceof Date && !isNaN(options.startDate.getTime())) {
@@ -14359,7 +14359,8 @@ export class DatabaseStorage implements IStorage {
           CAPREX2: factNvv.caprex2,
           CAPRCO2: factNvv.caprco2,
           PPPRNE: factNvv.ppprne,
-          monto: factNvv.monto
+          monto: factNvv.monto,
+          isAppOrder: sql<boolean>`CASE WHEN ${factNvv.kofulido} = 'WEB' THEN true ELSE false END`,
         })
         .from(factNvv)
         .where(and(...conditions))
@@ -24811,6 +24812,7 @@ export class DatabaseStorage implements IStorage {
     startDate?: string;
     endDate?: string;
     sucursales?: string[];
+    client_rut?: string;
   }): Promise<{
     totalGdvPendientes: number;
     montoPendiente: number;
@@ -24837,6 +24839,9 @@ export class DatabaseStorage implements IStorage {
       }
       if (filters?.sucursales && filters.sucursales.length > 0) {
         conditions.push(`sudo IN (${filters.sucursales.join(',')})`);
+      }
+      if (filters?.client_rut) {
+        conditions.push(`UPPER(TRIM(endo)) = UPPER(TRIM('${filters.client_rut.replace(/'/g, "''")}'))`);
       }
 
       const whereClause = `WHERE ${conditions.join(' AND ')}`;
@@ -24924,7 +24929,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getGdvBySalesperson(salesperson: string): Promise<Array<{
+  async getGdvBySalesperson(options: { salesperson?: string; client_rut?: string }): Promise<Array<{
     numeroGuia: string;
     fecha: string;
     cliente: string;
@@ -24939,6 +24944,20 @@ export class DatabaseStorage implements IStorage {
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const dateFilter = firstDayOfMonth.toISOString().split('T')[0];
 
+      const conditions: string[] = [
+        "(eslido IS NULL OR eslido = '')",
+        "cantidad_pendiente = true",
+        `feemdo >= '${dateFilter}'`
+      ];
+
+      if (options.client_rut) {
+        conditions.push(`UPPER(TRIM(endo)) = UPPER(TRIM('${options.client_rut.replace(/'/g, "''")}'))`);
+      } else if (options.salesperson) {
+        conditions.push(`UPPER(TRIM(nokofu)) = UPPER(TRIM('${options.salesperson.replace(/'/g, "''")}'))`);
+      }
+
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
       const query = sql.raw(`
         SELECT 
           COALESCE(nudo::text, '') as numero_guia,
@@ -24947,12 +24966,10 @@ export class DatabaseStorage implements IStorage {
           COALESCE(endo, '') as codigo_cliente,
           COALESCE(nokoprct, 'Sin producto') as producto,
           COALESCE(caprco2::numeric, 0) as cantidad,
-          COALESCE(vaneli::numeric, 0) as monto
+          COALESCE(vaneli::numeric, 0) as monto,
+          CASE WHEN kofulido = 'WEB' THEN true ELSE false END as is_app_order
         FROM gdv.fact_gdv
-        WHERE (eslido IS NULL OR eslido = '')
-          AND cantidad_pendiente = true
-          AND feemdo >= '${dateFilter}'
-          AND UPPER(TRIM(nokofu)) = UPPER(TRIM('${salesperson.replace(/'/g, "''")}'))
+        ${whereClause}
         ORDER BY feemdo DESC, vaneli DESC
       `);
 
@@ -24966,6 +24983,7 @@ export class DatabaseStorage implements IStorage {
         producto: String(row?.producto || 'Sin producto'),
         cantidad: Number(row?.cantidad || 0),
         monto: Number(row?.monto || 0),
+        isAppOrder: Boolean(row?.is_app_order),
       }));
     } catch (error) {
       console.error('[getGdvBySalesperson] Error:', error);
@@ -25224,7 +25242,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getNvvSummary(filters?: NvvFilters): Promise<{
+  async getNvvSummary(filters?: NvvFilters & { client_rut?: string }): Promise<{
     totalNvv: number;
     totalAbiertas: number;
     totalCerradas: number;
@@ -25246,6 +25264,10 @@ export class DatabaseStorage implements IStorage {
     }).from(factNvv);
 
     const conditions = [];
+
+    if (filters?.client_rut) {
+      conditions.push(sql`UPPER(TRIM(${factNvv.endo})) = ${filters.client_rut.toUpperCase().trim()}`);
+    }
 
     if (filters?.startDate) {
       conditions.push(sql`${factNvv.feemdo} >= ${filters.startDate}`);
@@ -25606,6 +25628,7 @@ export class DatabaseStorage implements IStorage {
   async getNvvDocuments(filters?: NvvFilters & {
     limit?: number;
     offset?: number;
+    client_rut?: string;
   }): Promise<{
     documents: Array<{
       nudo: string;
@@ -25625,6 +25648,10 @@ export class DatabaseStorage implements IStorage {
     total: number;
   }> {
     const conditions = [];
+
+    if (filters?.client_rut) {
+      conditions.push(sql`UPPER(TRIM(${factNvv.endo})) = ${filters.client_rut.toUpperCase().trim()}`);
+    }
 
     if (filters?.startDate) {
       conditions.push(sql`${factNvv.feemdo} >= ${filters.startDate}`);
@@ -25679,6 +25706,7 @@ export class DatabaseStorage implements IStorage {
       monto: factNvv.monto,
       cantidad_pendiente_ud2: factNvv.cantidad_pendiente_ud2,
       monto_pendiente: factNvv.monto_pendiente,
+      isAppOrder: sql<boolean>`CASE WHEN ${factNvv.kofulido} = 'WEB' THEN true ELSE false END`,
     }).from(factNvv);
 
     if (conditions.length > 0) {
