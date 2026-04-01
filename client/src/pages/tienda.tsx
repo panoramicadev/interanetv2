@@ -459,9 +459,9 @@ export default function TiendaPage() {
   const banners = storeBanners.length > 0
     ? storeBanners.map(b => ({ src: b.imagenDesktop, alt: b.titulo, mobileSrc: b.imagenMobile, linkUrl: b.linkUrl }))
     : [
-        { src: bannerCopper, alt: "Oferta del Mes - Esmalte Copper" },
-        { src: bannerStain, alt: "Oferta del Mes - Stain Impregnante" },
-        { src: bannerDespacho, alt: "Despacho Gratis - 3% OFF" }
+        { src: bannerCopper, alt: "Oferta del Mes - Esmalte Copper", mobileSrc: undefined, linkUrl: undefined },
+        { src: bannerStain, alt: "Oferta del Mes - Stain Impregnante", mobileSrc: undefined, linkUrl: undefined },
+        { src: bannerDespacho, alt: "Despacho Gratis - 3% OFF", mobileSrc: undefined, linkUrl: undefined }
       ];
 
   // Carousel auto-rotation effect
@@ -1067,15 +1067,35 @@ export default function TiendaPage() {
         {/* Image container with transitions */}
         <div className="relative w-full">
           {banners.map((banner, index) => (
-            <img
+            <div
               key={index}
-              src={banner.src}
-              alt={banner.alt}
-              className={`w-full h-auto object-contain transition-opacity duration-500 ${
-                index === currentSlide ? 'opacity-100 relative' : 'opacity-0 absolute top-0 left-0'
+              className={`w-full transition-opacity duration-500 ${
+                index === currentSlide ? 'opacity-100 relative z-10' : 'opacity-0 absolute top-0 left-0 z-0'
               }`}
               data-testid={`banner-slide-${index}`}
-            />
+            >
+              {banner.linkUrl ? (
+                <a href={banner.linkUrl} target="_blank" rel="noopener noreferrer" className="block w-full">
+                  <picture>
+                    {banner.mobileSrc && <source media="(max-width: 768px)" srcSet={banner.mobileSrc} />}
+                    <img
+                      src={banner.src}
+                      alt={banner.alt}
+                      className="w-full h-auto object-contain block"
+                    />
+                  </picture>
+                </a>
+              ) : (
+                <picture>
+                  {banner.mobileSrc && <source media="(max-width: 768px)" srcSet={banner.mobileSrc} />}
+                  <img
+                    src={banner.src}
+                    alt={banner.alt}
+                    className="w-full h-auto object-contain block"
+                  />
+                </picture>
+              )}
+            </div>
           ))}
         </div>
         
