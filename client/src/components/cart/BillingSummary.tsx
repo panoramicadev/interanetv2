@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Tag, MapPin, ShoppingBag, Package, CheckCircle2, Truck } from "lucide-react";
+import { X, Tag, MapPin, ShoppingBag, Package, CheckCircle2, Truck, Store } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getShippingKey } from "@shared/format-utils";
 import {
@@ -31,6 +31,14 @@ const formatPrice = (price: number): string => {
   }).format(price)}`;
 };
 
+interface Warehouse {
+  id: string;
+  kobo: string;
+  kosu: string;
+  name: string;
+  location: string | null;
+}
+
 export default function BillingSummary() {
   const { state, applyCoupon, removeCoupon } = useCart();
   const { user } = useAuth();
@@ -43,6 +51,23 @@ export default function BillingSummary() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
+  // Delivery method: 'despacho' or 'retiro'
+  const [deliveryMethod, setDeliveryMethod] = useState<'despacho' | 'retiro'>(() => {
+    const saved = localStorage.getItem('cart_delivery_method');
+    return (saved === 'retiro') ? 'retiro' : 'despacho';
+  });
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(() => {
+    return localStorage.getItem('cart_selected_warehouse') || 'none';
+  });
+
+  // Persist delivery method to localStorage for FloatingCart to read
+  useEffect(() => {
+    localStorage.setItem('cart_delivery_method', deliveryMethod);
+  }, [deliveryMethod]);
+  useEffect(() => {
+    localStorage.setItem('cart_selected_warehouse', selectedWarehouseId);
+  }, [selectedWarehouseId]);
+
   // Fetch shipping rates from admin config
   const { data: shippingRates = {} } = useQuery<Record<string, number>>({
     queryKey: ['/api/ecommerce/shipping-rates'],
@@ -51,7 +76,22 @@ export default function BillingSummary() {
       if (!res.ok) return {};
       return res.json();
     },
-    staleTime: 60000, // 1 minute
+    staleTime: 60000,
+  });
+
+  // Fetch warehouses for pickup option
+  const { data: warehouses = [] } = useQuery<Warehouse[]>({
+    queryKey: ['/api/warehouses'],
+    queryFn: async () => {
+      try {
+        const res = await fetch('/api/warehouses', { credentials: 'include' });
+        if (!res.ok) return [];
+        return res.json();
+      } catch {
+        return [];
+      }
+    },
+    staleTime: 300_000,
   });
 
   // Fetch client data to get addresses
@@ -82,7 +122,6 @@ export default function BillingSummary() {
   // Set initial address option based on available addresses
   useEffect(() => {
     if (availableAddresses.length === 0 && selectedAddressOption === "default") {
-      // If no saved addresses, default to custom input
       setSelectedAddressOption("custom");
     }
   }, [availableAddresses.length, selectedAddressOption]);
@@ -94,7 +133,6 @@ export default function BillingSummary() {
 
   // Mock coupon validation - replace with real API call
   const validateCoupon = async (code: string): Promise<{ isValid: boolean; discount: number; type: 'percentage' | 'fixed'; description?: string }> => {
-    // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     const mockCoupons: Record<string, { discount: number; type: 'percentage' | 'fixed'; description: string }> = {
@@ -124,7 +162,6 @@ export default function BillingSummary() {
       return;
     }
 
-    // Check if coupon is already applied
     const isAlreadyApplied = state.appliedCoupons.some(c => c.code.toLowerCase() === couponCode.toLowerCase());
     if (isAlreadyApplied) {
       toast({
@@ -180,7 +217,6 @@ export default function BillingSummary() {
   };
 
   const handleConfirmOrder = async () => {
-    // 1. Validate cart is not empty
     if (state.items.length === 0) {
       toast({
         title: "Error de validación",
@@ -190,7 +226,6 @@ export default function BillingSummary() {
       return;
     }
 
-    // 2. Validate quantities
     const validationErrors: string[] = [];
     for (const item of state.items) {
       if (item.quantity < item.minQuantity) {
@@ -207,7 +242,6 @@ export default function BillingSummary() {
       return;
     }
 
-    // 3. Show confirmation modal
     setShowConfirmDialog(true);
   };
 
@@ -215,6 +249,15 @@ export default function BillingSummary() {
     setShowConfirmDialog(false);
     setIsSubmitting(true);
     try {
+      // Build the delivery info
+      let finalShippingAddress = "";
+      if (deliveryMethod === 'despacho') {
+        finalShippingAddress = shippingAddress.trim();
+      } else {
+        const wh = warehouses.find(w => w.id === selectedWarehouseId);
+        finalShippingAddress = wh ? `RETIRO EN BODEGA: ${wh.name}${wh.location ? ' - ' + wh.location : ''}` : 'RETIRO EN BODEGA';
+      }
+
       const orderData = {
         items: state.items.map(item => ({
           productId: item.productId,
@@ -229,10 +272,10 @@ export default function BillingSummary() {
         })),
         subtotal: state.subtotal - state.discountAmount,
         tax: state.taxAmount,
-        shipping: shippingCost,
-        total: state.total + shippingCost,
+        shipping: deliveryMethod === 'despacho' ? shippingCost : 0,
+        total: deliveryMethod === 'despacho' ? state.total + shippingCost : state.total,
         notes: orderNotes.trim() || null,
-        shippingAddress: shippingAddress.trim() || null
+        shippingAddress: finalShippingAddress || null
       };
 
       const response = await fetch('/api/ecommerce/orders/client', {
@@ -253,7 +296,6 @@ export default function BillingSummary() {
         description: `Tu pedido ha sido enviado correctamente.`,
       });
 
-      // Redirect to thank you page
       setTimeout(() => {
         window.location.href = `/pedido-confirmado?id=${createdOrder.id || ''}`;
       }, 1000);
@@ -302,8 +344,9 @@ export default function BillingSummary() {
   // Tax calculation (IVA 19%)
   const taxAmount = state.taxAmount;
   
-  // Final total (includes shipping)
-  const total = state.total + shippingCost;
+  // Final total (includes shipping only if despacho)
+  const effectiveShipping = deliveryMethod === 'despacho' ? shippingCost : 0;
+  const total = state.total + effectiveShipping;
 
   return (
     <>
@@ -316,6 +359,39 @@ export default function BillingSummary() {
       </CardHeader>
       
       <CardContent className="space-y-6">
+        {/* Delivery Method Toggle */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            Método de entrega
+          </Label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setDeliveryMethod('despacho')}
+              className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all ${
+                deliveryMethod === 'despacho'
+                  ? 'border-[#FF6E23] bg-orange-50 text-[#FF6E23]'
+                  : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+              }`}
+            >
+              <Truck className="h-4 w-4" />
+              Despacho
+            </button>
+            <button
+              onClick={() => setDeliveryMethod('retiro')}
+              className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all ${
+                deliveryMethod === 'retiro'
+                  ? 'border-[#FF6E23] bg-orange-50 text-[#FF6E23]'
+                  : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+              }`}
+            >
+              <Store className="h-4 w-4" />
+              Retiro en Bodega
+            </button>
+          </div>
+        </div>
+
+        <Separator />
+
         {/* Billing Breakdown */}
         <div className="space-y-3">
           {/* Neto */}
@@ -379,8 +455,8 @@ export default function BillingSummary() {
             </span>
           </div>
 
-          {/* Shipping / Despacho */}
-          {shippingCost > 0 && (
+          {/* Shipping / Despacho — only if method is despacho */}
+          {deliveryMethod === 'despacho' && shippingCost > 0 && (
             <div className="flex justify-between items-start">
               <div className="flex flex-col">
                 <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
@@ -395,6 +471,19 @@ export default function BillingSummary() {
               </div>
               <span className="font-medium text-gray-900 dark:text-white" data-testid="text-billing-shipping">
                 {formatPrice(shippingCost)}
+              </span>
+            </div>
+          )}
+
+          {/* Retiro label */}
+          {deliveryMethod === 'retiro' && (
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
+                <Store className="h-3.5 w-3.5" />
+                Retiro en Bodega:
+              </span>
+              <span className="font-medium text-emerald-600 dark:text-emerald-400 text-sm">
+                Sin costo
               </span>
             </div>
           )}
@@ -458,56 +547,95 @@ export default function BillingSummary() {
           )}
         </div>
 
-        {/* Shipping Address */}
-        <div className="space-y-2">
-          <Label htmlFor="shipping-address" className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-            <MapPin className="h-4 w-4" />
-            Dirección de despacho
-          </Label>
-          
-          {/* Address Selector */}
-          <Select 
-            value={selectedAddressOption} 
-            onValueChange={setSelectedAddressOption}
-          >
-            <SelectTrigger className="w-full" data-testid="select-shipping-address">
-              <SelectValue placeholder="Selecciona una dirección" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableAddresses.map((addr) => (
-                <SelectItem key={addr.value} value={addr.value}>
-                  <div className="flex flex-col">
-                    <span className="font-medium">{addr.label}</span>
-                    <span className="text-xs text-gray-500">{addr.address}</span>
-                  </div>
+        {/* Shipping Address (only for despacho) */}
+        {deliveryMethod === 'despacho' && (
+          <div className="space-y-2">
+            <Label htmlFor="shipping-address" className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              <MapPin className="h-4 w-4" />
+              Dirección de despacho
+            </Label>
+            
+            <Select 
+              value={selectedAddressOption} 
+              onValueChange={setSelectedAddressOption}
+            >
+              <SelectTrigger className="w-full" data-testid="select-shipping-address">
+                <SelectValue placeholder="Selecciona una dirección" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableAddresses.map((addr) => (
+                  <SelectItem key={addr.value} value={addr.value}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{addr.label}</span>
+                      <span className="text-xs text-gray-500">{addr.address}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+                <SelectItem value="custom">
+                  <span className="font-medium">✏️ Otra dirección (ingresar manualmente)</span>
                 </SelectItem>
-              ))}
-              <SelectItem value="custom">
-                <span className="font-medium">✏️ Otra dirección (ingresar manualmente)</span>
-              </SelectItem>
-            </SelectContent>
-          </Select>
+              </SelectContent>
+            </Select>
 
-          {/* Custom Address Input - Only shown when "custom" is selected */}
-          {selectedAddressOption === "custom" && (
-            <Textarea
-              id="custom-shipping-address"
-              placeholder="Ingresa la dirección completa de despacho..."
-              value={customAddress}
-              onChange={(e) => setCustomAddress(e.target.value)}
-              rows={2}
-              className="resize-none mt-2"
-              data-testid="textarea-custom-address"
-            />
-          )}
+            {selectedAddressOption === "custom" && (
+              <Textarea
+                id="custom-shipping-address"
+                placeholder="Ingresa la dirección completa de despacho..."
+                value={customAddress}
+                onChange={(e) => setCustomAddress(e.target.value)}
+                rows={2}
+                className="resize-none mt-2"
+                data-testid="textarea-custom-address"
+              />
+            )}
 
-          {/* Show selected address preview if not custom */}
-          {selectedAddressOption !== "custom" && shippingAddress && (
-            <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded border border-gray-200">
-              {shippingAddress}
-            </div>
-          )}
-        </div>
+            {selectedAddressOption !== "custom" && shippingAddress && (
+              <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded border border-gray-200">
+                {shippingAddress}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Warehouse Picker (only for retiro) */}
+        {deliveryMethod === 'retiro' && (
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              <Store className="h-4 w-4" />
+              Bodega de retiro
+            </Label>
+            <Select 
+              value={selectedWarehouseId} 
+              onValueChange={setSelectedWarehouseId}
+            >
+              <SelectTrigger className="w-full" data-testid="select-pickup-warehouse">
+                <SelectValue placeholder="Selecciona una bodega" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Seleccionar bodega...</SelectItem>
+                {warehouses.map((w) => (
+                  <SelectItem key={w.id} value={w.id}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{w.name}</span>
+                      {w.location && <span className="text-xs text-gray-500">{w.location}</span>}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedWarehouseId !== 'none' && (
+              <div className="text-sm text-gray-600 bg-emerald-50 p-2 rounded border border-emerald-200 flex items-center gap-2">
+                <Store className="h-3.5 w-3.5 text-emerald-600 flex-shrink-0" />
+                <span>
+                  {warehouses.find(w => w.id === selectedWarehouseId)?.name}
+                  {warehouses.find(w => w.id === selectedWarehouseId)?.location && (
+                    <span className="text-gray-500"> — {warehouses.find(w => w.id === selectedWarehouseId)?.location}</span>
+                  )}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Order Notes */}
         <div className="space-y-2">
@@ -580,28 +708,53 @@ export default function BillingSummary() {
                   <span className="text-sm text-gray-500">Impuestos (IVA 19%)</span>
                   <span className="text-sm font-medium text-gray-700">{formatPrice(state.taxAmount)}</span>
                 </div>
-                {shippingCost > 0 && (
-                  <div className="flex justify-between items-start">
-                    <div className="flex flex-col">
-                      <span className="text-sm text-gray-500 flex items-center gap-2"><Truck className="h-4 w-4" />Despacho</span>
-                      {shippingBreakdownText && (
-                        <span className="text-[10px] text-gray-400 mt-0.5 ml-6">
-                          ({shippingBreakdownText})
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-sm font-medium text-gray-700">{formatPrice(shippingCost)}</span>
-                  </div>
-                )}
+
+                {/* Show delivery method in confirmation */}
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500 flex items-center gap-2">
+                    {deliveryMethod === 'despacho' ? <Truck className="h-4 w-4" /> : <Store className="h-4 w-4" />}
+                    {deliveryMethod === 'despacho' ? 'Despacho' : 'Retiro en Bodega'}
+                  </span>
+                  <span className="text-sm font-medium text-gray-700">
+                    {deliveryMethod === 'despacho' ? (
+                      shippingCost > 0 ? (
+                        <>
+                          {formatPrice(shippingCost)}
+                          {shippingBreakdownText && (
+                            <span className="block text-[10px] text-gray-400 text-right">
+                              ({shippingBreakdownText})
+                            </span>
+                          )}
+                        </>
+                      ) : 'Gratis'
+                    ) : (
+                      <span className="text-emerald-600">Sin costo</span>
+                    )}
+                  </span>
+                </div>
+
                 <div className="flex justify-between items-center">
                   <span className="text-base font-bold text-gray-900">Total</span>
                   <span className="text-xl font-bold text-[#FF6E23]">{formatPrice(total)}</span>
                 </div>
               </div>
-              {shippingAddress && (
+
+              {/* Show delivery destination */}
+              {deliveryMethod === 'despacho' && shippingAddress && (
                 <div className="flex items-start gap-2 text-sm text-gray-500">
                   <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
                   <span>{shippingAddress}</span>
+                </div>
+              )}
+              {deliveryMethod === 'retiro' && selectedWarehouseId !== 'none' && (
+                <div className="flex items-start gap-2 text-sm text-gray-500">
+                  <Store className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span>
+                    Retiro en: {warehouses.find(w => w.id === selectedWarehouseId)?.name}
+                    {warehouses.find(w => w.id === selectedWarehouseId)?.location && (
+                      <span> — {warehouses.find(w => w.id === selectedWarehouseId)?.location}</span>
+                    )}
+                  </span>
                 </div>
               )}
             </div>

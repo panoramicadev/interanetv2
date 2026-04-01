@@ -1,7 +1,8 @@
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
-import { X, ShoppingCart, ArrowRight, Minus, Plus, Trash2, Package } from "lucide-react";
+import { X, ShoppingCart, ArrowRight, Minus, Plus, Trash2, Package, Truck, Store } from "lucide-react";
 import { Link } from "wouter";
 import { useCart } from "@/hooks/useCart";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -120,6 +121,18 @@ function CartContent({ state, onClose }: { state: any; onClose: () => void }) {
   const progress = Math.min(100, (state.subtotal / FREE_SHIPPING_THRESHOLD) * 100);
   const remaining = FREE_SHIPPING_THRESHOLD - state.subtotal;
 
+  // Read delivery method from localStorage (set by BillingSummary)
+  const [deliveryMethod, setDeliveryMethod] = useState<'despacho' | 'retiro'>(() => {
+    const saved = localStorage.getItem('cart_delivery_method');
+    return (saved === 'retiro') ? 'retiro' : 'despacho';
+  });
+
+  // Re-read on each render when cart opens
+  useEffect(() => {
+    const saved = localStorage.getItem('cart_delivery_method');
+    setDeliveryMethod((saved === 'retiro') ? 'retiro' : 'despacho');
+  }, [state.items]);
+
   if (isEmpty) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
@@ -167,6 +180,22 @@ function CartContent({ state, onClose }: { state: any; onClose: () => void }) {
           <div className="flex items-center justify-center gap-2">
             <span className="text-xs font-bold text-emerald-600">🎉 ¡Envío gratis aplicado!</span>
           </div>
+        )}
+      </div>
+
+      {/* Delivery method indicator */}
+      <div className="px-4 py-2 bg-gray-50/50 border-b border-gray-100 flex items-center gap-2">
+        {deliveryMethod === 'despacho' ? (
+          <>
+            <Truck className="h-3.5 w-3.5 text-[#FF6E23]" />
+            <span className="text-[11px] font-semibold text-gray-600">Despacho a domicilio</span>
+          </>
+        ) : (
+          <>
+            <Store className="h-3.5 w-3.5 text-emerald-600" />
+            <span className="text-[11px] font-semibold text-gray-600">Retiro en bodega</span>
+            <span className="text-[10px] text-emerald-600 font-bold ml-auto">Sin costo</span>
+          </>
         )}
       </div>
 
@@ -236,13 +265,23 @@ export default function FloatingCart({ isOpen, onClose, trigger }: FloatingCartP
       <Sheet open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
         {trigger && <SheetTrigger asChild>{trigger}</SheetTrigger>}
         <SheetContent side="right" className="w-full sm:max-w-md p-0">
-          <SheetHeader className="border-b border-gray-200 p-4">
-            <SheetTitle className="text-base font-bold text-gray-900">
-              🛒 Carrito · {state.itemCount}
-            </SheetTitle>
-            <SheetDescription className="sr-only">
-              Carrito de compras con {state.itemCount} productos
-            </SheetDescription>
+          <SheetHeader className="border-b border-gray-200 p-4 flex flex-row items-center justify-between">
+            <div>
+              <SheetTitle className="text-base font-bold text-gray-900">
+                🛒 Carrito · {state.itemCount}
+              </SheetTitle>
+              <SheetDescription className="sr-only">
+                Carrito de compras con {state.itemCount} productos
+              </SheetDescription>
+            </div>
+            {/* Bigger close button on mobile */}
+            <button
+              onClick={onClose}
+              className="w-10 h-10 rounded-full bg-gray-100 hover:bg-red-50 flex items-center justify-center text-gray-500 hover:text-red-500 transition-colors"
+              aria-label="Cerrar carrito"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </SheetHeader>
           <div className="flex flex-col h-full">
             <CartContent state={state} onClose={onClose} />
