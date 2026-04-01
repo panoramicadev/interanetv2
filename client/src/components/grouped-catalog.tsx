@@ -279,6 +279,36 @@ export default function GroupedCatalog() {
     const [imagePickerOpen, setImagePickerOpen] = useState(false);
     const [imagePickerProduct, setImagePickerProduct] = useState<any>(null);
     const [imageSaving, setImageSaving] = useState(false);
+    const [isUploadingCustom, setIsUploadingCustom] = useState(false);
+    const customImageRef = useRef<HTMLInputElement>(null);
+
+    const handleCustomImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !imagePickerProduct) return;
+        
+        setIsUploadingCustom(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            const uploadRes = await fetch('/api/upload', {
+                method: 'POST',
+                credentials: 'include',
+                body: formData,
+            });
+            
+            if (!uploadRes.ok) throw new Error('Error subiendo imagen');
+            const uploadData = await uploadRes.json();
+            const fileUrl = uploadData.url || uploadData.fileUrl;
+            
+            await handleSaveImage(imagePickerProduct.genericName, fileUrl);
+        } catch (err) {
+            toast({ title: 'Error al subir imagen', variant: 'destructive' });
+        } finally {
+            setIsUploadingCustom(false);
+            if (customImageRef.current) customImageRef.current.value = '';
+        }
+    };
 
     // Extract all unique images from a product
     const getAvailableImages = (product: any): { url: string; label: string }[] => {
@@ -745,38 +775,6 @@ export default function GroupedCatalog() {
                         const availableImages = getAvailableImages(imagePickerProduct);
                         const currentCustom = savedGroupImages[imagePickerProduct.genericName];
                         const autoImage = getProductImage(imagePickerProduct);
-
-        const [isUploadingCustom, setIsUploadingCustom] = useState(false);
-        const customImageRef = useRef<HTMLInputElement>(null);
-
-        const handleCustomImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-            const file = e.target.files?.[0];
-            if (!file || !imagePickerProduct) return;
-            
-            setIsUploadingCustom(true);
-            try {
-                const formData = new FormData();
-                formData.append('file', file);
-                
-                const uploadRes = await fetch('/api/upload', {
-                    method: 'POST',
-                    credentials: 'include',
-                    body: formData,
-                });
-                
-                if (!uploadRes.ok) throw new Error('Error subiendo imagen');
-                const uploadData = await uploadRes.json();
-                const fileUrl = uploadData.url || uploadData.fileUrl;
-                
-                // Save the custom image that was just uploaded
-                await handleSaveImage(imagePickerProduct.genericName, fileUrl);
-            } catch (err) {
-                toast({ title: 'Error al subir imagen', variant: 'destructive' });
-            } finally {
-                setIsUploadingCustom(false);
-                if (customImageRef.current) customImageRef.current.value = '';
-            }
-        };
 
         return (
             <div className="space-y-4 pt-2">

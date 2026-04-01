@@ -7537,6 +7537,57 @@ export function registerRoutes(app: Express): Server {
       return res.status(404).json({ message: 'Solicitud no encontrada' });
     }
     
+    const requestItem = requests[index];
+    
+    // Automatically provision the user account if status changes to aprobada
+    if (status === 'aprobada' && requestItem.status !== 'aprobada') {
+      const { salespeopleUsers } = await import('@shared/schema');
+      const { eq } = await import('drizzle-orm');
+      
+      const existingUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.username, requestItem.rut));
+      
+      if (existingUser.length === 0) {
+        let bcryptjs;
+        try {
+          bcryptjs = await import('bcryptjs');
+        } catch(e) {
+          bcryptjs = await import('bcrypt');
+        }
+        
+        const hashedPassword = await bcryptjs.hash(requestItem.rut, 12);
+        
+        try {
+          await db.insert(salespeopleUsers).values({
+            salespersonName: requestItem.empresa,
+            username: requestItem.rut,
+            email: requestItem.email,
+            password: hashedPassword,
+            role: 'client',
+            clientRut: requestItem.rut,
+            publicPhone: requestItem.telefono,
+            publicEmail: requestItem.email,
+            isActive: true,
+          });
+        } catch (insertError: any) {
+          console.error("Error al crear usuario cliente:", insertError);
+          // If salespersonName is not unique
+          if (insertError.code === '23505' || insertError.message.includes('unique')) {
+             await db.insert(salespeopleUsers).values({
+               salespersonName: `${requestItem.empresa} (${requestItem.rut})`,
+               username: requestItem.rut,
+               email: requestItem.email,
+               password: hashedPassword,
+               role: 'client',
+               clientRut: requestItem.rut,
+               publicPhone: requestItem.telefono,
+               publicEmail: requestItem.email,
+               isActive: true,
+             });
+          }
+        }
+      }
+    }
+
     requests[index].status = status;
     await db.execute(sql`UPDATE app_config SET value = ${JSON.stringify(requests)} WHERE key = 'ecommerce_account_requests'`);
     
