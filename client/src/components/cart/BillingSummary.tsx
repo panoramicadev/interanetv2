@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Tag, MapPin, ShoppingBag, Package, CheckCircle2, Truck, Store } from "lucide-react";
+import { X, Tag, MapPin, ShoppingBag, Package, CheckCircle2, Truck, Store, Landmark, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getShippingKey } from "@shared/format-utils";
 import {
@@ -348,6 +348,10 @@ export default function BillingSummary() {
   // Final total (includes shipping only if despacho)
   const effectiveShipping = deliveryMethod === 'despacho' ? shippingCost : 0;
   const total = state.total + effectiveShipping;
+
+  // Determine payment instructions based on condition
+  const isCredit = clientData?.cpen?.toUpperCase().includes('CREDITO') || clientData?.cpen?.toUpperCase().includes('CRÉDITO');
+  const requiresReceipt = !isCredit; // Default to expecting receipt if not credit
 
   return (
     <>
@@ -756,6 +760,25 @@ export default function BillingSummary() {
                       <span> — {warehouses.find(w => w.id === selectedWarehouseId)?.location}</span>
                     )}
                   </span>
+                </div>
+              )}
+
+              {/* Payment Info */}
+              {requiresReceipt && (
+                <div className="bg-orange-50/50 rounded-xl p-4 border border-orange-100 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-orange-800">
+                    <Landmark className="h-4 w-4" /> Datos de Transferencia
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-xs text-slate-600">
+                    <div><span className="text-slate-400 block mb-0.5">Empresa</span><span className="font-medium">Pintureria Panoramica</span></div>
+                    <div><span className="text-slate-400 block mb-0.5">RUT</span><span className="font-medium">76.123.456-7</span></div>
+                    <div><span className="text-slate-400 block mb-0.5">Banco</span><span className="font-medium">Banco Estado</span></div>
+                    <div><span className="text-slate-400 block mb-0.5">Cuenta</span><span className="font-medium">123-456-789-00</span></div>
+                  </div>
+                  <div className="flex items-start gap-2 text-xs text-orange-700 bg-orange-100/50 p-2 rounded flex-shrink-0">
+                    <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                    <p>Al hacer clic en confirmar el pedido será creado. <strong>Serás redirigido a una nueva pantalla donde deberás subir el comprobante de pago.</strong></p>
+                  </div>
                 </div>
               )}
             </div>

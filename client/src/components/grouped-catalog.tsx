@@ -746,90 +746,141 @@ export default function GroupedCatalog() {
                         const currentCustom = savedGroupImages[imagePickerProduct.genericName];
                         const autoImage = getProductImage(imagePickerProduct);
 
-                        return (
-                            <div className="space-y-4 pt-2">
-                                {/* Current Image */}
-                                <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 border border-muted">
-                                    <div className="w-20 h-20 rounded-lg overflow-hidden bg-white border flex items-center justify-center flex-shrink-0">
-                                        {autoImage ? (
-                                            <img src={currentCustom || autoImage} alt="Actual" className="w-full h-full object-cover" />
-                                        ) : (
-                                            <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
-                                        )}
-                                    </div>
-                                    <div className="flex-1">
-                                        <h4 className="text-sm font-bold">Imagen Actual</h4>
-                                        <p className="text-xs text-muted-foreground mt-0.5">
-                                            {currentCustom ? (
-                                                <span className="text-emerald-600 font-semibold">📷 Imagen personalizada</span>
-                                            ) : (
-                                                <span className="text-blue-600 font-semibold">🤖 Selección automática</span>
-                                            )}
-                                        </p>
-                                        {currentCustom && (
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="mt-2 h-7 text-xs text-red-600 border-red-200 hover:bg-red-50"
-                                                onClick={() => handleSaveImage(imagePickerProduct.genericName, null)}
-                                                disabled={imageSaving}
-                                            >
-                                                <Trash2 className="h-3 w-3 mr-1" />
-                                                Restablecer a automático
-                                            </Button>
-                                        )}
-                                    </div>
-                                </div>
+        const [isUploadingCustom, setIsUploadingCustom] = useState(false);
+        const customImageRef = useRef<HTMLInputElement>(null);
 
-                                {/* Available Images Grid */}
-                                {availableImages.length > 0 ? (
-                                    <div>
-                                        <h4 className="text-sm font-bold mb-3 flex items-center gap-2">
-                                            <Palette className="h-4 w-4 text-orange-500" />
-                                            Imágenes de Variantes Disponibles
-                                            <Badge variant="secondary" className="text-[10px]">{availableImages.length}</Badge>
-                                        </h4>
-                                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                                            {availableImages.map((img) => {
-                                                const isSelected = currentCustom === img.url;
-                                                return (
-                                                    <button
-                                                        key={img.url}
-                                                        onClick={() => handleSaveImage(imagePickerProduct.genericName, img.url)}
-                                                        disabled={imageSaving}
-                                                        className={`relative rounded-xl overflow-hidden border-2 transition-all hover:shadow-lg group aspect-square ${
-                                                            isSelected
-                                                                ? 'border-emerald-500 ring-2 ring-emerald-200 shadow-md'
-                                                                : 'border-gray-200 dark:border-slate-700 hover:border-orange-400'
-                                                        }`}
-                                                    >
-                                                        <img src={img.url} alt={img.label} className="w-full h-full object-cover" />
-                                                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2 pt-6">
-                                                            <p className="text-white text-[9px] font-semibold leading-tight truncate">
-                                                                {img.label}
-                                                            </p>
-                                                        </div>
-                                                        {isSelected && (
-                                                            <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg">
-                                                                <Check className="h-3 w-3 text-white" />
-                                                            </div>
-                                                        )}
-                                                    </button>
-                                                );
-                                            })}
+        const handleCustomImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+            const file = e.target.files?.[0];
+            if (!file || !imagePickerProduct) return;
+            
+            setIsUploadingCustom(true);
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const uploadRes = await fetch('/api/upload', {
+                    method: 'POST',
+                    credentials: 'include',
+                    body: formData,
+                });
+                
+                if (!uploadRes.ok) throw new Error('Error subiendo imagen');
+                const uploadData = await uploadRes.json();
+                const fileUrl = uploadData.url || uploadData.fileUrl;
+                
+                // Save the custom image that was just uploaded
+                await handleSaveImage(imagePickerProduct.genericName, fileUrl);
+            } catch (err) {
+                toast({ title: 'Error al subir imagen', variant: 'destructive' });
+            } finally {
+                setIsUploadingCustom(false);
+                if (customImageRef.current) customImageRef.current.value = '';
+            }
+        };
+
+        return (
+            <div className="space-y-4 pt-2">
+                {/* Current Image */}
+                <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 border border-muted">
+                    <div className="w-20 h-20 rounded-lg overflow-hidden bg-white border flex items-center justify-center flex-shrink-0">
+                        {autoImage ? (
+                            <img src={currentCustom || autoImage} alt="Actual" className="w-full h-full object-cover" />
+                        ) : (
+                            <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
+                        )}
+                    </div>
+                    <div className="flex-1">
+                        <h4 className="text-sm font-bold">Imagen Actual</h4>
+                        <p className="text-xs text-muted-foreground mt-0.5 mb-3">
+                            {currentCustom ? (
+                                <span className="text-emerald-600 font-semibold">📷 Imagen personalizada</span>
+                            ) : (
+                                <span className="text-blue-600 font-semibold">🤖 Selección automática</span>
+                            )}
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                ref={customImageRef}
+                                onChange={handleCustomImageUpload}
+                            />
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-xs bg-white text-gray-700 hover:bg-gray-50 hover:text-orange-600 border-gray-200"
+                                onClick={() => customImageRef.current?.click()}
+                                disabled={imageSaving || isUploadingCustom}
+                            >
+                                {isUploadingCustom ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin"/> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
+                                Subir imagen personalizada
+                            </Button>
+                            
+                            {currentCustom && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                                    onClick={() => handleSaveImage(imagePickerProduct.genericName, null)}
+                                    disabled={imageSaving || isUploadingCustom}
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Available Images Grid */}
+                {availableImages.length > 0 ? (
+                    <div>
+                        <h4 className="text-sm font-bold mb-3 flex items-center gap-2">
+                            <Palette className="h-4 w-4 text-orange-500" />
+                            Imágenes de Variantes Disponibles
+                            <Badge variant="secondary" className="text-[10px]">{availableImages.length}</Badge>
+                        </h4>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                            {availableImages.map((img) => {
+                                const isSelected = currentCustom === img.url || (!currentCustom && autoImage === img.url);
+                                return (
+                                    <button
+                                        key={img.url}
+                                        onClick={() => handleSaveImage(imagePickerProduct.genericName, img.url)}
+                                        disabled={imageSaving || isUploadingCustom}
+                                        className={`relative rounded-xl overflow-hidden border-2 transition-all hover:shadow-lg group aspect-square ${
+                                            isSelected
+                                                ? 'border-emerald-500 ring-2 ring-emerald-200 shadow-md'
+                                                : 'border-gray-200 dark:border-slate-700 hover:border-orange-400'
+                                        }`}
+                                    >
+                                        <img src={img.url} alt={img.label} className="w-full h-full object-cover" />
+                                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2 pt-6">
+                                            <p className="text-white text-[9px] font-semibold leading-tight truncate">
+                                                {img.label}
+                                            </p>
                                         </div>
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-xl">
-                                        <ImageIcon className="h-10 w-10 text-gray-300 mx-auto mb-2" />
-                                        <p className="text-sm text-muted-foreground">No hay imágenes disponibles</p>
-                                        <p className="text-xs text-muted-foreground mt-1">Sube imágenes desde la pestaña "Orden" o importa un ZIP</p>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })()}
-                </DialogContent>
+                                        {isSelected && (
+                                            <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg">
+                                                <Check className="h-3 w-3 text-white" />
+                                            </div>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-xl">
+                        <ImageIcon className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground">No hay imágenes de variantes</p>
+                        <p className="text-xs text-muted-foreground mt-1">Sube una imagen personalizada usando el botón de arriba</p>
+                    </div>
+                )}
+            </div>
+        );
+    })()}
+</DialogContent>
             </Dialog>
         </div>
     );
