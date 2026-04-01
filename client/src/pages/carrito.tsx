@@ -488,15 +488,15 @@ export default function Carrito() {
                       </div>
 
                       {/* Mobile Row - Compact */}
-                      <div className="md:hidden px-3 py-2.5">
-                        <div className="flex items-start gap-2.5">
+                      <div className="md:hidden px-2.5 py-2">
+                        <div className="flex items-center gap-2">
                           {/* Small thumbnail */}
-                          <div className="w-10 h-10 flex-shrink-0 bg-gray-100 rounded overflow-hidden border border-gray-200">
+                          <div className="w-12 h-12 flex-shrink-0 bg-gray-100 rounded overflow-hidden border border-gray-200">
                             {item.imageUrl ? (
                               <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
-                                <Package className="h-4 w-4 text-gray-400" />
+                                <Package className="h-5 w-5 text-gray-400" />
                               </div>
                             )}
                           </div>
@@ -520,20 +520,20 @@ export default function Carrito() {
                             </div>
                             
                             {/* Price + Qty row */}
-                            <div className="flex items-center justify-between mt-1.5">
+                            <div className="flex items-center justify-between mt-1">
                               <span className="text-[11px] text-gray-500">{formatPrice(item.unitPrice)} c/u</span>
                               
                               <div className="flex items-center gap-0.5">
-                                <Button variant="ghost" size="sm" onClick={() => decrement(item)} disabled={item.quantity <= item.minQuantity} className="h-6 w-6 p-0">
-                                  <Minus className="h-2.5 w-2.5" />
+                                <Button variant="ghost" size="sm" onClick={() => decrement(item)} disabled={item.quantity <= item.minQuantity} className="h-6 w-6 p-0 rounded-md">
+                                  <Minus className="h-3 w-3" />
                                 </Button>
-                                <span className="text-sm font-mono font-semibold w-8 text-center">{item.quantity}</span>
-                                <Button variant="ghost" size="sm" onClick={() => increment(item)} className="h-6 w-6 p-0">
-                                  <Plus className="h-2.5 w-2.5" />
+                                <span className="text-xs font-mono font-bold w-6 text-center">{item.quantity}</span>
+                                <Button variant="ghost" size="sm" onClick={() => increment(item)} className="h-6 w-6 p-0 rounded-md">
+                                  <Plus className="h-3 w-3" />
                                 </Button>
                               </div>
 
-                              <span className="text-sm font-bold text-gray-900">{formatPrice(item.subtotal)}</span>
+                              <span className="text-sm font-black text-gray-900">{formatPrice(item.subtotal)}</span>
                             </div>
                           </div>
                         </div>

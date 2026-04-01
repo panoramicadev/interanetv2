@@ -239,7 +239,7 @@ export default function TiendaPage() {
   
   // Grouped product accordion state
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
-  const [expandedColors, setExpandedColors] = useState<Set<string>>(new Set());
+  const [expandedFormats, setExpandedFormats] = useState<Set<string>>(new Set());
   
   // Banner carousel state
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -530,13 +530,85 @@ export default function TiendaPage() {
     });
   };
 
-  const toggleColor = (productName: string, color: string) => {
-    const key = `${productName}-${color}`;
-    setExpandedColors(prev => {
+  const toggleFormat = (productName: string, format: string) => {
+    const key = `${productName}-${format}`;
+    setExpandedFormats(prev => {
       const s = new Set(prev);
-      s.has(key) ? s.delete(key) : s.add(key);
+      
+      // Ensure only one format active per product at a time
+      Array.from(s).forEach(k => {
+        if (k.startsWith(`${productName}-`)) s.delete(k);
+      });
+      
+      if (!s.has(key)) {
+        s.add(key);
+        s.add(`selected-${productName}`);
+      }
       return s;
     });
+  };
+
+  // Add grouped variants in bulk to cart
+  const addBulkVariantsToCart = (variants: StoreFormatVariant[], productName: string) => {
+    let addedCount = 0;
+    const variantsToAdd = variants.filter(v => (quantities[v.sku] || 0) > 0);
+    
+    if (variantsToAdd.length === 0) {
+      toast({
+        title: "Seleccione cantidad",
+        description: "Debe ingresar una cantidad mayor a 0 para al menos un color",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    variantsToAdd.forEach(variant => {
+      const qty = quantities[variant.sku] || 0;
+      const unitPrice = variant.price || 0;
+      
+      if (unitPrice === 0) return;
+
+      const validation = validateCartQuantity(qty, variant.format);
+      const validatedQuantity = validation.validQuantity;
+
+      try {
+        addItem({
+          productId: variant.sku,
+          productCode: variant.sku,
+          productName: productName,
+          selectedPackaging: variant.format,
+          selectedColor: variant.color,
+          unit: variant.format,
+          unitPrice,
+          quantity: validatedQuantity,
+          minQuantity: validation.minQuantity,
+          quantityStep: validation.stepQuantity,
+          imageUrl: variant.imageUrl || undefined,
+        });
+
+        addedCount += validatedQuantity;
+      } catch (err) {
+        console.error("Error adding to cart", err);
+      }
+    });
+
+    if (addedCount > 0) {
+      toast({
+        title: "Productos agregados",
+        description: `Se agregaron ${variantsToAdd.length} colores (${addedCount} unds en total) al carrito`,
+        action: <Check className="h-4 w-4" />
+      });
+      setShowFloatingCart(true);
+      
+      // Reset quantities for added variants
+      setQuantities(prev => {
+        const next = { ...prev };
+        variantsToAdd.forEach(v => {
+           next[v.sku] = 0;
+        });
+        return next;
+      });
+    }
   };
 
   // Add grouped variant to cart
@@ -1267,183 +1339,184 @@ export default function TiendaPage() {
                     }}
                   >
                     {(() => {
-                      const selectedColorKey = `selected-${product.genericName}`;
-                      const activeColor = expandedColors.has(selectedColorKey) 
-                        ? Array.from(expandedColors).find(k => k.startsWith(`${product.genericName}-`))?.replace(`${product.genericName}-`, '') || colorKeys[0]
-                        : colorKeys[0];
-                      const activeVariants = product.colors[activeColor] || [];
-                      const activeColorImg = activeVariants.find(v => v.imageUrl)?.imageUrl || product.imageUrl;
+                      // Dynamically group variants by Format
+                      const formatsMap = new Map<string, StoreFormatVariant[]>();
+                      Object.values(product.colors).flat().forEach(v => {
+                        if (!formatsMap.has(v.format)) formatsMap.set(v.format, []);
+                        formatsMap.get(v.format)!.push(v);
+                      });
+                      const formatsList = Array.from(formatsMap.keys());
+                      
+                      const selectedFormatKey = `selected-${product.genericName}`;
+                      const activeFormat = expandedFormats.has(selectedFormatKey)
+                         ? Array.from(expandedFormats).find(k => k.startsWith(`${product.genericName}-`))?.replace(`${product.genericName}-`, '') || formatsList[0]
+                         : formatsList[0];
+                      const variantsForFormat = formatsMap.get(activeFormat) || [];
+                      
+                      const activeFormatData = variantsForFormat[0];
+                      const formatImg = product.imageUrl;
+                      
+                      // Calculate Total for the active format
+                      const formatTotal = variantsForFormat.reduce((acc, v) => {
+                        const q = quantities[v.sku] || 0;
+                        return acc + ((v.price || 0) * q);
+                      }, 0);
 
                       return (
-                        <div className="border-t border-[#FF6E23]/10 flex flex-col sm:flex-row">
-                          {/* Left: Product Image */}
-                          <div className="w-full sm:w-36 md:w-44 flex-shrink-0 bg-gradient-to-br from-gray-50 to-white p-3 flex items-start justify-center">
-                            <div className="w-28 sm:w-full aspect-square rounded-xl overflow-hidden bg-white shadow-sm border border-gray-100 mx-auto">
-                              {activeColorImg ? (
-                                <img src={activeColorImg} alt={`${product.genericName} ${activeColor}`} className="w-full h-full object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <ImageIcon className="w-10 h-10 text-gray-200" />
-                                </div>
-                              )}
+                        <div className="border-t border-[#FF6E23]/10 flex flex-col pt-3 bg-gradient-to-br from-gray-50/50 to-white">
+                          
+                          {/* Top: Format Selector Tabs */}
+                          <div className="px-5 mb-4">
+                            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2 block">Selecciona el Formato</span>
+                            <div className="flex overflow-x-auto gap-2 pb-2 custom-scrollbar snap-x">
+                              {formatsList.map(format => {
+                                const isActive = format === activeFormat;
+                                return (
+                                  <button
+                                    key={format}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleFormat(product.genericName, format);
+                                    }}
+                                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border whitespace-nowrap flex-shrink-0 snap-start ${
+                                      isActive
+                                        ? 'bg-orange-50/80 border-[#FF6E23] text-[#FF6E23] shadow-sm'
+                                        : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    {format}
+                                  </button>
+                                );
+                              })}
                             </div>
                           </div>
-
-                          {/* Right: Color chips + Format cards */}
-                          <div className="flex-1 min-w-0 p-3 overflow-y-auto" style={{ maxHeight: '560px' }}>
-                            {/* Color Chips */}
-                            <div className="mb-3">
-                              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5 block">Color</span>
-                              <div className="flex flex-wrap gap-1.5">
-                                {colorKeys.map(color => {
-                                  const isActive = color === activeColor;
-                                  const colorImg = product.colors[color]?.find(v => v.imageUrl)?.imageUrl;
-                                  return (
-                                    <button
-                                      key={color}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setExpandedColors(prev => {
-                                          const s = new Set(prev);
-                                          Array.from(s).filter(k => k.startsWith(`${product.genericName}-`)).forEach(k => s.delete(k));
-                                          s.add(`${product.genericName}-${color}`);
-                                          s.add(selectedColorKey);
-                                          return s;
-                                        });
-                                      }}
-                                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${
-                                        isActive
-                                          ? 'bg-[#FF6E23] text-white shadow-sm'
-                                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                      }`}
-                                    >
-                                      {colorImg && (
-                                        <div className="w-4 h-4 rounded-full overflow-hidden border border-white/60 flex-shrink-0">
-                                          <img src={colorImg} alt={color} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                        </div>
-                                      )}
-                                      {color.toUpperCase()}
-                                    </button>
-                                  );
-                                })}
+                          
+                          {/* Main Content Area */}
+                          <div className="flex flex-col md:flex-row gap-5 px-5 pb-5">
+                            
+                            {/* Left: Format Generic Details */}
+                            <div className="hidden md:flex w-44 flex-shrink-0 flex-col items-center">
+                              <div className="w-full aspect-square rounded-2xl overflow-hidden bg-white shadow-sm border border-gray-100 p-4 mb-3">
+                                {formatImg ? (
+                                  <img src={formatImg} alt={product.genericName} className="w-full h-full object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <ImageIcon className="w-10 h-10 text-gray-200" />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-center w-full">
+                                <span className="text-xs font-bold text-gray-800 line-clamp-2">{activeFormat}</span>
+                                {activeFormatData?.price && activeFormatData.price > 0 && (
+                                  <span className="text-sm font-black text-[#FF6E23] block mt-1">{formatPrice(activeFormatData.price)}</span>
+                                )}
                               </div>
                             </div>
 
-                            {/* Format Cards */}
-                            <div>
-                              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5 block">
-                                Formato · {activeVariants.length} opcion{activeVariants.length !== 1 ? 'es' : ''}
-                              </span>
-                              <div className="space-y-2">
-                                {activeVariants.map(variant => {
-                                  const variantQty = quantities[variant.sku] || variant.minUnit || 1;
+                            {/* Right: Colors List Grid */}
+                            <div className="flex-1 min-w-0">
+                               <div className="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
+                                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Colores Disponibles · {variantsForFormat.length}</span>
+                                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest hidden sm:block">Cantidades</span>
+                               </div>
+                               
+                               <div className="space-y-2.5 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                                 {variantsForFormat.map(variant => {
+                                  const variantQty = quantities[variant.sku] || 0;
+                                  const colorImg = variant.imageUrl;
+                                  
                                   return (
-                                    <div key={variant.sku} className="bg-gray-50 border border-gray-100 rounded-lg p-2.5 hover:border-[#FF6E23]/20 transition-all">
-                                      {/* Desktop: single row layout */}
-                                      <div className="hidden sm:flex items-center gap-2">
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-xs font-bold text-gray-800">{variant.format}</span>
-                                            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700 whitespace-nowrap">
-                                              Disponible
-                                            </span>
-                                          </div>
-                                          {variant.price && variant.price > 0 ? (
-                                            <span className="text-sm font-bold text-gray-900">{formatPrice(variant.price)}</span>
+                                    <div key={variant.sku} className={`flex items-center justify-between gap-3 p-2.5 rounded-xl border transition-all ${variantQty > 0 ? 'bg-orange-50/30 border-[#FF6E23]/30' : 'bg-white border-gray-100 hover:border-gray-200'}`}>
+                                      
+                                      {/* Color Info */}
+                                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                                        <div className="w-10 h-10 rounded-full bg-gray-50 border border-gray-200 shadow-inner flex-shrink-0 overflow-hidden relative">
+                                          {colorImg ? (
+                                             <img src={colorImg} alt={variant.color} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                                           ) : (
-                                            <span className="text-[10px] text-gray-400">Sin precio</span>
+                                             <div className="w-full h-full bg-gray-200" />
                                           )}
                                         </div>
-                                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                                          <div className="inline-flex items-center border border-gray-200 rounded-md overflow-hidden bg-white">
-                                            <button
-                                              onClick={(e) => { e.stopPropagation(); setQuantities(prev => ({ ...prev, [variant.sku]: Math.max(variant.minUnit || 1, variantQty - (variant.stepSize || 1)) })); }}
-                                              className="w-7 h-7 flex items-center justify-center hover:bg-gray-50 text-gray-400"
-                                              disabled={variantQty <= (variant.minUnit || 1)}
-                                            >
-                                              <Minus className="w-2.5 h-2.5" />
-                                            </button>
-                                            <input
-                                              type="number"
-                                              value={variantQty}
-                                              onChange={e => { e.stopPropagation(); setQuantities(prev => ({ ...prev, [variant.sku]: Math.max(variant.minUnit || 1, parseInt(e.target.value) || variant.minUnit || 1) })); }}
-                                              onClick={e => e.stopPropagation()}
-                                              className="w-8 h-7 text-center text-xs font-bold border-x border-gray-200 bg-white focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                              min={variant.minUnit || 1}
-                                              step={variant.stepSize || 1}
-                                            />
-                                            <button
-                                              onClick={(e) => { e.stopPropagation(); setQuantities(prev => ({ ...prev, [variant.sku]: variantQty + (variant.stepSize || 1) })); }}
-                                              className="w-7 h-7 flex items-center justify-center hover:bg-gray-50 text-gray-400"
-                                            >
-                                              <Plus className="w-2.5 h-2.5" />
-                                            </button>
+                                        <div className="min-w-0">
+                                          <div className="text-xs font-bold text-gray-800 truncate">{variant.color}</div>
+                                          <div className="text-[10px] text-gray-400 mt-0.5 md:hidden">
+                                            {variant.price ? formatPrice(variant.price) : 'Consultar'}
                                           </div>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Quantity Controls */}
+                                      <div className="flex items-center gap-3 flex-shrink-0">
+                                        {/* Subtotal preview if > 0 */}
+                                        {variantQty > 0 && variant.price && (
+                                          <div className="hidden sm:block text-xs font-bold text-[#FF6E23]">
+                                            {formatPrice(variant.price * variantQty)}
+                                          </div>
+                                        )}
+                                        
+                                        <div className="inline-flex items-center rounded-lg overflow-hidden border border-gray-200 bg-white shadow-sm h-9">
                                           <button
-                                            className="h-7 px-2.5 rounded-md bg-[#FF6E23] hover:bg-[#E55E13] text-white transition-all font-bold text-[10px] flex items-center gap-1"
-                                            onClick={(e) => { e.stopPropagation(); addGroupedVariantToCart(variant, product.genericName); }}
+                                            onClick={(e) => { e.stopPropagation(); setQuantities(prev => ({ ...prev, [variant.sku]: Math.max(0, variantQty - (variant.stepSize || 1)) })); }}
+                                            className="w-10 h-full flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
+                                            disabled={variantQty === 0}
                                           >
-                                            <ShoppingCart className="h-3 w-3" />
+                                            <Minus className="w-3.5 h-3.5" />
+                                          </button>
+                                          
+                                          <input
+                                            type="number"
+                                            value={variantQty || ''}
+                                            placeholder="0"
+                                            onChange={e => { 
+                                              e.stopPropagation(); 
+                                              const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                                              if (!isNaN(val)) {
+                                                setQuantities(prev => ({ ...prev, [variant.sku]: Math.max(0, val) })); 
+                                              }
+                                            }}
+                                            onClick={e => e.stopPropagation()}
+                                            className="w-12 h-full text-center text-sm font-bold border-x border-gray-200 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-[#FF6E23] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                            min="0"
+                                            step={variant.stepSize || 1}
+                                          />
+                                          
+                                          <button
+                                            onClick={(e) => { 
+                                              e.stopPropagation(); 
+                                              // Jump from 0 directly to minUnit on first click
+                                              const nextQty = variantQty === 0 ? (variant.minUnit || 1) : variantQty + (variant.stepSize || 1);
+                                              setQuantities(prev => ({ ...prev, [variant.sku]: nextQty })); 
+                                            }}
+                                            className="w-10 h-full flex items-center justify-center bg-gray-50 hover:bg-gray-100 text-gray-500 transition-colors"
+                                          >
+                                            <Plus className="w-3.5 h-3.5" />
                                           </button>
                                         </div>
                                       </div>
-
-                                      {/* Mobile: stacked two-row layout */}
-                                      <div className="sm:hidden space-y-2">
-                                        {/* Row 1: Format name + price */}
-                                        <div className="flex items-center justify-between">
-                                          <span className="text-xs font-bold text-gray-800">{variant.format}</span>
-                                          {variant.price && variant.price > 0 ? (
-                                            <span className="text-sm font-bold text-gray-900">{formatPrice(variant.price)}</span>
-                                          ) : (
-                                            <span className="text-[10px] text-gray-400">Sin precio</span>
-                                          )}
-                                        </div>
-                                        {/* Row 2: Qty controls + cart button */}
-                                        <div className="flex items-center justify-end gap-1.5">
-                                          <div className="inline-flex items-center border border-gray-200 rounded-md overflow-hidden bg-white">
-                                            <button
-                                              onClick={(e) => { e.stopPropagation(); setQuantities(prev => ({ ...prev, [variant.sku]: Math.max(variant.minUnit || 1, variantQty - (variant.stepSize || 1)) })); }}
-                                              className="w-8 h-8 flex items-center justify-center hover:bg-gray-50 text-gray-400"
-                                              disabled={variantQty <= (variant.minUnit || 1)}
-                                            >
-                                              <Minus className="w-3 h-3" />
-                                            </button>
-                                            <input
-                                              type="number"
-                                              value={variantQty}
-                                              onChange={e => { e.stopPropagation(); setQuantities(prev => ({ ...prev, [variant.sku]: Math.max(variant.minUnit || 1, parseInt(e.target.value) || variant.minUnit || 1) })); }}
-                                              onClick={e => e.stopPropagation()}
-                                              className="w-10 h-8 text-center text-sm font-bold border-x border-gray-200 bg-white focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                              min={variant.minUnit || 1}
-                                              step={variant.stepSize || 1}
-                                            />
-                                            <button
-                                              onClick={(e) => { e.stopPropagation(); setQuantities(prev => ({ ...prev, [variant.sku]: variantQty + (variant.stepSize || 1) })); }}
-                                              className="w-8 h-8 flex items-center justify-center hover:bg-gray-50 text-gray-400"
-                                            >
-                                              <Plus className="w-3 h-3" />
-                                            </button>
-                                          </div>
-                                          <button
-                                            className="h-8 px-3 rounded-md bg-[#FF6E23] hover:bg-[#E55E13] text-white transition-all font-bold text-xs flex items-center gap-1.5"
-                                            onClick={(e) => { e.stopPropagation(); addGroupedVariantToCart(variant, product.genericName); }}
-                                          >
-                                            <ShoppingCart className="h-3.5 w-3.5" />
-                                          </button>
-                                        </div>
-                                      </div>
-
-                                      {variant.price && variant.price > 0 && variantQty > 1 && (
-                                        <div className="text-[10px] text-[#FF6E23] font-semibold mt-1 text-right">
-                                          Total: {formatPrice(variant.price * variantQty)}
-                                        </div>
-                                      )}
                                     </div>
                                   );
-                                })}
-                              </div>
+                                 })}
+                               </div>
+                               
                             </div>
+                          </div>
+                          
+                          {/* Bottom Action Bar */}
+                          <div className="bg-white border-t border-gray-100 p-4 sticky bottom-0 z-10 flex items-center justify-between md:justify-end gap-5 shadow-[0_-4px_20px_rgba(0,0,0,0.02)]">
+                            <div className="flex flex-col">
+                              <span className="text-[10px] font-semibold text-gray-400 uppercase">Subtotal Formato</span>
+                              <span className="text-lg font-black text-gray-900">{formatPrice(formatTotal)}</span>
+                            </div>
+                            
+                            <button
+                              className="h-11 px-6 rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white transition-all font-bold text-sm flex items-center gap-2 shadow-lg shadow-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                              onClick={(e) => { e.stopPropagation(); addBulkVariantsToCart(variantsForFormat, product.genericName); }}
+                              disabled={formatTotal === 0}
+                            >
+                              <ShoppingCart className="h-4 w-4" />
+                              <span className="hidden sm:inline">Añadir al Carrito</span>
+                              <span className="sm:hidden">Añadir</span>
+                            </button>
                           </div>
                         </div>
                       );

@@ -237,14 +237,9 @@ export default function FloatingCart({ isOpen, onClose, trigger }: FloatingCartP
         {trigger && <SheetTrigger asChild>{trigger}</SheetTrigger>}
         <SheetContent side="right" className="w-full sm:max-w-md p-0">
           <SheetHeader className="border-b border-gray-200 p-4">
-            <div className="flex items-center justify-between">
-              <SheetTitle className="text-base font-bold text-gray-900">
-                🛒 Carrito · {state.itemCount}
-              </SheetTitle>
-              <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
+            <SheetTitle className="text-base font-bold text-gray-900">
+              🛒 Carrito · {state.itemCount}
+            </SheetTitle>
             <SheetDescription className="sr-only">
               Carrito de compras con {state.itemCount} productos
             </SheetDescription>
