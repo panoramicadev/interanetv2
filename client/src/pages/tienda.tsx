@@ -872,8 +872,9 @@ export default function TiendaPage() {
       <header ref={headerRef} className="bg-white/80 backdrop-blur-xl sticky top-0 z-50 border-b border-gray-200/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Top micro-strip */}
-          <div className="hidden md:flex items-center justify-between py-1 text-[11px] text-gray-400 border-b border-gray-100/80">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col md:flex-row items-center justify-center md:justify-between py-1.5 md:py-1 text-[10px] md:text-[11px] text-gray-400 border-b border-gray-100/80 gap-1.5 md:gap-0">
+            {/* Left side info: Hidden on very small screens, visible on md Desktop */}
+            <div className="hidden md:flex items-center gap-4">
               {(topbarConfig?.phone?.visible !== false) && (
                 <span className="flex items-center gap-1 hover:text-gray-600 transition-colors"><Phone className="h-3 w-3" />{topbarConfig?.phone?.value || storeConfig?.phone || "+56 2 2345 6789"}</span>
               )}
@@ -884,7 +885,8 @@ export default function TiendaPage() {
                 <span className="flex items-center gap-1 hover:text-gray-600 transition-colors"><MapPin className="h-3 w-3" />{topbarConfig?.address?.value || storeConfig?.address || "Santiago, Chile"}</span>
               )}
             </div>
-            <div className="flex items-center gap-3">
+            {/* Right side info: Promotions, FAQ - Visible on mobile and centered */}
+            <div className="flex flex-wrap items-center justify-center gap-2 md:gap-3 w-full md:w-auto">
               {(topbarConfig?.faq?.visible !== false) && (
                 <>
                   <button
@@ -894,7 +896,7 @@ export default function TiendaPage() {
                     <HelpCircle className="h-3 w-3" />
                     Preguntas Frecuentes
                   </button>
-                  <span className="text-gray-200">|</span>
+                  <span className="hidden md:inline text-gray-200">|</span>
                 </>
               )}
               {(topbarConfig?.freeShipping?.visible !== false) && freeShippingThreshold > 0 && (
@@ -904,7 +906,7 @@ export default function TiendaPage() {
                 </span>
               )}
               {topbarConfig?.customText?.visible && topbarConfig.customText.value && (
-                <span className="text-[#FF6E23] font-semibold flex items-center gap-1">
+                <span className="text-[#FF6E23] font-semibold flex items-center gap-1 text-center">
                   {topbarConfig.customText.value}
                 </span>
               )}
