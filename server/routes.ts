@@ -6278,9 +6278,8 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/warehouses', requireCommercialAccess, async (req: any, res) => {
     try {
       const user = req.user;
-      if (!['admin', 'supervisor'].includes(user.role)) {
-        return res.status(403).json({ message: "No autorizado" });
-      }
+      // Allow any user with commercial access to create a manual warehouse
+
 
       const { name, location } = req.body;
       if (!name) {
@@ -6315,10 +6314,7 @@ export function registerRoutes(app: Express): Server {
       const { id } = req.params;
       const { name, location, active } = req.body;
       const user = req.user;
-      
-      if (!['admin', 'supervisor'].includes(user.role)) {
-        return res.status(403).json({ message: "No autorizado" });
-      }
+      // Allow any user with commercial access to update a manual warehouse
 
       const { db } = await import('./db');
       const { warehouses } = await import('@shared/schema');
@@ -6620,6 +6616,9 @@ export function registerRoutes(app: Express): Server {
       // Prepare order data with client and salesperson info
       const orderToCreate = {
         ...orderData,
+        subtotal: orderData.subtotal.toString(),
+        tax: orderData.tax.toString(),
+        total: orderData.total.toString(),
         clientId,
         clientName: req.user.email || 'Cliente',
         clientEmail: req.user.email,
@@ -11444,6 +11443,24 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Reorder banner
+  app.patch('/api/ecommerce/admin/banners/:id/reorder', requireAuth, requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const { orden } = req.body;
+      if (typeof orden !== 'number') return res.status(400).json({ message: 'Invalid orden' });
+
+      const [updated] = await db.update(storeBanners)
+        .set({ orden, updatedAt: new Date() })
+        .where(eq(storeBanners.id, id))
+        .returning();
+
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error reordering banner', error: error.message });
+    }
+  }));
+
   // Delete banner
   app.delete('/api/ecommerce/admin/banners/:id', requireAuth, requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
@@ -11873,6 +11890,42 @@ export function registerRoutes(app: Express): Server {
       }
     }
   });
+
+  // GET Store Config
+  app.get('/api/ecommerce/store-config', asyncHandler(async (req: any, res: any) => {
+    try {
+      const { storeConfig } = await import('@shared/schema');
+      const [config] = await db.select().from(storeConfig).limit(1);
+      if (!config) {
+        return res.json({ id: 'default', seoSettings: { carouselDelay: 5 } });
+      }
+      res.json(config);
+    } catch (error: any) {
+      console.error('Error fetching store config:', error);
+      res.status(500).json({ message: 'Error fetching config', error: error.message });
+    }
+  }));
+
+  // UPDATE Store Config
+  app.patch('/api/ecommerce/store-config', requireAuth, requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { storeConfig } = await import('@shared/schema');
+      const updates = req.body;
+      const [existing] = await db.select().from(storeConfig).limit(1);
+      
+      let updated;
+      if (!existing) {
+        [updated] = await db.insert(storeConfig).values({ id: 'default', ...updates }).returning();
+      } else {
+        const mergedSeoSettings = updates.seoSettings ? { ...existing.seoSettings, ...updates.seoSettings } : existing.seoSettings;
+        [updated] = await db.update(storeConfig).set({ ...updates, seoSettings: mergedSeoSettings, updatedAt: new Date() }).where(eq(storeConfig.id, existing.id)).returning();
+      }
+      res.json(updated);
+    } catch (error: any) {
+      console.error('Error updating store config:', error);
+      res.status(500).json({ message: 'Error updating config', error: error.message });
+    }
+  }));
 
   // Create banner with image upload
   app.post('/api/ecommerce/admin/banners',

@@ -448,6 +448,13 @@ export default function TiendaPage() {
   });
   const freeShippingThreshold = topbarConfig?.freeShipping?.threshold ?? freeShippingData?.threshold ?? 250000;
 
+  // Fetch store config
+  const { data: config } = useQuery<any>({
+    queryKey: ['/api/ecommerce/store-config'],
+    retry: false,
+    staleTime: 300_000,
+  });
+
   // Fetch store banners
   const { data: storeBanners = [] } = useQuery<StoreBanner[]>({
     queryKey: ['/api/store/banners'],
@@ -457,22 +464,24 @@ export default function TiendaPage() {
 
   // Use DB banners if available, otherwise fallback to hardcoded
   const banners = storeBanners.length > 0
-    ? storeBanners.map(b => ({ src: b.imagenDesktop, alt: b.titulo, mobileSrc: b.imagenMobile, linkUrl: b.linkUrl }))
+    ? [...storeBanners].sort((a: any, b: any) => (a.orden || 0) - (b.orden || 0)).map((b: any) => ({ src: b.imagenDesktop, alt: b.titulo, mobileSrc: b.imagenMobile, linkUrl: b.linkUrl }))
     : [
         { src: bannerCopper, alt: "Oferta del Mes - Esmalte Copper", mobileSrc: undefined, linkUrl: undefined },
         { src: bannerStain, alt: "Oferta del Mes - Stain Impregnante", mobileSrc: undefined, linkUrl: undefined },
         { src: bannerDespacho, alt: "Despacho Gratis - 3% OFF", mobileSrc: undefined, linkUrl: undefined }
       ];
 
+  const carouselDelayMs = (config?.seoSettings?.carouselDelay || 5) * 1000;
+
   // Carousel auto-rotation effect
   useEffect(() => {
     if (!isHovered) {
       const interval = setInterval(() => {
         setCurrentSlide(prev => (prev + 1) % banners.length);
-      }, 4000);
+      }, carouselDelayMs);
       return () => clearInterval(interval);
     }
-  }, [isHovered, banners.length]);
+  }, [isHovered, banners.length, carouselDelayMs]);
 
   // Fetch grouped store products (same grouping logic as salesperson catalog, with prices)
   const { data: groupedData, isLoading: productsLoading } = useQuery<StoreCatalogResponse>({
@@ -1067,7 +1076,7 @@ export default function TiendaPage() {
         data-testid="banner-carousel"
       >
         {/* Image container with transitions */}
-        <div className="relative w-full">
+        <div className="relative w-full group">
           {banners.map((banner, index) => (
             <div
               key={index}
@@ -1099,6 +1108,23 @@ export default function TiendaPage() {
               )}
             </div>
           ))}
+          
+          {/* Navigation Arrows */}
+          <button 
+            onClick={() => setCurrentSlide(prev => (prev === 0 ? banners.length - 1 : prev - 1))}
+            className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/20 hover:bg-black/40 text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-all z-20 opacity-0 group-hover:opacity-100 hidden md:flex"
+            aria-label="Anterior banner"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+          
+          <button 
+            onClick={() => setCurrentSlide(prev => (prev + 1) % banners.length)}
+            className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/20 hover:bg-black/40 text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-all z-20 opacity-0 group-hover:opacity-100 hidden md:flex"
+            aria-label="Siguiente banner"
+          >
+            <ChevronRight className="w-6 h-6" />
+          </button>
         </div>
         
       </section>
@@ -1623,11 +1649,11 @@ export default function TiendaPage() {
                             </div>
                             
                             <button
-                              className="h-11 px-6 rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white transition-all font-bold text-sm flex items-center gap-2 shadow-lg shadow-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="h-11 px-6 rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white transition-all duration-300 font-bold text-sm flex items-center gap-2 shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:shadow-orange-500/20 group"
                               onClick={(e) => { e.stopPropagation(); addBulkVariantsToCart(variantsForFormat, product.genericName); }}
                               disabled={formatTotal === 0}
                             >
-                              <ShoppingCart className="h-4 w-4" />
+                              <ShoppingCart className="h-4 w-4 transition-transform duration-300 group-hover:scale-110" />
                               <span className="hidden sm:inline">Añadir al Carrito</span>
                               <span className="sm:hidden">Añadir</span>
                             </button>

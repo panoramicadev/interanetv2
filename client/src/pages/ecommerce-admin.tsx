@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers, Users, Phone, Mail, Link as LinkIcon, Check, X, Loader2, User, ChevronDown, ChevronRight, Truck, Save, Layout, MapPin, HelpCircle, FileText } from "lucide-react";
+import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers, Users, Phone, Mail, Link as LinkIcon, Check, X, Loader2, User, ChevronDown, ChevronRight, Truck, Save, Layout, MapPin, HelpCircle, FileText, ArrowUp, ArrowDown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
 import { useForm } from "react-hook-form";
@@ -621,6 +621,70 @@ function BannerForm({ onSuccess, existingBanner }: { onSuccess: () => void; exis
   );
 }
 
+// Banner Settings Component
+function BannerSettings() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  const { data: config, isLoading } = useQuery<any>({
+    queryKey: ['/api/ecommerce/store-config'],
+  });
+
+  const [delay, setDelay] = useState<number>(5);
+
+  React.useEffect(() => {
+    if (config?.seoSettings?.carouselDelay) {
+      setDelay(config.seoSettings.carouselDelay);
+    }
+  }, [config]);
+
+  const updateMutation = useMutation({
+    mutationFn: async (newDelay: number) => {
+      const res = await fetch('/api/ecommerce/store-config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seoSettings: { ...config?.seoSettings, carouselDelay: newDelay } })
+      });
+      if (!res.ok) throw new Error('Error saving delay');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/store-config'] });
+      toast({ title: 'Demora actualizada' });
+    }
+  });
+
+  if (isLoading) return null;
+
+  return (
+    <div className="flex items-center gap-4 bg-muted/30 p-3 rounded-lg mb-4 text-sm">
+      <div className="flex items-center gap-2">
+        <Clock className="w-4 h-4 text-muted-foreground" />
+        <span className="font-semibold text-gray-700">Demora deslizar (seg):</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <Input 
+          type="number" 
+          className="w-20 h-8" 
+          value={delay} 
+          onChange={(e) => setDelay(parseInt(e.target.value) || 1)} 
+          min="1" 
+          max="30"
+        />
+        <Button 
+          size="sm" 
+          variant="secondary" 
+          className="h-8"
+          onClick={() => updateMutation.mutate(delay)}
+          disabled={updateMutation.isPending || delay === config?.seoSettings?.carouselDelay}
+        >
+          {updateMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Guardar'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // Banner List Component
 function BannerList() {
   const { toast } = useToast();
@@ -637,6 +701,22 @@ function BannerList() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/banners'] });
       toast({ title: 'Banner actualizado' });
+    },
+  });
+
+  const reorderMutation = useMutation({
+    mutationFn: async ({ id, orden }: { id: string, orden: number }) => {
+      const res = await fetch(`/api/ecommerce/admin/banners/${id}/reorder`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orden }),
+      });
+      if (!res.ok) throw new Error('Error');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/banners'] });
+      toast({ title: 'Orden actualizado' });
     },
   });
 
@@ -664,10 +744,13 @@ function BannerList() {
     );
   }
 
+  // Sort banners by order
+  const sortedBanners = [...banners].sort((a, b) => (a.orden || 0) - (b.orden || 0));
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {banners.map((banner: any) => (
-        <div key={banner.id} className={`rounded-xl border overflow-hidden transition-all ${banner.activo ? 'border-emerald-200 shadow-sm' : 'border-gray-200 opacity-60'}`}>
+      {sortedBanners.map((banner: any, index: number) => (
+        <div key={banner.id} className={`rounded-xl border overflow-hidden transition-all flex flex-col ${banner.activo ? 'border-emerald-200 shadow-sm' : 'border-gray-200 opacity-60'}`}>
           <div className="relative aspect-[16/6] bg-gray-100">
             <img src={banner.imagenDesktop} alt={banner.titulo} className="w-full h-full object-cover" />
             {banner.imagenMobile && (
@@ -678,11 +761,30 @@ function BannerList() {
             <div className={`absolute top-1.5 left-1.5 text-[9px] px-2 py-0.5 rounded-full font-bold ${banner.activo ? 'bg-emerald-500 text-white' : 'bg-gray-500 text-white'}`}>
               {banner.activo ? 'Activo' : 'Inactivo'}
             </div>
+            
+            <div className="absolute top-1 right-1 flex flex-col gap-1">
+              <Button 
+                size="icon" 
+                variant="secondary" 
+                className="h-6 w-6 bg-white/80 hover:bg-white text-gray-700 shadow-sm"
+                onClick={() => reorderMutation.mutate({ id: banner.id, orden: (banner.orden || 0) - 1 })}
+              >
+                <ArrowUp className="h-3 w-3" />
+              </Button>
+              <Button 
+                size="icon" 
+                variant="secondary" 
+                className="h-6 w-6 bg-white/80 hover:bg-white text-gray-700 shadow-sm"
+                onClick={() => reorderMutation.mutate({ id: banner.id, orden: (banner.orden || 0) + 1 })}
+              >
+                <ArrowDown className="h-3 w-3" />
+              </Button>
+            </div>
           </div>
-          <div className="p-3">
+          <div className="p-3 flex-1 flex flex-col justify-between">
             <div className="flex items-center justify-between mb-1">
               <h4 className="font-semibold text-sm truncate">{banner.titulo}</h4>
-              <span className="text-xs text-muted-foreground">Orden: {banner.orden}</span>
+              <span className="text-xs text-muted-foreground bg-gray-100 px-2 rounded-full">Orden: {banner.orden || 0}</span>
             </div>
             <div className="flex items-center gap-1.5 mt-2">
               <Button
@@ -1801,6 +1903,7 @@ export default function EcommerceAdmin() {
             </div>
           </CardHeader>
           <CardContent>
+            <BannerSettings />
             <BannerList />
           </CardContent>
         </Card>

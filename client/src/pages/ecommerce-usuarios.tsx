@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { type SalespersonUser } from "@shared/schema";
 import {
   Users, Search, Mail, Phone, MapPin, Calendar, ArrowLeft,
   UserCircle, Hash, Building2, KeyRound, ShoppingBag,
@@ -88,6 +89,19 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
       creditAvailable: client.creditAvailable?.toString() || ""
     });
   }, [client]);
+
+  // Fetch salespeople
+  const { data: salespeople = [] } = useQuery<SalespersonUser[]>({
+    queryKey: ["/api/users/salespeople"],
+    queryFn: async () => {
+      try {
+        const res = await apiRequest("GET", `/api/users/salespeople`);
+        return await res.json();
+      } catch {
+        return [];
+      }
+    },
+  });
 
   // Fetch warehouses
   const { data: warehouses = [] } = useQuery<Warehouse[]>({
@@ -343,11 +357,22 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <Label className="text-xs">Código Vendedor</Label>
-                        <Input 
-                          className="h-8 text-sm uppercase" placeholder="Ej: V01"
-                          value={commercialForm.salesRepCode} 
-                          onChange={(e) => setCommercialForm(p => ({ ...p, salesRepCode: e.target.value.toUpperCase() }))}
-                        />
+                        <Select 
+                          value={commercialForm.salesRepCode || "unassigned"} 
+                          onValueChange={(val) => setCommercialForm(p => ({ ...p, salesRepCode: val === "unassigned" ? "" : val }))}
+                        >
+                          <SelectTrigger className="h-8 text-sm truncate">
+                            <SelectValue placeholder="Seleccione vendedor..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unassigned" className="text-muted-foreground italic">Sin vendedor asignado</SelectItem>
+                            {salespeople.map((sp: SalespersonUser) => (
+                              <SelectItem key={sp.id} value={sp.username || sp.salespersonName.substring(0,3).toUpperCase()}>
+                                {sp.salespersonName} {sp.username ? `(${sp.username.toUpperCase()})` : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs">Condición de Pago</Label>
@@ -411,9 +436,11 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">Sin asignar</SelectItem>
-                          {warehouses.map(w => (
-                            <SelectItem key={w.id} value={w.id}>{w.name} {w.location ? `(${w.location})` : ''}</SelectItem>
-                          ))}
+                          {warehouses
+                            .filter((w: any) => w.isManual)
+                            .map((w: any) => (
+                              <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                     </div>
