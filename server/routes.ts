@@ -6280,7 +6280,6 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
       // Allow any user with commercial access to create a manual warehouse
 
-
       const { name, location } = req.body;
       if (!name) {
         return res.status(400).json({ message: "Nombre de bodega es requerido" });
@@ -6288,23 +6287,27 @@ export function registerRoutes(app: Express): Server {
 
       const { db } = await import('./db');
       const { warehouses } = await import('@shared/schema');
+      const crypto = await import('crypto');
       
-      const newCode = `MNL-${Date.now().toString().slice(-6)}`;
+      // Generate truly unique codes to avoid unique constraint on (kobo, kosu)
+      const uniqueId = crypto.randomUUID().slice(0, 8);
+      const newKobo = `MNL-${uniqueId}`;
+      const newKosu = `RET-${uniqueId}`;
       
       const [newWarehouse] = await db.insert(warehouses).values({
-        kobo: newCode,
-        kosu: 'RET', // Retiro as nominal branch code 
+        kobo: newKobo,
+        kosu: newKosu,
         name,
-        branchName: 'Sede Retiro (Intranet)',
+        branchName: name,
         location: location || null,
         isManual: true,
         active: true
       }).returning();
       
       res.status(201).json(newWarehouse);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating warehouse:", error);
-      res.status(500).json({ message: "Error al crear bodega" });
+      res.status(500).json({ message: "Error al crear bodega", detail: error?.message || 'Unknown error' });
     }
   });
 
@@ -7214,6 +7217,7 @@ export function registerRoutes(app: Express): Server {
       WHERE variant_generic_display_name = ${productFamily}
     `);
     
+    invalidateStoreCache();
     res.json({ success: true, productFamily, categories: newCats });
   }));
   // ===================== Product Display Order API =====================
@@ -11630,9 +11634,20 @@ export function registerRoutes(app: Express): Server {
     `);
     const rows = Array.isArray(result) ? result : (result as any).rows || [];
 
+    // Load multi-category assignments from app_config
+    let multiCatAssignments: Record<string, string[]> = {};
+    try {
+      const mcResult = await db.execute(sql`
+        SELECT value FROM app_config WHERE key = 'product_category_assignments'
+      `);
+      const mcRow = (mcResult as any).rows?.[0];
+      multiCatAssignments = mcRow?.value || {};
+    } catch {}
+
     const productsMap = new Map<string, {
       genericName: string;
       groupName: string | null;
+      categories: string[];
       tags: string[];
       breveResena: string | null;
       descripcion: string | null;
@@ -11652,9 +11667,14 @@ export function registerRoutes(app: Express): Server {
       let rowTags: string[] = [];
       try { rowTags = JSON.parse(row.tags || '[]'); } catch { rowTags = []; }
 
+      // Use multi-category assignments if available, otherwise fallback to groupName
+      const assignedCategories = multiCatAssignments[genericName] || (groupName ? [groupName] : []);
+
       if (!productsMap.has(genericName)) {
         productsMap.set(genericName, { 
-          genericName, groupName, tags: rowTags, 
+          genericName, groupName: assignedCategories[0] || groupName, 
+          categories: assignedCategories,
+          tags: rowTags, 
           breveResena: (row as any).breve_resena || null, 
           descripcion: (row as any).descripcion || null,
           usos: (row as any).usos || null,
@@ -11710,6 +11730,7 @@ export function registerRoutes(app: Express): Server {
     let catalog = Array.from(productsMap.values()).map(p => ({
       genericName: p.genericName,
       groupName: p.groupName,
+      categories: p.categories,
       tags: p.tags,
       breveResena: p.breveResena,
       descripcion: p.descripcion,
@@ -11787,7 +11808,11 @@ export function registerRoutes(app: Express): Server {
 
       // Filter by category first
       if (category && category !== 'all') {
-        filtered = filtered.filter(p => p.groupName === category);
+        filtered = filtered.filter((p: any) => {
+          // Check multi-category assignments first, then fallback to groupName
+          const cats: string[] = p.categories || (p.groupName ? [p.groupName] : []);
+          return cats.includes(category as string);
+        });
       }
 
       // Filter by search text sequentially

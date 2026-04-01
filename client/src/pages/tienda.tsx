@@ -134,6 +134,18 @@ interface StoreFormatVariant {
   stepSize: number;
   description: string | null;
   imageUrl?: string | null;
+  dimensions?: {
+    weight?: string | null; weightUnit?: string | null;
+    length?: string | null; lengthUnit?: string | null;
+    width?: string | null; widthUnit?: string | null;
+    height?: string | null; heightUnit?: string | null;
+    volume?: string | null; volumeUnit?: string | null;
+  };
+  packaging?: {
+    packageName?: string | null; packageUnit?: string | null; amountPerPackage?: number | null;
+    boxName?: string | null; boxUnit?: string | null; amountPerBox?: number | null;
+    palletName?: string | null; palletUnit?: string | null; amountPerPallet?: number | null;
+  };
 }
 
 interface StoreGenericProduct {
@@ -232,6 +244,8 @@ export default function TiendaPage() {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<StoreProduct | null>(null);
   const [showProductDialog, setShowProductDialog] = useState(false);
+  const [showGroupedDetailDialog, setShowGroupedDetailDialog] = useState(false);
+  const [groupedDetailProduct, setGroupedDetailProduct] = useState<{ product: StoreGenericProduct; variant: StoreFormatVariant } | null>(null);
 
   const [showCategoriesDropdown, setShowCategoriesDropdown] = useState(false);
   
@@ -510,19 +524,29 @@ export default function TiendaPage() {
     return catalog;
   }, [groupedData, selectedTag]);
 
-  // Derive available tags from the full catalog (not filtered)
-  const availableTags: { name: string; count: number }[] = useMemo(() => {
+  // Fetch admin-defined active tags
+  const { data: adminTags = [] } = useQuery<{ name: string; color: string }[]>({
+    queryKey: ['/api/store/tags'],
+    staleTime: 300_000,
+  });
+
+  // Derive available tags from the full catalog, filtered to only admin-defined tags
+  const availableTags: { name: string; count: number; color: string }[] = useMemo(() => {
+    const adminTagNames = new Set(adminTags.map((t: any) => t.name));
+    const adminTagColors = new Map(adminTags.map((t: any) => [t.name, t.color]));
     const allProducts = groupedData?.catalog || [];
     const tagMap = new Map<string, number>();
     allProducts.forEach(p => {
       (p.tags || []).forEach(tag => {
-        tagMap.set(tag, (tagMap.get(tag) || 0) + 1);
+        if (adminTagNames.has(tag)) { // Only count tags that exist in admin panel
+          tagMap.set(tag, (tagMap.get(tag) || 0) + 1);
+        }
       });
     });
     return Array.from(tagMap.entries())
-      .map(([name, count]) => ({ name, count }))
+      .map(([name, count]) => ({ name, count, color: adminTagColors.get(name) || 'gray' }))
       .sort((a, b) => b.count - a.count);
-  }, [groupedData]);
+  }, [groupedData, adminTags]);
 
   // Fetch store categories
   const { data: categories = [] } = useQuery<string[]>({
@@ -1184,18 +1208,23 @@ export default function TiendaPage() {
                   </DropdownMenu>
                 </div>
 
-                <div className="flex items-center gap-2.5 overflow-x-auto scrollbar-hide flex-1 py-1 pl-1">
-                  {/* Tags row for mobile - Restore scrollable tags */}
-                  {availableTags.map(({ name, count }) => {
+                <div className="flex flex-wrap items-center gap-2 flex-1 py-1 pl-1">
+                  {/* Tags row for mobile - full width wrap */}
+                  {availableTags.map(({ name, count, color: tagColor }) => {
                     const isActive = selectedTag === name;
-                    const colors: Record<string, { bg: string; text: string; activeBg: string; activeText: string }> = {
-                      'Producto Destacado': { bg: 'bg-violet-50 border-violet-200', text: 'text-violet-700', activeBg: 'bg-violet-500 border-violet-500', activeText: 'text-white' },
-                      'Mejor Precio': { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', activeBg: 'bg-emerald-500 border-emerald-500', activeText: 'text-white' },
-                      'Rápida Rotación': { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', activeBg: 'bg-blue-500 border-blue-500', activeText: 'text-white' },
-                      'Pocas Unidades': { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', activeBg: 'bg-amber-500 border-amber-500', activeText: 'text-white' },
-                      'Oferta': { bg: 'bg-rose-50 border-rose-200', text: 'text-rose-700', activeBg: 'bg-rose-500 border-rose-500', activeText: 'text-white' },
+                    const TAG_UI_COLORS: Record<string, { bg: string; text: string; activeBg: string; activeText: string }> = {
+                      green: { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', activeBg: 'bg-emerald-500 border-emerald-500', activeText: 'text-white' },
+                      blue: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', activeBg: 'bg-blue-500 border-blue-500', activeText: 'text-white' },
+                      amber: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', activeBg: 'bg-amber-500 border-amber-500', activeText: 'text-white' },
+                      red: { bg: 'bg-rose-50 border-rose-200', text: 'text-rose-700', activeBg: 'bg-rose-500 border-rose-500', activeText: 'text-white' },
+                      purple: { bg: 'bg-violet-50 border-violet-200', text: 'text-violet-700', activeBg: 'bg-violet-500 border-violet-500', activeText: 'text-white' },
+                      pink: { bg: 'bg-pink-50 border-pink-200', text: 'text-pink-700', activeBg: 'bg-pink-500 border-pink-500', activeText: 'text-white' },
+                      cyan: { bg: 'bg-cyan-50 border-cyan-200', text: 'text-cyan-700', activeBg: 'bg-cyan-500 border-cyan-500', activeText: 'text-white' },
+                      orange: { bg: 'bg-orange-50 border-orange-200', text: 'text-orange-700', activeBg: 'bg-orange-500 border-orange-500', activeText: 'text-white' },
+                      indigo: { bg: 'bg-indigo-50 border-indigo-200', text: 'text-indigo-700', activeBg: 'bg-indigo-500 border-indigo-500', activeText: 'text-white' },
+                      teal: { bg: 'bg-teal-50 border-teal-200', text: 'text-teal-700', activeBg: 'bg-teal-500 border-teal-500', activeText: 'text-white' },
                     };
-                    const c = colors[name] || { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-700', activeBg: 'bg-gray-600 border-gray-600', activeText: 'text-white' };
+                    const c = TAG_UI_COLORS[tagColor] || TAG_UI_COLORS['gray'] || { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-700', activeBg: 'bg-gray-600 border-gray-600', activeText: 'text-white' };
                     
                     return (
                       <button
@@ -1208,25 +1237,26 @@ export default function TiendaPage() {
                             setSelectedCategory('all');
                           }
                         }}
-                        className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all whitespace-nowrap flex-shrink-0 border flex items-center gap-1.5 ${
+                        className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border flex items-center gap-1.5 ${
                           isActive ? c.activeBg + ' ' + c.activeText : c.bg + ' ' + c.text
                         } hover:shadow-sm`}
                         data-testid={`filter-tag-mobile-${name}`}
                       >
                         <Tag className="h-3 w-3" />
                         {name}
+                        <span className={`text-[9px] px-1 rounded-full ${isActive ? 'bg-white/20' : 'bg-gray-200/50'}`}>{count}</span>
                       </button>
                     );
                   })}
                 </div>
               </>
             ) : (
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+              <div className="flex flex-wrap items-center gap-2">
                 <>
                   {/* "Todos" button */}
                   <button
                     onClick={() => { setSelectedCategory('all'); setSelectedTag(null); }}
-                    className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all whitespace-nowrap flex-shrink-0 border ${
+                    className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all whitespace-nowrap border ${
                       selectedCategory === 'all' && !selectedTag
                         ? 'bg-gray-900 text-white border-gray-900 shadow-sm'
                         : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
@@ -1246,7 +1276,7 @@ export default function TiendaPage() {
                           setSelectedCategory(isActive ? 'all' : category);
                           setSelectedTag(null);
                         }}
-                        className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all whitespace-nowrap flex-shrink-0 border ${
+                        className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all whitespace-nowrap border ${
                           isActive
                             ? 'bg-[#FF6E23] text-white border-[#FF6E23] shadow-sm'
                             : 'bg-white text-gray-500 border-gray-200 hover:border-orange-200 hover:text-[#FF6E23] hover:bg-orange-50'
@@ -1259,22 +1289,27 @@ export default function TiendaPage() {
                   })}
                 </>
 
-                {/* Divider if tags exist and not on mobile (tags handled in dropdown on mobile) */}
+                {/* Divider if tags exist */}
                 {availableTags.length > 0 && (
-                  <div className="h-5 w-px bg-gray-200 flex-shrink-0 mx-2" />
+                  <div className="h-5 w-px bg-gray-200 mx-1" />
                 )}
 
-                {/* Tags - only visible on desktop branch */}
-                {availableTags.map(({ name, count }) => {
+                {/* Tags - with admin-defined colors */}
+                {availableTags.map(({ name, count, color: tagColor }) => {
                   const isActive = selectedTag === name;
-                  const colors: Record<string, { bg: string; text: string; activeBg: string; activeText: string }> = {
-                    'Producto Destacado': { bg: 'bg-violet-50 border-violet-200', text: 'text-violet-700', activeBg: 'bg-violet-500 border-violet-500', activeText: 'text-white' },
-                    'Mejor Precio': { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', activeBg: 'bg-emerald-500 border-emerald-500', activeText: 'text-white' },
-                    'Rápida Rotación': { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', activeBg: 'bg-blue-500 border-blue-500', activeText: 'text-white' },
-                    'Pocas Unidades': { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', activeBg: 'bg-amber-500 border-amber-500', activeText: 'text-white' },
-                    'Oferta': { bg: 'bg-rose-50 border-rose-200', text: 'text-rose-700', activeBg: 'bg-rose-500 border-rose-500', activeText: 'text-white' },
+                  const TAG_UI_COLORS: Record<string, { bg: string; text: string; activeBg: string; activeText: string }> = {
+                    green: { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', activeBg: 'bg-emerald-500 border-emerald-500', activeText: 'text-white' },
+                    blue: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', activeBg: 'bg-blue-500 border-blue-500', activeText: 'text-white' },
+                    amber: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', activeBg: 'bg-amber-500 border-amber-500', activeText: 'text-white' },
+                    red: { bg: 'bg-rose-50 border-rose-200', text: 'text-rose-700', activeBg: 'bg-rose-500 border-rose-500', activeText: 'text-white' },
+                    purple: { bg: 'bg-violet-50 border-violet-200', text: 'text-violet-700', activeBg: 'bg-violet-500 border-violet-500', activeText: 'text-white' },
+                    pink: { bg: 'bg-pink-50 border-pink-200', text: 'text-pink-700', activeBg: 'bg-pink-500 border-pink-500', activeText: 'text-white' },
+                    cyan: { bg: 'bg-cyan-50 border-cyan-200', text: 'text-cyan-700', activeBg: 'bg-cyan-500 border-cyan-500', activeText: 'text-white' },
+                    orange: { bg: 'bg-orange-50 border-orange-200', text: 'text-orange-700', activeBg: 'bg-orange-500 border-orange-500', activeText: 'text-white' },
+                    indigo: { bg: 'bg-indigo-50 border-indigo-200', text: 'text-indigo-700', activeBg: 'bg-indigo-500 border-indigo-500', activeText: 'text-white' },
+                    teal: { bg: 'bg-teal-50 border-teal-200', text: 'text-teal-700', activeBg: 'bg-teal-500 border-teal-500', activeText: 'text-white' },
                   };
-                  const c = colors[name] || { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-700', activeBg: 'bg-gray-600 border-gray-600', activeText: 'text-white' };
+                  const c = TAG_UI_COLORS[tagColor] || TAG_UI_COLORS['gray'] || { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-700', activeBg: 'bg-gray-600 border-gray-600', activeText: 'text-white' };
                   
                   return (
                     <button
@@ -1288,7 +1323,7 @@ export default function TiendaPage() {
                           setSelectedCategory('all');
                         }
                       }}
-                      className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all whitespace-nowrap flex-shrink-0 border flex items-center gap-1.5 ${
+                      className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all whitespace-nowrap border flex items-center gap-1.5 ${
                         isActive ? c.activeBg + ' ' + c.activeText : c.bg + ' ' + c.text
                       } hover:shadow-sm`}
                       data-testid={`filter-tag-${name}`}
@@ -1376,18 +1411,22 @@ export default function TiendaPage() {
                             </div>
                           )}
                           {/* Tags overlay */}
-                          {(product.tags || []).length > 0 && (
+                          {(product.tags || []).filter(t => adminTags.some((at: any) => at.name === t)).length > 0 && (
                             <div className="absolute top-1 left-1 sm:top-2 sm:left-2 flex flex-col gap-1.5">
-                              {(product.tags || []).slice(0, 2).map(tag => (
-                                <span key={tag} className={`text-[8px] sm:text-[9px] px-1.5 sm:px-2 py-0.5 rounded-md font-bold whitespace-nowrap backdrop-blur-sm ${
-                                  tag === 'Mejor Precio' ? 'bg-emerald-500/90 text-white' :
-                                  tag === 'Rápida Rotación' ? 'bg-blue-500/90 text-white' :
-                                  tag === 'Pocas Unidades' ? 'bg-amber-500/90 text-white' :
-                                  'bg-gray-600/90 text-white'
-                                }`}>
-                                  {tag}
-                                </span>
-                              ))}
+                              {(product.tags || []).filter(t => adminTags.some((at: any) => at.name === t)).slice(0, 2).map(tag => {
+                                const tagDef = adminTags.find((at: any) => at.name === tag);
+                                const TAG_BG: Record<string, string> = {
+                                  green: 'bg-emerald-500/90', blue: 'bg-blue-500/90', amber: 'bg-amber-500/90',
+                                  red: 'bg-rose-500/90', purple: 'bg-violet-500/90', pink: 'bg-pink-500/90',
+                                  cyan: 'bg-cyan-500/90', orange: 'bg-orange-500/90', indigo: 'bg-indigo-500/90', teal: 'bg-teal-500/90',
+                                };
+                                const bgClass = TAG_BG[tagDef?.color || 'gray'] || 'bg-gray-600/90';
+                                return (
+                                  <span key={tag} className={`text-[8px] sm:text-[9px] px-1.5 sm:px-2 py-0.5 rounded-md font-bold whitespace-nowrap backdrop-blur-sm ${bgClass} text-white`}>
+                                    {tag}
+                                  </span>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
@@ -1444,18 +1483,22 @@ export default function TiendaPage() {
                         <h3 className="text-sm font-bold uppercase text-[#FF6E23] flex-1 min-w-0 truncate">
                           {product.genericName}
                         </h3>
-                        {(product.tags || []).length > 0 && (
+                        {(product.tags || []).filter(t => adminTags.some((at: any) => at.name === t)).length > 0 && (
                           <div className="flex items-center gap-1">
-                            {(product.tags || []).slice(0, 2).map(tag => (
-                              <span key={tag} className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                                tag === 'Mejor Precio' ? 'bg-emerald-500 text-white' :
-                                tag === 'Rápida Rotación' ? 'bg-blue-500 text-white' :
-                                tag === 'Pocas Unidades' ? 'bg-amber-500 text-white' :
-                                'bg-gray-500 text-white'
-                              }`}>
-                                {tag}
-                              </span>
-                            ))}
+                            {(product.tags || []).filter(t => adminTags.some((at: any) => at.name === t)).slice(0, 2).map(tag => {
+                              const tagDef = adminTags.find((at: any) => at.name === tag);
+                              const TAG_BG: Record<string, string> = {
+                                green: 'bg-emerald-500', blue: 'bg-blue-500', amber: 'bg-amber-500',
+                                red: 'bg-rose-500', purple: 'bg-violet-500', pink: 'bg-pink-500',
+                                cyan: 'bg-cyan-500', orange: 'bg-orange-500', indigo: 'bg-indigo-500', teal: 'bg-teal-500',
+                              };
+                              const bgClass = TAG_BG[tagDef?.color || 'gray'] || 'bg-gray-500';
+                              return (
+                                <span key={tag} className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${bgClass} text-white`}>
+                                  {tag}
+                                </span>
+                              );
+                            })}
                           </div>
                         )}
                         <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -1642,21 +1685,35 @@ export default function TiendaPage() {
                           </div>
                           
                           {/* Bottom Action Bar */}
-                          <div className="bg-white border-t border-gray-100 p-4 sticky bottom-0 z-10 flex items-center justify-between md:justify-end gap-5 shadow-[0_-4px_20px_rgba(0,0,0,0.02)]">
+                          <div className="bg-white border-t border-gray-100 p-4 sticky bottom-0 z-10 flex items-center justify-between gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.02)]">
                             <div className="flex flex-col">
                               <span className="text-[10px] font-semibold text-gray-400 uppercase">Subtotal Formato</span>
                               <span className="text-lg font-black text-gray-900">{formatPrice(formatTotal)}</span>
                             </div>
                             
-                            <button
-                              className="h-11 px-6 rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white transition-all duration-300 font-bold text-sm flex items-center gap-2 shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:shadow-orange-500/20 group"
-                              onClick={(e) => { e.stopPropagation(); addBulkVariantsToCart(variantsForFormat, product.genericName); }}
-                              disabled={formatTotal === 0}
-                            >
-                              <ShoppingCart className="h-4 w-4 transition-transform duration-300 group-hover:scale-110" />
-                              <span className="hidden sm:inline">Añadir al Carrito</span>
-                              <span className="sm:hidden">Añadir</span>
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                className="h-11 px-4 rounded-xl border-2 border-[#FF6E23] text-[#FF6E23] hover:bg-[#FF6E23]/5 transition-all duration-300 font-bold text-sm flex items-center gap-2"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setGroupedDetailProduct({ product, variant: activeFormatData || variantsForFormat[0] });
+                                  setShowGroupedDetailDialog(true);
+                                }}
+                              >
+                                <Info className="h-4 w-4" />
+                                <span className="hidden sm:inline">Ver Detalles</span>
+                              </button>
+                              
+                              <button
+                                className="h-11 px-6 rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white transition-all duration-300 font-bold text-sm flex items-center gap-2 shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:shadow-orange-500/20 group"
+                                onClick={(e) => { e.stopPropagation(); addBulkVariantsToCart(variantsForFormat, product.genericName); }}
+                                disabled={formatTotal === 0}
+                              >
+                                <ShoppingCart className="h-4 w-4 transition-transform duration-300 group-hover:scale-110" />
+                                <span className="hidden sm:inline">Añadir al Carrito</span>
+                                <span className="sm:hidden">Añadir</span>
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );
@@ -1668,6 +1725,156 @@ export default function TiendaPage() {
           </div>
         )}
       </section>
+      {/* Grouped Product Detail Dialog */}
+      <Dialog open={showGroupedDetailDialog} onOpenChange={setShowGroupedDetailDialog}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0">
+          {groupedDetailProduct && (() => {
+            const { product: gp, variant: gv } = groupedDetailProduct;
+            const firstVariant = Object.values(gp.colors).flat()[0];
+            const desc = firstVariant?.description || gp.breveResena;
+            const dims = firstVariant?.dimensions;
+            const pkg = firstVariant?.packaging;
+            
+            return (
+              <>
+                <DialogHeader className="p-6 pb-0">
+                  <DialogTitle className="text-2xl font-black text-gray-900">{gp.genericName}</DialogTitle>
+                  {gp.groupName && (
+                    <Badge className="w-fit mt-1 bg-[#FF6E23]/10 text-[#FF6E23] border-[#FF6E23]/20 font-semibold text-xs">{gp.groupName}</Badge>
+                  )}
+                </DialogHeader>
+                
+                <div className="p-6 space-y-6">
+                  {/* Image + Price Row */}
+                  <div className="flex flex-col md:flex-row gap-6">
+                    <div className="w-full md:w-64 flex-shrink-0">
+                      <div className="aspect-square rounded-2xl overflow-hidden bg-gray-50 border border-gray-100 p-6 flex items-center justify-center">
+                        {gp.imageUrl ? (
+                          <img src={gp.imageUrl} alt={gp.genericName} className="max-w-full max-h-full object-contain" />
+                        ) : (
+                          <ImageIcon className="w-16 h-16 text-gray-200" />
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex-1 space-y-4">
+                      {/* Price */}
+                      {gv.price && gv.price > 0 && (
+                        <div className="bg-gradient-to-r from-[#FF6E23]/5 to-orange-50 rounded-xl p-5 border border-[#FF6E23]/10">
+                          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Precio referencial</span>
+                          <div className="text-3xl font-black text-[#FF6E23] mt-1">
+                            {formatPrice(gv.price)}
+                            <span className="text-sm font-normal text-gray-500 ml-2">/ {gv.format}</span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Quick Info */}
+                      <div className="grid grid-cols-2 gap-3">
+                        {gv.format && (
+                          <div className="bg-gray-50 rounded-lg p-3">
+                            <span className="text-[10px] font-semibold text-gray-400 uppercase">Formato</span>
+                            <p className="text-sm font-bold text-gray-800 mt-0.5">{gv.format}</p>
+                          </div>
+                        )}
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <span className="text-[10px] font-semibold text-gray-400 uppercase">Colores</span>
+                          <p className="text-sm font-bold text-gray-800 mt-0.5">{Object.keys(gp.colors).length} disponible{Object.keys(gp.colors).length !== 1 ? 's' : ''}</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <span className="text-[10px] font-semibold text-gray-400 uppercase">Código</span>
+                          <p className="text-sm font-bold text-gray-800 mt-0.5 font-mono">{gv.sku}</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <span className="text-[10px] font-semibold text-gray-400 uppercase">Marca</span>
+                          <p className="text-sm font-bold text-gray-800 mt-0.5">Pinturas Panorámica</p>
+                        </div>
+                      </div>
+                      
+                      {/* Tags */}
+                      {gp.tags && gp.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {gp.tags.map((tag, i) => (
+                            <Badge key={i} variant="secondary" className="text-xs bg-gray-100 text-gray-600">{tag}</Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Description */}
+                  {desc && (
+                    <div className="border-t border-gray-100 pt-5">
+                      <h4 className="text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-[#FF6E23]" /> Descripción
+                      </h4>
+                      <p className="text-sm text-gray-600 leading-relaxed">{desc}</p>
+                    </div>
+                  )}
+                  
+                  {/* Dimensions */}
+                  {dims && (dims.weight || dims.length || dims.volume) && (
+                    <div className="border-t border-gray-100 pt-5">
+                      <h4 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                        <Ruler className="w-4 h-4 text-[#FF6E23]" /> Dimensiones y Peso
+                      </h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {dims.weight && (
+                          <div className="bg-blue-50/50 rounded-lg p-3 border border-blue-100/50">
+                            <span className="text-[10px] font-semibold text-blue-400 uppercase">Peso</span>
+                            <p className="text-sm font-bold text-gray-800 mt-0.5">{dims.weight} {dims.weightUnit || 'kg'}</p>
+                          </div>
+                        )}
+                        {dims.length && dims.width && dims.height && (
+                          <div className="bg-blue-50/50 rounded-lg p-3 border border-blue-100/50">
+                            <span className="text-[10px] font-semibold text-blue-400 uppercase">Medidas (L×A×H)</span>
+                            <p className="text-sm font-bold text-gray-800 mt-0.5">{dims.length}×{dims.width}×{dims.height} {dims.lengthUnit || 'cm'}</p>
+                          </div>
+                        )}
+                        {dims.volume && (
+                          <div className="bg-blue-50/50 rounded-lg p-3 border border-blue-100/50">
+                            <span className="text-[10px] font-semibold text-blue-400 uppercase">Volumen</span>
+                            <p className="text-sm font-bold text-gray-800 mt-0.5">{dims.volume} {dims.volumeUnit || 'cm³'}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Packaging */}
+                  {pkg && (pkg.packageName || pkg.boxName || pkg.palletName) && (
+                    <div className="border-t border-gray-100 pt-5">
+                      <h4 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                        <Package className="w-4 h-4 text-[#FF6E23]" /> Empaque y Embalaje
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {pkg.packageName && (
+                          <div className="bg-emerald-50/50 rounded-lg p-3 border border-emerald-100/50">
+                            <span className="text-[10px] font-semibold text-emerald-500 uppercase">{pkg.packageName}</span>
+                            <p className="text-sm font-bold text-gray-800 mt-0.5">{pkg.amountPerPackage} {pkg.amountPerPackage === 1 ? 'unidad' : 'unidades'}</p>
+                          </div>
+                        )}
+                        {pkg.boxName && (
+                          <div className="bg-emerald-50/50 rounded-lg p-3 border border-emerald-100/50">
+                            <span className="text-[10px] font-semibold text-emerald-500 uppercase">{pkg.boxName}</span>
+                            <p className="text-sm font-bold text-gray-800 mt-0.5">{pkg.amountPerBox} unidades</p>
+                          </div>
+                        )}
+                        {pkg.palletName && (
+                          <div className="bg-emerald-50/50 rounded-lg p-3 border border-emerald-100/50">
+                            <span className="text-[10px] font-semibold text-emerald-500 uppercase">{pkg.palletName}</span>
+                            <p className="text-sm font-bold text-gray-800 mt-0.5">{pkg.amountPerPallet} unidades</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
       {/* Product Detail Dialog */}
       <Dialog open={showProductDialog} onOpenChange={setShowProductDialog}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
