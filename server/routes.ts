@@ -6278,36 +6278,53 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/warehouses', requireCommercialAccess, async (req: any, res) => {
     try {
       const user = req.user;
-      // Allow any user with commercial access to create a manual warehouse
-
       const { name, location } = req.body;
       if (!name) {
         return res.status(400).json({ message: "Nombre de bodega es requerido" });
       }
 
       const { db } = await import('./db');
-      const { warehouses } = await import('@shared/schema');
+      const { sql } = await import('drizzle-orm');
       const crypto = await import('crypto');
       
-      // Generate truly unique codes to avoid unique constraint on (kobo, kosu)
       const uniqueId = crypto.randomUUID().slice(0, 8);
       const newKobo = `MNL-${uniqueId}`;
       const newKosu = `RET-${uniqueId}`;
+      const loc = location || null;
       
-      const [newWarehouse] = await db.insert(warehouses).values({
-        kobo: newKobo,
-        kosu: newKosu,
-        name,
-        branchName: name,
-        location: location || null,
-        isManual: true,
-        active: true
-      }).returning();
+      // Use raw SQL to be resilient against schema column mismatches
+      const result = await db.execute(sql`
+        INSERT INTO warehouses (id, kobo, kosu, name, branch_name, location, active, is_manual, created_at, updated_at)
+        VALUES (gen_random_uuid(), ${newKobo}, ${newKosu}, ${name}, ${name}, ${loc}, true, true, NOW(), NOW())
+        RETURNING *
+      `);
       
+      const newWarehouse = (result as any).rows?.[0] || (result as any)[0];
       res.status(201).json(newWarehouse);
     } catch (error: any) {
       console.error("Error creating warehouse:", error);
-      res.status(500).json({ message: "Error al crear bodega", detail: error?.message || 'Unknown error' });
+      // If is_manual column doesn't exist, try without it
+      try {
+        const { db } = await import('./db');
+        const { sql } = await import('drizzle-orm');
+        const crypto = await import('crypto');
+        const { name, location } = req.body;
+        const uniqueId = crypto.randomUUID().slice(0, 8);
+        const newKobo = `MNL2-${uniqueId}`;
+        const newKosu = `RET2-${uniqueId}`;
+        const loc = location || null;
+        
+        const result = await db.execute(sql`
+          INSERT INTO warehouses (id, kobo, kosu, name, branch_name, location, active, created_at, updated_at)
+          VALUES (gen_random_uuid(), ${newKobo}, ${newKosu}, ${name}, ${name}, ${loc}, true, NOW(), NOW())
+          RETURNING *
+        `);
+        const newWarehouse = (result as any).rows?.[0] || (result as any)[0];
+        return res.status(201).json(newWarehouse);
+      } catch (fallbackErr: any) {
+        console.error("Fallback warehouse creation also failed:", fallbackErr);
+        return res.status(500).json({ message: "Error al crear bodega", detail: fallbackErr?.message || error?.message || 'Unknown' });
+      }
     }
   });
 
@@ -6613,53 +6630,67 @@ export function registerRoutes(app: Express): Server {
       const orderData = validationResult.data;
       const clientId = req.user.id;
 
-      // Get client details to find assigned salesperson
-      const client = await storage.getClientByUserId(clientId);
+      // Get client details to find assigned salesperson (non-blocking)
+      let client: any = null;
+      try {
+        client = await storage.getClientByUserId(clientId);
+      } catch (clientErr) {
+        console.warn('Warning: Could not fetch client details, proceeding without:', clientErr);
+      }
 
       // Prepare order data with client and salesperson info
-      const orderToCreate = {
-        ...orderData,
-        subtotal: orderData.subtotal.toString(),
-        tax: orderData.tax.toString(),
-        total: orderData.total.toString(),
+      const orderToCreate: any = {
+        items: orderData.items,
+        subtotal: String(orderData.subtotal),
+        tax: String(orderData.tax),
+        total: String(orderData.total),
         clientId,
-        clientName: req.user.email || 'Cliente',
+        clientName: req.user.firstName ? `${req.user.firstName} ${req.user.lastName || ''}`.trim() : (req.user.email || 'Cliente'),
         clientEmail: req.user.email,
         assignedSalespersonId: client?.assignedSalespersonUserId || null,
-        assignedSalespersonName: null, // Will be populated if there's a salesperson
+        assignedSalespersonName: null,
         status: 'pending',
         paymentCondition: orderData.paymentCondition || client?.cpen || null,
+        notes: orderData.notes || null,
+        shippingAddress: orderData.shippingAddress || null,
       };
 
       // If there's an assigned salesperson, get their name
       if (client?.assignedSalespersonUserId) {
-        const salesperson = await storage.getUser(client.assignedSalespersonUserId);
-        if (salesperson) {
-          orderToCreate.assignedSalespersonName = salesperson.email || 'Vendedor';
+        try {
+          const salesperson = await storage.getUser(client.assignedSalespersonUserId);
+          if (salesperson) {
+            orderToCreate.assignedSalespersonName = salesperson.salespersonName || salesperson.email || 'Vendedor';
+          }
+        } catch (spErr) {
+          console.warn('Warning: Could not fetch salesperson details:', spErr);
         }
       }
 
       // Create the order
       const order = await storage.createEcommerceOrder(orderToCreate);
 
-      // Create notification for salesperson or admin
-      const notificationUserId = orderToCreate.assignedSalespersonId || await storage.getAdminUserId();
-
-      if (notificationUserId) {
-        await storage.createNotification({
-          userId: notificationUserId,
-          type: 'ecommerce_order',
-          title: 'Nuevo pedido de cliente',
-          message: `${orderToCreate.clientName} ha realizado un pedido por $${Number(orderData.total).toFixed(0)}`,
-          relatedOrderId: order.id,
-          read: false
-        });
+      // Create notification for salesperson or admin (non-blocking)
+      try {
+        const notificationUserId = orderToCreate.assignedSalespersonId || await storage.getAdminUserId();
+        if (notificationUserId) {
+          await storage.createNotification({
+            userId: notificationUserId,
+            type: 'ecommerce_order',
+            title: 'Nuevo pedido de cliente',
+            message: `${orderToCreate.clientName} ha realizado un pedido por $${Number(orderData.total).toFixed(0)}`,
+            relatedOrderId: order.id,
+            read: false
+          });
+        }
+      } catch (notifErr) {
+        console.warn('Warning: Notification creation failed, order was still created:', notifErr);
       }
 
       res.status(201).json(order);
     } catch (error: any) {
       console.error('Error creating client order:', error);
-      res.status(500).json({ message: 'Error al crear el pedido' });
+      res.status(500).json({ message: 'Error al crear el pedido', detail: error?.message || 'Unknown error' });
     }
   }));
 
