@@ -6589,8 +6589,6 @@ export function registerRoutes(app: Express): Server {
 
   // Create order from client (authenticated clients only)
   app.post('/api/ecommerce/orders/client', requireAuth, asyncHandler(async (req: any, res: any) => {
-    const { insertEcommerceOrderSchema } = await import('@shared/schema');
-
     // Validate user is authenticated
     if (!req.user || !req.user.id) {
       return res.status(401).json({ message: 'No autenticado' });
@@ -6598,7 +6596,6 @@ export function registerRoutes(app: Express): Server {
 
     try {
       // Validate request body - use relaxed schema without server-populated fields
-      const { z } = await import('zod');
       const clientOrderSchema = z.object({
         items: z.array(z.object({
           productId: z.string().optional(),
