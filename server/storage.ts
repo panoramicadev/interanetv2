@@ -21209,8 +21209,10 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (filters?.fechaHasta) {
+      const targetDate = new Date(filters.fechaHasta);
+      targetDate.setUTCHours(23, 59, 59, 999);
       conditions.push(
-        sql`${gastosEmpresariales.createdAt} <= ${new Date(filters.fechaHasta)}`
+        sql`${gastosEmpresariales.createdAt} <= ${targetDate}`
       );
     }
 
