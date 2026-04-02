@@ -6289,9 +6289,7 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Nombre de bodega es requerido" });
       }
 
-      const { db } = await import('./db');
-      const { warehouses } = await import('@shared/schema');
-      const crypto = await import('crypto');
+      const crypto = require('crypto');
       
       const uniqueId = crypto.randomUUID().slice(0, 8);
       const newKobo = `MNL-${uniqueId}`;
@@ -6334,10 +6332,6 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
       // Allow any user with commercial access to update a manual warehouse
 
-      const { db } = await import('./db');
-      const { warehouses } = await import('@shared/schema');
-      const { eq } = await import('drizzle-orm');
-      
       const [warehouse] = await db.select().from(warehouses).where(eq(warehouses.id, id));
       if (!warehouse) {
         return res.status(404).json({ message: "Bodega no encontrada" });
