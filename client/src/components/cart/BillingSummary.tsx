@@ -101,8 +101,8 @@ export default function BillingSummary() {
     staleTime: 300_000,
   });
 
-  // Fetch client data to get addresses and payment condition
-  const { data: clientData } = useQuery<{ dien?: string; cmen?: string; comuna?: string; cpen?: string }>({
+  // Fetch client data to get addresses, payment condition and credit info
+  const { data: clientData } = useQuery<{ dien?: string; cmen?: string; comuna?: string; cpen?: string; crlt?: string; cren?: string; crsd?: string }>({
     queryKey: ['/api/clients/by-user', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
@@ -579,7 +579,7 @@ export default function BillingSummary() {
               Método de Pago
             </Label>
             {isCredit ? (
-              <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
+              <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 border border-blue-200 dark:border-blue-800 space-y-3">
                 <div className="flex items-center gap-2">
                   <CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                   <span className="text-sm font-semibold text-blue-800 dark:text-blue-200">Crédito</span>
@@ -587,7 +587,56 @@ export default function BillingSummary() {
                     {clientData.cpen}
                   </Badge>
                 </div>
-                <p className="text-xs text-blue-600/80 dark:text-blue-400/80 mt-1">
+
+                {/* Credit Balance Breakdown */}
+                {(clientData.crlt || clientData.cren) && (
+                  <div className="bg-white/60 dark:bg-blue-900/30 rounded-lg p-2.5 space-y-1.5 border border-blue-100 dark:border-blue-800">
+                    {clientData.crlt && (
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-blue-600/70 dark:text-blue-400/70">Límite de crédito</span>
+                        <span className="font-semibold text-blue-800 dark:text-blue-200">{formatPrice(Number(clientData.crlt))}</span>
+                      </div>
+                    )}
+                    {clientData.cren && (
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-blue-600/70 dark:text-blue-400/70">Disponible actual</span>
+                        <span className="font-semibold text-blue-800 dark:text-blue-200">{formatPrice(Number(clientData.cren))}</span>
+                      </div>
+                    )}
+                    <Separator className="bg-blue-200/50 dark:bg-blue-700/50" />
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-blue-600/70 dark:text-blue-400/70">Monto de esta compra</span>
+                      <span className="font-bold text-orange-600">-{formatPrice(total)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs pt-0.5">
+                      <span className="font-semibold text-blue-700 dark:text-blue-300">Saldo después de compra</span>
+                      {(() => {
+                        const available = Number(clientData.cren || clientData.crlt || 0);
+                        const remaining = available - total;
+                        return (
+                          <span className={`font-bold ${remaining >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {formatPrice(remaining)}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                    {(() => {
+                      const available = Number(clientData.cren || clientData.crlt || 0);
+                      const remaining = available - total;
+                      if (remaining < 0) {
+                        return (
+                          <div className="flex items-start gap-1.5 text-[10px] text-red-600 bg-red-50 dark:bg-red-950/30 p-1.5 rounded mt-1">
+                            <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                            <span>El monto de la compra excede tu crédito disponible. Contacta a tu ejecutivo comercial.</span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                )}
+
+                <p className="text-xs text-blue-600/80 dark:text-blue-400/80">
                   Tu pedido será facturado a crédito según la condición de pago acordada.
                 </p>
               </div>
@@ -864,10 +913,37 @@ export default function BillingSummary() {
                         {clientData?.cpen}
                       </Badge>
                     </div>
-                    <p className="text-blue-700/80 mt-2">
-                      Tu pedido será procesado y facturado bajo las condiciones de crédito acordadas con tu ejecutivo comercial.
-                    </p>
                   </div>
+
+                  {/* Credit Balance Summary in Confirmation */}
+                  {(clientData?.crlt || clientData?.cren) && (
+                    <div className="bg-white/80 rounded-lg p-3 space-y-1.5 border border-blue-100">
+                      {clientData.cren && (
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-slate-500">Crédito disponible</span>
+                          <span className="font-semibold text-blue-700">{formatPrice(Number(clientData.cren))}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-500">Monto de esta compra</span>
+                        <span className="font-bold text-orange-600">-{formatPrice(total)}</span>
+                      </div>
+                      <Separator className="bg-blue-200/50" />
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-semibold text-slate-700">Saldo después de compra</span>
+                        {(() => {
+                          const available = Number(clientData.cren || clientData.crlt || 0);
+                          const remaining = available - total;
+                          return (
+                            <span className={`font-bold text-sm ${remaining >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                              {formatPrice(remaining)}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex items-start gap-2 text-xs text-blue-700 bg-blue-100/50 p-2 rounded flex-shrink-0">
                     <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
                     <p>No necesitas subir comprobante de pago. La factura será emitida con plazo de pago según tu condición comercial.</p>
