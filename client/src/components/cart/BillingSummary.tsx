@@ -102,7 +102,7 @@ export default function BillingSummary() {
   });
 
   // Fetch client data to get addresses, payment condition and credit info
-  const { data: clientData } = useQuery<{ dien?: string; cmen?: string; comuna?: string; cpen?: string; crlt?: string; cren?: string; crsd?: string }>({
+  const { data: clientData } = useQuery<{ dien?: string; cmen?: string; comuna?: string; cpen?: string; crlt?: string; cren?: string; crsd?: string; pickupWarehouseId?: string }>({
     queryKey: ['/api/clients/by-user', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
@@ -132,6 +132,13 @@ export default function BillingSummary() {
       setSelectedAddressOption("custom");
     }
   }, [availableAddresses.length, selectedAddressOption]);
+
+  // Auto-select the client's assigned pickup warehouse
+  useEffect(() => {
+    if (clientData?.pickupWarehouseId && selectedWarehouseId === 'none') {
+      setSelectedWarehouseId(clientData.pickupWarehouseId);
+    }
+  }, [clientData?.pickupWarehouseId]);
 
   // Compute final shipping address based on selection
   const shippingAddress = selectedAddressOption === "custom" 
@@ -723,7 +730,9 @@ export default function BillingSummary() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Seleccionar bodega...</SelectItem>
-                {warehouses.map((w) => (
+                {warehouses
+                  .filter(w => !clientData?.pickupWarehouseId || w.id === clientData.pickupWarehouseId)
+                  .map((w) => (
                   <SelectItem key={w.id} value={w.id}>
                     <div className="flex flex-col">
                       <span className="font-medium">{w.name}</span>
