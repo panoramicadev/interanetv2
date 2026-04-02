@@ -632,11 +632,6 @@ export default function TiendaPage() {
     });
 
     if (addedCount > 0) {
-      toast({
-        title: "Productos agregados",
-        description: `Se agregaron ${variantsToAdd.length} colores (${addedCount} unds en total) al carrito`,
-        action: <Check className="h-4 w-4" />
-      });
       setShowFloatingCart(true);
       
       // Reset quantities for added variants
