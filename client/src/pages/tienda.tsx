@@ -1216,9 +1216,8 @@ export default function TiendaPage() {
                   </DropdownMenu>
                 </div>
 
-                {/* Tags row - single horizontal scrollable line */}
                 {availableTags.length > 0 && (
-                  <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-0.5">
+                  <div className="grid gap-2 py-0.5" style={{ gridTemplateColumns: `repeat(${Math.min(availableTags.length, 3)}, 1fr)` }}>
                     {availableTags.map(({ name, count, color: tagColor }) => {
                       const isActive = selectedTag === name;
                       const TAG_UI_COLORS: Record<string, { bg: string; text: string; activeBg: string; activeText: string }> = {
@@ -1246,14 +1245,13 @@ export default function TiendaPage() {
                               setSelectedCategory('all');
                             }
                           }}
-                          className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all whitespace-nowrap flex-shrink-0 border flex items-center gap-1.5 ${
+                          className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border flex items-center justify-center gap-1.5 ${
                             isActive ? c.activeBg + ' ' + c.activeText : c.bg + ' ' + c.text
                           } hover:shadow-sm`}
                           data-testid={`filter-tag-mobile-${name}`}
                         >
                           <Tag className="h-3 w-3" />
                           {name}
-                          <span className={`text-[9px] px-1 rounded-full ${isActive ? 'bg-white/20' : 'bg-gray-200/50'}`}>{count}</span>
                         </button>
                       );
                     })}
@@ -1340,7 +1338,6 @@ export default function TiendaPage() {
                     >
                       <Tag className="h-3 w-3" />
                       {name}
-                      <span className={`text-[9px] px-1 rounded-full ${isActive ? 'bg-white/20' : 'bg-gray-200/50 text-gray-500'}`}>{count}</span>
                     </button>
                   );
                 })}
