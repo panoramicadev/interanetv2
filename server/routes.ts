@@ -388,6 +388,7 @@ import bcrypt from "bcryptjs";
 import externalApiRouter from './routes-external';
 import { registerLogRoutes } from './routes-logs';
 import { warehouses, ecommerceOrders } from "@shared/schema";
+import crypto from "crypto";
 
 interface TokenPayload {
   userId: number;
@@ -6295,8 +6296,6 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Nombre de bodega es requerido" });
       }
 
-      const crypto = require('crypto');
-      
       const uniqueId = crypto.randomUUID().slice(0, 8);
       const newKobo = `MNL-${uniqueId}`;
       const newKosu = `RET-${uniqueId}`;
@@ -8089,7 +8088,6 @@ export function registerRoutes(app: Express): Server {
       return res.status(400).json({ message: 'No se proporcionó archivo CSV' });
     }
 
-    const Papa = require('papaparse');
     const csvContent = req.file.buffer.toString('utf-8');
     const parsed = Papa.parse(csvContent, { header: true, skipEmptyLines: true });
 
