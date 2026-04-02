@@ -392,9 +392,9 @@ export default function BillingSummary() {
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setDeliveryMethod('despacho')}
-              className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all ${
+              className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
                 deliveryMethod === 'despacho'
-                  ? 'border-[#FF6E23] bg-orange-50 text-[#FF6E23]'
+                  ? 'border-[#FF6E23] text-[#FF6E23] bg-white shadow-sm'
                   : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
               }`}
             >
@@ -403,9 +403,9 @@ export default function BillingSummary() {
             </button>
             <button
               onClick={() => setDeliveryMethod('retiro')}
-              className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all ${
+              className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
                 deliveryMethod === 'retiro'
-                  ? 'border-[#FF6E23] bg-orange-50 text-[#FF6E23]'
+                  ? 'border-[#FF6E23] text-[#FF6E23] bg-white shadow-sm'
                   : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
               }`}
             >
