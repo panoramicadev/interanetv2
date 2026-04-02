@@ -371,6 +371,7 @@ function WarehouseFilter({
     queryKey: ['/api/warehouses', selectedBranch],
     queryFn: async () => {
       const params = new URLSearchParams();
+      params.append('type', 'inventory');
       if (selectedBranch && selectedBranch !== 'all') {
         params.append('branch', selectedBranch);
       }

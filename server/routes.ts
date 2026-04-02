@@ -6265,7 +6265,17 @@ export function registerRoutes(app: Express): Server {
   // Get all warehouses (optionally filtered by branch)
   app.get('/api/warehouses', requireAuth, async (req: any, res) => {
     try {
-      const { branch } = req.query;
+      const { branch, type } = req.query;
+      
+      // If requested by ecommerce or no branch defined, fetch created warehouses
+      if (type === 'ecommerce' || (!branch && type !== 'inventory')) {
+        const { db } = await import('./db');
+        const { warehouses } = await import('@shared/schema');
+        const { eq } = await import('drizzle-orm');
+        const activeWarehouses = await db.select().from(warehouses).where(eq(warehouses.active, true));
+        return res.json(activeWarehouses);
+      }
+
       const warehouses = await storage.getWarehouses(branch as string);
       res.json(warehouses);
     } catch (error) {
@@ -6599,12 +6609,12 @@ export function registerRoutes(app: Express): Server {
           productName: z.string(),
           sku: z.string().optional(),
           quantity: z.number().positive(),
-          unitPrice: z.number().positive(),
-          totalPrice: z.number().positive(),
-        })),
+          unitPrice: z.number().nonnegative(),
+          totalPrice: z.number().nonnegative(),
+        }).passthrough()),
         subtotal: z.number().nonnegative(),
         tax: z.number().nonnegative(),
-        total: z.number().positive(),
+        total: z.number().nonnegative(),
         notes: z.string().optional().nullable(),
         shippingAddress: z.string().optional().nullable(),
         paymentCondition: z.string().optional().nullable(),

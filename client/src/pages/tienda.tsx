@@ -1266,12 +1266,12 @@ export default function TiendaPage() {
                               setSelectedCategory('all');
                             }
                           }}
-                          className={`px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border flex items-center justify-center gap-1.5 ${
+                          className={`px-2 py-1.5 rounded-full text-[9px] font-bold transition-all border flex items-center justify-center gap-1 whitespace-nowrap ${
                             isActive ? c.activeBg + ' ' + c.activeText : c.bg + ' ' + c.text
                           } hover:shadow-sm`}
                           data-testid={`filter-tag-mobile-${name}`}
                         >
-                          <Tag className="h-3 w-3" />
+                          <Tag className="h-2.5 w-2.5 flex-shrink-0" />
                           {name}
                         </button>
                       );

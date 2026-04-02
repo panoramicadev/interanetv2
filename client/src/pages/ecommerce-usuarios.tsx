@@ -108,7 +108,7 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
     queryKey: ["/api/warehouses"],
     queryFn: async () => {
       try {
-        const res = await apiRequest("GET", `/api/warehouses`);
+        const res = await apiRequest("GET", `/api/warehouses?type=ecommerce`);
         return await res.json();
       } catch {
         return [];

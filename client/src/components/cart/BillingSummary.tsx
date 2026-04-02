@@ -91,7 +91,7 @@ export default function BillingSummary() {
     queryKey: ['/api/warehouses'],
     queryFn: async () => {
       try {
-        const res = await fetch('/api/warehouses', { credentials: 'include' });
+        const res = await fetch('/api/warehouses?type=ecommerce', { credentials: 'include' });
         if (!res.ok) return [];
         return res.json();
       } catch {
@@ -279,7 +279,7 @@ export default function BillingSummary() {
           sku: item.productCode || item.productId,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          totalPrice: item.subtotal,
+          totalPrice: item.quantity * item.unitPrice,
           imageUrl: item.imageUrl || null,
           selectedColor: item.selectedColor || null,
           selectedPackaging: item.selectedPackaging || null,
@@ -370,7 +370,7 @@ export default function BillingSummary() {
   const total = state.total + effectiveShipping;
 
   // Determine payment instructions based on condition
-  const isCredit = clientData?.cpen?.toUpperCase().includes('CREDITO') || clientData?.cpen?.toUpperCase().includes('CRÉDITO');
+  const isCredit = clientData?.cpen?.toUpperCase().includes('CREDITO') || clientData?.cpen?.toUpperCase().includes('CRÉDITO') || (Number(clientData?.crlt) > 0);
   const requiresReceipt = !isCredit; // Default to expecting receipt if not credit
 
   return (
