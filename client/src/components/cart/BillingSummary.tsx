@@ -376,14 +376,14 @@ export default function BillingSummary() {
   return (
     <>
     <Card className="bg-white dark:bg-gray-800 shadow-sm border-gray-200 dark:border-gray-700">
-      <CardHeader className="pb-4">
+      <CardHeader className="pb-4 px-3 sm:px-6 pt-4 sm:pt-6">
         <CardTitle className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
           <Tag className="h-5 w-5" />
           Facturación
         </CardTitle>
       </CardHeader>
       
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6 px-3 sm:px-6 pb-4 sm:pb-6">
         {/* Delivery Method Toggle */}
         <div className="space-y-2">
           <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
