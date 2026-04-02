@@ -82,6 +82,8 @@ interface StoreBanner {
   colorTexto: string;
   linkUrl?: string;
   activo: boolean;
+  tipoVisualizacion?: string;
+  orden?: number;
 }
 
 interface StoreProduct {
@@ -477,9 +479,13 @@ export default function TiendaPage() {
     staleTime: 300_000, // 5 min
   });
 
+  // Split DB banners into hero and footer
+  const heroDbBanners = storeBanners.filter(b => b.tipoVisualizacion !== 'footer').sort((a: any, b: any) => (a.orden || 0) - (b.orden || 0)).map((b: any) => ({ src: b.imagenDesktop, alt: b.titulo, mobileSrc: b.imagenMobile, linkUrl: b.linkUrl }));
+  const footerBanners = storeBanners.filter(b => b.tipoVisualizacion === 'footer').sort((a: any, b: any) => (a.orden || 0) - (b.orden || 0)).map((b: any) => ({ src: b.imagenDesktop, alt: b.titulo, mobileSrc: b.imagenMobile, linkUrl: b.linkUrl }));
+
   // Use DB banners if available, otherwise fallback to hardcoded
-  const banners = storeBanners.length > 0
-    ? [...storeBanners].sort((a: any, b: any) => (a.orden || 0) - (b.orden || 0)).map((b: any) => ({ src: b.imagenDesktop, alt: b.titulo, mobileSrc: b.imagenMobile, linkUrl: b.linkUrl }))
+  const banners = heroDbBanners.length > 0
+    ? heroDbBanners
     : [
         { src: bannerCopper, alt: "Oferta del Mes - Esmalte Copper", mobileSrc: undefined, linkUrl: undefined },
         { src: bannerStain, alt: "Oferta del Mes - Stain Impregnante", mobileSrc: undefined, linkUrl: undefined },
@@ -2168,61 +2174,40 @@ export default function TiendaPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12 mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div>
-              <img 
-                src={storeConfig?.logoUrl || "/panoramica-logo.png"} 
-                alt="Panorámica"
-                className="h-12 mb-4"
-              />
-              <p className="text-gray-400 text-sm">
-                30 años de experiencia en pinturas y recubrimientos de calidad superior.
-              </p>
-            </div>
-            <div>
-              <h5 className="font-semibold mb-4">Productos</h5>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-white">Pinturas</a></li>
-                <li><a href="#" className="hover:text-white">Impermeabilizantes</a></li>
-                <li><a href="#" className="hover:text-white">Barnices</a></li>
-                <li><a href="#" className="hover:text-white">Accesorios</a></li>
-              </ul>
-            </div>
-            <div>
-              <h5 className="font-semibold mb-4">Empresa</h5>
-              <ul className="space-y-2 text-sm text-gray-400">
-                <li><a href="#" className="hover:text-white">Nosotros</a></li>
-                <li><a href="#" className="hover:text-white">Experiencia</a></li>
-                <li><a href="#" className="hover:text-white">Contacto</a></li>
-                <li><a href="#" className="hover:text-white">Sucursales</a></li>
-              </ul>
-            </div>
-            <div>
-              <h5 className="font-semibold mb-4">Contacto</h5>
-              <div className="space-y-2 text-sm text-gray-400">
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4" />
-                  <span>{storeConfig?.phone || "+56 2 2345 6789"}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  <span>{storeConfig?.email || "contacto@panoramica.cl"}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  <span>{storeConfig?.address || "Santiago, Chile"}</span>
-                </div>
+      {/* Footer Banners */}
+      {footerBanners.length > 0 && (
+        <footer className="w-full mt-16 bg-gray-50 border-t border-gray-200">
+          <div className="flex flex-col w-full">
+            {footerBanners.map((banner, index) => (
+              <div 
+                key={index}
+                className="w-full cursor-pointer relative"
+                onClick={() => banner.linkUrl ? window.open(banner.linkUrl, '_blank') : null}
+              >
+                <picture>
+                  {banner.mobileSrc && (
+                    <source media="(max-width: 768px)" srcSet={banner.mobileSrc} />
+                  )}
+                  <img
+                    src={banner.src}
+                    alt={banner.alt}
+                    className="w-full object-cover"
+                    loading="lazy"
+                  />
+                </picture>
               </div>
-            </div>
+            ))}
           </div>
-          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm text-gray-400">
-            <p>&copy; 2025 Pinturas Panorámica. Todos los derechos reservados.</p>
+          <div className="bg-gray-900 py-6 text-center text-sm text-gray-400">
+            <p>&copy; {new Date().getFullYear()} Pinturas Panorámica. Todos los derechos reservados.</p>
           </div>
-        </div>
-      </footer>
+        </footer>
+      )}
+      {footerBanners.length === 0 && (
+        <footer className="bg-gray-900 py-6 mt-16 text-center text-sm text-gray-400">
+          <p>&copy; {new Date().getFullYear()} Pinturas Panorámica. Todos los derechos reservados.</p>
+        </footer>
+      )}
     </div>
     
     {/* Floating Cart */}

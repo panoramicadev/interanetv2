@@ -6269,9 +6269,6 @@ export function registerRoutes(app: Express): Server {
       
       // If requested by ecommerce or no branch defined, fetch created warehouses
       if (type === 'ecommerce' || (!branch && type !== 'inventory')) {
-        const { db } = await import('./db');
-        const { warehouses } = await import('@shared/schema');
-        const { eq } = await import('drizzle-orm');
         const activeWarehouses = await db.select().from(warehouses).where(eq(warehouses.active, true));
         return res.json(activeWarehouses);
       }
@@ -6702,9 +6699,6 @@ export function registerRoutes(app: Express): Server {
 
       // If ?id= is provided, return single order
       if (req.query.id) {
-        const { ecommerceOrders } = await import('@shared/schema');
-        const { eq } = await import('drizzle-orm');
-        const { db } = await import('./db');
         const result = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, req.query.id));
         const order = result[0];
         if (!order) return res.status(404).json({ message: 'Pedido no encontrado' });
@@ -12152,6 +12146,7 @@ export function registerRoutes(app: Express): Server {
         if (req.body.colorTexto !== undefined) updates.colorTexto = req.body.colorTexto;
         if (req.body.linkUrl !== undefined) updates.linkUrl = req.body.linkUrl;
         if (req.body.orden !== undefined) updates.orden = parseInt(req.body.orden);
+        if (req.body.tipoVisualizacion !== undefined) updates.tipoVisualizacion = req.body.tipoVisualizacion;
         if (req.body.activo !== undefined) updates.activo = req.body.activo === 'true' || req.body.activo === true;
 
         updates.updatedAt = new Date();

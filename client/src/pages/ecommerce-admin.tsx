@@ -526,6 +526,7 @@ function BannerForm({ onSuccess, existingBanner }: { onSuccess: () => void; exis
   const [titulo, setTitulo] = useState(existingBanner?.titulo || '');
   const [linkUrl, setLinkUrl] = useState(existingBanner?.linkUrl || '');
   const [orden, setOrden] = useState(existingBanner?.orden?.toString() || '0');
+  const [tipoVisualizacion, setTipoVisualizacion] = useState(existingBanner?.tipoVisualizacion || 'hero');
   const [desktopFile, setDesktopFile] = useState<File | null>(null);
   const [mobileFile, setMobileFile] = useState<File | null>(null);
   const [desktopPreview, setDesktopPreview] = useState(existingBanner?.imagenDesktop || '');
@@ -560,6 +561,7 @@ function BannerForm({ onSuccess, existingBanner }: { onSuccess: () => void; exis
       formData.append('titulo', titulo || 'Banner');
       formData.append('linkUrl', linkUrl);
       formData.append('orden', orden);
+      formData.append('tipoVisualizacion', tipoVisualizacion);
       if (desktopFile) formData.append('imagenDesktop', desktopFile);
       if (mobileFile) formData.append('imagenMobile', mobileFile);
 
@@ -603,7 +605,19 @@ function BannerForm({ onSuccess, existingBanner }: { onSuccess: () => void; exis
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <Label>Ubicación del Banner</Label>
+          <Select value={tipoVisualizacion} onValueChange={setTipoVisualizacion}>
+            <SelectTrigger>
+              <SelectValue placeholder="Seleccionar ubicación" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="hero">Principal (Cabecera)</SelectItem>
+              <SelectItem value="footer">Pie de Página (Footer)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div>
           <Label>URL de destino (opcional)</Label>
           <Input value={linkUrl} onChange={e => setLinkUrl(e.target.value)} placeholder="https://..." />
@@ -758,8 +772,13 @@ function BannerList() {
                 <Phone className="h-2.5 w-2.5" /> Móvil ✓
               </div>
             )}
-            <div className={`absolute top-1.5 left-1.5 text-[9px] px-2 py-0.5 rounded-full font-bold ${banner.activo ? 'bg-emerald-500 text-white' : 'bg-gray-500 text-white'}`}>
-              {banner.activo ? 'Activo' : 'Inactivo'}
+            <div className={`absolute top-1.5 left-1.5 flex flex-col gap-1`}>
+              <div className={`text-[9px] px-2 py-0.5 rounded-full font-bold w-max ${banner.activo ? 'bg-emerald-500 text-white' : 'bg-gray-500 text-white'}`}>
+                {banner.activo ? 'Activo' : 'Inactivo'}
+              </div>
+              <div className="text-[9px] px-2 py-0.5 rounded-full font-bold w-max bg-blue-500 text-white">
+                {banner.tipoVisualizacion === 'footer' ? 'Footer' : 'Principal'}
+              </div>
             </div>
             
             <div className="absolute top-1 right-1 flex flex-col gap-1">
