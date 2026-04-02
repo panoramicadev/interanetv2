@@ -20348,13 +20348,13 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
           const today = new Date();
           today.setHours(0, 0, 0, 0);
           const termino = new Date(allocation.fechaTermino + 'T23:59:59');
-          if (today > termino) {
+          if (today > termino && user.role !== 'admin') {
             return res.status(400).json({ message: 'El fondo asignado ha expirado. La fecha de término ya pasó.' });
           }
         }
         const balance = await storage.getFundAllocationBalance(validated.fundAllocationId!);
         const gastoMonto = parseFloat(validated.monto?.toString() || '0');
-        if (gastoMonto > balance.saldoDisponible) {
+        if (gastoMonto > balance.saldoDisponible && user.role !== 'admin') {
           return res.status(400).json({ message: `Saldo insuficiente. Disponible: $${balance.saldoDisponible.toLocaleString('es-CL')}, Gasto: $${gastoMonto.toLocaleString('es-CL')}` });
         }
         validated.estado = 'pendiente';
@@ -21288,12 +21288,16 @@ Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el J
       const user = req.user;
       const targetUserId = req.params.userId;
 
+      const { all } = req.query;
+
       // Salesperson and supervisor can only see their own
       if ((user.role === 'salesperson' || user.role === 'supervisor') && user.id !== targetUserId) {
         return res.status(403).json({ message: 'No autorizado' });
       }
 
-      const allocations = await storage.getUserActiveFundAllocations(targetUserId);
+      const allocations = (all === 'true' && user.role === 'admin')
+        ? await storage.getUserAllFundAllocations(targetUserId)
+        : await storage.getUserActiveFundAllocations(targetUserId);
       res.json(allocations);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener fondos del usuario', error: error.message });

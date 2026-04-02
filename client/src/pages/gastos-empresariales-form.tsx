@@ -121,10 +121,11 @@ export default function GastosEmpresarialesForm() {
 
   // Fetch user's active fund allocations
   const { data: userFunds = [] } = useQuery<FundAllocation[]>({
-    queryKey: ['/api/fund-allocations/user', selectedUserId],
+    queryKey: ['/api/fund-allocations/user', selectedUserId, user?.role],
     queryFn: async () => {
       if (!selectedUserId) return [];
-      const response = await fetch(`/api/fund-allocations/user/${selectedUserId}`, {
+      const isAdmin = user?.role === 'admin';
+      const response = await fetch(`/api/fund-allocations/user/${selectedUserId}${isAdmin ? '?all=true' : ''}`, {
         credentials: 'include'
       });
       if (!response.ok) return [];
@@ -508,7 +509,7 @@ export default function GastosEmpresarialesForm() {
                               const montoUsado = fund.montoUsado ? parseFloat(String(fund.montoUsado)) : getFundUsage(fund.id);
                               const saldoReal = montoInicial - montoUsado;
                               return (
-                                <SelectItem key={fund.id} value={fund.id} disabled={saldoReal <= 0}>
+                                <SelectItem key={fund.id} value={fund.id} disabled={saldoReal <= 0 && user?.role !== 'admin'}>
                                   {fund.nombre} - Disponible: ${saldoReal.toLocaleString('es-CL')}
                                 </SelectItem>
                               );
@@ -534,7 +535,9 @@ export default function GastosEmpresarialesForm() {
                                       <>
                                         <strong>Saldo después del gasto:</strong> ${Math.max(0, nuevoSaldo).toLocaleString('es-CL')}
                                         {nuevoSaldo < 0 && (
-                                          <span className="text-red-600 ml-2">(Excede el saldo disponible)</span>
+                                          <span className="text-red-600 ml-2">
+                                            (Excede el saldo disponible{user?.role === 'admin' ? ' - Permitido para Admin' : ''})
+                                          </span>
                                         )}
                                       </>
                                     )}

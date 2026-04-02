@@ -1955,6 +1955,9 @@ export interface IStorage {
   getUserActiveFundAllocations(userId: string): Promise<Array<FundAllocation & {
     saldoDisponible: number;
   }>>;
+  getUserAllFundAllocations(userId: string): Promise<Array<FundAllocation & {
+    saldoDisponible: number;
+  }>>;
 
   getFundAllocationSummary(userId?: string): Promise<{
     totalAsignado: number;
@@ -21891,6 +21894,26 @@ export class DatabaseStorage implements IStorage {
           eq(fundAllocations.estado, 'activo')
         )
       )
+      .orderBy(desc(fundAllocations.createdAt));
+
+    const result = await Promise.all(
+      allocations.map(async (allocation) => {
+        const balance = await this.getFundAllocationBalance(allocation.id);
+        return {
+          ...allocation,
+          saldoDisponible: balance.saldoDisponible,
+        };
+      })
+    );
+
+    return result;
+  }
+
+  async getUserAllFundAllocations(userId: string): Promise<Array<FundAllocation & { saldoDisponible: number }>> {
+    const allocations = await db
+      .select()
+      .from(fundAllocations)
+      .where(eq(fundAllocations.assignedToId, userId))
       .orderBy(desc(fundAllocations.createdAt));
 
     const result = await Promise.all(
