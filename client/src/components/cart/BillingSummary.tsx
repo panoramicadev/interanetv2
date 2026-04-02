@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Tag, MapPin, ShoppingBag, Package, CheckCircle2, Truck, Store, Landmark, Info } from "lucide-react";
+import { X, Tag, MapPin, ShoppingBag, Package, CheckCircle2, Truck, Store, Landmark, Info, CreditCard, Banknote } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getShippingKey } from "@shared/format-utils";
 import {
@@ -570,6 +570,44 @@ export default function BillingSummary() {
           )}
         </div>
 
+        {/* Payment Method Indicator */}
+        {user?.role === 'client' && clientData?.cpen && (
+          <div className="space-y-2">
+            <Separator />
+            <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+              {isCredit ? <CreditCard className="h-4 w-4" /> : <Banknote className="h-4 w-4" />}
+              Método de Pago
+            </Label>
+            {isCredit ? (
+              <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <span className="text-sm font-semibold text-blue-800 dark:text-blue-200">Crédito</span>
+                  <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 text-xs border-0">
+                    {clientData.cpen}
+                  </Badge>
+                </div>
+                <p className="text-xs text-blue-600/80 dark:text-blue-400/80 mt-1">
+                  Tu pedido será facturado a crédito según la condición de pago acordada.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-orange-50/50 dark:bg-orange-950/20 rounded-lg p-3 border border-orange-200 dark:border-orange-800">
+                <div className="flex items-center gap-2">
+                  <Banknote className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                  <span className="text-sm font-semibold text-orange-800 dark:text-orange-200">Transferencia</span>
+                  <Badge variant="outline" className="text-xs border-orange-300 text-orange-700 dark:text-orange-300">
+                    {clientData.cpen}
+                  </Badge>
+                </div>
+                <p className="text-xs text-orange-600/80 dark:text-orange-400/80 mt-1">
+                  Deberás realizar una transferencia y subir el comprobante una vez confirmado el pedido.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Shipping Address (only for despacho) */}
         {deliveryMethod === 'despacho' && (
           <div className="space-y-2">
@@ -756,6 +794,19 @@ export default function BillingSummary() {
                   </span>
                 </div>
 
+                {/* Payment method row */}
+                {clientData?.cpen && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500 flex items-center gap-2">
+                      {isCredit ? <CreditCard className="h-4 w-4" /> : <Banknote className="h-4 w-4" />}
+                      Método de pago
+                    </span>
+                    <Badge className={isCredit ? 'bg-blue-100 text-blue-700 border-0 text-xs' : 'bg-orange-100 text-orange-700 border-0 text-xs'}>
+                      {isCredit ? 'Crédito' : 'Transferencia'}
+                    </Badge>
+                  </div>
+                )}
+
                 <div className="flex justify-between items-center">
                   <span className="text-base font-bold text-gray-900">Total</span>
                   <span className="text-xl font-bold text-[#FF6E23]">{formatPrice(total)}</span>
@@ -797,6 +848,29 @@ export default function BillingSummary() {
                   <div className="flex items-start gap-2 text-xs text-orange-700 bg-orange-100/50 p-2 rounded flex-shrink-0">
                     <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
                     <p>Al hacer clic en confirmar el pedido será creado. <strong>Serás redirigido a una nueva pantalla donde deberás subir el comprobante de pago.</strong></p>
+                  </div>
+                </div>
+              )}
+
+              {/* Credit Payment Info */}
+              {isCredit && (
+                <div className="bg-blue-50/50 rounded-xl p-4 border border-blue-100 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-blue-800">
+                    <CreditCard className="h-4 w-4" /> Pago a Crédito
+                  </div>
+                  <div className="text-xs text-slate-600 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-blue-100 text-blue-700 border-0 text-xs px-2">
+                        {clientData?.cpen}
+                      </Badge>
+                    </div>
+                    <p className="text-blue-700/80 mt-2">
+                      Tu pedido será procesado y facturado bajo las condiciones de crédito acordadas con tu ejecutivo comercial.
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2 text-xs text-blue-700 bg-blue-100/50 p-2 rounded flex-shrink-0">
+                    <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                    <p>No necesitas subir comprobante de pago. La factura será emitida con plazo de pago según tu condición comercial.</p>
                   </div>
                 </div>
               )}
