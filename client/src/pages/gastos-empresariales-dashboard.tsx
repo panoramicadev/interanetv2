@@ -693,7 +693,7 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
   const renderChartToImage = (chartData: any, chartType: 'pie' | 'bar' | 'doughnut', width: number, height: number): Promise<string> => {
     return new Promise((resolve) => {
       const canvas = document.createElement('canvas');
-      const scale = 4;
+      const scale = 2; // Reduced from 4 to optimize PDF size
       canvas.width = width * scale;
       canvas.height = height * scale;
       const ctx = canvas.getContext('2d');
@@ -734,7 +734,8 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
 
     setIsGeneratingPDF(true);
     try {
-      const doc = new jsPDF('p', 'mm', 'a4');
+      // Enable compression to significantly reduce PDF file size
+      const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 15;
@@ -1133,6 +1134,16 @@ const GastosEmpresarialesDashboard = forwardRef<DashboardExportHandle, Dashboard
             clientes: (gasto as any).clientes || '-',
             ciudad: (gasto as any).ciudad || '-',
           });
+        }
+      }
+
+      // Parche: Reemplazar dominios antiguos de Supabase por el nuevo para asegurar que carguen las imagenes
+      for (let i = 0; i < allImages.length; i++) {
+        if (allImages[i].url) {
+          allImages[i].url = allImages[i].url.replace(/https?:\/\/[a-zA-Z0-9-]+\.supabase\.co/i, 'https://xyqnvkievatlsqestjuf.supabase.co');
+        }
+        if (allImages[i].previewUrl) {
+          allImages[i].previewUrl = allImages[i].previewUrl.replace(/https?:\/\/[a-zA-Z0-9-]+\.supabase\.co/i, 'https://xyqnvkievatlsqestjuf.supabase.co');
         }
       }
 
