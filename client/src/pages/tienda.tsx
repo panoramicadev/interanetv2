@@ -1166,49 +1166,75 @@ export default function TiendaPage() {
 
             {isMobile ? (
               <div className="flex flex-col gap-2 w-full">
-                {/* Category dropdown - full width */}
-                <div className="w-full">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="h-8 w-full text-[11px] font-bold border-gray-200 rounded-lg gap-1.5 bg-white shadow-sm hover:bg-gray-50 justify-between"
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <Grid3X3 className="h-3 w-3 text-[#FF6E23]" />
-                          {selectedCategory === 'all' ? 'Categorías' : selectedCategory}
-                        </div>
-                        <ChevronDown className="h-3 w-3 text-gray-400" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-[200px] p-1 font-bold">
-                      <DropdownMenuItem 
-                        onClick={() => { setSelectedCategory('all'); setSelectedTag(null); }}
-                        className={selectedCategory === 'all' && !selectedTag ? 'bg-gray-100 text-[#FF6E23]' : ''}
-                      >
-                        <div className="flex items-center justify-between w-full">
-                          <span>Todas</span>
-                          {selectedCategory === 'all' && !selectedTag && <Check className="h-3 w-3" />}
-                        </div>
-                      </DropdownMenuItem>
-                      
-                      <DropdownMenuSeparator />
-                      <DropdownMenuLabel className="text-[9px] uppercase text-gray-400 font-black px-2 py-1">Rubros / Familias</DropdownMenuLabel>
-                      {categories.map((category) => (
-                        <DropdownMenuItem 
-                          key={category}
-                          onClick={() => { setSelectedCategory(category); setSelectedTag(null); }}
-                          className={selectedCategory === category && !selectedTag ? 'bg-gray-100 text-[#FF6E23]' : ''}
+                {/* Category toggle button - full width */}
+                <div className="w-full relative">
+                  <button
+                    onClick={() => setShowCategoriesDropdown(!showCategoriesDropdown)}
+                    className={`h-9 w-full text-[11px] font-bold rounded-xl gap-1.5 flex items-center justify-between px-3 transition-all duration-300 ${
+                      showCategoriesDropdown
+                        ? 'bg-gradient-to-r from-[#FF6E23] to-[#E55E13] text-white shadow-lg shadow-orange-200/50 border border-[#FF6E23]'
+                        : 'bg-white text-gray-700 border border-gray-200 shadow-sm hover:border-orange-200 hover:shadow-md'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Grid3X3 className={`h-3.5 w-3.5 transition-colors ${showCategoriesDropdown ? 'text-white' : 'text-[#FF6E23]'}`} />
+                      {selectedCategory === 'all' ? 'Categorías' : selectedCategory}
+                    </div>
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-300 ${showCategoriesDropdown ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Animated panel */}
+                  <div
+                    className="overflow-hidden transition-all duration-300 ease-in-out"
+                    style={{
+                      maxHeight: showCategoriesDropdown ? `${(categories.length + 1) * 44 + 40}px` : '0px',
+                      opacity: showCategoriesDropdown ? 1 : 0,
+                    }}
+                  >
+                    <div className="pt-2 pb-1">
+                      <div className="bg-white rounded-xl border border-gray-100 shadow-lg shadow-gray-200/50 overflow-hidden">
+                        {/* "Todas" option */}
+                        <button
+                          onClick={() => { setSelectedCategory('all'); setSelectedTag(null); setShowCategoriesDropdown(false); }}
+                          className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold transition-all duration-200 ${
+                            selectedCategory === 'all' && !selectedTag
+                              ? 'bg-gradient-to-r from-orange-50 to-amber-50 text-[#FF6E23] border-l-[3px] border-l-[#FF6E23]'
+                              : 'text-gray-600 hover:bg-gray-50 border-l-[3px] border-l-transparent'
+                          }`}
+                          style={{ animationDelay: '0ms' }}
                         >
-                          <div className="flex items-center justify-between w-full">
-                            <span>{category}</span>
-                            {selectedCategory === category && !selectedTag && <Check className="h-3 w-3" />}
-                          </div>
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                          <span>Todas las categorías</span>
+                          {selectedCategory === 'all' && !selectedTag && <Check className="h-3.5 w-3.5 text-[#FF6E23]" />}
+                        </button>
+
+                        <div className="h-px bg-gray-100 mx-3" />
+
+                        {/* Category items with stagger effect */}
+                        {categories.map((category, index) => {
+                          const isActive = selectedCategory === category && !selectedTag;
+                          return (
+                            <button
+                              key={category}
+                              onClick={() => { setSelectedCategory(category); setSelectedTag(null); setShowCategoriesDropdown(false); }}
+                              className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold transition-all duration-200 ${
+                                isActive
+                                  ? 'bg-gradient-to-r from-orange-50 to-amber-50 text-[#FF6E23] border-l-[3px] border-l-[#FF6E23]'
+                                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border-l-[3px] border-l-transparent hover:border-l-gray-300'
+                              }`}
+                              style={{
+                                transform: showCategoriesDropdown ? 'translateX(0)' : 'translateX(-12px)',
+                                opacity: showCategoriesDropdown ? 1 : 0,
+                                transition: `transform 300ms ease ${(index + 1) * 30}ms, opacity 300ms ease ${(index + 1) * 30}ms`,
+                              }}
+                            >
+                              <span>{category}</span>
+                              {isActive && <Check className="h-3.5 w-3.5 text-[#FF6E23]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {availableTags.length > 0 && (
