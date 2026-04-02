@@ -129,6 +129,7 @@ interface StoreFormatVariant {
   format: string;
   groupName: string | null;
   price: number | null;
+  offerPrice?: number | null; // Promotional/offer price
   stock: number;
   minUnit: number;
   stepSize: number;
@@ -600,9 +601,10 @@ export default function TiendaPage() {
 
     variantsToAdd.forEach(variant => {
       const qty = quantities[variant.sku] || 0;
-      const unitPrice = variant.price || 0;
+      const basePrice = variant.price || 0;
+      const effectivePrice = (variant.offerPrice && variant.offerPrice > 0) ? variant.offerPrice : basePrice;
       
-      if (unitPrice === 0) return;
+      if (effectivePrice === 0) return;
 
       const validation = validateCartQuantity(qty, variant.format);
       const validatedQuantity = validation.validQuantity;
@@ -615,7 +617,8 @@ export default function TiendaPage() {
           selectedPackaging: variant.format,
           selectedColor: variant.color,
           unit: variant.format,
-          unitPrice,
+          unitPrice: effectivePrice,
+          originalPrice: (variant.offerPrice && variant.offerPrice > 0 && basePrice > effectivePrice) ? basePrice : undefined,
           quantity: validatedQuantity,
           minQuantity: validation.minQuantity,
           quantityStep: validation.stepQuantity,
@@ -650,9 +653,10 @@ export default function TiendaPage() {
   // Add grouped variant to cart
   const addGroupedVariantToCart = (variant: StoreFormatVariant, productName: string) => {
     const qty = quantities[variant.sku] || variant.minUnit || 1;
-    const unitPrice = variant.price || 0;
+    const basePrice = variant.price || 0;
+    const effectivePrice = (variant.offerPrice && variant.offerPrice > 0) ? variant.offerPrice : basePrice;
     
-    if (unitPrice === 0) {
+    if (effectivePrice === 0) {
       toast({
         title: "Error",
         description: "Producto sin precio disponible",
@@ -676,7 +680,8 @@ export default function TiendaPage() {
         selectedPackaging: variant.format,
         selectedColor: variant.color,
         unit: variant.format,
-        unitPrice,
+        unitPrice: effectivePrice,
+        originalPrice: (variant.offerPrice && variant.offerPrice > 0 && basePrice > effectivePrice) ? basePrice : undefined,
         quantity: validatedQuantity,
         minQuantity: validation.minQuantity,
         quantityStep: validation.stepQuantity,
@@ -1596,7 +1601,16 @@ export default function TiendaPage() {
                               <div className="text-center w-full">
                                 <span className="text-xs font-bold text-gray-800 line-clamp-2">{activeFormat}</span>
                                 {activeFormatData?.price && activeFormatData.price > 0 && (
-                                  <span className="text-sm font-black text-[#FF6E23] block mt-1">{formatPrice(activeFormatData.price)}</span>
+                                  <div className="mt-1">
+                                    {activeFormatData.offerPrice && activeFormatData.offerPrice > 0 ? (
+                                      <>
+                                        <span className="text-xs text-gray-400 line-through">{formatPrice(activeFormatData.price)}</span>
+                                        <span className="text-sm font-black text-rose-600 block">{formatPrice(activeFormatData.offerPrice)}</span>
+                                      </>
+                                    ) : (
+                                      <span className="text-sm font-black text-[#FF6E23] block">{formatPrice(activeFormatData.price)}</span>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -1628,7 +1642,15 @@ export default function TiendaPage() {
                                         <div className="min-w-0">
                                           <div className="text-xs font-bold text-gray-800 truncate">{variant.color}</div>
                                           <div className="text-[10px] text-gray-400 mt-0.5 md:hidden">
-                                            {variant.price ? formatPrice(variant.price) : 'Consultar'}
+                                            {variant.offerPrice && variant.offerPrice > 0 ? (
+                                              <>
+                                                <span className="line-through text-gray-300">{formatPrice(variant.price)}</span>
+                                                {' '}
+                                                <span className="text-rose-600 font-bold">{formatPrice(variant.offerPrice)}</span>
+                                              </>
+                                            ) : (
+                                              variant.price ? formatPrice(variant.price) : 'Consultar'
+                                            )}
                                           </div>
                                         </div>
                                       </div>
@@ -1764,12 +1786,30 @@ export default function TiendaPage() {
                     <div className="flex-1 space-y-4">
                       {/* Price */}
                       {gv.price && gv.price > 0 && (
-                        <div className="bg-gradient-to-r from-[#FF6E23]/5 to-orange-50 rounded-xl p-5 border border-[#FF6E23]/10">
-                          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Precio referencial</span>
-                          <div className="text-3xl font-black text-[#FF6E23] mt-1">
-                            {formatPrice(gv.price)}
-                            <span className="text-sm font-normal text-gray-500 ml-2">/ {gv.format}</span>
-                          </div>
+                        <div className={`bg-gradient-to-r ${gv.offerPrice && gv.offerPrice > 0 ? 'from-rose-500/5 to-orange-50 border-rose-200/30' : 'from-[#FF6E23]/5 to-orange-50 border-[#FF6E23]/10'} rounded-xl p-5 border`}>
+                          {gv.offerPrice && gv.offerPrice > 0 ? (
+                            <>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Precio oferta</span>
+                                <Badge className="bg-rose-500 text-white text-[10px] px-1.5 py-0">
+                                  -{Math.round(((gv.price - gv.offerPrice) / gv.price) * 100)}%
+                                </Badge>
+                              </div>
+                              <div className="text-3xl font-black text-rose-600 mt-1">
+                                {formatPrice(gv.offerPrice)}
+                                <span className="text-sm font-normal text-gray-500 ml-2">/ {gv.format}</span>
+                              </div>
+                              <div className="text-sm text-gray-400 line-through mt-0.5">{formatPrice(gv.price)}</div>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Precio referencial</span>
+                              <div className="text-3xl font-black text-[#FF6E23] mt-1">
+                                {formatPrice(gv.price)}
+                                <span className="text-sm font-normal text-gray-500 ml-2">/ {gv.format}</span>
+                              </div>
+                            </>
+                          )}
                         </div>
                       )}
                       

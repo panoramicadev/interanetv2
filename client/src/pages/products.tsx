@@ -15,8 +15,9 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2, Globe, ShoppingCart, Tags, Image, Settings, Link, Palette, BarChart3, Layers, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ExternalLink, RefreshCw, BookOpen, ImageIcon, Truck, Save, DollarSign, Tag, Plus, Trash2, ArrowUpDown, GripVertical, Check, X } from "lucide-react";
+import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2, Globe, ShoppingCart, Tags, Image, Settings, Link, Palette, BarChart3, Layers, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, ExternalLink, RefreshCw, BookOpen, ImageIcon, Truck, Save, DollarSign, Tag, Plus, Trash2, ArrowUpDown, GripVertical, Check, X, Percent } from "lucide-react";
 import { PriceList } from "@shared/schema";
 import { PRODUCT_FORMATS } from "@shared/format-utils";
 import GroupedCatalog from "@/components/grouped-catalog";
@@ -1720,6 +1721,17 @@ export default function ProductsPage() {
   const [priceListPage, setPriceListPage] = useState(0);
   const itemsPerPage = 50;
 
+  // Bulk offer price state (SAP tab)
+  const [selectedSapCodes, setSelectedSapCodes] = useState<Set<string>>(new Set());
+  const [bulkOfferPriceInput, setBulkOfferPriceInput] = useState("");
+  const [showBulkOfferBar, setShowBulkOfferBar] = useState(false);
+
+  // CRUD state for price list items (SAP catalog)
+  const [showPriceListDialog, setShowPriceListDialog] = useState(false);
+  const [editingPriceListItem, setEditingPriceListItem] = useState<PriceList | null>(null);
+  const [plForm, setPlForm] = useState({ codigo: '', producto: '', unidad: '', lista: '', desc10: '', desc10_5: '', desc10_5_3: '', minimo: '', canalDigital: '' });
+  const [deletingPriceListId, setDeletingPriceListId] = useState<string | null>(null);
+
   // eCommerce form state
   const [ecomSlug, setEcomSlug] = useState("");
   const [ecomCategory, setEcomCategory] = useState("");
@@ -1935,6 +1947,155 @@ export default function ProductsPage() {
       return await response.json();
     }
   });
+
+  // Bulk offer price mutation (SAP tab)
+  const bulkOfferPriceMutation = useMutation({
+    mutationFn: async ({ codes, offerPrice }: { codes: string[]; offerPrice: number | null }) => {
+      const response = await apiRequest('PUT', '/api/price-list/bulk-offer-price', { codes, offerPrice });
+      return await response.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/price-list'] });
+      setSelectedSapCodes(new Set());
+      setBulkOfferPriceInput("");
+      toast({
+        title: data.offerPrice !== null ? "Precio oferta aplicado" : "Ofertas removidas",
+        description: `${data.affectedRows} productos actualizados.`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar los precios de oferta.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // ===== Price List CRUD mutations =====
+  const createPriceListMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const response = await apiRequest('POST', '/api/price-list', data);
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/price-list'] });
+      setShowPriceListDialog(false);
+      setPlForm({ codigo: '', producto: '', unidad: '', lista: '', desc10: '', desc10_5: '', desc10_5_3: '', minimo: '', canalDigital: '' });
+      toast({ title: 'Producto creado', description: 'El producto se agregó al catálogo.' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message || 'No se pudo crear el producto.', variant: 'destructive' });
+    },
+  });
+
+  const updatePriceListMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const response = await apiRequest('PATCH', `/api/price-list/${id}`, data);
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/price-list'] });
+      setShowPriceListDialog(false);
+      setEditingPriceListItem(null);
+      setPlForm({ codigo: '', producto: '', unidad: '', lista: '', desc10: '', desc10_5: '', desc10_5_3: '', minimo: '', canalDigital: '' });
+      toast({ title: 'Producto actualizado', description: 'Los datos del producto se actualizaron.' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message || 'No se pudo actualizar el producto.', variant: 'destructive' });
+    },
+  });
+
+  const deletePriceListMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest('DELETE', `/api/price-list/${id}`);
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/price-list'] });
+      setDeletingPriceListId(null);
+      toast({ title: 'Producto eliminado', description: 'El producto se eliminó del catálogo.' });
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'No se pudo eliminar el producto.', variant: 'destructive' });
+    },
+  });
+
+  const openAddPriceListDialog = () => {
+    setEditingPriceListItem(null);
+    setPlForm({ codigo: '', producto: '', unidad: '', lista: '', desc10: '', desc10_5: '', desc10_5_3: '', minimo: '', canalDigital: '' });
+    setShowPriceListDialog(true);
+  };
+
+  const openEditPriceListDialog = (item: PriceList) => {
+    setEditingPriceListItem(item);
+    setPlForm({
+      codigo: item.codigo || '',
+      producto: item.producto || '',
+      unidad: item.unidad || '',
+      lista: item.lista?.toString() || '',
+      desc10: item.desc10?.toString() || '',
+      desc10_5: item.desc10_5?.toString() || '',
+      desc10_5_3: item.desc10_5_3?.toString() || '',
+      minimo: item.minimo?.toString() || '',
+      canalDigital: item.canalDigital?.toString() || '',
+    });
+    setShowPriceListDialog(true);
+  };
+
+  const handlePriceListSubmit = () => {
+    const payload: any = {
+      codigo: plForm.codigo.trim(),
+      producto: plForm.producto.trim(),
+      unidad: plForm.unidad.trim() || undefined,
+      lista: plForm.lista || undefined,
+      desc10: plForm.desc10 || undefined,
+      desc10_5: plForm.desc10_5 || undefined,
+      desc10_5_3: plForm.desc10_5_3 || undefined,
+      minimo: plForm.minimo || undefined,
+      canalDigital: plForm.canalDigital || undefined,
+    };
+    if (editingPriceListItem) {
+      updatePriceListMutation.mutate({ id: editingPriceListItem.id, data: payload });
+    } else {
+      createPriceListMutation.mutate(payload);
+    }
+  };
+
+  // SAP selection helpers
+  const toggleSapCode = (codigo: string) => {
+    setSelectedSapCodes(prev => {
+      const next = new Set(prev);
+      if (next.has(codigo)) next.delete(codigo);
+      else next.add(codigo);
+      return next;
+    });
+  };
+
+  const toggleAllSapCodes = () => {
+    if (selectedSapCodes.size === priceList.length) {
+      setSelectedSapCodes(new Set());
+    } else {
+      setSelectedSapCodes(new Set(priceList.map(p => p.codigo)));
+    }
+  };
+
+  const handleBulkOfferSubmit = () => {
+    const codes = Array.from(selectedSapCodes);
+    if (codes.length === 0) return;
+    const price = bulkOfferPriceInput ? parseFloat(bulkOfferPriceInput) : null;
+    if (price !== null && (isNaN(price) || price < 0)) {
+      toast({ title: "Precio inválido", variant: "destructive" });
+      return;
+    }
+    bulkOfferPriceMutation.mutate({ codes, offerPrice: price });
+  };
+
+  const handleRemoveOffers = () => {
+    const codes = Array.from(selectedSapCodes);
+    if (codes.length === 0) return;
+    bulkOfferPriceMutation.mutate({ codes, offerPrice: null });
+  };
 
   // Get unique categories for filter dropdown (use from backend + product categories)
   const productCategories = Array.from(new Set(products.map(p => p.category).filter(Boolean))) as string[];
@@ -2472,10 +2633,16 @@ export default function ProductsPage() {
                 <CardTitle className="text-lg">Catálogo de Precios Comerciales</CardTitle>
                 <CardDescription className="mt-0.5">Información sincronizada con el tomador de pedidos</CardDescription>
               </div>
-              <Button variant="outline" size="sm" className="rounded-lg gap-1.5" onClick={() => setLocation('/lista-precios')}>
-                <ExternalLink className="h-3.5 w-3.5" />
-                Ver completo
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button size="sm" className="rounded-lg gap-1.5 bg-orange-500 hover:bg-orange-600 text-white" onClick={openAddPriceListDialog}>
+                  <Plus className="h-3.5 w-3.5" />
+                  Agregar Producto
+                </Button>
+                <Button variant="outline" size="sm" className="rounded-lg gap-1.5" onClick={() => setLocation('/lista-precios')}>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Ver completo
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               {priceListLoading ? (
@@ -2489,6 +2656,13 @@ export default function ProductsPage() {
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-muted/20 hover:bg-muted/20">
+                          <TableHead className="w-10">
+                            <Checkbox
+                              checked={priceList.length > 0 && selectedSapCodes.size === priceList.length}
+                              onCheckedChange={toggleAllSapCodes}
+                              aria-label="Seleccionar todos"
+                            />
+                          </TableHead>
                           <TableHead className="font-semibold text-xs uppercase tracking-wider">Código</TableHead>
                           <TableHead className="font-semibold text-xs uppercase tracking-wider">Producto</TableHead>
                           <TableHead className="font-semibold text-xs uppercase tracking-wider">Unidad</TableHead>
@@ -2497,6 +2671,7 @@ export default function ProductsPage() {
                           <TableHead className="text-right font-semibold text-xs uppercase tracking-wider">10%+5%</TableHead>
                           <TableHead className="text-right font-semibold text-xs uppercase tracking-wider">10%+5%+3%</TableHead>
                           <TableHead className="text-right font-semibold text-xs uppercase tracking-wider">Mínimo</TableHead>
+                          <TableHead className="text-right font-semibold text-xs uppercase tracking-wider text-rose-600 dark:text-rose-400">Oferta</TableHead>
                           <TableHead className="w-8"></TableHead>
                         </TableRow>
                       </TableHeader>
@@ -2504,12 +2679,23 @@ export default function ProductsPage() {
                         {priceList.map((item, i) => (
                           <TableRow
                             key={item.id}
-                            className={`cursor-pointer hover:bg-orange-50/50 dark:hover:bg-orange-950/20 transition-colors ${i % 2 === 0 ? '' : 'bg-muted/10'}`}
-                            onClick={() => setLocation(`/productos/${encodeURIComponent(item.codigo)}`)}
-                            title={`Ver ficha de ${item.producto}`}
+                            className={`cursor-pointer hover:bg-orange-50/50 dark:hover:bg-orange-950/20 transition-colors ${i % 2 === 0 ? '' : 'bg-muted/10'} ${selectedSapCodes.has(item.codigo) ? 'bg-blue-50/60 dark:bg-blue-950/30' : ''}`}
                           >
-                            <TableCell className="font-mono text-sm font-semibold text-orange-600 dark:text-orange-400">{item.codigo}</TableCell>
-                            <TableCell className="font-medium text-sm">{item.producto}</TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                checked={selectedSapCodes.has(item.codigo)}
+                                onCheckedChange={() => toggleSapCode(item.codigo)}
+                                aria-label={`Seleccionar ${item.codigo}`}
+                              />
+                            </TableCell>
+                            <TableCell
+                              className="font-mono text-sm font-semibold text-orange-600 dark:text-orange-400"
+                              onClick={() => setLocation(`/productos/${encodeURIComponent(item.codigo)}`)}
+                            >{item.codigo}</TableCell>
+                            <TableCell
+                              className="font-medium text-sm"
+                              onClick={() => setLocation(`/productos/${encodeURIComponent(item.codigo)}`)}
+                            >{item.producto}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-xs font-normal rounded-md">{item.unidad}</Badge>
                             </TableCell>
@@ -2537,14 +2723,91 @@ export default function ProductsPage() {
                             <TableCell className="text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">
                               {Number(item.minimo) > 0 ? `$${Number(item.minimo).toLocaleString('de-DE', { maximumFractionDigits: 0 })}` : '-'}
                             </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {Number(item.offerPrice) > 0 ? (
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <Badge className="bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800 text-xs font-semibold px-1.5 py-0.5">
+                                    ${Number(item.offerPrice).toLocaleString('de-DE', { maximumFractionDigits: 0 })}
+                                  </Badge>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground/40">—</span>
+                              )}
+                            </TableCell>
                             <TableCell className="text-center">
-                              <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); openEditPriceListDialog(item); }}
+                                  className="w-7 h-7 rounded-md hover:bg-blue-50 dark:hover:bg-blue-950/30 flex items-center justify-center text-muted-foreground hover:text-blue-600 transition-colors"
+                                  title="Editar producto"
+                                >
+                                  <Edit className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setDeletingPriceListId(item.id); }}
+                                  className="w-7 h-7 rounded-md hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center justify-center text-muted-foreground hover:text-red-600 transition-colors"
+                                  title="Eliminar producto"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
                     </Table>
                   </div>
+
+                  {/* Floating Bulk Offer Bar */}
+                  {selectedSapCodes.size > 0 && (
+                    <div className="sticky bottom-0 border-t bg-gradient-to-r from-rose-50 to-orange-50 dark:from-rose-950/40 dark:to-orange-950/40 px-6 py-3 flex flex-col sm:flex-row items-center gap-3 z-10 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
+                      <div className="flex items-center gap-2 text-sm font-medium text-rose-700 dark:text-rose-300">
+                        <Tag className="h-4 w-4" />
+                        <span>{selectedSapCodes.size} producto{selectedSapCodes.size > 1 ? 's' : ''} seleccionado{selectedSapCodes.size > 1 ? 's' : ''}</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-1 justify-end">
+                        <div className="relative">
+                          <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            type="number"
+                            step="1"
+                            min="0"
+                            placeholder="Precio oferta..."
+                            value={bulkOfferPriceInput}
+                            onChange={(e) => setBulkOfferPriceInput(e.target.value)}
+                            className="w-40 h-9 pl-8 rounded-lg text-sm"
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          className="h-9 rounded-lg bg-rose-600 hover:bg-rose-700 text-white gap-1.5"
+                          onClick={handleBulkOfferSubmit}
+                          disabled={!bulkOfferPriceInput || bulkOfferPriceMutation.isPending}
+                        >
+                          <Percent className="h-3.5 w-3.5" />
+                          Aplicar Oferta
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-9 rounded-lg gap-1.5 text-muted-foreground"
+                          onClick={handleRemoveOffers}
+                          disabled={bulkOfferPriceMutation.isPending}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          Quitar Ofertas
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-9 rounded-lg"
+                          onClick={() => setSelectedSapCodes(new Set())}
+                        >
+                          Deseleccionar
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
                   {priceListResponse && priceListResponse.totalCount > itemsPerPage && (() => {
                     const totalPages = Math.ceil(priceListResponse.totalCount / itemsPerPage);
@@ -2611,6 +2874,118 @@ export default function ProductsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* ===== ADD / EDIT Price List Dialog ===== */}
+        <Dialog open={showPriceListDialog} onOpenChange={(open) => { if (!open) { setShowPriceListDialog(false); setEditingPriceListItem(null); } }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {editingPriceListItem ? <Edit className="h-5 w-5 text-blue-500" /> : <Plus className="h-5 w-5 text-orange-500" />}
+                {editingPriceListItem ? 'Editar Producto' : 'Agregar Producto al Catálogo'}
+              </DialogTitle>
+              <DialogDescription>
+                {editingPriceListItem ? `Editando ${editingPriceListItem.codigo}` : 'Completa los datos del nuevo producto'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="pl-codigo" className="text-xs font-semibold">Código *</Label>
+                  <Input
+                    id="pl-codigo"
+                    placeholder="Ej: PCA106BLANCO2"
+                    value={plForm.codigo}
+                    onChange={(e) => setPlForm(p => ({ ...p, codigo: e.target.value }))}
+                    disabled={!!editingPriceListItem}
+                    className="h-9"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="pl-unidad" className="text-xs font-semibold">Unidad</Label>
+                  <Select value={plForm.unidad} onValueChange={(v) => setPlForm(p => ({ ...p, unidad: v }))}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                    <SelectContent>
+                      {availableUnits.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pl-producto" className="text-xs font-semibold">Producto *</Label>
+                <Input
+                  id="pl-producto"
+                  placeholder="Nombre del producto"
+                  value={plForm.producto}
+                  onChange={(e) => setPlForm(p => ({ ...p, producto: e.target.value }))}
+                  className="h-9"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Lista</Label>
+                  <Input type="number" placeholder="0" value={plForm.lista} onChange={(e) => setPlForm(p => ({ ...p, lista: e.target.value }))} className="h-9 text-right font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Desc. 10%</Label>
+                  <Input type="number" placeholder="0" value={plForm.desc10} onChange={(e) => setPlForm(p => ({ ...p, desc10: e.target.value }))} className="h-9 text-right font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">10%+5%</Label>
+                  <Input type="number" placeholder="0" value={plForm.desc10_5} onChange={(e) => setPlForm(p => ({ ...p, desc10_5: e.target.value }))} className="h-9 text-right font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">10%+5%+3%</Label>
+                  <Input type="number" placeholder="0" value={plForm.desc10_5_3} onChange={(e) => setPlForm(p => ({ ...p, desc10_5_3: e.target.value }))} className="h-9 text-right font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Mínimo</Label>
+                  <Input type="number" placeholder="0" value={plForm.minimo} onChange={(e) => setPlForm(p => ({ ...p, minimo: e.target.value }))} className="h-9 text-right font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Canal Digital</Label>
+                  <Input type="number" placeholder="0" value={plForm.canalDigital} onChange={(e) => setPlForm(p => ({ ...p, canalDigital: e.target.value }))} className="h-9 text-right font-mono" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => { setShowPriceListDialog(false); setEditingPriceListItem(null); }}>Cancelar</Button>
+                <Button
+                  className="bg-orange-500 hover:bg-orange-600 text-white gap-1.5"
+                  disabled={!plForm.codigo.trim() || !plForm.producto.trim() || createPriceListMutation.isPending || updatePriceListMutation.isPending}
+                  onClick={handlePriceListSubmit}
+                >
+                  {(createPriceListMutation.isPending || updatePriceListMutation.isPending) ? 'Guardando...' : (editingPriceListItem ? 'Guardar Cambios' : 'Agregar')}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* ===== DELETE Confirmation Dialog ===== */}
+        <Dialog open={!!deletingPriceListId} onOpenChange={(open) => { if (!open) setDeletingPriceListId(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-600">
+                <Trash2 className="h-5 w-5" />
+                Eliminar Producto
+              </DialogTitle>
+              <DialogDescription>
+                ¿Estás seguro de que deseas eliminar este producto del catálogo? Esta acción no se puede deshacer.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button variant="outline" onClick={() => setDeletingPriceListId(null)}>Cancelar</Button>
+              <Button
+                variant="destructive"
+                className="gap-1.5"
+                disabled={deletePriceListMutation.isPending}
+                onClick={() => { if (deletingPriceListId) deletePriceListMutation.mutate(deletingPriceListId); }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                {deletePriceListMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Tab de Catálogo Agrupado */}
         <TabsContent value="grouped" className="space-y-4">

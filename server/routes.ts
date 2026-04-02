@@ -10518,6 +10518,60 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Bulk set/remove offer price — set a promotional price for multiple products
+  app.put('/api/price-list/bulk-offer-price', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: "No autorizado para modificar precios de oferta" });
+      }
+
+      const { codes, offerPrice } = req.body;
+
+      if (!codes || !Array.isArray(codes) || codes.length === 0) {
+        return res.status(400).json({ message: "Se requiere una lista de códigos de productos" });
+      }
+
+      // offerPrice can be null (to remove offer) or a positive number
+      if (offerPrice !== null && offerPrice !== undefined) {
+        const numPrice = Number(offerPrice);
+        if (isNaN(numPrice) || numPrice < 0) {
+          return res.status(400).json({ message: "Precio de oferta inválido" });
+        }
+      }
+
+      const priceValue = offerPrice !== null && offerPrice !== undefined ? Number(offerPrice) : null;
+
+      // Use Drizzle ORM for safe parameterized update
+      const { priceList } = await import('@shared/schema');
+      const { inArray } = await import('drizzle-orm');
+
+      const updateResult = await db.update(priceList)
+        .set({
+          offerPrice: priceValue?.toString() ?? null,
+          updatedAt: new Date(),
+        })
+        .where(inArray(priceList.codigo, codes));
+
+      const affectedRows = (updateResult as any).rowCount || codes.length;
+
+      // Invalidate store cache so the changes are visible immediately
+      invalidateStoreCache();
+
+      console.log(`[BULK-OFFER] ${user.email || user.id} set offer_price=${priceValue} for ${codes.length} codes — ${affectedRows} rows updated`);
+
+      res.json({
+        message: priceValue !== null ? 'Precio de oferta aplicado' : 'Ofertas removidas',
+        affectedRows,
+        offerPrice: priceValue,
+        codesRequested: codes.length,
+      });
+    } catch (error) {
+      console.error("Error in bulk offer price:", error);
+      res.status(500).json({ message: "Error al actualizar precios de oferta" });
+    }
+  });
+
   app.get('/api/price-list', requireAuth, async (req, res) => {
     try {
       const { search, unidad, tipoProducto, color, limit = 50, offset = 0 } = req.query;
@@ -11637,6 +11691,7 @@ export function registerRoutes(app: Express): Server {
         pl.codigo as sku,
         pl.producto as product_name,
         pl.unidad as unit,
+        pl.offer_price,
         COALESCE(stk.total_stock, 0) as total_stock,
         pc.breve_resena,
         pc.descripcion,
@@ -11741,6 +11796,7 @@ export function registerRoutes(app: Express): Server {
         format: formatUnit,
         groupName,
         price: row.precio ? parseFloat(row.precio) : null,
+        offerPrice: row.offer_price ? parseFloat(row.offer_price) : null,
         stock: parseFloat(row.total_stock) || 0,
         minUnit: row.min_unit || 1,
         stepSize: row.step_size || 1,

@@ -1760,6 +1760,7 @@ export const priceList = pgTable("price_list", {
   consumoEstimado: numeric("consumo_estimado", { precision: 15, scale: 4 }), // Estimated consumption
   rendimiento: numeric("rendimiento", { precision: 15, scale: 4 }), // Yield/Performance
   costoUnidadMedida: numeric("costo_unidad_medida", { precision: 15, scale: 2 }), // Cost per unit of measure
+  offerPrice: numeric("offer_price", { precision: 15, scale: 2 }), // Promotional/offer price (NULL = no offer)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1880,6 +1881,7 @@ export const insertPriceListSchema = createInsertSchema(priceList, {
   consumoEstimado: z.any().optional().transform(flexibleTransform),
   rendimiento: z.any().optional().transform(flexibleTransform),
   costoUnidadMedida: z.any().optional().transform(flexibleTransform),
+  offerPrice: z.any().optional().transform(flexibleTransform),
 }).omit({
   id: true,
   createdAt: true,
@@ -2533,7 +2535,8 @@ export interface CartItem {
   unit: string; // Base unit from ud02pr (GL, BD4, 1/4, etc.)
 
   // Pricing and quantity
-  unitPrice: number; // Price per unit in CLP
+  unitPrice: number; // Price per unit in CLP (offer price if applicable)
+  originalPrice?: number; // Original price before offer (for showing tachado/strikethrough)
   quantity: number; // Selected quantity (must follow validation rules)
   subtotal: number; // unitPrice * quantity (calculated)
 
@@ -2649,6 +2652,7 @@ export const cartItemSchema = z.object({
   selectedFinish: z.string().optional(),
   unit: z.string(),
   unitPrice: z.number().min(0),
+  originalPrice: z.number().min(0).optional(),
   quantity: z.number().int().min(1),
   subtotal: z.number().min(0),
   imageUrl: z.string().optional(),

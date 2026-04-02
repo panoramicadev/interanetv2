@@ -79,6 +79,13 @@ export default function BillingSummary() {
     staleTime: 60000,
   });
 
+  // Fetch free shipping threshold
+  const { data: freeShippingData } = useQuery<{ threshold: number }>({
+    queryKey: ['/api/ecommerce/free-shipping-threshold'],
+    retry: false,
+  });
+  const FREE_SHIPPING_THRESHOLD = freeShippingData?.threshold ?? 0;
+
   // Fetch warehouses for pickup option
   const { data: warehouses = [] } = useQuery<Warehouse[]>({
     queryKey: ['/api/warehouses'],
@@ -335,6 +342,12 @@ export default function BillingSummary() {
     }
   });
 
+  // Apply free shipping if neto meets or exceeds the threshold
+  const hasFreeShipping = FREE_SHIPPING_THRESHOLD > 0 && neto >= FREE_SHIPPING_THRESHOLD;
+  if (hasFreeShipping) {
+    shippingCost = 0;
+  }
+
   const shippingBreakdownText = Array.from(shippingBreakdownMap.values())
     .map(b => `${b.qty}x ${b.unit} a ${formatPrice(b.cost)}`)
     .join(' + ');
@@ -461,21 +474,26 @@ export default function BillingSummary() {
           </div>
 
           {/* Shipping / Despacho — only if method is despacho */}
-          {deliveryMethod === 'despacho' && shippingCost > 0 && (
+          {deliveryMethod === 'despacho' && (
             <div className="flex justify-between items-start">
               <div className="flex flex-col">
                 <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
                   <Truck className="h-3.5 w-3.5" />
                   Despacho:
                 </span>
-                {shippingBreakdownText && (
+                {hasFreeShipping && (
+                  <span className="text-[10px] text-emerald-600 font-bold mt-0.5">
+                    🎉 ¡Envío gratis aplicado!
+                  </span>
+                )}
+                {!hasFreeShipping && shippingBreakdownText && (
                   <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 leading-tight">
                     ({shippingBreakdownText})
                   </span>
                 )}
               </div>
-              <span className="font-medium text-gray-900 dark:text-white" data-testid="text-billing-shipping">
-                {formatPrice(shippingCost)}
+              <span className={`font-medium ${hasFreeShipping ? 'text-emerald-600 line-through' : 'text-gray-900 dark:text-white'}`} data-testid="text-billing-shipping">
+                {hasFreeShipping ? 'Gratis' : formatPrice(shippingCost)}
               </span>
             </div>
           )}

@@ -76,9 +76,16 @@ function ModernCartItem({ item }: { item: any }) {
         
         {/* Price row */}
         <div className="flex items-center justify-between mt-1.5">
-          <span className="text-sm font-bold text-gray-900">
-            {formatPrice(item.subtotal)}
-          </span>
+          <div>
+            <span className="text-sm font-bold text-gray-900">
+              {formatPrice(item.subtotal)}
+            </span>
+            {item.originalPrice && item.originalPrice > item.unitPrice && (
+              <span className="text-[10px] text-gray-400 line-through ml-1.5">
+                {formatPrice(item.originalPrice * item.quantity)}
+              </span>
+            )}
+          </div>
           
           {/* Compact quantity control */}
           <div className="flex items-center gap-0.5">

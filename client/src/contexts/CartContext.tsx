@@ -1,4 +1,5 @@
-import { createContext, useReducer, useEffect, ReactNode } from 'react';
+import { createContext, useReducer, useEffect, ReactNode, useCallback, useRef } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 import { 
   CartItem, 
   CartState, 
@@ -377,16 +378,23 @@ export const getInitialCartState = (): CartState => ({
 });
 
 /**
- * Local storage key for cart persistence
+ * Build a user-scoped localStorage key for cart persistence.
+ * Each user gets their own cart so switching accounts doesn't leak items.
  */
-const CART_STORAGE_KEY = 'panoramica_cart_state';
+const CART_STORAGE_KEY_PREFIX = 'panoramica_cart_state';
+
+const getCartStorageKey = (userId?: number | string | null): string => {
+  if (!userId) return `${CART_STORAGE_KEY_PREFIX}_anonymous`;
+  return `${CART_STORAGE_KEY_PREFIX}_${userId}`;
+};
 
 /**
  * Load cart from localStorage with version migration support
  */
-const loadCartFromStorage = (): CartState => {
+const loadCartFromStorage = (userId?: number | string | null): CartState => {
   try {
-    const stored = localStorage.getItem(CART_STORAGE_KEY);
+    const key = getCartStorageKey(userId);
+    const stored = localStorage.getItem(key);
     if (stored) {
       const parsed = JSON.parse(stored);
       
@@ -403,7 +411,8 @@ const loadCartFromStorage = (): CartState => {
   } catch (error) {
     console.warn('Error loading cart from localStorage:', error);
     // Clear corrupted data
-    localStorage.removeItem(CART_STORAGE_KEY);
+    const key = getCartStorageKey(userId);
+    localStorage.removeItem(key);
   }
   
   return getInitialCartState();
@@ -412,9 +421,10 @@ const loadCartFromStorage = (): CartState => {
 /**
  * Save cart to localStorage
  */
-const saveCartToStorage = (cartState: CartState): void => {
+const saveCartToStorage = (cartState: CartState, userId?: number | string | null): void => {
   try {
-    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartState));
+    const key = getCartStorageKey(userId);
+    localStorage.setItem(key, JSON.stringify(cartState));
   } catch (error) {
     console.warn('Error saving cart to localStorage:', error);
   }
@@ -453,16 +463,51 @@ interface CartProviderProps {
 }
 
 export function CartProvider({ children }: CartProviderProps) {
-  const [state, dispatch] = useReducer(cartReducer, getInitialCartState(), (initial) => {
-    // Load from localStorage on initialization
-    const stored = loadCartFromStorage();
-    return stored;
+  const { user } = useAuth();
+  const userIdRef = useRef<number | string | null | undefined>(user?.id);
+
+  const [state, dispatch] = useReducer(cartReducer, getInitialCartState(), () => {
+    // Load from localStorage on initialization using current user
+    return loadCartFromStorage(user?.id);
   });
   
-  // Save to localStorage whenever state changes
+  // One-time migration: move old un-scoped cart to user-scoped key
   useEffect(() => {
-    saveCartToStorage(state);
-  }, [state]);
+    if (!user?.id) return;
+    const oldKey = 'panoramica_cart_state';
+    const oldData = localStorage.getItem(oldKey);
+    if (oldData) {
+      const newKey = getCartStorageKey(user.id);
+      // Only migrate if user doesn't already have a scoped cart
+      if (!localStorage.getItem(newKey)) {
+        localStorage.setItem(newKey, oldData);
+      }
+      localStorage.removeItem(oldKey);
+      // Reload cart with migrated data
+      const userCart = loadCartFromStorage(user.id);
+      dispatch({ type: 'LOAD_CART', payload: userCart });
+    }
+  }, []); // Run once on mount
+
+  // When the authenticated user changes, load that user's cart
+  useEffect(() => {
+    const prevUserId = userIdRef.current;
+    const currentUserId = user?.id ?? null;
+
+    if (prevUserId !== currentUserId) {
+      userIdRef.current = currentUserId;
+      const userCart = loadCartFromStorage(currentUserId);
+      dispatch({ type: 'LOAD_CART', payload: userCart });
+      // Clear delivery preferences on user switch
+      localStorage.removeItem('cart_delivery_method');
+      localStorage.removeItem('cart_selected_warehouse');
+    }
+  }, [user?.id]);
+
+  // Save to localStorage whenever state changes (scoped to current user)
+  useEffect(() => {
+    saveCartToStorage(state, user?.id);
+  }, [state, user?.id]);
   
   // Action functions
   const addItem = (item: Omit<CartItem, 'id' | 'subtotal' | 'addedAt' | 'updatedAt'>) => {
