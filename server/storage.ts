@@ -343,6 +343,7 @@ import {
   productQuestions,
   type ProductQuestion,
   type InsertProductQuestion,
+  ecommerceOrders,
 } from "@shared/schema";
 import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from "@shared/reclamosAreas";
 import { db } from "./db";
@@ -8913,7 +8914,7 @@ export class DatabaseStorage implements IStorage {
     totalCategorias: number;
     ventasMes: number;
   }> {
-    const { priceList, ecommerceProducts, ecommerceCategories, ecommerceOrders } = await import('@shared/schema');
+    const { priceList, ecommerceProducts, ecommerceCategories } = await import('@shared/schema');
 
     // Get current month boundaries
     const now = new Date();
@@ -16053,8 +16054,6 @@ export class DatabaseStorage implements IStorage {
 
   // eCommerce Orders operations
   async createEcommerceOrder(orderData: any) {
-    const { ecommerceOrders } = await import('@shared/schema');
-
     try {
       // Only include fields that exist in the schema to avoid column errors
       const cleanData: any = {
@@ -16092,8 +16091,6 @@ export class DatabaseStorage implements IStorage {
     salespersonId?: string;
     status?: string;
   }) {
-    const { ecommerceOrders } = await import('@shared/schema');
-
     const conditions = [];
 
     if (filters?.clientId) {
@@ -16279,8 +16276,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createPublicQuoteRequest(salespersonId: string, quoteData: any) {
-    const { ecommerceOrders, salespeopleUsers } = await import('@shared/schema');
-
     // Get salesperson info
     const [salesperson] = await db
       .select({
