@@ -20251,16 +20251,19 @@ export function registerRoutes(app: Express): Server {
                 text: `Analiza esta imagen de un documento comercial chileno (boleta, factura, o recibo) y extrae la siguiente información en formato JSON:
                 
 {
-  "monto": (número, el monto total a pagar, sin símbolo de moneda ni puntos de miles),
-  "descripcion": (string, una breve descripción del gasto basada en los items o concepto del documento),
-  "numeroDocumento": (string, número de folio, número de boleta o factura),
-  "rutProveedor": (string, RUT del emisor/proveedor en formato XX.XXX.XXX-X),
-  "proveedor": (string, razón social o nombre del emisor/proveedor),
-  "fechaEmision": (string, fecha de emisión en formato YYYY-MM-DD),
-  "tipoDocumento": (string, uno de: "Boleta", "Factura", "Recibo", "Otro")
+  "monto": (número, el monto total a pagar, sin símbolo de moneda ni separadores de miles, debe ser un número entero. Busca la palabra TOTAL),
+  "descripcion": (string, una breve descripción del gasto basada en los items o concepto del documento. Si es de peaje, indica que es un peaje),
+  "numeroDocumento": (string, número de folio, número de boleta, factura o nro de ticket),
+  "rutProveedor": (string, RUT del emisor/proveedor en formato XX.XXX.XXX-X. Suele estar en la parte superior),
+  "proveedor": (string, razón social o nombre del emisor/proveedor o Autopista),
+  "fechaEmision": (string, fecha de emisión en formato YYYY-MM-DD. Convierte la fecha del documento a este formato),
+  "tipoDocumento": (string, uno de: "Boleta", "Factura", "Recibo", "Peaje", "Otro")
 }
 
-Si no puedes identificar algún campo, déjalo como null. Responde SOLO con el JSON, sin explicaciones adicionales.`
+Instrucciones extra: 
+1. Si el documento es un ticket de peaje, asigna tipoDocumento="Peaje". 
+2. Si no puedes identificar algún campo con total certeza, intenta buscar sinónimos (ej: Folio = numeroDocumento). Si definitivamente no está, déjalo como null. 
+3. Responde SOLO con el JSON válido, sin delimitadores de markdown ni texto adicional.`
               },
               {
                 type: 'image_url',

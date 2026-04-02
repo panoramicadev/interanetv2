@@ -285,6 +285,7 @@ interface GastosByDia {
 
 const CATEGORIAS = [
   "Combustibles",
+  "Peaje",
   "Colación",
   "Gestión Ventas",
   "Transporte",

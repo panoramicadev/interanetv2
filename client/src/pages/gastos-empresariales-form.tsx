@@ -641,6 +641,7 @@ export default function GastosEmpresarialesForm() {
                           </FormControl>
                           <SelectContent>
                             <SelectItem value="Combustibles">Combustibles</SelectItem>
+                            <SelectItem value="Peaje">Peaje</SelectItem>
                             <SelectItem value="Colación">Colación</SelectItem>
                             <SelectItem value="Gestión Ventas">Gestión Ventas</SelectItem>
                             <SelectItem value="Otros">Otros</SelectItem>
