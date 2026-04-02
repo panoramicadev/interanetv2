@@ -788,10 +788,11 @@ export default function BillingSummary() {
                     <Landmark className="h-4 w-4" /> Datos de Transferencia
                   </div>
                   <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-xs text-slate-600">
-                    <div><span className="text-slate-400 block mb-0.5">Empresa</span><span className="font-medium">Pintureria Panoramica</span></div>
-                    <div><span className="text-slate-400 block mb-0.5">RUT</span><span className="font-medium">76.123.456-7</span></div>
-                    <div><span className="text-slate-400 block mb-0.5">Banco</span><span className="font-medium">Banco Estado</span></div>
-                    <div><span className="text-slate-400 block mb-0.5">Cuenta</span><span className="font-medium">123-456-789-00</span></div>
+                    <div><span className="text-slate-400 block mb-0.5">Empresa</span><span className="font-medium">Pintureria Panoramica Limitada</span></div>
+                    <div><span className="text-slate-400 block mb-0.5">RUT</span><span className="font-medium">78.652.260-9</span></div>
+                    <div><span className="text-slate-400 block mb-0.5">Banco</span><span className="font-medium">Banco Santander</span></div>
+                    <div><span className="text-slate-400 block mb-0.5">Cuenta Corriente</span><span className="font-medium">2592916-0</span></div>
+                    <div className="col-span-2"><span className="text-slate-400 block mb-0.5">Email</span><span className="font-medium">contacto@pinturaspanoramica.cl</span></div>
                   </div>
                   <div className="flex items-start gap-2 text-xs text-orange-700 bg-orange-100/50 p-2 rounded flex-shrink-0">
                     <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
