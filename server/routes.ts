@@ -6280,8 +6280,8 @@ export function registerRoutes(app: Express): Server {
         return res.json(activeWarehouses);
       }
 
-      const warehouses = await storage.getWarehouses(branch as string);
-      res.json(warehouses);
+      const fetchedWarehouses = await storage.getWarehouses(branch as string);
+      res.json(fetchedWarehouses);
     } catch (error) {
       console.error("Error fetching warehouses:", error);
       res.status(500).json({ message: "Failed to fetch warehouses" });
