@@ -307,6 +307,8 @@ export const warehouses = pgTable("warehouses", {
   name: varchar("name").notNull(), // Warehouse Name
   branchName: varchar("branch_name"), // Branch Name
   location: text("location"), // Physical location
+  schedule: text("schedule"), // Opening hours
+  phone: varchar("phone"), // Contact phone
   active: boolean("active").default(true),
   isManual: boolean("is_manual").default(false), // Flag for warehouses created manually in intranet vs ERP sync
   createdAt: timestamp("created_at").defaultNow(),

@@ -62,8 +62,7 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
     creditLimit: client.creditLimit?.toString() || "",
     creditAvailable: client.creditAvailable?.toString() || ""
   });
-  const [isWarehouseManagerOpen, setIsWarehouseManagerOpen] = useState(false);
-  const { toast } = useToast();
+    const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Parse credit days if condition is format "CREDITO X DIAS"
@@ -116,28 +115,8 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
     },
   });
 
-  const [warehouseForm, setWarehouseForm] = useState({ id: "", name: "", location: "" });
-
-  const saveWarehouse = useMutation({
-    mutationFn: async (data: typeof warehouseForm) => {
-      const isNew = !data.id;
-      const method = isNew ? "POST" : "PATCH";
-      const url = isNew ? "/api/warehouses" : `/api/warehouses/${data.id}`;
-      const res = await apiRequest(method, url, data);
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({ title: "Guardado", description: "Bodega guardada correctamente." });
-      queryClient.invalidateQueries({ queryKey: ["/api/warehouses"] });
-      setWarehouseForm({ id: "", name: "", location: "" });
-      setIsWarehouseManagerOpen(false);
-    },
-    onError: () => {
-      toast({ title: "Error", description: "No se pudo guardar la bodega.", variant: "destructive" });
-    }
-  });
-
-  const updateCommercialInfo = useMutation({
+  
+    const updateCommercialInfo = useMutation({
     mutationFn: async (data: any) => {
       if (!client.clientId) throw new Error("Cliente no tiene ID asignado");
       const res = await apiRequest("PATCH", `/api/users/clients/${client.clientId}/commercial-info`, data);
@@ -424,9 +403,7 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <Label className="text-xs">Bodega de Retiro Default</Label>
-                        <Button variant="link" size="sm" className="h-auto p-0 text-[10px] text-blue-600" onClick={() => setIsWarehouseManagerOpen(true)}>
-                          <Plus className="h-3 w-3 mr-0.5"/> Gestionar
-                        </Button>
+                        
                       </div>
                       <Select 
                         value={commercialForm.pickupWarehouseId} 
@@ -617,85 +594,7 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
         </TabsContent>
       </Tabs>
 
-      {/* Warehouse Manager Modal */}
-      <Dialog open={isWarehouseManagerOpen} onOpenChange={setIsWarehouseManagerOpen}>
-        <DialogContent className="max-w-2xl bg-white dark:bg-slate-900 border-border shadow-xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-xl">
-              <Building2 className="h-5 w-5 text-blue-500" />
-              Gestión de Bodegas de Retiro
-            </DialogTitle>
-            <DialogDescription>
-              Crea o edita las bodegas que aparecerán disponibles para que el cliente retire sus compras.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-            {/* Form for new/edit */}
-            <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-border/60">
-              <h3 className="text-sm font-semibold mb-3 flex items-center gap-1.5">
-                {warehouseForm.id ? <><Edit2 className="h-3.5 w-3.5 text-blue-500"/> Editar Bodega</> : <><Plus className="h-3.5 w-3.5 text-emerald-500"/> Nueva Bodega</>}
-              </h3>
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Nombre de la Bodega</Label>
-                  <Input 
-                    placeholder="Ej: Sede Central" 
-                    value={warehouseForm.name}
-                    onChange={(e) => setWarehouseForm(p => ({ ...p, name: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Dirección / Ubicación</Label>
-                  <Input 
-                    placeholder="Ej: Av Principal 123" 
-                    value={warehouseForm.location || ""}
-                    onChange={(e) => setWarehouseForm(p => ({ ...p, location: e.target.value }))}
-                  />
-                </div>
-                <div className="flex justify-end gap-2 pt-2">
-                  {warehouseForm.id && (
-                    <Button variant="ghost" size="sm" onClick={() => setWarehouseForm({ id: "", name: "", location: "" })}>
-                      Cancelar
-                    </Button>
-                  )}
-                  <Button size="sm" 
-                    className="bg-blue-600 hover:bg-blue-700" 
-                    disabled={!warehouseForm.name || saveWarehouse.isPending}
-                    onClick={() => saveWarehouse.mutate(warehouseForm)}
-                  >
-                    {saveWarehouse.isPending ? "Guardando..." : "Guardar"}
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* List of custom warehouses */}
-            <div className="flex flex-col h-[280px]">
-              <h3 className="text-sm font-semibold mb-3">Bodegas Registradas</h3>
-              <div className="flex-1 overflow-y-auto pr-2 space-y-2">
-                {warehouses.filter((w: any) => w.isManual || w.is_manual || w.kobo?.startsWith('MNL')).length === 0 ? (
-                  <div className="text-center py-6 text-sm text-muted-foreground bg-slate-50 dark:bg-slate-800/20 rounded-lg">
-                    No hay bodegas registradas manualmente.
-                  </div>
-                ) : (
-                  warehouses.filter((w: any) => w.isManual || w.is_manual || w.kobo?.startsWith('MNL')).map((w: any) => (
-                    <div key={w.id} className="p-3 bg-white dark:bg-slate-800 border rounded-lg hover:border-blue-300 transition-colors flex justify-between group">
-                      <div className="min-w-0 pr-2">
-                        <p className="font-semibold text-sm text-foreground truncate">{w.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{w.location || "Sin dirección"}</p>
-                      </div>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 flex-shrink-0 text-blue-600" onClick={() => setWarehouseForm({ id: w.id, name: w.name, location: w.location || "" })}>
-                        <Edit2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      
     </div>
   );
 }

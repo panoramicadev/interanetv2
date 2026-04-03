@@ -6291,7 +6291,7 @@ export function registerRoutes(app: Express): Server {
   // Create a manual pickup warehouse (from intranet)
   app.post('/api/warehouses', requireCommercialAccess, async (req: any, res) => {
     try {
-      const { name, location } = req.body;
+      const { name, location, schedule, phone } = req.body;
       if (!name) {
         return res.status(400).json({ message: "Nombre de bodega es requerido" });
       }
@@ -6306,6 +6306,8 @@ export function registerRoutes(app: Express): Server {
         name,
         branchName: name,
         location: location || null,
+        schedule: schedule || null,
+        phone: phone || null,
         active: true,
       };
       
@@ -6333,7 +6335,7 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/warehouses/:id', requireCommercialAccess, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const { name, location, active } = req.body;
+      const { name, location, schedule, phone, active } = req.body;
       const user = req.user;
       // Allow any user with commercial access to update a manual warehouse
 
@@ -6346,6 +6348,8 @@ export function registerRoutes(app: Express): Server {
         .set({
           name: name !== undefined ? name : warehouse.name,
           location: location !== undefined ? location : warehouse.location,
+          schedule: schedule !== undefined ? schedule : warehouse.schedule,
+          phone: phone !== undefined ? phone : warehouse.phone,
           active: active !== undefined ? active : warehouse.active,
           updatedAt: new Date(),
         })

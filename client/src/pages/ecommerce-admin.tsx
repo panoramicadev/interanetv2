@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers, Users, Phone, Mail, Link as LinkIcon, Check, X, Loader2, User, ChevronDown, ChevronRight, Truck, Save, Layout, MapPin, HelpCircle, FileText, ArrowUp, ArrowDown } from "lucide-react";
+import { ShoppingCart, Search, Building2, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers, Users, Phone, Mail, Link as LinkIcon, Check, X, Loader2, User, ChevronDown, ChevronRight, Truck, Save, Layout, MapPin, HelpCircle, FileText, ArrowUp, ArrowDown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
 import { useForm } from "react-hook-form";
@@ -830,7 +830,152 @@ function BannerList() {
   );
 }
 
+
+function WarehouseManagementSection() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [warehouseForm, setWarehouseForm] = React.useState({ id: "", name: "", location: "", schedule: "", phone: "" });
+
+  const { data: warehouses = [], isLoading } = useQuery({
+    queryKey: ["/api/warehouses"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/warehouses?type=ecommerce`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const saveWarehouse = useMutation({
+    mutationFn: async (data: typeof warehouseForm) => {
+      const isNew = !data.id;
+      const method = isNew ? "POST" : "PATCH";
+      const url = isNew ? "/api/warehouses" : `/api/warehouses/${data.id}`;
+      // isManual default to true when posting from intranet
+      const payload = { ...data, isManual: true };
+      const res = await apiRequest(method, url, payload);
+      if (!res.ok) throw new Error("Error al guardar");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Guardada", description: "La bodega se guardó correctamente." });
+      queryClient.invalidateQueries({ queryKey: ["/api/warehouses"] });
+      setWarehouseForm({ id: "", name: "", location: "", schedule: "", phone: "" });
+    },
+    onError: (e: any) => {
+      toast({ title: "Error", description: e.message || "No se pudo guardar la bodega.", variant: "destructive" });
+    }
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center">
+            <Building2 className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <CardTitle className="text-lg">Gestión de Bodegas de Retiro</CardTitle>
+            <p className="text-sm text-muted-foreground">Administra las bodegas disponibles para retiro en tienda por tus clientes.</p>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-xl border border-border/60">
+            <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
+              {warehouseForm.id ? <><Edit className="h-4 w-4 text-blue-500"/> Editar Bodega</> : <><Plus className="h-4 w-4 text-emerald-500"/> Nueva Bodega Manual</>}
+            </h3>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Nombre de la Bodega <span className="text-red-500">*</span></Label>
+                <Input 
+                  placeholder="Ej: Sede Central Lautaro" 
+                  value={warehouseForm.name}
+                  onChange={(e) => setWarehouseForm(p => ({ ...p, name: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Dirección / Ubicación</Label>
+                <Input 
+                  placeholder="Ej: Av. Industrial 123, Galpón 4" 
+                  value={warehouseForm.location || ""}
+                  onChange={(e) => setWarehouseForm(p => ({ ...p, location: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                   <Label className="text-sm font-medium">Horarios de Atención</Label>
+                   <Input 
+                     placeholder="Ej: Lun-Vie 8:30 a 18:00 (Colación 13:00 - 14:00)" 
+                     value={warehouseForm.schedule || ""}
+                     onChange={(e) => setWarehouseForm(p => ({ ...p, schedule: e.target.value }))}
+                   />
+                </div>
+                <div className="space-y-1.5">
+                   <Label className="text-sm font-medium">Teléfono de Contacto</Label>
+                   <Input 
+                     placeholder="Ej: +56 9 1234 5678" 
+                     value={warehouseForm.phone || ""}
+                     onChange={(e) => setWarehouseForm(p => ({ ...p, phone: e.target.value }))}
+                   />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-4">
+                {warehouseForm.id && (
+                  <Button variant="outline" onClick={() => setWarehouseForm({ id: "", name: "", location: "", schedule: "", phone: "" })}>
+                    Cancelar
+                  </Button>
+                )}
+                <Button 
+                  className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50" 
+                  disabled={!warehouseForm.name || saveWarehouse.isPending}
+                  onClick={() => saveWarehouse.mutate(warehouseForm)}
+                >
+                  {saveWarehouse.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Save className="h-4 w-4 mr-2" />}
+                  {saveWarehouse.isPending ? "Guardando..." : "Guardar Bodega"}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col h-[400px] bg-white dark:bg-slate-900 border rounded-xl overflow-hidden">
+            <div className="bg-muted/30 p-3 border-b border-border/50">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">Bodegas Disponibles</h3>
+            </div>
+            <div className="p-3 flex-1 overflow-y-auto space-y-2">
+              {isLoading ? (
+                <div className="text-center py-6 text-muted-foreground text-sm flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
+                </div>
+              ) : warehouses.filter((w: any) => w.isManual || w.is_manual || w.kobo?.startswith('MNL')).length === 0 ? (
+                <div className="text-center py-8 text-sm text-muted-foreground bg-slate-50 dark:bg-slate-800/20 rounded-lg">
+                  No hay bodegas creadas manualmente.<br/>Añade tu primera bodega en el formulario.
+                </div>
+              ) : (
+                warehouses.filter((w: any) => w.isManual || w.is_manual || w.kobo?.startswith('MNL')).map((w: any) => (
+                  <div key={w.id} className="p-3 bg-white dark:bg-slate-800 border rounded-lg hover:border-indigo-300 transition-colors flex items-start justify-between group shadow-sm">
+                    <div className="min-w-0 pr-2 space-y-1 flex-1">
+                      <p className="font-semibold text-sm text-foreground truncate">{w.name}</p>
+                      {w.location && <p className="text-xs text-muted-foreground flex items-start gap-1 mt-1 pr-1"><MapPin className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" /> <span className="break-words">{w.location}</span></p>}
+                      {w.schedule && <p className="text-xs text-muted-foreground flex items-start gap-1 pr-1"><Clock className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" /> <span className="break-words">{w.schedule}</span></p>}
+                      {w.phone && <p className="text-xs text-muted-foreground flex items-start gap-1 pr-1"><Phone className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" /> <span>{w.phone}</span></p>}
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-600 bg-indigo-50/50 hover:bg-indigo-100 flex-shrink-0" onClick={() => setWarehouseForm({ id: w.id, name: w.name, location: w.location || "", schedule: w.schedule || "", phone: w.phone || "" })}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function EcommerceAdmin() {
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("true");
@@ -1877,17 +2022,21 @@ export default function EcommerceAdmin() {
         </div>
       )}
 
-      {/* Topbar Configuration Section */}
-      {isAdmin && (
-        <TopbarConfigSection />
-      )}
+      
+      <Tabs defaultValue="general" className="w-full">
+        <TabsList className="mb-6 grid w-full grid-cols-1 sm:grid-cols-3 gap-2 bg-muted/20 p-1.5 h-auto rounded-xl">
+           <TabsTrigger value="general" className="py-2.5 text-sm rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">General</TabsTrigger>
+           <TabsTrigger value="envios" className="py-2.5 text-sm rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Envíos y Retiros</TabsTrigger>
+           <TabsTrigger value="catalogos" className="py-2.5 text-sm rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Catálogos de Vendedores</TabsTrigger>
+        </TabsList>
 
-      {/* Shipping Rates Section */}
-      {isAdmin && (
-        <ShippingRatesSection />
-      )}
+        <TabsContent value="general" className="space-y-6">
+          {/* Topbar Configuration Section */}
+          {isAdmin && (
+            <TopbarConfigSection />
+          )}
 
-      {/* Banner Management Section */}
+          {/* Banner Management Section */}
       {isAdmin && (
         <Card>
           <CardHeader>
@@ -1928,7 +2077,20 @@ export default function EcommerceAdmin() {
         </Card>
       )}
 
-      {/* Catálogos Públicos - Solo Admin */}
+      
+        </TabsContent>
+
+        <TabsContent value="envios" className="space-y-6">
+          {isAdmin && (
+            <ShippingRatesSection />
+          )}
+          {isAdmin && (
+            <WarehouseManagementSection />
+          )}
+        </TabsContent>
+
+        <TabsContent value="catalogos" className="space-y-6">
+          {/* Catálogos Públicos - Solo Admin */}
       {isAdmin && (
         <div className="space-y-6">
             <Card>
@@ -2183,6 +2345,9 @@ export default function EcommerceAdmin() {
         </div>
       )}
 
+
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
