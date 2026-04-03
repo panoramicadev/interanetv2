@@ -31,11 +31,11 @@ const formatPrice = (price: number): string => {
 
 const BANK_DETAILS = {
   empresa: "Pintureria Panoramica Limitada",
-  rut: "76.123.456-7",
-  banco: "Banco Estado",
+  rut: "78.652.260-9",
+  banco: "Banco Santander",
   tipoCuenta: "Cuenta Corriente",
-  numeroCuenta: "123-456-789-00",
-  email: "pagos@panoramicapinturas.cl",
+  numeroCuenta: "2592916-0",
+  email: "contacto@pinturaspanoramica.cl",
 };
 
 export default function PedidoConfirmado() {
@@ -198,10 +198,13 @@ export default function PedidoConfirmado() {
                 </div>
 
                 {/* Bank Details Card */}
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 text-left space-y-3">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Landmark className="h-5 w-5 text-slate-600" />
-                    <span className="font-semibold text-slate-800 text-sm">Datos para Transferencia</span>
+                <div className="bg-[#FF6E23]/5 border-2 border-[#FF6E23]/40 shadow-sm rounded-xl p-6 text-left space-y-4 relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1.5 h-full bg-[#FF6E23]"></div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="bg-[#FF6E23] p-1.5 rounded-lg">
+                      <Landmark className="h-5 w-5 text-white" />
+                    </div>
+                    <span className="font-bold text-slate-800 text-lg">Datos para Transferencia</span>
                   </div>
 
                   {[
@@ -212,13 +215,13 @@ export default function PedidoConfirmado() {
                     { label: 'N° Cuenta', value: BANK_DETAILS.numeroCuenta },
                     { label: 'Email', value: BANK_DETAILS.email },
                   ].map((item) => (
-                    <div key={item.label} className="flex justify-between items-center py-1.5 border-b border-slate-100 last:border-0">
-                      <span className="text-xs text-slate-500">{item.label}</span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-medium text-slate-800">{item.value}</span>
+                    <div key={item.label} className="flex justify-between items-center py-2 border-b border-slate-200/60 last:border-0 hover:bg-slate-50/50 rounded-md px-1 transition-colors">
+                      <span className="text-sm text-slate-600">{item.label}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-slate-900">{item.value}</span>
                         <button
                           onClick={() => copyToClipboard(item.value)}
-                          className="text-slate-400 hover:text-[#FF6E23] transition-colors p-0.5"
+                          className="text-slate-400 hover:text-[#FF6E23] bg-white border border-slate-200 shadow-sm rounded p-1 transition-all hover:scale-105 active:scale-95"
                           title="Copiar"
                         >
                           <Copy className="h-3.5 w-3.5" />
