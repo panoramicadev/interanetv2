@@ -599,7 +599,7 @@ export default function BillingSummary() {
               Método de Pago
             </Label>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="flex flex-col gap-2">
               <button
                 onClick={() => setSelectedPaymentMethod('transfer')}
                 className={`flex items-center justify-start gap-2 px-3 py-3 rounded-xl border text-sm font-medium transition-all ${
@@ -629,7 +629,7 @@ export default function BillingSummary() {
                   !isCredit ? 'text-gray-400' : selectedPaymentMethod === 'credit' ? 'text-blue-500' : 'text-gray-400'
                 }`} />
                 <div className="text-left">
-                  <div className="font-semibold">Crédito {isCredit && clientData?.cpen && `(${clientData.cpen})`}</div>
+                  <div className="font-semibold">Crédito</div>
                   {!isCredit && <div className="text-[10px] text-gray-400 leading-tight">No disponible</div>}
                 </div>
               </button>
@@ -970,9 +970,7 @@ export default function BillingSummary() {
                   </div>
                   <div className="text-xs text-slate-600 space-y-1">
                     <div className="flex items-center gap-2">
-                      <Badge className="bg-blue-100 text-blue-700 border-0 text-xs px-2">
-                        {clientData?.cpen}
-                      </Badge>
+                       <span className="text-slate-500">Pago diferido</span>
                     </div>
                   </div>
 

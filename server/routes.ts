@@ -6615,6 +6615,7 @@ export function registerRoutes(app: Express): Server {
         notes: z.string().optional().nullable(),
         shippingAddress: z.string().optional().nullable(),
         paymentCondition: z.string().optional().nullable(),
+        paymentMethod: z.string().optional(),
       });
 
       const validationResult = clientOrderSchema.safeParse(req.body);
@@ -6650,7 +6651,7 @@ export function registerRoutes(app: Express): Server {
         assignedSalespersonId: client?.assignedSalespersonUserId || null,
         assignedSalespersonName: null,
         status: isCreditMethod ? 'approved' : 'pending',
-        paymentCondition: isCreditMethod ? `Crédito ${client?.cpen || ''}`.trim() : 'Transferencia',
+        paymentCondition: isCreditMethod ? 'Crédito' : 'Transferencia',
         notes: orderData.notes || null,
         shippingAddress: orderData.shippingAddress || null,
       };
