@@ -6721,22 +6721,28 @@ export function registerRoutes(app: Express): Server {
         return res.json({ nvv: [], gdv: [], transactions: [] });
       }
 
-      const { nvvPendingSales, gdvPendingSales, salesTransactions } = await import('@shared/schema');
+      const { nvvPendingSales, factGdv, salesTransactions } = await import('@shared/schema');
       const { sql, and, gte, desc } = await import('drizzle-orm');
       
       const cleanRut = user.clientRut.replace(/[\.\-\s]/g, '').trim().toUpperCase();
 
-      // Fetch NVV
+      // Fetch Transactions (invoices) and GDV from the last year strictly for performance
+      const now = new Date();
+      const startDate = new Date(now.getFullYear() - 1, now.getMonth(), 1).toISOString().split("T")[0];
+
+      // Fetch NVV (Pending orders, generally small list)
       const nvvData = await db.select().from(nvvPendingSales)
         .where(sql`UPPER(REPLACE(REPLACE(REPLACE(${nvvPendingSales.ENDO}, '.', ''), '-', ''), ' ', '')) = ${cleanRut}`);
       
       // Fetch GDV
-      const gdvData = await db.select().from(gdvPendingSales)
-        .where(sql`UPPER(REPLACE(REPLACE(REPLACE(${gdvPendingSales.endo}, '.', ''), '-', ''), ' ', '')) = ${cleanRut}`);
+      const gdvData = await db.select().from(factGdv)
+        .where(
+          and(
+            sql`UPPER(REPLACE(REPLACE(REPLACE(${factGdv.endo}, '.', ''), '-', ''), ' ', '')) = ${cleanRut}`,
+            gte(factGdv.feemdo, startDate as any)
+          )
+        );
 
-      // Fetch Transactions (invoices) from the last year exactly as transactions do
-      const now = new Date();
-      const startDate = new Date(now.getFullYear() - 1, now.getMonth(), 1).toISOString().split("T")[0];
       const txData = await db.select()
         .from(salesTransactions)
         .where(

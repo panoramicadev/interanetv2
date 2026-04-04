@@ -475,12 +475,12 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
   const groupErpOrders = (rows: any[], idField: string, statusText: string) => {
     const map = new Map<string, EcommerceOrder>();
     rows.forEach(row => {
-      const id = row[idField] || row.nudo;
+      const id = row[idField] || row.nudo || row.NUDO;
       if (!id) return;
-      const amount = Number(row.monto || row.PPPRNE || row.amount || 0);
-      const qty = Number(row.cantidad || row.CAPRCO2 || 1);
-      const docTotal = Number(row.VABRDO || amount || 0); // VABRDO is usually doc total in NVV
-      const itemName = row.producto || row.nokopr || row.NOKOPR || row.productName || 'Producto ERP';
+      const amount = Number(row.monto || row.PPPRNE || row.vabrdo || row.VABRDO || row.amount || 0);
+      const qty = Number(row.cantidad || row.CAPRCO2 || row.caprad2 || row.caprad || 1);
+      const docTotal = Number(row.vabrdo || row.VABRDO || amount || 0); // VABRDO is usually doc total in NVV
+      const itemName = row.producto || row.nokopr || row.NOKOPR || row.nokoprct || row.productName || row.koprct || 'Producto ERP';
       
       const item = {
         productName: itemName,
@@ -500,7 +500,7 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
           status: statusText, // ingresado, despacho, facturado
           total: String(docTotal > 0 ? docTotal : amount),
           items: [item],
-          createdAt: row.FEEMDO || row.fecha || row.date || new Date().toISOString()
+          createdAt: row.feemdo || row.FEEMDO || row.fecha || row.date || new Date().toISOString()
         });
       }
     });
