@@ -114,13 +114,44 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
   const { data: nvvData = [], isLoading: nvvLoading } = useQuery<NVVRecord[]>({
     queryKey: ["/api/nvv/by-salesperson", salesperson, "all", "all"],
     queryFn: async () => {
+      // Si no hay vendedor y es un cliente, devolvemos array vacío para NVVs porque no puede consultar `by-salesperson`
+      if (!salesperson) return [];
       const params = new URLSearchParams({ salesperson });
       const res = await fetch(`/api/nvv/by-salesperson?${params}`, { credentials: "include" });
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: !!salesperson,
+    // We can fetch NVV if salesperson exists. BUT we also want to fetch Web orders.
   });
+
+  // Fetch Web Orders (eCommerce) directly for the client
+  const { data: webOrders = [], isLoading: webLoading } = useQuery<any[]>({
+    queryKey: ["/api/ecommerce/client/orders"],
+    queryFn: async () => {
+      const res = await fetch(`/api/ecommerce/client/orders`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    }
+  });
+
+  // Merge Web Orders into NVV context (Pending orders)
+  const pendingWebOrders = webOrders.filter((o: any) => o.status === 'pending' || o.status === 'approved').map((o: any) => ({
+    id: o.id,
+    NUDO: o.id.substring(0, 8).toUpperCase(),
+    TIDO: 'WEB',
+    FEEMDO: o.createdAt,
+    ENDO: '',
+    NOKOEN: o.clientName,
+    NOKOPR: o.items?.length === 1 ? o.items[0].productName : `Ped. Web (${o.items?.length} arts.)`,
+    KOPRCT: '',
+    CAPREX2: o.items?.reduce((acc: number, item: any) => acc + item.quantity, 0) || 0,
+    CAPRCO2: 0,
+    PPPRNE: 0,
+    cantidadPendiente: o.items?.reduce((acc: number, item: any) => acc + item.quantity, 0) || 0,
+    totalPendiente: Number(o.total) || 0,
+  }));
+
+  const allPendingOrders = [...pendingWebOrders, ...nvvData];
 
   // Fetch GDV (dispatch)
   const { data: gdvData = [], isLoading: gdvLoading } = useQuery<GDVRecord[]>({
@@ -149,10 +180,10 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
     enabled: !!salesperson,
   });
 
-  const isLoading = nvvLoading || gdvLoading || txLoading;
+  const isLoading = nvvLoading || gdvLoading || txLoading || webLoading;
 
-  const totalNVV = nvvData.reduce((s, r) => s + r.totalPendiente, 0);
-  const totalDocsNVV = nvvData.length;
+  const totalNVV = allPendingOrders.reduce((s, r) => s + r.totalPendiente, 0);
+  const totalDocsNVV = allPendingOrders.length;
   const totalGDV = gdvData.reduce((s, r) => s + (r.monto || 0), 0);
   const totalDocsGDV = gdvData.length;
   const totalFacturado = transactions.reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
@@ -231,8 +262,8 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
         </Card>
       </div>
 
-      {/* Last NVV orders quick view */}
-      {nvvData.length > 0 && (
+      {/* Last pending orders quick view */}
+      {allPendingOrders.length > 0 && (
         <Card className="rounded-2xl border-0 shadow-sm">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -247,7 +278,7 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {nvvData.slice(0, 5).map((r) => (
+              {allPendingOrders.slice(0, 5).map((r) => (
                 <div key={r.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-gray-900 truncate">{r.NOKOPR}</p>
@@ -316,13 +347,41 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
   const { data: nvvData = [], isLoading: nvvLoading } = useQuery<NVVRecord[]>({
     queryKey: ["/api/nvv/by-salesperson", salesperson, "all", "all"],
     queryFn: async () => {
+      if (!salesperson) return [];
       const params = new URLSearchParams({ salesperson });
       const res = await fetch(`/api/nvv/by-salesperson?${params}`, { credentials: "include" });
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: !!salesperson,
   });
+
+  // Fetch Web pending orders
+  const { data: webOrders = [], isLoading: webLoading } = useQuery<any[]>({
+    queryKey: ["/api/ecommerce/client/orders"],
+    queryFn: async () => {
+      const res = await fetch(`/api/ecommerce/client/orders`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    }
+  });
+
+  const pendingWebOrders = webOrders.filter((o: any) => o.status === 'pending' || o.status === 'approved').map((o: any) => ({
+    id: o.id,
+    NUDO: o.id.substring(0, 8).toUpperCase(),
+    TIDO: 'WEB',
+    FEEMDO: o.createdAt,
+    ENDO: '',
+    NOKOEN: o.clientName,
+    NOKOPR: o.items?.length === 1 ? o.items[0].productName : `Ped. Web (${o.items?.length || 0} arts.)`,
+    KOPRCT: '',
+    CAPREX2: o.items?.reduce((acc: number, item: any) => acc + item.quantity, 0) || 0,
+    CAPRCO2: 0,
+    PPPRNE: 0,
+    cantidadPendiente: o.items?.reduce((acc: number, item: any) => acc + item.quantity, 0) || 0,
+    totalPendiente: Number(o.total) || 0,
+  }));
+
+  const allPendingOrders = [...pendingWebOrders, ...nvvData];
 
   // GDV
   const { data: gdvData = [], isLoading: gdvLoading } = useQuery<GDVRecord[]>({
@@ -352,7 +411,7 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
   });
 
   const tabs = [
-    { key: "nvv" as const, label: "Ingresados", icon: ShoppingCart, count: nvvData.length, color: "amber" },
+    { key: "nvv" as const, label: "Ingresados", icon: ShoppingCart, count: allPendingOrders.length, color: "amber" },
     { key: "gdv" as const, label: "En Despacho", icon: Truck, count: gdvData.length, color: "purple" },
     { key: "facturas" as const, label: "Facturados", icon: FileCheck, count: transactions.length, color: "green" },
   ];
@@ -384,9 +443,9 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
         ))}
       </div>
 
-      {/* NVV Content */}
+      {/* NVV & Web Content */}
       {subTab === "nvv" && (
-        <NVVContent records={nvvData} isLoading={nvvLoading} />
+        <NVVContent records={allPendingOrders} isLoading={nvvLoading || webLoading} />
       )}
 
       {/* GDV Content */}

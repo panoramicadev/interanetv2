@@ -6691,6 +6691,22 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ message: 'Error al crear el pedido', detail: error?.message || 'Unknown error' });
     }
   }));
+  // Get ecommerce orders for a specific client
+  app.get('/api/ecommerce/client/orders', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'client') {
+        return res.status(403).json({ message: 'No autorizado. Solo clientes pueden consultar su propio historial.' });
+      }
+
+      const orders = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.clientId, user.id)).orderBy(desc(ecommerceOrders.createdAt));
+      res.json(orders);
+    } catch (error: any) {
+      console.error('Error fetching client orders:', error);
+      res.status(500).json({ message: 'Error al consultar pedidos', detail: error?.message || 'Unknown error' });
+    }
+  }));
+
 
   // Get ecommerce orders for salesperson/admin (order taker view)
   app.get('/api/ecommerce/orders', requireAuth, asyncHandler(async (req: any, res: any) => {

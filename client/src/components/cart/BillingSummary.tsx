@@ -39,6 +39,16 @@ interface Warehouse {
   location: string | null;
 }
 
+const sanitizeAddress = (text?: string) => {
+  if (!text) return '';
+  return text
+    .replace(/\uFFFD/g, 'Ñ') // Fixes UOA to ÑUÑOA
+    .replace(/\+U\+/g, '')   // Removes +U+
+    .replace(/,\s*,/g, ',')  // Cleans empty commas
+    .trim()
+    .replace(/,$/, '');      // Removes trailing comma
+};
+
 export default function BillingSummary() {
   const { state, applyCoupon, removeCoupon } = useCart();
   const { user } = useAuth();
@@ -118,20 +128,21 @@ export default function BillingSummary() {
   // Build list of available addresses
   const availableAddresses = [];
   if (clientData?.dien) {
+    const rawAddress = `${clientData.dien}${clientData.comuna ? ', ' + clientData.comuna : ''}${clientData.cmen ? ', ' + clientData.cmen : ''}`;
     availableAddresses.push({
       value: 'default',
       label: 'Dirección principal',
-      address: clientData.dien,
-      fullAddress: `${clientData.dien}${clientData.comuna ? ', ' + clientData.comuna : ''}${clientData.cmen ? ', ' + clientData.cmen : ''}`
+      address: sanitizeAddress(clientData.dien),
+      fullAddress: sanitizeAddress(rawAddress)
     });
   }
 
   // Set initial address option based on available addresses
   useEffect(() => {
-    if (availableAddresses.length === 0 && selectedAddressOption === "default") {
+    if (clientData !== undefined && availableAddresses.length === 0 && selectedAddressOption === "default") {
       setSelectedAddressOption("custom");
     }
-  }, [availableAddresses.length, selectedAddressOption]);
+  }, [availableAddresses.length, selectedAddressOption, clientData]);
 
   // Auto-select the client's assigned pickup warehouse
   useEffect(() => {

@@ -69,9 +69,23 @@ export default function PedidoConfirmado() {
     enabled: !!orderId,
   });
 
+  // Fetch client data to get credit limit (similar to BillingSummary logic)
+  const { data: clientData } = useQuery<{ crlt?: string }>({
+    queryKey: ['/api/clients/by-user', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const res = await fetch(`/api/clients/by-user/${user.id}`, { credentials: 'include' });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!user?.id && user?.role === 'client',
+  });
+
   // Determine if payment is NOT credit
   const paymentCondition = orderData?.paymentCondition || '';
-  const isCredit = paymentCondition.toUpperCase().includes('CREDITO') || paymentCondition.toUpperCase().includes('CRÉDITO');
+  const isCredit = paymentCondition.toUpperCase().includes('CREDITO') || 
+                   paymentCondition.toUpperCase().includes('CRÉDITO') || 
+                   (Number(clientData?.crlt) > 0);
   const requiresReceipt = !!orderData && !isCredit;
   const hasReceipt = !!orderData?.paymentReceiptUrl;
 
@@ -161,24 +175,7 @@ export default function PedidoConfirmado() {
               </p>
             </div>
 
-            {/* Order ID */}
-            {orderId && (
-              <>
-                <Separator />
-                <div className="bg-gray-50 rounded-xl p-5 space-y-3">
-                  <div className="flex items-center justify-center gap-2 text-base font-semibold text-gray-700 mb-1">
-                    <Package className="h-5 w-5 text-[#FF6E23]" />
-                    <span>{requiresReceipt && !hasReceipt ? 'Pedido Pendiente de Pago' : 'Estamos Procesando tu Pedido'}</span>
-                  </div>
-                  <div className="text-2xl font-mono font-bold text-[#FF6E23] tracking-wider">
-                    #{orderId.slice(0, 8)}
-                  </div>
-                  <p className="text-xs text-gray-400">
-                    Guarda este número de pedido como respaldo de tu solicitud
-                  </p>
-                </div>
-              </>
-            )}
+
 
             {/* --- Transfer Details (only if NOT credit) --- */}
             {requiresReceipt && (
@@ -292,6 +289,25 @@ export default function PedidoConfirmado() {
                     </div>
                   </div>
                 )}
+              </>
+            )}
+
+            {/* Order ID */}
+            {orderId && (
+              <>
+                <Separator />
+                <div className="bg-gray-50 rounded-xl p-5 space-y-3">
+                  <div className="flex items-center justify-center gap-2 text-base font-semibold text-gray-700 mb-1">
+                    <Package className="h-5 w-5 text-[#FF6E23]" />
+                    <span>{requiresReceipt && !hasReceipt ? 'Pedido Pendiente de Pago' : 'Estamos Procesando tu Pedido'}</span>
+                  </div>
+                  <div className="text-2xl font-mono font-bold text-[#FF6E23] tracking-wider">
+                    #{orderId.slice(0, 8)}
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    Guarda este número de pedido como respaldo de tu solicitud
+                  </p>
+                </div>
               </>
             )}
 
