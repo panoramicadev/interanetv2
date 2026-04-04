@@ -60,6 +60,7 @@ export default function BillingSummary() {
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'transfer' | 'credit'>('transfer');
 
   // Delivery method: 'despacho' or 'retiro'
   const [deliveryMethod, setDeliveryMethod] = useState<'despacho' | 'retiro'>(() => {
@@ -301,7 +302,8 @@ export default function BillingSummary() {
         total: deliveryMethod === 'despacho' ? state.total + shippingCost : state.total,
         notes: orderNotes.trim() || null,
         shippingAddress: finalShippingAddress || null,
-        paymentCondition: clientData?.cpen || null
+        paymentCondition: clientData?.cpen || null,
+        paymentMethod: selectedPaymentMethod
       };
 
       const response = await fetch('/api/ecommerce/orders/client', {
@@ -588,90 +590,124 @@ export default function BillingSummary() {
           )}
         </div>
 
-        {/* Payment Method Indicator */}
-        {user?.role === 'client' && clientData?.cpen && (
-          <div className="space-y-2">
+        {/* Payment Method Selector */}
+        {user?.role === 'client' && (
+          <div className="space-y-3">
             <Separator />
             <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-              {isCredit ? <CreditCard className="h-4 w-4" /> : <Banknote className="h-4 w-4" />}
+              <Banknote className="h-4 w-4" />
               Método de Pago
             </Label>
-            {isCredit ? (
-              <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 border border-blue-200 dark:border-blue-800 space-y-3">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  <span className="text-sm font-semibold text-blue-800 dark:text-blue-200">Crédito</span>
-                  <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 text-xs border-0">
-                    {clientData.cpen}
-                  </Badge>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                onClick={() => setSelectedPaymentMethod('transfer')}
+                className={`flex items-center justify-start gap-2 px-3 py-3 rounded-xl border text-sm font-medium transition-all ${
+                  selectedPaymentMethod === 'transfer'
+                    ? 'border-orange-500 bg-orange-50/50 text-orange-900 shadow-sm'
+                    : 'border-gray-200 bg-white text-gray-600 hover:border-orange-200'
+                }`}
+              >
+                <Banknote className={`h-4 w-4 ${selectedPaymentMethod === 'transfer' ? 'text-orange-500' : 'text-gray-400'}`} />
+                <div>
+                  <div className="text-left font-semibold">Transferencia Bancaria</div>
                 </div>
+              </button>
 
-                {/* Credit Balance Breakdown */}
-                {(clientData.crlt || clientData.cren) && (
-                  <div className="bg-white/60 dark:bg-blue-900/30 rounded-lg p-2.5 space-y-1.5 border border-blue-100 dark:border-blue-800">
-                    {clientData.crlt && (
+              <button
+                onClick={() => isCredit && setSelectedPaymentMethod('credit')}
+                disabled={!isCredit}
+                className={`flex items-center justify-start gap-2 px-3 py-3 rounded-xl border text-sm font-medium transition-all ${
+                  !isCredit
+                    ? 'opacity-60 cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400'
+                    : selectedPaymentMethod === 'credit'
+                    ? 'border-blue-500 bg-blue-50/50 text-blue-900 shadow-sm'
+                    : 'border-gray-200 bg-white text-gray-600 hover:border-blue-200'
+                }`}
+              >
+                <CreditCard className={`h-4 w-4 ${
+                  !isCredit ? 'text-gray-400' : selectedPaymentMethod === 'credit' ? 'text-blue-500' : 'text-gray-400'
+                }`} />
+                <div className="text-left">
+                  <div className="font-semibold">Crédito {isCredit && clientData?.cpen && `(${clientData.cpen})`}</div>
+                  {!isCredit && <div className="text-[10px] text-gray-400 leading-tight">No disponible</div>}
+                </div>
+              </button>
+            </div>
+
+            {/* Payment Method Details */}
+            <div className="mt-2">
+              {selectedPaymentMethod === 'credit' && isCredit ? (
+                <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 border border-blue-200 dark:border-blue-800 space-y-3 animate-in fade-in slide-in-from-top-2">
+                  <div className="flex items-center gap-2 text-blue-800 dark:text-blue-200">
+                    <CheckCircle2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <span className="text-sm font-semibold">Aprobación Inmediata</span>
+                  </div>
+
+                  {/* Credit Balance Breakdown */}
+                  {(clientData?.crlt || clientData?.cren) && (
+                    <div className="bg-white/60 dark:bg-blue-900/30 rounded-lg p-2.5 space-y-1.5 border border-blue-100 dark:border-blue-800">
+                      {clientData?.crlt && (
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-blue-600/70 dark:text-blue-400/70">Límite de crédito</span>
+                          <span className="font-semibold text-blue-800 dark:text-blue-200">{formatPrice(Number(clientData.crlt))}</span>
+                        </div>
+                      )}
+                      {clientData?.cren && (
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-blue-600/70 dark:text-blue-400/70">Disponible actual</span>
+                          <span className="font-semibold text-blue-800 dark:text-blue-200">{formatPrice(Number(clientData.cren))}</span>
+                        </div>
+                      )}
+                      <Separator className="bg-blue-200/50 dark:bg-blue-700/50" />
                       <div className="flex justify-between items-center text-xs">
-                        <span className="text-blue-600/70 dark:text-blue-400/70">Límite de crédito</span>
-                        <span className="font-semibold text-blue-800 dark:text-blue-200">{formatPrice(Number(clientData.crlt))}</span>
+                        <span className="text-blue-600/70 dark:text-blue-400/70">Monto de esta compra</span>
+                        <span className="font-bold text-orange-600">-{formatPrice(total)}</span>
                       </div>
-                    )}
-                    {clientData.cren && (
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-blue-600/70 dark:text-blue-400/70">Disponible actual</span>
-                        <span className="font-semibold text-blue-800 dark:text-blue-200">{formatPrice(Number(clientData.cren))}</span>
+                      <div className="flex justify-between items-center text-xs pt-0.5">
+                        <span className="font-semibold text-blue-700 dark:text-blue-300">Saldo después de compra</span>
+                        {(() => {
+                          const available = Number(clientData?.cren || clientData?.crlt || 0);
+                          const remaining = available - total;
+                          return (
+                            <span className={`font-bold ${remaining >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                              {formatPrice(remaining)}
+                            </span>
+                          );
+                        })()}
                       </div>
-                    )}
-                    <Separator className="bg-blue-200/50 dark:bg-blue-700/50" />
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-blue-600/70 dark:text-blue-400/70">Monto de esta compra</span>
-                      <span className="font-bold text-orange-600">-{formatPrice(total)}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs pt-0.5">
-                      <span className="font-semibold text-blue-700 dark:text-blue-300">Saldo después de compra</span>
                       {(() => {
-                        const available = Number(clientData.cren || clientData.crlt || 0);
+                        const available = Number(clientData?.cren || clientData?.crlt || 0);
                         const remaining = available - total;
-                        return (
-                          <span className={`font-bold ${remaining >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                            {formatPrice(remaining)}
-                          </span>
-                        );
+                        if (remaining < 0) {
+                          return (
+                            <div className="flex items-start gap-1.5 text-[10px] text-red-600 bg-red-50 dark:bg-red-950/30 p-1.5 rounded mt-1">
+                              <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                              <span>El monto excede tu crédito disponible. Tu ejecutivo deberá autorizarlo manualmente.</span>
+                            </div>
+                          );
+                        }
+                        return null;
                       })()}
                     </div>
-                    {(() => {
-                      const available = Number(clientData.cren || clientData.crlt || 0);
-                      const remaining = available - total;
-                      if (remaining < 0) {
-                        return (
-                          <div className="flex items-start gap-1.5 text-[10px] text-red-600 bg-red-50 dark:bg-red-950/30 p-1.5 rounded mt-1">
-                            <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                            <span>El monto de la compra excede tu crédito disponible. Contacta a tu ejecutivo comercial.</span>
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
-                  </div>
-                )}
+                  )}
 
-                <p className="text-xs text-blue-600/80 dark:text-blue-400/80">
-                  Tu pedido será facturado a crédito según la condición de pago acordada.
-                </p>
-              </div>
-            ) : (
-              <div className="bg-orange-50/50 dark:bg-orange-950/20 rounded-lg p-3 border border-orange-200 dark:border-orange-800">
-                <div className="flex items-center gap-2">
-                  <Banknote className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                  <span className="text-sm font-semibold text-orange-800 dark:text-orange-200">Transferencia</span>
-                  <Badge variant="outline" className="text-xs border-orange-300 text-orange-700 dark:text-orange-300">
-                    {clientData.cpen}
-                  </Badge>
+                  <p className="text-xs text-blue-600/80 dark:text-blue-400/80">
+                    Porcentaje a crédito según la condición estipulada en tu ficha. Tu pedido no requerirá que subas un recibo físico y quedará en lista de despacho automáticamente.
+                  </p>
                 </div>
-                <p className="text-xs text-orange-600/80 dark:text-orange-400/80 mt-1">
-                  Deberás realizar una transferencia y subir el comprobante una vez confirmado el pedido.
-                </p>
-              </div>
-            )}
+              ) : selectedPaymentMethod === 'transfer' ? (
+                <div className="bg-orange-50/50 dark:bg-orange-950/20 rounded-lg p-3 border border-orange-200 dark:border-orange-800 animate-in fade-in slide-in-from-top-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Info className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                    <span className="text-sm font-semibold text-orange-800 dark:text-orange-200">Requiere Validación</span>
+                  </div>
+                  <p className="text-xs text-orange-700 dark:text-orange-400 mt-1">
+                    Al confirmar el pedido, te facilitaremos los datos de la cuenta corriente. Tu pedido quedará <strong>Pendiente</strong> y comenzará a procesarse únicamente hasta que subas foto del comprobante de transferencia o depósito.
+                  </p>
+                </div>
+              ) : null}
+            </div>
           </div>
         )}
 
@@ -741,12 +777,17 @@ export default function BillingSummary() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Seleccionar bodega...</SelectItem>
-                {warehouses
-                  .filter(w => !clientData?.pickupWarehouseId || w.id === clientData.pickupWarehouseId)
-                  .map((w) => (
+                {warehouses.map((w) => (
                   <SelectItem key={w.id} value={w.id}>
                     <div className="flex flex-col">
-                      <span className="font-medium">{w.name}</span>
+                      <span className="font-medium flex items-center gap-2">
+                        {w.name}
+                        {clientData?.pickupWarehouseId === w.id && (
+                          <Badge variant="outline" className="text-[10px] bg-orange-50 text-orange-600 border-orange-200">
+                            Por defecto
+                          </Badge>
+                        )}
+                      </span>
                       {w.location && <span className="text-xs text-gray-500">{w.location}</span>}
                     </div>
                   </SelectItem>

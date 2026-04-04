@@ -81,11 +81,10 @@ export default function PedidoConfirmado() {
     enabled: !!user?.id && user?.role === 'client',
   });
 
-  // Determine if payment is NOT credit
+  // Determine if payment is NOT credit based directly on the explicit order saving
   const paymentCondition = orderData?.paymentCondition || '';
   const isCredit = paymentCondition.toUpperCase().includes('CREDITO') || 
-                   paymentCondition.toUpperCase().includes('CRÉDITO') || 
-                   (Number(clientData?.crlt) > 0);
+                   paymentCondition.toUpperCase().includes('CRÉDITO');
   const requiresReceipt = !!orderData && !isCredit;
   const hasReceipt = !!orderData?.paymentReceiptUrl;
 

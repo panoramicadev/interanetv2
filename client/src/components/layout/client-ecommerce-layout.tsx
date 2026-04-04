@@ -22,7 +22,6 @@ interface StoreConfig {
 const navItems = [
   { label: "Mi Panel", href: "/mi-cuenta", icon: LayoutDashboard },
   { label: "Mis Pedidos", href: "/mis-pedidos", icon: ClipboardList },
-  { label: "Panorámica Market", href: "/panoramica-market-cliente", icon: Gift },
 ];
 
 export default function ClientEcommerceLayout({ children }: { children: ReactNode }) {

@@ -6637,6 +6637,8 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Prepare order data with client and salesperson info
+      const isCreditMethod = orderData.paymentMethod === 'credit';
+      
       const orderToCreate: any = {
         items: orderData.items,
         subtotal: String(orderData.subtotal),
@@ -6647,8 +6649,8 @@ export function registerRoutes(app: Express): Server {
         clientEmail: req.user.email,
         assignedSalespersonId: client?.assignedSalespersonUserId || null,
         assignedSalespersonName: null,
-        status: 'pending',
-        paymentCondition: orderData.paymentCondition || client?.cpen || null,
+        status: isCreditMethod ? 'approved' : 'pending',
+        paymentCondition: isCreditMethod ? `Crédito ${client?.cpen || ''}`.trim() : 'Transferencia',
         notes: orderData.notes || null,
         shippingAddress: orderData.shippingAddress || null,
       };
@@ -6691,7 +6693,6 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ message: 'Error al crear el pedido', detail: error?.message || 'Unknown error' });
     }
   }));
-  // Get ecommerce orders for a specific client
   app.get('/api/ecommerce/client/orders', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
@@ -6704,6 +6705,51 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error('Error fetching client orders:', error);
       res.status(500).json({ message: 'Error al consultar pedidos', detail: error?.message || 'Unknown error' });
+    }
+  }));
+
+  // Get ERP standard history data for a specific client linked via clientRut
+  app.get('/api/ecommerce/client/erp-orders', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'client') {
+        return res.status(403).json({ message: 'No autorizado. Solo clientes pueden consultar su propio historial ERP.' });
+      }
+
+      if (!user.clientRut) {
+        return res.json({ nvv: [], gdv: [], transactions: [] });
+      }
+
+      const { nvvPendingSales, gdvPendingSales, salesTransactions } = await import('@shared/schema');
+      const { eq, and, gte, desc } = await import('drizzle-orm');
+
+      // Fetch NVV
+      const nvvData = await db.select().from(nvvPendingSales).where(eq(nvvPendingSales.ENDO, user.clientRut));
+      
+      // Fetch GDV
+      const gdvData = await db.select().from(gdvPendingSales).where(eq(gdvPendingSales.endo, user.clientRut));
+
+      // Fetch Transactions (invoices) from the last year exactly as transactions do
+      const now = new Date();
+      const startDate = new Date(now.getFullYear() - 1, now.getMonth(), 1).toISOString().split("T")[0];
+      const txData = await db.select()
+        .from(salesTransactions)
+        .where(
+          and(
+            eq(salesTransactions.endo, user.clientRut),
+            gte(salesTransactions.feemdo, startDate as any)
+          )
+        )
+        .orderBy(desc(salesTransactions.feemdo));
+
+      res.json({
+        nvv: nvvData,
+        gdv: gdvData,
+        transactions: txData
+      });
+    } catch (error: any) {
+      console.error('Error fetching client ERP history:', error);
+      res.status(500).json({ message: 'Error al consultar historial ERP', detail: error?.message || 'Unknown error' });
     }
   }));
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useAiChat } from "@/hooks/useAiChat";
@@ -110,20 +110,6 @@ const CLIENT_AI_SUGGESTIONS = [
 // ==========================================
 
 function DashboardTab({ salesperson }: { salesperson: string }) {
-  // Fetch NVV (pending orders)
-  const { data: nvvData = [], isLoading: nvvLoading } = useQuery<NVVRecord[]>({
-    queryKey: ["/api/nvv/by-salesperson", salesperson, "all", "all"],
-    queryFn: async () => {
-      // Si no hay vendedor y es un cliente, devolvemos array vacío para NVVs porque no puede consultar `by-salesperson`
-      if (!salesperson) return [];
-      const params = new URLSearchParams({ salesperson });
-      const res = await fetch(`/api/nvv/by-salesperson?${params}`, { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
-    // We can fetch NVV if salesperson exists. BUT we also want to fetch Web orders.
-  });
-
   // Fetch Web Orders (eCommerce) directly for the client
   const { data: webOrders = [], isLoading: webLoading } = useQuery<any[]>({
     queryKey: ["/api/ecommerce/client/orders"],
@@ -134,60 +120,113 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
     }
   });
 
-  // Merge Web Orders into NVV context (Pending orders)
-  const pendingWebOrders = webOrders.filter((o: any) => o.status === 'pending' || o.status === 'approved').map((o: any) => ({
-    id: o.id,
-    NUDO: o.id.substring(0, 8).toUpperCase(),
-    TIDO: 'WEB',
-    FEEMDO: o.createdAt,
-    ENDO: '',
-    NOKOEN: o.clientName,
-    NOKOPR: o.items?.length === 1 ? o.items[0].productName : `Ped. Web (${o.items?.length} arts.)`,
-    KOPRCT: '',
-    CAPREX2: o.items?.reduce((acc: number, item: any) => acc + item.quantity, 0) || 0,
-    CAPRCO2: 0,
-    PPPRNE: 0,
-    cantidadPendiente: o.items?.reduce((acc: number, item: any) => acc + item.quantity, 0) || 0,
-    totalPendiente: Number(o.total) || 0,
-  }));
-
-  const allPendingOrders = [...pendingWebOrders, ...nvvData];
-
-  // Fetch GDV (dispatch)
-  const { data: gdvData = [], isLoading: gdvLoading } = useQuery<GDVRecord[]>({
-    queryKey: ["/api/gdv/by-salesperson", salesperson],
+  // Fetch ERP Orders directly for the client
+  const { data: erpData, isLoading: erpLoading } = useQuery({
+    queryKey: ["/api/ecommerce/client/erp-orders"],
     queryFn: async () => {
-      const params = new URLSearchParams({ salesperson });
-      const res = await fetch(`/api/gdv/by-salesperson?${params}`, { credentials: "include" });
-      if (!res.ok) return [];
+      const res = await fetch(`/api/ecommerce/client/erp-orders`, { credentials: "include" });
+      if (!res.ok) return { nvv: [], gdv: [], transactions: [] };
       return res.json();
-    },
-    enabled: !!salesperson,
+    }
   });
 
-  // Fetch recent transactions (invoices)
-  const { data: transactions = [], isLoading: txLoading } = useQuery<any[]>({
-    queryKey: ["/api/sales/transactions", salesperson, "dashboard-client"],
-    queryFn: async () => {
-      const now = new Date();
-      const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
-      const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
-      const params = new URLSearchParams({ salesperson, startDate, endDate, limit: "200" });
-      const res = await fetch(`/api/sales/transactions?${params}`, { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: !!salesperson,
-  });
+  const isLoading = webLoading || erpLoading;
 
-  const isLoading = nvvLoading || gdvLoading || txLoading || webLoading;
+  // Compute metrics from Web Orders
+  const validOrders = useMemo(() => {
+    return webOrders.filter((o: any) => o.status === 'pending' || o.status === 'approved' || o.status === 'processing');
+  }, [webOrders]);
 
-  const totalNVV = allPendingOrders.reduce((s, r) => s + r.totalPendiente, 0);
-  const totalDocsNVV = allPendingOrders.length;
-  const totalGDV = gdvData.reduce((s, r) => s + (r.monto || 0), 0);
-  const totalDocsGDV = gdvData.length;
-  const totalFacturado = transactions.reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
-  const totalDocsFact = transactions.length;
+  const totalAmount = useMemo(() => {
+    let sum = validOrders.reduce((acc, o) => acc + (Number(o.total) || 0), 0);
+    if (erpData?.nvv) {
+       sum += erpData.nvv.reduce((acc: number, o: any) => acc + (Number(o.VABRDO) || 0), 0);
+    }
+    if (erpData?.transactions) {
+       // Omitir NVV para no duplicar si consideramos todo histórico facturado,
+       // o sumar transactions y quitar nvv. Para historial global sumamos facturado.
+       // actually the previous design was sum of everything.
+       sum += erpData.transactions.reduce((acc: number, o: any) => acc + (Number(o.vabrdo) || Number(o.amount) || 0), 0);
+    }
+    return sum;
+  }, [validOrders, erpData]);
+
+  const totalUnits = useMemo(() => {
+    let sum = validOrders.reduce((acc, o) => {
+      return acc + (o.items?.reduce((sum2: number, item: any) => sum2 + item.quantity, 0) || 0);
+    }, 0);
+    if (erpData?.nvv) {
+       sum += erpData.nvv.reduce((acc: number, o: any) => acc + (Number(o.CAPRCO2) || 0), 0);
+    }
+    if (erpData?.transactions) {
+       sum += erpData.transactions.reduce((acc: number, o: any) => acc + (Number(o.caprad) || 0), 0);
+    }
+    return sum;
+  }, [validOrders, erpData]);
+
+  const totalOrdersCount = useMemo(() => {
+    return validOrders.length + (erpData?.nvv?.length || 0) + (erpData?.transactions?.length || 0);
+  }, [validOrders, erpData]);
+
+  // Compute Top Products
+  const topProducts = useMemo(() => {
+    const productMap: Record<string, { name: string; qty: number; timesOrdered: number; price: number }> = {};
+    
+    // Add Web Orders
+    validOrders.forEach((o: any) => {
+      if (!o.items) return;
+      o.items.forEach((item: any) => {
+        if (!productMap[item.productId]) {
+          productMap[item.productId] = { 
+            name: item.productName, 
+            qty: 0, 
+            timesOrdered: 0,
+            price: Number(item.unitPrice) || 0
+          };
+        }
+        productMap[item.productId].qty += item.quantity;
+        productMap[item.productId].timesOrdered += 1;
+      });
+    });
+
+    // Add ERP NVV
+    if (erpData?.nvv) {
+      erpData.nvv.forEach((row: any) => {
+        if (!row.KOPRCT && !row.NOKOPR) return;
+        const code = row.KOPRCT || row.NOKOPR; // Use name as fallback ID if code is empty
+        if (!productMap[code]) {
+           productMap[code] = {
+             name: row.NOKOPR,
+             qty: 0,
+             timesOrdered: 0,
+             price: Number(row.PPPRNE) || 0
+           };
+        }
+        productMap[code].qty += Number(row.CAPRCO2) || 0;
+        productMap[code].timesOrdered += 1;
+      });
+    }
+
+    // Add ERP Transactions (Invoices)
+    if (erpData?.transactions) {
+      erpData.transactions.forEach((row: any) => {
+        if (!row.koprct && !row.nokoprct) return;
+        const code = row.koprct || row.nokoprct;
+        if (!productMap[code]) {
+           productMap[code] = {
+             name: row.nokoprct,
+             qty: 0,
+             timesOrdered: 0,
+             price: Number(row.precio) || 0
+           };
+        }
+        productMap[code].qty += Number(row.caprad) || Number(row.caprad2) || 0;
+        productMap[code].timesOrdered += 1;
+      });
+    }
+
+    return Object.values(productMap).sort((a,b) => b.qty - a.qty).slice(0, 5);
+  }, [validOrders, erpData]);
 
   if (isLoading) {
     return (
@@ -200,25 +239,28 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
   return (
     <div className="space-y-6">
       {/* Welcome header */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-6 text-white">
-        <h2 className="text-xl font-bold">Bienvenido a tu Panel</h2>
-        <p className="text-blue-100 text-sm mt-1">
-          Aquí puedes ver el resumen de tus pedidos y actividad con Panorámica.
-        </p>
+      <div className="bg-gradient-to-r from-blue-700 to-indigo-800 rounded-2xl p-6 text-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl" />
+        <div className="relative z-10">
+          <h2 className="text-2xl font-bold">Resumen de Cuenta</h2>
+          <p className="text-blue-100 text-sm mt-1 max-w-2xl">
+            Tus métricas de compra, pedidos recientes y productos más solicitados a través de nuestro portal eCommerce.
+          </p>
+        </div>
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-amber-50 to-amber-100/50">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3">
-              <div className="p-2 rounded-xl bg-amber-500/10">
-                <ShoppingCart className="h-5 w-5 text-amber-600" />
+              <div className="p-2 rounded-xl bg-blue-500/10">
+                <ShoppingCart className="h-5 w-5 text-blue-600" />
               </div>
-              <Badge className="bg-amber-100 text-amber-700 text-[10px] border-0">NVV</Badge>
+              <Badge className="bg-blue-100 text-blue-700 text-[10px] border-0">Total</Badge>
             </div>
-            <p className="text-2xl font-bold text-amber-900">{formatCurrency(totalNVV)}</p>
-            <p className="text-xs text-amber-600 mt-1">{totalDocsNVV} pedido{totalDocsNVV !== 1 ? 's' : ''} pendiente{totalDocsNVV !== 1 ? 's' : ''}</p>
+            <p className="text-2xl font-bold text-blue-900">{totalOrdersCount}</p>
+            <p className="text-xs text-blue-600 mt-1">Pedidos históricos generados</p>
           </CardContent>
         </Card>
 
@@ -226,81 +268,124 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="p-2 rounded-xl bg-purple-500/10">
-                <Truck className="h-5 w-5 text-purple-600" />
+                <Package className="h-5 w-5 text-purple-600" />
               </div>
-              <Badge className="bg-purple-100 text-purple-700 text-[10px] border-0">GDV</Badge>
+              <Badge className="bg-purple-100 text-purple-700 text-[10px] border-0">Items</Badge>
             </div>
-            <p className="text-2xl font-bold text-purple-900">{formatCurrency(totalGDV)}</p>
-            <p className="text-xs text-purple-600 mt-1">{totalDocsGDV} guía{totalDocsGDV !== 1 ? 's' : ''} en despacho</p>
+            <p className="text-2xl font-bold text-purple-900">{totalUnits.toLocaleString('es-CL')}</p>
+            <p className="text-xs text-purple-600 mt-1">Unidades totales despachadas/pendientes</p>
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-green-50 to-emerald-100/50">
+        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-amber-50 to-amber-100/50">
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3">
-              <div className="p-2 rounded-xl bg-green-500/10">
-                <FileCheck className="h-5 w-5 text-green-600" />
+              <div className="p-2 rounded-xl bg-amber-500/10">
+                <DollarSign className="h-5 w-5 text-amber-600" />
               </div>
-              <Badge className="bg-green-100 text-green-700 text-[10px] border-0">Mes</Badge>
+              <Badge className="bg-amber-100 text-amber-700 text-[10px] border-0">Valor</Badge>
             </div>
-            <p className="text-2xl font-bold text-green-900">{formatCurrency(totalFacturado)}</p>
-            <p className="text-xs text-green-600 mt-1">{totalDocsFact} factura{totalDocsFact !== 1 ? 's' : ''} este mes</p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between mb-3">
-              <div className="p-2 rounded-xl bg-blue-500/10">
-                <BarChart3 className="h-5 w-5 text-blue-600" />
-              </div>
-              <Badge className="bg-blue-100 text-blue-700 text-[10px] border-0">Total</Badge>
-            </div>
-            <p className="text-2xl font-bold text-blue-900">{formatCurrency(totalNVV + totalGDV + totalFacturado)}</p>
-            <p className="text-xs text-blue-600 mt-1">Actividad total del período</p>
+            <p className="text-2xl font-bold text-amber-900">{formatCurrency(totalAmount)}</p>
+            <p className="text-xs text-amber-600 mt-1">Volumen de compra histórico</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Last pending orders quick view */}
-      {allPendingOrders.length > 0 && (
-        <Card className="rounded-2xl border-0 shadow-sm">
-          <CardHeader className="pb-2">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Most Sold Products */}
+        <Card className="rounded-2xl border border-gray-100 shadow-sm h-full">
+          <CardHeader className="pb-3 border-b border-gray-50 bg-gray-50/50 rounded-t-2xl">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4 text-amber-500" />
-                Últimos Pedidos Ingresados
+              <CardTitle className="text-base flex items-center gap-2 text-gray-800">
+                <TrendingUp className="h-4 w-4 text-emerald-500" />
+                Tus Productos Más Comprados
               </CardTitle>
-              <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 text-[10px]">
-                NVV
-              </Badge>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {allPendingOrders.slice(0, 5).map((r) => (
-                <div key={r.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900 truncate">{r.NOKOPR}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] text-gray-500 font-mono">{r.NUDO}</span>
-                      <span className="text-[10px] text-gray-400">·</span>
-                      <span className="text-[10px] text-gray-500">{formatDate(r.FEEMDO)}</span>
+          <CardContent className="p-0">
+            {topProducts.length === 0 ? (
+              <div className="p-8 text-center">
+                <Package className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">Aún no hay historial suficiente de productos.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {topProducts.map((prod, idx) => (
+                  <div key={idx} className="p-4 flex items-center justify-between hover:bg-gray-50/80 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 shrink-0 bg-emerald-50 rounded-lg flex items-center justify-center font-bold text-emerald-600">
+                        #{idx + 1}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 line-clamp-1">{prod.name}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">En {prod.timesOrdered} pedido(s) distintos</p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 ml-4">
+                      <p className="text-sm font-bold text-gray-800">{prod.qty} uds</p>
+                      <p className="text-[10px] text-gray-400">Total acumulado</p>
                     </div>
                   </div>
-                  <div className="text-right ml-4">
-                    <p className="text-sm font-bold text-amber-600">{formatCurrency(r.totalPendiente)}</p>
-                    <p className="text-[10px] text-gray-400">{r.cantidadPendiente} uds</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
-      )}
+
+        {/* Last pending orders quick view */}
+        <Card className="rounded-2xl border border-gray-100 shadow-sm h-full">
+          <CardHeader className="pb-3 border-b border-gray-50 bg-gray-50/50 rounded-t-2xl">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2 text-gray-800">
+                <ShoppingCart className="h-4 w-4 text-blue-500" />
+                Pedidos Recientes Web
+              </CardTitle>
+              <a href="/mis-pedidos" className="text-xs text-blue-600 font-semibold flex items-center hover:underline">
+                Ver todos <ArrowRight className="h-3 w-3 ml-1" />
+              </a>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            {validOrders.length === 0 ? (
+              <div className="p-8 text-center">
+                <ClipboardList className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">No hay pedidos registrados.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {validOrders.slice(0, 5).map((r: any) => (
+                  <div key={r.id} className="p-4 flex items-center justify-between hover:bg-gray-50/80 transition-colors">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-gray-900 truncate">
+                          {r.items?.length === 1 ? r.items[0].productName : `Mix de Productos (${r.items?.length || 0})`}
+                        </p>
+                        <Badge variant="secondary" className="text-[9px] px-1.5 font-normal tracking-wide">
+                          {r.status === 'pending' ? 'Pendiente' : r.status === 'approved' ? 'Aprobado' : r.status}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs font-mono text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">{r.id.substring(0, 8).toUpperCase()}</span>
+                        <span className="text-[10px] text-gray-400">·</span>
+                        <span className="text-[11px] text-gray-500 font-medium flex items-center gap-1">
+                          <Calendar className="h-3 w-3" /> {formatDate(r.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right ml-4">
+                      <p className="text-sm font-bold text-amber-600">{formatCurrency(Number(r.total))}</p>
+                      <p className="text-[11px] text-gray-500">{r.items?.reduce((acc: number, val: any) => acc + val.quantity, 0)} uds</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Quick actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
         <a href="/tienda" className="flex items-center gap-3 p-4 rounded-2xl bg-white border border-gray-100 hover:border-orange-200 hover:shadow-md transition-all group">
           <div className="p-2.5 rounded-xl bg-orange-50 group-hover:bg-orange-100 transition-colors">
             <ShoppingCart className="h-5 w-5 text-orange-500" />
@@ -316,20 +401,10 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
             <ClipboardList className="h-5 w-5 text-blue-500" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-900">Ver Pedidos</p>
-            <p className="text-[10px] text-gray-500">Seguimiento completo</p>
+            <p className="text-sm font-semibold text-gray-900">Ver Pedidos Completos</p>
+            <p className="text-[10px] text-gray-500">Ingresados y en despacho</p>
           </div>
           <ArrowRight className="h-4 w-4 text-gray-300 group-hover:text-blue-400 transition-colors" />
-        </a>
-        <a href="/panoramica-market-cliente" className="flex items-center gap-3 p-4 rounded-2xl bg-white border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all group">
-          <div className="p-2.5 rounded-xl bg-emerald-50 group-hover:bg-emerald-100 transition-colors">
-            <Gift className="h-5 w-5 text-emerald-500" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-900">Panorámica Market</p>
-            <p className="text-[10px] text-gray-500">Beneficios y programa</p>
-          </div>
-          <ArrowRight className="h-4 w-4 text-gray-300 group-hover:text-emerald-400 transition-colors" />
         </a>
       </div>
     </div>
@@ -343,8 +418,8 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
 function PedidosTab({ salesperson }: { salesperson: string }) {
   const [subTab, setSubTab] = useState<"nvv" | "gdv" | "facturas">("nvv");
 
-  // NVV
-  const { data: nvvData = [], isLoading: nvvLoading } = useQuery<NVVRecord[]>({
+  // NVV by Salesperson (Only for assigned accounts/salespeople)
+  const { data: nvvSalespersonData = [], isLoading: nvvLoading } = useQuery<NVVRecord[]>({
     queryKey: ["/api/nvv/by-salesperson", salesperson, "all", "all"],
     queryFn: async () => {
       if (!salesperson) return [];
@@ -353,6 +428,16 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
       if (!res.ok) return [];
       return res.json();
     },
+  });
+
+  // Fetch ERP Orders directly for the client (linked by RUT)
+  const { data: erpData, isLoading: erpLoading } = useQuery({
+    queryKey: ["/api/ecommerce/client/erp-orders"],
+    queryFn: async () => {
+      const res = await fetch(`/api/ecommerce/client/erp-orders`, { credentials: "include" });
+      if (!res.ok) return { nvv: [], gdv: [], transactions: [] };
+      return res.json();
+    }
   });
 
   // Fetch Web pending orders
@@ -381,10 +466,17 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
     totalPendiente: Number(o.total) || 0,
   }));
 
-  const allPendingOrders = [...pendingWebOrders, ...nvvData];
+  // Merge Web Orders, Salesperson NVV, and raw ERP NVV
+  const rawErpNvv = (erpData?.nvv || []).map((row: any) => ({
+    ...row,
+    cantidadPendiente: Number(row.CAPRCO2) || 0,
+    totalPendiente: Number(row.VABRDO) || Number(row.PPPRNE) * Number(row.CAPRCO2) || 0,
+    NOKOPR: row.NOKOPR || 'Producto ERP'
+  }));
+  const allPendingOrders = [...pendingWebOrders, ...nvvSalespersonData, ...rawErpNvv];
 
   // GDV
-  const { data: gdvData = [], isLoading: gdvLoading } = useQuery<GDVRecord[]>({
+  const { data: gdvSalespersonData = [], isLoading: gdvLoading } = useQuery<GDVRecord[]>({
     queryKey: ["/api/gdv/by-salesperson", salesperson],
     queryFn: async () => {
       const params = new URLSearchParams({ salesperson });
@@ -394,9 +486,11 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
     },
     enabled: !!salesperson,
   });
+  
+  const allGdv = [...gdvSalespersonData, ...(erpData?.gdv || [])];
 
   // Facturas
-  const { data: transactions = [], isLoading: txLoading } = useQuery<any[]>({
+  const { data: transactionsSalesperson = [], isLoading: txLoading } = useQuery<any[]>({
     queryKey: ["/api/sales/transactions", salesperson, "pedidos-client"],
     queryFn: async () => {
       const now = new Date();
@@ -410,10 +504,12 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
     enabled: !!salesperson,
   });
 
+  const allTransactions = [...transactionsSalesperson, ...(erpData?.transactions || [])];
+
   const tabs = [
     { key: "nvv" as const, label: "Ingresados", icon: ShoppingCart, count: allPendingOrders.length, color: "amber" },
-    { key: "gdv" as const, label: "En Despacho", icon: Truck, count: gdvData.length, color: "purple" },
-    { key: "facturas" as const, label: "Facturados", icon: FileCheck, count: transactions.length, color: "green" },
+    { key: "gdv" as const, label: "En Despacho", icon: Truck, count: allGdv.length, color: "purple" },
+    { key: "facturas" as const, label: "Facturados", icon: FileCheck, count: allTransactions.length, color: "green" },
   ];
 
   return (
@@ -450,12 +546,12 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
 
       {/* GDV Content */}
       {subTab === "gdv" && (
-        <GDVContent records={gdvData} isLoading={gdvLoading} />
+        <GDVContent records={allGdv} isLoading={gdvLoading} />
       )}
 
       {/* Facturas Content */}
       {subTab === "facturas" && (
-        <FacturasContent records={transactions} isLoading={txLoading} />
+        <FacturasContent records={allTransactions} isLoading={txLoading} />
       )}
     </div>
   );
@@ -668,174 +764,6 @@ function FacturasContent({ records, isLoading }: { records: any[]; isLoading: bo
 }
 
 // ==========================================
-// Panorámica Market Tab
-// ==========================================
-
-function PanoramicaMarketTab() {
-  const tiers = [
-    {
-      name: "Bronce",
-      icon: Award,
-      color: "from-amber-700 to-amber-900",
-      textColor: "text-amber-800",
-      bgColor: "bg-amber-50",
-      borderColor: "border-amber-200",
-      min: "$0",
-      max: "$5.000.000",
-      benefits: [
-        "Acceso al catálogo completo",
-        "Atención preferente por email",
-        "Descuento base en productos seleccionados",
-      ],
-    },
-    {
-      name: "Plata",
-      icon: Star,
-      color: "from-gray-400 to-gray-600",
-      textColor: "text-gray-700",
-      bgColor: "bg-gray-50",
-      borderColor: "border-gray-200",
-      min: "$5.000.000",
-      max: "$15.000.000",
-      benefits: [
-        "Todo lo de Bronce",
-        "Despacho prioritario",
-        "Asesoría técnica personalizada",
-        "Acceso a promociones exclusivas",
-      ],
-    },
-    {
-      name: "Oro",
-      icon: Crown,
-      color: "from-yellow-500 to-amber-500",
-      textColor: "text-yellow-700",
-      bgColor: "bg-yellow-50",
-      borderColor: "border-yellow-200",
-      min: "$15.000.000",
-      max: "$30.000.000",
-      benefits: [
-        "Todo lo de Plata",
-        "Ejecutivo comercial dedicado",
-        "Descuentos por volumen superiores",
-        "Capacitaciones técnicas gratuitas",
-        "Invitación a eventos exclusivos",
-      ],
-    },
-    {
-      name: "Diamante",
-      icon: Gift,
-      color: "from-blue-500 to-indigo-600",
-      textColor: "text-blue-700",
-      bgColor: "bg-blue-50",
-      borderColor: "border-blue-200",
-      min: "$30.000.000+",
-      max: "",
-      benefits: [
-        "Todo lo de Oro",
-        "Precios preferenciales en todo el catálogo",
-        "Línea de crédito ampliada",
-        "Soporte técnico 24/7",
-        "Visitas a planta y laboratorio",
-        "Co-marketing y apoyo publicitario",
-      ],
-    },
-  ];
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-2xl p-6 text-white relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20" />
-        <div className="relative">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-white/20 rounded-xl">
-              <Gift className="h-6 w-6" />
-            </div>
-            <h2 className="text-xl font-bold">Panorámica Market</h2>
-          </div>
-          <p className="text-emerald-100 text-sm max-w-lg">
-            Nuestro programa de beneficios te premia por tu fidelidad. Mientras más compras, más beneficios exclusivos obtienes.
-          </p>
-        </div>
-      </div>
-
-      {/* Current status */}
-      <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-amber-50 to-amber-100/30 border-amber-200">
-        <CardContent className="p-5">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-gradient-to-br from-amber-700 to-amber-900 rounded-xl text-white">
-              <Award className="h-6 w-6" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm text-amber-700 font-medium">Tu nivel actual</p>
-              <p className="text-xl font-bold text-amber-900">Bronce</p>
-              <p className="text-xs text-amber-600 mt-0.5">
-                Contacta a tu ejecutivo para conocer tu progreso al siguiente nivel.
-              </p>
-            </div>
-            <div className="hidden sm:block text-right">
-              <p className="text-xs text-amber-600">Siguiente nivel</p>
-              <p className="text-sm font-bold text-gray-700">Plata →</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Tiers */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {tiers.map((tier) => {
-          const Icon = tier.icon;
-          return (
-            <Card key={tier.name} className={`rounded-2xl border shadow-sm ${tier.borderColor} overflow-hidden`}>
-              <div className={`bg-gradient-to-r ${tier.color} p-4 text-white`}>
-                <div className="flex items-center gap-3">
-                  <Icon className="h-6 w-6" />
-                  <div>
-                    <p className="font-bold text-lg">{tier.name}</p>
-                    <p className="text-white/70 text-xs">
-                      {tier.max ? `${tier.min} — ${tier.max} anuales` : `${tier.min} anuales`}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <CardContent className="p-4">
-                <ul className="space-y-2">
-                  {tier.benefits.map((b, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                      <ChevronRight className={`h-4 w-4 mt-0.5 flex-shrink-0 ${tier.textColor}`} />
-                      {b}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* Contact CTA */}
-      <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-r from-gray-900 to-gray-800 text-white">
-        <CardContent className="p-6 flex items-center justify-between">
-          <div>
-            <p className="font-bold text-lg">¿Quieres subir de nivel?</p>
-            <p className="text-gray-300 text-sm mt-1">
-              Contacta a tu ejecutivo comercial para conocer las metas y beneficios disponibles para ti.
-            </p>
-          </div>
-          <a
-            href="/tienda"
-            className="hidden sm:inline-flex items-center gap-2 bg-[#FF6E23] hover:bg-[#E55E13] text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-all flex-shrink-0"
-          >
-            <ShoppingCart className="h-4 w-4" />
-            Comprar ahora
-          </a>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-// ==========================================
 // Main Portal Component
 // ==========================================
 
@@ -846,13 +774,11 @@ export default function ClientPortal() {
   const getInitialTab = () => {
     const path = typeof window !== 'undefined' ? window.location.pathname : '';
     if (path === '/mis-pedidos') return 'pedidos';
-    if (path === '/panoramica-market-cliente') return 'market';
     const tab = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null;
     if (tab === 'pedidos') return 'pedidos';
-    if (tab === 'market') return 'market';
     return 'dashboard';
   };
-  const [activeTab] = useState<"dashboard" | "pedidos" | "market">(getInitialTab() as any);
+  const [activeTab] = useState<"dashboard" | "pedidos">(getInitialTab() as any);
 
   return (
     <div className="space-y-4">
@@ -863,9 +789,6 @@ export default function ClientPortal() {
         )}
         {activeTab === "pedidos" && (
           <PedidosTab salesperson={salespersonName} />
-        )}
-        {activeTab === "market" && (
-          <PanoramicaMarketTab />
         )}
       </div>
     </div>
