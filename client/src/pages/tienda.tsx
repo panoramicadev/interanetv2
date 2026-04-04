@@ -1578,6 +1578,17 @@ export default function TiendaPage() {
                         const q = quantities[v.sku] || 0;
                         return acc + ((v.price || 0) * q);
                       }, 0);
+                      
+                      // Calculate overarching global total for the entire grouped product
+                      const allProductVariants = Object.values(product.colors).flat();
+                      const globalProductTotal = allProductVariants.reduce((acc, v) => {
+                        const q = quantities[v.sku] || 0;
+                        return acc + ((v.price || 0) * q);
+                      }, 0);
+                      const globalProductItemCount = allProductVariants.reduce((acc, v) => {
+                        const q = quantities[v.sku] || 0;
+                        return acc + q;
+                      }, 0);
 
                       return (
                         <div className="border-t border-[#FF6E23]/10 flex flex-col pt-3 bg-gradient-to-br from-gray-50/50 to-white">
@@ -1738,8 +1749,10 @@ export default function TiendaPage() {
                           {/* Bottom Action Bar */}
                           <div className="bg-white border-t border-gray-100 p-4 sticky bottom-0 z-10 flex items-center justify-between gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.02)]">
                             <div className="flex flex-col">
-                              <span className="text-[10px] font-semibold text-gray-400 uppercase">Subtotal Formato</span>
-                              <span className="text-lg font-black text-gray-900">{formatPrice(formatTotal)}</span>
+                              <span className="text-[10px] font-semibold text-gray-400 uppercase">
+                                {globalProductItemCount > 0 ? `Subtotal Seleccionado (${globalProductItemCount} unid.)` : 'Subtotal Formato'}
+                              </span>
+                              <span className="text-lg font-black text-gray-900">{formatPrice(globalProductTotal > 0 ? globalProductTotal : formatTotal)}</span>
                             </div>
                             
                             <div className="flex items-center gap-2">
@@ -1757,8 +1770,8 @@ export default function TiendaPage() {
                               
                               <button
                                 className="h-11 px-6 rounded-xl bg-[#FF6E23] hover:bg-[#E55E13] text-white transition-all duration-300 font-bold text-sm flex items-center gap-2 shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:hover:shadow-orange-500/20 group"
-                                onClick={(e) => { e.stopPropagation(); addBulkVariantsToCart(variantsForFormat, product.genericName); }}
-                                disabled={formatTotal === 0}
+                                onClick={(e) => { e.stopPropagation(); addBulkVariantsToCart(allProductVariants, product.genericName); }}
+                                disabled={globalProductTotal === 0}
                               >
                                 <ShoppingCart className="h-4 w-4 transition-transform duration-300 group-hover:scale-110" />
                                 <span className="hidden sm:inline">Añadir al Carrito</span>
