@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useAiChat } from "@/hooks/useAiChat";
@@ -600,15 +601,15 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
 export default function ClientPortal() {
   const { user } = useAuth();
   const salespersonName = (user as any)?.salespersonName || "";
+  const [location] = useLocation();
 
   const getInitialTab = () => {
-    const path = typeof window !== 'undefined' ? window.location.pathname : '';
-    if (path === '/mis-pedidos') return 'pedidos';
+    if (location === '/mis-pedidos') return 'pedidos';
     const tab = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null;
     if (tab === 'pedidos') return 'pedidos';
     return 'dashboard';
   };
-  const [activeTab] = useState<"dashboard" | "pedidos">(getInitialTab() as any);
+  const activeTab = getInitialTab();
 
   return (
     <div className="space-y-4">
