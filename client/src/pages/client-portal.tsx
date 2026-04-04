@@ -418,11 +418,38 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
 // ==========================================
 import React from 'react';
 import { OrderDetailView, EcommerceOrder, getOrderItems, statusConfig } from "@/components/ecommerce/order-detail-view";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Repeat } from "lucide-react";
+import { useCart } from "@/hooks/useCart";
 
 function PedidosTab({ salesperson }: { salesperson: string }) {
   const [selectedOrder, setSelectedOrder] = useState<EcommerceOrder | null>(null);
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+  const { clearCart, addItem } = useCart();
+  const [, setLocation] = useLocation();
+
+  const handleRepeatOrder = (e: React.MouseEvent, order: EcommerceOrder) => {
+    e.stopPropagation();
+    clearCart();
+    const items = getOrderItems(order);
+    
+    items.forEach(it => {
+      addItem({
+        productId: it.productId || it.sku || it.productCode || `custom-${it.productName}`,
+        productName: it.productName,
+        productCode: it.productCode || it.sku || `PC-${new Date().getTime()}`,
+        quantity: it.quantity,
+        unitPrice: it.unitPrice || it.price || 0,
+        unit: 'UN',
+        minQuantity: 1,
+        quantityStep: 1,
+        imageUrl: it.imageUrl,
+        selectedColor: it.selectedColor,
+        selectedPackaging: it.selectedPackaging
+      });
+    });
+    
+    setLocation('/carrito');
+  };
 
   // Fetch ERP Orders directly for the client (linked by RUT)
   const { data: erpData, isLoading: erpLoading } = useQuery({
@@ -574,7 +601,11 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
                                 </div>
                               ))}
                             </div>
-                            <div className="mt-4 pt-3 border-t border-slate-200 flex justify-end">
+                            <div className="mt-4 pt-3 border-t border-slate-200 flex justify-end gap-2">
+                               <Button variant="outline" size="sm" onClick={(e) => handleRepeatOrder(e, order)} className="text-emerald-700 border-emerald-200 hover:bg-emerald-50 font-semibold text-xs h-8">
+                                 <Repeat className="w-3 h-3 mr-1.5" />
+                                 Repetir Pedido
+                               </Button>
                                <Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)} className="text-orange-600 border-orange-200 hover:bg-orange-50 font-semibold text-xs h-8">
                                  Ver detalle completo
                                </Button>
