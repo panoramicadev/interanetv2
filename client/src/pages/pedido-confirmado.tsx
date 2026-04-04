@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Link, useSearch } from "wouter";
+import { getNumericOrderId } from "@/lib/utils";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -301,7 +302,7 @@ export default function PedidoConfirmado() {
                     <span>{requiresReceipt && !hasReceipt ? 'Pedido Pendiente de Pago' : 'Estamos Procesando tu Pedido'}</span>
                   </div>
                   <div className="text-2xl font-mono font-bold text-[#FF6E23] tracking-wider">
-                    #{orderId.slice(0, 8)}
+                    #{getNumericOrderId(orderId)}
                   </div>
                   <p className="text-xs text-gray-400">
                     Guarda este número de pedido como respaldo de tu solicitud

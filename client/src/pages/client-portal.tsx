@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useAiChat } from "@/hooks/useAiChat";
+import { getNumericOrderId } from "@/lib/utils";
 import AiChatView from "@/components/ai-chat/AiChatView";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -365,7 +366,7 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
                         </Badge>
                       </div>
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs font-mono text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">{r.id.substring(0, 8).toUpperCase()}</span>
+                        <span className="text-xs font-mono text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">{getNumericOrderId(r.id)}</span>
                         <span className="text-[10px] text-gray-400">·</span>
                         <span className="text-[11px] text-gray-500 font-medium flex items-center gap-1">
                           <Calendar className="h-3 w-3" /> {formatDate(r.createdAt)}
@@ -412,23 +413,15 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
 }
 
 // ==========================================
-// Pedidos Tab (NVV + GDV + Facturas)
+// Pedidos Tab (Lista Única Consolidada)
 // ==========================================
+import React from 'react';
+import { OrderDetailView, EcommerceOrder, getOrderItems, statusConfig } from "@/components/ecommerce/order-detail-view";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 function PedidosTab({ salesperson }: { salesperson: string }) {
-  const [subTab, setSubTab] = useState<"nvv" | "gdv" | "facturas">("nvv");
-
-  // NVV by Salesperson (Only for assigned accounts/salespeople)
-  const { data: nvvSalespersonData = [], isLoading: nvvLoading } = useQuery<NVVRecord[]>({
-    queryKey: ["/api/nvv/by-salesperson", salesperson, "all", "all"],
-    queryFn: async () => {
-      if (!salesperson) return [];
-      const params = new URLSearchParams({ salesperson });
-      const res = await fetch(`/api/nvv/by-salesperson?${params}`, { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
-  });
+  const [selectedOrder, setSelectedOrder] = useState<EcommerceOrder | null>(null);
+  const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
 
   // Fetch ERP Orders directly for the client (linked by RUT)
   const { data: erpData, isLoading: erpLoading } = useQuery({
@@ -450,312 +443,149 @@ function PedidosTab({ salesperson }: { salesperson: string }) {
     }
   });
 
-  const pendingWebOrders = webOrders.filter((o: any) => o.status === 'pending' || o.status === 'approved').map((o: any) => ({
-    id: o.id,
-    NUDO: o.id.substring(0, 8).toUpperCase(),
-    TIDO: 'WEB',
-    FEEMDO: o.createdAt,
-    ENDO: '',
-    NOKOEN: o.clientName,
-    NOKOPR: o.items?.length === 1 ? o.items[0].productName : `Ped. Web (${o.items?.length || 0} arts.)`,
-    KOPRCT: '',
-    CAPREX2: o.items?.reduce((acc: number, item: any) => acc + item.quantity, 0) || 0,
-    CAPRCO2: 0,
-    PPPRNE: 0,
-    cantidadPendiente: o.items?.reduce((acc: number, item: any) => acc + item.quantity, 0) || 0,
-    totalPendiente: Number(o.total) || 0,
+  // Helper to group ERP lines into full EcommerceOrder objects
+  const groupErpOrders = (rows: any[], idField: string, statusText: string) => {
+    const map = new Map<string, EcommerceOrder>();
+    rows.forEach(row => {
+      const id = row[idField] || row.nudo;
+      if (!id) return;
+      const amount = Number(row.monto || row.PPPRNE || row.amount || 0);
+      const qty = Number(row.cantidad || row.CAPRCO2 || 1);
+      const docTotal = Number(row.VABRDO || amount || 0); // VABRDO is usually doc total in NVV
+      const itemName = row.producto || row.nokopr || row.NOKOPR || row.productName || 'Producto ERP';
+      
+      const item = {
+        productName: itemName,
+        quantity: qty,
+        unitPrice: amount / qty,
+        totalPrice: docTotal > 0 ? docTotal : amount
+      };
+      
+      if (map.has(id)) {
+        const existing = map.get(id)!;
+        (existing.items as any[]).push(item);
+        // Do not accumulate docTotal if it represents the whole doc, but fallback safely
+      } else {
+        map.set(id, {
+          id: String(id),
+          clientName: row.NOKOEN || row.nokoen || row.clientName || 'Cliente B2B',
+          status: statusText, // ingresado, despacho, facturado
+          total: String(docTotal > 0 ? docTotal : amount),
+          items: [item],
+          createdAt: row.FEEMDO || row.fecha || row.date || new Date().toISOString()
+        });
+      }
+    });
+    return Array.from(map.values());
+  };
+
+  const nvvOrders = groupErpOrders(erpData?.nvv || [], 'NUDO', 'ingresado');
+  const gdvOrders = groupErpOrders(erpData?.gdv || [], 'numeroGuia', 'despacho');
+  const txOrders = groupErpOrders(erpData?.transactions || [], 'documentNumber', 'facturado');
+
+  const unifiedWebOrders: EcommerceOrder[] = webOrders.map((o: any) => ({
+    ...o,
+    status: o.status === 'pending' || o.status === 'pendiente' ? 'pendiente' : (o.status === 'approved' ? 'approved' : o.status),
+    items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items
   }));
 
-  // Merge Web Orders, Salesperson NVV, and raw ERP NVV
-  const rawErpNvv = (erpData?.nvv || []).map((row: any) => ({
-    ...row,
-    cantidadPendiente: Number(row.CAPRCO2) || 0,
-    totalPendiente: Number(row.VABRDO) || Number(row.PPPRNE) * Number(row.CAPRCO2) || 0,
-    NOKOPR: row.NOKOPR || 'Producto ERP'
-  }));
-  const allPendingOrders = [...pendingWebOrders, ...nvvSalespersonData, ...rawErpNvv];
+  const allOrders = [...unifiedWebOrders, ...nvvOrders, ...gdvOrders, ...txOrders].sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  // GDV
-  const { data: gdvSalespersonData = [], isLoading: gdvLoading } = useQuery<GDVRecord[]>({
-    queryKey: ["/api/gdv/by-salesperson", salesperson],
-    queryFn: async () => {
-      const params = new URLSearchParams({ salesperson });
-      const res = await fetch(`/api/gdv/by-salesperson?${params}`, { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: !!salesperson,
-  });
-  
-  const allGdv = [...gdvSalespersonData, ...(erpData?.gdv || [])];
-
-  // Facturas
-  const { data: transactionsSalesperson = [], isLoading: txLoading } = useQuery<any[]>({
-    queryKey: ["/api/sales/transactions", salesperson, "pedidos-client"],
-    queryFn: async () => {
-      const now = new Date();
-      const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
-      const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
-      const params = new URLSearchParams({ salesperson, startDate, endDate, limit: "200" });
-      const res = await fetch(`/api/sales/transactions?${params}`, { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: !!salesperson,
-  });
-
-  const allTransactions = [...transactionsSalesperson, ...(erpData?.transactions || [])];
-
-  const tabs = [
-    { key: "nvv" as const, label: "Ingresados", icon: ShoppingCart, count: allPendingOrders.length, color: "amber" },
-    { key: "gdv" as const, label: "En Despacho", icon: Truck, count: allGdv.length, color: "purple" },
-    { key: "facturas" as const, label: "Facturados", icon: FileCheck, count: allTransactions.length, color: "green" },
-  ];
+  if (selectedOrder) {
+    return (
+      <div className="bg-white p-6 rounded-2xl border min-h-[500px]">
+        <OrderDetailView 
+          order={selectedOrder} 
+          onBack={() => setSelectedOrder(null)} 
+          isClientView={true} 
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
-      {/* Sub-tabs */}
-      <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
-        {tabs.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setSubTab(t.key)}
-            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-              subTab === t.key
-                ? "bg-white shadow-sm text-gray-900"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            <t.icon className="h-4 w-4" />
-            <span className="hidden sm:inline">{t.label}</span>
-            {t.count > 0 && (
-              <Badge className={`text-[10px] px-1.5 py-0 ${
-                subTab === t.key ? `bg-${t.color}-100 text-${t.color}-700` : 'bg-gray-200 text-gray-500'
-              }`}>
-                {t.count}
-              </Badge>
+      <div className="overflow-x-auto border rounded-xl bg-white shadow-sm">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-slate-50 border-b">
+              <TableHead className="w-[40px]"></TableHead>
+              <TableHead className="text-xs font-bold text-slate-500 uppercase">ID de Pedido</TableHead>
+              <TableHead className="text-xs font-bold text-slate-500 uppercase">Fecha</TableHead>
+              <TableHead className="text-xs font-bold text-slate-500 uppercase">Estado</TableHead>
+              <TableHead className="text-xs font-bold text-slate-500 uppercase text-right">Total</TableHead>
+              <TableHead className="w-[50px]"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {(erpLoading || webLoading) ? (
+               <TableRow><TableCell colSpan={6} className="h-48 text-center text-slate-500">Cargando...</TableCell></TableRow>
+            ) : allOrders.length === 0 ? (
+               <TableRow><TableCell colSpan={6} className="h-48 text-center text-slate-500">No tienes pedidos registrados.</TableCell></TableRow>
+            ) : (
+              allOrders.map((order) => {
+                const isExpanded = expandedRowId === order.id;
+                const items = getOrderItems(order);
+                const statusObj = statusConfig[order.status?.toLowerCase()] || statusConfig.pending;
+                const StatusIcon = statusObj.icon;
+                
+                return (
+                  <React.Fragment key={order.id}>
+                    <TableRow className="hover:bg-orange-50/20 cursor-pointer group transition-colors" onClick={() => setSelectedOrder(order)}>
+                      <TableCell className="pl-4 cursor-pointer" onClick={(e) => { e.stopPropagation(); setExpandedRowId(isExpanded ? null : order.id); }}>
+                        <div className="w-6 h-6 rounded-md hover:bg-slate-100 flex items-center justify-center text-slate-400">
+                           {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono text-sm font-semibold text-slate-700">
+                        #{order.id?.includes('-') ? getNumericOrderId(order.id) : order.id}
+                      </TableCell>
+                      <TableCell className="text-sm text-slate-600">
+                        {formatDate(order.createdAt)}
+                      </TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${statusObj.bg} ${statusObj.color}`}>
+                          <StatusIcon className="w-3 h-3" />
+                          {statusObj.label}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right font-bold text-slate-900">
+                        {formatCurrency(Number(order.total))}
+                      </TableCell>
+                    </TableRow>
+                    
+                    {isExpanded && (
+                      <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
+                        <TableCell colSpan={6} className="p-0 border-b-2 border-slate-100">
+                          <div className="py-4 pl-14 pr-8 animate-in slide-in-from-top-2 fade-in duration-200">
+                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                               <Package className="w-3 h-3" />
+                               Productos Solicitados ({items.length})
+                            </h4>
+                            <div className="space-y-3">
+                              {items.map((it, idx) => (
+                                <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-100 pb-2 last:border-0 last:pb-0">
+                                  <div className="flex flex-col">
+                                    <span className="font-medium text-slate-700">{it.productName}</span>
+                                    <span className="text-[10px] text-slate-400">{it.quantity} x {formatCurrency(Number(it.unitPrice || 0))}</span>
+                                  </div>
+                                  <span className="font-semibold text-slate-600">{formatCurrency(Number(it.totalPrice || Number(it.unitPrice || 0) * it.quantity))}</span>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="mt-4 pt-3 border-t border-slate-200 flex justify-end">
+                               <Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)} className="text-orange-600 border-orange-200 hover:bg-orange-50 font-semibold text-xs h-8">
+                                 Ver detalle completo
+                               </Button>
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                );
+              })
             )}
-          </button>
-        ))}
-      </div>
-
-      {/* NVV & Web Content */}
-      {subTab === "nvv" && (
-        <NVVContent records={allPendingOrders} isLoading={nvvLoading || webLoading} />
-      )}
-
-      {/* GDV Content */}
-      {subTab === "gdv" && (
-        <GDVContent records={allGdv} isLoading={gdvLoading} />
-      )}
-
-      {/* Facturas Content */}
-      {subTab === "facturas" && (
-        <FacturasContent records={allTransactions} isLoading={txLoading} />
-      )}
-    </div>
-  );
-}
-
-function NVVContent({ records, isLoading }: { records: NVVRecord[]; isLoading: boolean }) {
-  const totalAmount = records.reduce((s, r) => s + r.totalPendiente, 0);
-  const totalUnits = records.reduce((s, r) => s + r.cantidadPendiente, 0);
-
-  if (isLoading) return <div className="h-48 bg-gray-100 rounded-xl animate-pulse" />;
-  if (records.length === 0) return (
-    <div className="text-center py-12">
-      <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-      <p className="text-sm text-gray-500">No hay notas de venta pendientes</p>
-    </div>
-  );
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-          <div className="flex items-center gap-2 text-amber-600 mb-1">
-            <DollarSign className="h-4 w-4" />
-            <span className="text-xs font-medium">Monto Pendiente</span>
-          </div>
-          <p className="text-lg font-bold text-amber-700">{formatCurrency(totalAmount)}</p>
-        </div>
-        <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
-          <div className="flex items-center gap-2 text-purple-600 mb-1">
-            <Package className="h-4 w-4" />
-            <span className="text-xs font-medium">Unidades</span>
-          </div>
-          <p className="text-lg font-bold text-purple-700">{totalUnits.toLocaleString("es-CL")}</p>
-        </div>
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-          <div className="flex items-center gap-2 text-blue-600 mb-1">
-            <ShoppingCart className="h-4 w-4" />
-            <span className="text-xs font-medium">Pedidos</span>
-          </div>
-          <p className="text-lg font-bold text-blue-700">{records.length}</p>
-        </div>
-      </div>
-      <div className="overflow-x-auto border rounded-xl">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-xs">Doc</TableHead>
-              <TableHead className="text-xs">Fecha</TableHead>
-              <TableHead className="text-xs">Producto</TableHead>
-              <TableHead className="text-xs text-right">Cant.</TableHead>
-              <TableHead className="text-xs text-right">Monto</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {records.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell className="text-xs font-medium">
-                  <div>{r.NUDO}</div>
-                  <div className="text-[10px] text-gray-400">{r.TIDO}</div>
-                </TableCell>
-                <TableCell className="text-xs">{formatDate(r.FEEMDO)}</TableCell>
-                <TableCell className="text-xs max-w-[200px] truncate" title={r.NOKOPR}>{r.NOKOPR}</TableCell>
-                <TableCell className="text-xs text-right">
-                  <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]">
-                    {r.cantidadPendiente.toLocaleString("es-CL")}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-xs text-right font-semibold text-amber-600">
-                  {formatCurrency(r.totalPendiente)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  );
-}
-
-function GDVContent({ records, isLoading }: { records: GDVRecord[]; isLoading: boolean }) {
-  const totalAmount = records.reduce((s, r) => s + (r.monto || 0), 0);
-  const totalUnits = records.reduce((s, r) => s + (r.cantidad || 0), 0);
-
-  if (isLoading) return <div className="h-48 bg-gray-100 rounded-xl animate-pulse" />;
-  if (records.length === 0) return (
-    <div className="text-center py-12">
-      <Truck className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-      <p className="text-sm text-gray-500">No hay guías de despacho pendientes</p>
-    </div>
-  );
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
-          <div className="flex items-center gap-2 text-purple-600 mb-1">
-            <DollarSign className="h-4 w-4" />
-            <span className="text-xs font-medium">Monto en Despacho</span>
-          </div>
-          <p className="text-lg font-bold text-purple-700">{formatCurrency(totalAmount)}</p>
-        </div>
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-          <div className="flex items-center gap-2 text-blue-600 mb-1">
-            <Package className="h-4 w-4" />
-            <span className="text-xs font-medium">Unidades</span>
-          </div>
-          <p className="text-lg font-bold text-blue-700">{totalUnits.toLocaleString("es-CL")}</p>
-        </div>
-        <div className="bg-orange-50 border border-orange-200 rounded-xl p-3">
-          <div className="flex items-center gap-2 text-orange-600 mb-1">
-            <Truck className="h-4 w-4" />
-            <span className="text-xs font-medium">Líneas</span>
-          </div>
-          <p className="text-lg font-bold text-orange-700">{records.length}</p>
-        </div>
-      </div>
-      <div className="overflow-x-auto border rounded-xl">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-xs">Guía</TableHead>
-              <TableHead className="text-xs">Fecha</TableHead>
-              <TableHead className="text-xs">Producto</TableHead>
-              <TableHead className="text-xs text-right">Cant.</TableHead>
-              <TableHead className="text-xs text-right">Monto</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {records.map((r, idx) => (
-              <TableRow key={`${r.numeroGuia}-${idx}`}>
-                <TableCell className="text-xs font-medium">{r.numeroGuia}</TableCell>
-                <TableCell className="text-xs">{formatDate(r.fecha)}</TableCell>
-                <TableCell className="text-xs max-w-[200px] truncate" title={r.producto}>{r.producto}</TableCell>
-                <TableCell className="text-xs text-right">{r.cantidad.toLocaleString("es-CL")}</TableCell>
-                <TableCell className="text-xs text-right font-medium text-purple-600">
-                  {formatCurrency(r.monto)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  );
-}
-
-function FacturasContent({ records, isLoading }: { records: any[]; isLoading: boolean }) {
-  const totalAmount = records.reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
-
-  if (isLoading) return <div className="h-48 bg-gray-100 rounded-xl animate-pulse" />;
-  if (records.length === 0) return (
-    <div className="text-center py-12">
-      <FileCheck className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-      <p className="text-sm text-gray-500">No hay facturas en el mes actual</p>
-    </div>
-  );
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="bg-green-50 border border-green-200 rounded-xl p-3">
-          <div className="flex items-center gap-2 text-green-600 mb-1">
-            <DollarSign className="h-4 w-4" />
-            <span className="text-xs font-medium">Monto Facturado</span>
-          </div>
-          <p className="text-lg font-bold text-green-700">{formatCurrency(totalAmount)}</p>
-        </div>
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-          <div className="flex items-center gap-2 text-emerald-600 mb-1">
-            <FileCheck className="h-4 w-4" />
-            <span className="text-xs font-medium">Documentos</span>
-          </div>
-          <p className="text-lg font-bold text-emerald-700">{records.length}</p>
-        </div>
-      </div>
-      <div className="overflow-x-auto border rounded-xl">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-xs">Doc</TableHead>
-              <TableHead className="text-xs">Tipo</TableHead>
-              <TableHead className="text-xs">Fecha</TableHead>
-              <TableHead className="text-xs">Producto</TableHead>
-              <TableHead className="text-xs text-right">Monto</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {records.map((r: any, idx: number) => (
-              <TableRow key={`${r.documentNumber || r.nudo || idx}`}>
-                <TableCell className="text-xs font-medium">{r.documentNumber || r.nudo || "-"}</TableCell>
-                <TableCell className="text-xs">
-                  <Badge variant={r.docType === "FCV" ? "default" : "secondary"} className="text-[10px]">
-                    {r.docType || "FCV"}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-xs">{formatDate(r.date || r.fecha || "")}</TableCell>
-                <TableCell className="text-xs max-w-[200px] truncate" title={r.productName || r.nokopr || ""}>
-                  {r.productName || r.nokopr || "-"}
-                </TableCell>
-                <TableCell className="text-xs text-right font-medium text-green-600">
-                  {formatCurrency(Number(r.amount) || 0)}
-                </TableCell>
-              </TableRow>
-            ))}
           </TableBody>
         </Table>
       </div>

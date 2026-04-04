@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { getNumericOrderId } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -502,7 +503,7 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
                     {orders.map((order: any) => (
                       <TableRow key={order.id} className="hover:bg-muted/10">
                         <TableCell className="font-mono text-sm font-semibold text-orange-600">
-                          #{order.orderNumber || order.id?.slice(0, 8)}
+                          #{order.orderNumber || getNumericOrderId(order.id)}
                         </TableCell>
                         <TableCell className="text-sm">{formatDate(order.createdAt)}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">
