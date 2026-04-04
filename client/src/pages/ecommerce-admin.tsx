@@ -947,12 +947,12 @@ function WarehouseManagementSection() {
                 <div className="text-center py-6 text-muted-foreground text-sm flex items-center justify-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
                 </div>
-              ) : warehouses.filter((w: any) => w.isManual || w.is_manual || w.kobo?.startswith('MNL')).length === 0 ? (
+              ) : warehouses.filter((w: any) => w.isManual || w.is_manual || w.kobo?.startsWith('MNL')).length === 0 ? (
                 <div className="text-center py-8 text-sm text-muted-foreground bg-slate-50 dark:bg-slate-800/20 rounded-lg">
                   No hay bodegas creadas manualmente.<br/>Añade tu primera bodega en el formulario.
                 </div>
               ) : (
-                warehouses.filter((w: any) => w.isManual || w.is_manual || w.kobo?.startswith('MNL')).map((w: any) => (
+                warehouses.filter((w: any) => w.isManual || w.is_manual || w.kobo?.startsWith('MNL')).map((w: any) => (
                   <div key={w.id} className="p-3 bg-white dark:bg-slate-800 border rounded-lg hover:border-indigo-300 transition-colors flex items-start justify-between group shadow-sm">
                     <div className="min-w-0 pr-2 space-y-1 flex-1">
                       <p className="font-semibold text-sm text-foreground truncate">{w.name}</p>
