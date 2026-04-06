@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Switch } from "@/components/ui/switch";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -930,7 +931,7 @@ export default function TomadorPedidos() {
   const [defaultMobileTab, setDefaultMobileTab] = useState<"client" | "products" | "cart">("client"); // Default tab for mobile
   const [isSavingQuote, setIsSavingQuote] = useState(false); // Track if quote is being saved
   const [showCartAnimation, setShowCartAnimation] = useState(false); // Track cart add animation
-  const [showShipping, setShowShipping] = useState(false); // Toggle shipping cost visibility
+  const [showShipping, setShowShipping] = useState(true); // Toggle shipping cost visibility
 
   // Ficha de Creación de Cliente states
   const [showFichaClienteDialog, setShowFichaClienteDialog] = useState(false);
@@ -1159,6 +1160,21 @@ export default function TomadorPedidos() {
     if (!showShipping) return 0;
     return cart.reduce((sum, item) => sum + getItemShippingCost(item), 0);
   }, [cart, showShipping, getItemShippingCost]);
+
+  // Ref to hold the latest saveQuote reference for the useEffect
+  const saveQuoteRef = useRef<() => void>();
+
+  // UseEffect to auto-save the quote if the shipping toggle is flipped by the user
+  const isInitialShippingMount = useRef(true);
+  useEffect(() => {
+    if (isInitialShippingMount.current) {
+      isInitialShippingMount.current = false;
+      return;
+    }
+    if (savedQuoteId && !isSavingQuote && saveQuoteRef.current) {
+      saveQuoteRef.current();
+    }
+  }, [showShipping, savedQuoteId]);
 
   // Fetch available units for filtering
   const { data: availableUnits = [] } = useQuery<string[]>({
@@ -4439,6 +4455,9 @@ export default function TomadorPedidos() {
                       </div> */}
                       </div>
 
+                      // Assign the saveQuote function to the ref so the auto-save useEffect can use it
+                      saveQuoteRef.current = saveQuote;
+
                       {/* Mobile Product Results */}
                       <div className="space-y-3">
                         {priceList.length > 0 ? (
@@ -4772,17 +4791,15 @@ export default function TomadorPedidos() {
                               </div>
                               {/* Shipping toggle */}
                               <div className="flex items-center justify-between text-sm">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="checkbox"
+                                <label className="flex items-center gap-3 cursor-pointer py-1">
+                                  <Switch
                                     checked={showShipping}
-                                    onChange={() => setShowShipping(!showShipping)}
-                                    className="rounded border-gray-300 text-orange-500 focus:ring-orange-500 h-3.5 w-3.5"
+                                    onCheckedChange={setShowShipping}
                                   />
-                                  <span className="text-muted-foreground">Incluir flete</span>
+                                  <span className="text-muted-foreground font-medium">Incluir flete en el presupuesto</span>
                                 </label>
                                 {showShipping && (
-                                  <span className="font-medium text-orange-600">{formatCurrency(shippingCost)}</span>
+                                  <span className="font-bold text-orange-600">{formatCurrency(shippingCost)}</span>
                                 )}
                               </div>
                               <div className="flex justify-between text-sm">
@@ -5448,17 +5465,15 @@ export default function TomadorPedidos() {
                         </div>
                         {/* Shipping toggle */}
                         <div className="flex items-center justify-between text-sm">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
+                          <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                            <Switch
                               checked={showShipping}
-                              onChange={() => setShowShipping(!showShipping)}
-                              className="rounded border-gray-300 text-orange-500 focus:ring-orange-500 h-3.5 w-3.5"
+                              onCheckedChange={setShowShipping}
                             />
-                            <span className="text-muted-foreground">Incluir flete</span>
+                            <span className="text-muted-foreground font-medium">Incluir flete en el presupuesto</span>
                           </label>
                           {showShipping && (
-                            <span className="text-orange-600 font-medium">{formatCurrency(shippingCost)}</span>
+                            <span className="font-bold text-orange-600 text-base">{formatCurrency(shippingCost)}</span>
                           )}
                         </div>
                         <div className="flex justify-between text-sm">

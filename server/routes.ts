@@ -10586,8 +10586,8 @@ export function registerRoutes(app: Express): Server {
 
       const { percentage, fields, unidad, roundToDecena } = req.body;
 
-      if (typeof percentage !== 'number' || percentage === 0) {
-        return res.status(400).json({ message: "Porcentaje de ajuste inválido" });
+      if (typeof percentage !== 'number' || (percentage === 0 && !roundToDecena)) {
+        return res.status(400).json({ message: "Porcentaje de ajuste inválido o seleccione redondear" });
       }
 
       if (Math.abs(percentage) > 100) {
@@ -11189,8 +11189,8 @@ export function registerRoutes(app: Express): Server {
 
       const { percentage, roundToDecena } = req.body;
 
-      if (typeof percentage !== 'number' || percentage === 0) {
-        return res.status(400).json({ message: "Porcentaje de ajuste inválido" });
+      if (typeof percentage !== 'number' || (percentage === 0 && !roundToDecena)) {
+        return res.status(400).json({ message: "Porcentaje de ajuste inválido o seleccione redondear" });
       }
 
       if (Math.abs(percentage) > 100) {
