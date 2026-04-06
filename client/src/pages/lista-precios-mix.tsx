@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Upload, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator } from "lucide-react";
+import { Upload, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, Percent, TrendingUp, TrendingDown, Check } from "lucide-react";
 
 // Response includes JOINed fields from price_list
 interface MixItem {
@@ -41,6 +41,11 @@ export default function ListaPreciosMix() {
   const [simulatorPrices, setSimulatorPrices] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  const [isBulkAdjustOpen, setIsBulkAdjustOpen] = useState(false);
+  const [bulkAdjustDirection, setBulkAdjustDirection] = useState<'up'|'down'>('up');
+  const [bulkAdjustPercentage, setBulkAdjustPercentage] = useState("");
+  const [bulkAdjustConfirm, setBulkAdjustConfirm] = useState(false);
 
   const itemsPerPage = 50;
 
@@ -112,6 +117,36 @@ export default function ListaPreciosMix() {
     },
   });
 
+  const bulkAdjustMutation = useMutation({
+    mutationFn: async (data: { percentage: number }) => {
+      const res = await fetch("/api/price-list-mix/bulk-adjust", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/price-list-mix"] });
+      toast({ title: "Ajuste Masivo", description: "Precios actualizados correctamente" });
+      setIsBulkAdjustOpen(false);
+      setBulkAdjustConfirm(false);
+      setBulkAdjustPercentage("");
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Error al aplicar ajuste", variant: "destructive" });
+    }
+  });
+
+  const handleBulkAdjust = () => {
+    let pct = parseFloat(bulkAdjustPercentage);
+    if (isNaN(pct) || pct <= 0) return;
+    if (bulkAdjustDirection === 'down') pct = -pct;
+
+    bulkAdjustMutation.mutate({ percentage: pct });
+  };
+
   const formatCurrency = (val: string | number | null) => {
     if (!val) return "-";
     const num = typeof val === "string" ? parseFloat(val) : val;
@@ -131,6 +166,15 @@ export default function ListaPreciosMix() {
           >
             <Plus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Agregar SKU</span>
+          </Button>
+          <Button
+            onClick={() => setIsBulkAdjustOpen(true)}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-1.5 text-xs text-amber-600 border-amber-200 hover:bg-amber-50 shadow-sm"
+          >
+            <Percent className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Ajuste Masivo</span>
           </Button>
           <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
             <DialogTrigger asChild>
@@ -413,6 +457,120 @@ export default function ListaPreciosMix() {
               {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Agregar
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Ajuste Masivo de Precios */}
+      <Dialog open={isBulkAdjustOpen} onOpenChange={(open) => { setIsBulkAdjustOpen(open); if (!open) setBulkAdjustConfirm(false); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Percent className="h-5 w-5 text-amber-600" />
+              Ajuste Masivo de Precios (Lista Mix)
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-5 py-2">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setBulkAdjustDirection('up')}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
+                  bulkAdjustDirection === 'up'
+                    ? 'bg-emerald-100 text-emerald-800 border-2 border-emerald-400 shadow-sm'
+                    : 'bg-gray-50 text-gray-500 border-2 border-gray-200 hover:bg-gray-100'
+                }`}
+              >
+                <TrendingUp className="h-4 w-4" />
+                Aumentar
+              </button>
+              <button
+                onClick={() => setBulkAdjustDirection('down')}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
+                  bulkAdjustDirection === 'down'
+                    ? 'bg-red-100 text-red-800 border-2 border-red-400 shadow-sm'
+                    : 'bg-gray-50 text-gray-500 border-2 border-gray-200 hover:bg-gray-100'
+                }`}
+              >
+                <TrendingDown className="h-4 w-4" />
+                Disminuir
+              </button>
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold text-gray-700 mb-1.5 block">Porcentaje de ajuste</label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  placeholder="Ej: 5"
+                  min="0.1"
+                  max="100"
+                  step="0.1"
+                  value={bulkAdjustPercentage}
+                  onChange={(e) => { setBulkAdjustPercentage(e.target.value); setBulkAdjustConfirm(false); }}
+                  className="pr-10 text-lg font-bold h-12"
+                />
+                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-lg font-bold text-gray-400">%</span>
+              </div>
+              {bulkAdjustPercentage && parseFloat(bulkAdjustPercentage) > 0 && (
+                <p className={`text-xs mt-1.5 font-medium ${bulkAdjustDirection === 'up' ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {bulkAdjustDirection === 'up' ? '↑' : '↓'} Todos los precios mix se {bulkAdjustDirection === 'up' ? 'multiplicarán' : 'reducirán'} por {(1 + (bulkAdjustDirection === 'up' ? 1 : -1) * parseFloat(bulkAdjustPercentage) / 100).toFixed(4)}x
+                </p>
+              )}
+            </div>
+            
+            <p className="text-xs text-muted-foreground flex items-center gap-2 bg-slate-50 p-3 rounded-lg border border-slate-100">
+              <AlertCircle className="h-4 w-4 text-blue-500 shrink-0" />
+              Este ajuste se aplicará a todos los productos actualmente registrados en la Lista de Precios Mix.
+            </p>
+          </div>
+
+          <DialogFooter className="flex flex-col gap-2 sm:flex-col">
+            {!bulkAdjustConfirm ? (
+              <Button
+                onClick={() => setBulkAdjustConfirm(true)}
+                disabled={!bulkAdjustPercentage || parseFloat(bulkAdjustPercentage) <= 0}
+                className={`w-full h-11 text-sm font-bold ${
+                  bulkAdjustDirection === 'up'
+                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {bulkAdjustDirection === 'up' ? <TrendingUp className="h-4 w-4 mr-2" /> : <TrendingDown className="h-4 w-4 mr-2" />}
+                {bulkAdjustDirection === 'up' ? 'Aumentar' : 'Disminuir'} {bulkAdjustPercentage || '0'}% — Vista previa
+              </Button>
+            ) : (
+              <div className="space-y-2 w-full">
+                <div className={`p-3 rounded-xl text-sm font-medium ${
+                  bulkAdjustDirection === 'up' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'
+                }`}>
+                  <p className="font-bold mb-1">⚠️ Confirmar ajuste masivo</p>
+                  <p>Se {bulkAdjustDirection === 'up' ? 'aumentarán' : 'disminuirán'} <strong>{bulkAdjustPercentage}%</strong> todos los precios de la lista mix.</p>
+                  <p className="mt-1 text-xs opacity-70">Esta acción no se puede deshacer.</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setBulkAdjustConfirm(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleBulkAdjust}
+                    disabled={bulkAdjustMutation.isPending}
+                    className={`flex-1 font-bold ${
+                      bulkAdjustDirection === 'up'
+                        ? 'bg-emerald-600 hover:bg-emerald-700'
+                        : 'bg-red-600 hover:bg-red-700'
+                    }`}
+                  >
+                    {bulkAdjustMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+                    Sí, aplicar ajuste
+                  </Button>
+                </div>
+              </div>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

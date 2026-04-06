@@ -5499,7 +5499,7 @@ export function registerRoutes(app: Express): Server {
           pc.breve_resena,
           pc.imagen_destacada
         FROM ecommerce_products ep
-        LEFT JOIN price_list pl ON ep.price_list_id = pl.id
+        INNER JOIN price_list pl ON ep.price_list_id = pl.id
         LEFT JOIN (
           SELECT kopr, SUM(COALESCE(physical_stock2, 0)) as total_stock
           FROM product_stock
@@ -9173,7 +9173,7 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/users/clients/:id/commercial-info', requireCommercialAccess, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const { cpen, dccr, pickupWarehouseId, crlt, cren, kofuen } = req.body;
+      const { cpen, dccr, pickupWarehouseId, crlt, cren, kofuen, lcen } = req.body;
       const user = req.user;
 
       if (!['admin', 'supervisor'].includes(user.role)) {
@@ -9197,6 +9197,7 @@ export function registerRoutes(app: Express): Server {
           crlt: crlt !== undefined ? crlt : existingClient[0].crlt,
           cren: cren !== undefined ? cren : existingClient[0].cren,
           kofuen: kofuen !== undefined ? kofuen : existingClient[0].kofuen,
+          lcen: lcen !== undefined ? lcen : existingClient[0].lcen,
           updatedAt: new Date(),
         })
         .where(eq(clients.id, id));
@@ -11123,6 +11124,41 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Bulk price adjustment for Mix list
+  app.post('/api/price-list-mix/bulk-adjust', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Not authorized for bulk price adjustments" });
+      }
+
+      const { percentage } = req.body;
+
+      if (typeof percentage !== 'number' || percentage === 0) {
+        return res.status(400).json({ message: "Porcentaje de ajuste inválido" });
+      }
+
+      if (Math.abs(percentage) > 100) {
+        return res.status(400).json({ message: "El porcentaje no puede exceder ±100%" });
+      }
+
+      const multiplier = 1 + (percentage / 100);
+
+      const { db } = await import('./db');
+      const { sql } = await import('drizzle-orm');
+      await db.execute(sql`
+        UPDATE price_list_mix 
+        SET precio = precio * ${multiplier}
+        WHERE precio IS NOT NULL AND precio > 0;
+      `);
+
+      res.json({ success: true, message: "Ajuste masivo aplicado exitosamente" });
+    } catch (error) {
+      console.error("Error en ajuste masivo de lista mix:", error);
+      res.status(500).json({ message: "Error al aplicar ajuste masivo" });
+    }
+  });
+
   app.post('/api/price-list-mix/import', upload.single('file'), requireAuth, async (req: any, res) => {
     try {
       if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
@@ -11571,10 +11607,14 @@ export function registerRoutes(app: Express): Server {
   // Get all banners (admin - includes inactive)
   app.get('/api/ecommerce/admin/banners', requireAuth, requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
-      const allBanners = await db
-        .select()
-        .from(storeBanners)
-        .orderBy(storeBanners.orden);
+      const { type } = req.query;
+      let query = db.select().from(storeBanners);
+      
+      if (type) {
+        query = query.where(eq(storeBanners.tipoVisualizacion, type)) as any;
+      }
+      
+      const allBanners = await query.orderBy(storeBanners.orden);
       res.json(allBanners);
     } catch (error: any) {
       res.status(500).json({ message: 'Error fetching banners', error: error.message });
@@ -12097,7 +12137,8 @@ export function registerRoutes(app: Express): Server {
         [updated] = await db.insert(storeConfig).values({ id: 'default', ...updates }).returning();
       } else {
         const mergedSeoSettings = updates.seoSettings ? { ...existing.seoSettings, ...updates.seoSettings } : existing.seoSettings;
-        [updated] = await db.update(storeConfig).set({ ...updates, seoSettings: mergedSeoSettings, updatedAt: new Date() }).where(eq(storeConfig.id, existing.id)).returning();
+        const mergedAdSettings = updates.adSettings ? { ...existing.adSettings, ...updates.adSettings } : existing.adSettings;
+        [updated] = await db.update(storeConfig).set({ ...updates, seoSettings: mergedSeoSettings, adSettings: mergedAdSettings, updatedAt: new Date() }).where(eq(storeConfig.id, existing.id)).returning();
       }
       res.json(updated);
     } catch (error: any) {

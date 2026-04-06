@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, Fragment } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -480,8 +480,9 @@ export default function TiendaPage() {
   });
 
   // Split DB banners into hero and footer
-  const heroDbBanners = storeBanners.filter(b => b.tipoVisualizacion !== 'footer').sort((a: any, b: any) => (a.orden || 0) - (b.orden || 0)).map((b: any) => ({ src: b.imagenDesktop, alt: b.titulo, mobileSrc: b.imagenMobile, linkUrl: b.linkUrl }));
+  const heroDbBanners = storeBanners.filter(b => b.tipoVisualizacion === 'hero').sort((a: any, b: any) => (a.orden || 0) - (b.orden || 0)).map((b: any) => ({ src: b.imagenDesktop, alt: b.titulo, mobileSrc: b.imagenMobile, linkUrl: b.linkUrl }));
   const footerBanners = storeBanners.filter(b => b.tipoVisualizacion === 'footer').sort((a: any, b: any) => (a.orden || 0) - (b.orden || 0)).map((b: any) => ({ src: b.imagenDesktop, alt: b.titulo, mobileSrc: b.imagenMobile, linkUrl: b.linkUrl }));
+  const adBanners = storeBanners.filter(b => b.tipoVisualizacion === 'ad').sort((a: any, b: any) => (a.orden || 0) - (b.orden || 0)).map((b: any) => ({ src: b.imagenDesktop, alt: b.titulo, mobileSrc: b.imagenMobile, linkUrl: b.linkUrl }));
 
   // Use DB banners if available, otherwise fallback to hardcoded
   const banners = heroDbBanners.length > 0
@@ -1410,15 +1411,29 @@ export default function TiendaPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            {groupedCatalog.map(product => {
+            {groupedCatalog.map((product, index) => {
               const colorKeys = Object.keys(product.colors)
                 .sort((a, b) => product.colors[b].length - product.colors[a].length);
               const isExpanded = expandedProducts.has(product.genericName);
               const totalVariants = Object.values(product.colors).flat().length;
+              
+              const desktopFreq = config?.adSettings?.desktopFrequency || 6;
+              const mobileFreq = config?.adSettings?.mobileFrequency || 4;
+              
+              // Calculate if we should show an ad banner after this item
+              const isDesktopAdSlot = (index + 1) % desktopFreq === 0;
+              const isMobileAdSlot = (index + 1) % mobileFreq === 0;
+              
+              let adBannerIdx = 0;
+              if (isDesktopAdSlot || isMobileAdSlot) {
+                 // pick banner sequentially
+                 adBannerIdx = Math.floor((index + 1) / (isDesktopAdSlot ? desktopFreq : mobileFreq)) % Math.max(1, adBanners.length);
+              }
+              const bannerToShow = adBanners[adBannerIdx] || null;
 
               return (
+                <Fragment key={product.genericName}>
                 <div
-                  key={product.genericName}
                   className={`rounded-2xl overflow-hidden transition-all duration-300 flex flex-col ${
                     isExpanded
                       ? 'border border-[#FF6E23]/30 shadow-xl shadow-orange-100/40 bg-white lg:col-span-2 ring-1 ring-[#FF6E23]/10'
@@ -1792,6 +1807,28 @@ export default function TiendaPage() {
                     })()}
                   </div>
                 </div>
+                
+                {/* Ad Banner injected between products */}
+                {bannerToShow && (isDesktopAdSlot || isMobileAdSlot) && (
+                  <div className={`col-span-full my-4 rounded-2xl overflow-hidden hover:shadow-lg transition-all ${isDesktopAdSlot && !isMobileAdSlot ? 'hidden lg:block' : ''} ${isMobileAdSlot && !isDesktopAdSlot ? 'block lg:hidden' : ''}`}>
+                    {bannerToShow.linkUrl ? (
+                      <a href={bannerToShow.linkUrl} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
+                        <picture>
+                          {bannerToShow.mobileSrc && <source media="(max-width: 768px)" srcSet={bannerToShow.mobileSrc} />}
+                          <img src={bannerToShow.src} alt={bannerToShow.alt || "Anuncio"} className="w-full h-auto object-cover max-h-48 md:max-h-64" />
+                        </picture>
+                      </a>
+                    ) : (
+                      <div className="w-full h-full">
+                        <picture>
+                          {bannerToShow.mobileSrc && <source media="(max-width: 768px)" srcSet={bannerToShow.mobileSrc} />}
+                          <img src={bannerToShow.src} alt={bannerToShow.alt || "Anuncio"} className="w-full h-auto object-cover max-h-48 md:max-h-64" />
+                        </picture>
+                      </div>
+                    )}
+                  </div>
+                )}
+                </Fragment>
               );
             })}
           </div>

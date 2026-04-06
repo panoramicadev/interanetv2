@@ -2402,6 +2402,10 @@ export const storeConfig = pgTable("store_config", {
     metaDescription?: string;
     keywords?: string[];
   }>(), // Configuración SEO
+  adSettings: jsonb("ad_settings").$type<{
+    desktopFrequency?: number;
+    mobileFrequency?: number;
+  }>(), // Configuración de frecuencia de banners publicitarios
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

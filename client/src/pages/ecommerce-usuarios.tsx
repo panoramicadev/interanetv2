@@ -61,7 +61,8 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
     pickupWarehouseId: client.pickupWarehouseId || "none",
     salesRepCode: client.salesRepCode || "",
     creditLimit: client.creditLimit?.toString() || "",
-    creditAvailable: client.creditAvailable?.toString() || ""
+    creditAvailable: client.creditAvailable?.toString() || "",
+    lcen: (client as any).lcen || ""
   });
     const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -86,7 +87,8 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
       pickupWarehouseId: client.pickupWarehouseId || "none",
       salesRepCode: client.salesRepCode || "",
       creditLimit: client.creditLimit?.toString() || "",
-      creditAvailable: client.creditAvailable?.toString() || ""
+      creditAvailable: client.creditAvailable?.toString() || "",
+      lcen: (client as any).lcen || ""
     });
   }, [client]);
 
@@ -402,6 +404,22 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
                     </div>
 
                     <div className="space-y-1.5">
+                      <Label className="text-xs">Lista de Precios Asignada</Label>
+                      <Select 
+                        value={commercialForm.lcen} 
+                        onValueChange={(val) => setCommercialForm(p => ({ ...p, lcen: val }))}
+                      >
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue placeholder="Seleccione una lista (ej. Lista Comercial)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="LP01">Lista Comercial (Por defecto)</SelectItem>
+                          <SelectItem value="LP02">Lista Mix</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <Label className="text-xs">Bodega de Retiro Default</Label>
                         
@@ -439,7 +457,8 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
                              pickupWarehouseId: commercialForm.pickupWarehouseId === "none" ? null : commercialForm.pickupWarehouseId,
                              kofuen: commercialForm.salesRepCode || null,
                              crlt: commercialForm.creditLimit ? parseFloat(commercialForm.creditLimit) : null,
-                             cren: commercialForm.creditAvailable ? parseFloat(commercialForm.creditAvailable) : null
+                             cren: commercialForm.creditAvailable ? parseFloat(commercialForm.creditAvailable) : null,
+                             lcen: commercialForm.lcen
                           });
                        }}
                        disabled={updateCommercialInfo.isPending}>

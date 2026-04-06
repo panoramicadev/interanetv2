@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ShoppingCart, Search, Building2, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers, Users, Phone, Mail, Link as LinkIcon, Check, X, Loader2, User, ChevronDown, ChevronRight, Truck, Save, Layout, MapPin, HelpCircle, FileText, ArrowUp, ArrowDown } from "lucide-react";
+import { ShoppingCart, Search, Building2, Edit, Tag, Eye, EyeOff, Play, Pause, List, Grip, Link as LinkIcon, RefreshCw, Smartphone, Globe, PenTool, LayoutTemplate, Palette, MessageCircle, AlertTriangle, MonitorSmartphone, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers, Users, Phone, Mail, Check, X, Loader2, User, ChevronDown, ChevronRight, Truck, Save, Layout, MapPin, HelpCircle, FileText, ArrowUp, ArrowDown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
 import { useForm } from "react-hook-form";
@@ -522,11 +522,11 @@ function TopbarConfigSection() {
 }
 
 // Banner Form Component
-function BannerForm({ onSuccess, existingBanner }: { onSuccess: () => void; existingBanner?: any }) {
+function BannerForm({ onSuccess, existingBanner, type = 'hero' }: { onSuccess: () => void; existingBanner?: any; type?: string }) {
   const [titulo, setTitulo] = useState(existingBanner?.titulo || '');
   const [linkUrl, setLinkUrl] = useState(existingBanner?.linkUrl || '');
   const [orden, setOrden] = useState(existingBanner?.orden?.toString() || '0');
-  const [tipoVisualizacion, setTipoVisualizacion] = useState(existingBanner?.tipoVisualizacion || 'hero');
+  const [tipoVisualizacion, setTipoVisualizacion] = useState(existingBanner?.tipoVisualizacion || type);
   const [desktopFile, setDesktopFile] = useState<File | null>(null);
   const [mobileFile, setMobileFile] = useState<File | null>(null);
   const [desktopPreview, setDesktopPreview] = useState(existingBanner?.imagenDesktop || '');
@@ -699,11 +699,93 @@ function BannerSettings() {
   );
 }
 
+// Ad Banner Settings Component
+function AdBannerSettings() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  const { data: config, isLoading } = useQuery<any>({
+    queryKey: ['/api/ecommerce/store-config'],
+  });
+
+  const [desktopFreq, setDesktopFreq] = useState<number>(6);
+  const [mobileFreq, setMobileFreq] = useState<number>(4);
+
+  React.useEffect(() => {
+    if (config?.adSettings) {
+      if (config.adSettings.desktopFrequency) setDesktopFreq(config.adSettings.desktopFrequency);
+      if (config.adSettings.mobileFrequency) setMobileFreq(config.adSettings.mobileFrequency);
+    }
+  }, [config]);
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ dFreq, mFreq }: { dFreq: number, mFreq: number }) => {
+      const res = await fetch('/api/ecommerce/store-config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adSettings: { ...config?.adSettings, desktopFrequency: dFreq, mobileFrequency: mFreq } })
+      });
+      if (!res.ok) throw new Error('Error saving ad settings');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/store-config'] });
+      toast({ title: 'Configuración actualizada', description: 'La frecuencia de banners publicitarios se guardó exitosamente.' });
+    }
+  });
+
+  if (isLoading) return null;
+
+  return (
+    <div className="flex flex-col xl:flex-row xl:items-center gap-4 bg-muted/30 p-3 rounded-lg mb-4 text-sm">
+      <div className="flex items-center gap-2">
+        <MonitorSmartphone className="w-4 h-4 text-muted-foreground" />
+        <span className="font-semibold text-gray-700">Frecuencia publicitaria (cada X productos):</span>
+      </div>
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-slate-500">Escritorio</span>
+          <Input 
+            type="number" 
+            className="w-16 h-8 text-center bg-white" 
+            value={desktopFreq} 
+            onChange={(e) => setDesktopFreq(parseInt(e.target.value) || 1)} 
+            min="1" 
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-slate-500">Móvil</span>
+          <Input 
+            type="number" 
+            className="w-16 h-8 text-center bg-white" 
+            value={mobileFreq} 
+            onChange={(e) => setMobileFreq(parseInt(e.target.value) || 1)} 
+            min="1" 
+          />
+        </div>
+        <Button 
+          size="sm" 
+          variant="secondary" 
+          className="h-8 shadow-sm"
+          onClick={() => updateMutation.mutate({ dFreq: desktopFreq, mFreq: mobileFreq })}
+          disabled={updateMutation.isPending || (desktopFreq === (config?.adSettings?.desktopFrequency || 6) && mobileFreq === (config?.adSettings?.mobileFrequency || 4))}
+        >
+          {updateMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Guardar'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // Banner List Component
-function BannerList() {
+function BannerList({ type = 'hero' }: { type?: string }) {
   const { toast } = useToast();
   const { data: banners = [], isLoading } = useQuery<any[]>({
-    queryKey: ['/api/ecommerce/admin/banners'],
+    queryKey: ['/api/ecommerce/admin/banners', type],
+    queryFn: async () => {
+      const res = await fetch(`/api/ecommerce/admin/banners?type=${type}`);
+      return res.json();
+    }
   });
 
   const toggleMutation = useMutation({
@@ -2073,6 +2155,50 @@ export default function EcommerceAdmin() {
           <CardContent>
             <BannerSettings />
             <BannerList />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Ad Banners Management Section */}
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
+                  <MonitorSmartphone className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Banners Publicitarios</CardTitle>
+                  <p className="text-sm text-muted-foreground">Administra los banners que aparecen entre los productos del catálogo</p>
+                </div>
+              </div>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 gap-2 text-white shrink-0">
+                    <Plus className="h-4 w-4" />
+                    Nuevo Banner Publicitario
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle>Crear Banner Publicitario</DialogTitle>
+                    <DialogDescription>Sube imágenes para mostrar entre productos</DialogDescription>
+                  </DialogHeader>
+                  <BannerForm 
+                    type="ad"
+                    onSuccess={() => {
+                      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/banners', 'ad'] });
+                      toast({ title: 'Banner publicitario creado' });
+                    }} 
+                  />
+                </DialogContent>
+              </Dialog>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <AdBannerSettings />
+            <BannerList type="ad" />
           </CardContent>
         </Card>
       )}
