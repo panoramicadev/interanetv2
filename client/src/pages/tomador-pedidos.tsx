@@ -1677,10 +1677,9 @@ export default function TomadorPedidos() {
     };
 
     // If selected tier has no price, use best available tier
-    const effectiveTier = parseFloat((product as any)[selectedTier]?.toString() || "0") > 0
-      ? selectedTier
-      : getBestTier(product);
-    const price = getTierPrice(product, effectiveTier);
+    const selectedTierPrice = getTierPrice(product, selectedTier);
+    const effectiveTier = selectedTierPrice > 0 ? selectedTier : getBestTier(product);
+    const price = selectedTierPrice > 0 ? selectedTierPrice : getTierPrice(product, effectiveTier);
 
     const existingItem = cart.find(item =>
       item.type === "standard" &&
