@@ -144,8 +144,9 @@ export default function ListaPreciosMix() {
   });
 
   const handleBulkAdjust = () => {
-    let pct = parseFloat(bulkAdjustPercentage);
-    if (isNaN(pct) || pct <= 0) return;
+    const pctStr = bulkAdjustPercentage.replace(',', '.');
+    let pct = pctStr ? parseFloat(pctStr) : 0;
+    if (isNaN(pct) || (pct === 0 && !bulkAdjustRoundToDecena) || pct > 100) return;
     if (bulkAdjustDirection === 'down') pct = -pct;
 
     bulkAdjustMutation.mutate(pct);
@@ -529,11 +530,11 @@ export default function ListaPreciosMix() {
             </p>
           </div>
 
-          <DialogFooter className="flex flex-col gap-2 sm:flex-col">
+          <DialogFooter className="flex flex-col gap-2 sm:flex-col mt-4">
             {!bulkAdjustConfirm ? (
               <Button
                 onClick={() => setBulkAdjustConfirm(true)}
-                disabled={!bulkAdjustPercentage || parseFloat(bulkAdjustPercentage) <= 0}
+                disabled={(!bulkAdjustPercentage || parseFloat(bulkAdjustPercentage) <= 0) && !bulkAdjustRoundToDecena}
                 className={`w-full h-11 text-sm font-bold ${
                   bulkAdjustDirection === 'up'
                     ? 'bg-emerald-600 hover:bg-emerald-700'
@@ -541,7 +542,7 @@ export default function ListaPreciosMix() {
                 }`}
               >
                 {bulkAdjustDirection === 'up' ? <TrendingUp className="h-4 w-4 mr-2" /> : <TrendingDown className="h-4 w-4 mr-2" />}
-                {bulkAdjustDirection === 'up' ? 'Aumentar' : 'Disminuir'} {bulkAdjustPercentage || '0'}% — Vista previa
+                {bulkAdjustPercentage ? `${bulkAdjustDirection === 'up' ? 'Aumentar' : 'Disminuir'} ${bulkAdjustPercentage}%` : 'Redondear Precios'} — Vista previa
               </Button>
             ) : (
               <div className="space-y-2 w-full">
@@ -549,7 +550,13 @@ export default function ListaPreciosMix() {
                   bulkAdjustDirection === 'up' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'
                 }`}>
                   <p className="font-bold mb-1">⚠️ Confirmar ajuste masivo</p>
-                  <p>Se {bulkAdjustDirection === 'up' ? 'aumentarán' : 'disminuirán'} <strong>{bulkAdjustPercentage}%</strong> todos los precios de la lista mix.</p>
+                  <p>
+                    {bulkAdjustPercentage && parseFloat(bulkAdjustPercentage) > 0 ? (
+                      <>Se {bulkAdjustDirection === 'up' ? 'aumentarán' : 'disminuirán'} <strong>{bulkAdjustPercentage}%</strong> todos los precios de la lista mix.</>
+                    ) : (
+                      <>Se redondearán a la decena todos los precios de la lista mix.</>
+                    )}
+                  </p>
                   <p className="mt-1 text-xs opacity-70">Esta acción no se puede deshacer.</p>
                 </div>
                 <div className="flex gap-2">
