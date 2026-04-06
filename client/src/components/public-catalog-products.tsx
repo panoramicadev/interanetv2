@@ -267,6 +267,8 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
                                                     <img
                                                         src={product.imageUrl}
                                                         alt={product.genericName}
+                                                        loading="lazy"
+                                                        decoding="async"
                                                         className="w-full h-full object-cover"
                                                         onError={(e) => {
                                                             (e.target as HTMLImageElement).style.display = 'none';
@@ -383,7 +385,7 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
                                                                 const colorImg = variants.find(v => v.imageUrl)?.imageUrl;
                                                                 return colorImg ? (
                                                                     <div className="w-9 h-9 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0 bg-white">
-                                                                        <img src={colorImg} alt={color} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                                                        <img src={colorImg} alt={color} loading="lazy" decoding="async" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                                                                     </div>
                                                                 ) : (
                                                                     <Palette className="h-4 w-4 text-orange-500" />
@@ -508,6 +510,8 @@ export default function PublicCatalogProducts({ onScroll }: { onScroll?: (scroll
                                             <img
                                                 src={infoModal.data.imagenDestacada}
                                                 alt={infoModal.productName}
+                                                loading="lazy"
+                                                decoding="async"
                                                 className="w-full max-h-64 object-contain bg-slate-50"
                                                 onError={(e) => {
                                                     (e.target as HTMLImageElement).style.display = 'none';

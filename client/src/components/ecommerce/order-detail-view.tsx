@@ -101,6 +101,10 @@ export const statusConfig: Record<string, { label: string; color: string; bg: st
   ingresado: { label: "Ingresado ERP", color: "text-blue-700", bg: "bg-blue-50 border-blue-200", icon: Package },
   despacho: { label: "En Despacho", color: "text-indigo-700", bg: "bg-indigo-50 border-indigo-200", icon: Truck },
   facturado: { label: "Facturado", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200", icon: CheckCircle },
+  // Extra order states
+  preparacion: { label: "En preparación", color: "text-amber-700", bg: "bg-amber-50 border-amber-200", icon: Package },
+  transito: { label: "En tránsito", color: "text-indigo-700", bg: "bg-indigo-50 border-indigo-200", icon: Truck },
+  entregado: { label: "Entregado", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200", icon: CheckCircle },
 };
 
 // Component props
@@ -162,28 +166,121 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, isClientView = 
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem
-                  onClick={async () => {
-                    const newStatus = order.status === 'pending' ? 'approved' : 'pending';
-                    try {
-                      await fetch(`/api/ecommerce/orders/${order.id}/status`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        credentials: 'include',
-                        body: JSON.stringify({ status: newStatus }),
-                      });
-                      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
-                      toast({ title: `Estado cambiado a ${statusConfig[newStatus]?.label || newStatus}` });
-                      onBack();
-                    } catch {
-                      toast({ title: 'Error al cambiar estado', variant: 'destructive' });
-                    }
-                  }}
-                  className="cursor-pointer"
-                >
-                  <Pencil className="w-4 h-4 mr-2" />
-                  {order.status === 'pending' ? 'Aprobar Pedido' : 'Marcar Pendiente'}
-                </DropdownMenuItem>
+                {statusKey === 'pending' && (
+                  <DropdownMenuItem
+                    onClick={async () => {
+                      try {
+                        await fetch(`/api/ecommerce/orders/${order.id}/status`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          credentials: 'include',
+                          body: JSON.stringify({ status: 'approved' }),
+                        });
+                        queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
+                        toast({ title: 'Pedido aprobado' });
+                        onBack();
+                      } catch {
+                        toast({ title: 'Error al cambiar estado', variant: 'destructive' });
+                      }
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Aprobar Pedido
+                  </DropdownMenuItem>
+                )}
+
+                {['approved', 'preparacion', 'transito'].includes(statusKey) && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={async () => {
+                        try {
+                          await fetch(`/api/ecommerce/orders/${order.id}/status`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({ status: 'preparacion' }),
+                          });
+                          queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
+                          toast({ title: 'Pedido en preparación' });
+                          onBack();
+                        } catch {
+                          toast({ title: 'Error al cambiar estado', variant: 'destructive' });
+                        }
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <Package className="w-4 h-4 mr-2" />
+                      Marcar en Preparación
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={async () => {
+                        try {
+                          await fetch(`/api/ecommerce/orders/${order.id}/status`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({ status: 'transito' }),
+                          });
+                          queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
+                          toast({ title: 'Pedido en tránsito' });
+                          onBack();
+                        } catch {
+                          toast({ title: 'Error al cambiar estado', variant: 'destructive' });
+                        }
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <Truck className="w-4 h-4 mr-2" />
+                      Marcar en Tránsito
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={async () => {
+                        try {
+                          await fetch(`/api/ecommerce/orders/${order.id}/status`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({ status: 'entregado' }),
+                          });
+                          queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
+                          toast({ title: 'Pedido entregado' });
+                          onBack();
+                        } catch {
+                          toast({ title: 'Error al cambiar estado', variant: 'destructive' });
+                        }
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Marcar como Entregado
+                    </DropdownMenuItem>
+                  </>
+                )}
+
+                {statusKey !== 'pending' && (
+                  <DropdownMenuItem
+                    onClick={async () => {
+                      try {
+                        await fetch(`/api/ecommerce/orders/${order.id}/status`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          credentials: 'include',
+                          body: JSON.stringify({ status: 'pending' }),
+                        });
+                        queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
+                        toast({ title: 'Pedido marcado como pendiente' });
+                        onBack();
+                      } catch {
+                        toast({ title: 'Error al cambiar estado', variant: 'destructive' });
+                      }
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <Clock className="w-4 h-4 mr-2" />
+                    Marcar Pendiente
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   onClick={async () => {
                     try {

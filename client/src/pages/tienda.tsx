@@ -1122,6 +1122,9 @@ export default function TiendaPage() {
                     <img
                       src={banner.src}
                       alt={banner.alt}
+                      loading={index === 0 ? "eager" : "lazy"}
+                      decoding="async"
+                      fetchPriority={index === 0 ? "high" : "auto"}
                       className="w-full h-auto object-contain block"
                     />
                   </picture>
@@ -1132,6 +1135,9 @@ export default function TiendaPage() {
                   <img
                     src={banner.src}
                     alt={banner.alt}
+                    loading={index === 0 ? "eager" : "lazy"}
+                    decoding="async"
+                    fetchPriority={index === 0 ? "high" : "auto"}
                     className="w-full h-auto object-contain block"
                   />
                 </picture>
@@ -1434,6 +1440,8 @@ export default function TiendaPage() {
                             <img
                               src={product.imageUrl}
                               alt={product.genericName}
+                              loading="lazy"
+                              decoding="async"
                               className="w-full h-full object-contain aspect-square transition-transform duration-300 group-hover:scale-105 rounded-xl"
                               onError={(e) => {
                                 (e.target as HTMLImageElement).style.display = 'none';

@@ -11602,13 +11602,54 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getClientByUserId(userId: string) {
+    // Attempt 1: Direct match by userId
     const result = await db
       .select()
       .from(clients)
       .where(eq(clients.userId, userId))
       .limit(1);
 
-    return result[0];
+    if (result.length > 0) return result[0];
+
+    // Attempt 2: Fallback to salespeople_users by name
+    const userResult = await db
+      .select()
+      .from(salespeopleUsers)
+      .where(eq(salespeopleUsers.id, userId))
+      .limit(1);
+
+    if (userResult.length > 0 && userResult[0].salespersonName) {
+      const nameMatch = await db
+        .select()
+        .from(clients)
+        .where(
+          sql`UPPER(${clients.nokoen}) = UPPER(${userResult[0].salespersonName})`
+        )
+        .limit(1);
+
+      if (nameMatch.length > 0) return nameMatch[0];
+    }
+
+    // Attempt 3: Fallback to old users table mapping by firstName just in case
+    const legacyUserResult = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+      
+    if (legacyUserResult.length > 0 && legacyUserResult[0].firstName) {
+      const nameMatch = await db
+        .select()
+        .from(clients)
+        .where(
+          sql`UPPER(${clients.nokoen}) = UPPER(${legacyUserResult[0].firstName})`
+        )
+        .limit(1);
+
+      if (nameMatch.length > 0) return nameMatch[0];
+    }
+
+    return undefined;
   }
 
   async getClientByRut(rut: string) {
