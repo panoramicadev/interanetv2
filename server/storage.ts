@@ -16117,6 +16117,12 @@ export class DatabaseStorage implements IStorage {
         paymentCondition: orderData.paymentCondition || null,
       };
 
+      if (orderData.approvedAt) cleanData.approvedAt = orderData.approvedAt;
+      if (orderData.approvedById) cleanData.approvedById = orderData.approvedById;
+      if (orderData.modifiedAt) cleanData.modifiedAt = orderData.modifiedAt;
+      if (orderData.modifiedById) cleanData.modifiedById = orderData.modifiedById;
+
+
       const [newOrder] = await db
         .insert(ecommerceOrders)
         .values(cleanData)

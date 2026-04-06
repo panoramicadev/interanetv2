@@ -6654,6 +6654,7 @@ export function registerRoutes(app: Express): Server {
         paymentCondition: isCreditMethod ? 'Crédito' : 'Transferencia',
         notes: orderData.notes || null,
         shippingAddress: orderData.shippingAddress || null,
+        ...(isCreditMethod ? { approvedAt: new Date(), approvedById: clientId } : {}),
       };
 
       // If there's an assigned salesperson, get their name
@@ -6670,6 +6671,54 @@ export function registerRoutes(app: Express): Server {
 
       // Create the order
       const order = await storage.createEcommerceOrder(orderToCreate);
+
+      // Process credit updates if the order is automatically approved (credit payment)
+      if (isCreditMethod) {
+        try {
+          const { salespeopleUsers, users, clients } = await import('@shared/schema');
+          const { eq, or, desc } = await import('drizzle-orm');
+          const { db } = await import('./db');
+          
+          let clientRecordMatch = null;
+          if (clientId) {
+            // Find user to map to client
+            const sUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.id, clientId)).limit(1);
+            const legacyUser = sUser.length === 0 ? await db.select().from(users).where(eq(users.id, clientId)).limit(1) : null;
+            
+            const userName = sUser[0]?.salespersonName || legacyUser[0]?.firstName || null;
+            
+            if (userName) {
+              const possibleClients = await db.select().from(clients)
+                .where(or(
+                  eq(clients.userId, clientId),
+                  eq(clients.nokoen, userName.toUpperCase())
+                ))
+                .orderBy(desc(clients.updatedAt))
+                .limit(1);
+                
+              if (possibleClients.length > 0) {
+                clientRecordMatch = possibleClients[0];
+              }
+            }
+          }
+          
+          if (clientRecordMatch && clientRecordMatch.crlt) {
+            const limit = parseFloat(clientRecordMatch.crlt) || 0;
+            const used = parseFloat(clientRecordMatch.crsd || '0') || 0;
+            const orderTotal = parseFloat(orderData.total as string || '0') || 0;
+            
+            const newUsed = used + orderTotal;
+            const newAvailable = Math.max(0, limit - newUsed);
+            
+            await db.update(clients).set({
+              crsd: newUsed.toString(),
+              cren: newAvailable.toString()
+            }).where(eq(clients.id, clientRecordMatch.id));
+          }
+        } catch (e) {
+          console.error('Error updating client credit on direct order approval:', e);
+        }
+      }
 
       // Create notification for salesperson or admin (non-blocking)
       try {
@@ -6846,17 +6895,17 @@ export function registerRoutes(app: Express): Server {
         const { or, desc } = await import('drizzle-orm');
         
         let clientRecordMatch = null;
-        if (updated.clientUserId) {
+        if (updated.clientId) {
           // Find user to map to client
-          const sUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.id, updated.clientUserId)).limit(1);
-          const legacyUser = sUser.length === 0 ? await db.select().from(users).where(eq(users.id, updated.clientUserId)).limit(1) : null;
+          const sUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.id, updated.clientId)).limit(1);
+          const legacyUser = sUser.length === 0 ? await db.select().from(users).where(eq(users.id, updated.clientId)).limit(1) : null;
           
           const userName = sUser[0]?.salespersonName || legacyUser[0]?.firstName || null;
           
           if (userName) {
             const possibleClients = await db.select().from(clients)
               .where(or(
-                eq(clients.userId, updated.clientUserId),
+                eq(clients.userId, updated.clientId),
                 eq(clients.nokoen, userName.toUpperCase())
               ))
               .orderBy(desc(clients.updatedAt))

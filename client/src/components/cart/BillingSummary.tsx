@@ -643,6 +643,9 @@ export default function BillingSummary() {
                 }`} />
                 <div className="text-left">
                   <div className="font-semibold">Crédito</div>
+                  {isCredit && clientData?.cpen && clientData.cpen.match(/\d+/) && (
+                    <div className="text-[10px] text-blue-600 mt-0.5 leading-tight">Plazo: {clientData.cpen.match(/\d+/)?.[0]} días</div>
+                  )}
                   {!isCredit && <div className="text-[10px] text-gray-400 leading-tight">No disponible</div>}
                 </div>
               </button>
@@ -656,6 +659,13 @@ export default function BillingSummary() {
                     <CheckCircle2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                     <span className="text-sm font-semibold">Aprobación Inmediata</span>
                   </div>
+                  
+                  {/* Credit Condition / Days */}
+                  {clientData?.cpen && clientData.cpen.toUpperCase().includes('CREDITO') && clientData.cpen.match(/\d+/) && (
+                    <div className="text-xs text-blue-800 dark:text-blue-200 font-medium bg-blue-100/50 dark:bg-blue-900/50 px-2 py-1 rounded inline-block">
+                      Plazo de pago: {clientData.cpen.match(/\d+/)?.[0]} días
+                    </div>
+                  )}
 
                   {/* Credit Balance Breakdown */}
                   {(clientData?.crlt || clientData?.cren) && (

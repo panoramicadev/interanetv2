@@ -398,7 +398,7 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
                             setCommercialForm(p => {
                                const limitNum = parseFloat(newLimit) || 0;
                                const usedNum = parseFloat(p.creditUsed) || 0;
-                               return { ...p, creditLimit: newLimit, creditAvailable: Math.max(0, limitNum - usedNum).toString() };
+                               return { ...p, creditLimit: newLimit, creditAvailable: (limitNum - usedNum).toString() };
                             });
                           }}
                         />
@@ -413,7 +413,7 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
                              setCommercialForm(p => {
                                const limitNum = parseFloat(p.creditLimit) || 0;
                                const usedNum = parseFloat(newUsed) || 0;
-                               return { ...p, creditUsed: newUsed, creditAvailable: Math.max(0, limitNum - usedNum).toString() };
+                               return { ...p, creditUsed: newUsed, creditAvailable: (limitNum - usedNum).toString() };
                              });
                           }}
                         />
