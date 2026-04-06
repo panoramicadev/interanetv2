@@ -1426,12 +1426,15 @@ export default function TiendaPage() {
               const isDesktopAdSlot = (index + 1) % desktopFreq === 0;
               const isMobileAdSlot = (index + 1) % mobileFreq === 0;
               
-              let adBannerIdx = 0;
+              let adBannerIdx = -1;
               if (isDesktopAdSlot || isMobileAdSlot) {
-                 // pick banner sequentially
-                 adBannerIdx = Math.floor((index + 1) / (isDesktopAdSlot ? desktopFreq : mobileFreq)) % Math.max(1, adBanners.length);
+                 // pick banner sequentially without repeating
+                 const slotIndex = Math.floor((index + 1) / (isDesktopAdSlot ? desktopFreq : mobileFreq)) - 1;
+                 if (slotIndex >= 0 && slotIndex < adBanners.length) {
+                   adBannerIdx = slotIndex;
+                 }
               }
-              const bannerToShow = adBanners[adBannerIdx] || null;
+              const bannerToShow = adBannerIdx >= 0 ? adBanners[adBannerIdx] : null;
 
               return (
                 <Fragment key={product.genericName}>

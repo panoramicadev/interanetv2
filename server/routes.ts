@@ -10584,7 +10584,7 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "Not authorized for bulk price adjustments" });
       }
 
-      const { percentage, fields, unidad } = req.body;
+      const { percentage, fields, unidad, roundToDecena } = req.body;
 
       if (typeof percentage !== 'number' || percentage === 0) {
         return res.status(400).json({ message: "Porcentaje de ajuste inválido" });
@@ -10613,7 +10613,12 @@ export function registerRoutes(app: Express): Server {
           : field === 'canalDigital' ? 'canal_digital'
           : field === 'costoProduccion' ? 'costo_produccion'
           : field;
-        return `${columnName} = ROUND(${columnName} * ${multiplier}, 0)`;
+        
+        if (roundToDecena) {
+          return `${columnName} = ROUND(${columnName} * ${multiplier}, -1)`;
+        } else {
+          return `${columnName} = ROUND(${columnName} * ${multiplier}, 0)`;
+        }
       }).join(', ');
 
       let query = `UPDATE price_list SET ${setClauses}, updated_at = NOW()`;
@@ -11182,7 +11187,7 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "Not authorized for bulk price adjustments" });
       }
 
-      const { percentage } = req.body;
+      const { percentage, roundToDecena } = req.body;
 
       if (typeof percentage !== 'number' || percentage === 0) {
         return res.status(400).json({ message: "Porcentaje de ajuste inválido" });
@@ -11196,11 +11201,19 @@ export function registerRoutes(app: Express): Server {
 
       const { db } = await import('./db');
       const { sql } = await import('drizzle-orm');
-      await db.execute(sql`
-        UPDATE price_list_mix 
-        SET precio = precio * ${multiplier}
-        WHERE precio IS NOT NULL AND precio > 0;
-      `);
+      if (roundToDecena) {
+        await db.execute(sql`
+          UPDATE price_list_mix 
+          SET precio = ROUND(precio * ${multiplier}, -1)
+          WHERE precio IS NOT NULL AND precio > 0;
+        `);
+      } else {
+        await db.execute(sql`
+          UPDATE price_list_mix 
+          SET precio = ROUND(precio * ${multiplier}, 0)
+          WHERE precio IS NOT NULL AND precio > 0;
+        `);
+      }
 
       res.json({ success: true, message: "Ajuste masivo aplicado exitosamente" });
     } catch (error) {

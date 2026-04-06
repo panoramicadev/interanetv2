@@ -45,6 +45,7 @@ export default function ListaPreciosMix() {
   const [isBulkAdjustOpen, setIsBulkAdjustOpen] = useState(false);
   const [bulkAdjustDirection, setBulkAdjustDirection] = useState<'up'|'down'>('up');
   const [bulkAdjustPercentage, setBulkAdjustPercentage] = useState("");
+  const [bulkAdjustRoundToDecena, setBulkAdjustRoundToDecena] = useState(true);
   const [bulkAdjustConfirm, setBulkAdjustConfirm] = useState(false);
 
   const itemsPerPage = 50;
@@ -118,11 +119,14 @@ export default function ListaPreciosMix() {
   });
 
   const bulkAdjustMutation = useMutation({
-    mutationFn: async (data: { percentage: number }) => {
+    mutationFn: async (percentage: number) => {
       const res = await fetch("/api/price-list-mix/bulk-adjust", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ 
+          percentage,
+          roundToDecena: bulkAdjustRoundToDecena 
+        }),
       });
       if (!res.ok) throw new Error(await res.text());
       return res.json();
@@ -144,7 +148,7 @@ export default function ListaPreciosMix() {
     if (isNaN(pct) || pct <= 0) return;
     if (bulkAdjustDirection === 'down') pct = -pct;
 
-    bulkAdjustMutation.mutate({ percentage: pct });
+    bulkAdjustMutation.mutate(pct);
   };
 
   const formatCurrency = (val: string | number | null) => {

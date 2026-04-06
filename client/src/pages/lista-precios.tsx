@@ -40,6 +40,7 @@ export default function ListaPrecios() {
   const [bulkAdjustFields, setBulkAdjustFields] = useState<string[]>(['lista', 'desc10', 'desc10_5', 'desc10_5_3', 'minimo', 'canalDigital']);
   const [bulkAdjustUnit, setBulkAdjustUnit] = useState("");
   const [bulkAdjustConfirm, setBulkAdjustConfirm] = useState(false);
+  const [bulkAdjustRoundToDecena, setBulkAdjustRoundToDecena] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [newProduct, setNewProduct] = useState({
     codigo: "",
@@ -226,7 +227,7 @@ export default function ListaPrecios() {
 
   // Mutación para ajuste masivo de precios
   const bulkAdjustMutation = useMutation({
-    mutationFn: async (params: { percentage: number; fields: string[]; unidad?: string }) => {
+    mutationFn: async (params: { percentage: number; fields: string[]; unidad?: string; roundToDecena?: boolean }) => {
       return apiRequest('POST', '/api/price-list/bulk-adjust', params);
     },
     onSuccess: async (response) => {
@@ -258,6 +259,7 @@ export default function ListaPrecios() {
       percentage: finalPct,
       fields: bulkAdjustFields,
       unidad: bulkAdjustUnit || undefined,
+      roundToDecena: bulkAdjustRoundToDecena,
     });
   };
 
@@ -1372,6 +1374,20 @@ export default function ListaPrecios() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Round to Decena */}
+            <div className="flex items-center gap-2 mt-2">
+              <input
+                type="checkbox"
+                id="roundToDecena"
+                checked={bulkAdjustRoundToDecena}
+                onChange={(e) => setBulkAdjustRoundToDecena(e.target.checked)}
+                className="w-4 h-4 rounded text-blue-600 border-gray-300"
+              />
+              <Label htmlFor="roundToDecena" className="text-sm font-medium text-gray-700 cursor-pointer select-none">
+                Redondear a la decena (ej: 4977 → 4980)
+              </Label>
             </div>
           </div>
 
