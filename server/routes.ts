@@ -12250,7 +12250,8 @@ export function registerRoutes(app: Express): Server {
       } else {
         const mergedSeoSettings = updates.seoSettings ? { ...existing.seoSettings, ...updates.seoSettings } : existing.seoSettings;
         const mergedAdSettings = updates.adSettings ? { ...existing.adSettings, ...updates.adSettings } : existing.adSettings;
-        [updated] = await db.update(storeConfig).set({ ...updates, seoSettings: mergedSeoSettings, adSettings: mergedAdSettings, updatedAt: new Date() }).where(eq(storeConfig.id, existing.id)).returning();
+        const mergedCheckoutSettings = updates.checkoutSettings ? { ...existing.checkoutSettings, ...updates.checkoutSettings } : existing.checkoutSettings;
+        [updated] = await db.update(storeConfig).set({ ...updates, seoSettings: mergedSeoSettings, adSettings: mergedAdSettings, checkoutSettings: mergedCheckoutSettings, updatedAt: new Date() }).where(eq(storeConfig.id, existing.id)).returning();
       }
       res.json(updated);
     } catch (error: any) {

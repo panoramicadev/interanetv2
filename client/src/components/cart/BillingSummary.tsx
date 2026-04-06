@@ -80,7 +80,7 @@ export default function BillingSummary() {
   }, [selectedWarehouseId]);
 
   // Fetch shipping rates from admin config
-  const { data: shippingRates = {} } = useQuery<Record<string, number>>({
+  const { data: rawShippingRates = {} } = useQuery<Record<string, any>>({
     queryKey: ['/api/ecommerce/shipping-rates'],
     queryFn: async () => {
       const res = await fetch('/api/ecommerce/shipping-rates', { credentials: 'include' });
@@ -89,6 +89,12 @@ export default function BillingSummary() {
     },
     staleTime: 60000,
   });
+
+  // Normalize: support both old { key: number } and new { key: { price, sku } } formats
+  const shippingRates: Record<string, number> = {};
+  for (const [key, val] of Object.entries(rawShippingRates)) {
+    shippingRates[key] = typeof val === 'object' && val !== null ? (val.price || 0) : (Number(val) || 0);
+  }
 
   // Fetch free shipping threshold
   const { data: freeShippingData } = useQuery<{ threshold: number }>({

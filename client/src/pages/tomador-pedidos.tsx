@@ -26,7 +26,7 @@ import EcommerceOrdersList, { QuoteFromOrderData } from "@/components/order-take
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit, Mail, Download, Share2, ChevronRight, TrendingUp, BarChart3, CheckCircle2, Clock } from "lucide-react";
+import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit, Mail, Download, Share2, ChevronRight, TrendingUp, BarChart3, CheckCircle2, Clock, Truck } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { nanoid } from "nanoid";
@@ -1135,7 +1135,7 @@ export default function TomadorPedidos() {
   });
 
   // Fetch shipping rates from product config
-  const { data: shippingRates = {} } = useQuery<Record<string, number>>({
+  const { data: rawShippingRates = {} } = useQuery<Record<string, any>>({
     queryKey: ['/api/ecommerce/shipping-rates'],
     queryFn: async () => {
       try {
@@ -1147,6 +1147,18 @@ export default function TomadorPedidos() {
     staleTime: 60000,
   });
 
+  // Normalize rates: support both { key: number } and { key: { price, sku } }
+  const shippingRates: Record<string, number> = {};
+  const shippingSkus: Record<string, string> = {};
+  for (const [key, val] of Object.entries(rawShippingRates)) {
+    if (typeof val === 'object' && val !== null) {
+      shippingRates[key] = val.price || 0;
+      shippingSkus[key] = val.sku || '';
+    } else {
+      shippingRates[key] = Number(val) || 0;
+    }
+  }
+
   // Calculate shipping cost for a cart item based on its unit
   const getItemShippingCost = useCallback((item: CartItem): number => {
     if (!item.productUnit) return 0;
@@ -1155,11 +1167,39 @@ export default function TomadorPedidos() {
     return shippingRates[key] * item.quantity;
   }, [shippingRates]);
 
+  // Build shipping line items grouped by unit type
+  const shippingLineItems = useMemo(() => {
+    if (!showShipping) return [];
+    const grouped: Record<string, { key: string; sku: string; label: string; qty: number; unitPrice: number }> = {};
+    const labelMap: Record<string, string> = {
+      '1_4_galon': 'Despacho 1/4 Galón',
+      'galon': 'Despacho Galón',
+      'bd_4gl': 'Despacho Balde 4GL',
+      'bd_5gl': 'Despacho Balde 5GL',
+    };
+    cart.forEach(item => {
+      if (!item.productUnit) return;
+      const key = getShippingKeyFn(item.productUnit);
+      if (!key || !shippingRates[key]) return;
+      if (!grouped[key]) {
+        grouped[key] = {
+          key,
+          sku: shippingSkus[key] || key,
+          label: labelMap[key] || `Despacho ${key}`,
+          qty: 0,
+          unitPrice: shippingRates[key],
+        };
+      }
+      grouped[key].qty += item.quantity;
+    });
+    return Object.values(grouped).filter(g => g.qty > 0);
+  }, [cart, showShipping, shippingRates, shippingSkus]);
+
   // Total shipping cost
   const totalShippingCost = useMemo(() => {
     if (!showShipping) return 0;
-    return cart.reduce((sum, item) => sum + getItemShippingCost(item), 0);
-  }, [cart, showShipping, getItemShippingCost]);
+    return shippingLineItems.reduce((sum, line) => sum + line.unitPrice * line.qty, 0);
+  }, [shippingLineItems, showShipping]);
 
   // Ref to hold the latest saveQuote reference for the useEffect
   const saveQuoteRef = useRef<() => void>();
@@ -2591,6 +2631,20 @@ export default function TomadorPedidos() {
           unitPrice: item.unitPrice,
           totalPrice: item.totalPrice
         }));
+
+        // Append shipping line items as product rows
+        if (showShipping && shippingLineItems.length > 0) {
+          shippingLineItems.forEach(line => {
+            items.push({
+              productName: line.label,
+              productCode: line.sku || '',
+              productUnit: 'UN',
+              quantity: line.qty,
+              unitPrice: line.unitPrice,
+              totalPrice: line.qty * line.unitPrice,
+            });
+          });
+        }
       }
 
       // Generate PDF using React-PDF
@@ -4818,6 +4872,26 @@ export default function TomadorPedidos() {
                                   <span className="font-bold text-orange-600">{formatCurrency(shippingCost)}</span>
                                 )}
                               </div>
+                              {/* Shipping line items detail */}
+                              {showShipping && shippingLineItems.length > 0 && (
+                                <div className="space-y-1.5 bg-orange-50/50 dark:bg-orange-900/10 rounded-lg p-2 border border-orange-100 dark:border-orange-800/30">
+                                  <div className="text-[10px] font-bold text-orange-700 uppercase tracking-widest">Detalle flete</div>
+                                  {shippingLineItems.map(line => (
+                                    <div key={line.key} className="flex justify-between items-center text-xs">
+                                      <div className="flex items-center gap-2">
+                                        <Truck className="w-3 h-3 text-orange-400" />
+                                        <span className="text-gray-700 dark:text-gray-300">
+                                          {line.label}
+                                          {line.sku && <span className="text-[10px] text-orange-500 ml-1 font-mono">({line.sku})</span>}
+                                        </span>
+                                      </div>
+                                      <span className="text-gray-600 dark:text-gray-400 font-medium">
+                                        {line.qty} x {formatCurrency(line.unitPrice)} = {formatCurrency(line.qty * line.unitPrice)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                               <div className="flex justify-between text-sm">
                                 <span>IVA (19%):</span>
                                 <span className="font-medium" data-testid="mobile-cart-tax">
@@ -5500,6 +5574,26 @@ export default function TomadorPedidos() {
                             <span className="font-bold text-orange-600 text-base">{formatCurrency(shippingCost)}</span>
                           )}
                         </div>
+                        {/* Shipping line items */}
+                        {showShipping && shippingLineItems.length > 0 && (
+                          <div className="space-y-1.5 bg-orange-50/50 dark:bg-orange-900/10 rounded-lg p-2 border border-orange-100 dark:border-orange-800/30">
+                            <div className="text-[10px] font-bold text-orange-700 uppercase tracking-widest">Detalle flete</div>
+                            {shippingLineItems.map(line => (
+                              <div key={line.key} className="flex justify-between items-center text-xs">
+                                <div className="flex items-center gap-2">
+                                  <Truck className="w-3 h-3 text-orange-400" />
+                                  <span className="text-gray-700 dark:text-gray-300">
+                                    {line.label}
+                                    {line.sku && <span className="text-[10px] text-orange-500 ml-1 font-mono">({line.sku})</span>}
+                                  </span>
+                                </div>
+                                <span className="text-gray-600 dark:text-gray-400 font-medium">
+                                  {line.qty} x {formatCurrency(line.unitPrice)} = {formatCurrency(line.qty * line.unitPrice)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         <div className="flex justify-between text-sm">
                           <span>IVA (19%):</span>
                           <span data-testid="modal-text-tax">{formatCurrency(tax)}</span>

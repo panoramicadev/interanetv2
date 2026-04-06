@@ -103,9 +103,15 @@ function ShippingRatesSection() {
     'bd_4gl': 0,
     'bd_5gl': 0,
   });
+  const [skus, setSkus] = useState<Record<string, string>>({
+    '1_4_galon': '',
+    'galon': '',
+    'bd_4gl': '',
+    'bd_5gl': '',
+  });
   const [isSaving, setIsSaving] = useState(false);
 
-  const { data: savedRates, isLoading } = useQuery<Record<string, number>>({
+  const { data: savedRates, isLoading } = useQuery<Record<string, any>>({
     queryKey: ['/api/ecommerce/shipping-rates'],
     queryFn: async () => {
       const res = await fetch('/api/ecommerce/shipping-rates', { credentials: 'include' });
@@ -117,18 +123,37 @@ function ShippingRatesSection() {
   // Update local state when data loads
   React.useEffect(() => {
     if (savedRates) {
-      setRates(prev => ({ ...prev, ...savedRates }));
+      // Rates can be either { key: number } or { key: { price: number, sku: string } }
+      const newRates: Record<string, number> = {};
+      const newSkus: Record<string, string> = {};
+      for (const key of Object.keys(rates)) {
+        const val = savedRates[key];
+        if (typeof val === 'object' && val !== null) {
+          newRates[key] = val.price || 0;
+          newSkus[key] = val.sku || '';
+        } else {
+          newRates[key] = Number(val) || 0;
+          newSkus[key] = savedRates[`${key}_sku`] || '';
+        }
+      }
+      setRates(prev => ({ ...prev, ...newRates }));
+      setSkus(prev => ({ ...prev, ...newSkus }));
     }
   }, [savedRates]);
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      // Save as structured object with price + sku
+      const payload: Record<string, any> = {};
+      for (const key of Object.keys(rates)) {
+        payload[key] = { price: rates[key], sku: skus[key] || '' };
+      }
       const res = await fetch('/api/ecommerce/shipping-rates', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(rates),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error('Error al guardar');
       queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/shipping-rates'] });
@@ -157,7 +182,7 @@ function ShippingRatesSection() {
             </div>
             <div>
               <CardTitle className="text-lg">Tarifas de Despacho</CardTitle>
-              <p className="text-sm text-muted-foreground">Define el costo de flete por tipo de envase</p>
+              <p className="text-sm text-muted-foreground">Define el costo de flete por tipo de envase y su SKU de despacho</p>
             </div>
           </div>
           <Button
@@ -176,9 +201,11 @@ function ShippingRatesSection() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {Object.entries(formatLabels).map(([key, { label, desc }]) => (
-              <div key={key} className="border rounded-xl p-4 bg-muted/20 space-y-2">
-                <Label className="font-semibold text-sm">{label}</Label>
-                <p className="text-xs text-muted-foreground">{desc}</p>
+              <div key={key} className="border rounded-xl p-4 bg-muted/20 space-y-3">
+                <div>
+                  <Label className="font-semibold text-sm">{label}</Label>
+                  <p className="text-xs text-muted-foreground">{desc}</p>
+                </div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-muted-foreground">$</span>
                   <Input
@@ -194,6 +221,19 @@ function ShippingRatesSection() {
                     className="h-9"
                   />
                   <span className="text-xs text-muted-foreground whitespace-nowrap">/ unidad</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">SKU</span>
+                  <Input
+                    type="text"
+                    value={skus[key] || ''}
+                    onChange={(e) => setSkus(prev => ({
+                      ...prev,
+                      [key]: e.target.value,
+                    }))}
+                    placeholder="Código producto despacho"
+                    className="h-9 text-xs font-mono"
+                  />
                 </div>
               </div>
             ))}
