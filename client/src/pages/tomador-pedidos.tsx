@@ -2501,28 +2501,17 @@ export default function TomadorPedidos() {
       .replace(/[\u0300-\u036f]/g, "") // Remove accents
       .replace(/[^a-zA-Z0-9\s]/g, "") // Remove special characters
       .trim()
-      .replace(/\s+/g, ' '); // Normalize spaces
+      .replace(/\s+/g, '_') // Normalize spaces to underscores
+      .toUpperCase();
 
-    // Format date as DDMMYY
+    // Format date as DD_MM_YYYY
     const date = new Date(createdAt);
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = String(date.getFullYear()).slice(-2); // Last 2 digits
-    const dateStr = `${day}${month}${year}`;
+    const year = date.getFullYear();
+    const dateStr = `${day}_${month}_${year}`;
 
-    // Format quote number as 3-digit number
-    let sequenceNum = '000';
-    if (typeof quoteNumber === 'number') {
-      sequenceNum = String(quoteNumber).padStart(3, '0');
-    } else if (typeof quoteNumber === 'string') {
-      // Try to extract number from string (e.g., "Q-123" -> "123")
-      const match = quoteNumber.match(/\d+/);
-      if (match) {
-        sequenceNum = match[0].padStart(3, '0');
-      }
-    }
-
-    return `${cleanName}-${dateStr}-${sequenceNum}.pdf`;
+    return `COT-${cleanName}-${dateStr}.pdf`;
   };
 
   // Download or view PDF based on device
