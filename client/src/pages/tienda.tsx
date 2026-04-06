@@ -1419,6 +1419,8 @@ export default function TiendaPage() {
               
               const desktopFreq = config?.adSettings?.desktopFrequency || 6;
               const mobileFreq = config?.adSettings?.mobileFrequency || 4;
+              const desktopHeight = config?.adSettings?.desktopHeight || 300;
+              const mobileHeight = config?.adSettings?.mobileHeight || 150;
               
               // Calculate if we should show an ad banner after this item
               const isDesktopAdSlot = (index + 1) % desktopFreq === 0;
@@ -1810,19 +1812,22 @@ export default function TiendaPage() {
                 
                 {/* Ad Banner injected between products */}
                 {bannerToShow && (isDesktopAdSlot || isMobileAdSlot) && (
-                  <div className={`col-span-full my-4 rounded-2xl overflow-hidden hover:shadow-lg transition-all ${isDesktopAdSlot && !isMobileAdSlot ? 'hidden lg:block' : ''} ${isMobileAdSlot && !isDesktopAdSlot ? 'block lg:hidden' : ''}`}>
+                  <div 
+                    className={`col-span-full my-4 rounded-2xl overflow-hidden hover:shadow-lg transition-all ${isDesktopAdSlot && !isMobileAdSlot ? 'hidden lg:block' : ''} ${isMobileAdSlot && !isDesktopAdSlot ? 'block lg:hidden' : ''}`}
+                    style={{ '--ad-mobile-height': `${mobileHeight}px`, '--ad-desktop-height': `${desktopHeight}px` } as React.CSSProperties}
+                  >
                     {bannerToShow.linkUrl ? (
                       <a href={bannerToShow.linkUrl} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
                         <picture>
                           {bannerToShow.mobileSrc && <source media="(max-width: 768px)" srcSet={bannerToShow.mobileSrc} />}
-                          <img src={bannerToShow.src} alt={bannerToShow.alt || "Anuncio"} className="w-full h-auto object-cover max-h-48 md:max-h-64" />
+                          <img src={bannerToShow.src} alt={bannerToShow.alt || "Anuncio"} className="w-full object-cover h-[var(--ad-mobile-height)] lg:h-[var(--ad-desktop-height)]" />
                         </picture>
                       </a>
                     ) : (
                       <div className="w-full h-full">
                         <picture>
                           {bannerToShow.mobileSrc && <source media="(max-width: 768px)" srcSet={bannerToShow.mobileSrc} />}
-                          <img src={bannerToShow.src} alt={bannerToShow.alt || "Anuncio"} className="w-full h-auto object-cover max-h-48 md:max-h-64" />
+                          <img src={bannerToShow.src} alt={bannerToShow.alt || "Anuncio"} className="w-full object-cover h-[var(--ad-mobile-height)] lg:h-[var(--ad-desktop-height)]" />
                         </picture>
                       </div>
                     )}

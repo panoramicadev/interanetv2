@@ -710,67 +710,163 @@ function AdBannerSettings() {
 
   const [desktopFreq, setDesktopFreq] = useState<number>(6);
   const [mobileFreq, setMobileFreq] = useState<number>(4);
+  const [desktopHeight, setDesktopHeight] = useState<number>(300);
+  const [mobileHeight, setMobileHeight] = useState<number>(150);
 
   React.useEffect(() => {
     if (config?.adSettings) {
       if (config.adSettings.desktopFrequency) setDesktopFreq(config.adSettings.desktopFrequency);
       if (config.adSettings.mobileFrequency) setMobileFreq(config.adSettings.mobileFrequency);
+      if (config.adSettings.desktopHeight) setDesktopHeight(config.adSettings.desktopHeight);
+      if (config.adSettings.mobileHeight) setMobileHeight(config.adSettings.mobileHeight);
     }
   }, [config]);
 
   const updateMutation = useMutation({
-    mutationFn: async ({ dFreq, mFreq }: { dFreq: number, mFreq: number }) => {
+    mutationFn: async ({ dFreq, mFreq, dHeight, mHeight }: { dFreq: number, mFreq: number, dHeight: number, mHeight: number }) => {
       const res = await fetch('/api/ecommerce/store-config', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adSettings: { ...config?.adSettings, desktopFrequency: dFreq, mobileFrequency: mFreq } })
+        body: JSON.stringify({ adSettings: { ...config?.adSettings, desktopFrequency: dFreq, mobileFrequency: mFreq, desktopHeight: dHeight, mobileHeight: mHeight } })
       });
       if (!res.ok) throw new Error('Error saving ad settings');
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/store-config'] });
-      toast({ title: 'Configuración actualizada', description: 'La frecuencia de banners publicitarios se guardó exitosamente.' });
+      toast({ title: 'Configuración actualizada', description: 'Las frecuencias y medidas de banners publicitarios se guardaron exitosamente.' });
     }
   });
 
   if (isLoading) return null;
 
   return (
-    <div className="flex flex-col xl:flex-row xl:items-center gap-4 bg-muted/30 p-3 rounded-lg mb-4 text-sm">
+    <div className="flex flex-col xl:flex-row xl:items-center gap-4 bg-muted/30 p-4 rounded-lg mb-4 text-sm">
       <div className="flex items-center gap-2">
         <MonitorSmartphone className="w-4 h-4 text-muted-foreground" />
-        <span className="font-semibold text-gray-700">Frecuencia publicitaria (cada X productos):</span>
+        <span className="font-semibold text-gray-700">Ajustes Banners Publicitarios:</span>
       </div>
       <div className="flex items-center gap-4 flex-wrap">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-slate-500">Escritorio</span>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-slate-500">Frec. Escritorio</span>
           <Input 
             type="number" 
-            className="w-16 h-8 text-center bg-white" 
+            className="w-20 h-8 text-center bg-white" 
             value={desktopFreq} 
             onChange={(e) => setDesktopFreq(parseInt(e.target.value) || 1)} 
             min="1" 
           />
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-slate-500">Móvil</span>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-slate-500">Altura Escritorio (px)</span>
           <Input 
             type="number" 
-            className="w-16 h-8 text-center bg-white" 
+            className="w-24 h-8 text-center bg-white" 
+            value={desktopHeight} 
+            onChange={(e) => setDesktopHeight(parseInt(e.target.value) || 50)} 
+            min="50" 
+          />
+        </div>
+        <div className="w-px h-8 bg-border hidden md:block mx-2"></div>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-slate-500">Frec. Móvil</span>
+          <Input 
+            type="number" 
+            className="w-20 h-8 text-center bg-white" 
             value={mobileFreq} 
             onChange={(e) => setMobileFreq(parseInt(e.target.value) || 1)} 
             min="1" 
           />
         </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-slate-500">Altura Móvil (px)</span>
+          <Input 
+            type="number" 
+            className="w-24 h-8 text-center bg-white" 
+            value={mobileHeight} 
+            onChange={(e) => setMobileHeight(parseInt(e.target.value) || 50)} 
+            min="50" 
+          />
+        </div>
         <Button 
           size="sm" 
           variant="secondary" 
-          className="h-8 shadow-sm"
-          onClick={() => updateMutation.mutate({ dFreq: desktopFreq, mFreq: mobileFreq })}
-          disabled={updateMutation.isPending || (desktopFreq === (config?.adSettings?.desktopFrequency || 6) && mobileFreq === (config?.adSettings?.mobileFrequency || 4))}
+          className="h-8 shadow-sm mt-5"
+          onClick={() => updateMutation.mutate({ dFreq: desktopFreq, mFreq: mobileFreq, dHeight: desktopHeight, mHeight: mobileHeight })}
+          disabled={updateMutation.isPending || (desktopFreq === (config?.adSettings?.desktopFrequency || 6) && mobileFreq === (config?.adSettings?.mobileFrequency || 4) && desktopHeight === (config?.adSettings?.desktopHeight || 300) && mobileHeight === (config?.adSettings?.mobileHeight || 150))}
         >
           {updateMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Guardar'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// Checkout Settings Component
+function CheckoutSettings() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  const { data: config, isLoading } = useQuery<any>({
+    queryKey: ['/api/ecommerce/store-config'],
+  });
+
+  const [shippingDiscount, setShippingDiscount] = useState<number>(0);
+
+  React.useEffect(() => {
+    if (config?.checkoutSettings?.shippingDiscountPercentage !== undefined) {
+      setShippingDiscount(config.checkoutSettings.shippingDiscountPercentage);
+    }
+  }, [config]);
+
+  const updateMutation = useMutation({
+    mutationFn: async (newDiscount: number) => {
+      const res = await fetch('/api/ecommerce/store-config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ checkoutSettings: { ...config?.checkoutSettings, shippingDiscountPercentage: newDiscount } })
+      });
+      if (!res.ok) throw new Error('Error saving shipping discount');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/store-config'] });
+      toast({ title: 'Descuento de envío actualizado' });
+    }
+  });
+
+  if (isLoading) return null;
+
+  return (
+    <div className="flex flex-col md:flex-row items-start md:items-center gap-4 bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 mb-6 w-full">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+          <Truck className="w-5 h-5 text-emerald-600" />
+        </div>
+        <div>
+          <h3 className="font-semibold text-emerald-900 text-sm">Configuración de Checkout</h3>
+          <p className="text-xs text-emerald-700">Aplica descuentos automáticos en el carrito de compras</p>
+        </div>
+      </div>
+      <div className="md:ml-auto flex items-end gap-3 bg-white p-3 rounded-lg shadow-sm w-full md:w-auto mt-2 md:mt-0">
+        <div className="flex flex-col gap-1 w-full md:w-32">
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-widest whitespace-nowrap">Descto. Envío (%)</span>
+          <Input 
+            type="number" 
+            className="h-9 font-bold bg-gray-50 border-gray-200" 
+            value={shippingDiscount} 
+            onChange={(e) => setShippingDiscount(parseInt(e.target.value) || 0)} 
+            min="0"
+            max="100"
+          />
+        </div>
+        <Button 
+          size="sm" 
+          className="h-9 whitespace-nowrap bg-emerald-600 hover:bg-emerald-700"
+          onClick={() => updateMutation.mutate(shippingDiscount)}
+          disabled={updateMutation.isPending || shippingDiscount === (config?.checkoutSettings?.shippingDiscountPercentage || 0)}
+        >
+          {updateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Guardar'}
         </Button>
       </div>
     </div>
@@ -2207,6 +2303,7 @@ export default function EcommerceAdmin() {
         </TabsContent>
 
         <TabsContent value="envios" className="space-y-6">
+          {isAdmin && <CheckoutSettings />}
           {isAdmin && (
             <ShippingRatesSection />
           )}

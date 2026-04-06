@@ -2405,7 +2405,12 @@ export const storeConfig = pgTable("store_config", {
   adSettings: jsonb("ad_settings").$type<{
     desktopFrequency?: number;
     mobileFrequency?: number;
-  }>(), // Configuración de frecuencia de banners publicitarios
+    desktopHeight?: number;
+    mobileHeight?: number;
+  }>(), // Configuración de frecuencia y altura de banners publicitarios
+  checkoutSettings: jsonb("checkout_settings").$type<{
+    shippingDiscountPercentage?: number;
+  }>(), // Configuraciones del checkout y envíos
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

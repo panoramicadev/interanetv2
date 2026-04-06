@@ -6839,6 +6839,53 @@ export function registerRoutes(app: Express): Server {
       return res.status(404).json({ message: 'Pedido no encontrado' });
     }
 
+    // Process credit updates if the order is approved
+    if (status === 'approved') {
+      try {
+        const { salespeopleUsers, users, clients } = await import('@shared/schema');
+        const { or, desc } = await import('drizzle-orm');
+        
+        let clientRecordMatch = null;
+        if (updated.clientUserId) {
+          // Find user to map to client
+          const sUser = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.id, updated.clientUserId)).limit(1);
+          const legacyUser = sUser.length === 0 ? await db.select().from(users).where(eq(users.id, updated.clientUserId)).limit(1) : null;
+          
+          const userName = sUser[0]?.salespersonName || legacyUser[0]?.firstName || null;
+          
+          if (userName) {
+            const possibleClients = await db.select().from(clients)
+              .where(or(
+                eq(clients.userId, updated.clientUserId),
+                eq(clients.nokoen, userName.toUpperCase())
+              ))
+              .orderBy(desc(clients.updatedAt))
+              .limit(1);
+              
+            if (possibleClients.length > 0) {
+              clientRecordMatch = possibleClients[0];
+            }
+          }
+        }
+        
+        if (clientRecordMatch && clientRecordMatch.crlt) {
+          const limit = parseFloat(clientRecordMatch.crlt) || 0;
+          const used = parseFloat(clientRecordMatch.crsd || '0') || 0;
+          const orderTotal = parseFloat(updated.total as string || '0') || 0;
+          
+          const newUsed = used + orderTotal;
+          const newAvailable = Math.max(0, limit - newUsed);
+          
+          await db.update(clients).set({
+            crsd: newUsed.toString(),
+            cren: newAvailable.toString()
+          }).where(eq(clients.id, clientRecordMatch.id));
+        }
+      } catch (e) {
+        console.error('Error updating client credit on order approval:', e);
+      }
+    }
+
     res.json(updated);
   }));
 
@@ -9081,6 +9128,7 @@ export function registerRoutes(app: Express): Server {
           salesRepCode: clientRecord?.kofuen || null,
           creditLimit: clientRecord?.crlt ? parseFloat(clientRecord.crlt) : null,
           creditAvailable: clientRecord?.cren ? parseFloat(clientRecord.cren) : null,
+          creditUsed: clientRecord?.crsd ? parseFloat(clientRecord.crsd) : null,
           paymentCondition: clientRecord?.cpen || null,
           pickupWarehouseId: clientRecord?.pickupWarehouseId || null,
         });
@@ -9111,6 +9159,7 @@ export function registerRoutes(app: Express): Server {
           salesRepCode: clientRecord?.kofuen || null,
           creditLimit: clientRecord?.crlt ? parseFloat(clientRecord.crlt) : null,
           creditAvailable: clientRecord?.cren ? parseFloat(clientRecord.cren) : null,
+          creditUsed: clientRecord?.crsd ? parseFloat(clientRecord.crsd) : null,
           paymentCondition: clientRecord?.cpen || null,
           pickupWarehouseId: clientRecord?.pickupWarehouseId || null,
         });
@@ -9173,7 +9222,7 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/users/clients/:id/commercial-info', requireCommercialAccess, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const { cpen, dccr, pickupWarehouseId, crlt, cren, kofuen, lcen } = req.body;
+      const { cpen, dccr, pickupWarehouseId, crlt, cren, crsd, kofuen, lcen } = req.body;
       const user = req.user;
 
       if (!['admin', 'supervisor'].includes(user.role)) {
@@ -9196,6 +9245,7 @@ export function registerRoutes(app: Express): Server {
           pickupWarehouseId: pickupWarehouseId !== undefined ? pickupWarehouseId : existingClient[0].pickupWarehouseId,
           crlt: crlt !== undefined ? crlt : existingClient[0].crlt,
           cren: cren !== undefined ? cren : existingClient[0].cren,
+          crsd: crsd !== undefined ? crsd : existingClient[0].crsd,
           kofuen: kofuen !== undefined ? kofuen : existingClient[0].kofuen,
           lcen: lcen !== undefined ? lcen : existingClient[0].lcen,
           updatedAt: new Date(),

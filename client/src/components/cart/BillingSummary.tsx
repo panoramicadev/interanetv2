@@ -97,6 +97,12 @@ export default function BillingSummary() {
   });
   const FREE_SHIPPING_THRESHOLD = freeShippingData?.threshold ?? 0;
 
+  // Fetch store config for checkout settings
+  const { data: storeConfig } = useQuery<any>({
+    queryKey: ['/api/ecommerce/store-config'],
+  });
+  const shippingDiscountPercent = storeConfig?.checkoutSettings?.shippingDiscountPercentage || 0;
+
   // Fetch warehouses for pickup option
   const { data: warehouses = [] } = useQuery<Warehouse[]>({
     queryKey: ['/api/warehouses'],
@@ -366,11 +372,13 @@ export default function BillingSummary() {
   const hasFreeShipping = FREE_SHIPPING_THRESHOLD > 0 && neto >= FREE_SHIPPING_THRESHOLD;
   if (hasFreeShipping) {
     shippingCost = 0;
+  } else if (shippingDiscountPercent > 0) {
+    shippingCost = Math.round(shippingCost * (1 - shippingDiscountPercent / 100));
   }
 
   const shippingBreakdownText = Array.from(shippingBreakdownMap.values())
     .map(b => `${b.qty}x ${b.unit} a ${formatPrice(b.cost)}`)
-    .join(' + ');
+    .join(' + ') + (shippingDiscountPercent > 0 ? ` (-${shippingDiscountPercent}%)` : "");
   
   // Calculate final subtotal after discounts
   const subtotalAfterDiscount = neto - state.discountAmount;
@@ -504,6 +512,11 @@ export default function BillingSummary() {
                 {hasFreeShipping && (
                   <span className="text-[10px] text-emerald-600 font-bold mt-0.5">
                     🎉 ¡Envío gratis aplicado!
+                  </span>
+                )}
+                {!hasFreeShipping && shippingDiscountPercent > 0 && (
+                  <span className="text-[10px] text-orange-600 font-bold mt-0.5">
+                     ¡Descuento de envío aplicado ({shippingDiscountPercent}%)!
                   </span>
                 )}
                 {!hasFreeShipping && shippingBreakdownText && (

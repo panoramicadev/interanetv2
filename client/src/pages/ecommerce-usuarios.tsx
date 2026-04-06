@@ -39,6 +39,7 @@ interface ClientUser {
   salesRepCode: string | null;
   creditLimit: number | null;
   creditAvailable: number | null;
+  creditUsed: number | null;
   paymentCondition: string | null;
   pickupWarehouseId: string | null;
 }
@@ -62,6 +63,7 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
     salesRepCode: client.salesRepCode || "",
     creditLimit: client.creditLimit?.toString() || "",
     creditAvailable: client.creditAvailable?.toString() || "",
+    creditUsed: client.creditUsed?.toString() || "",
     lcen: (client as any).lcen || ""
   });
     const { toast } = useToast();
@@ -88,6 +90,7 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
       salesRepCode: client.salesRepCode || "",
       creditLimit: client.creditLimit?.toString() || "",
       creditAvailable: client.creditAvailable?.toString() || "",
+      creditUsed: client.creditUsed?.toString() || "",
       lcen: (client as any).lcen || ""
     });
   }, [client]);
@@ -384,19 +387,41 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
                       </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Límite de Crédito ($)</Label>
+                        <Label className="text-xs border-b border-dashed border-gray-300 pb-0.5 cursor-help" title="Monto máximo autorizado">Límite Crédito ($)</Label>
                         <Input 
                           type="number" className="h-8 text-sm" placeholder="Ej: 5000000"
                           value={commercialForm.creditLimit} 
-                          onChange={(e) => setCommercialForm(p => ({ ...p, creditLimit: e.target.value }))}
+                          onChange={(e) => {
+                            const newLimit = e.target.value;
+                            setCommercialForm(p => {
+                               const limitNum = parseFloat(newLimit) || 0;
+                               const usedNum = parseFloat(p.creditUsed) || 0;
+                               return { ...p, creditLimit: newLimit, creditAvailable: Math.max(0, limitNum - usedNum).toString() };
+                            });
+                          }}
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-xs">Crédito Disponible ($)</Label>
+                        <Label className="text-xs border-b border-dashed border-gray-300 pb-0.5 cursor-help" title="Cupo ya utilizado / Deuda">Crédito Usado ($)</Label>
                         <Input 
-                          type="number" className="h-8 text-sm" placeholder="Ej: 5000000"
+                          type="number" className="h-8 text-sm" placeholder="Ej: 1000000"
+                          value={commercialForm.creditUsed} 
+                          onChange={(e) => {
+                             const newUsed = e.target.value;
+                             setCommercialForm(p => {
+                               const limitNum = parseFloat(p.creditLimit) || 0;
+                               const usedNum = parseFloat(newUsed) || 0;
+                               return { ...p, creditUsed: newUsed, creditAvailable: Math.max(0, limitNum - usedNum).toString() };
+                             });
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-emerald-700">Disponible ($)</Label>
+                        <Input 
+                          type="number" className="h-8 text-sm bg-emerald-50" placeholder="Automático"
                           value={commercialForm.creditAvailable} 
                           onChange={(e) => setCommercialForm(p => ({ ...p, creditAvailable: e.target.value }))}
                         />
@@ -458,6 +483,7 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
                              kofuen: commercialForm.salesRepCode || null,
                              crlt: commercialForm.creditLimit ? parseFloat(commercialForm.creditLimit) : null,
                              cren: commercialForm.creditAvailable ? parseFloat(commercialForm.creditAvailable) : null,
+                             crsd: commercialForm.creditUsed ? parseFloat(commercialForm.creditUsed) : null,
                              lcen: commercialForm.lcen
                           });
                        }}
@@ -472,6 +498,7 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
                       { label: "Condición de Pago", value: client.paymentCondition },
                       { label: "Código Vendedor", value: client.salesRepCode },
                       { label: "Límite de Crédito", value: formatCurrency(client.creditLimit) },
+                      { label: "Crédito Usado", value: formatCurrency(client.creditUsed) },
                       { label: "Crédito Disponible", value: formatCurrency(client.creditAvailable) },
                       { label: "Bodega de Retiro", value: warehouses.find(w => w.id === client.pickupWarehouseId)?.name || "—" },
                     ].map(({ label, value }) => (
