@@ -132,7 +132,20 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
     }
   });
 
-  const isLoading = webLoading || erpLoading;
+  // Fetch client data to get credit condition
+  const { user } = useAuth();
+  const { data: clientData, isLoading: clientLoading } = useQuery<{ cpen?: string; crlt?: string; cren?: string; crsd?: string; }>({
+    queryKey: ['/api/clients/by-user', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const res = await fetch(`/api/clients/by-user/${user.id}`, { credentials: 'include' });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!user?.id && user?.role === 'client',
+  });
+
+  const isLoading = webLoading || erpLoading || clientLoading;
 
   // Compute metrics from Web Orders
   const validOrders = useMemo(() => {
@@ -252,7 +265,7 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${clientData && (clientData.cpen?.toUpperCase().includes('CREDITO') || clientData.cpen?.toUpperCase().includes('CRÉDITO') || Number(clientData.crlt) > 0) ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4`}>
         <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50">
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3">
@@ -291,6 +304,37 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
             <p className="text-xs text-amber-600 mt-1">Volumen de compra histórico</p>
           </CardContent>
         </Card>
+
+        {/* Credit Card if applicable */}
+        {clientData && (clientData.cpen?.toUpperCase().includes('CREDITO') || clientData.cpen?.toUpperCase().includes('CRÉDITO') || Number(clientData.crlt) > 0) && (() => {
+          const creditLimit = Number(clientData.crlt || 0);
+          const creditUsed = Number(clientData.crsd || 0);
+          const creditAvailable = creditLimit - creditUsed;
+          
+          return (
+            <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100/50">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 rounded-xl bg-emerald-500/10">
+                    <ClipboardList className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <Badge className={`text-[10px] border-0 ${creditAvailable < 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                    Línea: {formatCurrency(creditLimit)}
+                  </Badge>
+                </div>
+                <p className={`text-2xl font-bold ${creditAvailable < 0 ? 'text-red-600' : 'text-emerald-900'}`}>
+                  {formatCurrency(creditAvailable)}
+                </p>
+                <div className="flex justify-between items-center mt-1">
+                  <p className={`text-xs ${creditAvailable < 0 ? 'text-red-500' : 'text-emerald-600'}`}>Cupo Disponible</p>
+                  {clientData.cpen?.match(/\d+/) && (
+                    <span className="text-[10px] text-emerald-700 font-medium">Plazo: {clientData.cpen.match(/\d+/)?.[0]} días</span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
