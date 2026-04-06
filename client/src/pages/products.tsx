@@ -40,7 +40,7 @@ function FletesContent() {
     }));
 
   // Fetch shipping rates
-  const { data: shippingRates = {}, isLoading } = useQuery<Record<string, number>>({
+  const { data: rawShippingRates = {}, isLoading } = useQuery<Record<string, any>>({
     queryKey: ['/api/ecommerce/shipping-rates'],
     queryFn: async () => {
       try {
@@ -53,26 +53,36 @@ function FletesContent() {
   });
 
   const [rates, setRates] = useState<Record<string, string>>({});
+  const [skus, setSkus] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
 
   // Initialize rates from fetched data
   useEffect(() => {
-    if (Object.keys(shippingRates).length > 0) {
+    if (Object.keys(rawShippingRates).length > 0) {
       const initial: Record<string, string> = {};
+      const initialSkus: Record<string, string> = {};
       FORMATS.forEach(f => {
-        initial[f.key] = shippingRates[f.key]?.toString() || '';
+        const val = rawShippingRates[f.key];
+        if (typeof val === 'object' && val !== null) {
+          initial[f.key] = val.price?.toString() || '';
+          initialSkus[f.key] = val.sku || '';
+        } else {
+          initial[f.key] = val?.toString() || '';
+          initialSkus[f.key] = '';
+        }
       });
       setRates(initial);
+      setSkus(initialSkus);
     }
-  }, [shippingRates]);
+  }, [rawShippingRates]);
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const payload: Record<string, number> = {};
+      const payload: Record<string, any> = {};
       FORMATS.forEach(f => {
         const val = parseFloat(rates[f.key] || '0');
-        payload[f.key] = isNaN(val) ? 0 : val;
+        payload[f.key] = { price: isNaN(val) ? 0 : val, sku: skus[f.key] || '' };
       });
       await apiRequest('PUT', '/api/ecommerce/shipping-rates', payload);
       queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/shipping-rates'] });
@@ -95,7 +105,7 @@ function FletesContent() {
               Tarifas de Flete por Formato
             </CardTitle>
             <CardDescription className="mt-0.5">
-              Define el costo de envío estándar por tipo de formato de producto
+              Define el costo de envío estándar por tipo de formato de producto y su SKU de despacho
             </CardDescription>
           </div>
           <Button
@@ -114,15 +124,15 @@ function FletesContent() {
             <div className="animate-spin rounded-full h-8 w-8 border-2 border-orange-500 border-t-transparent" />
           </div>
         ) : (
-          <div className="grid gap-6 max-w-2xl">
+          <div className="grid gap-6 max-w-3xl">
             {FORMATS.map((format) => (
               <div key={format.key} className="flex items-center gap-6 p-4 rounded-xl bg-muted/30 border border-muted hover:border-orange-200 transition-colors">
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <h4 className="text-sm font-bold text-foreground">{format.label}</h4>
                   <p className="text-xs text-muted-foreground mt-0.5">{format.description}</p>
                 </div>
-                <div className="flex items-center gap-2 w-48">
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <div className="flex items-center gap-2 w-44">
+                  <DollarSign className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <Input
                     type="number"
                     placeholder="0"
@@ -132,13 +142,23 @@ function FletesContent() {
                   />
                   <span className="text-xs text-muted-foreground whitespace-nowrap">CLP</span>
                 </div>
+                <div className="flex items-center gap-2 w-48">
+                  <Tag className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <Input
+                    type="text"
+                    placeholder="SKU despacho"
+                    value={skus[format.key] || ''}
+                    onChange={(e) => setSkus(prev => ({ ...prev, [format.key]: e.target.value }))}
+                    className="h-10 rounded-lg text-xs font-mono"
+                  />
+                </div>
               </div>
             ))}
 
             <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 mt-2">
               <Truck className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
               <p className="text-xs text-amber-700 dark:text-amber-400">
-                Estas tarifas se aplicarán automáticamente en la tienda según el formato del producto al momento del checkout.
+                Estas tarifas y SKUs están sincronizadas con la Configuración de Checkout del Ecommerce. Si se modifican aquí, se actualizarán en toda la plataforma.
               </p>
             </div>
           </div>
