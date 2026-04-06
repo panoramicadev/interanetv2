@@ -15,9 +15,9 @@ let connectionAttempts = 0;
 // Improved pool configuration for better stability
 const poolConfig = {
   connectionString: process.env.DATABASE_URL,
-  max: 5, // Transaction pooler handles multiplexing; keep app-side pool small
-  maxUses: 500, // Cycle connections to prevent stale connections
-  connectionTimeoutMillis: 10000, // 10s connection timeout
+  max: 20, // Increased to 20 to prevent bottlenecks during heavy ETL operations and concurrent users
+  maxUses: 5000, // Increased to cycle connections less aggressively and avoid sudden drops
+  connectionTimeoutMillis: 15000, // 15s connection timeout for better resilience under load
   idleTimeoutMillis: 30000, // Release idle connections faster (30s instead of 120s)
   allowExitOnIdle: false,
   keepAlive: true,

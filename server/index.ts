@@ -35,12 +35,46 @@ app.use((req, res, next) => {
 (async () => {
   const server = registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
-    res.status(status).json({ message });
-    throw err;
+    // Detect if this is an API request or an HTML navigation request
+    const expectsHtml = req.accepts('html') && !req.path.startsWith('/api/') && !req.xhr;
+
+    if (expectsHtml) {
+      res.status(status).send(`
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Servicio temporalmente no disponible</title>
+          <style>
+            body { font-family: system-ui, -apple-system, sans-serif; background-color: #f8fafc; color: #1e293b; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
+            .container { background-color: white; padding: 3rem; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); max-width: 500px; margin: 1rem; }
+            h1 { color: #dc2626; margin-top: 0; }
+            p { color: #64748b; line-height: 1.5; }
+            .button { display: inline-block; margin-top: 1.5rem; background-color: #2563eb; color: white; padding: 0.75rem 1.5rem; border-radius: 0.5rem; text-decoration: none; font-weight: 500; }
+            .button:hover { background-color: #1d4ed8; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>Servicio no disponible</h1>
+            <p>La plataforma está experimentando alta demanda o tareas de mantenimiento. Por favor, intenta actualizar la página en unos momentos.</p>
+            <p style="font-size: 0.875rem; border-top: 1px solid #e2e8f0; padding-top: 1rem; margin-top: 1rem;">Detalle: ${message}</p>
+            <a href="/" class="button">Refrescar página</a>
+          </div>
+        </body>
+        </html>
+      `);
+    } else {
+      res.status(status).json({ message });
+    }
+    
+    // Only log, don't re-throw to prevent unhandled rejections if express doesn't catch it
+    console.error(`[Express] Error handling request ${req.path}:`, message);
   });
 
   // importantly only setup vite in development and after
