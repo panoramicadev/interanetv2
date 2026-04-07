@@ -416,7 +416,7 @@ const pdfStyles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#111827',
     textAlign: 'right',
-    width: 65, // Fixed width for values to ensure vertical alignment
+    width: 80, // Increased width for better safety with large numbers
   },
   grandTotalRow: {
     flexDirection: 'row',
@@ -437,6 +437,8 @@ const pdfStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
     color: '#fd6301',
+    textAlign: 'right',
+    width: 80, // Same alignment logic as other totals
   },
   termsSection: {
     marginTop: 18,
@@ -2435,9 +2437,11 @@ export default function TomadorPedidos() {
       flex-shrink: 0;
     }
     .total-row span:last-child {
+      display: inline-block;
       font-weight: 600;
       text-align: right;
-      width: 100px;
+      width: 120px;
+      flex-shrink: 0;
     }
     .final-total {
       font-size: 16px;
@@ -2724,23 +2728,35 @@ export default function TomadorPedidos() {
   // Download or view PDF based on device
   const downloadPDF = async () => {
     try {
-      let quote, items;
+      let quoteData: any;
+      let itemsData: any[];
 
+      // Force save before downloading to ensure latest data is used
+      if (savedQuoteId && saveQuoteRef.current && cart.length > 0 && quoteForm.clientName.trim()) {
+        await saveQuoteRef.current();
+        // Delay to ensure persistence if needed
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      // Determine quote number (local state + fetch if available)
+      let quoteNumber = 'BORRADOR';
       if (savedQuoteId) {
-        // Force save before downloading to ensure latest data is used
-        if (saveQuoteRef.current && cart.length > 0 && quoteForm.clientName.trim()) {
-          await saveQuoteRef.current();
-          // Wait for save to complete - increased time
-          await new Promise(resolve => setTimeout(resolve, 1000));
+        try {
+          const quoteResponse = await apiRequest(`/api/quotes/${savedQuoteId}`);
+          const rawDoc = await quoteResponse.json();
+          quoteNumber = rawDoc?.quoteNumber || 'PENDIENTE';
+        } catch (e) {
+          quoteNumber = 'PENDIENTE';
         }
+      }
 
-      // Use local state for PDF generation to ensure data consistency without needing refresh
+      // Local state is the source of truth for the document content
       const itemsSubtotalForPDF = cart.reduce((sum, item) => sum + item.totalPrice, 0);
       const shippingForPDF = showShipping ? totalShippingCost : 0;
       const subtotalForPDF = itemsSubtotalForPDF + shippingForPDF;
 
-      quote = {
-        quoteNumber: savedQuoteId ? (rawQuote?.quoteNumber || 'PENDIENTE') : 'BORRADOR',
+      quoteData = {
+        quoteNumber,
         clientName: quoteForm.clientName || 'Sin especificar',
         clientEmail: quoteForm.clientEmail || '',
         clientPhone: quoteForm.clientPhone || '',
@@ -2753,10 +2769,10 @@ export default function TomadorPedidos() {
         subtotal: subtotalForPDF,
         taxAmount: subtotalForPDF * 0.19,
         total: subtotalForPDF * 1.19,
-        paymentCondition: (quote as any)?.paymentCondition || quoteForm.paymentCondition || ''
+        paymentCondition: quoteForm.paymentCondition || ''
       };
 
-      items = cart.map(item => ({
+      itemsData = cart.map(item => ({
         productName: item.productName,
         productCode: item.customSku || item.productCode || '',
         productUnit: item.productUnit || 'UN',
@@ -2766,10 +2782,9 @@ export default function TomadorPedidos() {
         tierPrices: item.tierPrices,
       }));
 
-      // Append shipping line items as product rows to the PDF table
       if (showShipping && shippingLineItems.length > 0) {
         shippingLineItems.forEach(line => {
-          items.push({
+          itemsData.push({
             productName: line.label,
             productCode: line.sku || 'DESPACHO',
             productUnit: 'UN',
@@ -2780,21 +2795,18 @@ export default function TomadorPedidos() {
           });
         });
       }
-      }
 
       // Generate PDF using React-PDF
-      const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={items} shippingCost={totalShippingCost} showDiscount={showDiscount} />).toBlob();
+      const pdfBlob = await pdf(<QuotePDFDocument quote={quoteData} items={itemsData} shippingCost={totalShippingCost} showDiscount={showDiscount} />).toBlob();
       const url = URL.createObjectURL(pdfBlob);
 
-      // Generate filename with new format: ClientName-DDMMYY-NNN.pdf
       const pdfFilename = generatePDFFilename(
-        quote.clientName || 'Cliente',
-        quote.createdAt || new Date(),
-        quote.quoteNumber || savedQuoteId || Date.now()
+        quoteData.clientName || 'Cliente',
+        quoteData.createdAt || new Date(),
+        quoteData.quoteNumber || savedQuoteId || Date.now()
       );
 
       if (isMobile) {
-        // For mobile: Download the PDF directly (iframes don't work reliably on mobile)
         const a = document.createElement('a');
         a.href = url;
         a.download = pdfFilename;
@@ -2803,17 +2815,11 @@ export default function TomadorPedidos() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       } else {
-        // For desktop: Open PDF in new window
         window.open(url, '_blank');
       }
-
     } catch (error) {
       console.error('Error generating PDF:', error);
-      toast({
-        title: "Error",
-        description: "Error al generar el PDF",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Error al generar el PDF", variant: "destructive" });
     }
   };
 
