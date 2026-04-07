@@ -3679,6 +3679,13 @@ export default function TomadorPedidos() {
     }
 
     try {
+      // Force save before generating to ensure latest data is used (same as downloadPDF)
+      if (saveQuoteRef.current && cart.length > 0 && quoteForm.clientName.trim()) {
+        await saveQuoteRef.current();
+        // Delay to ensure persistence if needed
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
       const { quoteData, itemsData, shippingCost } = await getPreparedPDFData();
 
       // Generate PDF using React-PDF
