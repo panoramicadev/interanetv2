@@ -296,10 +296,7 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "No hay cambios para guardar." });
       }
 
-      const [updatedUser] = await db.update(users)
-        .set(updateData)
-        .where(eq(users.id, fullUser.id))
-        .returning();
+      const updatedUser = await storage.updateUser(fullUser.id, updateData);
 
       if (!updatedUser) {
         return res.status(404).json({ message: "Usuario no encontrado tras actualización." });

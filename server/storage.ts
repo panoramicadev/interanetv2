@@ -418,6 +418,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, user: Partial<User>): Promise<User | undefined>;
 
   // Sales operations
   insertSalesTransaction(transaction: InsertSalesTransaction): Promise<SalesTransaction>;
@@ -2439,6 +2440,38 @@ export class DatabaseStorage implements IStorage {
       .values(normalizedData)
       .returning();
     return user;
+  }
+
+  async updateUser(id: string, updateData: Partial<User>): Promise<User | undefined> {
+    const data: any = { ...updateData };
+    if (data.email) {
+      data.email = data.email.toLowerCase();
+    }
+
+    // Try updating users table
+    const [updatedUser] = await db
+      .update(users)
+      .set(data)
+      .where(eq(users.id, id))
+      .returning();
+
+    // Also try updating salespeopleUsers table
+    const salespersonData: any = { ...data };
+    if (data.email) {
+      salespersonData.username = data.email;
+    }
+    
+    const [updatedSalesperson] = await db
+      .update(salespeopleUsers)
+      .set(salespersonData)
+      .where(eq(salespeopleUsers.id, id))
+      .returning();
+
+    if (updatedUser || updatedSalesperson) {
+      return this.getUser(id);
+    }
+
+    return undefined;
   }
 
   // Sales operations

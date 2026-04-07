@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast"; pu
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 //import panoramicaLogoPath from "@assets/Diseño sin título (27)_1757959070748.png"; // Commented due to special chars in filename"
@@ -33,7 +33,7 @@ import { nanoid } from "nanoid";
 import { Client, Order, PriceList, Quote } from "@shared/schema";
 import html2pdf from "html2pdf.js";
 import { Document, Page, Text, View, StyleSheet, pdf, Image } from '@react-pdf/renderer';
-import { getShippingKey as getShippingKeyFn } from '@shared/format-utils';
+import { getShippingKey as getShippingKeyFn, getFormatOptions } from '@shared/format-utils';
 import { motion, AnimatePresence } from "framer-motion";
 // HTML/CSS PDF generator - replaces jsPDF for exact specification compliance
 
@@ -126,7 +126,7 @@ const INITIAL_CUSTOM_PRODUCT: CustomProductData = {
   profitMargin: 55,
   directPrice: 0,
   quantity: 1,
-  unit: "UN",
+  unit: "Unidad",
   color: "",
 };
 
@@ -606,19 +606,19 @@ const QuotePDFDocument = ({ quote, items, shippingCost = 0, showDiscount = false
                 <Text style={[pdfStyles.cellText, pdfStyles.col2]}>{(item.productUnit || 'UN').toUpperCase()}</Text>
                 <Text style={[pdfStyles.cellText, pdfStyles.col3]}>{item.quantity}</Text>
                 <View style={[pdfStyles.col4, pdfStyles.priceContainer]}>
-                   {showDiscount && item.tierPrices && (() => {
-                     const listaTier = item.tierPrices.find((t: any) => t.key === 'lista');
-                     if (listaTier && listaTier.price > item.unitPrice) {
-                       const discountPct = Math.round((1 - item.unitPrice / listaTier.price) * 100);
-                       return (
-                         <>
-                           <Text style={pdfStyles.strikethrough}>{formatCurrency(listaTier.price)}</Text>
-                           <Text style={{ fontSize: 7, color: '#16a34a', fontWeight: 'bold' }}>-{discountPct}%</Text>
-                         </>
-                       );
-                     }
-                     return null;
-                   })()}
+                  {showDiscount && item.tierPrices && (() => {
+                    const listaTier = item.tierPrices.find((t: any) => t.key === 'lista');
+                    if (listaTier && listaTier.price > item.unitPrice) {
+                      const discountPct = Math.round((1 - item.unitPrice / listaTier.price) * 100);
+                      return (
+                        <>
+                          <Text style={pdfStyles.strikethrough}>{formatCurrency(listaTier.price)}</Text>
+                          <Text style={{ fontSize: 7, color: '#16a34a', fontWeight: 'bold' }}>-{discountPct}%</Text>
+                        </>
+                      );
+                    }
+                    return null;
+                  })()}
                   <Text style={[pdfStyles.cellText, { fontWeight: showDiscount ? 'bold' : 'normal' }]}>{formatCurrency(item.unitPrice)}</Text>
                 </View>
                 <Text style={[pdfStyles.cellText, pdfStyles.col5]}>{formatCurrency(item.totalPrice)}</Text>
@@ -793,7 +793,7 @@ export default function TomadorPedidos() {
       }));
 
       // Check if quote had shipping enabled (by looking for shipping items)
-      const hasShippingItems = items.some((item: any) => 
+      const hasShippingItems = items.some((item: any) =>
         item.productName?.toString().startsWith('Despacho')
       );
       if (hasShippingItems) {
@@ -1338,7 +1338,7 @@ export default function TomadorPedidos() {
       return res.json();
     }
   });
-  
+
   const mixPricesMap = useMemo(() => {
     const map = new Map<string, number>();
     if (mixPricesResponse?.items) {
@@ -2616,10 +2616,10 @@ export default function TomadorPedidos() {
           <li>Todos los precios están expresados en pesos chilenos (CLP) e incluyen IVA.</li>
           <li>Los productos están sujetos a disponibilidad de stock.</li>
           <li><strong>Condición de pago:</strong> ${(() => {
-            const pc = (quote as any).paymentCondition || quoteForm.paymentCondition || '';
-            const found = [{ value: 'transferencia', label: 'Transferencia Bancaria' }, { value: 'boton_pago', label: 'Botón de Pago (Tarjeta)' }, { value: 'credito', label: 'Crédito' }, { value: 'credito_30', label: 'Crédito a 30 días' }, { value: 'credito_45', label: 'Crédito a 45 días' }, { value: 'credito_60', label: 'Crédito a 60 días' }].find(p => p.value === pc);
-            return found ? found.label : 'Según acuerdo comercial';
-          })()}</li>
+          const pc = (quote as any).paymentCondition || quoteForm.paymentCondition || '';
+          const found = [{ value: 'transferencia', label: 'Transferencia Bancaria' }, { value: 'boton_pago', label: 'Botón de Pago (Tarjeta)' }, { value: 'credito', label: 'Crédito' }, { value: 'credito_30', label: 'Crédito a 30 días' }, { value: 'credito_45', label: 'Crédito a 45 días' }, { value: 'credito_60', label: 'Crédito a 60 días' }].find(p => p.value === pc);
+          return found ? found.label : 'Según acuerdo comercial';
+        })()}</li>
         </ul>
       </div>
     </div>
@@ -2790,7 +2790,7 @@ export default function TomadorPedidos() {
       const name = it.productName?.toString() || '';
       return name.startsWith('Despacho') || name.toLowerCase().includes('flete');
     });
-    
+
     const finalSubtotalValue = hasShippingInCart ? cartItemsSubtotal : (cartItemsSubtotal + (showShipping ? totalShippingCost : 0));
 
     const quoteData = {
@@ -3767,7 +3767,7 @@ export default function TomadorPedidos() {
     const listaValue = parseFloat(product.lista?.toString() || '0') > 0
       ? product.lista
       : (parseFloat(product.desc10?.toString() || '0') > 0 ? String(Math.round(parseFloat(product.desc10!.toString()) / 0.90)) : product.lista);
-    
+
     const mixPrice = mixPricesMap.get(product.codigo?.toUpperCase() || "");
 
     const tierMappings = [
@@ -3846,6 +3846,9 @@ export default function TomadorPedidos() {
   const subtotalWithShipping = showShipping ? subtotal + shippingCost : subtotal;
   const tax = subtotalWithShipping * 0.19; // 19% IVA
   const total = subtotalWithShipping + tax;
+
+  // Assign the saveQuote function to the ref so the auto-save useEffect can use it
+  saveQuoteRef.current = saveQuote;
 
   return (
     <>
@@ -4688,8 +4691,7 @@ export default function TomadorPedidos() {
                       </div> */}
                       </div>
 
-                      // Assign the saveQuote function to the ref so the auto-save useEffect can use it
-                      saveQuoteRef.current = saveQuote;
+
 
                       {/* Mobile Product Results */}
                       <div className="space-y-3">
@@ -5556,8 +5558,8 @@ export default function TomadorPedidos() {
                                             </SelectTrigger>
                                             <SelectContent>
                                               {availableTiers.map((tier) => (
-                                                <SelectItem 
-                                                  key={tier.key} 
+                                                <SelectItem
+                                                  key={tier.key}
                                                   value={tier.key}
                                                   className={tier.key === 'mix' ? "text-orange-600 font-medium hover:bg-orange-50" : ""}
                                                 >
@@ -5688,8 +5690,8 @@ export default function TomadorPedidos() {
                                       </SelectTrigger>
                                       <SelectContent>
                                         {availableTiers.map((tier) => (
-                                          <SelectItem 
-                                            key={tier.key} 
+                                          <SelectItem
+                                            key={tier.key}
                                             value={tier.key}
                                             className={tier.key === 'mix' ? "text-orange-600 font-medium hover:bg-orange-50" : ""}
                                           >
@@ -5768,31 +5770,31 @@ export default function TomadorPedidos() {
                                 <Plus className="w-3 h-3" />
                               </Button>
                             </div>
-                             <div className="text-right flex flex-col items-end">
-                               {showDiscount && item.tierPrices && (() => {
-                                 const listaPrice = item.tierPrices.find(t => t.key === 'lista')?.price;
-                                 if (listaPrice && listaPrice > item.unitPrice) {
-                                   const discountPct = Math.round((1 - item.unitPrice / listaPrice) * 100);
-                                   return (
-                                     <div className="flex items-center gap-1">
-                                       <span className="text-[10px] text-muted-foreground line-through decoration-red-400/50">
-                                         {formatCurrency(listaPrice)}
-                                       </span>
-                                       <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-green-100 text-green-700 border-green-200">
-                                         -{discountPct}%
-                                       </Badge>
-                                     </div>
-                                   );
-                                 }
-                                 return null;
-                               })()}
-                               <p className="text-xs text-muted-foreground">
-                                 {formatCurrency(item.unitPrice)} c/u
-                               </p>
-                               <p className="font-medium text-green-600">
-                                 {formatCurrency(item.totalPrice)}
-                               </p>
-                             </div>
+                            <div className="text-right flex flex-col items-end">
+                              {showDiscount && item.tierPrices && (() => {
+                                const listaPrice = item.tierPrices.find(t => t.key === 'lista')?.price;
+                                if (listaPrice && listaPrice > item.unitPrice) {
+                                  const discountPct = Math.round((1 - item.unitPrice / listaPrice) * 100);
+                                  return (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-[10px] text-muted-foreground line-through decoration-red-400/50">
+                                        {formatCurrency(listaPrice)}
+                                      </span>
+                                      <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-green-100 text-green-700 border-green-200">
+                                        -{discountPct}%
+                                      </Badge>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+                              <p className="text-xs text-muted-foreground">
+                                {formatCurrency(item.unitPrice)} c/u
+                              </p>
+                              <p className="font-medium text-green-600">
+                                {formatCurrency(item.totalPrice)}
+                              </p>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -6017,15 +6019,16 @@ export default function TomadorPedidos() {
                         <SelectValue placeholder="Seleccionar unidad" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="UN">UN (Unidad)</SelectItem>
-                        <SelectItem value="1/4 GL">1/4 GL</SelectItem>
-                        <SelectItem value="1 GL">1 GL</SelectItem>
-                        <SelectItem value="BD">BD (Balde)</SelectItem>
-                        <SelectItem value="TN">TN (Tineta)</SelectItem>
-                        <SelectItem value="KG">KG</SelectItem>
-                        <SelectItem value="LT">LT (Litro)</SelectItem>
-                        <SelectItem value="MT">MT (Metro)</SelectItem>
-                        <SelectItem value="CJ">CJ (Caja)</SelectItem>
+                        {getFormatOptions()
+                          .filter(option => {
+                            const key = getShippingKeyFn(option.value);
+                            return key && shippingRates[key] && Number(shippingRates[key]) > 0;
+                          })
+                          .map(option => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.icon} {option.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -6098,15 +6101,16 @@ export default function TomadorPedidos() {
                         <SelectValue placeholder="Seleccionar unidad" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="UN">UN (Unidad)</SelectItem>
-                        <SelectItem value="1/4 GL">1/4 GL</SelectItem>
-                        <SelectItem value="1 GL">1 GL</SelectItem>
-                        <SelectItem value="BD">BD (Balde)</SelectItem>
-                        <SelectItem value="TN">TN (Tineta)</SelectItem>
-                        <SelectItem value="KG">KG</SelectItem>
-                        <SelectItem value="LT">LT (Litro)</SelectItem>
-                        <SelectItem value="MT">MT (Metro)</SelectItem>
-                        <SelectItem value="CJ">CJ (Caja)</SelectItem>
+                        {getFormatOptions()
+                          .filter(option => {
+                            const key = getShippingKeyFn(option.value);
+                            return key && shippingRates[key] && Number(shippingRates[key]) > 0;
+                          })
+                          .map(option => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.icon} {option.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
