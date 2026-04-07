@@ -55,6 +55,14 @@ interface PriceTierOption {
   price: number;
 }
 
+const codListaToPriceTier = (codLista: string | null | undefined): PriceTier | null => {
+  if (!codLista) return null;
+  const mapped = codLista.toUpperCase();
+  if (mapped === 'LP02' || mapped.includes('MIX')) return 'mix';
+  if (mapped === 'LP01' || mapped.includes('COMERCIAL') || mapped.includes('LISTA')) return 'lista';
+  return null;
+};
+
 interface CartItem {
   id: string;
   type: "standard" | "custom";

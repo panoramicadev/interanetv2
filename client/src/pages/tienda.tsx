@@ -250,6 +250,14 @@ export default function TiendaPage() {
   const [showGroupedDetailDialog, setShowGroupedDetailDialog] = useState(false);
   const [groupedDetailProduct, setGroupedDetailProduct] = useState<{ product: StoreGenericProduct; variant: StoreFormatVariant } | null>(null);
 
+  const isClient = user?.role === 'client';
+  const { data: clientData } = useQuery<{ lcen?: string }>({
+    queryKey: ['/api/clients/by-user', user?.id],
+    enabled: !!user?.id && isClient,
+  });
+
+  const clientPriceList = clientData?.lcen || null;
+
   const [showCategoriesDropdown, setShowCategoriesDropdown] = useState(false);
   
   // Variant selection state
@@ -507,11 +515,12 @@ export default function TiendaPage() {
 
   // Fetch grouped store products (same grouping logic as salesperson catalog, with prices)
   const { data: groupedData, isLoading: productsLoading } = useQuery<StoreCatalogResponse>({
-    queryKey: ['/api/store/products/grouped', debouncedSearch, selectedCategory],
+    queryKey: ['/api/store/products/grouped', debouncedSearch, selectedCategory, clientPriceList],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (debouncedSearch) params.append('search', debouncedSearch);
       if (selectedCategory && selectedCategory !== 'all') params.append('category', selectedCategory);
+      if (clientPriceList) params.append('priceList', clientPriceList);
       
       const url = `/api/store/products/grouped${params.toString() ? '?' + params.toString() : ''}`;
       const response = await fetch(url);

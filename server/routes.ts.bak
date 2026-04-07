@@ -11891,20 +11891,20 @@ export function registerRoutes(app: Express): Server {
   // In-memory cache for the full grouped catalog to avoid 3 DB queries per request
   let _storeCatalogCache: { catalog: any[]; totalProducts: number; builtAt: number } | null = null;
   const STORE_CACHE_TTL = 60_000; // 60 seconds
+  let _storeCatalogCache: { catalog: any[]; totalProducts: number; builtAt: number; priceList?: string } | null = null;
 
   // Invalidate store cache (call this when products/order/images change)
   const invalidateStoreCache = () => { _storeCatalogCache = null; };
 
   // Build the full catalog
   const buildStoreCatalog = async (priceList?: string): Promise<{ catalog: any[]; totalProducts: number }> => {
-    // Check cache only if no custom price list
-    const useCache = !priceList || priceList === 'LP01';
-    if (useCache && _storeCatalogCache && Date.now() - _storeCatalogCache.builtAt < STORE_CACHE_TTL) {
+    // Check cache first (only if no custom price list)
+    if (!priceList && _storeCatalogCache && Date.now() - _storeCatalogCache.builtAt < STORE_CACHE_TTL) {
       return _storeCatalogCache;
     }
 
-    // Determine if we should use price_list_mix (LP02 = Mix)
-    const usePriceListMix = priceList === 'LP02';
+    // If custom price list (LP02 = Mix), don't use cache
+    const useCache = !priceList || priceList === 'LP01';
 
     const result = await db.execute(sql`
       SELECT
@@ -11919,9 +11919,7 @@ export function registerRoutes(app: Express): Server {
         ep.price_list_id,
         ep.tags,
         ep.imagen_url,
-        ${usePriceListMix 
-          ? sql`COALESCE(mix.precio, pl.lista, ep.precio_ecommerce) as precio`
-          : sql`COALESCE(ep.precio_ecommerce, pl.lista) as precio`},
+        ep.precio_ecommerce as precio,
         pl.codigo as sku,
         pl.producto as product_name,
         pl.unidad as unit,
@@ -11934,7 +11932,6 @@ export function registerRoutes(app: Express): Server {
         pc.imagen_destacada
       FROM ecommerce_products ep
       LEFT JOIN price_list pl ON ep.price_list_id = pl.id
-      ${usePriceListMix ? sql`LEFT JOIN price_list_mix mix ON UPPER(mix.codigo) = UPPER(pl.codigo)` : sql``}
       LEFT JOIN (
         SELECT kopr, SUM(COALESCE(physical_stock2, 0)) as total_stock
         FROM product_stock
@@ -12106,7 +12103,7 @@ export function registerRoutes(app: Express): Server {
       console.log('[store/products/grouped] manual images lookup skipped:', imgError);
     }
 
-    const result2 = { catalog, totalProducts: (rows as any[]).length, builtAt: Date.now() };
+    const result2 = { catalog, totalProducts: (rows as any[]).length, builtAt: Date.now(), priceList };
     if (useCache) {
       _storeCatalogCache = result2;
     }
