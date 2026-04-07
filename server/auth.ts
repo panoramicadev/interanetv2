@@ -297,11 +297,15 @@ export function setupAuth(app: Express) {
 
       const [updatedUser] = await db.update(users)
         .set(updateData)
-        .where(eq(users.id, user.id))
+        .where(eq(users.id, fullUser.id))
         .returning();
 
       if (!updatedUser) {
         return res.status(404).json({ message: "Usuario no encontrado tras actualización." });
+      }
+
+      if (email && email !== user.email && req.user) {
+        req.user.email = email;
       }
 
       res.json({ 
