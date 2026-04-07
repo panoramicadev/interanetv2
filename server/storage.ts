@@ -2362,11 +2362,13 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     // First, try to find user in the main users table
-    const [user] = await db.select().from(users).where(eq(users.email, email));
+    // Use ilike for case-insensitive exact match
+    const [user] = await db.select().from(users).where(ilike(users.email, email));
+    
     if (user) {
       // Check if this user also exists in salespeopleUsers to get salespersonName
       const [salesperson] = await db.select().from(salespeopleUsers)
-        .where(eq(salespeopleUsers.email, email));
+        .where(ilike(salespeopleUsers.email, email));
       if (salesperson) {
         return {
           ...user,
@@ -2383,7 +2385,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     // If not found, try to find in salespeople_users table
-    const [salespersonUser] = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, email));
+    const [salespersonUser] = await db.select().from(salespeopleUsers).where(ilike(salespeopleUsers.email, email));
     if (salespersonUser) {
       // Convert salesperson user to User format for authentication
       return {
@@ -2410,24 +2412,31 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
+    const normalizedData = {
+      ...userData,
+      email: userData.email?.toLowerCase(),
+      updatedAt: new Date(),
+    };
+
     const [user] = await db
       .insert(users)
-      .values(userData)
+      .values(normalizedData)
       .onConflictDoUpdate({
         target: [users.id],
-        set: {
-          ...userData,
-          updatedAt: new Date(),
-        },
+        set: normalizedData,
       })
       .returning();
     return user;
   }
 
   async createUser(userData: InsertUser): Promise<User> {
+    const normalizedData = { 
+      ...userData, 
+      email: userData.email.toLowerCase() 
+    };
     const [user] = await db
       .insert(users)
-      .values(userData)
+      .values(normalizedData)
       .returning();
     return user;
   }
@@ -7027,9 +7036,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSalespersonUser(user: InsertSalespersonUser): Promise<SalespersonUser> {
+    const normalizedData = {
+      ...user,
+      email: user.email?.toLowerCase(),
+      username: user.username?.toLowerCase() || user.email?.toLowerCase()
+    };
     const [result] = await db
       .insert(salespeopleUsers)
-      .values(user)
+      .values(normalizedData)
       .returning();
     return result;
   }
@@ -7057,7 +7071,12 @@ export class DatabaseStorage implements IStorage {
 
     if (existingSalesperson) {
       // Update in salespeopleUsers table
-      const updateData = { ...user, updatedAt: new Date() };
+      const updateData = { 
+        ...user, 
+        email: user.email?.toLowerCase(),
+        username: user.username?.toLowerCase(),
+        updatedAt: new Date() 
+      };
       if (hashedPassword) updateData.password = hashedPassword;
 
       const [result] = await db
@@ -10668,14 +10687,14 @@ export class DatabaseStorage implements IStorage {
       const bcrypt = await import('bcryptjs');
       const hashedPassword = await bcrypt.hash(data.password, 12);
 
-      // Create user account in salespeople_users
+      const normalizedEmail = data.email.toLowerCase();
       const [user] = await db
         .insert(salespeopleUsers)
         .values({
           salespersonName: data.salespersonName,
-          email: data.email,
+          email: normalizedEmail,
           password: hashedPassword,
-          username: data.email,
+          username: normalizedEmail,
           role: 'salesperson',
           isActive: true,
           supervisorId: data.supervisorId,

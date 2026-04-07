@@ -21,6 +21,7 @@ declare global {
       lastName?: string;
       profileImageUrl?: string;
       salespersonName?: string;
+      publicSlug?: string;
       role: string;
     }
   }
@@ -28,7 +29,7 @@ declare global {
 
 // Validation schemas
 const registerSchema = z.object({
-  email: z.string().email("Email inválido"),
+  email: z.string().email("Email inválido").toLowerCase(),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
   firstName: z.string().min(1, "El nombre es requerido"),
   lastName: z.string().min(1, "El apellido es requerido"),
@@ -36,7 +37,7 @@ const registerSchema = z.object({
 });
 
 const loginSchema = z.object({
-  email: z.string().email("Email inválido"),
+  email: z.string().email("Email inválido").toLowerCase(),
   password: z.string().min(1, "La contraseña es requerida"),
 });
 
@@ -281,7 +282,7 @@ export function setupAuth(app: Express) {
         if (existingUser) {
           return res.status(400).json({ message: "Ya existe un usuario con este email." });
         }
-        updateData.email = email;
+        updateData.email = email.toLowerCase();
       }
 
       if (password) {
