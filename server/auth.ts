@@ -300,6 +300,10 @@ export function setupAuth(app: Express) {
         .where(eq(users.id, user.id))
         .returning();
 
+      if (!updatedUser) {
+        return res.status(404).json({ message: "Usuario no encontrado tras actualización." });
+      }
+
       res.json({ 
         message: "Perfil actualizado correctamente.", 
         user: { 
@@ -311,13 +315,10 @@ export function setupAuth(app: Express) {
       });
     } catch (error: any) {
       console.error("Error updating profile:", error?.message || error);
-      console.error("Error stack:", error?.stack);
-      
-      // Temporarily write to file to capture the exact error in the backend
-      require('fs').writeFileSync('/Users/jnahuelfil/Desktop/clone-panoramica/intranet-panoramica/last-profile-error.txt', (error?.message || String(error)) + '\n' + (error?.stack || ''));
+      if (error?.stack) console.error("Stack trace:", error.stack);
       
       res.status(500).json({ 
-        message: "Error interno: " + (error?.message || "Desconocido") 
+        message: "Error al actualizar perfil: " + (error?.message || "Desconocido") 
       });
     }
   });
