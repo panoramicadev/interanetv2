@@ -18,6 +18,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { LayoutGrid, List } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────
 const ESTADOS = [
@@ -87,6 +96,7 @@ export default function SeguimientoClientes() {
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
   const isAdminOrSupervisor = user?.role === "admin" || user?.role === "supervisor";
 
@@ -293,28 +303,135 @@ export default function SeguimientoClientes() {
                 </SelectContent>
               </Select>
             )}
-
+            <div className="flex bg-muted/50 p-1 rounded-lg border ml-auto">
+              <Button
+                variant={viewMode === "grid" ? "secondary" : "ghost"}
+                size="sm"
+                className={`h-8 px-3 rounded-md transition-all ${viewMode === "grid" ? "bg-background shadow-sm" : ""}`}
+                onClick={() => setViewMode("grid")}
+              >
+                <LayoutGrid className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline font-medium">Cuadrícula</span>
+              </Button>
+              <Button
+                variant={viewMode === "table" ? "secondary" : "ghost"}
+                size="sm"
+                className={`h-8 px-3 rounded-md transition-all ${viewMode === "table" ? "bg-background shadow-sm" : ""}`}
+                onClick={() => setViewMode("table")}
+              >
+                <List className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline font-medium">Tabla</span>
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Content — Card Grid */}
       <div className="p-4 sm:p-6">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500" />
-          </div>
-        ) : clientes.length === 0 ? (
-          <div className="text-center py-20 text-muted-foreground">
-            <UserCheck className="w-12 h-12 mx-auto mb-3 opacity-20" />
-            <p className="font-medium text-lg">No hay clientes en seguimiento</p>
-            <p className="text-sm mt-1">Crea un nuevo cliente para comenzar el pipeline</p>
-          </div>
-        ) : (
+        {viewMode === "grid" ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {clientes.map((client: any) => (
               <ClientCard key={client.id} client={client} onClick={() => handleViewClient(client)} onUpdateEstado={(id, estado) => updateMutation.mutate({ id, data: { estado } })} />
             ))}
+          </div>
+        ) : (
+          <div className="bg-background rounded-xl border shadow-sm overflow-hidden">
+            <Table>
+              <TableHeader className="bg-muted/50">
+                <TableRow>
+                  <TableHead className="font-bold">Cliente / Empresa</TableHead>
+                  <TableHead className="font-bold">Ciudad</TableHead>
+                  <TableHead className="font-bold">Último Movimiento</TableHead>
+                  <TableHead className="font-bold">Última Compra</TableHead>
+                  <TableHead className="font-bold">Vendedor</TableHead>
+                  <TableHead className="font-bold">Estado</TableHead>
+                  <TableHead className="text-right font-bold w-[100px]">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {clientes.map((client: any) => {
+                  const estadoConfig = getEstadoConfig(client.estado);
+                  const isStale = !client.ultimoContacto || (new Date().getTime() - new Date(client.ultimoContacto).getTime()) > 7 * 24 * 60 * 60 * 1000;
+                  
+                  return (
+                    <TableRow 
+                      key={client.id} 
+                      className="group cursor-pointer hover:bg-muted/30 transition-colors"
+                      onClick={() => handleViewClient(client)}
+                    >
+                      <TableCell className="py-3">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-sm uppercase">{client.nombre}</span>
+                          <span className="text-xs text-muted-foreground">{client.empresa || '—'}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase">
+                          <MapPin className="w-3 h-3 text-indigo-400" />
+                          {client.ciudad || '—'}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <div className="flex flex-col">
+                          <span className={`text-xs font-medium ${isStale ? 'text-red-500' : 'text-slate-600'}`}>
+                            {timeAgo(client.ultimoContacto)}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {formatDate(client.ultimoContacto)}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <span className="text-xs text-muted-foreground">
+                          {formatDate(client.ultimaCompraDate)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <User className="w-3 h-3 text-indigo-400" />
+                          {client.vendedorNombre}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-3" onClick={e => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className={`inline-flex items-center text-[10px] px-2 py-0.5 h-5 rounded-full font-medium ${estadoConfig.badge} border-0 cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-indigo-300 transition-all`}>
+                              <estadoConfig.icon className="w-3 h-3 mr-1" />
+                              {estadoConfig.label}
+                              <ChevronDown className="w-2.5 h-2.5 ml-1 opacity-60" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40">
+                            {ESTADOS.map(e => (
+                              <DropdownMenuItem
+                                key={e.value}
+                                onClick={() => updateMutation.mutate({ id: client.id, data: { estado: e.value } })}
+                                disabled={e.value === client.estado}
+                                className="text-xs"
+                              >
+                                <e.icon className="w-3.5 h-3.5 mr-2" />
+                                {e.label}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                      <TableCell className="text-right py-3" onClick={e => e.stopPropagation()}>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-indigo-600"
+                          onClick={() => handleViewClient(client)}
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>

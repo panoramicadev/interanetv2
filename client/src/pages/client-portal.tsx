@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 import { useAiChat } from "@/hooks/useAiChat";
 import { getNumericOrderId } from "@/lib/utils";
 import AiChatView from "@/components/ai-chat/AiChatView";
@@ -23,6 +24,15 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
   Package,
   Bot,
@@ -108,10 +118,104 @@ const CLIENT_AI_SUGGESTIONS = [
 ];
 
 // ==========================================
+// Profile Edit Component
+// ==========================================
+
+function ProfileEditDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (o: boolean) => void }) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [email, setEmail] = useState(user?.email || "");
+  const [password, setPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await fetch("/api/auth/update-profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Error al actualizar perfil");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Perfil actualizado", description: data.message });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Editar Perfil</DialogTitle>
+          <DialogDescription>
+            Actualiza tu correo de acceso y contraseña. Necesitarás tu contraseña actual para confirmar los cambios.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="email" className="text-sm font-medium">Correo Electrónico</Label>
+            <Input 
+              id="email" 
+              type="email" 
+              value={email} 
+              onChange={e => setEmail(e.target.value)} 
+              className="rounded-xl"
+              placeholder="ejemplo@correo.com"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="password">Nueva Contraseña (opcional)</Label>
+            <Input 
+              id="password" 
+              type="password" 
+              value={password} 
+              onChange={e => setPassword(e.target.value)} 
+              className="rounded-xl" 
+              placeholder="Mínimo 6 caracteres" 
+            />
+          </div>
+          <div className="grid gap-2 pt-2 border-t mt-2">
+            <Label htmlFor="currentPassword">Contraseña Actual <span className="text-red-500">*</span></Label>
+            <Input 
+              id="currentPassword" 
+              type="password" 
+              value={currentPassword} 
+              onChange={e => setCurrentPassword(e.target.value)} 
+              className="rounded-xl border-orange-200 focus-visible:ring-orange-500" 
+            />
+            <p className="text-[10px] text-muted-foreground">Obligatorio para cualquier cambio.</p>
+          </div>
+        </div>
+        <DialogFooter className="flex gap-2">
+          <Button variant="ghost" className="rounded-xl" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button 
+            className="rounded-xl bg-blue-600 hover:bg-blue-700" 
+            disabled={updateMutation.isPending || !currentPassword} 
+            onClick={() => updateMutation.mutate({ email, password, currentPassword })}
+          >
+            {updateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+            Guardar Cambios
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ==========================================
 // Dashboard Tab
 // ==========================================
 
 function DashboardTab({ salesperson }: { salesperson: string }) {
+  const [showProfileModal, setShowProfileModal] = useState(false);
   // Fetch Web Orders (eCommerce) directly for the client
   const { data: webOrders = [], isLoading: webLoading } = useQuery<any[]>({
     queryKey: ["/api/ecommerce/client/orders"],
@@ -256,13 +360,28 @@ function DashboardTab({ salesperson }: { salesperson: string }) {
       {/* Welcome header */}
       <div className="bg-gradient-to-r from-blue-700 to-indigo-800 rounded-2xl p-6 text-white relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl" />
-        <div className="relative z-10">
-          <h2 className="text-2xl font-bold">Resumen de Cuenta</h2>
-          <p className="text-blue-100 text-sm mt-1 max-w-2xl">
-            Tus métricas de compra, pedidos recientes y productos más solicitados a través de nuestro portal eCommerce.
-          </p>
+        <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start gap-4">
+          <div>
+            <h2 className="text-2xl font-bold">Resumen de Cuenta</h2>
+            <p className="text-blue-100 text-sm mt-1 max-w-2xl">
+              Tus métricas de compra, pedidos recientes y productos más solicitados a través de nuestro portal eCommerce.
+            </p>
+          </div>
+          <Button 
+            variant="outline" 
+            className="bg-white/10 border-white/20 hover:bg-white/20 text-white rounded-xl shadow-lg backdrop-blur-sm"
+            onClick={() => setShowProfileModal(true)}
+          >
+            <User className="w-4 h-4 mr-2" />
+            Editar Perfil
+          </Button>
         </div>
       </div>
+
+      <ProfileEditDialog 
+        open={showProfileModal} 
+        onOpenChange={setShowProfileModal} 
+      />
 
       {/* Metric Cards */}
       <div className={`grid grid-cols-1 sm:grid-cols-2 ${clientData && (clientData.cpen?.toUpperCase().includes('CREDITO') || clientData.cpen?.toUpperCase().includes('CRÉDITO') || Number(clientData.crlt) > 0) ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4`}>

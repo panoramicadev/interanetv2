@@ -486,10 +486,21 @@ const pdfStyles = StyleSheet.create({
     paddingTop: 6,
     borderTop: '1 solid #e5e7eb',
   },
+  strikethrough: {
+    textDecoration: 'line-through',
+    color: '#9ca3af',
+    fontSize: 7,
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 4,
+  },
 });
 
 // React-PDF Document Component
-const QuotePDFDocument = ({ quote, items, shippingCost = 0 }: { quote: any; items: any[]; shippingCost?: number }) => {
+const QuotePDFDocument = ({ quote, items, shippingCost = 0, showDiscount = false }: { quote: any; items: any[]; shippingCost?: number; showDiscount?: boolean }) => {
   const formatCurrency = (value: number | string) => {
     const num = typeof value === 'string' ? parseFloat(value) : value;
     return `$${num.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -575,7 +586,22 @@ const QuotePDFDocument = ({ quote, items, shippingCost = 0 }: { quote: any; item
                 </View>
                 <Text style={[pdfStyles.cellText, pdfStyles.col2]}>{(item.productUnit || 'UN').toUpperCase()}</Text>
                 <Text style={[pdfStyles.cellText, pdfStyles.col3]}>{item.quantity}</Text>
-                <Text style={[pdfStyles.cellText, pdfStyles.col4]}>{formatCurrency(item.unitPrice)}</Text>
+                <View style={[pdfStyles.col4, pdfStyles.priceContainer]}>
+                   {showDiscount && item.tierPrices && (() => {
+                     const listaTier = item.tierPrices.find((t: any) => t.key === 'lista');
+                     if (listaTier && listaTier.price > item.unitPrice) {
+                       const discountPct = Math.round((1 - item.unitPrice / listaTier.price) * 100);
+                       return (
+                         <>
+                           <Text style={pdfStyles.strikethrough}>{formatCurrency(listaTier.price)}</Text>
+                           <Text style={{ fontSize: 7, color: '#16a34a', fontWeight: 'bold' }}>-{discountPct}%</Text>
+                         </>
+                       );
+                     }
+                     return null;
+                   })()}
+                  <Text style={[pdfStyles.cellText, { fontWeight: showDiscount ? 'bold' : 'normal' }]}>{formatCurrency(item.unitPrice)}</Text>
+                </View>
                 <Text style={[pdfStyles.cellText, pdfStyles.col5]}>{formatCurrency(item.totalPrice)}</Text>
               </View>
             ))}
@@ -589,12 +615,6 @@ const QuotePDFDocument = ({ quote, items, shippingCost = 0 }: { quote: any; item
             <Text style={pdfStyles.totalValue}>{formatCurrency(quote.subtotal)}</Text>
           </View>
 
-          {shippingCost > 0 && (
-            <View style={pdfStyles.totalRow}>
-              <Text style={[pdfStyles.totalLabel, { color: '#fd6301' }]}>Flete:</Text>
-              <Text style={[pdfStyles.totalValue, { color: '#fd6301' }]}>{formatCurrency(shippingCost)}</Text>
-            </View>
-          )}
 
           <View style={pdfStyles.totalRow}>
             <Text style={pdfStyles.totalLabel}>IVA (19%):</Text>
@@ -663,6 +683,7 @@ export default function TomadorPedidos() {
   };
 
   const [activeTab, setActiveTab] = useState(getActiveTabFromUrl);
+  const [showDiscount, setShowDiscount] = useState(false);
 
   // Update URL when tab changes
   const handleTabChange = (newTab: string) => {
@@ -1204,17 +1225,21 @@ export default function TomadorPedidos() {
   // Ref to hold the latest saveQuote reference for the useEffect
   const saveQuoteRef = useRef<() => void>();
 
-  // UseEffect to auto-save the quote if the shipping toggle is flipped by the user
-  const isInitialShippingMount = useRef(true);
+  // UseEffect to auto-save the quote if the cart, shipping toggle or discount toggle is changed
+  const isInitialAutoSaveMount = useRef(true);
   useEffect(() => {
-    if (isInitialShippingMount.current) {
-      isInitialShippingMount.current = false;
+    if (isInitialAutoSaveMount.current) {
+      isInitialAutoSaveMount.current = false;
       return;
     }
     if (savedQuoteId && !isSavingQuote && saveQuoteRef.current) {
-      saveQuoteRef.current();
+      // Use a small timeout to debounce rapid changes
+      const timeoutId = setTimeout(() => {
+        if (saveQuoteRef.current) saveQuoteRef.current();
+      }, 1000);
+      return () => clearTimeout(timeoutId);
     }
-  }, [showShipping, savedQuoteId]);
+  }, [cart, showShipping, showDiscount, savedQuoteId]);
 
   // Fetch available units for filtering
   const { data: availableUnits = [] } = useQuery<string[]>({
@@ -2009,6 +2034,33 @@ export default function TomadorPedidos() {
           }
         }
 
+        // Add shipping items as product line items
+        if (showShipping) {
+          for (const shipItem of shippingLineItems) {
+            const shipItemData = {
+              quoteId: savedQuote.id,
+              type: 'standard',
+              productName: shipItem.label,
+              productCode: shipItem.sku,
+              productUnit: 'UN',
+              quantity: shipItem.qty.toString(),
+              unitPrice: shipItem.unitPrice.toString(),
+              totalPrice: (shipItem.qty * shipItem.unitPrice).toString(),
+              pricingMode: 'direct',
+            };
+
+            const shipResponse = await apiRequest(`/api/quotes/${savedQuote.id}/items`, {
+              method: 'POST',
+              data: shipItemData
+            });
+
+            if (shipResponse.ok) {
+              const savedShipItem = await shipResponse.json();
+              savedItems.push(savedShipItem);
+            }
+          }
+        }
+
         // Generate PDF with updated data (no order conversion for existing quotes)
         generatePDFFromQuote(savedQuote, savedItems);
 
@@ -2059,6 +2111,33 @@ export default function TomadorPedidos() {
           if (itemResponse.ok) {
             const savedItem = await itemResponse.json();
             savedItems.push(savedItem);
+          }
+        }
+
+        // Add shipping items as product line items for new quotes
+        if (showShipping) {
+          for (const shipItem of shippingLineItems) {
+            const shipItemData = {
+              quoteId: savedQuote.id,
+              type: 'standard',
+              productName: shipItem.label,
+              productCode: shipItem.sku,
+              productUnit: 'UN',
+              quantity: shipItem.qty.toString(),
+              unitPrice: shipItem.unitPrice.toString(),
+              totalPrice: (shipItem.qty * shipItem.unitPrice).toString(),
+              pricingMode: 'direct',
+            };
+
+            const shipResponse = await apiRequest(`/api/quotes/${savedQuote.id}/items`, {
+              method: 'POST',
+              data: shipItemData
+            });
+
+            if (shipResponse.ok) {
+              const savedShipItem = await shipResponse.json();
+              savedItems.push(savedShipItem);
+            }
           }
         }
 
@@ -2629,7 +2708,8 @@ export default function TomadorPedidos() {
           productUnit: item.productUnit || 'UN',
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          totalPrice: item.totalPrice
+          totalPrice: item.totalPrice,
+          tierPrices: item.tierPrices,
         }));
 
         // Append shipping line items as product rows
@@ -2648,7 +2728,7 @@ export default function TomadorPedidos() {
       }
 
       // Generate PDF using React-PDF
-      const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={items} shippingCost={totalShippingCost} />).toBlob();
+      const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={items} shippingCost={totalShippingCost} showDiscount={showDiscount} />).toBlob();
       const url = URL.createObjectURL(pdfBlob);
 
       // Generate filename with new format: ClientName-DDMMYY-NNN.pdf
@@ -3527,7 +3607,7 @@ export default function TomadorPedidos() {
       };
 
       // Generate PDF using React-PDF
-      const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={items} shippingCost={totalShippingCost} />).toBlob();
+      const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={items} shippingCost={totalShippingCost} showDiscount={showDiscount} />).toBlob();
 
       // Generate filename with new format: ClientName-DDMMYY-NNN.pdf
       const pdfFilename = generatePDFFilename(
@@ -4728,6 +4808,13 @@ export default function TomadorPedidos() {
                       </div>
                     ) : (
                       <div className="space-y-4">
+                        {/* Mobile Cart Header with Toggle */}
+                        <div className="flex items-center justify-between px-1 mb-2">
+                          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                            Productos ({cart.length})
+                          </h3>
+                        </div>
+
                         {/* Mobile Cart Items */}
                         <div className="space-y-3">
                           {cart.map((item) => (
@@ -4835,7 +4922,24 @@ export default function TomadorPedidos() {
                                       <Plus className="w-4 h-4" />
                                     </Button>
                                   </div>
-                                  <div className="text-right">
+                                  <div className="text-right flex flex-col items-end">
+                                    {showDiscount && item.tierPrices && (() => {
+                                      const listaPrice = item.tierPrices.find(t => t.key === 'lista')?.price;
+                                      if (listaPrice && listaPrice > item.unitPrice) {
+                                        const discountPct = Math.round((1 - item.unitPrice / listaPrice) * 100);
+                                        return (
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-[10px] text-muted-foreground line-through decoration-red-400/50">
+                                              {formatCurrency(listaPrice)}
+                                            </span>
+                                            <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-green-100 text-green-700 border-green-200">
+                                              -{discountPct}%
+                                            </Badge>
+                                          </div>
+                                        );
+                                      }
+                                      return null;
+                                    })()}
                                     <p className="text-xs text-muted-foreground">
                                       {formatCurrency(item.unitPrice)} c/u
                                     </p>
@@ -4859,18 +4963,53 @@ export default function TomadorPedidos() {
                                   {formatCurrency(subtotal)}
                                 </span>
                               </div>
-                              {/* Shipping toggle */}
-                              <div className="flex items-center justify-between text-sm">
-                                <label className="flex items-center gap-3 cursor-pointer py-1">
-                                  <Switch
-                                    checked={showShipping}
-                                    onCheckedChange={setShowShipping}
-                                  />
-                                  <span className="text-muted-foreground font-medium">Incluir flete en el presupuesto</span>
-                                </label>
-                                {showShipping && (
-                                  <span className="font-bold text-orange-600">{formatCurrency(shippingCost)}</span>
-                                )}
+                              {/* Discount savings row */}
+                              {showDiscount && (() => {
+                                const totalListaPrice = cart.reduce((sum, item) => {
+                                  const listaPrice = item.tierPrices?.find(t => t.key === 'lista')?.price;
+                                  return sum + ((listaPrice && listaPrice > item.unitPrice) ? listaPrice * item.quantity : item.totalPrice);
+                                }, 0);
+                                const totalSavings = totalListaPrice - subtotal;
+                                if (totalSavings > 0) {
+                                  return (
+                                    <div className="flex justify-between text-sm bg-green-50 dark:bg-green-900/20 px-2 py-1.5 rounded-md border border-green-100 dark:border-green-800/30">
+                                      <span className="text-green-700 dark:text-green-400 font-medium flex items-center gap-1">
+                                        <TrendingUp className="w-3 h-3" />
+                                        Ahorro total:
+                                      </span>
+                                      <span className="font-bold text-green-600" data-testid="mobile-cart-savings">
+                                        -{formatCurrency(totalSavings)}
+                                      </span>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+                              {/* Shipping and Discount toggles */}
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between text-sm">
+                                  <label className="flex items-center gap-3 cursor-pointer py-1">
+                                    <Switch
+                                      id="mobile-shipping-toggle"
+                                      checked={showShipping}
+                                      onCheckedChange={setShowShipping}
+                                    />
+                                    <span className="text-muted-foreground font-medium">Incluir flete en el presupuesto</span>
+                                  </label>
+                                  {showShipping && (
+                                    <span className="font-bold text-orange-600">{formatCurrency(shippingCost)}</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                  <label className="flex items-center gap-3 cursor-pointer py-1">
+                                    <Switch
+                                      id="mobile-discount-toggle"
+                                      checked={showDiscount}
+                                      onCheckedChange={setShowDiscount}
+                                    />
+                                    <span className="text-muted-foreground font-medium">Ver ahorros por descuento</span>
+                                  </label>
+                                </div>
                               </div>
                               {/* Shipping line items detail */}
                               {showShipping && shippingLineItems.length > 0 && (
@@ -5391,16 +5530,18 @@ export default function TomadorPedidos() {
                       <ShoppingCart className="w-5 h-5" />
                       Carrito ({cart.length})
                     </h3>
-                    {cart.length > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCart([])}
-                        data-testid="modal-button-clear-cart"
-                      >
-                        Limpiar
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-4">
+                      {cart.length > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCart([])}
+                          data-testid="modal-button-clear-cart"
+                        >
+                          Limpiar
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Cart Items */}
@@ -5538,14 +5679,31 @@ export default function TomadorPedidos() {
                                 <Plus className="w-3 h-3" />
                               </Button>
                             </div>
-                            <div className="text-right">
-                              <p className="text-xs text-muted-foreground">
-                                {formatCurrency(item.unitPrice)} c/u
-                              </p>
-                              <p className="font-medium text-green-600">
-                                {formatCurrency(item.totalPrice)}
-                              </p>
-                            </div>
+                             <div className="text-right flex flex-col items-end">
+                               {showDiscount && item.tierPrices && (() => {
+                                 const listaPrice = item.tierPrices.find(t => t.key === 'lista')?.price;
+                                 if (listaPrice && listaPrice > item.unitPrice) {
+                                   const discountPct = Math.round((1 - item.unitPrice / listaPrice) * 100);
+                                   return (
+                                     <div className="flex items-center gap-1">
+                                       <span className="text-[10px] text-muted-foreground line-through decoration-red-400/50">
+                                         {formatCurrency(listaPrice)}
+                                       </span>
+                                       <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-green-100 text-green-700 border-green-200">
+                                         -{discountPct}%
+                                       </Badge>
+                                     </div>
+                                   );
+                                 }
+                                 return null;
+                               })()}
+                               <p className="text-xs text-muted-foreground">
+                                 {formatCurrency(item.unitPrice)} c/u
+                               </p>
+                               <p className="font-medium text-green-600">
+                                 {formatCurrency(item.totalPrice)}
+                               </p>
+                             </div>
                           </div>
                         </div>
                       ))}
@@ -5561,18 +5719,51 @@ export default function TomadorPedidos() {
                           <span>Subtotal:</span>
                           <span data-testid="modal-text-subtotal">{formatCurrency(subtotal)}</span>
                         </div>
-                        {/* Shipping toggle */}
-                        <div className="flex items-center justify-between text-sm">
-                          <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                            <Switch
-                              checked={showShipping}
-                              onCheckedChange={setShowShipping}
-                            />
-                            <span className="text-muted-foreground font-medium">Incluir flete en el presupuesto</span>
-                          </label>
-                          {showShipping && (
-                            <span className="font-bold text-orange-600 text-base">{formatCurrency(shippingCost)}</span>
-                          )}
+                        {/* Discount savings row */}
+                        {showDiscount && (() => {
+                          const totalListaPrice = cart.reduce((sum, item) => {
+                            const listaPrice = item.tierPrices?.find(t => t.key === 'lista')?.price;
+                            return sum + ((listaPrice && listaPrice > item.unitPrice) ? listaPrice * item.quantity : item.totalPrice);
+                          }, 0);
+                          const totalSavings = totalListaPrice - subtotal;
+                          if (totalSavings > 0) {
+                            return (
+                              <div className="flex justify-between text-sm bg-green-50 dark:bg-green-900/20 px-2 py-1.5 rounded-md border border-green-100 dark:border-green-800/30">
+                                <span className="text-green-700 dark:text-green-400 font-medium flex items-center gap-1">
+                                  <TrendingUp className="w-3 h-3" />
+                                  Ahorro total:
+                                </span>
+                                <span className="font-bold text-green-600" data-testid="modal-text-savings">
+                                  -{formatCurrency(totalSavings)}
+                                </span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+                        {/* Shipping and Discount toggles */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-sm">
+                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-muted/50 transition-colors flex-1">
+                              <Switch
+                                checked={showShipping}
+                                onCheckedChange={setShowShipping}
+                              />
+                              <span className="text-muted-foreground font-medium">Incluir flete en el presupuesto</span>
+                            </label>
+                            {showShipping && (
+                              <span className="font-bold text-orange-600 text-base">{formatCurrency(shippingCost)}</span>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-muted/50 transition-colors flex-1">
+                              <Switch
+                                checked={showDiscount}
+                                onCheckedChange={setShowDiscount}
+                              />
+                              <span className="text-muted-foreground font-medium">Ver ahorros por descuento</span>
+                            </label>
+                          </div>
                         </div>
                         {/* Shipping line items */}
                         {showShipping && shippingLineItems.length > 0 && (

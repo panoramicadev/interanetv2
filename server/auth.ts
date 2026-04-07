@@ -6,8 +6,10 @@ import bcrypt from "bcryptjs";
 import { storage } from "./storage";
 import { User, InsertUser } from "@shared/schema";
 import connectPg from "connect-pg-simple";
-import { pool } from "./db";
+import { pool, db } from "./db";
 import { z } from "zod";
+import { users } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 // Extend Express User interface
 declare global {
@@ -248,6 +250,76 @@ export function setupAuth(app: Express) {
       assignedSegment: (user as any).assignedSegment,
       supervisorId: (user as any).supervisorId,
     });
+  });
+
+  // PATCH /api/auth/update-profile — Update current user email/password
+  app.patch("/api/auth/update-profile", requireAuth, async (req: any, res) => {
+    try {
+      const { email, password, currentPassword } = req.body;
+      const user = req.user as User;
+
+      if (!email && !password) {
+        return res.status(400).json({ message: "Se requiere email o contraseña para actualizar." });
+      }
+
+      // Verify current password first
+      const fullUser = await storage.getUser(user.id);
+      if (!fullUser || !fullUser.password) {
+        return res.status(404).json({ message: "Usuario no encontrado." });
+      }
+
+      const isValidPassword = await bcrypt.compare(currentPassword, fullUser.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "La contraseña actual es incorrecta." });
+      }
+
+      const updateData: any = {};
+
+      if (email && email !== user.email) {
+        // Check if email already exists
+        const existingUser = await storage.getUserByEmail(email);
+        if (existingUser) {
+          return res.status(400).json({ message: "Ya existe un usuario con este email." });
+        }
+        updateData.email = email;
+      }
+
+      if (password) {
+        if (password.length < 6) {
+          return res.status(400).json({ message: "La nueva contraseña debe tener al menos 6 caracteres." });
+        }
+        updateData.password = await bcrypt.hash(password, 12);
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ message: "No hay cambios para guardar." });
+      }
+
+      const [updatedUser] = await db.update(users)
+        .set(updateData)
+        .where(eq(users.id, user.id))
+        .returning();
+
+      res.json({ 
+        message: "Perfil actualizado correctamente.", 
+        user: { 
+          id: updatedUser.id, 
+          email: updatedUser.email,
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName
+        } 
+      });
+    } catch (error: any) {
+      console.error("Error updating profile:", error?.message || error);
+      console.error("Error stack:", error?.stack);
+      
+      // Temporarily write to file to capture the exact error in the backend
+      require('fs').writeFileSync('/Users/jnahuelfil/Desktop/clone-panoramica/intranet-panoramica/last-profile-error.txt', (error?.message || String(error)) + '\n' + (error?.stack || ''));
+      
+      res.status(500).json({ 
+        message: "Error interno: " + (error?.message || "Desconocido") 
+      });
+    }
   });
 }
 

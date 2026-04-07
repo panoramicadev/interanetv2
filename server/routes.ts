@@ -68,7 +68,7 @@ import {
   insertCrmSeguimientoHitoSchema,
   salespeopleUsers,
 } from "../shared/schema";
-import { eq, and, isNotNull, isNull, ne, sql, desc, asc, or, sum, count, countDistinct, inArray, ilike, gte, lte } from "drizzle-orm";
+import { eq, and, isNotNull, isNull, ne, sql, desc, asc, or, sum, count, countDistinct, inArray, ilike, gte, lte, getTableColumns } from "drizzle-orm";
 import { emailService } from "./services/email";
 import { executeIncrementalETL, getETLStatus, updateETLConfig, etlProgressEmitter, sqlServerBreaker } from "./etl-incremental";
 import { executeGDVETL, gdvEtlProgressEmitter, gdvSqlServerBreaker } from "./etl-gdv";
@@ -25994,8 +25994,13 @@ Instrucciones extra:
     const queryLimit = parseInt(limitStr as string) || 100;
     const queryOffset = parseInt(offsetStr as string) || 0;
 
-    const results = await db.select()
+    const results = await db.select({
+        ...getTableColumns(crmSeguimientoClientes),
+        ciudad: clients.cmen,
+        ultimaCompraDate: clients.feultr
+      })
       .from(crmSeguimientoClientes)
+      .leftJoin(clients, eq(crmSeguimientoClientes.clienteId, clients.id))
       .where(and(...conditions))
       .orderBy(desc(crmSeguimientoClientes.updatedAt))
       .limit(queryLimit)
