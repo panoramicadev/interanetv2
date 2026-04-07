@@ -96,7 +96,7 @@ export default function SeguimientoClientes() {
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "table">("table");
 
   const isAdminOrSupervisor = user?.role === "admin" || user?.role === "supervisor";
 
@@ -195,13 +195,26 @@ export default function SeguimientoClientes() {
 
   const handleViewClient = async (client: any) => {
     try {
+      // If client already has hitos data, use it directly
+      if (client.hitos && client.hitos.length > 0) {
+        setSelectedClient(client);
+        setShowDetailModal(true);
+        return;
+      }
+      
       const res = await fetch(`/api/crm/seguimiento/${client.id}`);
       if (!res.ok) throw new Error("Error al cargar detalle");
       const detail = await res.json();
       setSelectedClient(detail);
       setShowDetailModal(true);
     } catch {
-      toast({ title: "Error", description: "No se pudo cargar el detalle del cliente", variant: "destructive" });
+      // If fetch fails, try to use the client data directly
+      if (client) {
+        setSelectedClient(client);
+        setShowDetailModal(true);
+      } else {
+        toast({ title: "Error", description: "No se pudo cargar el detalle del cliente", variant: "destructive" });
+      }
     }
   };
 
@@ -303,26 +316,7 @@ export default function SeguimientoClientes() {
                 </SelectContent>
               </Select>
             )}
-            <div className="flex bg-muted/50 p-1 rounded-lg border ml-auto">
-              <Button
-                variant={viewMode === "grid" ? "secondary" : "ghost"}
-                size="sm"
-                className={`h-8 px-3 rounded-md transition-all ${viewMode === "grid" ? "bg-background shadow-sm" : ""}`}
-                onClick={() => setViewMode("grid")}
-              >
-                <LayoutGrid className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline font-medium">Cuadrícula</span>
-              </Button>
-              <Button
-                variant={viewMode === "table" ? "secondary" : "ghost"}
-                size="sm"
-                className={`h-8 px-3 rounded-md transition-all ${viewMode === "table" ? "bg-background shadow-sm" : ""}`}
-                onClick={() => setViewMode("table")}
-              >
-                <List className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline font-medium">Tabla</span>
-              </Button>
-            </div>
+            <div className="ml-auto"></div>
           </div>
         </div>
       </div>
@@ -336,17 +330,15 @@ export default function SeguimientoClientes() {
             ))}
           </div>
         ) : (
-          <div className="bg-background rounded-xl border shadow-sm overflow-hidden">
-            <Table>
-              <TableHeader className="bg-muted/50">
+          <div className="bg-background rounded-xl border shadow-sm overflow-x-auto">
+            <Table className="w-full min-w-[600px]">
+              <TableHeader className="bg-muted/50 sticky top-0">
                 <TableRow>
-                  <TableHead className="font-bold">Cliente / Empresa</TableHead>
+                  <TableHead className="font-bold">Cliente</TableHead>
                   <TableHead className="font-bold">Ciudad</TableHead>
-                  <TableHead className="font-bold">Último Movimiento</TableHead>
-                  <TableHead className="font-bold">Última Compra</TableHead>
-                  <TableHead className="font-bold">Vendedor</TableHead>
-                  <TableHead className="font-bold">Estado</TableHead>
-                  <TableHead className="text-right font-bold w-[100px]">Acciones</TableHead>
+                  <TableHead className="font-bold">Último Pedido</TableHead>
+                  <TableHead className="font-bold">Último Contacto</TableHead>
+                  <TableHead className="text-right font-bold w-[80px]">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -373,6 +365,11 @@ export default function SeguimientoClientes() {
                         </div>
                       </TableCell>
                       <TableCell className="py-3">
+                        <span className="text-xs text-muted-foreground">
+                          {formatDate(client.ultimaCompraDate)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-3">
                         <div className="flex flex-col">
                           <span className={`text-xs font-medium ${isStale ? 'text-red-500' : 'text-slate-600'}`}>
                             {timeAgo(client.ultimoContacto)}
@@ -381,41 +378,6 @@ export default function SeguimientoClientes() {
                             {formatDate(client.ultimoContacto)}
                           </span>
                         </div>
-                      </TableCell>
-                      <TableCell className="py-3">
-                        <span className="text-xs text-muted-foreground">
-                          {formatDate(client.ultimaCompraDate)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="py-3">
-                        <div className="flex items-center gap-1.5 text-xs">
-                          <User className="w-3 h-3 text-indigo-400" />
-                          {client.vendedorNombre}
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-3" onClick={e => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button className={`inline-flex items-center text-[10px] px-2 py-0.5 h-5 rounded-full font-medium ${estadoConfig.badge} border-0 cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-indigo-300 transition-all`}>
-                              <estadoConfig.icon className="w-3 h-3 mr-1" />
-                              {estadoConfig.label}
-                              <ChevronDown className="w-2.5 h-2.5 ml-1 opacity-60" />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-40">
-                            {ESTADOS.map(e => (
-                              <DropdownMenuItem
-                                key={e.value}
-                                onClick={() => updateMutation.mutate({ id: client.id, data: { estado: e.value } })}
-                                disabled={e.value === client.estado}
-                                className="text-xs"
-                              >
-                                <e.icon className="w-3.5 h-3.5 mr-2" />
-                                {e.label}
-                              </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
                       </TableCell>
                       <TableCell className="text-right py-3" onClick={e => e.stopPropagation()}>
                         <Button 

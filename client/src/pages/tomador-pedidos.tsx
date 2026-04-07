@@ -2725,66 +2725,41 @@ export default function TomadorPedidos() {
     return `COT-${cleanName}-${dateStr}.pdf`;
   };
 
-  // Download or view PDF based on device
-  const downloadPDF = async () => {
-    try {
-      let quoteData: any;
-      let itemsData: any[];
+  // Helper function to unify PDF data preparation
+  const getPreparedPDFData = async () => {
+    let quoteNumber = 'BORRADOR';
+    let fetchedCreatedAt = null;
 
-      // Force save before downloading to ensure latest data is used
-      if (savedQuoteId && saveQuoteRef.current && cart.length > 0 && quoteForm.clientName.trim()) {
-        await saveQuoteRef.current();
-        // Delay to ensure persistence if needed
-        await new Promise(resolve => setTimeout(resolve, 500));
+    if (savedQuoteId) {
+      try {
+        const quoteResponse = await apiRequest(`/api/quotes/${savedQuoteId}`);
+        const rawDoc = await quoteResponse.json();
+        quoteNumber = rawDoc?.quoteNumber || 'PENDIENTE';
+        fetchedCreatedAt = rawDoc?.createdAt;
+      } catch (e) {
+        quoteNumber = 'PENDIENTE';
       }
+    }
 
-      // Determine quote number (local state + fetch if available)
-      let quoteNumber = 'BORRADOR';
-      if (savedQuoteId) {
-        try {
-          const quoteResponse = await apiRequest(`/api/quotes/${savedQuoteId}`);
-          const rawDoc = await quoteResponse.json();
-          quoteNumber = rawDoc?.quoteNumber || 'PENDIENTE';
-        } catch (e) {
-          quoteNumber = 'PENDIENTE';
-        }
-      }
+    // 1. Map regular cart items
+    const itemsForPDF = cart.map(item => ({
+      productName: item.productName,
+      productCode: item.productCode || item.customSku || '',
+      productUnit: item.productUnit || 'UN',
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      totalPrice: item.totalPrice,
+      tierPrices: item.tierPrices,
+    }));
 
-      // Local state is the source of truth for the document content
-      const itemsSubtotalForPDF = cart.reduce((sum, item) => sum + item.totalPrice, 0);
-      const shippingForPDF = showShipping ? totalShippingCost : 0;
-      const subtotalForPDF = itemsSubtotalForPDF + shippingForPDF;
-
-      quoteData = {
-        quoteNumber,
-        clientName: quoteForm.clientName || 'Sin especificar',
-        clientEmail: quoteForm.clientEmail || '',
-        clientPhone: quoteForm.clientPhone || '',
-        clientRut: quoteForm.clientRut || '',
-        clientAddress: quoteForm.clientAddress || '',
-        validUntil: quoteForm.validUntil || null,
-        status: 'draft',
-        notes: quoteForm.notes || '',
-        createdAt: new Date().toISOString(),
-        subtotal: subtotalForPDF,
-        taxAmount: subtotalForPDF * 0.19,
-        total: subtotalForPDF * 1.19,
-        paymentCondition: quoteForm.paymentCondition || ''
-      };
-
-      itemsData = cart.map(item => ({
-        productName: item.productName,
-        productCode: item.customSku || item.productCode || '',
-        productUnit: item.productUnit || 'UN',
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        totalPrice: item.totalPrice,
-        tierPrices: item.tierPrices,
-      }));
-
-      if (showShipping && shippingLineItems.length > 0) {
-        shippingLineItems.forEach(line => {
-          itemsData.push({
+    // 2. Add shipping items from session IF they are not already in the cart (for new quotes)
+    // AND if showShipping is enabled.
+    if (showShipping && shippingLineItems.length > 0) {
+      shippingLineItems.forEach(line => {
+        // Avoid adding if an item with same name/sku exists in itemsForPDF (already loaded from DB)
+        const alreadyExists = itemsForPDF.some(it => it.productName === line.label);
+        if (!alreadyExists) {
+          itemsForPDF.push({
             productName: line.label,
             productCode: line.sku || 'DESPACHO',
             productUnit: 'UN',
@@ -2793,11 +2768,65 @@ export default function TomadorPedidos() {
             totalPrice: line.qty * line.unitPrice,
             tierPrices: [],
           });
-        });
+        }
+      });
+    }
+
+    // 3. Calculate actual shipping total for the PDF summary row
+    // Either from the identified items in the list OR from the session totalShippingCost
+    const identifiedShippingTotal = itemsForPDF
+      .filter(it => {
+        const name = it.productName?.toString() || '';
+        return name.startsWith('Despacho') || name.toLowerCase().includes('flete');
+      })
+      .reduce((sum, it) => sum + (Number(it.totalPrice) || 0), 0);
+
+    const finalShippingCostForPDFSummary = identifiedShippingTotal || (showShipping ? totalShippingCost : 0);
+
+    // 4. Final Quote Metadata for the header
+    const cartItemsSubtotal = cart.reduce((sum, item) => sum + Number(item.totalPrice), 0);
+    // If shipping is already in cart (past quote), don't add it twice to subtotal calculation for header
+    const hasShippingInCart = cart.some(it => {
+      const name = it.productName?.toString() || '';
+      return name.startsWith('Despacho') || name.toLowerCase().includes('flete');
+    });
+    
+    const finalSubtotalValue = hasShippingInCart ? cartItemsSubtotal : (cartItemsSubtotal + (showShipping ? totalShippingCost : 0));
+
+    const quoteData = {
+      quoteNumber,
+      clientName: quoteForm.clientName || 'Sin especificar',
+      clientEmail: quoteForm.clientEmail || '',
+      clientPhone: quoteForm.clientPhone || '',
+      clientRut: quoteForm.clientRut || '',
+      clientAddress: quoteForm.clientAddress || '',
+      validUntil: quoteForm.validUntil || null,
+      status: 'draft',
+      notes: quoteForm.notes || '',
+      createdAt: fetchedCreatedAt || new Date().toISOString(),
+      subtotal: finalSubtotalValue,
+      taxAmount: finalSubtotalValue * 0.19,
+      total: finalSubtotalValue * 1.19,
+      paymentCondition: quoteForm.paymentCondition || ''
+    };
+
+    return { quoteData, itemsData: itemsForPDF, shippingCost: finalShippingCostForPDFSummary };
+  };
+
+  // Download or view PDF based on device
+  const downloadPDF = async () => {
+    try {
+      // Force save before downloading to ensure latest data is used
+      if (savedQuoteId && saveQuoteRef.current && cart.length > 0 && quoteForm.clientName.trim()) {
+        await saveQuoteRef.current();
+        // Delay to ensure persistence if needed
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
+      const { quoteData, itemsData, shippingCost } = await getPreparedPDFData();
+
       // Generate PDF using React-PDF
-      const pdfBlob = await pdf(<QuotePDFDocument quote={quoteData} items={itemsData} shippingCost={totalShippingCost} showDiscount={showDiscount} />).toBlob();
+      const pdfBlob = await pdf(<QuotePDFDocument quote={quoteData} items={itemsData} shippingCost={shippingCost} showDiscount={showDiscount} />).toBlob();
       const url = URL.createObjectURL(pdfBlob);
 
       const pdfFilename = generatePDFFilename(
@@ -3650,73 +3679,16 @@ export default function TomadorPedidos() {
     }
 
     try {
-      // Use local state for PDF generation to ensure absolute consistency with "Visualizar PDF"
-      const itemsSubtotalForPDF = cart.reduce((sum, item) => sum + item.totalPrice, 0);
-      const shippingForPDF = showShipping ? totalShippingCost : 0;
-      const subtotalForPDF = itemsSubtotalForPDF + shippingForPDF;
-
-      // Extract latest quote number if possible, or use PENDIENTE
-      let quoteNumber = 'PENDIENTE';
-      try {
-        const quoteResponse = await apiRequest(`/api/quotes/${savedQuoteId}`);
-        const rawQuote = await quoteResponse.json();
-        quoteNumber = rawQuote?.quoteNumber || 'PENDIENTE';
-      } catch (e) {
-        console.error("Could not fetch quote number for sharing", e);
-      }
-
-      const quote = {
-        quoteNumber,
-        clientName: quoteForm.clientName || 'Sin especificar',
-        clientEmail: quoteForm.clientEmail || '',
-        clientPhone: quoteForm.clientPhone || '',
-        clientRut: quoteForm.clientRut || '',
-        clientAddress: quoteForm.clientAddress || '',
-        validUntil: quoteForm.validUntil || null,
-        status: 'draft',
-        notes: quoteForm.notes || '',
-        createdAt: new Date().toISOString(),
-        subtotal: subtotalForPDF,
-        taxAmount: subtotalForPDF * 0.19,
-        total: subtotalForPDF * 1.19,
-        paymentCondition: quoteForm.paymentCondition || ''
-      };
-
-      const items = cart.map(item => ({
-        productName: item.productName,
-        productCode: item.customSku || item.productCode || '',
-        productUnit: item.productUnit || 'UN',
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        totalPrice: item.totalPrice,
-        tierPrices: item.tierPrices,
-      }));
-
-      // Append shipping line items as product rows (Consistency with fixed downloadPDF)
-      if (showShipping && shippingLineItems.length > 0) {
-        shippingLineItems.forEach(line => {
-          items.push({
-            productName: line.label,
-            productCode: line.sku || 'DESPACHO',
-            productUnit: 'UN',
-            quantity: line.qty,
-            unitPrice: line.unitPrice,
-            totalPrice: line.qty * line.unitPrice,
-            tierPrices: [],
-          });
-        });
-      }
-
-      // Quote object ready from local calculation above
+      const { quoteData, itemsData, shippingCost } = await getPreparedPDFData();
 
       // Generate PDF using React-PDF
-      const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={items} shippingCost={totalShippingCost} showDiscount={showDiscount} />).toBlob();
+      const pdfBlob = await pdf(<QuotePDFDocument quote={quoteData} items={itemsData} shippingCost={shippingCost} showDiscount={showDiscount} />).toBlob();
 
       // Generate filename with new format: ClientName-DDMMYY-NNN.pdf
       const pdfFilename = generatePDFFilename(
-        quote.clientName || 'Cliente',
-        quote.createdAt || new Date(),
-        quote.quoteNumber || savedQuoteId || Date.now()
+        quoteData.clientName || 'Cliente',
+        quoteData.createdAt || new Date(),
+        quoteData.quoteNumber || savedQuoteId || Date.now()
       );
 
       // Create file for sharing
@@ -3726,8 +3698,8 @@ export default function TomadorPedidos() {
       if (navigator.share) {
         try {
           await navigator.share({
-            title: `Presupuesto ${quote.quoteNumber}`,
-            text: `Presupuesto para ${quote.clientName}\n\nTotal: ${formatCurrency(Number(quote.total || 0))}`,
+            title: `Presupuesto ${quoteData.quoteNumber}`,
+            text: `Presupuesto para ${quoteData.clientName}\n\nTotal: ${formatCurrency(Number(quoteData.total || 0))}`,
             files: [file]
           });
           console.log('PDF shared successfully via Web Share API');
@@ -3749,9 +3721,9 @@ export default function TomadorPedidos() {
       URL.revokeObjectURL(url);
 
       // Open mailto link
-      const subject = encodeURIComponent(`Presupuesto ${quote.quoteNumber} - ${quote.clientName}`);
-      const body = encodeURIComponent(`Adjunto encontrarás el presupuesto ${quote.quoteNumber}.\n\nCliente: ${quote.clientName}\nTotal: ${formatCurrency(Number(quote.total || 0))}\n\nSaludos,\nPinturas Panorámica`);
-      const mailtoLink = `mailto:${quote.clientEmail || ''}?subject=${subject}&body=${body}`;
+      const subject = encodeURIComponent(`Presupuesto ${quoteData.quoteNumber} - ${quoteData.clientName}`);
+      const body = encodeURIComponent(`Adjunto encontrarás el presupuesto ${quoteData.quoteNumber}.\n\nCliente: ${quoteData.clientName}\nTotal: ${formatCurrency(Number(quoteData.total || 0))}\n\nSaludos,\nPinturas Panorámica`);
+      const mailtoLink = `mailto:${quoteData.clientEmail || ''}?subject=${subject}&body=${body}`;
 
       // Small delay to ensure download starts before mailto opens
       setTimeout(() => {

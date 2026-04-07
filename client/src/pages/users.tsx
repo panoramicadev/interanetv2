@@ -418,30 +418,28 @@ export default function UsersPage() {
                         )}
                       />
 
-                      {/* Campo de nombre para todos los roles excepto cliente */}
-                      {createForm.watch("role") !== "client" && (
-                        <FormField
-                          control={createForm.control}
-                          name="salespersonName"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Nombre Completo</FormLabel>
-                              <FormControl>
-                                <Input
-                                  {...field}
-                                  value={field.value ?? ''}
-                                  placeholder="Ingresa el nombre completo"
-                                  data-testid="input-user-name"
-                                />
-                              </FormControl>
-                              <FormDescription>
-                                Nombre de la persona que usará este usuario
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
+                      {/* Campo de nombre para todos los roles */}
+                      <FormField
+                        control={createForm.control}
+                        name="salespersonName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nombre Completo</FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                value={field.value ?? ''}
+                                placeholder="Ingresa el nombre completo"
+                                data-testid="input-user-name"
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Nombre de la persona o cliente que usará este usuario
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
                       {/* Campos específicos para vendedores */}
                       {createForm.watch("role") === "salesperson" && (
@@ -503,72 +501,54 @@ export default function UsersPage() {
                         </div>
                       )}
 
-                      {/* Buscador de Clientes */}
+                      {/* Buscador de Clientes (Opcional para autocompletado) */}
                       {createForm.watch("role") === "client" && (
-                        <FormField
-                          control={createForm.control}
-                          name="salespersonName"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-col">
-                              <FormLabel>Seleccionar Cliente</FormLabel>
-                              <Popover open={clientSearchOpen} onOpenChange={setClientSearchOpen}>
-                                <PopoverTrigger asChild>
-                                  <FormControl>
-                                    <Button
-                                      variant="outline"
-                                      role="combobox"
-                                      data-testid="select-client-name"
-                                      className={cn(
-                                        "w-full justify-between",
-                                        !field.value && "text-muted-foreground"
-                                      )}
-                                    >
-                                      {field.value
-                                        ? availableClients.find(
-                                          (client) => client === field.value
-                                        )
-                                        : "Buscar cliente..."}
-                                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                    </Button>
-                                  </FormControl>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-[400px] p-0" align="start">
-                                  <Command>
-                                    <CommandInput placeholder="Buscar cliente..." />
-                                    <CommandList>
-                                      <CommandEmpty>No se encontró ningún cliente.</CommandEmpty>
-                                      <CommandGroup>
-                                        {availableClients
-                                          .filter(client => !salespeopleUsers.some(user => user.salespersonName === client))
-                                          .map((client) => (
-                                            <CommandItem
-                                              value={client}
-                                              key={client}
-                                              onSelect={() => {
-                                                field.onChange(client);
-                                                setClientSearchOpen(false);
-                                              }}
-                                            >
-                                              <Check
-                                                className={cn(
-                                                  "mr-2 h-4 w-4",
-                                                  client === field.value
-                                                    ? "opacity-100"
-                                                    : "opacity-0"
-                                                )}
-                                              />
-                                              {client}
-                                            </CommandItem>
-                                          ))}
-                                      </CommandGroup>
-                                    </CommandList>
-                                  </Command>
-                                </PopoverContent>
-                              </Popover>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                        <FormItem className="flex flex-col p-3 bg-muted/50 rounded-lg border border-dashed">
+                          <FormLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Asistente de Importación (Opcional)</FormLabel>
+                          <Popover open={clientSearchOpen} onOpenChange={setClientSearchOpen}>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  role="combobox"
+                                  className="w-full justify-between bg-white"
+                                >
+                                  Cargar datos de cliente sistema...
+                                  <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[400px] p-0" align="start">
+                              <Command>
+                                <CommandInput placeholder="Buscar cliente en sistema..." />
+                                <CommandList>
+                                  <CommandEmpty>No se encontró ningún cliente.</CommandEmpty>
+                                  <CommandGroup>
+                                    {availableClients
+                                      .filter(client => !salespeopleUsers.some(user => user.salespersonName === client))
+                                      .map((client) => (
+                                        <CommandItem
+                                          value={client}
+                                          key={client}
+                                          onSelect={() => {
+                                            createForm.setValue("salespersonName", client);
+                                            // Activar búsqueda de RUT para este cliente si es posible
+                                            setClientSearchOpen(false);
+                                          }}
+                                        >
+                                          <Check className="mr-2 h-4 w-4 opacity-0" />
+                                          {client}
+                                        </CommandItem>
+                                      ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                          <p className="text-[10px] text-muted-foreground mt-1 italic">
+                            Selecciona un cliente para autocompletar, o escribe los datos manualmente en los campos de arriba y abajo.
+                          </p>
+                        </FormItem>
                       )}
 
                       {/* RUT field for clients */}
@@ -621,36 +601,7 @@ export default function UsersPage() {
                         </div>
                       )}
 
-                      {/* Campo de texto para roles que no requieren selección de lista */}
-                      {(createForm.watch("role") === "admin" ||
-                        createForm.watch("role") === "supervisor" ||
-                        createForm.watch("role") === "tecnico_obra" ||
-                        createForm.watch("role") === "laboratorio" ||
-                        createForm.watch("role") === "produccion" ||
-                        createForm.watch("role") === "logistica_bodega" ||
-                        createForm.watch("role") === "planificacion" ||
-                        createForm.watch("role") === "bodega_materias_primas" ||
-                        createForm.watch("role") === "prevencion_riesgos" ||
-                        createForm.watch("role") === "marketing" ||
-                        createForm.watch("role") === "reception") && (
-                          <FormField
-                            control={createForm.control}
-                            name="salespersonName"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Nombre Completo</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    {...field}
-                                    data-testid="input-user-name"
-                                    placeholder="Ingresa el nombre completo"
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        )}
+                      {/* El campo salespersonName ya se muestra arriba siempre */}
 
                       {shouldShowSegmentField(watchedRole) && (
                         <FormField
