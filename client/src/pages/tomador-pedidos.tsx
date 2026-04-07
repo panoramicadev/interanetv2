@@ -2573,30 +2573,30 @@ export default function TomadorPedidos() {
       <div class="totals">
         <div class="total-row">
           <span>Subtotal Productos:</span>
-          <span>${formatCurrency(productsSubtotal)}</span>
+          <span style="text-align: right;">${formatCurrency(productsSubtotal)}</span>
         </div>
         ${shippingItemsTotal > 0 ? `
         <div class="total-row">
           <span>Subtotal Flete:</span>
-          <span style="color: #fd6301; font-weight: 600;">${formatCurrency(shippingItemsTotal)}</span>
+          <span style="color: #fd6301; font-weight: 600; text-align: right;">${formatCurrency(shippingItemsTotal)}</span>
         </div>
         ` : ''}
         <div class="total-row" style="font-weight: 700; border-top: 1px solid #e2e8f0; padding-top: 8px; margin-top: 4px;">
           <span>Subtotal:</span>
-          <span>${formatCurrency(itemsSubtotal)}</span>
+          <span style="text-align: right;">${formatCurrency(itemsSubtotal)}</span>
         </div>
         ${discount > 0 ? `<div class="total-row discount-row">
           <span>Descuento aplicado:</span>
-          <span>-${formatCurrency(discount)}</span>
+          <span style="text-align: right;">-${formatCurrency(discount)}</span>
         </div>` : ''}
 
         <div class="total-row">
           <span>IVA (19%):</span>
-          <span>${formatCurrency(tax)}</span>
+          <span style="text-align: right;">${formatCurrency(tax)}</span>
         </div>
         <div class="total-row final-total">
           <span>Total Final:</span>
-          <span>${formatCurrency(total)}</span>
+          <span style="text-align: right;">${formatCurrency(total)}</span>
         </div>
       </div>
     </div>
