@@ -3650,28 +3650,64 @@ export default function TomadorPedidos() {
     }
 
     try {
-      // Fetch saved quote and items
-      const quoteResponse = await apiRequest(`/api/quotes/${savedQuoteId}`);
-      const rawQuote = await quoteResponse.json();
+      // Use local state for PDF generation to ensure absolute consistency with "Visualizar PDF"
+      const itemsSubtotalForPDF = cart.reduce((sum, item) => sum + item.totalPrice, 0);
+      const shippingForPDF = showShipping ? totalShippingCost : 0;
+      const subtotalForPDF = itemsSubtotalForPDF + shippingForPDF;
 
-      const itemsResponse = await apiRequest(`/api/quotes/${savedQuoteId}/items`);
-      const rawItems = await itemsResponse.json();
+      // Extract latest quote number if possible, or use PENDIENTE
+      let quoteNumber = 'PENDIENTE';
+      try {
+        const quoteResponse = await apiRequest(`/api/quotes/${savedQuoteId}`);
+        const rawQuote = await quoteResponse.json();
+        quoteNumber = rawQuote?.quoteNumber || 'PENDIENTE';
+      } catch (e) {
+        console.error("Could not fetch quote number for sharing", e);
+      }
 
-      // Convert string values to numbers for proper calculations
-      const items = rawItems.map((item: any) => ({
-        ...item,
-        quantity: parseFloat(item.quantity) || 0,
-        unitPrice: parseFloat(item.unitPrice) || 0,
-        totalPrice: parseFloat(item.totalPrice) || 0,
+      const quote = {
+        quoteNumber,
+        clientName: quoteForm.clientName || 'Sin especificar',
+        clientEmail: quoteForm.clientEmail || '',
+        clientPhone: quoteForm.clientPhone || '',
+        clientRut: quoteForm.clientRut || '',
+        clientAddress: quoteForm.clientAddress || '',
+        validUntil: quoteForm.validUntil || null,
+        status: 'draft',
+        notes: quoteForm.notes || '',
+        createdAt: new Date().toISOString(),
+        subtotal: subtotalForPDF,
+        taxAmount: subtotalForPDF * 0.19,
+        total: subtotalForPDF * 1.19,
+        paymentCondition: quoteForm.paymentCondition || ''
+      };
+
+      const items = cart.map(item => ({
+        productName: item.productName,
+        productCode: item.customSku || item.productCode || '',
+        productUnit: item.productUnit || 'UN',
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice,
+        tierPrices: item.tierPrices,
       }));
 
-      // Convert quote values to numbers
-      const quote = {
-        ...rawQuote,
-        subtotal: parseFloat(rawQuote.subtotal) || 0,
-        taxAmount: parseFloat(rawQuote.taxAmount) || 0,
-        total: parseFloat(rawQuote.total) || 0,
-      };
+      // Append shipping line items as product rows (Consistency with fixed downloadPDF)
+      if (showShipping && shippingLineItems.length > 0) {
+        shippingLineItems.forEach(line => {
+          items.push({
+            productName: line.label,
+            productCode: line.sku || 'DESPACHO',
+            productUnit: 'UN',
+            quantity: line.qty,
+            unitPrice: line.unitPrice,
+            totalPrice: line.qty * line.unitPrice,
+            tierPrices: [],
+          });
+        });
+      }
+
+      // Quote object ready from local calculation above
 
       // Generate PDF using React-PDF
       const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={items} shippingCost={totalShippingCost} showDiscount={showDiscount} />).toBlob();
@@ -3691,7 +3727,7 @@ export default function TomadorPedidos() {
         try {
           await navigator.share({
             title: `Presupuesto ${quote.quoteNumber}`,
-            text: `Presupuesto para ${quote.clientName}\n\nTotal: ${formatCurrency(parseFloat(quote.total || "0"))}`,
+            text: `Presupuesto para ${quote.clientName}\n\nTotal: ${formatCurrency(Number(quote.total || 0))}`,
             files: [file]
           });
           console.log('PDF shared successfully via Web Share API');
@@ -3714,7 +3750,7 @@ export default function TomadorPedidos() {
 
       // Open mailto link
       const subject = encodeURIComponent(`Presupuesto ${quote.quoteNumber} - ${quote.clientName}`);
-      const body = encodeURIComponent(`Adjunto encontrarás el presupuesto ${quote.quoteNumber}.\n\nCliente: ${quote.clientName}\nTotal: ${formatCurrency(parseFloat(quote.total || "0"))}\n\nSaludos,\nPinturas Panorámica`);
+      const body = encodeURIComponent(`Adjunto encontrarás el presupuesto ${quote.quoteNumber}.\n\nCliente: ${quote.clientName}\nTotal: ${formatCurrency(Number(quote.total || 0))}\n\nSaludos,\nPinturas Panorámica`);
       const mailtoLink = `mailto:${quote.clientEmail || ''}?subject=${subject}&body=${body}`;
 
       // Small delay to ensure download starts before mailto opens
