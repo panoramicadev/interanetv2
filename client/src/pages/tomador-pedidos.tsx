@@ -403,6 +403,7 @@ const pdfStyles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 4,
+    paddingHorizontal: 8,
     minHeight: 20,
   },
   totalLabel: {
@@ -513,7 +514,10 @@ const QuotePDFDocument = ({ quote, items, shippingCost = 0, showDiscount = false
   // Calculate totals from items (includes shipping items as products)
   const itemsSubtotal = items.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0);
   const shippingItemsTotal = items
-    .filter(item => item.productName?.toString().startsWith('Despacho'))
+    .filter(item => {
+      const name = item.productName?.toString() || '';
+      return name.startsWith('Despacho') || name.includes('flete') || name.includes('Flete');
+    })
     .reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0);
   const productsSubtotal = itemsSubtotal - shippingItemsTotal;
   const tax = itemsSubtotal * 0.19;
@@ -623,12 +627,7 @@ const QuotePDFDocument = ({ quote, items, shippingCost = 0, showDiscount = false
 
         {/* Totals Section */}
         <View style={pdfStyles.totalsSection}>
-          {shippingItemsTotal > 0 && (
-            <View style={[pdfStyles.totalRow, { backgroundColor: '#fff3ed', borderRadius: 4, padding: 6, marginBottom: 4 }]}>
-              <Text style={[pdfStyles.totalLabel, { color: '#fd6301', fontWeight: 600 }]}>Flete:</Text>
-              <Text style={[pdfStyles.totalValue, { color: '#fd6301', fontWeight: 700 }]}>{formatCurrency(shippingItemsTotal)}</Text>
-            </View>
-          )}
+          {/* Separated shipping row removed to avoid duplication */}
           <View style={pdfStyles.totalRow}>
             <Text style={pdfStyles.totalLabel}>Subtotal Productos:</Text>
             <Text style={pdfStyles.totalValue}>{formatCurrency(productsSubtotal)}</Text>
@@ -2249,7 +2248,10 @@ export default function TomadorPedidos() {
       // Calculate totals from items (includes shipping items as products)
       const itemsSubtotal = items.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0);
       const shippingItemsTotal = items
-        .filter(item => item.productName?.startsWith('Despacho'))
+        .filter(item => {
+          const name = item.productName?.toString() || '';
+          return name.startsWith('Despacho') || name.includes('flete') || name.includes('Flete');
+        })
         .reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0);
       const productsSubtotal = itemsSubtotal - shippingItemsTotal;
       const discount = 0;
@@ -2423,6 +2425,7 @@ export default function TomadorPedidos() {
       justify-content: space-between;
       align-items: center;
       margin: 6px 0;
+      padding: 0 12px;
       font-size: 14px;
       min-height: 24px;
     }
@@ -2744,14 +2747,20 @@ export default function TomadorPedidos() {
         console.log('All Items:', rawItems.map((i: any) => ({ 
           name: i.productName, 
           total: i.totalPrice,
-          code: i.productCode 
+          code: i.productCode,
+          unit: i.productUnit 
         })));
         
         // Calculate totals from items (same logic as PDF component)
         const itemsSubtotal = rawItems.reduce((sum: number, item: any) => sum + (parseFloat(item.totalPrice) || 0), 0);
-        const shippingItems = rawItems.filter((i: any) => i.productName?.toString().startsWith('Despacho'));
+        // More flexible filter for shipping items - check for "Despacho" prefix or specific patterns
+        const shippingItems = rawItems.filter((i: any) => {
+          const name = i.productName?.toString() || '';
+          return name.startsWith('Despacho') || name.includes('flete') || name.includes('Flete');
+        });
         const shippingItemsTotal = shippingItems.reduce((sum: number, item: any) => sum + (parseFloat(item.totalPrice) || 0), 0);
         const productsSubtotal = itemsSubtotal - shippingItemsTotal;
+        console.log('Shipping Items found:', shippingItems.map((i: any) => ({ name: i.productName, total: i.totalPrice })));
         console.log('Products Subtotal:', productsSubtotal);
         console.log('Shipping Total:', shippingItemsTotal);
         console.log('Total Items Subtotal:', itemsSubtotal);
@@ -5055,13 +5064,7 @@ export default function TomadorPedidos() {
                         <Card className="bg-muted/20">
                           <CardContent className="p-4">
                             <div className="space-y-3">
-                              {/* Shipping row - shown FIRST in orange when enabled */}
-                              {showShipping && shippingCost > 0 && (
-                                <div className="flex justify-between text-sm bg-orange-50 dark:bg-orange-900/20 px-2 py-1.5 rounded-md border border-orange-100 dark:border-orange-800/30">
-                                  <span className="text-orange-700 dark:text-orange-400 font-medium">Flete:</span>
-                                  <span className="font-bold text-orange-600" data-testid="mobile-cart-shipping">{formatCurrency(shippingCost)}</span>
-                                </div>
-                              )}
+                              {/* Shipping row removed as per request to unify with Subtotal flete */}
                               <div className="flex justify-between text-sm">
                                 <span>Subtotal Productos:</span>
                                 <span className="font-medium" data-testid="mobile-cart-subtotal">
@@ -5825,13 +5828,7 @@ export default function TomadorPedidos() {
                     <>
                       <Separator />
                       <div className="space-y-2">
-                        {/* Shipping row - shown FIRST in orange when enabled */}
-                        {showShipping && shippingCost > 0 && (
-                          <div className="flex justify-between text-sm bg-orange-50 dark:bg-orange-900/20 px-2 py-1.5 rounded-md border border-orange-100 dark:border-orange-800/30">
-                            <span className="text-orange-700 dark:text-orange-400 font-medium">Flete:</span>
-                            <span className="font-bold text-orange-600" data-testid="modal-text-shipping">{formatCurrency(shippingCost)}</span>
-                          </div>
-                        )}
+                        {/* Shipping row removed as per request to unify with Subtotal flete */}
                         <div className="flex justify-between text-sm">
                           <span>Subtotal Productos:</span>
                           <span data-testid="modal-text-subtotal">{formatCurrency(itemsSubtotal)}</span>
