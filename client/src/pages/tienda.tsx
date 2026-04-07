@@ -84,6 +84,7 @@ interface StoreBanner {
   activo: boolean;
   tipoVisualizacion?: string;
   orden?: number;
+  offerPrice?: number;
 }
 
 interface StoreProduct {
@@ -111,6 +112,7 @@ interface StoreProduct {
   descripcion?: string;
   activo?: boolean;
   orden?: number;
+  offerPrice?: number;
 }
 
 interface ProductGroup {
@@ -190,7 +192,10 @@ const getProductUnit = (product: StoreProduct): string | undefined => {
 };
 
 const getProductPrice = (product: StoreProduct): number => {
-  // Priority: precio -> ecomPrice -> canalDigital -> 0
+  // Priority: offerPrice -> precio -> ecomPrice -> canalDigital -> 0
+  if (product.offerPrice && product.offerPrice > 0) {
+    return product.offerPrice;
+  }
   if (product.precio && product.precio > 0) {
     return product.precio;
   }
@@ -532,14 +537,62 @@ export default function TiendaPage() {
     placeholderData: (prev: any) => prev, // Keep previous data during transitions
   });
 
+  // Fetch offers prices
+  const { data: offersData } = useQuery<{ items: { codigo: string; precio: string }[] }>({
+    queryKey: ['/api/price-list-offers'],
+    queryFn: async () => {
+      const res = await fetch('/api/price-list-offers?limit=10000');
+      if (!res.ok) return { items: [] };
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+
+  const offersMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (offersData?.items) {
+      offersData.items.forEach((item) => {
+        if (item.codigo) {
+          map.set(item.codigo.toUpperCase(), Number(item.precio));
+        }
+      });
+    }
+    return map;
+  }, [offersData]);
+
+  // Merge offer prices into grouped data
+  const groupedDataWithOffers = useMemo(() => {
+    if (!groupedData?.catalog) return groupedData;
+    const updatedCatalog = groupedData.catalog.map((genericProduct) => {
+      const updatedColors: { [color: string]: StoreFormatVariant[] } = {};
+      Object.entries(genericProduct.colors).forEach(([color, variants]) => {
+        updatedColors[color] = variants.map((variant) => {
+          const offerPrice = offersMap.get(variant.sku?.toUpperCase() || '');
+          return {
+            ...variant,
+            offerPrice: offerPrice || variant.offerPrice || null,
+          };
+        });
+      });
+      return {
+        ...genericProduct,
+        colors: updatedColors,
+      };
+    });
+    return {
+      ...groupedData,
+      catalog: updatedCatalog,
+    };
+  }, [groupedData, offersMap]);
+
   const groupedCatalog: StoreGenericProduct[] = useMemo(() => {
-    let catalog = groupedData?.catalog || [];
+    let catalog = groupedDataWithOffers?.catalog || [];
     // Client-side tag filter
     if (selectedTag) {
       catalog = catalog.filter(p => (p.tags || []).includes(selectedTag));
     }
     return catalog;
-  }, [groupedData, selectedTag]);
+  }, [groupedDataWithOffers, selectedTag]);
 
   // Fetch admin-defined active tags
   const { data: adminTags = [] } = useQuery<{ name: string; color: string }[]>({
@@ -551,7 +604,7 @@ export default function TiendaPage() {
   const availableTags: { name: string; count: number; color: string }[] = useMemo(() => {
     const adminTagNames = new Set(adminTags.map((t: any) => t.name));
     const adminTagColors = new Map(adminTags.map((t: any) => [t.name, t.color]));
-    const allProducts = groupedData?.catalog || [];
+    const allProducts = groupedDataWithOffers?.catalog || [];
     const tagMap = new Map<string, number>();
     allProducts.forEach(p => {
       (p.tags || []).forEach(tag => {
@@ -563,7 +616,7 @@ export default function TiendaPage() {
     return Array.from(tagMap.entries())
       .map(([name, count]) => ({ name, count, color: adminTagColors.get(name) || 'gray' }))
       .sort((a, b) => b.count - a.count);
-  }, [groupedData, adminTags]);
+  }, [groupedDataWithOffers, adminTags]);
 
   // Fetch store categories
   const { data: categories = [] } = useQuery<string[]>({
@@ -1676,6 +1729,9 @@ export default function TiendaPage() {
                                   <div className="mt-1">
                                     {activeFormatData.offerPrice && activeFormatData.offerPrice > 0 ? (
                                       <>
+                                        <Badge className="bg-rose-500 text-white text-[9px] px-1.5 py-0 mb-1">
+                                          OFERTA
+                                        </Badge>
                                         <span className="text-xs text-gray-400 line-through">{formatPrice(activeFormatData.price)}</span>
                                         <span className="text-sm font-black text-rose-600 block">{formatPrice(activeFormatData.offerPrice)}</span>
                                       </>
@@ -1716,6 +1772,7 @@ export default function TiendaPage() {
                                           <div className="text-[10px] text-gray-400 mt-0.5 md:hidden">
                                             {variant.offerPrice && variant.offerPrice > 0 ? (
                                               <>
+                                                <Badge className="bg-rose-500 text-white text-[8px] px-1 py-0 mr-1">OFERTA</Badge>
                                                 <span className="line-through text-gray-300">{formatPrice(variant.price)}</span>
                                                 {' '}
                                                 <span className="text-rose-600 font-bold">{formatPrice(variant.offerPrice)}</span>
@@ -2052,7 +2109,7 @@ export default function TiendaPage() {
                 {/* Product Details */}
                 <div className="space-y-6">
                   {/* Price */}
-                  <div className="bg-[#FF6E23]/5 rounded-lg p-6">
+                  <div className={`rounded-lg p-6 ${selectedProduct.offerPrice ? 'bg-red-50' : 'bg-[#FF6E23]/5'}`}>
                     <h4 className="font-semibold mb-2 text-gray-700">Precio</h4>
                     <div className="text-3xl font-bold text-[#FF6E23]">
                       {formatPrice(getProductPrice(selectedProduct))}
@@ -2060,6 +2117,11 @@ export default function TiendaPage() {
                         {getProductUnit(selectedProduct) || 'Unidad'}
                       </Badge>
                     </div>
+                    {selectedProduct.offerPrice && (
+                      <Badge className="mt-2 bg-red-600 hover:bg-red-700 text-white font-semibold px-3 py-1">
+                        OFERTA
+                      </Badge>
+                    )}
                   </div>
 
                   {/* Description */}

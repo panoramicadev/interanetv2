@@ -1,0 +1,274 @@
+
+  // =============== PRICE LIST OFFERS ENDPOINTS ===============
+  
+  app.get('/api/price-list-offers', requireAuth, async (req, res) => {
+    try {
+      const { search, limit = 50, offset = 0 } = req.query;
+      const validatedLimit = Math.min(Math.max(parseInt(limit as string) || 50, 1), 10000);
+      const validatedOffset = Math.max(parseInt(offset as string) || 0, 0);
+
+      let whereClause = '';
+      if (search) {
+        const s = (search as string).replace(/'/g, "''");
+        whereClause = `WHERE (o.codigo ILIKE '%${s}%' OR pl.producto ILIKE '%${s}%')`;
+      }
+      
+      const countResult = await db.execute(sql.raw(
+        `SELECT count(*) FROM price_list_offers o LEFT JOIN price_list pl ON UPPER(o.codigo) = UPPER(pl.codigo) ${whereClause}`
+      ));
+      const totalCount = Number((countResult.rows[0] as any)?.count) || 0;
+      
+      const items = await db.execute(sql.raw(
+        `SELECT o.id, o.codigo, o.precio, o.created_at, o.updated_at,
+                pl.producto, pl.unidad, pl.costo_produccion as "costoProduccion"
+         FROM price_list_offers o 
+         LEFT JOIN price_list pl ON UPPER(o.codigo) = UPPER(pl.codigo)
+         ${whereClause}
+         ORDER BY pl.producto NULLS LAST, o.codigo
+         LIMIT ${validatedLimit} OFFSET ${validatedOffset}`
+      ));
+      
+      res.json({
+        items: items.rows,
+        totalCount,
+        hasMore: (validatedOffset + items.rows.length) < totalCount
+      });
+    } catch (error) {
+      console.error("Error fetching price list offers:", error);
+      res.status(500).json({ message: "Failed to fetch price list offers" });
+    }
+  });
+
+  app.post('/api/price-list-offers', requireAuth, async (req: any, res) => {
+    try {
+      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const { priceListOffers, insertPriceListOffersSchema } = await import('@shared/schema');
+      const validatedData = insertPriceListOffersSchema.parse(req.body);
+      const [item] = await db.insert(priceListOffers).values(validatedData).returning();
+      res.status(201).json(item);
+    } catch (error) {
+      console.error("Error creating price list offers item:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create price list offers item" });
+    }
+  });
+
+  app.patch('/api/price-list-offers/:id', requireAuth, async (req: any, res) => {
+    try {
+      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const { priceListOffers } = await import('@shared/schema');
+      const [item] = await db.update(priceListOffers)
+        .set({ ...req.body, updatedAt: new Date() })
+        .where(eq(priceListOffers.id, req.params.id))
+        .returning();
+      if (!item) return res.status(404).json({ message: "Not found" });
+      res.json(item);
+    } catch (error) {
+      console.error("Error updating price list offers item:", error);
+      res.status(500).json({ message: "Failed to update price list offers item" });
+    }
+  });
+
+  app.delete('/api/price-list-offers/:id', requireAuth, async (req: any, res) => {
+    try {
+      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const { priceListOffers } = await import('@shared/schema');
+      await db.delete(priceListOffers).where(eq(priceListOffers.id, req.params.id));
+      res.json({ message: "Deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting price list offers item:", error);
+      res.status(500).json({ message: "Failed to delete price list offers item" });
+    }
+  });
+
+  app.delete('/api/price-list-offers', requireAuth, async (req: any, res) => {
+    try {
+      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const { priceListOffers } = await import('@shared/schema');
+      await db.delete(priceListOffers);
+      res.json({ message: "All items deleted" });
+    } catch (error) {
+      console.error("Error deleting all price list offers items:", error);
+      res.status(500).json({ message: "Failed to delete all items" });
+    }
+  });
+
+  // Bulk price adjustment for Offers list
+  app.post('/api/price-list-offers/bulk-adjust', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Not authorized for bulk price adjustments" });
+      }
+
+      const { percentage, roundToDecena } = req.body;
+      const { priceListOffers } = await import('@shared/schema');
+
+      const allItems = await db.select().from(priceListOffers);
+      
+      if (allItems.length === 0) {
+        return res.status(400).json({ message: "No items to adjust" });
+      }
+
+      const updates: { id: string; precio: string }[] = [];
+      
+      for (const item of allItems) {
+        let currentPrice = parseFloat(item.precio?.toString() || '0');
+        if (currentPrice <= 0) continue;
+        
+        if (percentage !== undefined && percentage !== 0) {
+          currentPrice = currentPrice * (1 + percentage / 100);
+        }
+        
+        if (roundToDecena) {
+          currentPrice = Math.round(currentPrice / 10) * 10;
+        }
+        
+        updates.push({
+          id: item.id,
+          precio: currentPrice.toFixed(2)
+        });
+      }
+
+      for (const update of updates) {
+        await db.update(priceListOffers)
+          .set({ precio: update.precio, updatedAt: new Date() })
+          .where(eq(priceListOffers.id, update.id));
+      }
+
+      res.json({ 
+        message: "Prices adjusted successfully",
+        adjustedCount: updates.length
+      });
+    } catch (error) {
+      console.error("Error adjusting offers prices:", error);
+      res.status(500).json({ message: "Failed to adjust prices" });
+    }
+  });
+
+  app.post('/api/price-list-offers/import', upload.single('file'), requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+      
+      const { priceListOffers } = await import('@shared/schema');
+      
+      let csvData = req.file.buffer.toString('utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      
+      const firstLine = csvData.split('\n').find(l => l.trim()) || '';
+      let delimiter = ',';
+      if (firstLine.includes(';')) delimiter = ';';
+      else if (firstLine.includes('\t')) delimiter = '\t';
+      
+      const firstVal = firstLine.split(delimiter)[0]?.trim().replace(/['"]/g, '') || '';
+      const hasHeaders = !(/^[A-Z]{2,}[A-Z0-9]+$/i.test(firstVal));
+      
+      const parseChileanPrice = (val: any): string => {
+        if (val === null || val === undefined) return '';
+        let cleaned = val.toString().trim().replace(/\$/g, '').replace(/\s/g, '');
+        if (!cleaned) return '';
+        if (/^\d{1,3}(\.\d{3})+$/.test(cleaned)) {
+          cleaned = cleaned.replace(/\./g, '');
+        }
+        else if (/^\d{1,3}(\.\d{3})+,\d+$/.test(cleaned)) {
+          cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+        }
+        else if (/^\d+,\d+$/.test(cleaned)) {
+          cleaned = cleaned.replace(',', '.');
+        }
+        return cleaned;
+      };
+
+      const validItems: { codigo: string; precio: string | null }[] = [];
+      const errors: { row: number; error: string }[] = [];
+
+      if (hasHeaders) {
+        const { data: rawData } = Papa.parse(csvData, {
+          header: true,
+          delimiter,
+          skipEmptyLines: 'greedy',
+          transformHeader: (h: string) => h.trim().toLowerCase().replace(/['"]/g, '')
+        });
+
+        const codigoCandidates = ['codigo', 'código', 'sku', 'cod', 'codproducto', 'item', 'articulo'];
+        const precioCandidates = ['precio', 'price', 'valor', 'preciooferta', 'precio_oferta', 'monto', 'pvp'];
+
+        const findCol = (row: Record<string, any>, candidates: string[]): any => {
+          for (const c of candidates) {
+            if (row[c] !== undefined && row[c] !== '') return row[c];
+          }
+          const keys = Object.keys(row);
+          for (const c of candidates) {
+            const found = keys.find(k => k.includes(c));
+            if (found && row[found] !== undefined && row[found] !== '') return row[found];
+          }
+          return '';
+        };
+
+        for (let i = 0; i < rawData.length; i++) {
+          const row = rawData[i] as Record<string, any>;
+          const codigo = findCol(row, codigoCandidates).toString().trim();
+          const precio = parseChileanPrice(findCol(row, precioCandidates));
+          if (!codigo) { errors.push({ row: i + 2, error: 'Código vacío' }); continue; }
+          validItems.push({ codigo, precio: precio || null });
+        }
+      } else {
+        const { data: rawData } = Papa.parse(csvData, {
+          header: false,
+          delimiter,
+          skipEmptyLines: 'greedy',
+        });
+
+        for (let i = 0; i < rawData.length; i++) {
+          const row = rawData[i] as string[];
+          if (!row || row.length < 2) { errors.push({ row: i + 1, error: 'Fila incompleta' }); continue; }
+          
+          const codigo = (row[0] || '').toString().trim();
+          const precio = parseChileanPrice(row[1]);
+          
+          if (!codigo) { errors.push({ row: i + 1, error: 'Código vacío' }); continue; }
+          validItems.push({ codigo, precio: precio || null });
+        }
+      }
+
+      if (validItems.length === 0) {
+        return res.status(400).json({ 
+          message: "No se encontraron datos válidos.",
+          errors: errors.slice(0, 10)
+        });
+      }
+
+      await db.delete(priceListOffers);
+      
+      const batchSize = 100;
+      for (let i = 0; i < validItems.length; i += batchSize) {
+        await db.insert(priceListOffers).values(validItems.slice(i, i + batchSize));
+      }
+
+      res.json({
+        message: "Importación exitosa",
+        importedCount: validItems.length,
+        errors: errors.length > 0 ? errors.slice(0, 20) : undefined
+      });
+    } catch (error: any) {
+      console.error("Error importing price list offers:", error);
+      res.status(500).json({ message: "Error al importar: " + (error.message || "Error interno") });
+    }
+  });
+

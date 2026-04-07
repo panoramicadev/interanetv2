@@ -12,9 +12,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { DollarSign, Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, List, TrendingUp, TrendingDown, Percent, Check } from "lucide-react";
+import { DollarSign, Upload, Download, Search, Plus, Edit, Trash2, FileText, AlertCircle, Loader2, Calculator, List, TrendingUp, TrendingDown, Percent, Check, Tag } from "lucide-react";
 import { PriceList } from "@shared/schema";
 import ListaPreciosMix from "./lista-precios-mix";
+import ListaPreciosOfertas from "./lista-precios-ofertas";
 
 interface PriceListResponse {
   items: PriceList[];
@@ -391,6 +392,10 @@ export default function ListaPrecios() {
           <TabsTrigger value="mix" className="text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-3 py-1.5">
             <DollarSign className="h-3.5 w-3.5" />
             Lista Mix
+          </TabsTrigger>
+          <TabsTrigger value="ofertas" className="text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-3 py-1.5">
+            <Tag className="h-3.5 w-3.5" />
+            Ofertas
           </TabsTrigger>
         </TabsList>
 
@@ -1454,6 +1459,10 @@ export default function ListaPrecios() {
 
         <TabsContent value="mix" className="mt-3">
           <ListaPreciosMix />
+        </TabsContent>
+
+        <TabsContent value="ofertas" className="mt-3">
+          <ListaPreciosOfertas />
         </TabsContent>
       </Tabs>
     </div>

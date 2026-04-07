@@ -47,7 +47,7 @@ const editOrderSchema = z.object({
 type EditOrderFormData = z.infer<typeof editOrderSchema>;
 
 // Types for price tiers and cart management
-type PriceTier = 'lista' | 'desc10' | 'desc10_5' | 'desc10_5_3' | 'minimo' | 'canalDigital' | 'mix';
+type PriceTier = 'lista' | 'desc10' | 'desc10_5' | 'desc10_5_3' | 'minimo' | 'canalDigital' | 'mix' | 'oferta';
 
 interface PriceTierOption {
   key: PriceTier;
@@ -1359,6 +1359,28 @@ export default function TomadorPedidos() {
     return map;
   }, [mixPricesResponse]);
 
+  // Fetch offers prices
+  const { data: offersPricesResponse } = useQuery({
+    queryKey: ["/api/price-list-offers"],
+    queryFn: async () => {
+      const res = await fetch("/api/price-list-offers?limit=10000", { credentials: "include" });
+      if (!res.ok) return { items: [] };
+      return res.json();
+    }
+  });
+
+  const offersPricesMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (offersPricesResponse?.items) {
+      offersPricesResponse.items.forEach((item: any) => {
+        if (item.codigo) {
+          map.set(item.codigo.toUpperCase(), Number(item.precio));
+        }
+      });
+    }
+    return map;
+  }, [offersPricesResponse]);
+
   // Fetch inventory data for stock display
   const { data: inventoryData, isLoading: isLoadingInventory, isError: isInventoryError } = useQuery({
     queryKey: ['/api/inventory-with-prices'],
@@ -1757,6 +1779,7 @@ export default function TomadorPedidos() {
         minimo: product.minimo,
         canalDigital: product.canalDigital,
         mix: mixPricesMap.get(product.codigo?.toUpperCase() || ""),
+        oferta: offersPricesMap.get(product.codigo?.toUpperCase() || ""),
       };
       const selectedPrice = parseFloat(tierFields[tier]?.toString() || "0");
       if (selectedPrice > 0) return selectedPrice;
@@ -1771,7 +1794,7 @@ export default function TomadorPedidos() {
 
     // Determine best tier to use (first non-zero price tier)
     const getBestTier = (product: PriceList): PriceTier => {
-      const tierOrder: PriceTier[] = ['lista', 'mix', 'desc10', 'desc10_5', 'desc10_5_3', 'minimo', 'canalDigital'];
+      const tierOrder: PriceTier[] = ['lista', 'oferta', 'mix', 'desc10', 'desc10_5', 'desc10_5_3', 'minimo', 'canalDigital'];
       const tierFields: Record<PriceTier, string | number | null | undefined> = {
         lista: product.lista,
         desc10: product.desc10,
@@ -1780,6 +1803,7 @@ export default function TomadorPedidos() {
         minimo: product.minimo,
         canalDigital: product.canalDigital,
         mix: mixPricesMap.get(product.codigo?.toUpperCase() || ""),
+        oferta: offersPricesMap.get(product.codigo?.toUpperCase() || ""),
       };
       for (const tier of tierOrder) {
         const price = parseFloat(tierFields[tier]?.toString() || "0");
@@ -3777,9 +3801,11 @@ export default function TomadorPedidos() {
       : (parseFloat(product.desc10?.toString() || '0') > 0 ? String(Math.round(parseFloat(product.desc10!.toString()) / 0.90)) : product.lista);
 
     const mixPrice = mixPricesMap.get(product.codigo?.toUpperCase() || "");
+    const ofertaPrice = offersPricesMap.get(product.codigo?.toUpperCase() || "");
 
     const tierMappings = [
       { key: 'lista' as PriceTier, label: 'Lista', field: listaValue },
+      { key: 'oferta' as PriceTier, label: 'Oferta', field: ofertaPrice },
       { key: 'mix' as PriceTier, label: 'Lista Mix', field: mixPrice },
       { key: 'desc10' as PriceTier, label: '10%', field: product.desc10 },
       { key: 'desc10_5' as PriceTier, label: '10%+5%', field: product.desc10_5 },
@@ -5561,7 +5587,7 @@ export default function TomadorPedidos() {
                                               }));
                                             }}
                                           >
-                                            <SelectTrigger className={`w-full text-xs ${selectedTier === 'mix' ? 'text-orange-600 font-semibold border-orange-200 bg-orange-50/50' : ''}`} data-testid={`select-price-${product.codigo}`}>
+                                            <SelectTrigger className={`w-full text-xs ${selectedTier === 'mix' ? 'text-orange-600 font-semibold border-orange-200 bg-orange-50/50' : ''} ${selectedTier === 'oferta' ? 'text-red-600 font-semibold border-red-200 bg-red-50/50' : ''}`} data-testid={`select-price-${product.codigo}`}>
                                               <SelectValue placeholder="Seleccionar precio" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -5569,7 +5595,7 @@ export default function TomadorPedidos() {
                                                 <SelectItem
                                                   key={tier.key}
                                                   value={tier.key}
-                                                  className={tier.key === 'mix' ? "text-orange-600 font-medium hover:bg-orange-50" : ""}
+                                                  className={`${tier.key === 'mix' ? "text-orange-600 font-medium hover:bg-orange-50" : ""} ${tier.key === 'oferta' ? "text-red-600 font-medium hover:bg-red-50" : ""}`}
                                                 >
                                                   {tier.label}: {formatCurrency(tier.price)}
                                                 </SelectItem>
@@ -5693,7 +5719,7 @@ export default function TomadorPedidos() {
                                       value={item.priceTier || 'lista'}
                                       onValueChange={(newTier) => updateCartItemPriceTier(item.id, newTier as PriceTier)}
                                     >
-                                      <SelectTrigger className={`h-6 text-xs mt-1 ${item.priceTier === 'mix' ? 'text-orange-600 font-semibold border-orange-200 bg-orange-50/50' : ''}`} data-testid={`select-tier-${item.id}`}>
+                                      <SelectTrigger className={`h-6 text-xs mt-1 ${item.priceTier === 'mix' ? 'text-orange-600 font-semibold border-orange-200 bg-orange-50/50' : ''} ${item.priceTier === 'oferta' ? 'text-red-600 font-semibold border-red-200 bg-red-50/50' : ''}`} data-testid={`select-tier-${item.id}`}>
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
@@ -5701,7 +5727,7 @@ export default function TomadorPedidos() {
                                           <SelectItem
                                             key={tier.key}
                                             value={tier.key}
-                                            className={tier.key === 'mix' ? "text-orange-600 font-medium hover:bg-orange-50" : ""}
+                                            className={`${tier.key === 'mix' ? "text-orange-600 font-medium hover:bg-orange-50" : ""} ${tier.key === 'oferta' ? "text-red-600 font-medium hover:bg-red-50" : ""}`}
                                           >
                                             {tier.label}: {formatCurrency(tier.price)}
                                           </SelectItem>

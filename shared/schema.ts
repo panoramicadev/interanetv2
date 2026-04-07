@@ -1938,6 +1938,27 @@ export const insertPriceListMixSchema = createInsertSchema(priceListMix, {
   updatedAt: true,
 });
 
+// Price List Offers - Lista de Precios Ofertas (SKU + precio manual para ofertas)
+export const priceListOffers = pgTable("price_list_offers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  codigo: varchar("codigo").notNull().unique(),
+  precio: numeric("precio", { precision: 15, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type PriceListOffers = typeof priceListOffers.$inferSelect;
+export type InsertPriceListOffers = typeof priceListOffers.$inferInsert;
+
+export const insertPriceListOffersSchema = createInsertSchema(priceListOffers, {
+  codigo: z.string().min(1, "Código es requerido"),
+  precio: z.any().optional().transform(flexibleTransform),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Quotes system - Constructor de Presupuesto
 export const quotes = pgTable("quotes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
