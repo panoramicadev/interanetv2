@@ -416,7 +416,7 @@ const pdfStyles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#111827',
     textAlign: 'right',
-    minWidth: 80,
+    width: 65, // Fixed width for values to ensure vertical alignment
   },
   grandTotalRow: {
     flexDirection: 'row',
@@ -2437,7 +2437,7 @@ export default function TomadorPedidos() {
     .total-row span:last-child {
       font-weight: 600;
       text-align: right;
-      min-width: 130px;
+      width: 100px;
     }
     .final-total {
       font-size: 16px;
@@ -2734,97 +2734,52 @@ export default function TomadorPedidos() {
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
-        // Fetch saved quote and items
-        const quoteResponse = await apiRequest(`/api/quotes/${savedQuoteId}`);
-        const rawQuote = await quoteResponse.json();
+      // Use local state for PDF generation to ensure data consistency without needing refresh
+      const itemsSubtotalForPDF = cart.reduce((sum, item) => sum + item.totalPrice, 0);
+      const shippingForPDF = showShipping ? totalShippingCost : 0;
+      const subtotalForPDF = itemsSubtotalForPDF + shippingForPDF;
 
-        const itemsResponse = await apiRequest(`/api/quotes/${savedQuoteId}/items`);
-        const rawItems = await itemsResponse.json();
+      quote = {
+        quoteNumber: savedQuoteId ? (rawQuote?.quoteNumber || 'PENDIENTE') : 'BORRADOR',
+        clientName: quoteForm.clientName || 'Sin especificar',
+        clientEmail: quoteForm.clientEmail || '',
+        clientPhone: quoteForm.clientPhone || '',
+        clientRut: quoteForm.clientRut || '',
+        clientAddress: quoteForm.clientAddress || '',
+        validUntil: quoteForm.validUntil || null,
+        status: 'draft',
+        notes: quoteForm.notes || '',
+        createdAt: new Date().toISOString(),
+        subtotal: subtotalForPDF,
+        taxAmount: subtotalForPDF * 0.19,
+        total: subtotalForPDF * 1.19,
+        paymentCondition: (quote as any)?.paymentCondition || quoteForm.paymentCondition || ''
+      };
 
-        // Debug: log all items to see what's coming from server
-        console.log('=== PDF Debug ===');
-        console.log('Quote ID:', savedQuoteId);
-        console.log('All Items:', rawItems.map((i: any) => ({ 
-          name: i.productName, 
-          total: i.totalPrice,
-          code: i.productCode,
-          unit: i.productUnit 
-        })));
-        
-        // Calculate totals from items (same logic as PDF component)
-        const itemsSubtotal = rawItems.reduce((sum: number, item: any) => sum + (parseFloat(item.totalPrice) || 0), 0);
-        // More flexible filter for shipping items - check for "Despacho" prefix or specific patterns
-        const shippingItems = rawItems.filter((i: any) => {
-          const name = i.productName?.toString() || '';
-          return name.startsWith('Despacho') || name.includes('flete') || name.includes('Flete');
-        });
-        const shippingItemsTotal = shippingItems.reduce((sum: number, item: any) => sum + (parseFloat(item.totalPrice) || 0), 0);
-        const productsSubtotal = itemsSubtotal - shippingItemsTotal;
-        console.log('Shipping Items found:', shippingItems.map((i: any) => ({ name: i.productName, total: i.totalPrice })));
-        console.log('Products Subtotal:', productsSubtotal);
-        console.log('Shipping Total:', shippingItemsTotal);
-        console.log('Total Items Subtotal:', itemsSubtotal);
-        console.log('===============');
+      items = cart.map(item => ({
+        productName: item.productName,
+        productCode: item.customSku || item.productCode || '',
+        productUnit: item.productUnit || 'UN',
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice,
+        tierPrices: item.tierPrices,
+      }));
 
-        // Convert string values to numbers for proper calculations
-        items = rawItems.map((item: any) => ({
-          ...item,
-          quantity: parseFloat(item.quantity) || 0,
-          unitPrice: parseFloat(item.unitPrice) || 0,
-          totalPrice: parseFloat(item.totalPrice) || 0,
-        }));
-
-        // Convert quote values to numbers
-        quote = {
-          ...rawQuote,
-          subtotal: parseFloat(rawQuote.subtotal) || 0,
-          taxAmount: parseFloat(rawQuote.taxAmount) || 0,
-          total: parseFloat(rawQuote.total) || 0,
-        };
-      } else {
-        // Use current form data for unsaved quotes
-        const itemsSubtotalForPDF = cart.reduce((sum, item) => sum + item.totalPrice, 0);
-        const shippingForPDF = showShipping ? totalShippingCost : 0;
-        const subtotalForPDF = itemsSubtotalForPDF + shippingForPDF;
-        quote = {
-          quoteNumber: 'BORRADOR',
-          clientName: quoteForm.clientName || 'Sin especificar',
-          clientEmail: quoteForm.clientEmail || '',
-          clientPhone: quoteForm.clientPhone || '',
-          clientRut: quoteForm.clientRut || '',
-          clientAddress: quoteForm.clientAddress || '',
-          validUntil: quoteForm.validUntil || null,
-          status: 'draft',
-          notes: quoteForm.notes || '',
-          createdAt: new Date().toISOString(),
-          subtotal: subtotalForPDF,
-          taxAmount: subtotalForPDF * 0.19,
-          total: subtotalForPDF * 1.19
-        };
-
-        items = cart.map(item => ({
-          productName: item.productName,
-          productCode: item.customSku || item.productCode || '',
-          productUnit: item.productUnit || 'UN',
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          totalPrice: item.totalPrice,
-          tierPrices: item.tierPrices,
-        }));
-
-        // Append shipping line items as product rows
-        if (showShipping && shippingLineItems.length > 0) {
-          shippingLineItems.forEach(line => {
-            items.push({
-              productName: line.label,
-              productCode: line.sku || '',
-              productUnit: 'UN',
-              quantity: line.qty,
-              unitPrice: line.unitPrice,
-              totalPrice: line.qty * line.unitPrice,
-            });
+      // Append shipping line items as product rows to the PDF table
+      if (showShipping && shippingLineItems.length > 0) {
+        shippingLineItems.forEach(line => {
+          items.push({
+            productName: line.label,
+            productCode: line.sku || 'DESPACHO',
+            productUnit: 'UN',
+            quantity: line.qty,
+            unitPrice: line.unitPrice,
+            totalPrice: line.qty * line.unitPrice,
+            tierPrices: [],
           });
-        }
+        });
+      }
       }
 
       // Generate PDF using React-PDF
