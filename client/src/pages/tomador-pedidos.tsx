@@ -373,10 +373,10 @@ const pdfStyles = StyleSheet.create({
     minHeight: 35,
   },
   col1: { width: '43%' },
-  col2: { width: '14%', textAlign: 'center' },
-  col3: { width: '14%', textAlign: 'center' },
-  col4: { width: '14%', textAlign: 'right' },
-  col5: { width: '15%', textAlign: 'right' },
+  col2: { width: '14%', alignSelf: 'center', textAlign: 'center' },
+  col3: { width: '14%', alignSelf: 'center', textAlign: 'center' },
+  col4: { width: '14%', alignSelf: 'flex-end', textAlign: 'right' },
+  col5: { width: '15%', alignSelf: 'flex-end', textAlign: 'right' },
   productName: {
     fontSize: 9,
     fontWeight: 'bold',
@@ -394,24 +394,28 @@ const pdfStyles = StyleSheet.create({
   totalsSection: {
     marginTop: 15,
     marginLeft: 'auto',
-    width: 220,
+    width: 240,
     paddingTop: 10,
     borderTop: '1 solid #d1d5db',
   },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 3,
+    alignItems: 'center',
+    paddingVertical: 4,
+    minHeight: 20,
   },
   totalLabel: {
     fontSize: 9,
     color: '#4b5563',
+    flexShrink: 0,
   },
   totalValue: {
     fontSize: 9,
     fontWeight: 'bold',
     color: '#111827',
     textAlign: 'right',
+    minWidth: 80,
   },
   grandTotalRow: {
     flexDirection: 'row',
@@ -505,6 +509,15 @@ const QuotePDFDocument = ({ quote, items, shippingCost = 0, showDiscount = false
     const num = typeof value === 'string' ? parseFloat(value) : value;
     return `$${num.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   };
+
+  // Calculate totals from items (includes shipping items as products)
+  const itemsSubtotal = items.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0);
+  const shippingItemsTotal = items
+    .filter(item => item.productName?.toString().startsWith('Despacho'))
+    .reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0);
+  const productsSubtotal = itemsSubtotal - shippingItemsTotal;
+  const tax = itemsSubtotal * 0.19;
+  const total = itemsSubtotal * 1.19;
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Sin especificar';
@@ -610,19 +623,35 @@ const QuotePDFDocument = ({ quote, items, shippingCost = 0, showDiscount = false
 
         {/* Totals Section */}
         <View style={pdfStyles.totalsSection}>
+          {shippingItemsTotal > 0 && (
+            <View style={[pdfStyles.totalRow, { backgroundColor: '#fff3ed', borderRadius: 4, padding: 6, marginBottom: 4 }]}>
+              <Text style={[pdfStyles.totalLabel, { color: '#fd6301', fontWeight: 600 }]}>Flete:</Text>
+              <Text style={[pdfStyles.totalValue, { color: '#fd6301', fontWeight: 700 }]}>{formatCurrency(shippingItemsTotal)}</Text>
+            </View>
+          )}
           <View style={pdfStyles.totalRow}>
-            <Text style={pdfStyles.totalLabel}>Subtotal:</Text>
-            <Text style={pdfStyles.totalValue}>{formatCurrency(quote.subtotal)}</Text>
+            <Text style={pdfStyles.totalLabel}>Subtotal Productos:</Text>
+            <Text style={pdfStyles.totalValue}>{formatCurrency(productsSubtotal)}</Text>
+          </View>
+          {shippingItemsTotal > 0 && (
+            <View style={pdfStyles.totalRow}>
+              <Text style={[pdfStyles.totalLabel, { color: '#fd6301' }]}>Subtotal Flete:</Text>
+              <Text style={[pdfStyles.totalValue, { color: '#fd6301', fontWeight: 600 }]}>{formatCurrency(shippingItemsTotal)}</Text>
+            </View>
+          )}
+          <View style={[pdfStyles.totalRow, { borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingTop: 8, marginTop: 4 }]}>
+            <Text style={[pdfStyles.totalLabel, { fontWeight: 700 }]}>Subtotal:</Text>
+            <Text style={[pdfStyles.totalValue, { fontWeight: 700 }]}>{formatCurrency(itemsSubtotal)}</Text>
           </View>
 
 
           <View style={pdfStyles.totalRow}>
             <Text style={pdfStyles.totalLabel}>IVA (19%):</Text>
-            <Text style={pdfStyles.totalValue}>{formatCurrency(quote.taxAmount)}</Text>
+            <Text style={pdfStyles.totalValue}>{formatCurrency(tax)}</Text>
           </View>
           <View style={pdfStyles.grandTotalRow}>
             <Text style={pdfStyles.grandTotalLabel}>Total Final:</Text>
-            <Text style={pdfStyles.grandTotalValue}>{formatCurrency(quote.total)}</Text>
+            <Text style={pdfStyles.grandTotalValue}>{formatCurrency(total)}</Text>
           </View>
         </View>
 
@@ -762,13 +791,22 @@ export default function TomadorPedidos() {
         productUnit: item.productUnit || item.unit || 'UN',
       }));
 
+      // Check if quote had shipping enabled (by looking for shipping items)
+      const hasShippingItems = items.some((item: any) => 
+        item.productName?.toString().startsWith('Despacho')
+      );
+      if (hasShippingItems) {
+        setShowShipping(true);
+      }
+
       setCart(cartItems);
       setShowQuoteBuilder(true);
 
-      toast({
-        title: "Cotización cargada",
-        description: `Cotización #${quote.quoteNumber} cargada para editar`,
-      });
+      // Remove toast
+      // toast({
+      //   title: "Cotización cargada",
+      //   description: `Cotización #${quote.quoteNumber} cargada para editar`,
+      // });
 
     } catch (error) {
       console.error('Error loading quote:', error);
@@ -1970,9 +2008,10 @@ export default function TomadorPedidos() {
 
     try {
       // First save the quote to get real server data
-      const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
-      const shippingForSave = totalShippingCost;
-      const subtotalWithShipping = subtotal + shippingForSave;
+      const itemsSubtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
+      const shippingForSave = showShipping ? totalShippingCost : 0;
+      const subtotalForSave = itemsSubtotal; // Subtotal is only cart items
+      const subtotalWithShipping = itemsSubtotal + shippingForSave;
       const tax = subtotalWithShipping * 0.19; // 19% IVA
       const total = subtotalWithShipping + tax;
 
@@ -1983,7 +2022,7 @@ export default function TomadorPedidos() {
         // Update existing quote
         const quoteData = {
           ...quoteForm,
-          subtotal: subtotal.toString(),
+          subtotal: subtotalForSave.toString(),
           taxAmount: tax.toString(),
           total: total.toString(),
           status: "draft" as const,
@@ -2207,12 +2246,16 @@ export default function TomadorPedidos() {
         year: 'numeric'
       });
 
-      // Calculate totals with proper formatting
-      const subtotal = parseFloat(quote.subtotal || "0");
-      const discount = 0; // Currently no discount system, but structure supports it
-      const netTotal = subtotal - discount;
-      const tax = parseFloat(quote.taxAmount || "0");
-      const total = parseFloat(quote.total || "0");
+      // Calculate totals from items (includes shipping items as products)
+      const itemsSubtotal = items.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0);
+      const shippingItemsTotal = items
+        .filter(item => item.productName?.startsWith('Despacho'))
+        .reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0);
+      const productsSubtotal = itemsSubtotal - shippingItemsTotal;
+      const discount = 0;
+      const netTotal = itemsSubtotal - discount;
+      const tax = itemsSubtotal * 0.19;
+      const total = itemsSubtotal * 1.19;
 
       // Format currency in Chilean format (CLP with dots as thousand separators)
       const formatCurrency = (amount: number) => `$${Math.round(amount).toLocaleString('es-CL').replace(/,/g, '.')}`;
@@ -2325,6 +2368,7 @@ export default function TomadorPedidos() {
       border-collapse: collapse;
       margin-bottom: 15px;
       font-size: 13px;
+      table-layout: fixed;
     }
     th {
       background: linear-gradient(to right, #fd6301, #e55100);
@@ -2334,10 +2378,20 @@ export default function TomadorPedidos() {
       font-weight: bold;
       font-size: 12px;
     }
+    th:nth-child(1) { width: 45%; }
+    th:nth-child(2) { width: 12%; text-align: center; }
+    th:nth-child(3) { width: 10%; text-align: center; }
+    th:nth-child(4) { width: 16%; text-align: right; }
+    th:nth-child(5) { width: 17%; text-align: right; }
     td {
       padding: 8px;
       border-bottom: 1px solid #e5e7eb;
+      vertical-align: middle;
     }
+    td:nth-child(2) { text-align: center; }
+    td:nth-child(3) { text-align: center; }
+    td:nth-child(4) { text-align: right; }
+    td:nth-child(5) { text-align: right; }
     tr:hover {
       background-color: #fff7ed;
     }
@@ -2367,15 +2421,20 @@ export default function TomadorPedidos() {
     .total-row {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       margin: 6px 0;
       font-size: 14px;
+      min-height: 24px;
     }
     .total-row span:first-child {
       color: #374151;
       font-weight: 500;
+      flex-shrink: 0;
     }
     .total-row span:last-child {
       font-weight: 600;
+      text-align: right;
+      min-width: 130px;
     }
     .final-total {
       font-size: 16px;
@@ -2513,20 +2572,23 @@ export default function TomadorPedidos() {
     <div class="section">
       <div class="totals">
         <div class="total-row">
+          <span>Subtotal Productos:</span>
+          <span>${formatCurrency(productsSubtotal)}</span>
+        </div>
+        ${shippingItemsTotal > 0 ? `
+        <div class="total-row">
+          <span>Subtotal Flete:</span>
+          <span style="color: #fd6301; font-weight: 600;">${formatCurrency(shippingItemsTotal)}</span>
+        </div>
+        ` : ''}
+        <div class="total-row" style="font-weight: 700; border-top: 1px solid #e2e8f0; padding-top: 8px; margin-top: 4px;">
           <span>Subtotal:</span>
-          <span>${formatCurrency(subtotal)}</span>
+          <span>${formatCurrency(itemsSubtotal)}</span>
         </div>
         ${discount > 0 ? `<div class="total-row discount-row">
           <span>Descuento aplicado:</span>
           <span>-${formatCurrency(discount)}</span>
         </div>` : ''}
-
-        ${totalShippingCost > 0 ? `
-        <div class="total-row">
-          <span style="color: #fd6301;">Flete:</span>
-          <span style="color: #fd6301; font-weight: 600;">${formatCurrency(totalShippingCost)}</span>
-        </div>
-        ` : ''}
 
         <div class="total-row">
           <span>IVA (19%):</span>
@@ -2662,12 +2724,38 @@ export default function TomadorPedidos() {
       let quote, items;
 
       if (savedQuoteId) {
+        // Force save before downloading to ensure latest data is used
+        if (saveQuoteRef.current && cart.length > 0 && quoteForm.clientName.trim()) {
+          await saveQuoteRef.current();
+          // Wait for save to complete - increased time
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
         // Fetch saved quote and items
         const quoteResponse = await apiRequest(`/api/quotes/${savedQuoteId}`);
         const rawQuote = await quoteResponse.json();
 
         const itemsResponse = await apiRequest(`/api/quotes/${savedQuoteId}/items`);
         const rawItems = await itemsResponse.json();
+
+        // Debug: log all items to see what's coming from server
+        console.log('=== PDF Debug ===');
+        console.log('Quote ID:', savedQuoteId);
+        console.log('All Items:', rawItems.map((i: any) => ({ 
+          name: i.productName, 
+          total: i.totalPrice,
+          code: i.productCode 
+        })));
+        
+        // Calculate totals from items (same logic as PDF component)
+        const itemsSubtotal = rawItems.reduce((sum: number, item: any) => sum + (parseFloat(item.totalPrice) || 0), 0);
+        const shippingItems = rawItems.filter((i: any) => i.productName?.toString().startsWith('Despacho'));
+        const shippingItemsTotal = shippingItems.reduce((sum: number, item: any) => sum + (parseFloat(item.totalPrice) || 0), 0);
+        const productsSubtotal = itemsSubtotal - shippingItemsTotal;
+        console.log('Products Subtotal:', productsSubtotal);
+        console.log('Shipping Total:', shippingItemsTotal);
+        console.log('Total Items Subtotal:', itemsSubtotal);
+        console.log('===============');
 
         // Convert string values to numbers for proper calculations
         items = rawItems.map((item: any) => ({
@@ -2686,6 +2774,9 @@ export default function TomadorPedidos() {
         };
       } else {
         // Use current form data for unsaved quotes
+        const itemsSubtotalForPDF = cart.reduce((sum, item) => sum + item.totalPrice, 0);
+        const shippingForPDF = showShipping ? totalShippingCost : 0;
+        const subtotalForPDF = itemsSubtotalForPDF + shippingForPDF;
         quote = {
           quoteNumber: 'BORRADOR',
           clientName: quoteForm.clientName || 'Sin especificar',
@@ -2697,9 +2788,9 @@ export default function TomadorPedidos() {
           status: 'draft',
           notes: quoteForm.notes || '',
           createdAt: new Date().toISOString(),
-          subtotal: cart.reduce((sum, item) => sum + item.totalPrice, 0),
-          taxAmount: (cart.reduce((sum, item) => sum + item.totalPrice, 0) + totalShippingCost) * 0.19,
-          total: (cart.reduce((sum, item) => sum + item.totalPrice, 0) + totalShippingCost) * 1.19
+          subtotal: subtotalForPDF,
+          taxAmount: subtotalForPDF * 0.19,
+          total: subtotalForPDF * 1.19
         };
 
         items = cart.map(item => ({
@@ -3370,9 +3461,11 @@ export default function TomadorPedidos() {
 
     setIsSavingQuote(true);
     try {
-      // Calculate totals
-      const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
-      const subtotalWithShipping = subtotal + totalShippingCost;
+      // Calculate totals - subtotal is only products, total includes shipping
+      const itemsSubtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
+      const shippingForSave = showShipping ? totalShippingCost : 0;
+      const subtotalForSave = itemsSubtotal; // Subtotal is only cart items (products)
+      const subtotalWithShipping = itemsSubtotal + shippingForSave;
       const tax = subtotalWithShipping * 0.19; // 19% IVA
       const total = subtotalWithShipping + tax;
 
@@ -3382,7 +3475,7 @@ export default function TomadorPedidos() {
         // Update existing quote
         const quoteData = {
           ...quoteForm,
-          subtotal: subtotal.toString(),
+          subtotal: subtotalForSave.toString(),
           taxAmount: tax.toString(),
           total: total.toString(),
           status: "draft" as const,
@@ -3444,12 +3537,14 @@ export default function TomadorPedidos() {
           }
         }
 
-        // Show appropriate message based on results
+        // Notificación removida a petición del usuario
         if (failedItems.length === 0) {
+          /*
           toast({
             title: "Presupuesto actualizado",
             description: `Presupuesto ${quote.quoteNumber} actualizado exitosamente con ${successfulItems} productos`,
           });
+          */
         } else {
           toast({
             title: "Presupuesto actualizado parcialmente",
@@ -3525,12 +3620,14 @@ export default function TomadorPedidos() {
           }
         }
 
-        // Show appropriate message based on results
+        // Notificación removida a petición del usuario
         if (failedItems.length === 0) {
+          /*
           toast({
             title: "Presupuesto guardado",
             description: `Presupuesto ${quote.quoteNumber} creado exitosamente con ${successfulItems} productos`,
           });
+          */
         } else if (successfulItems > 0) {
           toast({
             title: "Presupuesto guardado parcialmente",
@@ -3757,10 +3854,11 @@ export default function TomadorPedidos() {
     }
   };
 
-  // Calculate totals
-  const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
+  // Calculate totals - subtotal is only for cart items, shipping is shown separately
+  const itemsSubtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
   const shippingCost = totalShippingCost;
-  const subtotalWithShipping = subtotal + shippingCost;
+  const subtotal = itemsSubtotal;
+  const subtotalWithShipping = showShipping ? subtotal + shippingCost : subtotal;
   const tax = subtotalWithShipping * 0.19; // 19% IVA
   const total = subtotalWithShipping + tax;
 
@@ -4957,19 +5055,34 @@ export default function TomadorPedidos() {
                         <Card className="bg-muted/20">
                           <CardContent className="p-4">
                             <div className="space-y-3">
+                              {/* Shipping row - shown FIRST in orange when enabled */}
+                              {showShipping && shippingCost > 0 && (
+                                <div className="flex justify-between text-sm bg-orange-50 dark:bg-orange-900/20 px-2 py-1.5 rounded-md border border-orange-100 dark:border-orange-800/30">
+                                  <span className="text-orange-700 dark:text-orange-400 font-medium">Flete:</span>
+                                  <span className="font-bold text-orange-600" data-testid="mobile-cart-shipping">{formatCurrency(shippingCost)}</span>
+                                </div>
+                              )}
                               <div className="flex justify-between text-sm">
-                                <span>Subtotal:</span>
+                                <span>Subtotal Productos:</span>
                                 <span className="font-medium" data-testid="mobile-cart-subtotal">
-                                  {formatCurrency(subtotal)}
+                                  {formatCurrency(itemsSubtotal)}
                                 </span>
                               </div>
+                              {showShipping && shippingCost > 0 && (
+                                <div className="flex justify-between text-sm font-medium">
+                                  <span>Subtotal:</span>
+                                  <span data-testid="mobile-cart-subtotal-with-shipping">
+                                    {formatCurrency(subtotalWithShipping)}
+                                  </span>
+                                </div>
+                              )}
                               {/* Discount savings row */}
                               {showDiscount && (() => {
                                 const totalListaPrice = cart.reduce((sum, item) => {
                                   const listaPrice = item.tierPrices?.find(t => t.key === 'lista')?.price;
                                   return sum + ((listaPrice && listaPrice > item.unitPrice) ? listaPrice * item.quantity : item.totalPrice);
                                 }, 0);
-                                const totalSavings = totalListaPrice - subtotal;
+                                const totalSavings = totalListaPrice - itemsSubtotal;
                                 if (totalSavings > 0) {
                                   return (
                                     <div className="flex justify-between text-sm bg-green-50 dark:bg-green-900/20 px-2 py-1.5 rounded-md border border-green-100 dark:border-green-800/30">
@@ -4996,9 +5109,6 @@ export default function TomadorPedidos() {
                                     />
                                     <span className="text-muted-foreground font-medium">Incluir flete en el presupuesto</span>
                                   </label>
-                                  {showShipping && (
-                                    <span className="font-bold text-orange-600">{formatCurrency(shippingCost)}</span>
-                                  )}
                                 </div>
                                 <div className="flex items-center justify-between text-sm">
                                   <label className="flex items-center gap-3 cursor-pointer py-1">
@@ -5715,17 +5825,30 @@ export default function TomadorPedidos() {
                     <>
                       <Separator />
                       <div className="space-y-2">
+                        {/* Shipping row - shown FIRST in orange when enabled */}
+                        {showShipping && shippingCost > 0 && (
+                          <div className="flex justify-between text-sm bg-orange-50 dark:bg-orange-900/20 px-2 py-1.5 rounded-md border border-orange-100 dark:border-orange-800/30">
+                            <span className="text-orange-700 dark:text-orange-400 font-medium">Flete:</span>
+                            <span className="font-bold text-orange-600" data-testid="modal-text-shipping">{formatCurrency(shippingCost)}</span>
+                          </div>
+                        )}
                         <div className="flex justify-between text-sm">
-                          <span>Subtotal:</span>
-                          <span data-testid="modal-text-subtotal">{formatCurrency(subtotal)}</span>
+                          <span>Subtotal Productos:</span>
+                          <span data-testid="modal-text-subtotal">{formatCurrency(itemsSubtotal)}</span>
                         </div>
+                        {showShipping && shippingCost > 0 && (
+                          <div className="flex justify-between text-sm font-medium">
+                            <span>Subtotal:</span>
+                            <span data-testid="modal-text-subtotal-with-shipping">{formatCurrency(subtotalWithShipping)}</span>
+                          </div>
+                        )}
                         {/* Discount savings row */}
                         {showDiscount && (() => {
                           const totalListaPrice = cart.reduce((sum, item) => {
                             const listaPrice = item.tierPrices?.find(t => t.key === 'lista')?.price;
                             return sum + ((listaPrice && listaPrice > item.unitPrice) ? listaPrice * item.quantity : item.totalPrice);
                           }, 0);
-                          const totalSavings = totalListaPrice - subtotal;
+                          const totalSavings = totalListaPrice - itemsSubtotal;
                           if (totalSavings > 0) {
                             return (
                               <div className="flex justify-between text-sm bg-green-50 dark:bg-green-900/20 px-2 py-1.5 rounded-md border border-green-100 dark:border-green-800/30">
@@ -5751,9 +5874,6 @@ export default function TomadorPedidos() {
                               />
                               <span className="text-muted-foreground font-medium">Incluir flete en el presupuesto</span>
                             </label>
-                            {showShipping && (
-                              <span className="font-bold text-orange-600 text-base">{formatCurrency(shippingCost)}</span>
-                            )}
                           </div>
                           <div className="flex items-center justify-between text-sm">
                             <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-muted/50 transition-colors flex-1">
