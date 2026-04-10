@@ -1959,6 +1959,44 @@ export const insertPriceListOffersSchema = createInsertSchema(priceListOffers, {
   updatedAt: true,
 });
 
+// Custom Price Lists - Multiple price lists (LP02, LP03, LP04...) that can be assigned to clients
+export const customPriceLists = pgTable("custom_price_lists", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: varchar("code").notNull().unique(), // LP02, LP03, LP04, etc.
+  name: varchar("name").notNull(), // "Lista Mix", "Lista VIP", etc.
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type CustomPriceList = typeof customPriceLists.$inferSelect;
+export type InsertCustomPriceList = typeof customPriceLists.$inferInsert;
+
+// Custom Price List Items - SKU + price per list
+export const customPriceListItems = pgTable("custom_price_list_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  listCode: varchar("list_code").notNull(), // References custom_price_lists.code
+  codigo: varchar("codigo").notNull(), // SKU - references price_list.codigo
+  precio: numeric("precio", { precision: 15, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  uniqueListSku: unique().on(table.listCode, table.codigo),
+}));
+
+export type CustomPriceListItem = typeof customPriceListItems.$inferSelect;
+export type InsertCustomPriceListItem = typeof customPriceListItems.$inferInsert;
+
+export const insertCustomPriceListItemSchema = createInsertSchema(customPriceListItems, {
+  listCode: z.string().min(1, "Código de lista es requerido"),
+  codigo: z.string().min(1, "Código es requerido"),
+  precio: z.any().optional().transform(flexibleTransform),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Quotes system - Constructor de Presupuesto
 export const quotes = pgTable("quotes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

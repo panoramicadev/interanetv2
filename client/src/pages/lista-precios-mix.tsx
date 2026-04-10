@@ -28,7 +28,7 @@ interface MixResponse {
   hasMore: boolean;
 }
 
-export default function ListaPreciosMix() {
+export default function ListaPreciosMix({ listCode = 'LP02', listName = 'Mix' }: { listCode?: string; listName?: string }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -51,9 +51,9 @@ export default function ListaPreciosMix() {
   const itemsPerPage = 50;
 
   const { data, isLoading, error } = useQuery<MixResponse>({
-    queryKey: ["/api/price-list-mix", search, page],
+    queryKey: [`/api/custom-price-lists/${listCode}/items`, search, page],
     queryFn: () =>
-      apiRequest("GET", `/api/price-list-mix?search=${encodeURIComponent(search)}&limit=${itemsPerPage}&offset=${page * itemsPerPage}`)
+      apiRequest("GET", `/api/custom-price-lists/${listCode}/items?search=${encodeURIComponent(search)}&limit=${itemsPerPage}&offset=${page * itemsPerPage}`)
         .then(r => r.json()),
   });
 
@@ -69,17 +69,17 @@ export default function ListaPreciosMix() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => apiRequest("DELETE", `/api/price-list-mix/${id}`),
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/custom-price-lists/${listCode}/items/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/price-list-mix"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/custom-price-lists/${listCode}/items`] });
       toast({ title: "Eliminado", description: "Producto eliminado correctamente" });
     },
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("POST", "/api/price-list-mix", data),
+    mutationFn: (data: any) => apiRequest("POST", `/api/custom-price-lists/${listCode}/items`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/price-list-mix"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/custom-price-lists/${listCode}/items`] });
       setIsAddOpen(false);
       setNewProduct({ codigo: "", precio: "" });
       toast({ title: "Creado", description: "SKU agregado correctamente" });
@@ -87,9 +87,9 @@ export default function ListaPreciosMix() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, ...data }: any) => apiRequest("PATCH", `/api/price-list-mix/${id}`, data),
+    mutationFn: ({ id, ...data }: any) => apiRequest("PATCH", `/api/custom-price-lists/${listCode}/items/${id}`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/price-list-mix"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/custom-price-lists/${listCode}/items`] });
       setIsEditOpen(false);
       setEditItem(null);
       toast({ title: "Actualizado", description: "Precio actualizado correctamente" });
@@ -100,7 +100,7 @@ export default function ListaPreciosMix() {
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/price-list-mix/import", {
+      const res = await fetch(`/api/custom-price-lists/${listCode}/items/import`, {
         method: "POST",
         body: formData,
         credentials: "include",
@@ -110,7 +110,7 @@ export default function ListaPreciosMix() {
     },
     onSuccess: (data) => {
       setImportResult(data);
-      queryClient.invalidateQueries({ queryKey: ["/api/price-list-mix"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/custom-price-lists/${listCode}/items`] });
       toast({ title: "Importado", description: `${data.importedCount} SKUs importados` });
     },
     onError: (err: any) => {
@@ -120,7 +120,7 @@ export default function ListaPreciosMix() {
 
   const bulkAdjustMutation = useMutation({
     mutationFn: async (percentage: number) => {
-      const res = await fetch("/api/price-list-mix/bulk-adjust", {
+      const res = await fetch(`/api/custom-price-lists/${listCode}/items/bulk-adjust`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -132,7 +132,7 @@ export default function ListaPreciosMix() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/price-list-mix"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/custom-price-lists/${listCode}/items`] });
       toast({ title: "Ajuste Masivo", description: "Precios actualizados correctamente" });
       setIsBulkAdjustOpen(false);
       setBulkAdjustConfirm(false);
@@ -279,7 +279,7 @@ export default function ListaPreciosMix() {
                     <TableHead className="text-xs">Código</TableHead>
                     <TableHead className="text-xs">Producto</TableHead>
                     <TableHead className="text-xs">Formato</TableHead>
-                    <TableHead className="text-right text-xs font-semibold text-blue-600 dark:text-blue-400">Precio Mix</TableHead>
+                    <TableHead className="text-right text-xs font-semibold text-blue-600 dark:text-blue-400">Precio {listName}</TableHead>
                     <TableHead className="text-right text-xs text-amber-700 dark:text-amber-400">Costo</TableHead>
                     <TableHead className="text-right text-xs">Margen</TableHead>
                     <TableHead className="text-right text-xs text-blue-600 dark:text-blue-400">
@@ -405,7 +405,7 @@ export default function ListaPreciosMix() {
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Editar Precio Mix</DialogTitle>
+            <DialogTitle>Editar Precio {listName}</DialogTitle>
           </DialogHeader>
           {editItem && (
             <div className="space-y-3">
@@ -414,7 +414,7 @@ export default function ListaPreciosMix() {
                 <p><strong>Producto:</strong> {editItem.producto || "N/A"}</p>
               </div>
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Precio Mix</label>
+                <label className="text-xs font-medium text-muted-foreground">Precio {listName}</label>
                 <Input type="number" value={editItem.precio || ""} onChange={(e) => setEditItem({ ...editItem, precio: e.target.value })} className="h-8 text-sm" />
               </div>
             </div>
@@ -436,11 +436,11 @@ export default function ListaPreciosMix() {
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Agregar SKU a Lista Mix</DialogTitle>
+            <DialogTitle>Agregar SKU a {listName}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              Ingresa el código (SKU) del producto y el precio mix. El producto debe existir en la lista comercial.
+              Ingresa el código (SKU) del producto y el precio. El producto debe existir en la lista comercial.
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -448,7 +448,7 @@ export default function ListaPreciosMix() {
                 <Input value={newProduct.codigo} onChange={(e) => setNewProduct({ ...newProduct, codigo: e.target.value })} className="h-8 text-sm" placeholder="Ej: PAE500BL14" />
               </div>
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Precio Mix *</label>
+                <label className="text-xs font-medium text-muted-foreground">Precio {listName} *</label>
                 <Input type="number" value={newProduct.precio} onChange={(e) => setNewProduct({ ...newProduct, precio: e.target.value })} className="h-8 text-sm" placeholder="Ej: 12500" />
               </div>
             </div>
@@ -472,7 +472,7 @@ export default function ListaPreciosMix() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Percent className="h-5 w-5 text-amber-600" />
-              Ajuste Masivo de Precios (Lista Mix)
+              Ajuste Masivo de Precios ({listName})
             </DialogTitle>
           </DialogHeader>
           

@@ -122,6 +122,26 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
     },
   });
 
+  // Fetch custom price lists for dynamic selector
+  const { data: customPriceLists = [] } = useQuery<{ code: string; name: string; active: boolean; item_count: string }[]>({
+    queryKey: ["/api/custom-price-lists"],
+    queryFn: async () => {
+      try {
+        const res = await apiRequest("GET", "/api/custom-price-lists");
+        return await res.json();
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  // Helper to resolve list name from code
+  const getListName = (code: string | null) => {
+    if (!code || code === 'LP01') return 'Lista Comercial';
+    const found = customPriceLists.find(l => l.code === code);
+    return found ? `${found.name} (${found.code})` : code;
+  };
+
   
     const updateCommercialInfo = useMutation({
     mutationFn: async (data: any) => {
@@ -452,7 +472,9 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                         <SelectContent>
                           <SelectItem value="__none__">Sin asignar</SelectItem>
                           <SelectItem value="LP01">Lista Comercial (Por defecto)</SelectItem>
-                          <SelectItem value="LP02">Lista Mix</SelectItem>
+                          {customPriceLists.filter(l => l.active).map(list => (
+                            <SelectItem key={list.code} value={list.code}>{list.name} ({list.code})</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -510,7 +532,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                     {[
                       { label: "Condición de Pago", value: client.paymentCondition },
                       { label: "Código Vendedor", value: client.salesRepCode },
-                      { label: "Lista de Precios", value: client.lcen === 'LP02' ? 'Lista Mix' : client.lcen === 'LP01' ? 'Lista Comercial' : client.lcen || '—' },
+                      { label: "Lista de Precios", value: getListName(client.lcen) || '—' },
                       { label: "Límite de Crédito", value: formatCurrency(client.creditLimit) },
                       { label: "Crédito Usado", value: formatCurrency(client.creditUsed) },
                       { label: "Crédito Disponible", value: formatCurrency(client.creditAvailable) },

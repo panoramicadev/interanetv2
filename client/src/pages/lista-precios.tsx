@@ -28,6 +28,10 @@ export default function ListaPrecios() {
   const [selectedUnidad, setSelectedUnidad] = useState<string>("");
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [page, setPage] = useState(0);
+
+  // Custom price lists state
+  const [isNewListOpen, setIsNewListOpen] = useState(false);
+  const [newListName, setNewListName] = useState("");
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<any>(null);
@@ -62,6 +66,20 @@ export default function ListaPrecios() {
   const { toast } = useToast();
 
   const itemsPerPage = 50;
+
+
+  // Fetch custom price lists for dynamic tabs
+  const { data: customPriceLists = [] } = useQuery<{ code: string; name: string; active: boolean; item_count: string }[]>({
+    queryKey: ["/api/custom-price-lists"],
+    queryFn: async () => {
+      try {
+        const res = await apiRequest("GET", "/api/custom-price-lists");
+        return await res.json();
+      } catch {
+        return [];
+      }
+    },
+  });
 
   // Query para obtener unidades disponibles para filtros
   const { data: availableUnits = [] } = useQuery({
@@ -384,20 +402,34 @@ export default function ListaPrecios() {
   return (
     <div className="space-y-4">
       <Tabs defaultValue="comercial" className="w-full">
-        <TabsList className="h-9 bg-muted/50 p-0.5 rounded-lg">
+        <div className="flex items-center gap-2">
+        <TabsList className="h-9 bg-muted/50 p-0.5 rounded-lg flex-1">
           <TabsTrigger value="comercial" className="text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-3 py-1.5">
             <List className="h-3.5 w-3.5" />
             Lista Comercial
           </TabsTrigger>
-          <TabsTrigger value="mix" className="text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-3 py-1.5">
-            <DollarSign className="h-3.5 w-3.5" />
-            Lista Mix
-          </TabsTrigger>
+          {customPriceLists.map(list => (
+            <TabsTrigger key={list.code} value={list.code} className="text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-3 py-1.5">
+              <DollarSign className="h-3.5 w-3.5" />
+              {list.name}
+              <Badge variant="secondary" className="ml-1 text-[10px] px-1 py-0 h-4">{list.item_count}</Badge>
+            </TabsTrigger>
+          ))}
           <TabsTrigger value="ofertas" className="text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-3 py-1.5">
             <Tag className="h-3.5 w-3.5" />
             Ofertas
           </TabsTrigger>
         </TabsList>
+        <Button
+          onClick={() => setIsNewListOpen(true)}
+          variant="outline"
+          size="sm"
+          className="h-9 text-xs gap-1.5 border-dashed border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400 shrink-0"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Nueva Lista
+        </Button>
+        </div>
 
         <TabsContent value="comercial" className="mt-3">
       {/* Compact Toolbar */}
@@ -1457,14 +1489,62 @@ export default function ListaPrecios() {
       </Dialog>
         </TabsContent>
 
-        <TabsContent value="mix" className="mt-3">
-          <ListaPreciosMix />
-        </TabsContent>
+        {customPriceLists.map(list => (
+          <TabsContent key={list.code} value={list.code} className="mt-3">
+            <ListaPreciosMix listCode={list.code} listName={list.name} />
+          </TabsContent>
+        ))}
 
         <TabsContent value="ofertas" className="mt-3">
           <ListaPreciosOfertas />
         </TabsContent>
       </Tabs>
+
+      {/* New List Dialog */}
+      <Dialog open={isNewListOpen} onOpenChange={setIsNewListOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5 text-emerald-600" />
+              Nueva Lista de Precios
+            </DialogTitle>
+            <DialogDescription>
+              Se creará una nueva lista con código automático (LP03, LP04, etc.)
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label className="text-sm font-medium">Nombre de la Lista *</Label>
+              <Input
+                value={newListName}
+                onChange={(e) => setNewListName(e.target.value)}
+                placeholder="Ej: Lista VIP, Lista Constructora"
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setIsNewListOpen(false); setNewListName(""); }}>Cancelar</Button>
+            <Button
+              onClick={async () => {
+                if (!newListName.trim()) return;
+                try {
+                  await apiRequest("POST", "/api/custom-price-lists", { name: newListName.trim() });
+                  queryClient.invalidateQueries({ queryKey: ["/api/custom-price-lists"] });
+                  setIsNewListOpen(false);
+                  setNewListName("");
+                } catch (err: any) {
+                  console.error(err);
+                }
+              }}
+              disabled={!newListName.trim()}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              Crear Lista
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

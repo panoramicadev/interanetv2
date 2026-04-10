@@ -1075,6 +1075,100 @@ export function registerRoutes(app: Express): Server {
   });
 
   // ═══════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════
+  // STOCK BREAKS - identifies line products with 0 stock in any warehouse
+  // ═══════════════════════════════════════════════════════════
+  app.get('/api/dashboard/stock-breaks', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      // Get all warehouse-level stock for line products (those in price_list)
+      const result = await db.execute(sql`
+        SELECT 
+          pl.codigo as sku,
+          pl.producto,
+          pl.unidad as formato,
+          ip.nombre_bodega as bodega_nombre,
+          COALESCE(ip.stock2, 0)::numeric as stock
+        FROM price_list pl
+        INNER JOIN inventory_products ip ON ip.sku = pl.codigo
+        WHERE pl.codigo IS NOT NULL AND pl.codigo != ''
+        ORDER BY pl.producto, pl.codigo, ip.nombre_bodega
+      `);
+
+      const rows = (result as any).rows || [];
+
+      // Group by SKU and collect warehouse details
+      const skuMap = new Map<string, {
+        sku: string;
+        producto: string;
+        formato: string;
+        bodegas: { nombre: string; stock: number }[];
+        hasQuiebre: boolean;
+        stockTotal: number;
+      }>();
+
+      for (const row of rows) {
+        const stock = parseFloat(row.stock) || 0;
+        if (!skuMap.has(row.sku)) {
+          skuMap.set(row.sku, {
+            sku: row.sku,
+            producto: row.producto || 'Sin nombre',
+            formato: row.formato || '—',
+            bodegas: [],
+            hasQuiebre: false,
+            stockTotal: 0,
+          });
+        }
+        const entry = skuMap.get(row.sku)!;
+        entry.bodegas.push({
+          nombre: row.bodega_nombre || '—',
+          stock: Math.round(stock * 100) / 100,
+        });
+        entry.stockTotal += stock;
+        if (stock <= 0) {
+          entry.hasQuiebre = true;
+        }
+      }
+
+      // Filter only products with at least 1 warehouse at 0
+      const items = Array.from(skuMap.values())
+        .filter(item => item.hasQuiebre)
+        .map(item => ({
+          ...item,
+          stockTotal: Math.round(item.stockTotal * 100) / 100,
+        }));
+
+      // Get distinct warehouse names for column headers
+      const warehouseSet = new Set<string>();
+      for (const item of items) {
+        for (const b of item.bodegas) {
+          warehouseSet.add(b.nombre);
+        }
+      }
+      const warehouses = Array.from(warehouseSet).sort();
+
+      // Count total line products that exist in inventory
+      const totalResult = await db.execute(sql`
+        SELECT COUNT(DISTINCT pl.codigo) as total 
+        FROM price_list pl
+        INNER JOIN inventory_products ip ON ip.sku = pl.codigo
+        WHERE pl.codigo IS NOT NULL AND pl.codigo != ''
+      `);
+      const totalLinea = Number((totalResult as any).rows?.[0]?.total) || 0;
+
+      res.json({
+        summary: {
+          totalLinea,
+          conQuiebre: items.length,
+          warehouses,
+        },
+        items,
+      });
+    } catch (error: any) {
+      console.error('Error fetching stock breaks:', error?.message || error);
+      res.status(500).json({ message: 'Error al consultar quiebres de stock', detail: error?.message });
+    }
+  }));
+
   // CONSOLIDATED DASHBOARD INIT - reduces ~12 API calls to 1
   // ═══════════════════════════════════════════════════════════
   app.get('/api/dashboard/init', requireCommercialAccess, responseCacheMiddleware(120), asyncHandler(async (req: any, res: any) => {
@@ -11464,6 +11558,337 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // =============== CUSTOM PRICE LISTS ENDPOINTS (Multi-List System) ===============
+
+  // Get all custom price lists (metadata)
+  app.get('/api/custom-price-lists', requireAuth, async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT cpl.*, 
+          (SELECT COUNT(*) FROM custom_price_list_items WHERE list_code = cpl.code) as item_count
+        FROM custom_price_lists cpl 
+        ORDER BY cpl.code
+      `);
+      res.json((result as any).rows || []);
+    } catch (error) {
+      console.error("Error fetching custom price lists:", error);
+      res.status(500).json({ message: "Failed to fetch custom price lists" });
+    }
+  });
+
+  // Create a new custom price list
+  app.post('/api/custom-price-lists', requireAuth, async (req: any, res) => {
+    try {
+      if (!['admin', 'supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const { name } = req.body;
+      if (!name) return res.status(400).json({ message: "Name is required" });
+
+      // Auto-generate next code: find max LP## and increment
+      const maxResult = await db.execute(sql`
+        SELECT code FROM custom_price_lists 
+        WHERE code ~ '^LP[0-9]+$' 
+        ORDER BY CAST(SUBSTRING(code FROM 3) AS INTEGER) DESC 
+        LIMIT 1
+      `);
+      const maxRow = (maxResult as any).rows?.[0];
+      const nextNum = maxRow ? parseInt(maxRow.code.substring(2)) + 1 : 3; // Start at LP03 if no existing
+      const code = `LP${String(nextNum).padStart(2, '0')}`;
+      
+      const { customPriceLists } = await import('@shared/schema');
+      const [list] = await db.insert(customPriceLists).values({ code, name }).returning();
+      res.status(201).json(list);
+    } catch (error) {
+      console.error("Error creating custom price list:", error);
+      res.status(500).json({ message: "Failed to create custom price list" });
+    }
+  });
+
+  // Update a custom price list
+  app.patch('/api/custom-price-lists/:code', requireAuth, async (req: any, res) => {
+    try {
+      if (!['admin', 'supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const { code } = req.params;
+      const { name, active } = req.body;
+      const { customPriceLists } = await import('@shared/schema');
+      const updates: any = { updatedAt: new Date() };
+      if (name !== undefined) updates.name = name;
+      if (active !== undefined) updates.active = active;
+      
+      const [list] = await db.update(customPriceLists)
+        .set(updates)
+        .where(eq(customPriceLists.code, code))
+        .returning();
+      if (!list) return res.status(404).json({ message: "List not found" });
+      res.json(list);
+    } catch (error) {
+      console.error("Error updating custom price list:", error);
+      res.status(500).json({ message: "Failed to update custom price list" });
+    }
+  });
+
+  // Delete a custom price list and all its items
+  app.delete('/api/custom-price-lists/:code', requireAuth, async (req: any, res) => {
+    try {
+      if (!['admin', 'supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const { code } = req.params;
+      if (code === 'LP01') return res.status(400).json({ message: "Cannot delete base price list" });
+      
+      const { customPriceLists, customPriceListItems } = await import('@shared/schema');
+      await db.delete(customPriceListItems).where(eq(customPriceListItems.listCode, code));
+      await db.delete(customPriceLists).where(eq(customPriceLists.code, code));
+      res.json({ message: "Deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting custom price list:", error);
+      res.status(500).json({ message: "Failed to delete custom price list" });
+    }
+  });
+
+  // Get items for a specific custom price list
+  app.get('/api/custom-price-lists/:code/items', requireAuth, async (req, res) => {
+    try {
+      const { code } = req.params;
+      const { search, limit = 50, offset = 0 } = req.query;
+      const validatedLimit = Math.min(Math.max(parseInt(limit as string) || 50, 1), 10000);
+      const validatedOffset = Math.max(parseInt(offset as string) || 0, 0);
+
+      let whereClause = `WHERE cpli.list_code = '${code.replace(/'/g, "''")}'`;
+      if (search) {
+        const s = (search as string).replace(/'/g, "''");
+        whereClause += ` AND (cpli.codigo ILIKE '%${s}%' OR pl.producto ILIKE '%${s}%')`;
+      }
+
+      const countResult = await db.execute(sql.raw(
+        `SELECT count(*) FROM custom_price_list_items cpli 
+         LEFT JOIN price_list pl ON UPPER(cpli.codigo) = UPPER(pl.codigo) ${whereClause}`
+      ));
+      const totalCount = Number((countResult.rows[0] as any)?.count) || 0;
+
+      const items = await db.execute(sql.raw(
+        `SELECT cpli.id, cpli.list_code, cpli.codigo, cpli.precio, cpli.created_at, cpli.updated_at,
+                pl.producto, pl.unidad, pl.costo_produccion as "costoProduccion"
+         FROM custom_price_list_items cpli
+         LEFT JOIN price_list pl ON UPPER(cpli.codigo) = UPPER(pl.codigo)
+         ${whereClause}
+         ORDER BY pl.producto NULLS LAST, cpli.codigo
+         LIMIT ${validatedLimit} OFFSET ${validatedOffset}`
+      ));
+
+      res.json({
+        items: items.rows,
+        totalCount,
+        hasMore: (validatedOffset + items.rows.length) < totalCount
+      });
+    } catch (error) {
+      console.error("Error fetching custom price list items:", error);
+      res.status(500).json({ message: "Failed to fetch items" });
+    }
+  });
+
+  // Add item to a custom price list
+  app.post('/api/custom-price-lists/:code/items', requireAuth, async (req: any, res) => {
+    try {
+      if (!['admin', 'supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const { code } = req.params;
+      const { customPriceListItems, insertCustomPriceListItemSchema } = await import('@shared/schema');
+      const validatedData = insertCustomPriceListItemSchema.parse({ ...req.body, listCode: code });
+      const [item] = await db.insert(customPriceListItems).values(validatedData).returning();
+      res.status(201).json(item);
+    } catch (error: any) {
+      console.error("Error creating custom price list item:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      if (error.code === '23505') {
+        return res.status(409).json({ message: "Este SKU ya existe en esta lista" });
+      }
+      res.status(500).json({ message: "Failed to create item" });
+    }
+  });
+
+  // Update item in a custom price list
+  app.patch('/api/custom-price-lists/:code/items/:id', requireAuth, async (req: any, res) => {
+    try {
+      if (!['admin', 'supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const { customPriceListItems } = await import('@shared/schema');
+      const [item] = await db.update(customPriceListItems)
+        .set({ ...req.body, updatedAt: new Date() })
+        .where(eq(customPriceListItems.id, req.params.id))
+        .returning();
+      if (!item) return res.status(404).json({ message: "Not found" });
+      res.json(item);
+    } catch (error) {
+      console.error("Error updating custom price list item:", error);
+      res.status(500).json({ message: "Failed to update item" });
+    }
+  });
+
+  // Delete single item from a custom price list
+  app.delete('/api/custom-price-lists/:code/items/:id', requireAuth, async (req: any, res) => {
+    try {
+      if (!['admin', 'supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const { customPriceListItems } = await import('@shared/schema');
+      await db.delete(customPriceListItems).where(eq(customPriceListItems.id, req.params.id));
+      res.json({ message: "Deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting custom price list item:", error);
+      res.status(500).json({ message: "Failed to delete item" });
+    }
+  });
+
+  // Delete all items from a custom price list
+  app.delete('/api/custom-price-lists/:code/items', requireAuth, async (req: any, res) => {
+    try {
+      if (!['admin', 'supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const { code } = req.params;
+      const { customPriceListItems } = await import('@shared/schema');
+      await db.delete(customPriceListItems).where(eq(customPriceListItems.listCode, code));
+      res.json({ message: "All items deleted" });
+    } catch (error) {
+      console.error("Error deleting all items:", error);
+      res.status(500).json({ message: "Failed to delete all items" });
+    }
+  });
+
+  // Bulk price adjustment for a specific custom price list
+  app.post('/api/custom-price-lists/:code/items/bulk-adjust', requireAuth, async (req: any, res) => {
+    try {
+      if (!['admin', 'supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const { code } = req.params;
+      const { percentage, roundToDecena } = req.body;
+      if (typeof percentage !== 'number' || (percentage === 0 && !roundToDecena)) {
+        return res.status(400).json({ message: "Porcentaje de ajuste inválido" });
+      }
+      if (Math.abs(percentage) > 100) {
+        return res.status(400).json({ message: "El porcentaje no puede exceder ±100%" });
+      }
+
+      const multiplier = 1 + (percentage / 100);
+      const safeCode = code.replace(/'/g, "''");
+      
+      if (roundToDecena) {
+        await db.execute(sql.raw(`
+          UPDATE custom_price_list_items 
+          SET precio = ROUND(precio * ${multiplier}, -1)
+          WHERE list_code = '${safeCode}' AND precio IS NOT NULL AND precio > 0
+        `));
+      } else {
+        await db.execute(sql.raw(`
+          UPDATE custom_price_list_items 
+          SET precio = ROUND(precio * ${multiplier}, 0)
+          WHERE list_code = '${safeCode}' AND precio IS NOT NULL AND precio > 0
+        `));
+      }
+
+      res.json({ success: true, message: "Ajuste masivo aplicado exitosamente" });
+    } catch (error) {
+      console.error("Error en ajuste masivo:", error);
+      res.status(500).json({ message: "Error al aplicar ajuste masivo" });
+    }
+  });
+
+  // Import CSV for a specific custom price list
+  app.post('/api/custom-price-lists/:code/items/import', upload.single('file'), requireAuth, async (req: any, res) => {
+    try {
+      if (!['admin', 'supervisor'].includes(req.user.role)) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+      const { code } = req.params;
+      const { customPriceListItems } = await import('@shared/schema');
+      
+      let csvData = req.file.buffer.toString('utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const firstLine = csvData.split('\n').find((l: string) => l.trim()) || '';
+      let delimiter = ',';
+      if (firstLine.includes(';')) delimiter = ';';
+      else if (firstLine.includes('\t')) delimiter = '\t';
+      
+      const firstVal = firstLine.split(delimiter)[0]?.trim().replace(/['"]/g, '') || '';
+      const hasHeaders = !(/^[A-Z]{2,}[A-Z0-9]+$/i.test(firstVal));
+
+      // Chilean number format: 4.370 means 4370
+      const parseChileanPrice = (val: any): string => {
+        if (val === null || val === undefined) return '';
+        let cleaned = val.toString().trim().replace(/\$/g, '').replace(/\s/g, '');
+        if (!cleaned) return '';
+        if (/^\d{1,3}(\.\d{3})+$/.test(cleaned)) cleaned = cleaned.replace(/\./g, '');
+        else if (/^\d{1,3}(\.\d{3})+,\d+$/.test(cleaned)) cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+        else if (/^\d+,\d+$/.test(cleaned)) cleaned = cleaned.replace(',', '.');
+        return cleaned;
+      };
+
+      const validItems: { listCode: string; codigo: string; precio: string | null }[] = [];
+      const errors: { row: number; error: string }[] = [];
+
+      if (hasHeaders) {
+        const { data: rawData } = Papa.parse(csvData, {
+          header: true, delimiter, skipEmptyLines: 'greedy',
+          transformHeader: (h: string) => h.trim().toLowerCase().replace(/['"]/g, '')
+        });
+        const codigoCandidates = ['codigo', 'código', 'sku', 'cod', 'codproducto', 'item', 'articulo'];
+        const precioCandidates = ['precio', 'price', 'valor', 'preciomix', 'precio_mix', 'monto', 'pvp'];
+        const findCol = (row: Record<string, any>, candidates: string[]): any => {
+          for (const c of candidates) { if (row[c] !== undefined && row[c] !== '') return row[c]; }
+          return undefined;
+        };
+        (rawData as any[]).forEach((row, i) => {
+          const codigoVal = findCol(row, codigoCandidates);
+          const precioVal = findCol(row, precioCandidates);
+          if (!codigoVal) { errors.push({ row: i + 2, error: 'Código vacío' }); return; }
+          const cleanedCodigo = codigoVal.toString().trim().replace(/['"]/g, '').toUpperCase();
+          const cleanedPrecio = precioVal ? parseChileanPrice(precioVal) : null;
+          if (cleanedCodigo) validItems.push({ listCode: code, codigo: cleanedCodigo, precio: cleanedPrecio });
+        });
+      } else {
+        const lines = csvData.split('\n').filter((l: string) => l.trim());
+        lines.forEach((line: string, i: number) => {
+          const parts = line.split(delimiter).map((p: string) => p.trim().replace(/['"]/g, ''));
+          if (parts.length < 2) { errors.push({ row: i + 1, error: 'Línea con formato incorrecto' }); return; }
+          const cleanedCodigo = parts[0].toUpperCase();
+          const cleanedPrecio = parseChileanPrice(parts[1]);
+          if (cleanedCodigo) validItems.push({ listCode: code, codigo: cleanedCodigo, precio: cleanedPrecio || null });
+        });
+      }
+
+      if (validItems.length > 0) {
+        // Upsert: insert or update on conflict
+        for (const item of validItems) {
+          await db.execute(sql`
+            INSERT INTO custom_price_list_items (list_code, codigo, precio)
+            VALUES (${item.listCode}, ${item.codigo}, ${item.precio})
+            ON CONFLICT (list_code, codigo) DO UPDATE SET precio = EXCLUDED.precio, updated_at = now()
+          `);
+        }
+      }
+
+      res.json({
+        message: "Importación exitosa",
+        importedCount: validItems.length,
+        errors: errors.length > 0 ? errors.slice(0, 20) : undefined
+      });
+    } catch (error: any) {
+      console.error("Error importing custom price list:", error);
+      res.status(500).json({ message: "Error al importar: " + (error.message || "Error interno") });
+    }
+  });
+
   // =============== PRICE LIST OFFERS ENDPOINTS ===============
   
   app.get('/api/price-list-offers', requireAuth, async (req, res) => {
@@ -12229,14 +12654,14 @@ export function registerRoutes(app: Express): Server {
 
   // Build the full catalog
   const buildStoreCatalog = async (priceList?: string): Promise<{ catalog: any[]; totalProducts: number }> => {
-    // Check cache only if no custom price list
+   // Check cache only if no custom price list
     const useCache = !priceList || priceList === 'LP01';
     if (useCache && _storeCatalogCache && Date.now() - _storeCatalogCache.builtAt < STORE_CACHE_TTL) {
       return _storeCatalogCache;
     }
 
-    // Determine if we should use price_list_mix (LP02 = Mix)
-    const usePriceListMix = priceList === 'LP02';
+    // Any list other than LP01 is a custom list that uses custom_price_list_items
+    const useCustomList = priceList && priceList !== 'LP01';
 
     const result = await db.execute(sql`
       SELECT
@@ -12251,9 +12676,12 @@ export function registerRoutes(app: Express): Server {
         ep.price_list_id,
         ep.tags,
         ep.imagen_url,
-        ${usePriceListMix 
-          ? sql`COALESCE(mix.precio, pl.lista, ep.precio_ecommerce) as precio`
+        ${useCustomList 
+          ? sql`COALESCE(cpli.precio, pl.lista, ep.precio_ecommerce) as precio`
           : sql`COALESCE(ep.precio_ecommerce, pl.lista) as precio`},
+        ${useCustomList
+          ? sql`CASE WHEN cpli.precio IS NOT NULL THEN ${priceList} ELSE 'LP01' END as price_source`
+          : sql`'LP01' as price_source`},
         pl.codigo as sku,
         pl.producto as product_name,
         pl.unidad as unit,
@@ -12266,7 +12694,9 @@ export function registerRoutes(app: Express): Server {
         pc.imagen_destacada
       FROM ecommerce_products ep
       LEFT JOIN price_list pl ON ep.price_list_id = pl.id
-      ${usePriceListMix ? sql`LEFT JOIN price_list_mix mix ON UPPER(mix.codigo) = UPPER(pl.codigo)` : sql``}
+      ${useCustomList 
+        ? sql`LEFT JOIN custom_price_list_items cpli ON UPPER(cpli.codigo) = UPPER(pl.codigo) AND cpli.list_code = ${priceList}` 
+        : sql``}
       LEFT JOIN price_list_offers offers ON UPPER(offers.codigo) = UPPER(pl.codigo)
       LEFT JOIN (
         SELECT kopr, SUM(COALESCE(physical_stock2, 0)) as total_stock
@@ -12365,6 +12795,7 @@ export function registerRoutes(app: Express): Server {
         groupName,
         price: row.precio ? parseFloat(row.precio) : null,
         offerPrice: row.offer_price ? parseFloat(row.offer_price) : null,
+        priceSource: row.price_source || 'LP01',
         stock: parseFloat(row.total_stock) || 0,
         minUnit: row.min_unit || 1,
         stepSize: row.step_size || 1,

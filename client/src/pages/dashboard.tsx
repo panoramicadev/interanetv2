@@ -51,7 +51,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, Eye, AlertCircle, DollarSign, ChevronDown, ShoppingCart, Truck, Search, Check, ChevronsUpDown, Menu, Database, Package, Zap, Loader2, RefreshCw, CheckCircle, XCircle, Clock, Download } from "lucide-react";
+import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, Eye, AlertCircle, DollarSign, ChevronDown, ShoppingCart, Truck, Search, Check, ChevronsUpDown, Menu, Database, Package, Zap, Loader2, RefreshCw, CheckCircle, XCircle, Clock, Download, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -368,6 +368,9 @@ export default function Dashboard() {
   const [isSyncAllRunning, setIsSyncAllRunning] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
+  // Stock breaks modal state
+  const [showStockBreaksModal, setShowStockBreaksModal] = useState(false);
+
   // Poll sync-all status while modal is open
   useEffect(() => {
     if (!showSyncModal) return;
@@ -399,6 +402,29 @@ export default function Dashboard() {
     queryKey: ['/api/etl/sync-sales/status'],
     refetchInterval: 60000,
   });
+
+  // Stock breaks query - lightweight, fetches on demand
+  const { data: stockBreaks, isLoading: isLoadingStockBreaks, error: stockBreaksError } = useQuery<{
+    summary: { totalLinea: number; conQuiebre: number; warehouses: string[] };
+    items: {
+      sku: string;
+      producto: string;
+      formato: string;
+      bodegas: { nombre: string; stock: number }[];
+      hasQuiebre: boolean;
+      stockTotal: number;
+    }[];
+  }>({
+    queryKey: ['/api/dashboard/stock-breaks'],
+    queryFn: async () => {
+      const res = await fetch('/api/dashboard/stock-breaks', { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}`);
+      return res.json();
+    },
+    enabled: showStockBreaksModal,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const lastSyncDate = lastSyncInfo?.completedAt || lastSyncInfo?.createdAt;
   const lastSyncLabel = lastSyncDate ? (() => {
     const syncDate = new Date(lastSyncDate);
@@ -1740,7 +1766,7 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Period */}
+              {/* Período */}
               <div className="flex items-center gap-2">
                 <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
                 <span className="text-sm font-medium text-gray-700">Período:</span>
@@ -1748,6 +1774,19 @@ export default function Dashboard() {
                   value={selection}
                   onChange={(val) => val && setSelection(val)}
                 />
+              </div>
+              {/* Stock breaks button */}
+              <div className="flex-shrink-0">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setShowStockBreaksModal(true)}
+                  className="h-9 w-9 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-colors rounded-lg border-gray-200 dark:border-gray-700 relative"
+                  data-testid="button-stock-breaks"
+                  title="Información importante — Quiebres de stock"
+                >
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                </Button>
               </div>
               {/* Sync button + last sync badge */}
               <div className="flex-shrink-0 relative">
@@ -2072,6 +2111,111 @@ export default function Dashboard() {
               disabled={isSyncAllRunning}
               className="bg-orange-500 hover:bg-orange-600 text-white"
             >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Stock Breaks Modal */}
+      <Dialog open={showStockBreaksModal} onOpenChange={setShowStockBreaksModal}>
+        <DialogContent className="sm:max-w-4xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Información importante
+            </DialogTitle>
+            <DialogDescription>
+              Quiebres de stock de productos de línea — productos con stock 0 en al menos una bodega.
+            </DialogDescription>
+          </DialogHeader>
+
+          {isLoadingStockBreaks ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+              <span className="ml-3 text-muted-foreground">Consultando stock…</span>
+            </div>
+          ) : stockBreaksError ? (
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700">
+              <XCircle className="h-5 w-5 flex-shrink-0" />
+              <p className="text-sm">Error al consultar quiebres de stock. Intenta nuevamente.</p>
+            </div>
+          ) : stockBreaks ? (
+            <div className="flex flex-col gap-4 overflow-hidden">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border bg-gray-50 dark:bg-gray-800/50 p-3 text-center">
+                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Productos de línea</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">{stockBreaks.summary.totalLinea.toLocaleString()}</p>
+                </div>
+                <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-900/20 p-3 text-center">
+                  <p className="text-[11px] font-medium text-red-600 dark:text-red-400 uppercase tracking-wide">Con quiebre</p>
+                  <p className="text-2xl font-bold text-red-700 dark:text-red-400 mt-1">{stockBreaks.summary.conQuiebre.toLocaleString()}</p>
+                </div>
+              </div>
+
+              {/* Items list */}
+              {stockBreaks.items.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <CheckCircle className="h-10 w-10 text-green-500 mb-3" />
+                  <p className="font-semibold text-green-700 dark:text-green-400">Sin quiebres de stock</p>
+                  <p className="text-sm text-muted-foreground">Todos los productos de línea tienen stock en todas las bodegas.</p>
+                </div>
+              ) : (
+                <div className="overflow-auto max-h-[50vh] rounded-lg border">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 dark:bg-gray-800/60 sticky top-0 z-10">
+                      <tr>
+                        <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground whitespace-nowrap">SKU</th>
+                        <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Producto</th>
+                        <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground whitespace-nowrap">Formato</th>
+                        {stockBreaks.summary.warehouses.map(wh => (
+                          <th key={wh} className="text-center px-2 py-2 text-[10px] font-semibold text-muted-foreground whitespace-nowrap">
+                            {wh}
+                          </th>
+                        ))}
+                        <th className="text-right px-3 py-2 text-xs font-semibold text-muted-foreground whitespace-nowrap">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                      {stockBreaks.items.map((item, idx) => {
+                        // Build a map of warehouse name -> stock for quick lookup
+                        const whStockMap = new Map<string, number>();
+                        for (const b of item.bodegas) {
+                          whStockMap.set(b.nombre, b.stock);
+                        }
+                        return (
+                          <tr key={`${item.sku}-${idx}`} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30">
+                            <td className="px-3 py-1.5 font-mono text-[11px] text-gray-600 dark:text-gray-400 whitespace-nowrap">{item.sku}</td>
+                            <td className="px-3 py-1.5 text-xs max-w-[200px] truncate" title={item.producto}>{item.producto}</td>
+                            <td className="px-3 py-1.5 text-xs text-muted-foreground whitespace-nowrap">{item.formato}</td>
+                            {stockBreaks.summary.warehouses.map(wh => {
+                              const stock = whStockMap.get(wh);
+                              const isZero = stock !== undefined && stock <= 0;
+                              const hasStock = stock !== undefined && stock > 0;
+                              return (
+                                <td key={wh} className={`px-2 py-1.5 text-center text-xs font-medium tabular-nums whitespace-nowrap ${
+                                  isZero ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400 font-bold' :
+                                  hasStock ? 'text-green-700 dark:text-green-400' :
+                                  'text-gray-300'
+                                }`}>
+                                  {stock !== undefined ? Math.round(stock) : '—'}
+                                </td>
+                              );
+                            })}
+                            <td className="px-3 py-1.5 text-right text-xs font-bold tabular-nums">{Math.round(item.stockTotal)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          <DialogFooter className="mt-2">
+            <Button variant="outline" onClick={() => setShowStockBreaksModal(false)}>
               Cerrar
             </Button>
           </DialogFooter>

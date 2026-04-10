@@ -58,8 +58,10 @@ interface PriceTierOption {
 const codListaToPriceTier = (codLista: string | null | undefined): PriceTier | null => {
   if (!codLista) return null;
   const mapped = codLista.toUpperCase();
-  if (mapped === 'LP02' || mapped.includes('MIX')) return 'mix';
   if (mapped === 'LP01' || mapped.includes('COMERCIAL') || mapped.includes('LISTA')) return 'lista';
+  // Any LP02+ code (LP02, LP03, LP04...) maps to 'mix' tier (custom list)
+  if (/^LP\d{2,}$/.test(mapped) && parseInt(mapped.substring(2)) >= 2) return 'mix';
+  if (mapped.includes('MIX')) return 'mix';
   return null;
 };
 
