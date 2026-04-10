@@ -42,6 +42,7 @@ interface ClientUser {
   creditUsed: number | null;
   paymentCondition: string | null;
   pickupWarehouseId: string | null;
+  lcen: string | null;
 }
 
 interface Warehouse {
@@ -64,7 +65,7 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
     creditLimit: client.creditLimit?.toString() || "",
     creditAvailable: client.creditAvailable?.toString() || "",
     creditUsed: client.creditUsed?.toString() || "",
-    lcen: (client as any).lcen || ""
+    lcen: client.lcen || ""
   });
     const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -91,7 +92,7 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
       creditLimit: client.creditLimit?.toString() || "",
       creditAvailable: client.creditAvailable?.toString() || "",
       creditUsed: client.creditUsed?.toString() || "",
-      lcen: (client as any).lcen || ""
+      lcen: client.lcen || ""
     });
   }, [client]);
 
@@ -484,7 +485,7 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
                              crlt: commercialForm.creditLimit ? parseFloat(commercialForm.creditLimit) : null,
                              cren: commercialForm.creditAvailable ? parseFloat(commercialForm.creditAvailable) : null,
                              crsd: commercialForm.creditUsed ? parseFloat(commercialForm.creditUsed) : null,
-                             lcen: commercialForm.lcen
+                             lcen: commercialForm.lcen || undefined
                           });
                        }}
                        disabled={updateCommercialInfo.isPending}>
@@ -497,6 +498,7 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
                     {[
                       { label: "Condición de Pago", value: client.paymentCondition },
                       { label: "Código Vendedor", value: client.salesRepCode },
+                      { label: "Lista de Precios", value: client.lcen === 'LP02' ? 'Lista Mix' : client.lcen === 'LP01' ? 'Lista Comercial' : client.lcen || '—' },
                       { label: "Límite de Crédito", value: formatCurrency(client.creditLimit) },
                       { label: "Crédito Usado", value: formatCurrency(client.creditUsed) },
                       { label: "Crédito Disponible", value: formatCurrency(client.creditAvailable) },

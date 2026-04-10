@@ -11657,7 +11657,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getClientByUserId(userId: string) {
-    // Attempt 1: Direct match by userId
+    // Attempt 1: Direct match by userId (most reliable)
     const result = await db
       .select()
       .from(clients)
@@ -11667,6 +11667,7 @@ export class DatabaseStorage implements IStorage {
     if (result.length > 0) return result[0];
 
     // Attempt 2: Fallback to salespeople_users by name
+    // Only match clients that don't already have a userId assigned (prevents ambiguous matches)
     const userResult = await db
       .select()
       .from(salespeopleUsers)
@@ -11678,14 +11679,21 @@ export class DatabaseStorage implements IStorage {
         .select()
         .from(clients)
         .where(
-          sql`UPPER(${clients.nokoen}) = UPPER(${userResult[0].salespersonName})`
+          and(
+            sql`UPPER(${clients.nokoen}) = UPPER(${userResult[0].salespersonName})`,
+            or(isNull(clients.userId), eq(clients.userId, ''), eq(clients.userId, userId))
+          )
         )
         .limit(1);
 
-      if (nameMatch.length > 0) return nameMatch[0];
+      if (nameMatch.length > 0) {
+        console.log(`[getClientByUserId] Fallback name match: user ${userId} -> client ${nameMatch[0].id} (${nameMatch[0].nokoen})`);
+        return nameMatch[0];
+      }
     }
 
-    // Attempt 3: Fallback to old users table mapping by firstName just in case
+    // Attempt 3: Fallback to old users table mapping by firstName
+    // Same safety: only match unlinked clients
     const legacyUserResult = await db
       .select()
       .from(users)
@@ -11697,11 +11705,17 @@ export class DatabaseStorage implements IStorage {
         .select()
         .from(clients)
         .where(
-          sql`UPPER(${clients.nokoen}) = UPPER(${legacyUserResult[0].firstName})`
+          and(
+            sql`UPPER(${clients.nokoen}) = UPPER(${legacyUserResult[0].firstName})`,
+            or(isNull(clients.userId), eq(clients.userId, ''), eq(clients.userId, userId))
+          )
         )
         .limit(1);
 
-      if (nameMatch.length > 0) return nameMatch[0];
+      if (nameMatch.length > 0) {
+        console.log(`[getClientByUserId] Legacy fallback match: user ${userId} -> client ${nameMatch[0].id} (${nameMatch[0].nokoen})`);
+        return nameMatch[0];
+      }
     }
 
     return undefined;

@@ -9180,6 +9180,7 @@ export function registerRoutes(app: Express): Server {
           creditUsed: clientRecord?.crsd ? parseFloat(clientRecord.crsd) : null,
           paymentCondition: clientRecord?.cpen || null,
           pickupWarehouseId: clientRecord?.pickupWarehouseId || null,
+          lcen: clientRecord?.lcen || null,
         });
       }
       
@@ -9211,6 +9212,7 @@ export function registerRoutes(app: Express): Server {
           creditUsed: clientRecord?.crsd ? parseFloat(clientRecord.crsd) : null,
           paymentCondition: clientRecord?.cpen || null,
           pickupWarehouseId: clientRecord?.pickupWarehouseId || null,
+          lcen: clientRecord?.lcen || null,
         });
       }
 
@@ -9271,7 +9273,9 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/users/clients/:id/commercial-info', requireCommercialAccess, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const { cpen, dccr, pickupWarehouseId, crlt, cren, crsd, kofuen, lcen } = req.body;
+      const { cpen, dccr, pickupWarehouseId, crlt, cren, crsd, kofuen, lcen: rawLcen } = req.body;
+      // Treat empty string lcen as undefined to prevent accidental erasure
+      const lcen = (rawLcen && typeof rawLcen === 'string' && rawLcen.trim() !== '') ? rawLcen.trim() : undefined;
       const user = req.user;
 
       if (!['admin', 'supervisor'].includes(user.role)) {
@@ -12250,7 +12254,7 @@ export function registerRoutes(app: Express): Server {
         pl.codigo as sku,
         pl.producto as product_name,
         pl.unidad as unit,
-        pl.offer_price,
+        COALESCE(offers.precio, pl.offer_price) as offer_price,
         COALESCE(stk.total_stock, 0) as total_stock,
         pc.breve_resena,
         pc.descripcion,
@@ -12260,6 +12264,7 @@ export function registerRoutes(app: Express): Server {
       FROM ecommerce_products ep
       LEFT JOIN price_list pl ON ep.price_list_id = pl.id
       ${usePriceListMix ? sql`LEFT JOIN price_list_mix mix ON UPPER(mix.codigo) = UPPER(pl.codigo)` : sql``}
+      LEFT JOIN price_list_offers offers ON UPPER(offers.codigo) = UPPER(pl.codigo)
       LEFT JOIN (
         SELECT kopr, SUM(COALESCE(physical_stock2, 0)) as total_stock
         FROM product_stock
