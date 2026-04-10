@@ -2242,9 +2242,10 @@ export default function EcommerceAdmin() {
 
       
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="mb-6 grid w-full grid-cols-1 sm:grid-cols-3 gap-2 bg-muted/20 p-1.5 h-auto rounded-xl">
+        <TabsList className="mb-6 grid w-full grid-cols-1 sm:grid-cols-4 gap-2 bg-muted/20 p-1.5 h-auto rounded-xl">
            <TabsTrigger value="general" className="py-2.5 text-sm rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">General</TabsTrigger>
            <TabsTrigger value="envios" className="py-2.5 text-sm rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Envíos y Retiros</TabsTrigger>
+           <TabsTrigger value="cupones" className="py-2.5 text-sm rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">🎟️ Cupones</TabsTrigger>
            <TabsTrigger value="catalogos" className="py-2.5 text-sm rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Catálogos de Vendedores</TabsTrigger>
         </TabsList>
 
@@ -2350,6 +2351,10 @@ export default function EcommerceAdmin() {
           {isAdmin && (
             <WarehouseManagementSection />
           )}
+        </TabsContent>
+
+        <TabsContent value="cupones" className="space-y-6">
+          {isAdmin && <CuponesManager />}
         </TabsContent>
 
         <TabsContent value="catalogos" className="space-y-6">
@@ -2611,6 +2616,278 @@ export default function EcommerceAdmin() {
 
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// ================================
+// CUPONES MANAGER COMPONENT
+// ================================
+function CuponesManager() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const [showForm, setShowForm] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState<any | null>(null);
+  const [form, setForm] = useState({
+    code: '',
+    description: '',
+    discountType: 'percentage' as 'percentage' | 'fixed' | 'free_shipping',
+    discountValue: 0,
+    appliesTo: 'cart' as 'cart' | 'product',
+    productSku: '',
+    minOrderAmount: 0,
+    maxUses: '',
+    isActive: true,
+    expiresAt: '',
+  });
+
+  const { data: coupons = [], isLoading } = useQuery({
+    queryKey: ['/api/admin/coupons'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/coupons', { credentials: 'include' });
+      if (!res.ok) throw new Error('Error al obtener cupones');
+      return res.json();
+    },
+  });
+
+  const resetForm = () => {
+    setForm({ code: '', description: '', discountType: 'percentage', discountValue: 0, appliesTo: 'cart', productSku: '', minOrderAmount: 0, maxUses: '', isActive: true, expiresAt: '' });
+    setEditingCoupon(null);
+    setShowForm(false);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        code: form.code.toUpperCase().trim(),
+        description: form.description || null,
+        discountType: form.discountType,
+        discountValue: Number(form.discountValue),
+        appliesTo: form.appliesTo,
+        productSku: form.appliesTo === 'product' ? form.productSku.trim() || null : null,
+        minOrderAmount: Number(form.minOrderAmount) || 0,
+        maxUses: form.maxUses ? Number(form.maxUses) : null,
+        isActive: form.isActive,
+        expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null,
+      };
+
+      const url = editingCoupon ? `/api/admin/coupons/${editingCoupon.id}` : '/api/admin/coupons';
+      const method = editingCoupon ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Error al guardar cupón');
+      }
+
+      toast({ title: editingCoupon ? 'Cupón actualizado' : 'Cupón creado', description: `Código: ${payload.code}` });
+      qc.invalidateQueries({ queryKey: ['/api/admin/coupons'] });
+      resetForm();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleDelete = async (id: string, code: string) => {
+    if (!confirm(`¿Eliminar cupón ${code}?`)) return;
+    try {
+      const res = await fetch(`/api/admin/coupons/${id}`, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) throw new Error('Error al eliminar');
+      toast({ title: 'Cupón eliminado' });
+      qc.invalidateQueries({ queryKey: ['/api/admin/coupons'] });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleEdit = (coupon: any) => {
+    setEditingCoupon(coupon);
+    setForm({
+      code: coupon.code,
+      description: coupon.description || '',
+      discountType: coupon.discountType,
+      discountValue: Number(coupon.discountValue),
+      appliesTo: coupon.appliesTo || 'cart',
+      productSku: coupon.productSku || '',
+      minOrderAmount: Number(coupon.minOrderAmount) || 0,
+      maxUses: coupon.maxUses?.toString() || '',
+      isActive: coupon.isActive,
+      expiresAt: coupon.expiresAt ? new Date(coupon.expiresAt).toISOString().split('T')[0] : '',
+    });
+    setShowForm(true);
+  };
+
+  const discountTypeLabel = (type: string) => {
+    if (type === 'percentage') return 'Porcentaje';
+    if (type === 'fixed') return 'Monto fijo';
+    if (type === 'free_shipping') return '🚚 Envío gratis';
+    return type;
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Cupones de Descuento</h2>
+          <p className="text-muted-foreground text-sm mt-1">
+            Crea cupones de porcentaje, monto fijo o envío gratuito. Aplícalos al carrito completo o a un producto específico.
+          </p>
+        </div>
+        <Button onClick={() => { resetForm(); setShowForm(true); }} className="gap-2">
+          <Plus className="h-4 w-4" />
+          Nuevo Cupón
+        </Button>
+      </div>
+
+      {/* Form */}
+      {showForm && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{editingCoupon ? 'Editar cupón' : 'Crear nuevo cupón'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label>Código del cupón *</Label>
+                <Input placeholder="Ej: VERANO20" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} required disabled={!!editingCoupon} />
+                <p className="text-xs text-muted-foreground">En mayúsculas. No puede modificarse después de creado.</p>
+              </div>
+              <div className="space-y-1">
+                <Label>Descripción</Label>
+                <Input placeholder="Ej: 20% descuento verano" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label>Tipo de descuento *</Label>
+                <Select value={form.discountType} onValueChange={(v: any) => setForm(f => ({ ...f, discountType: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="percentage">% Porcentaje</SelectItem>
+                    <SelectItem value="fixed">$ Monto fijo</SelectItem>
+                    <SelectItem value="free_shipping">🚚 Envío gratuito</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {form.discountType !== 'free_shipping' && (
+                <div className="space-y-1">
+                  <Label>Valor del descuento *</Label>
+                  <Input type="number" min={0} max={form.discountType === 'percentage' ? 100 : undefined}
+                    placeholder={form.discountType === 'percentage' ? 'Ej: 10 (= 10%)' : 'Ej: 5000 ($5.000)'}
+                    value={form.discountValue || ''} onChange={e => setForm(f => ({ ...f, discountValue: Number(e.target.value) }))} required />
+                </div>
+              )}
+              <div className="space-y-1">
+                <Label>Aplica a *</Label>
+                <Select value={form.appliesTo} onValueChange={(v: any) => setForm(f => ({ ...f, appliesTo: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cart">Todo el carrito</SelectItem>
+                    <SelectItem value="product">Producto específico</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {form.appliesTo === 'product' && (
+                <div className="space-y-1">
+                  <Label>SKU del producto *</Label>
+                  <Input placeholder="Ej: PCA960COPPBL1" value={form.productSku} onChange={e => setForm(f => ({ ...f, productSku: e.target.value.toUpperCase() }))} required={form.appliesTo === 'product'} />
+                  <p className="text-xs text-muted-foreground">El descuento solo aplica si este SKU está en el carrito.</p>
+                </div>
+              )}
+              <div className="space-y-1">
+                <Label>Monto mínimo del carrito ($)</Label>
+                <Input type="number" min={0} placeholder="0 = sin mínimo" value={form.minOrderAmount || ''} onChange={e => setForm(f => ({ ...f, minOrderAmount: Number(e.target.value) }))} />
+              </div>
+              <div className="space-y-1">
+                <Label>Usos máximos</Label>
+                <Input type="number" min={1} placeholder="Vacío = ilimitado" value={form.maxUses} onChange={e => setForm(f => ({ ...f, maxUses: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label>Fecha de vencimiento</Label>
+                <Input type="date" value={form.expiresAt} onChange={e => setForm(f => ({ ...f, expiresAt: e.target.value }))} />
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <input type="checkbox" id="couponIsActive" checked={form.isActive} onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))} className="h-4 w-4" />
+                <Label htmlFor="couponIsActive">Cupón activo</Label>
+              </div>
+              <div className="md:col-span-2 flex gap-2 justify-end pt-2">
+                <Button type="button" variant="outline" onClick={resetForm}>Cancelar</Button>
+                <Button type="submit">{editingCoupon ? 'Guardar cambios' : 'Crear cupón'}</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Table */}
+      <Card>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-8 text-center text-muted-foreground">Cargando cupones...</div>
+          ) : coupons.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">No hay cupones creados aún.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-900 border-b">
+                  <tr>
+                    <th className="text-left p-3 font-semibold">Código</th>
+                    <th className="text-left p-3 font-semibold">Tipo</th>
+                    <th className="text-left p-3 font-semibold">Valor</th>
+                    <th className="text-left p-3 font-semibold">Aplica a</th>
+                    <th className="text-left p-3 font-semibold">Usos</th>
+                    <th className="text-left p-3 font-semibold">Estado</th>
+                    <th className="text-left p-3 font-semibold">Vence</th>
+                    <th className="text-right p-3"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {coupons.map((coupon: any) => (
+                    <tr key={coupon.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                      <td className="p-3 font-mono font-bold text-orange-600">{coupon.code}</td>
+                      <td className="p-3">{discountTypeLabel(coupon.discountType)}</td>
+                      <td className="p-3">
+                        {coupon.discountType === 'free_shipping' ? '—' :
+                          coupon.discountType === 'percentage' ? `${coupon.discountValue}%` :
+                          `$${Number(coupon.discountValue).toLocaleString('es-CL')}`}
+                      </td>
+                      <td className="p-3">
+                        {coupon.appliesTo === 'product' && coupon.productSku
+                          ? <span>SKU: <span className="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{coupon.productSku}</span></span>
+                          : 'Carrito completo'}
+                      </td>
+                      <td className="p-3">
+                        {coupon.timesUsed}{coupon.maxUses ? `/${coupon.maxUses}` : ''}
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${coupon.isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}>
+                          {coupon.isActive ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </td>
+                      <td className="p-3 text-xs text-muted-foreground">
+                        {coupon.expiresAt ? new Date(coupon.expiresAt).toLocaleDateString('es-CL') : 'Sin vencimiento'}
+                      </td>
+                      <td className="p-3 text-right">
+                        <div className="flex gap-1 justify-end">
+                          <Button size="sm" variant="ghost" onClick={() => handleEdit(coupon)}>Editar</Button>
+                          <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(coupon.id, coupon.code)}>Eliminar</Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

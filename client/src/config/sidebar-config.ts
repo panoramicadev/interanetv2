@@ -44,6 +44,7 @@ interface SidebarItem {
   separator?: boolean; // Para mostrar separador después del item
   children?: SidebarItem[]; // Para submenús desplegables
   isExternalCatalog?: boolean; // Para el enlace dinámico al catálogo público
+  isPremium?: boolean; // Para items con estilo dorado premium (ej: Panorámica Market)
 }
 
 export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
@@ -107,11 +108,13 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/facturas",
       label: "Finanzas",
       icon: Receipt,
+      separator: true,
     },
     {
       href: "/ecommerce",
-      label: "eCommerce",
+      label: "Panorámica Market",
       icon: ShoppingCart,
+      isPremium: true,
       children: [
         {
           href: "/ecommerce-pedidos",
@@ -417,11 +420,13 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/facturas",
       label: "Finanzas",
       icon: Receipt,
+      separator: true,
     },
     {
       href: "/ecommerce",
-      label: "eCommerce",
+      label: "Panorámica Market",
       icon: ShoppingCart,
+      isPremium: true,
       children: [
         {
           href: "/ecommerce-pedidos",

@@ -2526,6 +2526,43 @@ export const storeNavigation = pgTable("store_navigation", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// ================================
+// ECOMMERCE COUPONS TABLE
+// ================================
+export const ecommerceCoupons = pgTable("ecommerce_coupons", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: varchar("code").notNull().unique(),
+  description: varchar("description"),
+  discountType: varchar("discount_type").notNull().$type<'percentage' | 'fixed' | 'free_shipping'>(),
+  discountValue: numeric("discount_value", { precision: 10, scale: 2 }).notNull().default('0'),
+  appliesTo: varchar("applies_to").notNull().default('cart').$type<'cart' | 'product'>(),
+  productSku: varchar("product_sku"),
+  minOrderAmount: numeric("min_order_amount", { precision: 10, scale: 2 }).default('0'),
+  maxUses: integer("max_uses"),
+  timesUsed: integer("times_used").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertEcommerceCouponSchema = createInsertSchema(ecommerceCoupons, {
+  code: z.string().min(1, "Código del cupón es requerido"),
+  discountType: z.enum(['percentage', 'fixed', 'free_shipping']),
+  discountValue: z.union([z.number().min(0), z.string()]),
+  appliesTo: z.enum(['cart', 'product']),
+  productSku: z.string().optional().nullable(),
+  minOrderAmount: z.union([z.number().min(0), z.string()]).optional(),
+  maxUses: z.number().int().positive().optional().nullable(),
+  expiresAt: z.any().optional().nullable(),
+}).omit({ id: true, createdAt: true, updatedAt: true, timesUsed: true });
+
+export const updateEcommerceCouponSchema = insertEcommerceCouponSchema.partial();
+
+export type EcommerceCoupon = typeof ecommerceCoupons.$inferSelect;
+export type InsertEcommerceCoupon = z.infer<typeof insertEcommerceCouponSchema>;
+export type UpdateEcommerceCoupon = z.infer<typeof updateEcommerceCouponSchema>;
+
 // Schemas for Store Config
 export const insertStoreConfigSchema = createInsertSchema(storeConfig, {
   siteName: z.string().min(1, "Nombre del sitio es requerido"),
@@ -2640,9 +2677,11 @@ export interface CartState {
   // Applied discounts/coupons
   appliedCoupons: Array<{
     code: string;
-    discount: number; // Discount amount in CLP
-    type: 'percentage' | 'fixed'; // Discount type
+    discount: number; // Discount value (percentage number or CLP amount; 0 for free_shipping)
+    type: 'percentage' | 'fixed' | 'free_shipping'; // Discount type
     description?: string;
+    appliesTo?: 'cart' | 'product'; // Optional for backward compat
+    productSku?: string; // Only when appliesTo === 'product'
   }>;
 
   // Metadata
@@ -2658,7 +2697,7 @@ export type CartAction =
   | { type: 'UPDATE_QUANTITY'; payload: { id: string; quantity: number } }
   | { type: 'UPDATE_ITEM'; payload: { id: string; updates: Partial<CartItem> } }
   | { type: 'CLEAR_CART' }
-  | { type: 'APPLY_COUPON'; payload: { code: string; discount: number; type: 'percentage' | 'fixed'; description?: string } }
+  | { type: 'APPLY_COUPON'; payload: { code: string; discount: number; type: 'percentage' | 'fixed' | 'free_shipping'; description?: string; appliesTo?: 'cart' | 'product'; productSku?: string } }
   | { type: 'REMOVE_COUPON'; payload: { code: string } }
   | { type: 'LOAD_CART'; payload: CartState }
   | { type: 'CALCULATE_TOTALS' };
@@ -2744,8 +2783,10 @@ export const cartStateSchema = z.object({
   appliedCoupons: z.array(z.object({
     code: z.string(),
     discount: z.number().min(0),
-    type: z.enum(['percentage', 'fixed']),
+    type: z.enum(['percentage', 'fixed', 'free_shipping']),
     description: z.string().optional(),
+    appliesTo: z.enum(['cart', 'product']).optional(),
+    productSku: z.string().optional(),
   })),
   lastUpdated: z.string(),
   sessionId: z.string().optional(),

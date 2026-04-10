@@ -344,6 +344,10 @@ import {
   type ProductQuestion,
   type InsertProductQuestion,
   ecommerceOrders,
+  ecommerceCoupons,
+  type EcommerceCoupon,
+  type InsertEcommerceCoupon,
+  type UpdateEcommerceCoupon,
 } from "@shared/schema";
 import { mapToOperativeArea, RECLAMOS_AREAS, AREA_ESPECIFICA_TO_OPERATIVA } from "@shared/reclamosAreas";
 import { db } from "./db";
@@ -1469,6 +1473,15 @@ export interface IStorage {
     offset?: number;
   }): Promise<any[]>;
   getEcommerceCategories(): Promise<string[]>;
+
+  // Coupon operations
+  getCoupons(): Promise<EcommerceCoupon[]>;
+  getCouponByCode(code: string): Promise<EcommerceCoupon | undefined>;
+  createCoupon(data: any): Promise<EcommerceCoupon>;
+  updateCoupon(id: string, data: any): Promise<EcommerceCoupon | undefined>;
+  deleteCoupon(id: string): Promise<boolean>;
+  incrementCouponUsage(code: string): Promise<void>;
+  validateCoupon(code: string, cartSubtotal: number): Promise<{ isValid: boolean; error?: string; coupon?: EcommerceCoupon }>;
 
   // File Upload Registry operations
   recordFileUpload(upload: InsertFileUpload): Promise<FileUpload>;
@@ -26357,6 +26370,69 @@ export class DatabaseStorage implements IStorage {
         updatedAt: new Date(),
       })
       .where(eq(whatsappConfig.id, 'default'));
+  }
+
+  // ============ COUPONS ============
+
+  async getCoupons(): Promise<EcommerceCoupon[]> {
+    return await db.select().from(ecommerceCoupons).orderBy(desc(ecommerceCoupons.createdAt));
+  }
+
+  async getCouponByCode(code: string): Promise<EcommerceCoupon | undefined> {
+    const [coupon] = await db
+      .select()
+      .from(ecommerceCoupons)
+      .where(sql`UPPER(${ecommerceCoupons.code}) = ${code.toUpperCase().trim()}`);
+    return coupon;
+  }
+
+  async createCoupon(data: any): Promise<EcommerceCoupon> {
+    const [coupon] = await db.insert(ecommerceCoupons).values({
+      ...data,
+      code: (data.code as string).toUpperCase().trim(),
+    }).returning();
+    return coupon;
+  }
+
+  async updateCoupon(id: string, data: any): Promise<EcommerceCoupon | undefined> {
+    const [coupon] = await db
+      .update(ecommerceCoupons)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(ecommerceCoupons.id, id))
+      .returning();
+    return coupon;
+  }
+
+  async deleteCoupon(id: string): Promise<boolean> {
+    const result = await db.delete(ecommerceCoupons).where(eq(ecommerceCoupons.id, id));
+    return (result.rowCount || 0) > 0;
+  }
+
+  async incrementCouponUsage(code: string): Promise<void> {
+    await db
+      .update(ecommerceCoupons)
+      .set({ timesUsed: sql`${ecommerceCoupons.timesUsed} + 1`, updatedAt: new Date() })
+      .where(sql`UPPER(${ecommerceCoupons.code}) = ${code.toUpperCase().trim()}`);
+  }
+
+  async validateCoupon(code: string, cartSubtotal: number): Promise<{
+    isValid: boolean;
+    error?: string;
+    coupon?: EcommerceCoupon;
+  }> {
+    const coupon = await this.getCouponByCode(code);
+    if (!coupon) return { isValid: false, error: 'Cupón no encontrado' };
+    if (!coupon.isActive) return { isValid: false, error: 'Cupón inactivo' };
+    if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) {
+      return { isValid: false, error: 'Cupón vencido' };
+    }
+    if (coupon.maxUses !== null && coupon.timesUsed >= coupon.maxUses) {
+      return { isValid: false, error: 'Cupón agotado' };
+    }
+    if (coupon.minOrderAmount && cartSubtotal < Number(coupon.minOrderAmount)) {
+      return { isValid: false, error: `Monto mínimo requerido: $${Number(coupon.minOrderAmount).toLocaleString('es-CL')}` };
+    }
+    return { isValid: true, coupon };
   }
 
 }

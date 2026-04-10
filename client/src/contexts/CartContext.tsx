@@ -152,8 +152,25 @@ export const calculateTax = (subtotal: number, taxRate = CART_CONFIG.TAX_RATE): 
 /**
  * Calculate total discount from applied coupons
  */
-export const calculateDiscount = (subtotal: number, coupons: CartState['appliedCoupons']): number => {
+export const calculateDiscount = (
+  subtotal: number, 
+  coupons: CartState['appliedCoupons'],
+  items?: CartItem[]
+): number => {
   return coupons.reduce((total, coupon) => {
+    if (coupon.type === 'free_shipping') {
+      return total; // Free shipping is handled in BillingSummary, not here
+    }
+    if (coupon.appliesTo === 'product' && coupon.productSku && items) {
+      // Discount only the matching product
+      const item = items.find(i => i.productCode === coupon.productSku || i.productId === coupon.productSku);
+      if (!item) return total;
+      if (coupon.type === 'percentage') {
+        return total + Math.round(item.subtotal * (coupon.discount / 100));
+      }
+      return total + Math.min(coupon.discount, item.subtotal);
+    }
+    // Cart-wide discount
     if (coupon.type === 'percentage') {
       return total + Math.round(subtotal * (coupon.discount / 100));
     }
@@ -180,7 +197,7 @@ export const recalculateCartTotals = (state: CartState): CartState => {
   
   const subtotal = calculateCartSubtotal(updatedItems);
   const taxAmount = calculateTax(subtotal);
-  const discountAmount = calculateDiscount(subtotal, state.appliedCoupons);
+  const discountAmount = calculateDiscount(subtotal, state.appliedCoupons, updatedItems);
   const total = calculateTotal(subtotal, taxAmount, discountAmount);
   
   return {
@@ -323,13 +340,13 @@ export const cartReducer = (state: CartState, action: CartAction): CartState => 
     }
     
     case 'APPLY_COUPON': {
-      const { code, discount, type, description } = action.payload;
+      const { code, discount, type, description, appliesTo, productSku } = action.payload;
       
       // Check if coupon already applied
       const existingCouponIndex = state.appliedCoupons.findIndex(c => c.code === code);
       if (existingCouponIndex >= 0) return state;
       
-      const newCoupon = { code, discount, type, description };
+      const newCoupon = { code, discount, type, description, appliesTo, productSku };
       return recalculateCartTotals({
         ...state,
         appliedCoupons: [...state.appliedCoupons, newCoupon]
@@ -441,7 +458,7 @@ export interface CartContextType {
   updateQuantity: (id: string, quantity: number) => void;
   updateItem: (id: string, updates: Partial<CartItem>) => void;
   clearCart: () => void;
-  applyCoupon: (code: string, discount: number, type: 'percentage' | 'fixed', description?: string) => void;
+  applyCoupon: (code: string, discount: number, type: 'percentage' | 'fixed' | 'free_shipping', description?: string, appliesTo?: 'cart' | 'product', productSku?: string) => void;
   removeCoupon: (code: string) => void;
   
   // Utilities
@@ -530,8 +547,8 @@ export function CartProvider({ children }: CartProviderProps) {
     dispatch({ type: 'CLEAR_CART' });
   };
   
-  const applyCoupon = (code: string, discount: number, type: 'percentage' | 'fixed', description?: string) => {
-    dispatch({ type: 'APPLY_COUPON', payload: { code, discount, type, description } });
+  const applyCoupon = (code: string, discount: number, type: 'percentage' | 'fixed' | 'free_shipping', description?: string, appliesTo?: 'cart' | 'product', productSku?: string) => {
+    dispatch({ type: 'APPLY_COUPON', payload: { code, discount, type, description, appliesTo, productSku } });
   };
   
   const removeCoupon = (code: string) => {

@@ -169,25 +169,40 @@ export default function BillingSummary() {
     ? customAddress 
     : availableAddresses.find(a => a.value === selectedAddressOption)?.fullAddress || "";
 
-  // Mock coupon validation - replace with real API call
-  const validateCoupon = async (code: string): Promise<{ isValid: boolean; discount: number; type: 'percentage' | 'fixed'; description?: string }> => {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const mockCoupons: Record<string, { discount: number; type: 'percentage' | 'fixed'; description: string }> = {
-      'DESCUENTO10': { discount: 10, type: 'percentage', description: '10% de descuento' },
-      'DESCUENTO5000': { discount: 5000, type: 'fixed', description: '$5,000 de descuento' },
-      'WELCOME15': { discount: 15, type: 'percentage', description: '15% descuento bienvenida' },
-      'CLIENTE5': { discount: 5, type: 'percentage', description: '5% descuento cliente' },
-    };
-
-    const normalizedCode = code.toUpperCase().trim();
-    const coupon = mockCoupons[normalizedCode];
-    
-    if (coupon) {
-      return { isValid: true, ...coupon };
+  // Validate coupon via API
+  const validateCoupon = async (code: string): Promise<{
+    isValid: boolean;
+    discount: number;
+    type: 'percentage' | 'fixed' | 'free_shipping';
+    description?: string;
+    appliesTo?: 'cart' | 'product';
+    productSku?: string;
+  }> => {
+    try {
+      const response = await fetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          code: code.trim().toUpperCase(),
+          cartSubtotal: neto,
+        }),
+      });
+      const data = await response.json();
+      if (!data.isValid) {
+        return { isValid: false, discount: 0, type: 'fixed', description: data.error };
+      }
+      return {
+        isValid: true,
+        discount: data.discount,
+        type: data.type,
+        description: data.description,
+        appliesTo: data.appliesTo,
+        productSku: data.productSku,
+      };
+    } catch {
+      return { isValid: false, discount: 0, type: 'fixed', description: 'Error de conexión' };
     }
-    
-    return { isValid: false, discount: 0, type: 'fixed' };
   };
 
   const handleApplyCoupon = async () => {
@@ -220,18 +235,22 @@ export default function BillingSummary() {
           couponCode.toUpperCase().trim(),
           validation.discount,
           validation.type,
-          validation.description
+          validation.description,
+          validation.appliesTo,
+          validation.productSku
         );
         
         setCouponCode("");
         toast({
           title: "¡Cupón aplicado!",
-          description: `${validation.description} aplicado correctamente`,
+          description: validation.type === 'free_shipping' 
+            ? `🚚 Envío gratuito aplicado (${couponCode.toUpperCase()})` 
+            : `${validation.description} aplicado correctamente`,
         });
       } else {
         toast({
           title: "Cupón inválido",
-          description: "El código de cupón ingresado no es válido",
+          description: validation.description || "El código de cupón ingresado no es válido",
           variant: "destructive",
         });
       }
@@ -374,8 +393,9 @@ export default function BillingSummary() {
     }
   });
 
-  // Apply free shipping if neto meets or exceeds the threshold
-  const hasFreeShipping = FREE_SHIPPING_THRESHOLD > 0 && neto >= FREE_SHIPPING_THRESHOLD;
+  // Apply free shipping if neto meets threshold OR a free_shipping coupon is applied
+  const hasCouponFreeShipping = state.appliedCoupons.some(c => c.type === 'free_shipping');
+  const hasFreeShipping = hasCouponFreeShipping || (FREE_SHIPPING_THRESHOLD > 0 && neto >= FREE_SHIPPING_THRESHOLD);
   if (hasFreeShipping) {
     shippingCost = 0;
   } else if (shippingDiscountPercent > 0) {
@@ -461,7 +481,10 @@ export default function BillingSummary() {
                 <div key={coupon.code} className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-green-600 dark:text-green-400">
-                      Descuento ({coupon.code}):
+                      {coupon.type === 'free_shipping'
+                        ? `🚚 Envío gratis (${coupon.code}):`
+                        : `Descuento (${coupon.code})${coupon.appliesTo === 'product' && coupon.productSku ? ` • SKU ${coupon.productSku}` : ''}:`
+                      }
                     </span>
                     <Button
                       variant="ghost"
@@ -474,7 +497,12 @@ export default function BillingSummary() {
                     </Button>
                   </div>
                   <span className="font-medium text-green-600 dark:text-green-400" data-testid={`text-discount-${coupon.code}`}>
-                    -{coupon.type === 'percentage' ? `${coupon.discount}%` : formatPrice(coupon.discount)}
+                    {coupon.type === 'free_shipping'
+                      ? '¡Gratis!'
+                      : coupon.type === 'percentage'
+                        ? `-${coupon.discount}%`
+                        : `-${formatPrice(coupon.discount)}`
+                    }
                   </span>
                 </div>
               ))}

@@ -97,16 +97,30 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     }
 
     if (hasChildren) {
+      const isPremium = item.isPremium;
       return (
         <div>
           <button
             onClick={() => toggleSubmenu(item.href)}
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-200 hover:text-white hover:bg-slate-700/60 transition-all duration-150"
+            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
+              isPremium
+                ? "hover:bg-amber-500/10 group"
+                : "text-slate-200 hover:text-white hover:bg-slate-700/60"
+            }`}
             data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
           >
-            <Icon className="w-4 h-4 flex-shrink-0 text-slate-400" />
-            <span className="flex-1 text-left">{item.label}</span>
-            <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
+            <Icon className={`w-4 h-4 flex-shrink-0 ${isPremium ? "text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.4)]" : "text-slate-400"}`} />
+            {isPremium ? (
+              <span
+                className="flex-1 text-left font-bold tracking-tight bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent drop-shadow-[0_0_8px_rgba(251,191,36,0.3)] animate-[shimmer_3s_ease-in-out_infinite] bg-[length:200%_100%]"
+                style={{ WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
+              >
+                {item.label}
+              </span>
+            ) : (
+              <span className="flex-1 text-left">{item.label}</span>
+            )}
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""} ${isPremium ? "text-amber-400/60" : "text-slate-500"}`} />
           </button>
 
           {isExpanded && (

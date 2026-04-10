@@ -67,6 +67,10 @@ import {
   insertCrmSeguimientoClienteSchema,
   insertCrmSeguimientoHitoSchema,
   salespeopleUsers,
+  // Coupons
+  ecommerceCoupons,
+  insertEcommerceCouponSchema,
+  updateEcommerceCouponSchema,
 } from "../shared/schema";
 import { eq, and, isNotNull, isNull, ne, sql, desc, asc, or, sum, count, countDistinct, inArray, ilike, gte, lte, getTableColumns } from "drizzle-orm";
 import { emailService } from "./services/email";
@@ -13034,6 +13038,101 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error('Error updating store config:', error);
       res.status(500).json({ message: 'Error updating config', error: error.message });
+    }
+  }));
+
+  // =====================================
+  // COUPONS API
+  // =====================================
+
+  // GET /api/admin/coupons — Admin: list all coupons
+  app.get('/api/admin/coupons', requireAuth, requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const coupons = await storage.getCoupons();
+      res.json(coupons);
+    } catch (error) {
+      console.error('Error fetching coupons:', error);
+      res.status(500).json({ error: 'Error al obtener cupones' });
+    }
+  }));
+
+  // POST /api/admin/coupons — Admin: create coupon
+  app.post('/api/admin/coupons', requireAuth, requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const data = insertEcommerceCouponSchema.parse(req.body);
+      const coupon = await storage.createCoupon(data);
+      res.status(201).json(coupon);
+    } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        return res.status(400).json({ error: 'Datos inválidos', details: error.errors });
+      }
+      if (error?.code === '23505') {
+        return res.status(409).json({ error: 'El código de cupón ya existe' });
+      }
+      console.error('Error creating coupon:', error);
+      res.status(500).json({ error: 'Error al crear cupón' });
+    }
+  }));
+
+  // PUT /api/admin/coupons/:id — Admin: update coupon
+  app.put('/api/admin/coupons/:id', requireAuth, requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const data = updateEcommerceCouponSchema.parse(req.body);
+      const coupon = await storage.updateCoupon(req.params.id, data);
+      if (!coupon) return res.status(404).json({ error: 'Cupón no encontrado' });
+      res.json(coupon);
+    } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        return res.status(400).json({ error: 'Datos inválidos', details: error.errors });
+      }
+      console.error('Error updating coupon:', error);
+      res.status(500).json({ error: 'Error al actualizar cupón' });
+    }
+  }));
+
+  // DELETE /api/admin/coupons/:id — Admin: delete coupon
+  app.delete('/api/admin/coupons/:id', requireAuth, requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const success = await storage.deleteCoupon(req.params.id);
+      if (!success) return res.status(404).json({ error: 'Cupón no encontrado' });
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting coupon:', error);
+      res.status(500).json({ error: 'Error al eliminar cupón' });
+    }
+  }));
+
+  // POST /api/coupons/validate — Public (with auth): validate and return coupon data
+  app.post('/api/coupons/validate', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { code, cartSubtotal } = req.body;
+      if (!code || typeof code !== 'string') {
+        return res.status(400).json({ isValid: false, error: 'Código requerido' });
+      }
+      const subtotal = Number(cartSubtotal) || 0;
+      const result = await storage.validateCoupon(code, subtotal);
+
+      if (!result.isValid || !result.coupon) {
+        return res.json({ isValid: false, error: result.error });
+      }
+      const coupon = result.coupon;
+      const discountValue = Number(coupon.discountValue);
+
+      // Increment usage when coupon is applied
+      await storage.incrementCouponUsage(code);
+
+      return res.json({
+        isValid: true,
+        code: coupon.code,
+        description: coupon.description,
+        type: coupon.discountType,
+        discount: discountValue,
+        appliesTo: coupon.appliesTo,
+        productSku: coupon.productSku,
+      });
+    } catch (error) {
+      console.error('Error validating coupon:', error);
+      res.status(500).json({ isValid: false, error: 'Error al validar cupón' });
     }
   }));
 
