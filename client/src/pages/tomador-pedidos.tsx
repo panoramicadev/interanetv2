@@ -2848,11 +2848,9 @@ export default function TomadorPedidos() {
   // Download or view PDF based on device
   const downloadPDF = async () => {
     try {
-      // Force save before downloading to ensure latest data is used
-      if (savedQuoteId && saveQuoteRef.current && cart.length > 0 && quoteForm.clientName.trim()) {
+      // Only save before downloading if there are unsaved changes
+      if (hasUnsavedChanges && savedQuoteId && saveQuoteRef.current && cart.length > 0 && quoteForm.clientName.trim()) {
         await saveQuoteRef.current();
-        // Delay to ensure persistence if needed
-        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       const { quoteData, itemsData, shippingCost } = await getPreparedPDFData();
@@ -3500,178 +3498,104 @@ export default function TomadorPedidos() {
       const tax = subtotalWithShipping * 0.19; // 19% IVA
       const total = subtotalWithShipping + tax;
 
+      // Build the items array for sync (cart + shipping line items)
+      const allItems = cart.map(item => ({
+        type: item.type,
+        productName: item.productName,
+        productCode: item.productCode,
+        productUnit: item.productUnit || 'UN',
+        customSku: item.customSku,
+        quantity: item.quantity.toString(),
+        unitPrice: item.unitPrice.toString(),
+        totalPrice: item.totalPrice.toString(),
+        costOfProduction: item.costOfProduction?.toString(),
+        profitMargin: item.profitMargin?.toString(),
+        pricingMode: item.pricingMode,
+      }));
+
+      // Add shipping items if enabled
+      if (showShipping && shippingLineItems.length > 0) {
+        for (const shipItem of shippingLineItems) {
+          allItems.push({
+            type: 'standard',
+            productName: shipItem.label,
+            productCode: shipItem.sku || 'DESPACHO',
+            productUnit: 'UN',
+            customSku: undefined,
+            quantity: shipItem.qty.toString(),
+            unitPrice: shipItem.unitPrice.toString(),
+            totalPrice: (shipItem.qty * shipItem.unitPrice).toString(),
+            costOfProduction: undefined,
+            profitMargin: undefined,
+            pricingMode: 'direct',
+          });
+        }
+      }
+
       let quote: Quote;
 
       if (editingQuoteId) {
-        // Update existing quote
+        // ── Bulk sync for existing quotes (single request) ──
         const quoteData = {
           ...quoteForm,
           subtotal: subtotalForSave.toString(),
           taxAmount: tax.toString(),
           total: total.toString(),
           status: "draft" as const,
-          // Convert validUntil string to ISO string if it exists
           validUntil: quoteForm.validUntil ? new Date(quoteForm.validUntil).toISOString() : null,
-          // Allow admin/supervisor to assign creator
           ...(isAdminOrSupervisor && selectedCreatorId ? { createdBy: selectedCreatorId } : {}),
         };
 
-        const response = await apiRequest(`/api/quotes/${editingQuoteId}`, {
+        const response = await apiRequest(`/api/quotes/${editingQuoteId}/items/sync`, {
           method: 'PUT',
-          data: quoteData
+          data: { quoteData, items: allItems }
         });
-        quote = await response.json();
 
-        // Delete existing items and add new ones
-        const existingItemsResponse = await apiRequest(`/api/quotes/${editingQuoteId}/items`).catch(() => null);
-        const existingItems = existingItemsResponse ? await existingItemsResponse.json() : [];
-        for (const existingItem of existingItems) {
-          await apiRequest(`/api/quote-items/${existingItem.id}`, { method: 'DELETE' }).catch(() => { });
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Failed to sync quote:', errorText);
+          throw new Error('Failed to sync quote');
         }
 
-        // Add new items with error tracking
-        const failedItems: string[] = [];
-        let successfulItems = 0;
-
-        for (const item of cart) {
-          try {
-            const itemData = {
-              quoteId: quote.id,
-              type: item.type,
-              productName: item.productName,
-              productCode: item.productCode,
-              productUnit: item.productUnit || 'UN',
-              customSku: item.customSku,
-              quantity: item.quantity.toString(),
-              unitPrice: item.unitPrice.toString(),
-              totalPrice: item.totalPrice.toString(),
-              costOfProduction: item.costOfProduction?.toString(),
-              profitMargin: item.profitMargin?.toString(),
-              pricingMode: item.pricingMode,
-            };
-
-            const itemResponse = await apiRequest(`/api/quotes/${quote.id}/items`, {
-              method: 'POST',
-              data: itemData
-            });
-
-            if (!itemResponse.ok) {
-              const errorText = await itemResponse.text();
-              console.error('Failed to add quote item:', errorText);
-              failedItems.push(item.productName);
-            } else {
-              successfulItems++;
-            }
-          } catch (itemError) {
-            console.error('Error adding item:', itemError);
-            failedItems.push(item.productName);
-          }
-        }
+        const result = await response.json();
+        quote = result.quote;
 
         // Notificación removida a petición del usuario
-        if (failedItems.length === 0) {
-          /*
-          toast({
-            title: "Presupuesto actualizado",
-            description: `Presupuesto ${quote.quoteNumber} actualizado exitosamente con ${successfulItems} productos`,
-          });
-          */
-        } else {
-          toast({
-            title: "Presupuesto actualizado parcialmente",
-            description: `Se actualizaron ${successfulItems} productos, pero fallaron ${failedItems.length}: ${failedItems.join(', ')}`,
-            variant: "destructive",
-          });
-        }
       } else {
-        // Create new quote
+        // ── Create new quote + add items via bulk sync ──
         const quoteData = {
           ...quoteForm,
           subtotal: subtotal.toString(),
           taxAmount: tax.toString(),
           total: total.toString(),
           status: "draft" as const,
-          // Convert validUntil string to ISO string if it exists
           validUntil: quoteForm.validUntil ? new Date(quoteForm.validUntil).toISOString() : null,
-          // Allow admin/supervisor to assign creator
           ...(isAdminOrSupervisor && selectedCreatorId ? { createdBy: selectedCreatorId } : {}),
         };
 
-        const response = await apiRequest('/api/quotes', {
+        // First create the quote
+        const createResponse = await apiRequest('/api/quotes', {
           method: 'POST',
           data: quoteData
         });
-        quote = await response.json();
+        quote = await createResponse.json();
 
-        // Add quote items with error tracking
-        const failedItems: string[] = [];
-        let successfulItems = 0;
+        // Then bulk sync items (single request instead of N)
+        if (allItems.length > 0) {
+          const syncResponse = await apiRequest(`/api/quotes/${quote.id}/items/sync`, {
+            method: 'PUT',
+            data: { quoteData: {}, items: allItems }
+          });
 
-        for (const item of cart) {
-          try {
-            console.log('[FRONTEND] Cart item before send:', {
-              productName: item.productName,
-              productCode: item.productCode,
-              productUnit: item.productUnit,
-              fullItem: JSON.stringify(item)
+          if (!syncResponse.ok) {
+            const errorText = await syncResponse.text();
+            console.error('Failed to sync items for new quote:', errorText);
+            toast({
+              title: "Error al guardar productos",
+              description: `Se creó el presupuesto ${quote.quoteNumber} pero hubo un error al guardar los productos.`,
+              variant: "destructive",
             });
-
-            const itemData = {
-              quoteId: quote.id,
-              type: item.type,
-              productName: item.productName,
-              productCode: item.productCode,
-              productUnit: item.productUnit || 'UN',
-              customSku: item.customSku,
-              quantity: item.quantity.toString(),
-              unitPrice: item.unitPrice.toString(),
-              totalPrice: item.totalPrice.toString(),
-              costOfProduction: item.costOfProduction?.toString(),
-              profitMargin: item.profitMargin?.toString(),
-              pricingMode: item.pricingMode,
-            };
-
-            console.log('[FRONTEND] itemData being sent:', JSON.stringify(itemData));
-
-            const itemResponse = await apiRequest(`/api/quotes/${quote.id}/items`, {
-              method: 'POST',
-              data: itemData
-            });
-
-            if (!itemResponse.ok) {
-              const errorText = await itemResponse.text();
-              console.error('Failed to add quote item:', errorText);
-              failedItems.push(item.productName);
-            } else {
-              successfulItems++;
-            }
-          } catch (itemError) {
-            console.error('Error adding item:', itemError);
-            failedItems.push(item.productName);
           }
-        }
-
-        // Notificación removida a petición del usuario
-        if (failedItems.length === 0) {
-          /*
-          toast({
-            title: "Presupuesto guardado",
-            description: `Presupuesto ${quote.quoteNumber} creado exitosamente con ${successfulItems} productos`,
-          });
-          */
-        } else if (successfulItems > 0) {
-          toast({
-            title: "Presupuesto guardado parcialmente",
-            description: `Se guardaron ${successfulItems} productos, pero fallaron ${failedItems.length}: ${failedItems.join(', ')}`,
-            variant: "destructive",
-          });
-        } else {
-          // All items failed - show error
-          toast({
-            title: "Error al guardar productos",
-            description: `Se creó el presupuesto ${quote.quoteNumber} pero no se pudo guardar ningún producto. Por favor, edite el presupuesto para agregar productos o elimínelo.`,
-            variant: "destructive",
-          });
         }
       }
 
@@ -3711,11 +3635,9 @@ export default function TomadorPedidos() {
     }
 
     try {
-      // Force save before generating to ensure latest data is used (same as downloadPDF)
-      if (saveQuoteRef.current && cart.length > 0 && quoteForm.clientName.trim()) {
+      // Only save before sharing if there are unsaved changes
+      if (hasUnsavedChanges && saveQuoteRef.current && cart.length > 0 && quoteForm.clientName.trim()) {
         await saveQuoteRef.current();
-        // Delay to ensure persistence if needed
-        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       const { quoteData, itemsData, shippingCost } = await getPreparedPDFData();

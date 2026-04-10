@@ -1446,6 +1446,9 @@ export interface IStorage {
   deleteQuoteItemById(itemId: string): Promise<void>;
   recalculateQuoteTotals(quoteId: string): Promise<Quote>;
 
+  // Bulk sync: update quote + replace all items in a single transaction
+  syncQuoteWithItems(quoteId: string, quoteData: Partial<InsertQuote>, items: InsertQuoteItemInput[]): Promise<{ quote: Quote; items: QuoteItem[] }>;
+
   // Quote to Order conversion
   convertQuoteToOrder(quoteId: string, userId: string): Promise<Order>;
 
@@ -13883,6 +13886,65 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return updatedQuote;
+  }
+
+  // Bulk sync: update quote + replace all items in a single transaction
+  async syncQuoteWithItems(
+    quoteId: string,
+    quoteData: Partial<InsertQuote>,
+    items: InsertQuoteItemInput[]
+  ): Promise<{ quote: Quote; items: QuoteItem[] }> {
+    return await db.transaction(async (tx) => {
+      // 1. Update quote fields
+      const [updatedQuote] = await tx
+        .update(quotes)
+        .set({ ...quoteData, updatedAt: new Date() })
+        .where(eq(quotes.id, quoteId))
+        .returning();
+
+      if (!updatedQuote) {
+        throw new Error('Quote not found');
+      }
+
+      // 2. Delete all existing items in bulk
+      await tx.delete(quoteItems).where(eq(quoteItems.quoteId, quoteId));
+
+      // 3. Insert all new items in bulk
+      let savedItems: QuoteItem[] = [];
+      if (items.length > 0) {
+        const itemValues = items.map(item => {
+          const quantity = typeof item.quantity === 'string' ? parseFloat(item.quantity) : item.quantity;
+          const unitPrice = typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) : item.unitPrice;
+          const totalPrice = quantity * unitPrice;
+          return {
+            ...item,
+            quoteId,
+            totalPrice: totalPrice.toString(),
+          };
+        });
+        savedItems = await tx.insert(quoteItems).values(itemValues).returning();
+      }
+
+      // 4. Recalculate quote totals once
+      const itemsForCalculation = savedItems.map(item => ({
+        quantity: typeof item.quantity === 'string' ? parseFloat(item.quantity) : item.quantity,
+        unitPrice: typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) : item.unitPrice,
+      }));
+      const totals = calculateOrderTotals(itemsForCalculation);
+
+      const [finalQuote] = await tx
+        .update(quotes)
+        .set({
+          subtotal: totals.subtotal.toString(),
+          discount: totals.discount.toString(),
+          taxAmount: totals.taxAmount.toString(),
+          total: totals.total.toString(),
+        })
+        .where(eq(quotes.id, quoteId))
+        .returning();
+
+      return { quote: finalQuote, items: savedItems };
+    });
   }
 
   // Quote to Order conversion

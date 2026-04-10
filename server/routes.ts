@@ -10022,6 +10022,57 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Bulk sync endpoint: update quote + replace all items atomically
+  // Replaces the N sequential delete/create pattern for dramatically better performance
+  app.put('/api/quotes/:id/items/sync', requireAuth, async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+
+      const quote = await storage.getQuoteById(id);
+      if (!quote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+
+      // Role-based access control
+      if (user.role === 'salesperson' && quote.createdBy !== user.id) {
+        return res.status(403).json({ message: "Not authorized to update this quote" });
+      }
+
+      const { quoteData, items } = req.body;
+      if (!quoteData || !Array.isArray(items)) {
+        return res.status(400).json({ message: "quoteData and items array are required" });
+      }
+
+      // Validate quote data (partial update)
+      const validatedQuoteData = insertQuoteSchema.partial().parse(quoteData);
+
+      // Convert validUntil string to Date if present
+      const storageQuoteData = {
+        ...validatedQuoteData,
+        validUntil: validatedQuoteData.validUntil ? new Date(validatedQuoteData.validUntil) : validatedQuoteData.validUntil,
+      } as any;
+
+      // Validate each item
+      const validatedItems = items.map((item: any) =>
+        insertQuoteItemSchema.parse({ ...item, quoteId: id })
+      );
+
+      const result = await storage.syncQuoteWithItems(id, storageQuoteData, validatedItems);
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error syncing quote with items:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          message: "Validation error",
+          errors: error.errors
+        });
+      }
+      res.status(500).json({ message: "Failed to sync quote with items" });
+    }
+  });
+
   // Quote items endpoints
   app.get('/api/quotes/:quoteId/items', requireAuth, async (req: any, res) => {
     try {
