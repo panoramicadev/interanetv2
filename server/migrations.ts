@@ -459,6 +459,45 @@ export async function bootstrapDatabase(): Promise<void> {
     `);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_price_list_mix_codigo ON price_list_mix(codigo)`);
 
+    // 11b. Crear tablas custom_price_lists y custom_price_list_items (sistema multi-lista generalizado)
+    console.log('  💲 Verificando tablas custom_price_lists...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS custom_price_lists (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        code VARCHAR NOT NULL UNIQUE,
+        name VARCHAR NOT NULL,
+        active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS custom_price_list_items (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        list_code VARCHAR NOT NULL,
+        codigo VARCHAR NOT NULL,
+        precio NUMERIC(15, 2),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(list_code, codigo)
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_cpli_list_code ON custom_price_list_items(list_code)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_cpli_codigo ON custom_price_list_items(codigo)`);
+
+    // Asegurar que existe la lista LP02 (Lista Mix) y migrar datos desde price_list_mix si existen
+    await db.execute(sql`
+      INSERT INTO custom_price_lists (code, name, active)
+      SELECT 'LP02', 'Lista Mix', true
+      WHERE NOT EXISTS (SELECT 1 FROM custom_price_lists WHERE code = 'LP02')
+    `);
+    // Migrar items de price_list_mix a custom_price_list_items si no se ha hecho
+    await db.execute(sql`
+      INSERT INTO custom_price_list_items (list_code, codigo, precio)
+      SELECT 'LP02', codigo, precio FROM price_list_mix
+      ON CONFLICT (list_code, codigo) DO NOTHING
+    `);
+
     // 12. Add client_rut to salespeople_users for linking client users to business entities
     console.log('  🔗 Verificando columna client_rut en salespeople_users...');
     await db.execute(sql`ALTER TABLE salespeople_users ADD COLUMN IF NOT EXISTS client_rut VARCHAR`);
