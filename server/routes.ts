@@ -9274,8 +9274,11 @@ export function registerRoutes(app: Express): Server {
     try {
       const { id } = req.params;
       const { cpen, dccr, pickupWarehouseId, crlt, cren, crsd, kofuen, lcen: rawLcen } = req.body;
-      // Treat empty string lcen as undefined to prevent accidental erasure
-      const lcen = (rawLcen && typeof rawLcen === 'string' && rawLcen.trim() !== '') ? rawLcen.trim() : undefined;
+      // lcen handling: undefined = not sent (preserve existing), null = explicit reset, 
+      // empty string = treat as null, valid string ('LP01','LP02') = set
+      const lcen = rawLcen === undefined ? undefined 
+        : (rawLcen && typeof rawLcen === 'string' && rawLcen.trim() !== '') ? rawLcen.trim() 
+        : null;
       const user = req.user;
 
       if (!['admin', 'supervisor'].includes(user.role)) {

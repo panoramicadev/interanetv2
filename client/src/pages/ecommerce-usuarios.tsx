@@ -54,7 +54,7 @@ interface Warehouse {
 }
 
 // ─── Client Profile Detail Panel ─────────────────────────
-function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => void }) {
+function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser; onBack: () => void; onClientUpdated: (updated: ClientUser) => void }) {
   const [activeTab, setActiveTab] = useState("overview");
   const [isEditingCommercial, setIsEditingCommercial] = useState(false);
   const [commercialForm, setCommercialForm] = useState({
@@ -129,10 +129,21 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
       const res = await apiRequest("PATCH", `/api/users/clients/${client.clientId}/commercial-info`, data);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       toast({ title: "Guardado", description: "Información comercial actualizada." });
       queryClient.invalidateQueries({ queryKey: ["/api/users/clients"] });
       setIsEditingCommercial(false);
+      // Immediately sync the parent's selectedClient so the UI reflects the save
+      onClientUpdated({
+        ...client,
+        paymentCondition: (variables as any).cpen || client.paymentCondition,
+        salesRepCode: (variables as any).kofuen || client.salesRepCode,
+        creditLimit: (variables as any).crlt != null ? (variables as any).crlt : client.creditLimit,
+        creditAvailable: (variables as any).cren != null ? (variables as any).cren : client.creditAvailable,
+        creditUsed: (variables as any).crsd != null ? (variables as any).crsd : client.creditUsed,
+        pickupWarehouseId: (variables as any).pickupWarehouseId ?? client.pickupWarehouseId,
+        lcen: (variables as any).lcen || client.lcen,
+      });
     },
     onError: () => {
       toast({ title: "Error", description: "No se pudo actualizar la información comercial.", variant: "destructive" });
@@ -432,13 +443,14 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
                     <div className="space-y-1.5">
                       <Label className="text-xs">Lista de Precios Asignada</Label>
                       <Select 
-                        value={commercialForm.lcen} 
-                        onValueChange={(val) => setCommercialForm(p => ({ ...p, lcen: val }))}
+                        value={commercialForm.lcen || "__none__"} 
+                        onValueChange={(val) => setCommercialForm(p => ({ ...p, lcen: val === "__none__" ? "" : val }))}
                       >
                         <SelectTrigger className="h-8 text-sm">
-                          <SelectValue placeholder="Seleccione una lista (ej. Lista Comercial)" />
+                          <SelectValue placeholder="Seleccione una lista" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="__none__">Sin asignar</SelectItem>
                           <SelectItem value="LP01">Lista Comercial (Por defecto)</SelectItem>
                           <SelectItem value="LP02">Lista Mix</SelectItem>
                         </SelectContent>
@@ -485,7 +497,7 @@ function ClientProfile({ client, onBack }: { client: ClientUser; onBack: () => v
                              crlt: commercialForm.creditLimit ? parseFloat(commercialForm.creditLimit) : null,
                              cren: commercialForm.creditAvailable ? parseFloat(commercialForm.creditAvailable) : null,
                              crsd: commercialForm.creditUsed ? parseFloat(commercialForm.creditUsed) : null,
-                             lcen: commercialForm.lcen || undefined
+                             lcen: commercialForm.lcen ? commercialForm.lcen : null
                           });
                        }}
                        disabled={updateCommercialInfo.isPending}>
@@ -708,7 +720,7 @@ export default function EcommerceUsuarios() {
 
   // Show client profile detail
   if (selectedClient) {
-    return <ClientProfile client={selectedClient} onBack={() => setSelectedClient(null)} />;
+    return <ClientProfile client={selectedClient} onBack={() => setSelectedClient(null)} onClientUpdated={(updated) => setSelectedClient(updated)} />;
   }
 
   return (
