@@ -9559,76 +9559,81 @@ export function registerRoutes(app: Express): Server {
         })();
       }
       // Enrich with real SAP sales metrics from ventas.fact_ventas
-      const linkedClientNames = results
-        .filter((r: any) => r.clientId && r.clientName)
-        .map((r: any) => {
-          const cr = clientById.get(r.clientId);
-          return cr?.nokoen || r.clientName;
-        })
-        .filter(Boolean);
+      // Wrapped in defensive try/catch — if this fails, we still return results without SAP data
+      let finalResults = results;
+      try {
+        const linkedClientNames = results
+          .filter((r: any) => r.clientId && r.clientName)
+          .map((r: any) => {
+            const cr = clientById.get(r.clientId);
+            return cr?.nokoen || r.clientName;
+          })
+          .filter((n: any) => n && typeof n === 'string' && n.trim().length > 0);
 
-      let salesMetricsMap = new Map<string, any>();
-      if (linkedClientNames.length > 0) {
-        try {
-          const metricsResult = await db.execute(sql`
-            WITH client_agg AS (
+        if (linkedClientNames.length > 0) {
+          let salesMetricsMap = new Map<string, any>();
+          try {
+            const metricsResult = await db.execute(sql`
+              WITH client_agg AS (
+                SELECT 
+                  nokoen,
+                  COUNT(*)::int AS total_transactions,
+                  COALESCE(SUM(monto), 0)::numeric AS total_sales,
+                  MAX(feemdo)::text AS last_transaction_date
+                FROM ventas.fact_ventas
+                WHERE nokoen IN (${sql.join(linkedClientNames.map((n: string) => sql`${n}`), sql`, `)})
+                GROUP BY nokoen
+              ),
+              latest_doc AS (
+                SELECT DISTINCT ON (nokoen)
+                  nokoen,
+                  nokofu AS salesperson_name
+                FROM ventas.fact_ventas
+                WHERE nokoen IN (${sql.join(linkedClientNames.map((n: string) => sql`${n}`), sql`, `)})
+                ORDER BY nokoen, feemdo DESC, idmaeedo DESC
+              )
               SELECT 
-                nokoen,
-                COUNT(*)::int AS total_transactions,
-                COALESCE(SUM(monto), 0)::numeric AS total_sales,
-                MAX(feemdo)::text AS last_transaction_date
-              FROM ventas.fact_ventas
-              WHERE nokoen IN (${sql.join(linkedClientNames.map((n: string) => sql`${n}`), sql`, `)})
-              GROUP BY nokoen
-            ),
-            latest_doc AS (
-              SELECT DISTINCT ON (nokoen)
-                nokoen,
-                nokofu AS salesperson_name
-              FROM ventas.fact_ventas
-              WHERE nokoen IN (${sql.join(linkedClientNames.map((n: string) => sql`${n}`), sql`, `)})
-              ORDER BY nokoen, feemdo DESC, idmaeedo DESC
-            )
-            SELECT 
-              ca.nokoen,
-              ca.total_transactions,
-              ca.total_sales,
-              ca.last_transaction_date,
-              ld.salesperson_name
-            FROM client_agg ca
-            LEFT JOIN latest_doc ld ON ld.nokoen = ca.nokoen
-          `);
-          for (const row of metricsResult.rows as any[]) {
-            salesMetricsMap.set(row.nokoen?.toUpperCase(), row);
+                ca.nokoen,
+                ca.total_transactions,
+                ca.total_sales,
+                ca.last_transaction_date,
+                ld.salesperson_name
+              FROM client_agg ca
+              LEFT JOIN latest_doc ld ON ld.nokoen = ca.nokoen
+            `);
+            for (const row of metricsResult.rows as any[]) {
+              if (row.nokoen) salesMetricsMap.set(row.nokoen.toUpperCase(), row);
+            }
+          } catch (metricsError) {
+            console.warn('[GET /api/users/clients] Sales metrics query failed:', metricsError);
           }
-        } catch (metricsError) {
-          console.warn('[GET /api/users/clients] Sales metrics query failed:', metricsError);
+
+          // Merge SAP metrics into results
+          finalResults = results.map((r: any) => {
+            if (!r.clientId) return r;
+            const cr = clientById.get(r.clientId);
+            const clientName = cr?.nokoen || r.clientName;
+            const metrics = clientName ? salesMetricsMap.get(clientName.toUpperCase()) : null;
+            return {
+              ...r,
+              sapTotalSales: metrics ? Number(metrics.total_sales) : null,
+              sapTotalTransactions: metrics ? Number(metrics.total_transactions) : null,
+              sapLastTransactionDate: metrics?.last_transaction_date || null,
+              sapSalespersonName: metrics?.salesperson_name || null,
+              creditLimit: cr?.crlt ? parseFloat(cr.crlt) : r.creditLimit,
+              creditAvailable: cr?.cren ? parseFloat(cr.cren) : r.creditAvailable,
+              creditUsed: cr?.crsd ? parseFloat(cr.crsd) : r.creditUsed,
+              paymentCondition: cr?.cpen || r.paymentCondition,
+              salesRepCode: cr?.kofuen || r.salesRepCode,
+            };
+          });
         }
+      } catch (enrichError) {
+        console.warn('[GET /api/users/clients] SAP enrichment failed, returning base results:', enrichError);
+        finalResults = results;
       }
 
-      // Merge SAP metrics into results
-      const enrichedResults = results.map((r: any) => {
-        if (!r.clientId) return r;
-        const cr = clientById.get(r.clientId);
-        const clientName = cr?.nokoen || r.clientName;
-        const metrics = salesMetricsMap.get(clientName?.toUpperCase());
-        return {
-          ...r,
-          // SAP sales metrics
-          sapTotalSales: metrics ? Number(metrics.total_sales) : null,
-          sapTotalTransactions: metrics ? Number(metrics.total_transactions) : null,
-          sapLastTransactionDate: metrics?.last_transaction_date || null,
-          sapSalespersonName: metrics?.salesperson_name || null,
-          // Also override credit data from real SAP record if available
-          creditLimit: cr?.crlt ? parseFloat(cr.crlt) : r.creditLimit,
-          creditAvailable: cr?.cren ? parseFloat(cr.cren) : r.creditAvailable,
-          creditUsed: cr?.crsd ? parseFloat(cr.crsd) : r.creditUsed,
-          paymentCondition: cr?.cpen || r.paymentCondition,
-          salesRepCode: cr?.kofuen || r.salesRepCode,
-        };
-      });
-
-      res.json(enrichedResults);
+      res.json(finalResults);
     } catch (error) {
       console.error("Error fetching client users:", error);
       res.status(500).json({ message: "Failed to fetch client users" });

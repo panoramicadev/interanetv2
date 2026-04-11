@@ -498,9 +498,11 @@ export async function bootstrapDatabase(): Promise<void> {
       ON CONFLICT (list_code, codigo) DO NOTHING
     `);
 
-    // 12. Add client_rut to salespeople_users for linking client users to business entities
-    console.log('  🔗 Verificando columna client_rut en salespeople_users...');
+    // 12. Add client_rut and client_id to salespeople_users for linking client users to business entities
+    console.log('  🔗 Verificando columnas client_rut y client_id en salespeople_users...');
     await db.execute(sql`ALTER TABLE salespeople_users ADD COLUMN IF NOT EXISTS client_rut VARCHAR`);
+    await db.execute(sql`ALTER TABLE salespeople_users ADD COLUMN IF NOT EXISTS client_id VARCHAR`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_salespeople_client_id ON salespeople_users(client_id)`);
 
     // 13. Ensure store_config has all required columns (ad_settings, checkout_settings)
     console.log('  🛒 Verificando columnas de store_config...');
