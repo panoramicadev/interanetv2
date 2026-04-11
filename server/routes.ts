@@ -7094,12 +7094,12 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Upload invoice PDF to an order
-  app.post('/api/ecommerce/orders/:id/invoice', requireAuth, upload.single('invoice'), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/ecommerce/orders/:id/invoices', requireAuth, upload.single('file'), asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
     const user = req.user;
 
     if (!['admin', 'supervisor'].includes(user.role)) {
-      return res.status(403).json({ message: 'Solo admin o supervisor pueden cargar facturas' });
+      return res.status(403).json({ message: 'Solo admin o supervisor pueden adjuntar facturas' });
     }
 
     if (!req.file) {
@@ -7110,11 +7110,11 @@ export function registerRoutes(app: Express): Server {
     const timestamp = Date.now();
     const randomId = nanoid(8);
     const fileExtension = path.extname(file.originalname) || '.pdf';
-    const fileName = `invoice-${id}-${timestamp}-${randomId}${fileExtension}`;
+    const fileName = `invoices/order-${id}-${timestamp}-${randomId}${fileExtension}`;
 
     let fileUrl: string;
 
-    // Option 1: Supabase Storage
+    // Upload to Supabase or local storage (same pattern as /api/upload)
     if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY && process.env.SUPABASE_STORAGE_BUCKET) {
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
@@ -7122,63 +7122,59 @@ export function registerRoutes(app: Express): Server {
 
       const { error } = await supabase.storage
         .from(bucket)
-        .upload(`invoices/${fileName}`, file.buffer, {
+        .upload(fileName, file.buffer, {
           contentType: file.mimetype,
           upsert: false,
         });
+      if (error) throw error;
 
-      if (error) {
-        console.error('❌ [INVOICE] Supabase Storage error:', error.message);
-        throw error;
-      }
-
-      const { data: urlData } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(`invoices/${fileName}`);
-
+      const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(fileName);
       fileUrl = urlData.publicUrl;
-      console.log(`☁️ [INVOICE] Uploaded to Supabase: ${fileName}`);
-    }
-    // Option 2: Replit Object Storage
-    else if (process.env.PUBLIC_OBJECT_SEARCH_PATHS) {
-      const objectStorageService = new ObjectStorageService();
-      fileUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
-      console.log(`☁️ [INVOICE] Uploaded to Replit ObjStore: ${fileName}`);
-    }
-    // Option 3: Local file storage
-    else {
-      const uploadsDir = path.join(process.cwd(), 'server', 'uploads');
-      const fsModule = await import('fs');
-      if (!fsModule.existsSync(uploadsDir)) {
-        fsModule.mkdirSync(uploadsDir, { recursive: true });
+    } else {
+      const uploadsDir = path.join(process.cwd(), 'server', 'uploads', 'invoices');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
       }
-      const filePath = path.join(uploadsDir, fileName);
-      fsModule.writeFileSync(filePath, file.buffer);
-      fileUrl = `/api/uploads/${fileName}`;
-      console.log(`💾 [INVOICE] Saved locally: ${fileName}`);
+      const localName = `order-${id}-${timestamp}-${randomId}${fileExtension}`;
+      fs.writeFileSync(path.join(uploadsDir, localName), file.buffer);
+      fileUrl = `/api/uploads/invoices/${localName}`;
     }
 
-    // Update the order with the invoice URL
+    // Update the order's invoiceUrls array
     const { ecommerceOrders } = await import('@shared/schema');
     const { eq } = await import('drizzle-orm');
     const { db } = await import('./db');
 
-    const [updated] = await db.update(ecommerceOrders)
-      .set({ invoiceUrl: fileUrl, updatedAt: new Date() })
-      .where(eq(ecommerceOrders.id, id))
-      .returning();
-
-    if (!updated) {
+    const [order] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, id));
+    if (!order) {
       return res.status(404).json({ message: 'Pedido no encontrado' });
     }
 
-    res.json({ success: true, invoiceUrl: fileUrl });
+    const existingInvoices = Array.isArray(order.invoiceUrls) ? order.invoiceUrls : [];
+    const newInvoice = {
+      url: fileUrl,
+      name: file.originalname,
+      uploadedAt: new Date().toISOString(),
+      uploadedBy: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+    };
+
+    const [updated] = await db.update(ecommerceOrders)
+      .set({
+        invoiceUrls: [...existingInvoices, newInvoice],
+        updatedAt: new Date(),
+      })
+      .where(eq(ecommerceOrders.id, id))
+      .returning();
+
+    console.log(`📄 [INVOICE] Uploaded invoice for order ${id}: ${file.originalname}`);
+    res.json(updated);
   }));
 
-  // Remove invoice from an order
-  app.delete('/api/ecommerce/orders/:id/invoice', requireAuth, asyncHandler(async (req: any, res: any) => {
-    const { id } = req.params;
+  // Delete an invoice from an order
+  app.delete('/api/ecommerce/orders/:id/invoices/:index', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id, index } = req.params;
     const user = req.user;
+    const invoiceIndex = parseInt(index);
 
     if (!['admin', 'supervisor'].includes(user.role)) {
       return res.status(403).json({ message: 'Solo admin o supervisor pueden eliminar facturas' });
@@ -7188,16 +7184,27 @@ export function registerRoutes(app: Express): Server {
     const { eq } = await import('drizzle-orm');
     const { db } = await import('./db');
 
-    const [updated] = await db.update(ecommerceOrders)
-      .set({ invoiceUrl: null, updatedAt: new Date() })
-      .where(eq(ecommerceOrders.id, id))
-      .returning();
-
-    if (!updated) {
+    const [order] = await db.select().from(ecommerceOrders).where(eq(ecommerceOrders.id, id));
+    if (!order) {
       return res.status(404).json({ message: 'Pedido no encontrado' });
     }
 
-    res.json({ success: true });
+    const invoices = Array.isArray(order.invoiceUrls) ? [...(order.invoiceUrls as any[])] : [];
+    if (invoiceIndex < 0 || invoiceIndex >= invoices.length) {
+      return res.status(400).json({ message: 'Índice de factura inválido' });
+    }
+
+    invoices.splice(invoiceIndex, 1);
+
+    const [updated] = await db.update(ecommerceOrders)
+      .set({
+        invoiceUrls: invoices,
+        updatedAt: new Date(),
+      })
+      .where(eq(ecommerceOrders.id, id))
+      .returning();
+
+    res.json(updated);
   }));
 
   // ===================== End eCommerce Orders API Routes =====================

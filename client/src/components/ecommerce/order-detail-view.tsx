@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { getNumericOrderId } from "@/lib/utils";
@@ -6,9 +6,12 @@ import {
   Clock, CheckCircle, XCircle, Package, FileText,
   Phone, Mail, ArrowLeft, User, MapPin,
   Truck, DollarSign, Calendar, AlertCircle, MoreHorizontal,
-  Pencil, Archive, Trash2, FileImage, Landmark, Upload, FileDown, Loader2, X
+  Pencil, Archive, Trash2, FileImage, Landmark,
+  Upload, Download, X, Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -38,6 +41,13 @@ export interface OrderItem {
   selectedPackaging?: string;
 }
 
+export interface InvoiceFile {
+  url: string;
+  name: string;
+  uploadedAt: string;
+  uploadedBy?: string;
+}
+
 export interface EcommerceOrder {
   id: string;
   clientId?: string;
@@ -57,7 +67,7 @@ export interface EcommerceOrder {
   quoteId?: string;
   paymentCondition?: string;
   paymentReceiptUrl?: string;
-  invoiceUrl?: string;
+  invoiceUrls?: InvoiceFile[];
   createdAt: string;
   approvedAt?: string;
   modifiedAt?: string;
@@ -126,60 +136,12 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, isClientView = 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUploadingInvoice, setIsUploadingInvoice] = useState(false);
-  const [isRemovingInvoice, setIsRemovingInvoice] = useState(false);
-  const invoiceInputRef = useRef<HTMLInputElement>(null);
+  const [isDeletingInvoice, setIsDeletingInvoice] = useState<number | null>(null);
+  const [currentOrder, setCurrentOrder] = useState(order);
+  const invoices: InvoiceFile[] = Array.isArray(currentOrder.invoiceUrls) ? currentOrder.invoiceUrls : [];
   const subtotal = parseFloat(order.subtotal || '0') || items.reduce((sum, i) => sum + (i.subtotal || (i.unitPrice || i.price || 0) * i.quantity), 0);
   const tax = parseFloat(order.tax || '0') || Math.round(subtotal * 0.19);
   const total = parseFloat(order.total || '0') || Math.round(subtotal * 1.19); // Fallback to computed total
-
-  const handleInvoiceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsUploadingInvoice(true);
-    try {
-      const formData = new FormData();
-      formData.append('invoice', file);
-
-      const res = await fetch(`/api/ecommerce/orders/${order.id}/invoice`, {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || 'Error al subir factura');
-      }
-
-      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
-      toast({ title: 'Factura cargada', description: 'La factura se ha adjuntado al pedido correctamente.' });
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message || 'No se pudo subir la factura', variant: 'destructive' });
-    } finally {
-      setIsUploadingInvoice(false);
-      if (invoiceInputRef.current) invoiceInputRef.current.value = '';
-    }
-  };
-
-  const handleRemoveInvoice = async () => {
-    setIsRemovingInvoice(true);
-    try {
-      const res = await fetch(`/api/ecommerce/orders/${order.id}/invoice`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-
-      if (!res.ok) throw new Error('Error al eliminar factura');
-
-      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
-      toast({ title: 'Factura eliminada' });
-    } catch {
-      toast({ title: 'Error', description: 'No se pudo eliminar la factura', variant: 'destructive' });
-    } finally {
-      setIsRemovingInvoice(false);
-    }
-  };
 
   return (
     <div className="animate-in fade-in slide-in-from-right-4 duration-300">
@@ -514,6 +476,154 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, isClientView = 
             </div>
           )}
 
+          {/* Invoice Documents Section */}
+          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-[#FF6E23]" />
+                  <h3 className="font-bold text-gray-900">Facturas</h3>
+                  {invoices.length > 0 && (
+                    <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
+                      {invoices.length}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              {/* Existing invoices list */}
+              {invoices.length > 0 ? (
+                <div className="space-y-2">
+                  {invoices.map((invoice, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100 hover:bg-gray-100/50 transition-colors group"
+                    >
+                      <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-4 h-4 text-red-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{invoice.name}</p>
+                        <p className="text-[10px] text-gray-400">
+                          {invoice.uploadedAt ? new Date(invoice.uploadedAt).toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                          {invoice.uploadedBy ? ` · ${invoice.uploadedBy}` : ''}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <a
+                          href={invoice.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
+                          title="Descargar factura"
+                        >
+                          <Download className="w-4 h-4" />
+                        </a>
+                        {!isClientView && (
+                          <button
+                            onClick={async () => {
+                              setIsDeletingInvoice(idx);
+                              try {
+                                const res = await fetch(`/api/ecommerce/orders/${order.id}/invoices/${idx}`, {
+                                  method: 'DELETE',
+                                  credentials: 'include',
+                                });
+                                if (!res.ok) throw new Error('Error al eliminar');
+                                const updated = await res.json();
+                                setCurrentOrder(updated);
+                                queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
+                                queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/client/orders'] });
+                                toast({ title: 'Factura eliminada' });
+                              } catch {
+                                toast({ title: 'Error al eliminar factura', variant: 'destructive' });
+                              } finally {
+                                setIsDeletingInvoice(null);
+                              }
+                            }}
+                            className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                            title="Eliminar factura"
+                            disabled={isDeletingInvoice === idx}
+                          >
+                            {isDeletingInvoice === idx ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-3">
+                  <FileText className="w-8 h-8 text-gray-200 mx-auto mb-1" />
+                  <p className="text-xs text-gray-400">
+                    {isClientView ? 'No hay facturas disponibles aún' : 'No hay facturas adjuntas'}
+                  </p>
+                </div>
+              )}
+
+              {/* Upload area — admin only */}
+              {!isClientView && (
+                <div className="pt-2 border-t border-gray-100">
+                  <Label
+                    htmlFor="invoice-upload"
+                    className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed transition-all cursor-pointer ${
+                      isUploadingInvoice
+                        ? 'border-blue-300 bg-blue-50/50'
+                        : 'border-gray-200 hover:border-[#FF6E23]/50 hover:bg-orange-50/30'
+                    }`}
+                  >
+                    {isUploadingInvoice ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                        <span className="text-sm text-blue-600 font-medium">Subiendo...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4 text-gray-400" />
+                        <span className="text-sm text-gray-500 font-medium">Adjuntar Factura PDF</span>
+                      </>
+                    )}
+                  </Label>
+                  <Input
+                    id="invoice-upload"
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    className="hidden"
+                    disabled={isUploadingInvoice}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setIsUploadingInvoice(true);
+                      try {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        const res = await fetch(`/api/ecommerce/orders/${order.id}/invoices`, {
+                          method: 'POST',
+                          credentials: 'include',
+                          body: formData,
+                        });
+                        if (!res.ok) {
+                          const err = await res.json();
+                          throw new Error(err.message || 'Error al subir factura');
+                        }
+                        const updated = await res.json();
+                        setCurrentOrder(updated);
+                        queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/orders'] });
+                        queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/client/orders'] });
+                        toast({ title: 'Factura adjuntada', description: `"${file.name}" subida correctamente.` });
+                      } catch (err: any) {
+                        toast({ title: 'Error', description: err.message || 'No se pudo subir la factura', variant: 'destructive' });
+                      } finally {
+                        setIsUploadingInvoice(false);
+                        e.target.value = '';
+                      }
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Activity Timeline */}
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
             <div className="px-5 py-4 border-b border-gray-100">
@@ -660,96 +770,6 @@ export function OrderDetailView({ order, onBack, onOrderDeleted, isClientView = 
               </div>
             </div>
           )}
-
-          {/* Invoice Document Section */}
-          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-            <div className="px-5 py-4 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-blue-600" />
-                <h3 className="font-bold text-gray-900">Factura</h3>
-              </div>
-            </div>
-            <div className="px-5 py-4">
-              {order.invoiceUrl ? (
-                <div className="space-y-3">
-                  {/* Invoice file display */}
-                  <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
-                    <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                      <FileText className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-blue-900 truncate">Factura adjunta</p>
-                      <p className="text-xs text-blue-600">PDF disponible para descarga</p>
-                    </div>
-                  </div>
-                  {/* Download button */}
-                  <a
-                    href={order.invoiceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
-                  >
-                    <FileDown className="w-4 h-4" />
-                    Descargar Factura
-                  </a>
-                  {/* Admin: Remove invoice */}
-                  {!isClientView && (
-                    <button
-                      onClick={handleRemoveInvoice}
-                      disabled={isRemovingInvoice}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50"
-                    >
-                      {isRemovingInvoice ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <X className="w-3.5 h-3.5" />
-                      )}
-                      Eliminar factura
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  {!isClientView ? (
-                    /* Admin: Upload invoice */
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-sm text-gray-400">
-                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                        Sin factura adjunta
-                      </div>
-                      <input
-                        ref={invoiceInputRef}
-                        type="file"
-                        accept=".pdf,application/pdf"
-                        onChange={handleInvoiceUpload}
-                        className="hidden"
-                        id="invoice-upload"
-                      />
-                      <Button
-                        onClick={() => invoiceInputRef.current?.click()}
-                        disabled={isUploadingInvoice}
-                        className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-sm gap-2"
-                        size="sm"
-                      >
-                        {isUploadingInvoice ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Upload className="w-4 h-4" />
-                        )}
-                        {isUploadingInvoice ? 'Subiendo...' : 'Cargar Factura PDF'}
-                      </Button>
-                    </div>
-                  ) : (
-                    /* Client: No invoice yet */
-                    <div className="flex items-center gap-2 text-sm text-gray-400">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                      No hay factura disponible
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       </div>
     </div>

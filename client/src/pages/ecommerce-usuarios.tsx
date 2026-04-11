@@ -11,13 +11,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
-import { type SalespersonUser } from "@shared/schema";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { insertSalespersonUserSchema, type InsertSalespersonUserInput, type SalespersonUser } from "@shared/schema";
 import {
   Users, Search, Mail, Phone, MapPin, Calendar, ArrowLeft,
   UserCircle, Hash, Building2, KeyRound, ShoppingBag,
   CreditCard, FileText, TrendingUp, DollarSign, Package,
-  Clock, Eye, Edit2, Save, X, Plus, Trash2, Home
+  Clock, Eye, Edit2, Save, X, Plus, Trash2, Home, Check, UserPlus
 } from "lucide-react";
 
 interface ClientUser {
@@ -686,8 +692,103 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
 export default function EcommerceUsuarios() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedClient, setSelectedClient] = useState<ClientUser | null>(null);
+  const [isCreateClientDialogOpen, setIsCreateClientDialogOpen] = useState(false);
+  const [clientSearchOpen, setClientSearchOpen] = useState(false);
+  const [createRutSearch, setCreateRutSearch] = useState('');
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // ─── Form para crear usuario cliente ────────────────────
+  const createClientForm = useForm<InsertSalespersonUserInput>({
+    resolver: zodResolver(insertSalespersonUserSchema),
+    defaultValues: {
+      salespersonName: "",
+      username: "",
+      email: "",
+      password: "",
+      isActive: true,
+      role: "client",
+      supervisorId: null,
+      assignedSegment: null,
+      clientRut: "",
+    },
+  });
+
+  // Auto-generate username from name
+  const watchedClientName = createClientForm.watch("salespersonName");
+  useEffect(() => {
+    if (watchedClientName) {
+      const nameParts = watchedClientName.trim().toLowerCase().split(' ');
+      const autoUsername = nameParts.length < 2
+        ? nameParts[0].substring(0, 4)
+        : nameParts[0].charAt(0) + nameParts[1];
+      createClientForm.setValue("username", autoUsername);
+    }
+  }, [watchedClientName, createClientForm]);
+
+  // RUT search query for client lookup
+  const { data: createRutResult } = useQuery<{ found: boolean; client: any }>({
+    queryKey: ['/api/clients/search-by-rut', createRutSearch],
+    queryFn: () => fetch(`/api/clients/search-by-rut?rut=${encodeURIComponent(createRutSearch)}`, { credentials: 'include' }).then(r => r.json()),
+    enabled: createRutSearch.length >= 4,
+  });
+
+  // Query para obtener clientes disponibles del sistema
+  const { data: availableClients = [] } = useQuery<string[]>({
+    queryKey: ["/api/goals/data/clients"],
+  });
+
+  // Helper para extraer mensaje de error del backend
+  const extractErrorMessage = (error: any): string => {
+    try {
+      const errorMsg = error.message || "";
+      const jsonMatch = errorMsg.match(/\{.*\}/);
+      if (jsonMatch) {
+        const errorData = JSON.parse(jsonMatch[0]);
+        return errorData.message || errorMsg;
+      }
+      return errorMsg || "Error desconocido";
+    } catch {
+      return error.message || "Error desconocido";
+    }
+  };
+
+  // Mutation para crear usuario cliente
+  const createClientMutation = useMutation({
+    mutationFn: async (userData: InsertSalespersonUserInput) => {
+      // Forzar siempre rol cliente
+      return await apiRequest("POST", "/api/users/salespeople", { ...userData, role: "client" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/clients"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/salespeople"] });
+      createClientForm.reset();
+      setCreateRutSearch('');
+      setIsCreateClientDialogOpen(false);
+      toast({
+        title: "Usuario cliente creado",
+        description: "El usuario se ha creado correctamente con acceso al portal de compras.",
+      });
+    },
+    onError: (error: any) => {
+      const errorMessage = extractErrorMessage(error);
+      toast({
+        title: "Error al crear usuario",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCreateClientSubmit = (data: InsertSalespersonUserInput) => {
+    const cleanedData = {
+      ...data,
+      role: "client" as const,
+      supervisorId: null,
+      assignedSegment: null,
+    };
+    createClientMutation.mutate(cleanedData);
+  };
 
   const { data: clients = [], isLoading } = useQuery<ClientUser[]>({
     queryKey: ["/api/users/clients"],
@@ -758,6 +859,13 @@ export default function EcommerceUsuarios() {
             Gestión de clientes con acceso al portal de compras
           </p>
         </div>
+        <Button
+          onClick={() => setIsCreateClientDialogOpen(true)}
+          className="bg-blue-600 hover:bg-blue-700 shadow-sm"
+        >
+          <UserPlus className="w-4 h-4 mr-2" />
+          Nuevo Usuario Cliente
+        </Button>
       </div>
 
       <Tabs defaultValue="users" className="w-full">
@@ -1021,6 +1129,232 @@ export default function EcommerceUsuarios() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* ─── Dialog Crear Usuario Cliente ───────────────────── */}
+      <Dialog open={isCreateClientDialogOpen} onOpenChange={setIsCreateClientDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-blue-600" />
+              Crear Usuario Cliente
+            </DialogTitle>
+            <DialogDescription>
+              Crea credenciales de acceso al portal de compras para un cliente
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...createClientForm}>
+            <form onSubmit={createClientForm.handleSubmit(handleCreateClientSubmit)} className="space-y-4">
+              {/* Nombre Completo */}
+              <FormField
+                control={createClientForm.control}
+                name="salespersonName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre / Razón Social</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        value={field.value ?? ''}
+                        placeholder="Ingresa el nombre del cliente"
+                        data-testid="input-ecom-client-name"
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Nombre de la empresa o persona que usará el portal de compras
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Asistente de Importación desde SAP */}
+              <FormItem className="flex flex-col p-3 bg-muted/50 rounded-lg border border-dashed">
+                <FormLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Asistente de Importación (Opcional)</FormLabel>
+                <Popover open={clientSearchOpen} onOpenChange={setClientSearchOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="w-full justify-between bg-white"
+                    >
+                      Cargar datos de cliente sistema...
+                      <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[400px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Buscar cliente en sistema..." />
+                      <CommandList>
+                        <CommandEmpty>No se encontró ningún cliente.</CommandEmpty>
+                        <CommandGroup>
+                          {availableClients.map((client) => (
+                            <CommandItem
+                              value={client}
+                              key={client}
+                              onSelect={() => {
+                                createClientForm.setValue("salespersonName", client);
+                                setClientSearchOpen(false);
+                              }}
+                            >
+                              <Check className="mr-2 h-4 w-4 opacity-0" />
+                              {client}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                <p className="text-[10px] text-muted-foreground mt-1 italic">
+                  Selecciona un cliente para autocompletar, o escribe manualmente.
+                </p>
+              </FormItem>
+
+              {/* RUT del Cliente */}
+              <div className="space-y-2">
+                <FormField
+                  control={createClientForm.control}
+                  name="clientRut"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>RUT del Cliente</FormLabel>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <FormControl>
+                          <Input
+                            {...field}
+                            value={field.value ?? ''}
+                            placeholder="Ej: 76.123.456-7"
+                            className="pl-9"
+                            data-testid="input-ecom-client-rut"
+                            onChange={(e) => {
+                              field.onChange(e.target.value);
+                              setCreateRutSearch(e.target.value);
+                            }}
+                          />
+                        </FormControl>
+                      </div>
+                      <FormDescription>
+                        Ingresa el RUT para asociar este usuario con un cliente del sistema
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {createRutResult?.found && createRutResult.client && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                    <Building2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-emerald-800 truncate">{createRutResult.client.nokoen}</p>
+                      <p className="text-xs text-emerald-600">RUT: {createRutResult.client.rten} • Código: {createRutResult.client.koen}</p>
+                    </div>
+                    <Check className="h-4 w-4 text-emerald-500 flex-shrink-0 ml-auto" />
+                  </div>
+                )}
+                {createRutSearch.length >= 4 && createRutResult && !createRutResult.found && (
+                  <div className="p-2 rounded-lg bg-amber-50 border border-amber-200">
+                    <p className="text-xs text-amber-700">No se encontró un cliente con este RUT en el sistema</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Username */}
+              <FormField
+                control={createClientForm.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre de Usuario</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-ecom-username" placeholder="Se genera automáticamente" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Email */}
+              <FormField
+                control={createClientForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" {...field} data-testid="input-ecom-email" placeholder="correo@empresa.cl" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Password */}
+              <FormField
+                control={createClientForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Contraseña</FormLabel>
+                    <FormControl>
+                      <Input type="password" {...field} data-testid="input-ecom-password" placeholder="Mínimo 6 caracteres" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Is Active */}
+              <FormField
+                control={createClientForm.control}
+                name="isActive"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                    <div className="space-y-0.5">
+                      <FormLabel>Acceso Activo</FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        El cliente puede acceder al portal de compras
+                      </p>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value ?? true}
+                        onCheckedChange={field.onChange}
+                        data-testid="switch-ecom-is-active"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              {/* Rol forzado - solo informativo */}
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-50 border border-blue-200">
+                <KeyRound className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-blue-800">Rol: Cliente eCommerce</p>
+                  <p className="text-xs text-blue-600">Este usuario tendrá acceso exclusivo al portal de compras</p>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    createClientForm.reset();
+                    setCreateRutSearch('');
+                    setIsCreateClientDialogOpen(false);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={createClientMutation.isPending} className="bg-blue-600 hover:bg-blue-700" data-testid="button-submit-create-client">
+                  {createClientMutation.isPending ? "Creando..." : "Crear Usuario Cliente"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
