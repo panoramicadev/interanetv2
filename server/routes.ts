@@ -7093,6 +7093,113 @@ export function registerRoutes(app: Express): Server {
     res.json({ success: true, message: 'Pedido eliminado' });
   }));
 
+  // Upload invoice PDF to an order
+  app.post('/api/ecommerce/orders/:id/invoice', requireAuth, upload.single('invoice'), asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const user = req.user;
+
+    if (!['admin', 'supervisor'].includes(user.role)) {
+      return res.status(403).json({ message: 'Solo admin o supervisor pueden cargar facturas' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'No se ha subido ningún archivo' });
+    }
+
+    const file = req.file;
+    const timestamp = Date.now();
+    const randomId = nanoid(8);
+    const fileExtension = path.extname(file.originalname) || '.pdf';
+    const fileName = `invoice-${id}-${timestamp}-${randomId}${fileExtension}`;
+
+    let fileUrl: string;
+
+    // Option 1: Supabase Storage
+    if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY && process.env.SUPABASE_STORAGE_BUCKET) {
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+      const bucket = process.env.SUPABASE_STORAGE_BUCKET;
+
+      const { error } = await supabase.storage
+        .from(bucket)
+        .upload(`invoices/${fileName}`, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false,
+        });
+
+      if (error) {
+        console.error('❌ [INVOICE] Supabase Storage error:', error.message);
+        throw error;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from(bucket)
+        .getPublicUrl(`invoices/${fileName}`);
+
+      fileUrl = urlData.publicUrl;
+      console.log(`☁️ [INVOICE] Uploaded to Supabase: ${fileName}`);
+    }
+    // Option 2: Replit Object Storage
+    else if (process.env.PUBLIC_OBJECT_SEARCH_PATHS) {
+      const objectStorageService = new ObjectStorageService();
+      fileUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
+      console.log(`☁️ [INVOICE] Uploaded to Replit ObjStore: ${fileName}`);
+    }
+    // Option 3: Local file storage
+    else {
+      const uploadsDir = path.join(process.cwd(), 'server', 'uploads');
+      const fsModule = await import('fs');
+      if (!fsModule.existsSync(uploadsDir)) {
+        fsModule.mkdirSync(uploadsDir, { recursive: true });
+      }
+      const filePath = path.join(uploadsDir, fileName);
+      fsModule.writeFileSync(filePath, file.buffer);
+      fileUrl = `/api/uploads/${fileName}`;
+      console.log(`💾 [INVOICE] Saved locally: ${fileName}`);
+    }
+
+    // Update the order with the invoice URL
+    const { ecommerceOrders } = await import('@shared/schema');
+    const { eq } = await import('drizzle-orm');
+    const { db } = await import('./db');
+
+    const [updated] = await db.update(ecommerceOrders)
+      .set({ invoiceUrl: fileUrl, updatedAt: new Date() })
+      .where(eq(ecommerceOrders.id, id))
+      .returning();
+
+    if (!updated) {
+      return res.status(404).json({ message: 'Pedido no encontrado' });
+    }
+
+    res.json({ success: true, invoiceUrl: fileUrl });
+  }));
+
+  // Remove invoice from an order
+  app.delete('/api/ecommerce/orders/:id/invoice', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const user = req.user;
+
+    if (!['admin', 'supervisor'].includes(user.role)) {
+      return res.status(403).json({ message: 'Solo admin o supervisor pueden eliminar facturas' });
+    }
+
+    const { ecommerceOrders } = await import('@shared/schema');
+    const { eq } = await import('drizzle-orm');
+    const { db } = await import('./db');
+
+    const [updated] = await db.update(ecommerceOrders)
+      .set({ invoiceUrl: null, updatedAt: new Date() })
+      .where(eq(ecommerceOrders.id, id))
+      .returning();
+
+    if (!updated) {
+      return res.status(404).json({ message: 'Pedido no encontrado' });
+    }
+
+    res.json({ success: true });
+  }));
+
   // ===================== End eCommerce Orders API Routes =====================
 
   // ===================== eCommerce Shipping Rates =====================

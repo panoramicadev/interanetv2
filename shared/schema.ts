@@ -3632,6 +3632,7 @@ export const ecommerceOrders = pgTable("ecommerce_orders", {
   // Payment information
   paymentCondition: varchar("payment_condition"),
   paymentReceiptUrl: text("payment_receipt_url"),
+  invoiceUrl: text("invoice_url"), // URL to uploaded invoice PDF
 
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

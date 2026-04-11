@@ -502,6 +502,10 @@ export async function bootstrapDatabase(): Promise<void> {
     console.log('  🔗 Verificando columna client_rut en salespeople_users...');
     await db.execute(sql`ALTER TABLE salespeople_users ADD COLUMN IF NOT EXISTS client_rut VARCHAR`);
 
+    // 13. Add invoice_url to ecommerce_orders for admin-uploaded invoice PDFs
+    console.log('  📄 Verificando columna invoice_url en ecommerce_orders...');
+    await db.execute(sql`ALTER TABLE ecommerce_orders ADD COLUMN IF NOT EXISTS invoice_url TEXT`);
+
     console.log('✅ Bootstrap de base de datos completado');
     
   } catch (error: any) {
