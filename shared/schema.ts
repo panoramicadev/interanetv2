@@ -654,10 +654,15 @@ export const clients = pgTable("clients", {
   ltvnocan: numeric("ltvnocan", { precision: 15, scale: 2 }), // Uncanceled letters
   pagnocan: numeric("pagnocan", { precision: 15, scale: 2 }), // Uncanceled payments
   anticipos: numeric("anticipos", { precision: 15, scale: 2 }), // Advances
+
+  // Branch hierarchy (sucursales)
+  parentClientId: varchar("parent_client_id"), // FK auto-ref → clients.id (empresa matriz)
+  branchLabel: varchar("branch_label"), // Etiqueta de sucursal ("Santiago Centro", "Valparaíso", etc.)
 }, (table) => ({
   // Indexes for performance
   clientCodeIdx: index("IDX_clients_koen").on(table.koen),
   clientNameIdx: index("IDX_clients_nokoen").on(table.nokoen),
+  parentClientIdx: index("IDX_clients_parent").on(table.parentClientId),
 }));
 
 // Relations

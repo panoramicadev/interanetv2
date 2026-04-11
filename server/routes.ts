@@ -2921,6 +2921,31 @@ export function registerRoutes(app: Express): Server {
     res.json(breakdown);
   }));
 
+  // Product families (agrupación comercial) endpoint
+  app.get('/api/sales/product-families', requireCommercialAccess, responseCacheMiddleware(300), asyncHandler(async (req: any, res: any) => {
+    const { period, filterType } = req.query;
+    const dateRange = getDateRange(period as string, filterType as string);
+
+    const families = await storage.getProductFamilies(dateRange.startDate, dateRange.endDate);
+    res.json(families);
+  }));
+
+  // Product dashboard consolidated endpoint
+  app.get('/api/sales/product-dashboard', requireCommercialAccess, asyncHandler(async (req: any, res: any) => {
+    const { period, filterType, family, segment, salesperson, branch } = req.query;
+    const dateRange = getDateRange(period as string, filterType as string);
+
+    const dashboardData = await storage.getProductDashboardData({
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      family: family as string,
+      segment: segment as string,
+      salesperson: salesperson as string,
+      branch: branch as string,
+    });
+    res.json(dashboardData);
+  }));
+
   // Segment analysis endpoint
   app.get('/api/sales/segments', requireCommercialAccess, responseCacheMiddleware(120), async (req, res) => {
     try {
