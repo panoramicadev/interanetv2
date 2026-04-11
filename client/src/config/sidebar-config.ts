@@ -50,6 +50,12 @@ interface SidebarItem {
 export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
   admin: [
     {
+      href: "/",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+      separator: true,
+    },
+    {
       href: "/ecommerce",
       label: "Panorámica Market",
       icon: ShoppingCart,
@@ -71,12 +77,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           icon: ShoppingCart,
         },
       ],
-      separator: true,
-    },
-    {
-      href: "/",
-      label: "Dashboard",
-      icon: LayoutDashboard,
       separator: true,
     },
 
@@ -365,6 +365,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
 
   supervisor: [
     {
+      href: "/",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+    },
+    {
       href: "/ecommerce",
       label: "Panorámica Market",
       icon: ShoppingCart,
@@ -387,11 +392,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         },
       ],
       separator: true,
-    },
-    {
-      href: "/",
-      label: "Dashboard",
-      icon: LayoutDashboard,
     },
     {
       href: "/productos",

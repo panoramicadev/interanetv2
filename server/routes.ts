@@ -9470,10 +9470,29 @@ export function registerRoutes(app: Express): Server {
         .orderBy(desc(usersTable.createdAt));
       
       // 3. Get all clients records to cross-reference — build multiple lookup maps
-      const allClients = await db.select().from(clientsTable);
+      // Use raw SQL to avoid crashes from schema columns that may not exist yet
+      let allClients: any[] = [];
+      try {
+        const clientsResult = await db.execute(sql`SELECT * FROM clients`);
+        allClients = clientsResult.rows as any[];
+      } catch (clientsError) {
+        // Fallback: select only essential columns if SELECT * fails
+        try {
+          const clientsResult = await db.execute(sql`
+            SELECT id, koen, nokoen, rten, foen, dien, cmen, cpen, crlt, cren, crsd, crto, 
+                   kofuen, email, user_id, lcen, diprve, fevecren, gien, sien, ruen
+            FROM clients
+          `);
+          allClients = clientsResult.rows as any[];
+        } catch (e2) {
+          console.error('[GET /api/users/clients] Failed to query clients table:', e2);
+          allClients = [];
+        }
+      }
       const clientById = new Map(allClients.map((c: any) => [c.id, c]));
       const clientByName = new Map(allClients.filter((c: any) => c.nokoen).map((c: any) => [c.nokoen?.toUpperCase(), c]));
-      const clientByUserId = new Map(allClients.filter((c: any) => c.userId).map((c: any) => [c.userId, c]));
+      // Support both snake_case (raw SQL) and camelCase (Drizzle) for user_id
+      const clientByUserId = new Map(allClients.filter((c: any) => c.userId || c.user_id).map((c: any) => [c.userId || c.user_id, c]));
       // RUT lookup map (normalized)
       const clientByRut = new Map<string, any>();
       for (const c of allClients) {

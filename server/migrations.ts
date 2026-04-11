@@ -504,6 +504,15 @@ export async function bootstrapDatabase(): Promise<void> {
     await db.execute(sql`ALTER TABLE salespeople_users ADD COLUMN IF NOT EXISTS client_id VARCHAR`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_salespeople_client_id ON salespeople_users(client_id)`);
 
+    // 12b. Ensure clients table has all schema-defined columns (parent_client_id, branch_label, pickup_warehouse_id)
+    console.log('  🔗 Verificando columnas adicionales en clients...');
+    await db.execute(sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS parent_client_id VARCHAR`);
+    await db.execute(sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS branch_label VARCHAR`);
+    await db.execute(sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS pickup_warehouse_id VARCHAR`);
+    await db.execute(sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS assigned_salesperson_user_id VARCHAR`);
+    await db.execute(sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS user_id VARCHAR`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_clients_parent" ON clients(parent_client_id)`);
+
     // 13. Ensure store_config has all required columns (ad_settings, checkout_settings)
     console.log('  🛒 Verificando columnas de store_config...');
     await db.execute(sql`ALTER TABLE store_config ADD COLUMN IF NOT EXISTS ad_settings JSONB DEFAULT '{"desktopFrequency": 6, "mobileFrequency": 4}'::jsonb`);
