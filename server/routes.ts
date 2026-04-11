@@ -9437,7 +9437,6 @@ export function registerRoutes(app: Express): Server {
       const { salespeopleUsers: spUsersTable, clients: clientsTable, users: usersTable } = await import('@shared/schema');
       const { eq, desc, sql } = await import('drizzle-orm');
       const { db } = await import('./db');
-      
       // 1. Get client users from salespeople_users table (primary source)
       // Use raw SQL to be resilient to missing client_id column (migration may not have run yet)
       let spClientUsersRaw: any[] = [];
@@ -9445,13 +9444,13 @@ export function registerRoutes(app: Express): Server {
         const spResult = await db.execute(sql`
           SELECT * FROM salespeople_users WHERE role = 'client' ORDER BY created_at DESC
         `);
-        spClientUsersRaw = spResult.rows as any[];
+        spClientUsersRaw = Array.isArray(spResult) ? spResult : (spResult as any).rows || [];
       } catch (e1) {
         console.error('[GET /api/users/clients] Failed to query salespeople_users:', e1);
         spClientUsersRaw = [];
       }
       // Map snake_case columns from raw SQL to camelCase for consistency
-      const spClientUsers = spClientUsersRaw.map((r: any) => ({
+      const spClientUsers = (spClientUsersRaw || []).map((r: any) => ({
         id: r.id,
         email: r.email,
         username: r.username,
@@ -9474,7 +9473,7 @@ export function registerRoutes(app: Express): Server {
       let allClients: any[] = [];
       try {
         const clientsResult = await db.execute(sql`SELECT * FROM clients`);
-        allClients = clientsResult.rows as any[];
+        allClients = Array.isArray(clientsResult) ? clientsResult : (clientsResult as any).rows || [];
       } catch (clientsError) {
         // Fallback: select only essential columns if SELECT * fails
         try {
@@ -9483,7 +9482,7 @@ export function registerRoutes(app: Express): Server {
                    kofuen, email, user_id, lcen, diprve, fevecren, gien, sien, ruen
             FROM clients
           `);
-          allClients = clientsResult.rows as any[];
+          allClients = Array.isArray(clientsResult) ? clientsResult : (clientsResult as any).rows || [];
         } catch (e2) {
           console.error('[GET /api/users/clients] Failed to query clients table:', e2);
           allClients = [];
