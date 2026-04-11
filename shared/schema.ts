@@ -1235,6 +1235,7 @@ export const salespeopleUsers = pgTable("salespeople_users", {
   supervisorId: varchar("supervisor_id"), // ID del supervisor que gestiona este vendedor (solo para role="salesperson")
   assignedSegment: varchar("assigned_segment"), // Segmento asignado al supervisor (solo para role="supervisor")
   clientRut: varchar("client_rut"), // RUT del cliente asociado (solo para role="client")
+  clientId: varchar("client_id"), // FK directa a clients.id para vinculación confiable eCommerce↔SAP
 
   // Campos para catálogo público
   publicSlug: varchar("public_slug").unique(), // URL amigable (ej: "pablo-soto")
@@ -1275,6 +1276,7 @@ export const insertSalespersonUserSchema = createInsertSchema(salespeopleUsers, 
   supervisorId: z.string().optional().nullable(),
   assignedSegment: z.string().optional().nullable(),
   clientRut: z.string().optional().nullable(),
+  clientId: z.string().optional().nullable(),
   publicSlug: z.string().regex(/^[a-z0-9-]+$/, "Slug debe contener solo letras minúsculas, números y guiones").optional().nullable(),
   profileImageUrl: z.string().url("URL de imagen inválida").optional().or(z.literal("")).nullable(),
   publicPhone: z.string().optional().nullable(),
@@ -2548,12 +2550,14 @@ export const ecommerceCoupons = pgTable("ecommerce_coupons", {
 
 export const insertEcommerceCouponSchema = createInsertSchema(ecommerceCoupons, {
   code: z.string().min(1, "Código del cupón es requerido"),
+  description: z.string().optional().nullable(),
   discountType: z.enum(['percentage', 'fixed', 'free_shipping']),
   discountValue: z.union([z.number().min(0), z.string()]),
   appliesTo: z.enum(['cart', 'product']),
   productSku: z.string().optional().nullable(),
-  minOrderAmount: z.union([z.number().min(0), z.string()]).optional(),
+  minOrderAmount: z.union([z.number().min(0), z.string()]).optional().nullable(),
   maxUses: z.number().int().positive().optional().nullable(),
+  isActive: z.boolean().optional(),
   expiresAt: z.any().optional().nullable(),
 }).omit({ id: true, createdAt: true, updatedAt: true, timesUsed: true });
 

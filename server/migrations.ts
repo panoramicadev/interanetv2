@@ -502,6 +502,34 @@ export async function bootstrapDatabase(): Promise<void> {
     console.log('  🔗 Verificando columna client_rut en salespeople_users...');
     await db.execute(sql`ALTER TABLE salespeople_users ADD COLUMN IF NOT EXISTS client_rut VARCHAR`);
 
+    // 13. Ensure store_config has all required columns (ad_settings, checkout_settings)
+    console.log('  🛒 Verificando columnas de store_config...');
+    await db.execute(sql`ALTER TABLE store_config ADD COLUMN IF NOT EXISTS ad_settings JSONB DEFAULT '{"desktopFrequency": 6, "mobileFrequency": 4}'::jsonb`);
+    await db.execute(sql`ALTER TABLE store_config ADD COLUMN IF NOT EXISTS checkout_settings JSONB DEFAULT '{}'::jsonb`);
+
+    // 14. Create ecommerce_coupons table if not exists
+    console.log('  🎟️ Verificando tabla ecommerce_coupons...');
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ecommerce_coupons (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        code VARCHAR NOT NULL UNIQUE,
+        description VARCHAR,
+        discount_type VARCHAR NOT NULL,
+        discount_value NUMERIC(10, 2) NOT NULL DEFAULT 0,
+        applies_to VARCHAR NOT NULL DEFAULT 'cart',
+        product_sku VARCHAR,
+        min_order_amount NUMERIC(10, 2) DEFAULT 0,
+        max_uses INTEGER DEFAULT NULL,
+        times_used INTEGER NOT NULL DEFAULT 0,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        expires_at TIMESTAMP DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ecommerce_coupons_code ON ecommerce_coupons(UPPER(code))`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ecommerce_coupons_active ON ecommerce_coupons(is_active)`);
+
     console.log('✅ Bootstrap de base de datos completado');
     
   } catch (error: any) {
