@@ -24,7 +24,8 @@ import {
   UserCircle, Hash, Building2, KeyRound, ShoppingBag,
   CreditCard, FileText, TrendingUp, DollarSign, Package,
   Clock, Eye, Edit2, Save, X, Plus, Trash2, Home, Check, UserPlus,
-  Link, LinkIcon, Unlink, AlertTriangle, SearchIcon, FilePlus
+  Link, LinkIcon, Unlink, AlertTriangle, SearchIcon, FilePlus,
+  GitBranch, Building, Network
 } from "lucide-react";
 
 interface ClientUser {
@@ -50,6 +51,37 @@ interface ClientUser {
   paymentCondition: string | null;
   pickupWarehouseId: string | null;
   lcen: string | null;
+  parentClientId: string | null;
+  branchLabel: string | null;
+  // SAP sales metrics
+  sapTotalSales: number | null;
+  sapTotalTransactions: number | null;
+  sapLastTransactionDate: string | null;
+  sapSalespersonName: string | null;
+}
+
+interface BranchInfo {
+  id: string;
+  name: string;
+  branchLabel: string | null;
+  isRoot: boolean;
+  creditLimit: number | null;
+  creditUsed: number | null;
+  creditAvailable: number | null;
+  salesRepCode: string | null;
+  pickupWarehouseId: string | null;
+  paymentCondition: string | null;
+}
+
+interface BranchGroup {
+  rootId: string;
+  branches: BranchInfo[];
+  groupTotals: {
+    creditLimit: number;
+    creditUsed: number;
+    creditAvailable: number;
+    branchCount: number;
+  };
 }
 
 interface Warehouse {
@@ -229,6 +261,56 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
     }
   };
 
+  // ─── Branch (Sucursal) Management ─────────────────────
+  const [showBranchDialog, setShowBranchDialog] = useState(false);
+  const [branchForm, setBranchForm] = useState({
+    branchLabel: "",
+    username: "",
+    email: "",
+    password: "",
+    salesRepCode: "",
+    pickupWarehouseId: "none",
+    creditLimit: "",
+    paymentCondition: client.paymentCondition || "CONTADO",
+    lcen: client.lcen || "",
+  });
+
+  // Fetch sibling branches
+  const { data: branchGroup } = useQuery<BranchGroup>({
+    queryKey: ["/api/users/clients/branches", client.clientId],
+    queryFn: async () => {
+      try {
+        const res = await apiRequest("GET", `/api/users/clients/${client.clientId}/branches`);
+        return await res.json();
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!client.clientId,
+  });
+
+  const hasBranches = branchGroup && branchGroup.branches.length > 1;
+  const isBranch = !!client.branchLabel || !!client.parentClientId;
+
+  // Mutation: Create branch
+  const createBranchMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", `/api/users/clients/${client.id}/create-branch`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Sucursal creada", description: "La sucursal se ha creado exitosamente." });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/clients"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/clients/branches"] });
+      setShowBranchDialog(false);
+      setBranchForm({ branchLabel: "", username: "", email: "", password: "", salesRepCode: "", pickupWarehouseId: "none", creditLimit: "", paymentCondition: client.paymentCondition || "CONTADO", lcen: client.lcen || "" });
+    },
+    onError: (error: any) => {
+      const msg = (() => { try { const m = error.message?.match(/\{.*\}/); return m ? JSON.parse(m[0]).message : error.message; } catch { return error.message || "Error desconocido"; } })();
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    }
+  });
+
   // Fetch client orders
   const { data: orders = [] } = useQuery<any[]>({
     queryKey: ["/api/ecommerce/orders", { clientUserId: client.id }],
@@ -329,6 +411,18 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                 Sin vincular
               </Badge>
             )}
+            {isBranch && (
+              <Badge className="bg-violet-500/20 text-violet-300 border-violet-500/30 px-3 py-1">
+                <GitBranch className="h-3 w-3 mr-1" />
+                Sucursal: {client.branchLabel}
+              </Badge>
+            )}
+            {hasBranches && (
+              <Badge className="bg-cyan-500/20 text-cyan-300 border-cyan-500/30 px-3 py-1">
+                <Network className="h-3 w-3 mr-1" />
+                Grupo: {branchGroup!.groupTotals.branchCount} sucursales
+              </Badge>
+            )}
           </div>
         </div>
       </div>
@@ -424,13 +518,61 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
         </Card>
       )}
 
-      {/* KPI Cards */}
+      {/* KPI Cards — SAP data first row, eCommerce data second row */}
+      {client.sapTotalSales != null && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-indigo-50 to-indigo-100/50 dark:from-indigo-950/50 dark:to-indigo-900/30">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-medium text-indigo-600 uppercase tracking-wider">Ventas SAP Total</p>
+                  <p className="text-2xl font-bold text-indigo-900 dark:text-indigo-100">{formatCurrency(client.sapTotalSales)}</p>
+                </div>
+                <TrendingUp className="h-8 w-8 text-indigo-400/60" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-cyan-50 to-cyan-100/50 dark:from-cyan-950/50 dark:to-cyan-900/30">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-medium text-cyan-600 uppercase tracking-wider">Transacciones SAP</p>
+                  <p className="text-2xl font-bold text-cyan-900 dark:text-cyan-100">{client.sapTotalTransactions || 0}</p>
+                </div>
+                <FileText className="h-8 w-8 text-cyan-400/60" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-950/50 dark:to-rose-900/30">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-medium text-rose-600 uppercase tracking-wider">Última Compra SAP</p>
+                  <p className="text-lg font-bold text-rose-900 dark:text-rose-100">{client.sapLastTransactionDate ? formatDate(client.sapLastTransactionDate) : '—'}</p>
+                </div>
+                <Calendar className="h-8 w-8 text-rose-400/60" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-sm bg-gradient-to-br from-violet-50 to-violet-100/50 dark:from-violet-950/50 dark:to-violet-900/30">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-medium text-violet-600 uppercase tracking-wider">Vendedor SAP</p>
+                  <p className="text-lg font-bold text-violet-900 dark:text-violet-100 truncate">{client.sapSalespersonName || '—'}</p>
+                </div>
+                <UserCircle className="h-8 w-8 text-violet-400/60" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/50 dark:to-blue-900/30">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-medium text-blue-600 uppercase tracking-wider">Total Pedidos</p>
+                <p className="text-[10px] font-medium text-blue-600 uppercase tracking-wider">Pedidos eCommerce</p>
                 <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{totalOrders}</p>
               </div>
               <ShoppingBag className="h-8 w-8 text-blue-400/60" />
@@ -441,7 +583,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-medium text-emerald-600 uppercase tracking-wider">Total Comprado</p>
+                <p className="text-[10px] font-medium text-emerald-600 uppercase tracking-wider">Comprado eCommerce</p>
                 <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">{formatCurrency(totalSpent)}</p>
               </div>
               <DollarSign className="h-8 w-8 text-emerald-400/60" />
@@ -838,6 +980,258 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
         </TabsContent>
       </Tabs>
 
+      {/* Branch Hierarchy Section */}
+      {client.clientId && (
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Network className="h-4 w-4 text-violet-500" />
+              Grupo Empresarial / Sucursales
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs text-violet-600 border-violet-200 hover:bg-violet-50"
+              onClick={() => setShowBranchDialog(true)}
+            >
+              <GitBranch className="h-3.5 w-3.5 mr-1" />
+              Agregar Sucursal
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {branchGroup && branchGroup.branches.length > 0 ? (
+              <div className="space-y-4">
+                {/* Group totals */}
+                {branchGroup.branches.length > 1 && (
+                  <div className="grid grid-cols-3 gap-3 p-3 bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-950/30 dark:to-indigo-950/30 rounded-lg border border-violet-100 dark:border-violet-800">
+                    <div className="text-center">
+                      <p className="text-[10px] font-medium text-violet-500 uppercase tracking-wider">Crédito Grupo</p>
+                      <p className="text-lg font-bold text-violet-900 dark:text-violet-100">{formatCurrency(branchGroup.groupTotals.creditLimit)}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[10px] font-medium text-violet-500 uppercase tracking-wider">Usado Grupo</p>
+                      <p className="text-lg font-bold text-violet-900 dark:text-violet-100">{formatCurrency(branchGroup.groupTotals.creditUsed)}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[10px] font-medium text-emerald-500 uppercase tracking-wider">Disponible Grupo</p>
+                      <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(branchGroup.groupTotals.creditAvailable)}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Branch list */}
+                <div className="space-y-2">
+                  {branchGroup.branches.map((branch) => (
+                    <div
+                      key={branch.id}
+                      className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                        branch.id === client.clientId
+                          ? "bg-violet-50/70 border-violet-200 dark:bg-violet-950/30 dark:border-violet-700"
+                          : "bg-muted/20 border-muted hover:bg-muted/40"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
+                          branch.isRoot 
+                            ? "bg-gradient-to-br from-violet-400 to-indigo-500 text-white" 
+                            : "bg-gradient-to-br from-cyan-400 to-blue-500 text-white"
+                        }`}>
+                          {branch.isRoot ? <Building className="h-4 w-4" /> : <GitBranch className="h-4 w-4" />}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{branch.name}</p>
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                            {branch.isRoot && <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4">Matriz</Badge>}
+                            {branch.branchLabel && <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">{branch.branchLabel}</Badge>}
+                            {branch.salesRepCode && <span>Vendedor: {branch.salesRepCode}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0 ml-3">
+                        <p className="text-xs font-medium">{formatCurrency(branch.creditLimit)}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Usado: {formatCurrency(branch.creditUsed)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <Network className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">Este cliente no tiene sucursales.</p>
+                <p className="text-xs text-muted-foreground mt-1">Crea una sucursal para gestionar múltiples puntos de venta con cupos independientes.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ─── Dialog Crear Sucursal ───────────────────── */}
+      <Dialog open={showBranchDialog} onOpenChange={setShowBranchDialog}>
+        <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GitBranch className="h-5 w-5 text-violet-600" />
+              Crear Nueva Sucursal
+            </DialogTitle>
+            <DialogDescription>
+              Crea una sucursal de <span className="font-semibold">{client.clientName}</span> con cupo de crédito, bodega y vendedor independientes.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Branch label */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Nombre de la Sucursal *</Label>
+              <Input
+                placeholder="Ej: Santiago Centro, Valparaíso, Concepción..."
+                value={branchForm.branchLabel}
+                onChange={(e) => setBranchForm(p => ({ ...p, branchLabel: e.target.value }))}
+              />
+            </div>
+
+            {/* Credentials */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Usuario *</Label>
+                <Input
+                  placeholder="Ej: sucursal-stgo"
+                  value={branchForm.username}
+                  onChange={(e) => setBranchForm(p => ({ ...p, username: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Contraseña *</Label>
+                <Input
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  value={branchForm.password}
+                  onChange={(e) => setBranchForm(p => ({ ...p, password: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Email (opcional)</Label>
+              <Input
+                type="email"
+                placeholder="sucursal@empresa.cl"
+                value={branchForm.email}
+                onChange={(e) => setBranchForm(p => ({ ...p, email: e.target.value }))}
+              />
+            </div>
+
+            <hr className="my-2" />
+
+            {/* Commercial info */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Vendedor Asignado</Label>
+                <Select
+                  value={branchForm.salesRepCode || "unassigned"}
+                  onValueChange={(val) => setBranchForm(p => ({ ...p, salesRepCode: val === "unassigned" ? "" : val }))}
+                >
+                  <SelectTrigger className="h-8 text-sm truncate"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned" className="text-muted-foreground italic">Heredar del padre</SelectItem>
+                    {salespeople.map((sp: any) => (
+                      <SelectItem key={sp.id} value={sp.username || sp.salespersonName.substring(0,3).toUpperCase()}>
+                        {sp.salespersonName} {sp.username ? `(${sp.username.toUpperCase()})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Condición de Pago</Label>
+                <Select
+                  value={branchForm.paymentCondition}
+                  onValueChange={(val) => setBranchForm(p => ({ ...p, paymentCondition: val }))}
+                >
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CONTADO">Contado</SelectItem>
+                    <SelectItem value="TRANSFERENCIA">Transferencia</SelectItem>
+                    <SelectItem value="CREDITO">Crédito</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Límite de Crédito ($)</Label>
+                <Input
+                  type="number"
+                  className="h-8 text-sm"
+                  placeholder="Ej: 5000000"
+                  value={branchForm.creditLimit}
+                  onChange={(e) => setBranchForm(p => ({ ...p, creditLimit: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Bodega de Retiro</Label>
+                <Select
+                  value={branchForm.pickupWarehouseId}
+                  onValueChange={(val) => setBranchForm(p => ({ ...p, pickupWarehouseId: val }))}
+                >
+                  <SelectTrigger className="h-8 text-sm truncate"><SelectValue placeholder="Sin asignar" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin asignar</SelectItem>
+                    {warehouses
+                      .filter((w: any) => w.isManual || w.is_manual || w.kobo?.startsWith('MNL'))
+                      .map((w: any) => (
+                        <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Lista de Precios</Label>
+              <Select
+                value={branchForm.lcen || "__none__"}
+                onValueChange={(val) => setBranchForm(p => ({ ...p, lcen: val === "__none__" ? "" : val }))}
+              >
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Heredar del padre" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Heredar del padre</SelectItem>
+                  <SelectItem value="LP01">Lista Comercial (Por defecto)</SelectItem>
+                  {customPriceLists.filter(l => l.active).map(list => (
+                    <SelectItem key={list.code} value={list.code}>{list.name} ({list.code})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBranchDialog(false)}>Cancelar</Button>
+            <Button
+              className="bg-violet-600 hover:bg-violet-700"
+              disabled={!branchForm.branchLabel || !branchForm.username || !branchForm.password || branchForm.password.length < 6 || createBranchMutation.isPending}
+              onClick={() => {
+                createBranchMutation.mutate({
+                  branchLabel: branchForm.branchLabel,
+                  username: branchForm.username,
+                  email: branchForm.email || null,
+                  password: branchForm.password,
+                  salesRepCode: branchForm.salesRepCode || null,
+                  pickupWarehouseId: branchForm.pickupWarehouseId === "none" ? null : branchForm.pickupWarehouseId,
+                  creditLimit: branchForm.creditLimit ? parseFloat(branchForm.creditLimit) : null,
+                  paymentCondition: branchForm.paymentCondition || null,
+                  lcen: branchForm.lcen || null,
+                });
+              }}
+            >
+              {createBranchMutation.isPending ? "Creando..." : "Crear Sucursal"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       
     </div>
   );
@@ -1145,6 +1539,11 @@ export default function EcommerceUsuarios() {
                         {client.phone && (
                           <span className="inline-flex items-center gap-1.5 text-xs bg-gray-50/80 text-gray-600 px-2.5 py-1 rounded-md border border-gray-100 font-medium">
                             <Phone className="h-3.5 w-3.5 opacity-60" /> {client.phone}
+                          </span>
+                        )}
+                        {client.branchLabel && (
+                          <span className="inline-flex items-center gap-1.5 text-xs bg-violet-50/80 text-violet-600 px-2.5 py-1 rounded-md border border-violet-100 font-medium">
+                            <GitBranch className="h-3.5 w-3.5 opacity-60" /> Sucursal: {client.branchLabel}
                           </span>
                         )}
                       </div>
