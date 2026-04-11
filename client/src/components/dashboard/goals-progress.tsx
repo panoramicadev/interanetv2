@@ -63,9 +63,10 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
     enabled: !goalsData, // Only fetch if no external data provided
   });
 
-  // Query for NVV metrics with filters - for combined progress bar
-  const { data: nvvMetrics } = useQuery<NVVMetrics>({
-    queryKey: ['/api/nvv/metrics', 'goals-combined', globalFilter],
+  // Query NVV totals for combined progress bar - uses same API as Documentos Pendientes
+  // This ensures Total Combinado matches the breakdown shown in Documentos Pendientes
+  const { data: nvvForProgress } = useQuery<Array<{ totalAmount: number }>>({
+    queryKey: ['/api/nvv/all-by-salespeople', 'goals-combined', globalFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (globalFilter.type === 'salesperson' && globalFilter.value) {
@@ -74,15 +75,15 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
         params.append('segment', globalFilter.value);
       }
       
-      const res = await fetch(`/api/nvv/metrics?${params.toString()}`, { credentials: 'include' });
+      const res = await fetch(`/api/nvv/all-by-salespeople?${params.toString()}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
   });
 
-  // Query for GDV metrics with filters - for combined progress bar
-  const { data: gdvMetrics } = useQuery<GDVMetrics>({
-    queryKey: ['/api/sales/gdv-pending', 'goals-combined', globalFilter],
+  // Query GDV totals for combined progress bar - uses same API as Documentos Pendientes
+  const { data: gdvForProgress } = useQuery<Array<{ totalAmount: number }>>({
+    queryKey: ['/api/gdv/all-by-salespeople', 'goals-combined', globalFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (globalFilter.type === 'salesperson' && globalFilter.value) {
@@ -91,7 +92,7 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
         params.append('segment', globalFilter.value);
       }
 
-      const res = await fetch(`/api/sales/gdv-pending?${params.toString()}`, { credentials: 'include' });
+      const res = await fetch(`/api/gdv/all-by-salespeople?${params.toString()}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
@@ -102,8 +103,8 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
   const isLoading = externalLoading !== undefined ? externalLoading : fetchedLoading;
   
   // Calculate combined total for progress bar (ventas + NVV + GDV)
-  const nvvTotal = Number(nvvMetrics?.totalAmount || 0);
-  const gdvTotal = Number(gdvMetrics?.gdvSales || 0);
+  const nvvTotal = nvvForProgress?.reduce((s: number, sp: { totalAmount: number }) => s + sp.totalAmount, 0) || 0;
+  const gdvTotal = gdvForProgress?.reduce((s: number, sp: { totalAmount: number }) => s + sp.totalAmount, 0) || 0;
 
   // Normalize function to handle case and accent insensitive comparison
   const normalize = (str: string | null | undefined): string => {

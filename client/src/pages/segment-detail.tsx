@@ -574,41 +574,35 @@ export default function SegmentDetail({
     enabled: showNewClientsModal && !!segmentName,
   });
 
-  // Fetch NVV metrics for segment (for combined total in goals)
-  const { data: nvvMetrics } = useQuery<{
-    totalAmount: number;
-    pendingCount: number;
-  }>({
-    queryKey: ['/api/nvv/metrics', 'segment', segmentName],
+  // Query NVV totals for combined progress bar - uses same API as Documentos Pendientes
+  const { data: nvvForProgress } = useQuery<Array<{ totalAmount: number }>>({
+    queryKey: ['/api/nvv/all-by-salespeople', 'segment-progress', segmentName],
     queryFn: async () => {
       const params = new URLSearchParams();
-      params.append('segment', segmentName || '');
-      const res = await fetch(`/api/nvv/metrics?${params}`, { credentials: 'include' });
+      if (segmentName) params.append('segment', segmentName);
+      const res = await fetch(`/api/nvv/all-by-salespeople?${params}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
-    enabled: !!segmentName && filterType === 'month',
+    enabled: !!segmentName,
   });
 
-  // Fetch GDV metrics for segment (for combined total in goals)
-  const { data: gdvMetrics } = useQuery<{
-    gdvSales: number;
-    gdvCount: number;
-  }>({
-    queryKey: ['/api/sales/gdv-pending', 'segment', segmentName],
+  // Query GDV totals for combined progress bar - uses same API as Documentos Pendientes
+  const { data: gdvForProgress } = useQuery<Array<{ totalAmount: number }>>({
+    queryKey: ['/api/gdv/all-by-salespeople', 'segment-progress', segmentName],
     queryFn: async () => {
       const params = new URLSearchParams();
-      params.append('segment', segmentName || '');
-      const res = await fetch(`/api/sales/gdv-pending?${params}`, { credentials: 'include' });
+      if (segmentName) params.append('segment', segmentName);
+      const res = await fetch(`/api/gdv/all-by-salespeople?${params}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
-    enabled: !!segmentName && filterType === 'month',
+    enabled: !!segmentName,
   });
 
   // NVV and GDV totals for combined progress
-  const nvvTotal = nvvMetrics?.totalAmount || 0;
-  const gdvTotal = gdvMetrics?.gdvSales || 0;
+  const nvvTotal = nvvForProgress?.reduce((s: number, sp: { totalAmount: number }) => s + sp.totalAmount, 0) || 0;
+  const gdvTotal = gdvForProgress?.reduce((s: number, sp: { totalAmount: number }) => s + sp.totalAmount, 0) || 0;
 
   if (!segmentName) {
     return (

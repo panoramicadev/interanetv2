@@ -746,46 +746,44 @@ export default function SalespersonDetail({
   const goals = Array.isArray(goalsData) ? goalsData : [];
   const primaryGoal = goals.length > 0 ? goals[0] : null;
 
-  // Query for NVV metrics for the salesperson - for combined progress bar (only for month filter)
-  const { data: nvvMetrics } = useQuery<{
-    totalAmount: number;
-    totalQuantity: number;
-    pendingCount: number;
-  }>({
-    queryKey: ['/api/nvv/metrics', 'salesperson', salespersonName],
+  // Query NVV totals for combined progress bar - shares cache with PendingDocumentsUnified
+  // Uses SAME query key as PendingDocumentsUnified so React Query reuses the exact same data
+  const { data: nvvForProgress } = useQuery<Array<{ totalAmount: number }>>({
+    queryKey: ['/api/nvv/all-by-salespeople', 'all-pending', salespersonName, undefined],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (salespersonName) {
         params.append('salesperson', salespersonName);
       }
-      const res = await fetch(`/api/nvv/metrics?${params.toString()}`, { credentials: 'include' });
+      const res = await fetch(`/api/nvv/all-by-salespeople?${params.toString()}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
-    enabled: !!salespersonName && filterType === 'month',
+    enabled: !!salespersonName,
+    staleTime: 60000,
+    refetchOnWindowFocus: false,
   });
 
-  // Query for GDV metrics for the salesperson - for combined progress bar (only for month filter)
-  const { data: gdvMetrics } = useQuery<{
-    gdvSales: number;
-    gdvCount: number;
-  }>({
-    queryKey: ['/api/sales/gdv-pending', 'salesperson', salespersonName],
+  // Query GDV totals for combined progress bar - shares cache with PendingDocumentsUnified
+  const { data: gdvForProgress } = useQuery<Array<{ totalAmount: number }>>({
+    queryKey: ['/api/gdv/all-by-salespeople', 'all-pending', salespersonName, undefined],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (salespersonName) {
         params.append('salesperson', salespersonName);
       }
-      const res = await fetch(`/api/sales/gdv-pending?${params.toString()}`, { credentials: 'include' });
+      const res = await fetch(`/api/gdv/all-by-salespeople?${params.toString()}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
-    enabled: !!salespersonName && filterType === 'month',
+    enabled: !!salespersonName,
+    staleTime: 60000,
+    refetchOnWindowFocus: false,
   });
 
   // Calculate NVV and GDV totals for combined progress bar
-  const nvvTotal = Number(nvvMetrics?.totalAmount || 0);
-  const gdvTotal = Number(gdvMetrics?.gdvSales || 0);
+  const nvvTotal = nvvForProgress?.reduce((s: number, sp: { totalAmount: number }) => s + sp.totalAmount, 0) || 0;
+  const gdvTotal = gdvForProgress?.reduce((s: number, sp: { totalAmount: number }) => s + sp.totalAmount, 0) || 0;
 
   if (!salespersonName) {
     return (
@@ -1549,15 +1547,15 @@ export default function SalespersonDetail({
                         </div>
                       </div>
 
-                      {/* Meta y Ventas Actuales en fila */}
+                      {/* Ventas Actuales y Meta en fila (Ventas a la izquierda, Meta a la derecha) */}
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 rounded-xl p-3">
-                          <p className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1">Meta Mensual</p>
-                          <p className="text-lg font-bold text-purple-900 dark:text-purple-100">{formatCurrency(primaryGoal.targetAmount || 0)}</p>
-                        </div>
                         <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 rounded-xl p-3">
                           <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">Ventas Actuales</p>
                           <p className="text-lg font-bold text-blue-900 dark:text-blue-100">{formatCurrency(primaryGoal.currentSales || 0)}</p>
+                        </div>
+                        <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 rounded-xl p-3">
+                          <p className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1">Meta Mensual</p>
+                          <p className="text-lg font-bold text-purple-900 dark:text-purple-100">{formatCurrency(primaryGoal.targetAmount || 0)}</p>
                         </div>
                       </div>
 

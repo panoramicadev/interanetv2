@@ -2951,6 +2951,10 @@ export class DatabaseStorage implements IStorage {
   }> {
     const { salesperson, segment, client } = filters;
     const conditions = [];
+    if (salesperson) {
+      // Filter by salesperson name (nokofu) - case-insensitive match
+      conditions.push(sql`UPPER(TRIM(${factGdv.nokofu})) = ${salesperson.toUpperCase().trim()}`);
+    }
     if (segment) {
       conditions.push(eq(factGdv.noruen, segment));
     }
@@ -2958,7 +2962,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(factGdv.nokoen, client));
     }
 
-    const whereClause = and(...conditions);
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     const [metrics] = await db
       .select({
