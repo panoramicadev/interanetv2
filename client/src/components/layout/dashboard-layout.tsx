@@ -75,6 +75,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     enabled: !!user,
   });
 
+  const { data: pendingOrdersCountData } = useQuery<{count: number}>({
+    queryKey: ["/api/ecommerce/orders/pending-count"],
+    refetchInterval: 30000,
+    enabled: !!user && ['admin', 'supervisor', 'salesperson'].includes(user.role || ''),
+  });
+  const pendingOrdersCount = pendingOrdersCountData?.count || 0;
+
   // Each nav item rendered
   const NavItem = ({ item, index }: { item: any; index: number }) => {
     const Icon = item.icon;
@@ -137,7 +144,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       data-testid={`nav-submenu-${child.label.toLowerCase().replace(/\s+/g, "-")}`}
                     >
                       <ChildIcon className="w-3.5 h-3.5 flex-shrink-0" />
-                      {child.label}
+                      <span className="flex-1 text-left">{child.label}</span>
+                      {child.href === "/ecommerce-pedidos" && pendingOrdersCount > 0 && (
+                        <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse"></span>
+                      )}
                     </button>
                   </Link>
                 );

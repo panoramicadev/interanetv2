@@ -180,6 +180,20 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
                   </Button>
                 </Link>
 
+                {['admin', 'supervisor'].includes(user?.role || '') && (
+                  <Link href="/dashboard-productos">
+                    <Button
+                      variant="ghost"
+                      className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${location === "/dashboard-productos" ? "bg-slate-800 text-white" : ""
+                        }`}
+                      data-testid="nav-dashboard-productos"
+                    >
+                      <Package className="w-5 h-5 mr-3" />
+                      Dashboard Productos
+                    </Button>
+                  </Link>
+                )}
+
                 <Link href="/metas">
                   <Button
                     variant="ghost"

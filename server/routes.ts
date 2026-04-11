@@ -7023,6 +7023,28 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Get pending orders count
+  app.get('/api/ecommerce/orders/pending-count', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const filters: any = { status: 'pending' };
+
+      if (user.role === 'salesperson') {
+        filters.salespersonId = user.id;
+      } else if (user.role === 'admin' || user.role === 'supervisor') {
+        // Admin/supervisor see all pending orders
+      } else {
+        return res.json({ count: 0 }); // Other roles don't see this badge
+      }
+      
+      const orders = await storage.getEcommerceOrders(filters);
+      res.json({ count: orders.length });
+    } catch (error) {
+      console.error('Error fetching pending orders count:', error);
+      res.status(500).json({ message: 'Error al obtener cuenta de pedidos' });
+    }
+  }));
+
   // Update order status
   app.patch('/api/ecommerce/orders/:id/status', requireAuth, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
@@ -9417,9 +9439,30 @@ export function registerRoutes(app: Express): Server {
       const { db } = await import('./db');
       
       // 1. Get client users from salespeople_users table (primary source)
-      const spClientUsers = await db.select().from(spUsersTable)
-        .where(eq(spUsersTable.role, 'client'))
-        .orderBy(desc(spUsersTable.createdAt));
+      // Use raw SQL to be resilient to missing client_id column (migration may not have run yet)
+      let spClientUsersRaw: any[] = [];
+      try {
+        const spResult = await db.execute(sql`
+          SELECT * FROM salespeople_users WHERE role = 'client' ORDER BY created_at DESC
+        `);
+        spClientUsersRaw = spResult.rows as any[];
+      } catch (e1) {
+        console.error('[GET /api/users/clients] Failed to query salespeople_users:', e1);
+        spClientUsersRaw = [];
+      }
+      // Map snake_case columns from raw SQL to camelCase for consistency
+      const spClientUsers = spClientUsersRaw.map((r: any) => ({
+        id: r.id,
+        email: r.email,
+        username: r.username,
+        salespersonName: r.salesperson_name,
+        clientRut: r.client_rut,
+        clientId: r.client_id || null,
+        publicEmail: r.public_email,
+        publicPhone: r.public_phone,
+        createdAt: r.created_at,
+        role: r.role,
+      }));
       
       // 2. Also get client users from users table (legacy/fallback)
       const legacyClientUsers = await db.select().from(usersTable)

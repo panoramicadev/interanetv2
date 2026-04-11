@@ -50,9 +50,28 @@ interface SidebarItem {
 export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
   admin: [
     {
-      href: "/ai-assistant",
-      label: "Asistente AI",
-      icon: Sparkles,
+      href: "/ecommerce",
+      label: "Panorámica Market",
+      icon: ShoppingCart,
+      isPremium: true,
+      children: [
+        {
+          href: "/ecommerce-pedidos",
+          label: "Pedidos",
+          icon: PackageSearch,
+        },
+        {
+          href: "/ecommerce-usuarios",
+          label: "Clientes",
+          icon: Users,
+        },
+        {
+          href: "/ecommerce",
+          label: "Configuración",
+          icon: ShoppingCart,
+        },
+      ],
+      separator: true,
     },
     {
       href: "/",
@@ -108,35 +127,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/facturas",
       label: "Finanzas",
       icon: Receipt,
-      separator: true,
-    },
-    {
-      href: "/ecommerce",
-      label: "Panorámica Market",
-      icon: ShoppingCart,
-      isPremium: true,
-      children: [
-        {
-          href: "/ecommerce-pedidos",
-          label: "Pedidos",
-          icon: PackageSearch,
-        },
-        {
-          href: "/panoramica-market",
-          label: "Panorámica Market",
-          icon: Gift,
-        },
-        {
-          href: "/ecommerce-usuarios",
-          label: "Usuarios",
-          icon: Users,
-        },
-        {
-          href: "/ecommerce",
-          label: "Gestión eCommerce",
-          icon: ShoppingCart,
-        },
-      ],
       separator: true,
     },
     {
@@ -241,11 +231,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
 
   jefe_planta: [
     {
-      href: "/ai-assistant",
-      label: "Asistente AI",
-      icon: Sparkles,
-    },
-    {
       href: "/",
       label: "Dashboard",
       icon: LayoutDashboard,
@@ -345,11 +330,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
 
   mantencion: [
     {
-      href: "/ai-assistant",
-      label: "Asistente AI",
-      icon: Sparkles,
-    },
-    {
       href: "/mantenciones",
       label: "Mantención",
       icon: Wrench,
@@ -385,9 +365,28 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
 
   supervisor: [
     {
-      href: "/ai-assistant",
-      label: "Asistente AI",
-      icon: Sparkles,
+      href: "/ecommerce",
+      label: "Panorámica Market",
+      icon: ShoppingCart,
+      isPremium: true,
+      children: [
+        {
+          href: "/ecommerce-pedidos",
+          label: "Pedidos",
+          icon: PackageSearch,
+        },
+        {
+          href: "/ecommerce-usuarios",
+          label: "Clientes",
+          icon: Users,
+        },
+        {
+          href: "/ecommerce",
+          label: "Configuración",
+          icon: ShoppingCart,
+        },
+      ],
+      separator: true,
     },
     {
       href: "/",
@@ -420,35 +419,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/facturas",
       label: "Finanzas",
       icon: Receipt,
-      separator: true,
-    },
-    {
-      href: "/ecommerce",
-      label: "Panorámica Market",
-      icon: ShoppingCart,
-      isPremium: true,
-      children: [
-        {
-          href: "/ecommerce-pedidos",
-          label: "Pedidos",
-          icon: PackageSearch,
-        },
-        {
-          href: "/panoramica-market",
-          label: "Panorámica Market",
-          icon: Gift,
-        },
-        {
-          href: "/ecommerce-usuarios",
-          label: "Usuarios",
-          icon: Users,
-        },
-        {
-          href: "/ecommerce",
-          label: "Gestión eCommerce",
-          icon: ShoppingCart,
-        },
-      ],
       separator: true,
     },
     {
@@ -568,11 +538,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
   ],
 
   salesperson: [
-    {
-      href: "/ai-assistant",
-      label: "Asistente AI",
-      icon: Sparkles,
-    },
     {
       href: "/",
       label: "Dashboard",

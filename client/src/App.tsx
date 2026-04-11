@@ -84,6 +84,7 @@ import TintometriaSelector from "@/pages/tintometria-selector";
 import Facturas from "@/pages/facturas";
 import FacturasMainPage from "@/pages/facturas-main";
 import MetricasProductos from "@/pages/metricas-productos";
+import ProductDashboard from "@/pages/product-dashboard";
 import ETLMonitor from "@/pages/etl-monitor";
 import DateSelectorDemo from "@/pages/date-selector-demo";
 import ConfiguracionPage from "@/pages/configuracion";
@@ -340,6 +341,7 @@ function Router() {
             <Route path="/client/:clientName" component={ClientDetail} />
             <Route path="/product/:productName" component={ProductDetail} />
             <Route path="/metricas-productos" component={MetricasProductos} />
+            <Route path="/dashboard-productos" component={ProductDashboard} />
 
             {/* Rutas específicas de vendedor */}
             <Route path="/mis-clientes" component={ClientsDashboard} />

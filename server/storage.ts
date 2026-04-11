@@ -4698,6 +4698,256 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  /**
+   * Get product families (agrupación comercial) from fact_ventas.nofmpr
+   */
+  async getProductFamilies(startDate?: string, endDate?: string): Promise<Array<{
+    family: string;
+    productCount: number;
+    totalSales: number;
+  }>> {
+    const cacheKey = `productFamilies:${startDate || ''}:${endDate || ''}`;
+    const cached = this.getCached<Array<{ family: string; productCount: number; totalSales: number }>>(cacheKey);
+    if (cached) return cached;
+
+    const conditions: any[] = [
+      sql`${factVentas.tido} != 'GDV'`,
+      sql`${factVentas.nofmpr} IS NOT NULL AND TRIM(${factVentas.nofmpr}) != ''`,
+    ];
+    if (startDate) conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
+    if (endDate) conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
+
+    const results = await db
+      .select({
+        family: factVentas.nofmpr,
+        productCount: sql<number>`COUNT(DISTINCT ${factVentas.nokoprct})`,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+      })
+      .from(factVentas)
+      .where(and(...conditions))
+      .groupBy(factVentas.nofmpr)
+      .orderBy(sql`SUM(${factVentas.monto}) DESC`);
+
+    const result = results.map(r => ({
+      family: (r.family || '').trim(),
+      productCount: Number(r.productCount),
+      totalSales: Number(r.totalSales),
+    }));
+
+    this.setCache(cacheKey, result, 300000);
+    return result;
+  }
+
+  /**
+   * Get consolidated product dashboard data filtered by family (nofmpr) and other dimensions.
+   */
+  async getProductDashboardData(filters: {
+    startDate?: string;
+    endDate?: string;
+    family?: string;
+    segment?: string;
+    salesperson?: string;
+    branch?: string;
+  }): Promise<{
+    totalSales: number;
+    totalUnits: number;
+    transactionCount: number;
+    uniqueProducts: number;
+    uniqueClients: number;
+    topColors: Array<{ color: string; totalSales: number; totalUnits: number; percentage: number }>;
+    topFormats: Array<{ format: string; totalSales: number; totalUnits: number; percentage: number }>;
+    topProducts: Array<{ productName: string; totalSales: number; totalUnits: number; transactionCount: number }>;
+    segmentBreakdown: Array<{ segment: string; totalSales: number; totalUnits: number; clientCount: number; percentage: number }>;
+    topClients: Array<{ clientName: string; totalSales: number; totalUnits: number; transactionCount: number }>;
+    topSalespeople: Array<{ salespersonName: string; totalSales: number; totalUnits: number; clientCount: number }>;
+    salesTrend: Array<{ period: string; sales: number; units: number }>;
+  }> {
+    const conditions: any[] = [
+      sql`${factVentas.tido} != 'GDV'`,
+    ];
+    if (filters.startDate) conditions.push(sql`${factVentas.feemdo} >= ${filters.startDate}::date`);
+    if (filters.endDate) conditions.push(sql`${factVentas.feemdo} <= ${filters.endDate}::date`);
+    if (filters.family) conditions.push(sql`TRIM(${factVentas.nofmpr}) = ${filters.family.trim()}`);
+    if (filters.segment) conditions.push(eq(factVentas.noruen, filters.segment));
+    if (filters.salesperson) conditions.push(eq(factVentas.nokofu, filters.salesperson));
+    if (filters.branch) conditions.push(eq(factVentas.nosudo, filters.branch));
+
+    const whereClause = and(...conditions);
+
+    // Run all queries in parallel for performance
+    const [
+      metricsResult,
+      productResults,
+      segmentResults,
+      clientResults,
+      salespersonResults,
+      trendResults,
+    ] = await Promise.all([
+      // 1. Overall KPIs
+      db.select({
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+        uniqueProducts: sql<number>`COUNT(DISTINCT ${factVentas.nokoprct})`,
+        uniqueClients: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
+      }).from(factVentas).where(whereClause),
+
+      // 2. Top products
+      db.select({
+        productName: factVentas.nokoprct,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+      }).from(factVentas).where(whereClause)
+        .groupBy(factVentas.nokoprct)
+        .orderBy(sql`SUM(${factVentas.monto}) DESC`)
+        .limit(50),
+
+      // 3. Segment breakdown
+      db.select({
+        segment: factVentas.noruen,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
+        clientCount: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
+      }).from(factVentas).where(and(...conditions, sql`${factVentas.noruen} IS NOT NULL AND ${factVentas.noruen} != ''`))
+        .groupBy(factVentas.noruen)
+        .orderBy(sql`SUM(${factVentas.monto}) DESC`),
+
+      // 4. Top clients
+      db.select({
+        clientName: factVentas.nokoen,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+      }).from(factVentas).where(whereClause)
+        .groupBy(factVentas.nokoen)
+        .orderBy(sql`SUM(${factVentas.monto}) DESC`)
+        .limit(20),
+
+      // 5. Top salespeople
+      db.select({
+        salespersonName: factVentas.nokofu,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
+        clientCount: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
+      }).from(factVentas).where(whereClause)
+        .groupBy(factVentas.nokofu)
+        .orderBy(sql`SUM(${factVentas.monto}) DESC`)
+        .limit(15),
+
+      // 6. Sales trend (monthly)
+      db.select({
+        period: sql<string>`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM')`,
+        sales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        units: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
+      }).from(factVentas).where(whereClause)
+        .groupBy(sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM')`)
+        .orderBy(sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM')`),
+    ]);
+
+    const metrics = metricsResult[0];
+    const totalSales = Number(metrics?.totalSales || 0);
+
+    // Extract format and color from product names
+    const extractFormat = (name: string): string => {
+      const ln = name.toLowerCase();
+      if (ln.includes('4 galones') || ln.includes('4gal')) return '4 Galones';
+      if (ln.includes('1/4') || ln.includes('cuarto')) return '1/4 Galón';
+      if (ln.includes('galón') || ln.includes('galon') || ln.includes(' gl') || ln.endsWith(' gl') || ln.includes(' gal ') || ln.endsWith(' gal')) return 'Galón';
+      if (ln.includes('balde') || ln.includes('bd') || ln.includes('bld')) return 'Balde';
+      if (ln.includes('tineta')) return 'Tineta';
+      if (ln.includes('kilo') || ln.includes(' kg') || ln.endsWith(' kg')) return 'Kilo';
+      if (ln.includes('litro') || ln.includes(' lt') || ln.endsWith(' lt') || ln.includes(' lts')) return 'Litro';
+      if (ln.includes('onza') || ln.includes(' oz')) return 'Onza';
+      if (ln.includes('metro') || ln.includes(' mt') || ln.includes(' m ')) return 'Metro';
+      return 'Otro';
+    };
+    const extractColor = (name: string): string => {
+      const ln = name.toLowerCase();
+      if (ln.includes('blanco')) return 'Blanco'; if (ln.includes('negro')) return 'Negro';
+      if (ln.includes('rojo')) return 'Rojo'; if (ln.includes('azul pacifico')) return 'Azul Pacífico';
+      if (ln.includes('azul')) return 'Azul'; if (ln.includes('verde')) return 'Verde';
+      if (ln.includes('amarillo')) return 'Amarillo'; if (ln.includes('gris')) return 'Gris';
+      if (ln.includes('cafe') || ln.includes('café') || ln.includes('marron') || ln.includes('marrón')) return 'Café';
+      if (ln.includes('rosa') || ln.includes('rosado')) return 'Rosa';
+      if (ln.includes('naranja') || ln.includes('anaranjado')) return 'Naranja';
+      if (ln.includes('violeta') || ln.includes('morado')) return 'Violeta';
+      if (ln.includes('incoloro') || ln.includes('transparente')) return 'Incoloro';
+      if (ln.includes('beige')) return 'Beige'; if (ln.includes('crema')) return 'Crema';
+      if (ln.includes('marfil')) return 'Marfil'; if (ln.includes('celeste')) return 'Celeste';
+      return 'Sin especificar';
+    };
+
+    // Aggregate colors and formats from product results
+    const colorMap = new Map<string, { totalSales: number; totalUnits: number }>();
+    const formatMap = new Map<string, { totalSales: number; totalUnits: number }>();
+
+    productResults.forEach(p => {
+      const name = p.productName || '';
+      const color = extractColor(name);
+      const format = extractFormat(name);
+      const sales = Number(p.totalSales);
+      const units = Number(p.totalUnits);
+
+      const existingColor = colorMap.get(color) || { totalSales: 0, totalUnits: 0 };
+      colorMap.set(color, { totalSales: existingColor.totalSales + sales, totalUnits: existingColor.totalUnits + units });
+
+      const existingFormat = formatMap.get(format) || { totalSales: 0, totalUnits: 0 };
+      formatMap.set(format, { totalSales: existingFormat.totalSales + sales, totalUnits: existingFormat.totalUnits + units });
+    });
+
+    const topColors = Array.from(colorMap.entries())
+      .map(([color, data]) => ({ color, ...data, percentage: totalSales > 0 ? (data.totalSales / totalSales) * 100 : 0 }))
+      .sort((a, b) => b.totalSales - a.totalSales)
+      .slice(0, 15);
+
+    const topFormats = Array.from(formatMap.entries())
+      .map(([format, data]) => ({ format, ...data, percentage: totalSales > 0 ? (data.totalSales / totalSales) * 100 : 0 }))
+      .sort((a, b) => b.totalSales - a.totalSales);
+
+    const segmentTotalSales = segmentResults.reduce((sum, s) => sum + Number(s.totalSales), 0);
+
+    return {
+      totalSales,
+      totalUnits: Number(metrics?.totalUnits || 0),
+      transactionCount: Number(metrics?.transactionCount || 0),
+      uniqueProducts: Number(metrics?.uniqueProducts || 0),
+      uniqueClients: Number(metrics?.uniqueClients || 0),
+      topColors,
+      topFormats,
+      topProducts: productResults.map(p => ({
+        productName: p.productName || '',
+        totalSales: Number(p.totalSales),
+        totalUnits: Number(p.totalUnits),
+        transactionCount: Number(p.transactionCount),
+      })),
+      segmentBreakdown: segmentResults.map(s => ({
+        segment: s.segment || '',
+        totalSales: Number(s.totalSales),
+        totalUnits: Number(s.totalUnits),
+        clientCount: Number(s.clientCount),
+        percentage: segmentTotalSales > 0 ? (Number(s.totalSales) / segmentTotalSales) * 100 : 0,
+      })),
+      topClients: clientResults.map(c => ({
+        clientName: c.clientName || '',
+        totalSales: Number(c.totalSales),
+        totalUnits: Number(c.totalUnits),
+        transactionCount: Number(c.transactionCount),
+      })),
+      topSalespeople: salespersonResults.map(s => ({
+        salespersonName: s.salespersonName || '',
+        totalSales: Number(s.totalSales),
+        totalUnits: Number(s.totalUnits),
+        clientCount: Number(s.clientCount),
+      })),
+      salesTrend: trendResults.map(t => ({
+        period: t.period || '',
+        sales: Number(t.sales),
+        units: Number(t.units),
+      })),
+    };
+  }
+
   async getSegmentAnalysis(startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
     segment: string;
     totalSales: number;
