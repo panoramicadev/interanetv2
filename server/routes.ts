@@ -9662,7 +9662,8 @@ export function registerRoutes(app: Express): Server {
               FROM client_agg ca
               LEFT JOIN latest_doc ld ON ld.nokoen = ca.nokoen
             `);
-            for (const row of metricsResult.rows as any[]) {
+            const metricsRows = Array.isArray(metricsResult) ? metricsResult : (metricsResult as any).rows || [];
+            for (const row of metricsRows as any[]) {
               if (row.nokoen) salesMetricsMap.set(row.nokoen.toUpperCase(), row);
             }
           } catch (metricsError) {
