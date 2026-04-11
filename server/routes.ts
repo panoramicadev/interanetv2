@@ -4908,9 +4908,54 @@ export function registerRoutes(app: Express): Server {
         validatedUser.password = await bcrypt.hash(validatedUser.password, 12);
       }
 
+      // Auto-link: If creating a client user with RUT, find the matching client record
+      if (validatedUser.role === 'client' && validatedUser.clientRut && !validatedUser.clientId) {
+        try {
+          const { clients: clientsTable } = await import('@shared/schema');
+          const { db: dbInstance } = await import('./db');
+          const cleanRut = validatedUser.clientRut.replace(/[.\-\s]/g, '').trim().toUpperCase();
+          const matchingClients = await dbInstance.select({ id: clientsTable.id })
+            .from(clientsTable)
+            .where(sql`UPPER(REPLACE(REPLACE(REPLACE(${clientsTable.rten}, '.', ''), '-', ''), ' ', '')) = ${cleanRut}`)
+            .limit(1);
+          if (matchingClients.length > 0) {
+            validatedUser.clientId = matchingClients[0].id;
+            console.log(`[AUTO-LINK] Pre-linked client user to client record ${matchingClients[0].id} via RUT ${validatedUser.clientRut}`);
+          }
+        } catch (linkError) {
+          console.warn('[AUTO-LINK] Failed to pre-link client by RUT:', linkError);
+        }
+      }
+
       console.log("Datos validados:", validatedUser);
       const newUser = await storage.createSalespersonUser(validatedUser);
       console.log("Usuario creado exitosamente:", newUser);
+
+      // Backfill clients.user_id for bidirectional linking
+      if (validatedUser.role === 'client' && (validatedUser.clientId || validatedUser.clientRut)) {
+        try {
+          const { clients: clientsTable } = await import('@shared/schema');
+          const { db: dbInstance } = await import('./db');
+          const { eq } = await import('drizzle-orm');
+          
+          if (validatedUser.clientId) {
+            await dbInstance.update(clientsTable)
+              .set({ userId: newUser.id })
+              .where(eq(clientsTable.id, validatedUser.clientId));
+            console.log(`[AUTO-LINK] Backfilled clients.user_id = ${newUser.id} for client ${validatedUser.clientId}`);
+          } else if (validatedUser.clientRut) {
+            const cleanRut = validatedUser.clientRut.replace(/[.\-\s]/g, '').trim().toUpperCase();
+            await dbInstance.execute(sql`
+              UPDATE clients SET user_id = ${newUser.id}
+              WHERE UPPER(REPLACE(REPLACE(REPLACE(rten, '.', ''), '-', ''), ' ', '')) = ${cleanRut}
+                AND (user_id IS NULL OR user_id = '')
+            `);
+          }
+        } catch (backfillError) {
+          console.warn('[AUTO-LINK] Failed to backfill clients.user_id:', backfillError);
+        }
+      }
+
       res.json(newUser);
     } catch (error: any) {
       console.error("Error creating salesperson user:", error);
@@ -4980,7 +5025,7 @@ export function registerRoutes(app: Express): Server {
 
       const updatedUser = await storage.updateSalespersonUser(id, validatedUser);
 
-      // If clientRut was set, link this user to the corresponding client
+      // If clientRut was set, link this user to the corresponding client (update both client_id and clients.user_id)
       if (validatedUser.clientRut) {
         try {
           const { db: dbInstance } = await import('./db');
@@ -9356,18 +9401,56 @@ export function registerRoutes(app: Express): Server {
         .where(eq(usersTable.role, 'client'))
         .orderBy(desc(usersTable.createdAt));
       
-      // 3. Get all clients records to cross-reference
+      // 3. Get all clients records to cross-reference — build multiple lookup maps
       const allClients = await db.select().from(clientsTable);
+      const clientById = new Map(allClients.map((c: any) => [c.id, c]));
       const clientByName = new Map(allClients.filter((c: any) => c.nokoen).map((c: any) => [c.nokoen?.toUpperCase(), c]));
       const clientByUserId = new Map(allClients.filter((c: any) => c.userId).map((c: any) => [c.userId, c]));
+      // RUT lookup map (normalized)
+      const clientByRut = new Map<string, any>();
+      for (const c of allClients) {
+        if (c.rten) {
+          const normalizedRut = (c.rten as string).replace(/[.\-\s]/g, '').trim().toUpperCase();
+          if (normalizedRut) clientByRut.set(normalizedRut, c);
+        }
+      }
       
       const results: any[] = [];
       const seenIds = new Set<string>();
+      // Track users that got auto-reconciled for background update
+      const toReconcile: Array<{ userId: string; clientId: string }> = [];
       
       // Process salespeople_users client records
       for (const u of spClientUsers) {
         seenIds.add(u.id);
-        const clientRecord = clientByName.get(u.salespersonName?.toUpperCase()) || clientByUserId.get(u.id);
+        
+        // Priority-based client matching:
+        // 1. Direct FK (client_id) — most reliable
+        // 2. Fallback by RUT — reliable
+        // 3. Fallback by user_id in clients table
+        // 4. Fallback by name match — least reliable
+        let clientRecord = u.clientId ? clientById.get(u.clientId) : null;
+        
+        if (!clientRecord && u.clientRut) {
+          const normalizedRut = u.clientRut.replace(/[.\-\s]/g, '').trim().toUpperCase();
+          clientRecord = clientByRut.get(normalizedRut) || null;
+          // Auto-reconcile: if we found by RUT but user has no client_id, queue for update
+          if (clientRecord && !u.clientId) {
+            toReconcile.push({ userId: u.id, clientId: clientRecord.id });
+          }
+        }
+        
+        if (!clientRecord) {
+          clientRecord = clientByUserId.get(u.id) || null;
+        }
+        
+        if (!clientRecord) {
+          clientRecord = clientByName.get(u.salespersonName?.toUpperCase()) || null;
+          // Also queue name-based matches for reconciliation
+          if (clientRecord && !u.clientId) {
+            toReconcile.push({ userId: u.id, clientId: clientRecord.id });
+          }
+        }
         
         results.push({
           id: u.id,
@@ -9381,7 +9464,7 @@ export function registerRoutes(app: Express): Server {
           clientId: clientRecord?.id || null,
           clientCode: clientRecord?.koen || null,
           clientName: u.salespersonName || clientRecord?.nokoen || u.email || 'Sin nombre',
-          rut: clientRecord?.rten || null,
+          rut: clientRecord?.rten || u.clientRut || null,
           phone: clientRecord?.foen || u.publicPhone || null,
           address: clientRecord?.dien || null,
           commune: clientRecord?.cmen || clientRecord?.comuna || null,
@@ -9426,6 +9509,25 @@ export function registerRoutes(app: Express): Server {
           pickupWarehouseId: clientRecord?.pickupWarehouseId || null,
           lcen: clientRecord?.lcen || null,
         });
+      }
+
+      // Background auto-reconciliation: persist newly discovered links
+      if (toReconcile.length > 0) {
+        (async () => {
+          try {
+            for (const { userId, clientId } of toReconcile) {
+              await db.update(spUsersTable)
+                .set({ clientId: clientId, updatedAt: new Date() })
+                .where(eq(spUsersTable.id, userId));
+              await db.update(clientsTable)
+                .set({ userId: userId })
+                .where(eq(clientsTable.id, clientId));
+            }
+            console.log(`[AUTO-RECONCILE] Linked ${toReconcile.length} users with their client records`);
+          } catch (reconcileError) {
+            console.warn('[AUTO-RECONCILE] Failed:', reconcileError);
+          }
+        })();
       }
 
       res.json(results);
@@ -9524,6 +9626,105 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error updating commercial info:", error);
       res.status(500).json({ message: "Error al actualizar información comercial" });
+    }
+  });
+
+  // Link an eCommerce user to an existing SAP client record
+  app.post('/api/users/clients/:userId/link-client', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const { clientId } = req.body;
+      const user = req.user;
+
+      if (!['admin', 'supervisor'].includes(user.role)) {
+        return res.status(403).json({ message: "No autorizado" });
+      }
+
+      if (!clientId) {
+        return res.status(400).json({ message: "clientId es requerido" });
+      }
+
+      const { salespeopleUsers: spTable, clients: clientsTable } = await import('@shared/schema');
+      const { eq } = await import('drizzle-orm');
+      const { db: dbInstance } = await import('./db');
+
+      // Verify user exists and is a client
+      const [spUser] = await dbInstance.select().from(spTable).where(eq(spTable.id, userId)).limit(1);
+      if (!spUser || spUser.role !== 'client') {
+        return res.status(404).json({ message: "Usuario cliente no encontrado" });
+      }
+
+      // Verify client exists
+      const [clientRecord] = await dbInstance.select().from(clientsTable).where(eq(clientsTable.id, clientId)).limit(1);
+      if (!clientRecord) {
+        return res.status(404).json({ message: "Ficha de cliente no encontrada" });
+      }
+
+      // Update salespeople_users.client_id
+      await dbInstance.update(spTable)
+        .set({ clientId: clientId, updatedAt: new Date() })
+        .where(eq(spTable.id, userId));
+
+      // Backfill clients.user_id
+      await dbInstance.update(clientsTable)
+        .set({ userId: userId })
+        .where(eq(clientsTable.id, clientId));
+
+      console.log(`[LINK] User ${userId} linked to client ${clientId} by ${user.id}`);
+      res.json({ success: true, message: "Usuario vinculado con ficha de cliente exitosamente" });
+    } catch (error) {
+      console.error("Error linking client:", error);
+      res.status(500).json({ message: "Error al vincular cliente" });
+    }
+  });
+
+  // Create a minimal client record and link to eCommerce user
+  app.post('/api/users/clients/:userId/create-and-link', requireCommercialAccess, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const user = req.user;
+
+      if (!['admin', 'supervisor'].includes(user.role)) {
+        return res.status(403).json({ message: "No autorizado" });
+      }
+
+      const { salespeopleUsers: spTable, clients: clientsTable } = await import('@shared/schema');
+      const { eq } = await import('drizzle-orm');
+      const { db: dbInstance } = await import('./db');
+
+      // Verify user exists and is a client
+      const [spUser] = await dbInstance.select().from(spTable).where(eq(spTable.id, userId)).limit(1);
+      if (!spUser || spUser.role !== 'client') {
+        return res.status(404).json({ message: "Usuario cliente no encontrado" });
+      }
+
+      // Check if already linked
+      if (spUser.clientId) {
+        return res.status(400).json({ message: "Este usuario ya está vinculado con una ficha de cliente" });
+      }
+
+      // Create minimal client record
+      const [newClient] = await dbInstance.insert(clientsTable).values({
+        nokoen: spUser.salespersonName,
+        rten: spUser.clientRut || null,
+        email: spUser.email || spUser.publicEmail || null,
+        foen: spUser.publicPhone || null,
+        userId: userId,
+      }).returning();
+
+      // Link the user to the new client record
+      await dbInstance.update(spTable)
+        .set({ clientId: newClient.id, updatedAt: new Date() })
+        .where(eq(spTable.id, userId));
+
+      console.log(`[CREATE-LINK] Created client record ${newClient.id} and linked to user ${userId}`);
+      res.json({ success: true, message: "Ficha de cliente creada y vinculada", client: newClient });
+    } catch (error: any) {
+      console.error("Error creating and linking client:", error);
+      if (error.code === '23505') {
+        return res.status(409).json({ message: "Ya existe un cliente con estos datos" });
+      }
+      res.status(500).json({ message: "Error al crear ficha de cliente" });
     }
   });
 

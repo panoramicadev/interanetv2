@@ -23,7 +23,8 @@ import {
   Users, Search, Mail, Phone, MapPin, Calendar, ArrowLeft,
   UserCircle, Hash, Building2, KeyRound, ShoppingBag,
   CreditCard, FileText, TrendingUp, DollarSign, Package,
-  Clock, Eye, Edit2, Save, X, Plus, Trash2, Home, Check, UserPlus
+  Clock, Eye, Edit2, Save, X, Plus, Trash2, Home, Check, UserPlus,
+  Link, LinkIcon, Unlink, AlertTriangle, SearchIcon, FilePlus
 } from "lucide-react";
 
 interface ClientUser {
@@ -63,6 +64,10 @@ interface Warehouse {
 function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser; onBack: () => void; onClientUpdated: (updated: ClientUser) => void }) {
   const [activeTab, setActiveTab] = useState("overview");
   const [isEditingCommercial, setIsEditingCommercial] = useState(false);
+  const [linkSearchQuery, setLinkSearchQuery] = useState("");
+  const [linkSearchResults, setLinkSearchResults] = useState<any[]>([]);
+  const [isSearchingClients, setIsSearchingClients] = useState(false);
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [commercialForm, setCommercialForm] = useState({
     paymentCondition: client.paymentCondition || "CONTADO",
     creditDays: "",
@@ -176,6 +181,54 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
     }
   });
 
+  // Mutation: Link user to existing client
+  const linkClientMutation = useMutation({
+    mutationFn: async (clientId: string) => {
+      const res = await apiRequest("POST", `/api/users/clients/${client.id}/link-client`, { clientId });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Vinculado", description: "Usuario vinculado con ficha de cliente exitosamente." });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/clients"] });
+      setShowLinkDialog(false);
+      setLinkSearchQuery("");
+      setLinkSearchResults([]);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo vincular el usuario.", variant: "destructive" });
+    }
+  });
+
+  // Mutation: Create client record and link
+  const createAndLinkMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/users/clients/${client.id}/create-and-link`);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Creado y vinculado", description: "Ficha de cliente creada y vinculada exitosamente." });
+      queryClient.invalidateQueries({ queryKey: ["/api/users/clients"] });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo crear la ficha de cliente.", variant: "destructive" });
+    }
+  });
+
+  // Search clients for linking
+  const searchClientsForLink = async (query: string) => {
+    if (query.length < 2) { setLinkSearchResults([]); return; }
+    setIsSearchingClients(true);
+    try {
+      const res = await apiRequest("GET", `/api/clients/search?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      setLinkSearchResults(Array.isArray(data) ? data.slice(0, 10) : []);
+    } catch {
+      setLinkSearchResults([]);
+    } finally {
+      setIsSearchingClients(false);
+    }
+  };
+
   // Fetch client orders
   const { data: orders = [] } = useQuery<any[]>({
     queryKey: ["/api/ecommerce/orders", { clientUserId: client.id }],
@@ -260,14 +313,116 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Badge className="bg-green-500/20 text-green-300 border-green-500/30 px-3 py-1">
               <KeyRound className="h-3 w-3 mr-1" />
               Acceso activo
             </Badge>
+            {client.clientId ? (
+              <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30 px-3 py-1">
+                <LinkIcon className="h-3 w-3 mr-1" />
+                Vinculado
+              </Badge>
+            ) : (
+              <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 px-3 py-1">
+                <Unlink className="h-3 w-3 mr-1" />
+                Sin vincular
+              </Badge>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Linking Alert — shown when user is not linked to SAP client */}
+      {!client.clientId && (
+        <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/30 shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5">
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200">Usuario sin ficha de cliente vinculada</h3>
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                  Este usuario eCommerce no está vinculado con ninguna ficha de cliente del sistema (SAP). La información comercial (crédito, vendedor, lista de precios) no estará disponible hasta que se vincule.
+                </p>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" variant="outline" className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300">
+                        <SearchIcon className="h-3 w-3 mr-1" />
+                        Buscar y vincular cliente
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-lg">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                          <LinkIcon className="h-5 w-5 text-blue-500" />
+                          Vincular con Cliente del Sistema
+                        </DialogTitle>
+                        <DialogDescription>
+                          Busca un cliente por nombre, RUT o código para vincularlo con este usuario eCommerce.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-2">
+                        <div className="relative">
+                          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Buscar por nombre, RUT o código..."
+                            value={linkSearchQuery}
+                            onChange={(e) => {
+                              setLinkSearchQuery(e.target.value);
+                              searchClientsForLink(e.target.value);
+                            }}
+                            className="pl-9"
+                          />
+                        </div>
+                        {isSearchingClients && (
+                          <p className="text-xs text-muted-foreground text-center py-2">Buscando...</p>
+                        )}
+                        {linkSearchResults.length > 0 && (
+                          <div className="max-h-60 overflow-y-auto space-y-1 rounded-lg border p-1">
+                            {linkSearchResults.map((c: any) => (
+                              <button
+                                key={c.id || c.koen}
+                                onClick={() => linkClientMutation.mutate(c.id)}
+                                disabled={linkClientMutation.isPending}
+                                className="w-full flex items-center justify-between p-2.5 rounded-md hover:bg-blue-50 dark:hover:bg-blue-950/50 text-left transition-colors"
+                              >
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium truncate">{c.nokoen || c.clientName || 'Sin nombre'}</p>
+                                  <p className="text-xs text-muted-foreground flex items-center gap-2">
+                                    {c.rten && <span>RUT: {c.rten}</span>}
+                                    {c.koen && <span>Código: {c.koen}</span>}
+                                  </p>
+                                </div>
+                                <LinkIcon className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {linkSearchQuery.length >= 2 && linkSearchResults.length === 0 && !isSearchingClients && (
+                          <p className="text-xs text-muted-foreground text-center py-4">No se encontraron clientes con ese criterio.</p>
+                        )}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300"
+                    onClick={() => createAndLinkMutation.mutate()}
+                    disabled={createAndLinkMutation.isPending}
+                  >
+                    <FilePlus className="h-3 w-3 mr-1" />
+                    {createAndLinkMutation.isPending ? 'Creando...' : 'Crear ficha de cliente'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
