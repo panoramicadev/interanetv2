@@ -173,12 +173,12 @@ function ShippingRatesSection() {
   };
 
   return (
-    <Card>
+    <Card className="border-border/40 shadow-sm">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-              <Truck className="h-5 w-5 text-white" />
+            <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
+              <Truck className="h-5 w-5 text-muted-foreground" />
             </div>
             <div>
               <CardTitle className="text-lg">Tarifas de Despacho</CardTitle>
@@ -188,7 +188,7 @@ function ShippingRatesSection() {
           <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 gap-2 text-white"
+            className="bg-foreground text-background hover:bg-foreground/90 gap-2"
           >
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Guardar tarifas
@@ -344,12 +344,12 @@ function TopbarConfigSection() {
   ];
 
   return (
-    <Card>
+    <Card className="border-border/40 shadow-sm">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-              <Layout className="h-5 w-5 text-white" />
+            <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
+              <Layout className="h-5 w-5 text-muted-foreground" />
             </div>
             <div>
               <CardTitle className="text-lg">Configuración del Topbar</CardTitle>
@@ -359,7 +359,7 @@ function TopbarConfigSection() {
           <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 gap-2 text-white"
+            className="bg-foreground text-background hover:bg-foreground/90 gap-2"
           >
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Guardar configuración
@@ -414,20 +414,20 @@ function TopbarConfigSection() {
                 <div
                   key={item.key}
                   className={`border rounded-xl p-4 transition-all ${
-                    isVisible ? 'bg-white dark:bg-slate-900 border-gray-200' : 'bg-muted/30 border-dashed border-gray-200 opacity-60'
+                    isVisible ? 'bg-card border-border/40' : 'bg-muted/10 border-dashed border-border/20 opacity-60'
                   }`}
                 >
                   <div className="flex items-center gap-4">
                     <div className={`h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                      isVisible ? 'bg-violet-100 dark:bg-violet-900/30' : 'bg-gray-100 dark:bg-gray-800'
+                      isVisible ? 'bg-muted' : 'bg-muted/50'
                     }`}>
-                      <Icon className={`h-4 w-4 ${isVisible ? 'text-violet-600' : 'text-gray-400'}`} />
+                      <Icon className={`h-4 w-4 ${isVisible ? 'text-foreground' : 'text-muted-foreground'}`} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className="text-sm font-semibold">{item.label}</span>
                         <Badge variant={isVisible ? 'default' : 'secondary'} className={`text-[9px] px-1.5 py-0 h-4 ${
-                          isVisible ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : ''
+                          isVisible ? 'bg-muted text-foreground' : ''
                         }`}>
                           {isVisible ? 'Visible' : 'Oculto'}
                         </Badge>
@@ -668,7 +668,7 @@ function BannerForm({ onSuccess, existingBanner, type = 'hero' }: { onSuccess: (
         </div>
       </div>
 
-      <Button onClick={handleSubmit} disabled={saving} className="w-full bg-gradient-to-r from-orange-500 to-pink-500 text-white">
+      <Button onClick={handleSubmit} disabled={saving} className="w-full bg-foreground text-background hover:bg-foreground/90">
         {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Guardando...</> : existingBanner ? 'Actualizar Banner' : 'Crear Banner'}
       </Button>
     </div>
@@ -1088,8 +1088,8 @@ function WarehouseManagementSection() {
     <Card>
       <CardHeader>
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center">
-            <Building2 className="h-5 w-5 text-white" />
+          <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
+            <Building2 className="h-5 w-5 text-muted-foreground" />
           </div>
           <div>
             <CardTitle className="text-lg">Gestión de Bodegas de Retiro</CardTitle>
@@ -2142,34 +2142,33 @@ export default function EcommerceAdmin() {
 
   return (
     <div className="space-y-8 px-2 md:px-4 pb-8">
-      {/* Modern Header with Gradient */}
-      <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 md:p-8 text-white">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-40" />
-        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Minimal Header */}
+      <div className="bg-white dark:bg-slate-900 border-b border-border/40 p-6 md:p-8 -mx-2 md:-mx-4 mt-[-2rem] mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center">
-              <ShoppingCart className="h-6 w-6 text-emerald-400" />
+            <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+              <ShoppingCart className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Configuración eCommerce</h1>
-              <p className="text-slate-300 text-sm md:text-base">Configura catálogos y categorías de tu tienda online</p>
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground">Configuración eCommerce</h1>
+              <p className="text-muted-foreground text-sm">Administra catálogos, categorías y configuración general de tu tienda</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Button
               variant="outline"
-              className="bg-white/10 border-white/20 text-white hover:bg-white/20 gap-2"
+              className="bg-transparent border-input hover:bg-accent text-foreground gap-2"
               onClick={() => window.open('/tienda', '_blank')}
               data-testid="button-view-store"
             >
-              <ExternalLink className="h-4 w-4" />
-              Ver la Tienda
+              <ExternalLink className="h-4 w-4 text-muted-foreground" />
+              Ver Tienda
             </Button>
 
             <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
               <DialogTrigger asChild>
-                <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2" data-testid="button-new-category">
+                <Button className="bg-foreground text-background hover:bg-foreground/90 gap-2" data-testid="button-new-category">
                   <Plus className="h-4 w-4" />
                   Nueva Categoría
                 </Button>
@@ -2179,60 +2178,60 @@ export default function EcommerceAdmin() {
         </div>
       </div>
 
-      {/* Modern Stat Cards */}
+      {/* Minimal Stat Cards */}
       {stats && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 px-1">
-          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-all hover:scale-[1.02] bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/50 dark:to-blue-900/30">
+          <Card className="bg-white dark:bg-slate-900 border-border/40 shadow-sm shadow-slate-100/50 dark:shadow-none hover:border-border/80 transition-colors">
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-blue-600/70 dark:text-blue-400/70 uppercase tracking-wider">Total Productos</p>
-                  <p className="text-2xl font-bold mt-1 text-blue-900 dark:text-blue-100">{stats.totalProductos}</p>
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">Total Productos</p>
+                  <p className="text-2xl font-semibold tracking-tight mt-1">{stats.totalProductos}</p>
                 </div>
-                <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                  <ShoppingCart className="h-5 w-5 text-blue-500" />
+                <div className="h-8 w-8 rounded-md bg-muted/50 flex items-center justify-center">
+                  <ShoppingCart className="h-4 w-4 text-muted-foreground" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-all hover:scale-[1.02] bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/50 dark:to-emerald-900/30">
+          <Card className="bg-white dark:bg-slate-900 border-border/40 shadow-sm shadow-slate-100/50 dark:shadow-none hover:border-border/80 transition-colors">
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-emerald-600/70 dark:text-emerald-400/70 uppercase tracking-wider">Productos Activos</p>
-                  <p className="text-2xl font-bold mt-1 text-emerald-900 dark:text-emerald-100">{stats.productosActivos}</p>
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">Productos Activos</p>
+                  <p className="text-2xl font-semibold tracking-tight mt-1">{stats.productosActivos}</p>
                 </div>
-                <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                  <Eye className="h-5 w-5 text-emerald-500" />
+                <div className="h-8 w-8 rounded-md bg-muted/50 flex items-center justify-center">
+                  <Eye className="h-4 w-4 text-emerald-500" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-all hover:scale-[1.02] bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/50 dark:to-amber-900/30">
+          <Card className="bg-white dark:bg-slate-900 border-border/40 shadow-sm shadow-slate-100/50 dark:shadow-none hover:border-border/80 transition-colors">
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-amber-600/70 dark:text-amber-400/70 uppercase tracking-wider">Categorías</p>
-                  <p className="text-2xl font-bold mt-1 text-amber-900 dark:text-amber-100">{stats.totalCategorias}</p>
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">Categorías</p>
+                  <p className="text-2xl font-semibold tracking-tight mt-1">{stats.totalCategorias}</p>
                 </div>
-                <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                  <Tag className="h-5 w-5 text-amber-500" />
+                <div className="h-8 w-8 rounded-md bg-muted/50 flex items-center justify-center">
+                  <Tag className="h-4 w-4 text-muted-foreground" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="relative overflow-hidden border-0 shadow-sm hover:shadow-md transition-all hover:scale-[1.02] bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/50 dark:to-purple-900/30">
+          <Card className="bg-white dark:bg-slate-900 border-border/40 shadow-sm shadow-slate-100/50 dark:shadow-none hover:border-border/80 transition-colors">
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-purple-600/70 dark:text-purple-400/70 uppercase tracking-wider">Pedidos</p>
-                  <p className="text-2xl font-bold mt-1 text-purple-900 dark:text-purple-100">{stats.ventasMes}</p>
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">Pedidos</p>
+                  <p className="text-2xl font-semibold tracking-tight mt-1">{stats.ventasMes}</p>
                 </div>
-                <div className="h-10 w-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                  <Package className="h-5 w-5 text-purple-500" />
+                <div className="h-8 w-8 rounded-md bg-muted/50 flex items-center justify-center">
+                  <Package className="h-4 w-4 text-muted-foreground" />
                 </div>
               </div>
             </CardContent>
@@ -2242,12 +2241,14 @@ export default function EcommerceAdmin() {
 
       
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="mb-6 grid w-full grid-cols-1 sm:grid-cols-4 gap-2 bg-muted/20 p-1.5 h-auto rounded-xl">
-           <TabsTrigger value="general" className="py-2.5 text-sm rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">General</TabsTrigger>
-           <TabsTrigger value="envios" className="py-2.5 text-sm rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Envíos y Retiros</TabsTrigger>
-           <TabsTrigger value="cupones" className="py-2.5 text-sm rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">🎟️ Cupones</TabsTrigger>
-           <TabsTrigger value="catalogos" className="py-2.5 text-sm rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Catálogos de Vendedores</TabsTrigger>
-        </TabsList>
+        <div className="px-1 border-b border-border/40 mb-6 flex overflow-x-auto">
+          <TabsList className="w-auto h-auto bg-transparent p-0 flex space-x-6">
+             <TabsTrigger value="general" className="relative h-12 rounded-none border-b-2 border-transparent bg-transparent px-0 text-sm font-medium text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none w-max">General</TabsTrigger>
+             <TabsTrigger value="envios" className="relative h-12 rounded-none border-b-2 border-transparent bg-transparent px-0 text-sm font-medium text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none w-max">Envíos y Retiros</TabsTrigger>
+             <TabsTrigger value="cupones" className="relative h-12 rounded-none border-b-2 border-transparent bg-transparent px-0 text-sm font-medium text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none w-max">Cupones</TabsTrigger>
+             <TabsTrigger value="catalogos" className="relative h-12 rounded-none border-b-2 border-transparent bg-transparent px-0 text-sm font-medium text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none w-max">Catálogos de Vendedores</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="general" className="space-y-6">
           {/* Topbar Configuration Section */}
@@ -2261,8 +2262,8 @@ export default function EcommerceAdmin() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-pink-500 flex items-center justify-center">
-                  <Image className="h-5 w-5 text-white" />
+                <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
+                  <Image className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div>
                   <CardTitle className="text-lg">Banners de la Tienda</CardTitle>
@@ -2271,7 +2272,7 @@ export default function EcommerceAdmin() {
               </div>
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 gap-2 text-white">
+                  <Button className="bg-foreground text-background hover:bg-foreground/90 gap-2">
                     <Plus className="h-4 w-4" />
                     Nuevo Banner
                   </Button>
@@ -2302,8 +2303,8 @@ export default function EcommerceAdmin() {
           <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
-                  <MonitorSmartphone className="h-5 w-5 text-white" />
+                <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
+                  <MonitorSmartphone className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div>
                   <CardTitle className="text-lg">Banners Publicitarios</CardTitle>
@@ -2312,7 +2313,7 @@ export default function EcommerceAdmin() {
               </div>
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 gap-2 text-white shrink-0">
+                  <Button className="bg-foreground text-background hover:bg-foreground/90 gap-2 shrink-0">
                     <Plus className="h-4 w-4" />
                     Nuevo Banner Publicitario
                   </Button>

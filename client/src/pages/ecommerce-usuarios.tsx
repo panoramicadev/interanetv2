@@ -188,24 +188,38 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
   
     const updateCommercialInfo = useMutation({
     mutationFn: async (data: any) => {
-      if (!client.clientId) throw new Error("Cliente no tiene ID asignado");
-      const res = await apiRequest("PATCH", `/api/users/clients/${client.clientId}/commercial-info`, data);
-      return res.json();
+      let targetClientId = client.clientId;
+      let newClientIdAssigned = false;
+      if (!targetClientId) {
+        // Fallback: create minimal client and link if not already linked to SAP
+        const linkRes = await apiRequest("POST", `/api/users/clients/${client.id}/create-and-link`);
+        const linkData = await linkRes.json();
+        if (linkData.client?.id) {
+           targetClientId = linkData.client.id;
+           newClientIdAssigned = true;
+        } else {
+           throw new Error(linkData.message || "No se pudo crear la ficha de cliente");
+        }
+      }
+      const res = await apiRequest("PATCH", `/api/users/clients/${targetClientId}/commercial-info`, data);
+      const resultData = await res.json();
+      return { ...resultData, customNewClientId: newClientIdAssigned ? targetClientId : undefined };
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: (data: any, variables: any) => {
       toast({ title: "Guardado", description: "Información comercial actualizada." });
       queryClient.invalidateQueries({ queryKey: ["/api/users/clients"] });
       setIsEditingCommercial(false);
       // Immediately sync the parent's selectedClient so the UI reflects the save
       onClientUpdated({
         ...client,
-        paymentCondition: (variables as any).cpen || client.paymentCondition,
-        salesRepCode: (variables as any).kofuen || client.salesRepCode,
-        creditLimit: (variables as any).crlt != null ? (variables as any).crlt : client.creditLimit,
-        creditAvailable: (variables as any).cren != null ? (variables as any).cren : client.creditAvailable,
-        creditUsed: (variables as any).crsd != null ? (variables as any).crsd : client.creditUsed,
-        pickupWarehouseId: (variables as any).pickupWarehouseId ?? client.pickupWarehouseId,
-        lcen: (variables as any).lcen || client.lcen,
+        clientId: data.customNewClientId || client.clientId,
+        paymentCondition: variables.cpen || client.paymentCondition,
+        salesRepCode: variables.kofuen || client.salesRepCode,
+        creditLimit: variables.crlt != null ? variables.crlt : client.creditLimit,
+        creditAvailable: variables.cren != null ? variables.cren : client.creditAvailable,
+        creditUsed: variables.crsd != null ? variables.crsd : client.creditUsed,
+        pickupWarehouseId: variables.pickupWarehouseId ?? client.pickupWarehouseId,
+        lcen: variables.lcen || client.lcen,
       });
     },
     onError: () => {
@@ -666,7 +680,7 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                   <CreditCard className="h-4 w-4 text-emerald-500" />
                   Información Comercial
                 </CardTitle>
-                {!isEditingCommercial && client.clientId && (
+                {!isEditingCommercial && (
                   <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-emerald-600" onClick={() => setIsEditingCommercial(true)}>
                     <Edit2 className="h-3.5 w-3.5 mr-1" /> Editar
                   </Button>
@@ -846,11 +860,6 @@ function ClientProfile({ client, onBack, onClientUpdated }: { client: ClientUser
                         <span className="text-sm font-medium">{value || "—"}</span>
                       </div>
                     ))}
-                    {!client.clientId && (
-                      <div className="p-3 bg-amber-50 rounded-md border border-amber-200 mt-2">
-                        <p className="text-[11px] text-amber-700 font-medium">Usuario sin ficha SAP. No es posible editar la información comercial de este usuario.</p>
-                      </div>
-                    )}
                   </>
                 )}
               </CardContent>
@@ -1385,23 +1394,120 @@ export default function EcommerceUsuarios() {
 
   const formatDate = (date: string | null) => {
     if (!date) return "—";
-    return new Date(date).toLocaleDateString("es-CL", {
-      day: "2-digit", month: "short", year: "numeric",
-    });
-  };
+    const associatedClients = filteredClients.filter((c) => c.clientId);
+  const nonAssociatedClients = filteredClients.filter((c) => !c.clientId);
 
-  // Show client profile detail
-  if (selectedClient) {
-    return <ClientProfile client={selectedClient} onBack={() => setSelectedClient(null)} onClientUpdated={(updated) => setSelectedClient(updated)} />;
-  }
+  const renderClientsList = (list: ClientUser[], emptyMessage: string) => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center py-16">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        </div>
+      );
+    }
+    if (list.length === 0) {
+      return (
+        <Card className="bg-white dark:bg-gray-800 border bg-muted/20">
+          <CardContent className="py-16 text-center">
+            <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-500">
+              {searchTerm ? "Sin resultados" : emptyMessage}
+            </h3>
+            <p className="text-sm text-gray-400 mt-2 max-w-sm mx-auto">
+              {searchTerm ? "Intenta con otro término de búsqueda" : ""}
+            </p>
+          </CardContent>
+        </Card>
+      );
+    }
+    return (
+      <div className="space-y-3">
+        {list.map((client) => (
+          <Card
+            key={client.id}
+            className="bg-white dark:bg-gray-800 hover:shadow-md transition-all cursor-pointer group border border-gray-100 hover:border-blue-200"
+            onClick={() => setSelectedClient(client)}
+          >
+            <CardContent className="p-4">
+              <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                {/* Avatar + Name */}
+                <div className="flex items-center gap-3 min-w-0 lg:w-1/3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm">
+                    {(client.clientName || client.email)?.[0]?.toUpperCase() || "?"}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                        {client.clientName}
+                      </h3>
+                    </div>
+                    {client.email && (
+                      <p className="text-xs text-gray-500 flex items-center gap-1.5 truncate mt-0.5">
+                        <Mail className="h-3 w-3 flex-shrink-0 opacity-70" />
+                        {client.email}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Info pills */}
+                <div className="flex flex-wrap items-center gap-2 lg:flex-1">
+                  {client.clientCode && (
+                    <span className="inline-flex items-center gap-1.5 text-xs bg-gray-50/80 text-gray-600 px-2.5 py-1 rounded-md border border-gray-100 font-medium">
+                      <Hash className="h-3.5 w-3.5 opacity-60" /> {client.clientCode}
+                    </span>
+                  )}
+                  {client.rut && (
+                    <span className="inline-flex items-center gap-1.5 text-xs bg-gray-50/80 text-gray-600 px-2.5 py-1 rounded-md border border-gray-100 font-medium">
+                      <Building2 className="h-3.5 w-3.5 opacity-60" /> {client.rut}
+                    </span>
+                  )}
+                  {client.phone && (
+                    <span className="inline-flex items-center gap-1.5 text-xs bg-gray-50/80 text-gray-600 px-2.5 py-1 rounded-md border border-gray-100 font-medium">
+                      <Phone className="h-3.5 w-3.5 opacity-60" /> {client.phone}
+                    </span>
+                  )}
+                  {client.branchLabel && (
+                    <span className="inline-flex items-center gap-1.5 text-xs bg-violet-50/80 text-violet-600 px-2.5 py-1 rounded-md border border-violet-100 font-medium">
+                      <GitBranch className="h-3.5 w-3.5 opacity-60" /> Sucursal: {client.branchLabel}
+                    </span>
+                  )}
+                </div>
+
+                {/* Date + Action */}
+                <div className="flex items-center gap-4 text-xs text-gray-400 lg:w-auto lg:flex-shrink-0">
+                  <span className="flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 opacity-60" />
+                    {formatDate(client.createdAt)}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-3 text-xs opacity-0 group-hover:opacity-100 transition-opacity text-blue-600 bg-blue-50/50 hover:bg-blue-100 hover:text-blue-700"
+                  >
+                    <Eye className="h-3.5 w-3.5 mr-1.5" />
+                    Ver perfil
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+
+        <p className="text-xs text-gray-400 text-center pt-2">
+          Mostrando {list.length} usuarios
+        </p>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <ShoppingBag className="h-6 w-6 text-blue-600" />
+          <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-600 flex items-center gap-2">
+            <ShoppingBag className="h-7 w-7 text-blue-600" />
             Usuarios eCommerce
           </h1>
           <p className="text-sm text-gray-500 mt-1">
@@ -1410,159 +1516,88 @@ export default function EcommerceUsuarios() {
         </div>
         <Button
           onClick={() => setIsCreateClientDialogOpen(true)}
-          className="bg-blue-600 hover:bg-blue-700 shadow-sm"
+          className="bg-blue-600 hover:bg-blue-700 shadow-md hover:shadow-lg transition-all rounded-full h-10 px-5"
         >
           <UserPlus className="w-4 h-4 mr-2" />
           Nuevo Usuario Cliente
         </Button>
       </div>
 
-      <Tabs defaultValue="users" className="w-full">
-        <TabsList className="w-full sm:w-auto inline-flex h-auto p-1 bg-muted/50 rounded-xl gap-1">
-          <TabsTrigger value="users" className="flex-1 sm:flex-none flex items-center gap-2 rounded-lg py-2.5 px-4 text-sm">
-            <Users className="h-4 w-4" /> Usuarios Activos
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200 shadow-sm rounded-2xl">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Total Usuarios</p>
+              <p className="text-3xl font-black text-blue-900 mt-1 drop-shadow-sm">{clients.length}</p>
+            </div>
+            <div className="bg-blue-200/50 p-3 rounded-xl">
+              <Users className="h-6 w-6 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-green-50 to-green-100/50 border-green-200 shadow-sm rounded-2xl">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest">Con Ficha SAP (RUT)</p>
+              <p className="text-3xl font-black text-green-900 mt-1 drop-shadow-sm">{associatedClients.length}</p>
+            </div>
+            <div className="bg-green-200/50 p-3 rounded-xl">
+              <Building2 className="h-6 w-6 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 border-purple-200 shadow-sm rounded-2xl">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-purple-600 uppercase tracking-widest">Sin Ficha SAP</p>
+              <p className="text-3xl font-black text-purple-900 mt-1 drop-shadow-sm">{nonAssociatedClients.length}</p>
+            </div>
+            <div className="bg-purple-200/50 p-3 rounded-xl">
+              <KeyRound className="h-6 w-6 text-purple-600" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Global Search */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+        <Input
+          placeholder="Buscar por nombre, email, RUT o código..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-9 text-sm rounded-xl border-gray-200 shadow-sm focus-visible:ring-blue-500 h-10"
+        />
+      </div>
+
+      <Tabs defaultValue="asociados" className="w-full">
+        <TabsList className="w-full sm:w-auto inline-flex h-auto p-1.5 bg-slate-100/80 rounded-2xl gap-1.5">
+          <TabsTrigger value="asociados" className="flex-1 sm:flex-none flex items-center gap-2 rounded-xl py-2 px-5 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm">
+            <Building2 className="h-4 w-4" /> Asociados a RUT
+            <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-blue-100 text-blue-700 border-none">{associatedClients.length}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="requests" className="flex-1 sm:flex-none flex items-center gap-2 rounded-lg py-2.5 px-4 text-sm relative">
+          <TabsTrigger value="no-asociados" className="flex-1 sm:flex-none flex items-center gap-2 rounded-xl py-2 px-5 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-purple-700 data-[state=active]:shadow-sm">
+            <KeyRound className="h-4 w-4" /> No Asociados
+            {nonAssociatedClients.length > 0 && <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 bg-purple-100 text-purple-700 border-none">{nonAssociatedClients.length}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="requests" className="flex-1 sm:flex-none flex items-center gap-2 rounded-xl py-2 px-5 text-sm font-medium transition-all relative data-[state=active]:bg-white data-[state=active]:shadow-sm">
             <FileText className="h-4 w-4" /> Solicitudes Pendientes
             {pendingRequests.length > 0 && (
-              <Badge variant="destructive" className="ml-1 px-1.5 py-0 min-w-[1.25rem] h-5 flex items-center justify-center text-[10px] rounded-full absolute -top-2 -right-2 sm:static sm:mr-0">
+              <Badge variant="destructive" className="ml-1 px-1.5 py-0 min-w-[1.25rem] h-5 flex items-center justify-center text-[10px] rounded-full sm:static sm:mr-0 border-none shadow-sm">
                 {pendingRequests.length}
               </Badge>
             )}
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="users" className="space-y-6 mt-6">
-          {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200 shadow-sm">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-medium text-blue-600 uppercase tracking-wide">Total Usuarios</p>
-                  <p className="text-2xl font-bold text-blue-900 mt-1">{clients.length}</p>
-                </div>
-                <Users className="h-8 w-8 text-blue-400 opacity-80" />
-              </CardContent>
-            </Card>
-            <Card className="bg-gradient-to-br from-green-50 to-green-100/50 border-green-200 shadow-sm">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-medium text-green-600 uppercase tracking-wide">Con Ficha Cliente</p>
-                  <p className="text-2xl font-bold text-green-900 mt-1">{clients.filter((c) => c.clientId).length}</p>
-                </div>
-                <Building2 className="h-8 w-8 text-green-400 opacity-80" />
-              </CardContent>
-            </Card>
-            <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 border-purple-200 shadow-sm">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-medium text-purple-600 uppercase tracking-wide">Solo Credenciales</p>
-                  <p className="text-2xl font-bold text-purple-900 mt-1">{clients.filter((c) => !c.clientId).length}</p>
-                </div>
-                <KeyRound className="h-8 w-8 text-purple-400 opacity-80" />
-              </CardContent>
-            </Card>
-          </div>
+        <TabsContent value="asociados" className="mt-6 animation-fade-in">
+          {renderClientsList(associatedClients, "No hay clientes asociados a RUT en este momento.")}
+        </TabsContent>
 
-          {/* Search */}
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Buscar por nombre, email, RUT o código..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 text-sm rounded-lg"
-            />
-          </div>
-
-          {/* Clients List */}
-          {isLoading ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-            </div>
-          ) : filteredClients.length === 0 ? (
-            <Card className="bg-white dark:bg-gray-800 border bg-muted/20">
-              <CardContent className="py-16 text-center">
-                <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-500">
-                  {searchTerm ? "Sin resultados" : "No hay clientes registrados"}
-                </h3>
-                <p className="text-sm text-gray-400 mt-2 max-w-sm mx-auto">
-                  {searchTerm
-                    ? "Intenta con otro término de búsqueda"
-                    : "Los clientes de eCommerce se crean manualmente desde la sección principal de Clientes asignando credenciales y marcándolos como portal B2B."}
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {filteredClients.map((client) => (
-                <Card
-                  key={client.id}
-                  className="bg-white dark:bg-gray-800 hover:shadow-md transition-all cursor-pointer group border border-gray-100 hover:border-blue-200"
-                  onClick={() => setSelectedClient(client)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                      {/* Avatar + Name */}
-                      <div className="flex items-center gap-3 min-w-0 lg:w-1/3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                          {(client.clientName || client.email)?.[0]?.toUpperCase() || "?"}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                              {client.clientName}
-                            </h3>
-                          </div>
-                          {client.email && (
-                            <p className="text-xs text-gray-500 flex items-center gap-1.5 truncate mt-0.5">
-                              <Mail className="h-3 w-3 flex-shrink-0 opacity-70" />
-                              {client.email}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Info pills */}
-                      <div className="flex flex-wrap items-center gap-2 lg:flex-1">
-                        {client.clientCode && (
-                          <span className="inline-flex items-center gap-1.5 text-xs bg-gray-50/80 text-gray-600 px-2.5 py-1 rounded-md border border-gray-100 font-medium">
-                            <Hash className="h-3.5 w-3.5 opacity-60" /> {client.clientCode}
-                          </span>
-                        )}
-                        {client.rut && (
-                          <span className="inline-flex items-center gap-1.5 text-xs bg-gray-50/80 text-gray-600 px-2.5 py-1 rounded-md border border-gray-100 font-medium">
-                            <Building2 className="h-3.5 w-3.5 opacity-60" /> {client.rut}
-                          </span>
-                        )}
-                        {client.phone && (
-                          <span className="inline-flex items-center gap-1.5 text-xs bg-gray-50/80 text-gray-600 px-2.5 py-1 rounded-md border border-gray-100 font-medium">
-                            <Phone className="h-3.5 w-3.5 opacity-60" /> {client.phone}
-                          </span>
-                        )}
-                        {client.branchLabel && (
-                          <span className="inline-flex items-center gap-1.5 text-xs bg-violet-50/80 text-violet-600 px-2.5 py-1 rounded-md border border-violet-100 font-medium">
-                            <GitBranch className="h-3.5 w-3.5 opacity-60" /> Sucursal: {client.branchLabel}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Date + Action */}
-                      <div className="flex items-center gap-4 text-xs text-gray-400 lg:w-auto lg:flex-shrink-0">
-                        <span className="flex items-center gap-1.5">
-                          <Calendar className="h-3.5 w-3.5 opacity-60" />
-                          {formatDate(client.createdAt)}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 px-3 text-xs opacity-0 group-hover:opacity-100 transition-opacity text-blue-600 bg-blue-50/50 hover:bg-blue-100 hover:text-blue-700"
-                        >
-                          <Eye className="h-3.5 w-3.5 mr-1.5" />
-                          Ver perfil
-                        </Button>
-                      </div>
+        <TabsContent value="no-asociados" className="mt-6 animation-fade-in">
+          {renderClientsList(nonAssociatedClients, "No hay clientes sin asociar.")}
+        </TabsContent>         </div>
                     </div>
                   </CardContent>
                 </Card>

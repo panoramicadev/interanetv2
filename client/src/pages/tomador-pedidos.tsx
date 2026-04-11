@@ -3810,140 +3810,48 @@ export default function TomadorPedidos() {
 
   return (
     <>
-      {/* Premium Header with Action Buttons */}
-      <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 ${isMobile ? 'px-4 py-5 mx-3 mt-3' : 'px-6 py-8 mx-3 sm:mx-4 lg:mx-6 mt-8'}`}>
-        {/* Background decorative elements */}
-        <div className="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-orange-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-orange-600/5 rounded-full blur-[100px]" />
-
-        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className={`${isMobile ? 'h-10 w-10 rounded-xl' : 'h-12 w-12 rounded-2xl'} bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/20`}>
-              <Calculator className={`${isMobile ? 'h-5 w-5' : 'h-6 w-6'} text-white`} />
-            </div>
-            <div>
-              <h1 className={`${isMobile ? 'text-xl' : 'text-2xl md:text-3xl'} font-bold text-white tracking-tight`}>
-                Tomador de Pedidos
-              </h1>
-              <p className={`text-slate-400 ${isMobile ? 'text-xs' : 'text-sm md:text-base'} mt-0.5`}>
-                Presupuestos, cotizaciones y pedidos
-              </p>
-            </div>
+      {/* Minimalist Header with Action Buttons */}
+      <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 ${isMobile ? 'px-3 mt-5' : 'px-3 sm:px-4 lg:px-6 mt-8'}`}>
+        <div className="flex items-center gap-3">
+          <div className={`${isMobile ? 'h-10 w-10 rounded-xl' : 'h-12 w-12 rounded-xl'} bg-orange-50 flex items-center justify-center border border-orange-100`}>
+            <Calculator className={`${isMobile ? 'h-5 w-5' : 'h-6 w-6'} text-orange-600`} />
           </div>
-
-          {/* Action Buttons in Header */}
-          {!(isMobile && showClientSearch) && (
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={handleCreateQuoteForNewClient}
-                className={`bg-gradient-to-r from-orange-400 to-orange-600 hover:from-orange-500 hover:to-orange-700 text-white shadow-lg shadow-orange-500/30 flex items-center justify-center gap-2 border border-orange-400/30 ${isMobile ? 'h-10 text-xs font-semibold rounded-xl px-3' : 'rounded-xl px-5 h-10'}`}
-                size="sm"
-                data-testid="button-create-quote-new-client"
-              >
-                <Calculator className="w-4 h-4" />
-                {isMobile ? "Nuevo" : "Crear Presupuesto"}
-              </Button>
-              <Link href="/presupuestos-avanzados">
-                <Button
-                  variant="outline"
-                  className={`border-slate-600 text-slate-300 hover:bg-slate-700/50 hover:text-white bg-slate-800/50 backdrop-blur-sm flex items-center justify-center gap-2 ${isMobile ? 'h-10 text-xs font-semibold rounded-xl px-3' : 'rounded-xl px-5 h-10'}`}
-                  size="sm"
-                  data-testid="button-presupuestos-avanzados"
-                >
-                  <FileText className="w-4 h-4" />
-                  {isMobile ? "Avanzado" : "Presupuestos Avanzados"}
-                </Button>
-              </Link>
-            </div>
-          )}
+          <div>
+            <h1 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold text-slate-800 tracking-tight`}>
+              Tomador de Pedidos
+            </h1>
+            <p className={`text-slate-500 ${isMobile ? 'text-xs' : 'text-sm'} mt-0.5`}>
+              Presupuestos, cotizaciones y pedidos
+            </p>
+          </div>
         </div>
-      </div>
 
-      {/* KPI Stats Cards */}
-      {!isMobile && (
-        <div className="grid grid-cols-4 gap-4 px-3 sm:px-4 lg:px-6 -mt-5 relative z-10">
-          {[
-            {
-              label: "Cotizaciones Activas",
-              value: tomadorInit?.quoteStats?.activeQuotes ?? '—',
-              icon: FileText,
-              gradient: "from-blue-500 to-blue-600",
-              bgLight: "bg-blue-50",
-              textColor: "text-blue-600",
-              shadowColor: "shadow-blue-500/10",
-            },
-            {
-              label: "Monto en Cotizaciones",
-              value: tomadorInit?.quoteStats?.totalAmount != null
-                ? `$${Math.round(tomadorInit.quoteStats.totalAmount).toLocaleString('es-CL')}`
-                : '—',
-              icon: TrendingUp,
-              gradient: "from-emerald-500 to-emerald-600",
-              bgLight: "bg-emerald-50",
-              textColor: "text-emerald-600",
-              shadowColor: "shadow-emerald-500/10",
-            },
-            {
-              label: "Cotizaciones del Mes",
-              value: tomadorInit?.quoteStats?.monthlyCount ?? '—',
-              icon: BarChart3,
-              gradient: "from-violet-500 to-violet-600",
-              bgLight: "bg-violet-50",
-              textColor: "text-violet-600",
-              shadowColor: "shadow-violet-500/10",
-            },
-            {
-              label: "Aprobadas / Convertidas",
-              value: tomadorInit?.quoteStats?.acceptedCount ?? '—',
-              icon: CheckCircle2,
-              gradient: "from-amber-500 to-orange-500",
-              bgLight: "bg-amber-50",
-              textColor: "text-amber-600",
-              shadowColor: "shadow-amber-500/10",
-            },
-          ].map((kpi, idx) => (
-            <div
-              key={idx}
-              className={`bg-white rounded-2xl border border-gray-100 p-5 shadow-sm ${kpi.shadowColor} hover:shadow-md hover:border-gray-200 transition-all duration-300 group`}
+        {/* Action Buttons in Header */}
+        {!(isMobile && showClientSearch) && (
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleCreateQuoteForNewClient}
+              className={`bg-orange-600 hover:bg-orange-700 text-white shadow-sm flex items-center justify-center gap-2 ${isMobile ? 'h-10 text-xs font-medium rounded-lg px-3' : 'rounded-lg px-5 h-10 font-medium'}`}
+              size="sm"
+              data-testid="button-create-quote-new-client"
             >
-              <div className="flex items-center justify-between mb-3">
-                <div className={`h-10 w-10 rounded-xl ${kpi.bgLight} flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
-                  <kpi.icon className={`h-5 w-5 ${kpi.textColor}`} />
-                </div>
-              </div>
-              <div className="text-2xl font-bold text-gray-900 tracking-tight">
-                {kpi.value}
-              </div>
-              <div className="text-xs text-gray-500 mt-1 font-medium">
-                {kpi.label}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Mobile KPI Cards - Compact */}
-      {isMobile && (
-        <div className="grid grid-cols-2 gap-2 px-3 -mt-3 relative z-10">
-          {[
-            { label: "Activas", value: tomadorInit?.quoteStats?.activeQuotes ?? '—', icon: FileText, color: "text-blue-600", bg: "bg-blue-50" },
-            { label: "Monto", value: tomadorInit?.quoteStats?.totalAmount != null ? `$${Math.round(tomadorInit.quoteStats.totalAmount / 1000).toLocaleString('es-CL')}K` : '—', icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
-            { label: "Mes", value: tomadorInit?.quoteStats?.monthlyCount ?? '—', icon: BarChart3, color: "text-violet-600", bg: "bg-violet-50" },
-            { label: "Aprobadas", value: tomadorInit?.quoteStats?.acceptedCount ?? '—', icon: CheckCircle2, color: "text-amber-600", bg: "bg-amber-50" },
-          ].map((kpi, idx) => (
-            <div key={idx} className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm flex items-center gap-3">
-              <div className={`h-9 w-9 rounded-lg ${kpi.bg} flex items-center justify-center flex-shrink-0`}>
-                <kpi.icon className={`h-4 w-4 ${kpi.color}`} />
-              </div>
-              <div>
-                <div className="text-base font-bold text-gray-900 leading-tight">{kpi.value}</div>
-                <div className="text-[10px] text-gray-500 font-medium">{kpi.label}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+              <Plus className="w-4 h-4" />
+              {isMobile ? "Nuevo" : "Crear Presupuesto"}
+            </Button>
+            <Link href="/presupuestos-avanzados">
+              <Button
+                variant="outline"
+                className={`border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 shadow-sm flex items-center justify-center gap-2 ${isMobile ? 'h-10 text-xs font-medium rounded-lg px-3' : 'rounded-lg px-5 h-10 font-medium'}`}
+                size="sm"
+                data-testid="button-presupuestos-avanzados"
+              >
+                <FileText className="w-4 h-4" />
+                {isMobile ? "Avanzado" : "Presupuestos Avanzados"}
+              </Button>
+            </Link>
+          </div>
+        )}
+      </div>
 
       <div className={`${isMobile
         ? 'px-3 pb-12 mt-4'
